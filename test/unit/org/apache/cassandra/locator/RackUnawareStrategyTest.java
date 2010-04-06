@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.service.StorageServiceAccessor;
@@ -40,7 +41,7 @@ import org.apache.cassandra.service.StorageService;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
-public class RackUnawareStrategyTest
+public class RackUnawareStrategyTest extends SchemaLoader
 {
     @Test
     public void tryBogusTable()

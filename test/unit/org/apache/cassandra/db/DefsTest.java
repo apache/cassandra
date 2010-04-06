@@ -59,12 +59,6 @@ import java.util.concurrent.ExecutionException;
 
 public class DefsTest extends CleanupHelper
 {
-    @Before
-    public void setup()
-    {
-        // just something to ensure that DD has been initialized.
-        DatabaseDescriptor.getNonSystemTables();
-    }
 
     @Test
     public void saveAndRestore() throws IOException
@@ -105,10 +99,10 @@ public class DefsTest extends CleanupHelper
     public void testMigrations() throws IOException, ConfigurationException
     {
         // do a save. make sure it doesn't mess with the defs version.
-        assert DatabaseDescriptor.getDefsVersion() == null;
+        UUID prior = DatabaseDescriptor.getDefsVersion();
         UUID ver0 = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
         DefsTable.dumpToStorage(ver0);
-        assert DatabaseDescriptor.getDefsVersion() == null;
+        assert DatabaseDescriptor.getDefsVersion().equals(prior);
         
         // add a cf.
         CFMetaData newCf1 = new CFMetaData("Keyspace1", "MigrationCf_1", "Standard", new UTF8Type(), null, "Migration CF ", 0, 0);

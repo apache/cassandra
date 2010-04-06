@@ -26,12 +26,13 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 
 import org.junit.Test;
 
-public class BootstrapTest
+public class BootstrapTest extends SchemaLoader
 {
     @Test
     public void testGetNewNames() throws IOException

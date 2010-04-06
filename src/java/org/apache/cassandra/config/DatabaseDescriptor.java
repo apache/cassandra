@@ -31,7 +31,9 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.locator.IEndPointSnitch;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.XMLUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -482,25 +484,16 @@ public class DatabaseDescriptor
             };
             KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE, null, -1, null, systemCfDefs);
             tables.put(Table.SYSTEM_TABLE, systemMeta);
-            
-            // todo: if tables are defined in the system store, use those.  load from xml otherwise.
-            readTablesFromXml();
-            
-            // todo: fill in repStrat and epSnitch when this table is set to replicate.
+                
             CFMetaData[] definitionCfDefs = new CFMetaData[]
             {
                 new CFMetaData(Table.DEFINITIONS, Migration.MIGRATIONS_CF, "Standard", new TimeUUIDType(), null, "individual schema mutations", 0, 0),
                 new CFMetaData(Table.DEFINITIONS, Migration.SCHEMA_CF, "Standard", new UTF8Type(), null, "current state of the schema", 0, 0)
             };
-            KSMetaData ksDefs = new KSMetaData(Table.DEFINITIONS, null, -1, null, definitionCfDefs);
-            tables.put(Table.DEFINITIONS, ksDefs);
+            tables.put(Table.DEFINITIONS, new KSMetaData(Table.DEFINITIONS, null, -1, null, definitionCfDefs));
             
             // NOTE: make sure that all system CFMs defined by now. calling fixMaxId at this point will set the base id
             // to a value that leaves room for future system cfms.
-            CFMetaData.fixMaxId();
-            
-            // todo: if tables are defined in the system store, use those.  load from xml otherwise.
-            readTablesFromXml();
             CFMetaData.fixMaxId();
             
             /* Load the seeds for node contact points */
@@ -525,8 +518,43 @@ public class DatabaseDescriptor
             throw new RuntimeException(e);
         }
     }
+    
+    public static void loadSchemas() throws IOException
+    {
+        // we can load tables from local storage if a version is set in the system table and that acutally maps to
+        // real data in the definitions table.  If we do end up loading from xml, store the defintions so that we
+        // don't load from xml anymore.
+        UUID uuid = Migration.getLastMigrationId();
+        if (uuid == null)
+            logger.warn("Couldn't detect any schema definitions in local storage. I hope you've got a plan.");
+        else
+        {
+            logger.info("Loading schema version " + uuid.toString());
+            Collection<KSMetaData> tableDefs = DefsTable.loadFromStorage(uuid);   
+            for (KSMetaData def : tableDefs)
+            {
+                DatabaseDescriptor.setTableDefinition(def, uuid);
+                // this part creates storage and jmx objects.
+                Table.open(def.name);
+            }
+            
+            // since we loaded definitions from local storage, log a warning if definitions exist in xml.
+            try
+            {
+                XMLUtils xmlUtils = new XMLUtils(configFileName);
+                NodeList tablesxml = xmlUtils.getRequestedNodeList("/Storage/Keyspaces/Keyspace");
+                if (tablesxml.getLength() > 0)
+                    logger.warn("Schema definitions were defined both locally and in storage-conf.xml. Definitions in storage-conf.xml were ignored.");
+            }
+            catch (Exception ex)
+            {
+                logger.warn("Problem checking for schema defintions in xml", ex);
+            }
+        }
+        CFMetaData.fixMaxId();
+    }
 
-    private static void readTablesFromXml() throws ConfigurationException
+    public static void readTablesFromXml() throws ConfigurationException
     {
         XMLUtils xmlUtils = null;
         try
@@ -730,6 +758,8 @@ public class DatabaseDescriptor
             ex.initCause(e);
             throw ex;
         }
+        if (DatabaseDescriptor.listenAddress != null)
+            defsVersion = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
     }
 
     public static IAuthenticator getAuthenticator()
@@ -1118,10 +1148,9 @@ public class DatabaseDescriptor
     // process of mutating an individual keyspace, rather than setting manually here.
     public static void setTableDefinition(KSMetaData ksm, UUID newVersion)
     {
-        // at some point, this assert will be valid, because defsVersion_ will be set when the table defs are loaded.
-//        assert newVersion != null && !newVersion.equals(defsVersion_) && defsVersion_.compareTo(newVersion) < 0;
         tables.put(ksm.name, ksm);
         DatabaseDescriptor.defsVersion = newVersion;
+        StorageService.instance.initReplicationStrategy(ksm.name);
     }
     
     public static void clearTableDefinition(KSMetaData ksm, UUID newVersion)

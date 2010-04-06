@@ -75,6 +75,16 @@ public class CassandraDaemon {
                 }
             }
         });
+        
+        try
+        {
+            DatabaseDescriptor.loadSchemas();
+        }
+        catch (IOException e)
+        {
+            logger.error("Fatal exception during initialization", e);
+            System.exit(100);
+        }
 
         // initialize keyspaces
         for (String table : DatabaseDescriptor.getTables())

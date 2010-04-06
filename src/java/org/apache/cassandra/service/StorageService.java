@@ -33,9 +33,11 @@ import javax.management.*;
 
 import com.google.common.collect.Multimaps;
 import org.apache.cassandra.concurrent.*;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.DeletionService;
@@ -47,6 +49,7 @@ import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.io.util.FileUtils;
 
@@ -1568,7 +1571,39 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
        
         setMode("Node is drained", true);
     }
-    
+
+    /**
+     * load schema from xml. This can only be done on a fresh system.
+     * @throws ConfigurationException
+     * @throws IOException
+     */
+    public void loadSchemaFromXML() throws ConfigurationException, IOException
+    {
+        // blow up if there is a schema saved.
+        if (DatabaseDescriptor.getDefsVersion().timestamp() > 0 || Migration.getLastMigrationId() != null)
+            throw new ConfigurationException("Cannot load from XML on top of pre-existing schemas.");
+        DatabaseDescriptor.readTablesFromXml();
+        assert DatabaseDescriptor.getDefsVersion().timestamp() > 0;
+        DefsTable.dumpToStorage(DatabaseDescriptor.getDefsVersion());
+        // flush system and definition tables.
+        Collection<Future> flushers = new ArrayList<Future>();
+        flushers.addAll(Table.open(Table.SYSTEM_TABLE).flush());
+        flushers.addAll(Table.open(Table.DEFINITIONS).flush());
+        for (Future f : flushers)
+        {
+            try
+            {
+                f.get();
+            }
+            catch (Exception e)
+            {
+                ConfigurationException ce = new ConfigurationException(e.getMessage());
+                ce.initCause(e);
+                throw ce;
+            }
+        }
+        
+    }
 
     // Never ever do this at home. Used by tests.
     Map<String, AbstractReplicationStrategy> setReplicationStrategyUnsafe(Map<String, AbstractReplicationStrategy> replacement)

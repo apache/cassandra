@@ -25,6 +25,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.utils.UUIDGen;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -49,6 +50,10 @@ public class DefsTable
             KSMetaData ks = DatabaseDescriptor.getTableDefinition(tableName);
             rm.add(new QueryPath(Migration.SCHEMA_CF, null, ks.name.getBytes()), KSMetaData.serialize(ks), now);
         }
+        rm.apply();
+        
+        rm = new RowMutation(Table.DEFINITIONS, Migration.LAST_MIGRATION_KEY);
+        rm.add(new QueryPath(Migration.SCHEMA_CF, null, Migration.LAST_MIGRATION_KEY.getBytes()), UUIDGen.decompose(version), now);
         rm.apply();
     }
 

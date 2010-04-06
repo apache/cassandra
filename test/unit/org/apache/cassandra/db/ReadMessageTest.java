@@ -26,13 +26,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 
+import org.apache.cassandra.SchemaLoader;
 import org.apache.commons.lang.ArrayUtils;
 import org.junit.Test;
 
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 
-public class ReadMessageTest
+public class ReadMessageTest extends SchemaLoader
 {
     @Test
     public void testMakeReadMessage() throws IOException

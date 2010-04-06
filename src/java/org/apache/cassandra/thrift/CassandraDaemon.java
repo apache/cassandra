@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.InetAddress;
 
+import org.apache.cassandra.config.ConfigurationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,6 +86,16 @@ public class CassandraDaemon
             }
         });
 
+        try
+        {
+            DatabaseDescriptor.loadSchemas();
+        }
+        catch (IOException e)
+        {
+            logger.error("Fatal exception during initialization", e);
+            System.exit(100);
+        }
+        
         // initialize keyspaces
         for (String table : DatabaseDescriptor.getTables())
         {

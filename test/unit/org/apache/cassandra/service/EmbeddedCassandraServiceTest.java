@@ -24,6 +24,8 @@ import static org.junit.Assert.assertNotNull;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.ColumnOrSuperColumn;
 import org.apache.cassandra.thrift.ColumnPath;
@@ -62,12 +64,13 @@ public class EmbeddedCassandraServiceTest
      * @throws InterruptedException
      */
     @BeforeClass
-    public static void setup() throws TTransportException, IOException, InterruptedException
+    public static void setup() throws TTransportException, IOException, InterruptedException, ConfigurationException
     {
 
         // Tell cassandra where the configuration files are.
         // Use the test configuration file.
         System.setProperty("storage-config", "test/conf");
+        DatabaseDescriptor.readTablesFromXml();
 
         cassandra = new EmbeddedCassandraService();
         cassandra.init();

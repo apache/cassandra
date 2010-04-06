@@ -20,7 +20,9 @@ package org.apache.cassandra.db.commitlog;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.Pair;
 import org.junit.Before;
@@ -34,14 +36,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
-public class CommitLogHeaderTest
+public class CommitLogHeaderTest extends SchemaLoader
 {
-    @Before
-    public void setup()
-    {
-        // data definitions must be loaded.
-        DatabaseDescriptor.getTables();
-    }
     
     @Test
     public void testEmptyHeader()

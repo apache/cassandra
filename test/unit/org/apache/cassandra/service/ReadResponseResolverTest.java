@@ -23,6 +23,7 @@ package org.apache.cassandra.service;
 
 import java.util.Arrays;
 
+import org.apache.cassandra.SchemaLoader;
 import org.junit.Test;
 
 import org.apache.cassandra.db.ColumnFamily;
@@ -31,7 +32,7 @@ import static org.apache.cassandra.db.TableTest.assertColumns;
 import static org.apache.cassandra.Util.column;
 import static junit.framework.Assert.assertNull;
 
-public class ReadResponseResolverTest
+public class ReadResponseResolverTest extends SchemaLoader
 {
     @Test
     public void testResolveSupersetNewer()

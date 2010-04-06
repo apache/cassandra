@@ -24,13 +24,14 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.TreeMap;
 
+import org.apache.cassandra.SchemaLoader;
 import org.junit.Test;
 
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.db.filter.QueryPath;
 import static org.apache.cassandra.Util.column;
 
-public class ColumnFamilyTest
+public class ColumnFamilyTest extends SchemaLoader
 {
     // TODO test SuperColumns
 

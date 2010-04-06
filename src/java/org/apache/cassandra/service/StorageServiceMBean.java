@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.Range;
 import java.net.InetAddress;
 
@@ -169,4 +170,10 @@ public interface StorageServiceMBean
 
     /** makes node unavailable for writes, flushes memtables and replays commitlog. */
     public void drain() throws IOException, InterruptedException, ExecutionException;
+
+    /**
+     * Introduced in 0.7 to allow nodes to load their existing xml defined schemas.
+     * @todo: deprecate in 0.7+1, remove in 0.7+2.
+     */ 
+    public void loadSchemaFromXML() throws ConfigurationException, IOException;
 }

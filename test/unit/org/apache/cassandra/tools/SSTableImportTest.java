@@ -21,6 +21,8 @@ package org.apache.cassandra.tools;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
+
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
@@ -33,7 +35,7 @@ import static org.apache.cassandra.io.sstable.SSTableUtils.tempSSTableFile;
 import org.json.simple.parser.ParseException;
 import org.junit.Test;
 
-public class SSTableImportTest
+public class SSTableImportTest extends SchemaLoader
 {   
     @Test
     public void testImportSimpleCf() throws IOException, ParseException

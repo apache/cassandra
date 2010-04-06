@@ -23,6 +23,8 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Arrays;
+
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
@@ -42,7 +44,7 @@ import org.json.simple.JSONValue;
 import org.json.simple.parser.ParseException;
 import org.junit.Test;
 
-public class SSTableExportTest
+public class SSTableExportTest extends SchemaLoader
 {
     @Test
     public void testEnumeratekeys() throws IOException

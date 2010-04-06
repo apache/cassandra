@@ -20,13 +20,14 @@ package org.apache.cassandra.db;
 
 import java.util.Arrays;
 
+import org.apache.cassandra.SchemaLoader;
 import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
 import org.apache.cassandra.db.marshal.AsciiType;
 import static org.apache.cassandra.Util.column;
 
-public class RowTest
+public class RowTest extends SchemaLoader
 {
     @Test
     public void testDiffColumnFamily()

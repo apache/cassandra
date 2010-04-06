@@ -29,7 +29,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class CleanupHelper
+public class CleanupHelper extends SchemaLoader
 {
     private static Logger logger = LoggerFactory.getLogger(CleanupHelper.class);
 

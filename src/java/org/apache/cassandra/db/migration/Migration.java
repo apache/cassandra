@@ -145,7 +145,7 @@ public abstract class Migration
         ColumnFamilyStore cfStore = defs.getColumnFamilyStore(SCHEMA_CF);
         QueryFilter filter = QueryFilter.getNamesFilter(LAST_MIGRATION_KEY, new QueryPath(SCHEMA_CF), LAST_MIGRATION_KEY.getBytes());
         ColumnFamily cf = cfStore.getColumnFamily(filter);
-        if (cf.getColumnNames().size() == 0)
+        if (cf == null || cf.getColumnNames().size() == 0)
             return null;
         else
             return UUIDGen.makeType1UUID(cf.getColumn(LAST_MIGRATION_KEY.getBytes()).value());
