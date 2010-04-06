@@ -18,25 +18,17 @@
 
 package org.apache.cassandra.config;
 
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ListMultimap;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Multimaps;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
-
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.commons.lang.ObjectUtils;
+import org.apache.commons.lang.builder.EqualsBuilder;
+import org.apache.commons.lang.builder.HashCodeBuilder;
+
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.utils.Pair;
 
 public final class CFMetaData
 {
@@ -195,23 +187,49 @@ public final class CFMetaData
         return new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize, readRepairChance, cfId);
     }
     
-    public boolean equals(Object obj)
+
+    public boolean equals(Object obj) 
     {
-        if (!(obj instanceof CFMetaData))
+        if (obj == this)
+        {
+            return true;
+        }
+        else if (obj == null || obj.getClass() != getClass())
+        {
             return false;
-        CFMetaData other = (CFMetaData)obj;
-        return other.tableName.equals(tableName)
-                && other.cfName.equals(cfName)
-                && other.columnType.equals(columnType)
-                && other.comparator.equals(comparator)
-                && ObjectUtils.equals(other.subcolumnComparator, subcolumnComparator)
-                && ObjectUtils.equals(other.comment, comment)
-                && other.rowCacheSize == rowCacheSize
-                && other.keyCacheSize == keyCacheSize
-                && other.readRepairChance == readRepairChance
-                && other.cfId == cfId;
+        }
+
+        CFMetaData rhs = (CFMetaData) obj;
+        return new EqualsBuilder()
+            .append(tableName, rhs.tableName)
+            .append(cfName, rhs.cfName)
+            .append(columnType, rhs.columnType)
+            .append(comparator, rhs.comparator)
+            .append(subcolumnComparator, rhs.subcolumnComparator)
+            .append(comment, rhs.comment)
+            .append(rowCacheSize, rhs.rowCacheSize)
+            .append(keyCacheSize, rhs.keyCacheSize)
+            .append(readRepairChance, rhs.readRepairChance)
+            .append(cfId, rhs.cfId)
+            .isEquals();
     }
-    
+
+    public int hashCode()
+    {
+        return new HashCodeBuilder(29, 1597)
+            .append(tableName)
+            .append(cfName)
+            .append(columnType)
+            .append(comparator)
+            .append(subcolumnComparator)
+            .append(comment)
+            .append(rowCacheSize)
+            .append(keyCacheSize)
+            .append(readRepairChance)
+            .append(cfId)
+            .toHashCode();
+    }
+
     private static int nextId() 
     {
         return idGen.getAndIncrement();
