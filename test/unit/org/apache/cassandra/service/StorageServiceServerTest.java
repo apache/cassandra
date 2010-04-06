@@ -21,12 +21,16 @@ package org.apache.cassandra.service;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 import org.junit.Test;
 
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -49,4 +53,12 @@ public class StorageServiceServerTest
         //StorageService.instance.decommission();
         StorageService.instance.stopClient();
     }
+
+    @Test
+    public void testGetAllRangesEmpty()
+    {
+        List<Token> toks = Collections.emptyList();
+        assertEquals(Collections.emptyList(), StorageService.instance.getAllRanges(toks));
+    }
 }
+

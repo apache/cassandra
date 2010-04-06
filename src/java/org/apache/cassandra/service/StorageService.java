@@ -1058,7 +1058,8 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     {
         // request that all relevant endpoints generate trees
         final MessagingService ms = MessagingService.instance;
-        final List<InetAddress> endpoints = getNaturalEndpoints(tableName, getLocalToken());
+        final Set<InetAddress> endpoints = AntiEntropyService.getNeighbors(tableName);
+        endpoints.add(FBUtilities.getLocalAddress());
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
         {
             Message request = TreeRequestVerbHandler.makeVerb(tableName, cfStore.getColumnFamilyName());
@@ -1120,6 +1121,8 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         if (logger_.isDebugEnabled())
             logger_.debug("computing ranges for " + StringUtils.join(sortedTokens, ", "));
 
+        if (sortedTokens.isEmpty()) 
+            return Collections.emptyList();
         List<Range> ranges = new ArrayList<Range>();
         int size = sortedTokens.size();
         for (int i = 1; i < size; ++i)

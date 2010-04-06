@@ -31,6 +31,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.CompactionIterator.CompactedRow;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 import static org.apache.cassandra.service.AntiEntropyService.*;
 import org.apache.cassandra.utils.FBUtilities;
@@ -41,40 +42,39 @@ import org.apache.cassandra.config.DatabaseDescriptorTest;
 import org.apache.cassandra.Util;
 
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class AntiEntropyServiceTest extends CleanupHelper
 {
     // table and column family to test against
-    public AntiEntropyService aes;
+    public static AntiEntropyService aes;
 
     public static String tablename;
     public static String cfname;
     public static InetAddress LOCAL, REMOTE;
 
-    private static boolean initialized;
+    @BeforeClass
+    public static void prepareClass() throws Exception
+    {
+        LOCAL = FBUtilities.getLocalAddress();
+        tablename = "Keyspace4";
+        StorageService.instance.initServer();
+        // generate a fake endpoint for which we can spoof receiving/sending trees
+        REMOTE = InetAddress.getByName("127.0.0.2");
+        cfname = Table.open(tablename).getColumnFamilies().iterator().next();
+    }
 
     @Before
     public void prepare() throws Exception
     {
-        if (!initialized)
-        {
-            LOCAL = FBUtilities.getLocalAddress();
-            tablename = "Keyspace4";
-
-            StorageService.instance.initServer();
-            // generate a fake endpoint for which we can spoof receiving/sending trees
-            TokenMetadata tmd = StorageService.instance.getTokenMetadata();
-            IPartitioner part = StorageService.getPartitioner();
-            REMOTE = InetAddress.getByName("127.0.0.2");
-            tmd.updateNormalToken(part.getMinimumToken(), REMOTE);
-            assert tmd.isMember(REMOTE);
-
-            cfname = Table.open(tablename).getColumnFamilies().iterator().next();
-            initialized = true;
-        }
         aes = AntiEntropyService.instance;
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+        tmd.clearUnsafe();
+        tmd.updateNormalToken(StorageService.getPartitioner().getRandomToken(), LOCAL);
+        tmd.updateNormalToken(StorageService.getPartitioner().getMinimumToken(), REMOTE);
+        assert tmd.isMember(REMOTE);
     }
 
     @Test
@@ -202,6 +202,32 @@ public class AntiEntropyServiceTest extends CleanupHelper
     }
 
     @Test
+    public void testGetNeighborsPlusOne() throws Throwable
+    {
+        // generate rf+1 nodes, and ensure that all nodes are returned
+        Set<InetAddress> expected = addTokens(1 + 1 + DatabaseDescriptor.getReplicationFactor(tablename));
+        expected.remove(FBUtilities.getLocalAddress());
+        assertEquals(expected, AntiEntropyService.getNeighbors(tablename));
+    }
+
+    @Test
+    public void testGetNeighborsTimesTwo() throws Throwable
+    {
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+
+        // generate rf*2 nodes, and ensure that only neighbors specified by the ARS are returned
+        addTokens(1 + (2 * DatabaseDescriptor.getReplicationFactor(tablename)));
+        AbstractReplicationStrategy ars = StorageService.instance.getReplicationStrategy(tablename);
+        Set<InetAddress> expected = new HashSet<InetAddress>();
+        for (Range replicaRange : ars.getAddressRanges(tablename).get(FBUtilities.getLocalAddress()))
+        {
+            expected.addAll(ars.getRangeAddresses(tmd, tablename).get(replicaRange));
+        }
+        expected.remove(FBUtilities.getLocalAddress());
+        assertEquals(expected, AntiEntropyService.getNeighbors(tablename));
+    }
+
+    @Test
     public void testDifferencer() throws Throwable
     {
         // generate a tree
@@ -230,6 +256,19 @@ public class AntiEntropyServiceTest extends CleanupHelper
         // ensure that the changed range was recorded
         assertEquals("Wrong number of differing ranges", 1, diff.differences.size());
         assertEquals("Wrong differing range", changed, diff.differences.get(0));
+    }
+
+    Set<InetAddress> addTokens(int max) throws Throwable
+    {
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+        Set<InetAddress> endpoints = new HashSet<InetAddress>();
+        for (int i = 1; i < max; i++)
+        {
+            InetAddress endpoint = InetAddress.getByName("127.0.0." + i);
+            tmd.updateNormalToken(StorageService.getPartitioner().getRandomToken(), endpoint);
+            endpoints.add(endpoint);
+        }
+        return endpoints;
     }
 
     Future<Object> flushAES()

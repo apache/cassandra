@@ -45,9 +45,6 @@ import org.apache.cassandra.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.collect.Collections2;
-import com.google.common.base.Predicates;
-
 /**
  * AntiEntropyService encapsulates "validating" (hashing) individual column families,
  * exchanging MerkleTrees with remote nodes via a TreeRequest/Response conversation,
@@ -143,12 +140,18 @@ public class AntiEntropyService
     /**
      * Return all of the neighbors with whom we share data.
      */
-    private static Collection<InetAddress> getNeighbors(String table)
+    public static Set<InetAddress> getNeighbors(String table)
     {
-        InetAddress local = FBUtilities.getLocalAddress();
         StorageService ss = StorageService.instance;
-        return Collections2.filter(ss.getNaturalEndpoints(table, ss.getLocalToken()),
-                                   Predicates.not(Predicates.equalTo(local)));
+        Set<InetAddress> neighbors = new HashSet<InetAddress>();
+        Map<Range, List<InetAddress>> replicaSets = ss.getRangeToAddressMap(table);
+        for (Range range : ss.getLocalRanges(table))
+        {
+            // for every range stored locally (replica or original) collect neighbors storing copies
+            neighbors.addAll(replicaSets.get(range));
+        }
+        neighbors.remove(FBUtilities.getLocalAddress());
+        return neighbors;
     }
 
     /**
@@ -581,11 +584,8 @@ public class AntiEntropyService
                     logger.debug("Endpoints " + local + " and " + remote + " are consistent for " + cf);
                     return;
                 }
-
-                if (difference < 0.05)
-                    performRangeRepair();
-                else
-                    performStreamingRepair();
+                
+                performStreamingRepair();
             }
             catch(IOException e)
             {
@@ -603,17 +603,6 @@ public class AntiEntropyService
             for (MerkleTree.TreeRange diff : differences)
                 fraction += 1.0 / Math.pow(2, diff.depth);
             return (float)fraction;
-        }
-
-        /**
-         * Sends our list of differences to the remote endpoint using read
-         * repairs via the query API.
-         */
-        void performRangeRepair() throws IOException
-        {
-            logger.info("Performing range read repair of " + differences.size() + " ranges for " + cf);
-            // FIXME
-            logger.debug("Finished range read repair for " + cf);
         }
 
         /**

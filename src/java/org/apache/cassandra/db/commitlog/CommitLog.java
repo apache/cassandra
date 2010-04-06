@@ -387,10 +387,10 @@ public class CommitLog
 
         /*
          * log replay assumes that we only have to look at entries past the last
-         * flush position, so verify that this flush happens after the last.
+         * flush position, so verify that this flush happens after the last. See CASSANDRA-936
         */
-        assert context.position > context.getSegment().getHeader().getPosition(id) : "discard called on obsolete context " + context;
-
+        assert context.position >= context.getSegment().getHeader().getPosition(id)
+               : "discard at " + context + " is not after last flush at " + context.getSegment().getHeader().getPosition(id);
         /*
          * Loop through all the commit log files in the history. Now process
          * all files that are older than the one in the context. For each of

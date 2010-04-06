@@ -50,7 +50,7 @@ public class ClusterCmd {
         Option optHost = new Option(HOST_OPT_SHORT, HOST_OPT_LONG, true, "node hostname or ip address");
         optHost.setRequired(true);
         options.addOption(optHost);
-        options.addOption(PORT_OPT_SHORT, PORT_OPT_LONG, true, "remote jmx agent port number");
+        options.addOption(PORT_OPT_SHORT, PORT_OPT_LONG, true, "remote jmx agent port number (defaults to " + defaultPort + ")");
     }
 
     /**
@@ -139,14 +139,14 @@ public class ClusterCmd {
     {
         HelpFormatter hf = new HelpFormatter();
         String header = String.format(
-                "%nAvailable commands: get_endpoints [key], global_snapshot [name], clear_global_snapshot");
+                "%nAvailable commands: get_endpoints [keyspace] [key], global_snapshot [name], clear_global_snapshot");
         String usage = String.format("java %s -host <arg> <command>%n", ClusterCmd.class.getName());
         hf.printHelp(usage, "", options, header);
     }
     
-    public void printEndPoints(String key, String table)
+    public void printEndPoints(String keyspace, String key)
     {
-        List<InetAddress> endpoints = probe.getEndPoints(key, table);
+        List<InetAddress> endpoints = probe.getEndPoints(keyspace, key);
         System.out.println(String.format("%-17s: %s", "Key", key));
         System.out.println(String.format("%-17s: %s", "Endpoints", endpoints));
     }
@@ -256,7 +256,9 @@ public class ClusterCmd {
         {
             if (arguments.length <= 2)
             {
-                System.err.println("missing key and/or table argument");
+                System.err.println("missing keyspace and/or key argument");
+                ClusterCmd.printUsage();
+                System.exit(1);
             }
             clusterCmd.printEndPoints(arguments[1], arguments[2]);
         }

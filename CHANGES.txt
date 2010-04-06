@@ -11,6 +11,12 @@ dev
  * fix NPE in sstable2json when no excluded keys are given (CASSANDRA-934)
  * keep the replica set constant throughout the read repair process
    (CASSANDRA-937)
+ * allow querying getAllRanges with empty token list (CASSANDRA-933)
+ * fix command line arguments inversion in clustertool (CASSANDRA-942)
+ * fix race condition that could trigger a false-positive assertion
+   during post-flush discard of old commitlog segments (CASSANDRA-936)
+ * fix neighbor calculation for anti-entropy repair (CASSANDRA-924)
+ * perform repair even for small entropy differences (CASSANDRA-924)
 
 
 0.6.0-RC1
