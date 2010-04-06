@@ -29,6 +29,13 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.migration.AddColumnFamily;
+import org.apache.cassandra.db.migration.AddKeyspace;
+import org.apache.cassandra.db.migration.DropColumnFamily;
+import org.apache.cassandra.db.migration.DropKeyspace;
+import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.db.migration.RenameColumnFamily;
+import org.apache.cassandra.db.migration.RenameKeyspace;
 import org.apache.cassandra.locator.EndPointSnitch;
 import org.apache.cassandra.locator.RackAwareStrategy;
 import org.apache.cassandra.utils.FBUtilities;
@@ -37,9 +44,13 @@ import org.apache.cassandra.utils.UUIDGen;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -78,16 +89,82 @@ public class DefsTest extends CleanupHelper
         CFMetaData newCf = new CFMetaData("MadeUpKeyspace", "NewCF", "Standard", new UTF8Type(), null, "new cf", 0, 0);
         try
         {
-            DefsTable.add(newCf).get();
+            new AddColumnFamily(newCf).apply();
             throw new AssertionError("You should't be able to do anything to a keyspace that doesn't exist.");
         }
-        catch (ExecutionException expected)
+        catch (ConfigurationException expected)
         {
         }
+        catch (IOException unexpected)
+        {
+            throw new AssertionError("Unexpected exception.");
+        }
+    }
+    
+    @Test
+    public void testMigrations() throws IOException, ConfigurationException
+    {
+        // do a save. make sure it doesn't mess with the defs version.
+        assert DatabaseDescriptor.getDefsVersion() == null;
+        UUID ver0 = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
+        DefsTable.dumpToStorage(ver0);
+        assert DatabaseDescriptor.getDefsVersion() == null;
+        
+        // add a cf.
+        CFMetaData newCf1 = new CFMetaData("Keyspace1", "MigrationCf_1", "Standard", new UTF8Type(), null, "Migration CF ", 0, 0);
+        Migration m1 = new AddColumnFamily(newCf1);
+        m1.apply();
+        UUID ver1 = m1.getVersion();
+        assert DatabaseDescriptor.getDefsVersion().equals(ver1);
+        
+        // rename it.
+        Migration m2 = new RenameColumnFamily("Keyspace1", "MigrationCf_1", "MigrationCf_2");
+        m2.apply();
+        UUID ver2 = m2.getVersion();
+        assert DatabaseDescriptor.getDefsVersion().equals(ver2);
+        
+        // drop it.
+        Migration m3 = new DropColumnFamily("Keyspace1", "MigrationCf_2", true);
+        m3.apply();
+        UUID ver3 = m3.getVersion();
+        assert DatabaseDescriptor.getDefsVersion().equals(ver3);
+        
+        // now lets load the older migrations to see if that code works.
+        Collection<IColumn> serializedMigrations = Migration.getLocalMigrations(ver1, ver3);
+        assert serializedMigrations.size() == 3;
+        
+        // test deserialization of the migrations.
+        Migration[] reconstituded = new Migration[3];
+        int i = 0;
+        for (IColumn col : serializedMigrations)
+        {
+            UUID version = UUIDGen.makeType1UUID(col.name());
+            reconstituded[i] = Migration.deserialize(new ByteArrayInputStream(col.value()));
+            assert version.equals(reconstituded[i].getVersion());
+            i++;
+        }
+        
+        assert m1.getClass().equals(reconstituded[0].getClass());
+        assert m2.getClass().equals(reconstituded[1].getClass());
+        assert m3.getClass().equals(reconstituded[2].getClass());
+        
+        // verify that the row mutations are the same. rather than exposing the private fields, serialize and verify.
+        assert Arrays.equals(getBytes(m1), getBytes(reconstituded[0]));
+        assert Arrays.equals(getBytes(m2), getBytes(reconstituded[1]));
+        assert Arrays.equals(getBytes(m3), getBytes(reconstituded[2]));
+    }
+    
+    private static byte[] getBytes(Migration m) throws IOException
+    {
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        DataOutputStream dout = new DataOutputStream(bout);
+        m.getSerializer().serialize(m, dout);
+        dout.close();
+        return bout.toByteArray();
     }
 
     @Test
-    public void addNewCF() throws IOException, ExecutionException, InterruptedException
+    public void addNewCF() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
         final String ks = "Keyspace1";
         final String cf = "BrandNewCf";
@@ -96,7 +173,7 @@ public class DefsTest extends CleanupHelper
         CFMetaData newCf = new CFMetaData(original.name, cf, "Standard", new UTF8Type(), null, "A New Column Family", 0, 0);
         int clSegments = CommitLog.instance().getSegmentCount();
         assert !DatabaseDescriptor.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
-        DefsTable.add(newCf).get();
+        new AddColumnFamily(newCf).apply();
         assert CommitLog.instance().getSegmentCount() == clSegments + 1;
 
         assert DatabaseDescriptor.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
@@ -117,7 +194,7 @@ public class DefsTest extends CleanupHelper
     }
 
     @Test
-    public void dropCf() throws IOException, ExecutionException, InterruptedException
+    public void dropCf() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
         // sanity
         final KSMetaData ks = DatabaseDescriptor.getTableDefinition("Keyspace1");
@@ -136,7 +213,7 @@ public class DefsTest extends CleanupHelper
         store.getFlushPath();
         assert DefsTable.getFiles(cfm.tableName, cfm.cfName).size() > 0;
         
-        DefsTable.drop(cfm, true).get();
+        new DropColumnFamily(ks.name, cfm.cfName, true).apply();
         
         assert !DatabaseDescriptor.getTableDefinition(ks.name).cfMetaData().containsKey(cfm.cfName);
         
@@ -158,7 +235,7 @@ public class DefsTest extends CleanupHelper
     }    
     
     @Test
-    public void renameCf() throws IOException, ExecutionException, InterruptedException
+    public void renameCf() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
         final KSMetaData ks = DatabaseDescriptor.getTableDefinition("Keyspace2");
         assert ks != null;
@@ -176,40 +253,40 @@ public class DefsTest extends CleanupHelper
         int fileCount = DefsTable.getFiles(oldCfm.tableName, oldCfm.cfName).size();
         assert fileCount > 0;
         
-        final String newCfmName = "St4ndard1Replacement";
-        DefsTable.rename(oldCfm, newCfmName).get();
+        final String cfName = "St4ndard1Replacement";
+        new RenameColumnFamily(oldCfm.tableName, oldCfm.cfName, cfName).apply();
         
         assert !DatabaseDescriptor.getTableDefinition(ks.name).cfMetaData().containsKey(oldCfm.cfName);
-        assert DatabaseDescriptor.getTableDefinition(ks.name).cfMetaData().containsKey(newCfmName);
+        assert DatabaseDescriptor.getTableDefinition(ks.name).cfMetaData().containsKey(cfName);
         
         // verify that new files are there.
-        assert DefsTable.getFiles(oldCfm.tableName, newCfmName).size() == fileCount;
+        assert DefsTable.getFiles(oldCfm.tableName, cfName).size() == fileCount;
         
         // do some reads.
-        store = Table.open(oldCfm.tableName).getColumnFamilyStore(newCfmName);
+        store = Table.open(oldCfm.tableName).getColumnFamilyStore(cfName);
         assert store != null;
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getSliceFilter("key0", new QueryPath(newCfmName), "".getBytes(), "".getBytes(), null, false, 1000));
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getSliceFilter("key0", new QueryPath(cfName), "".getBytes(), "".getBytes(), null, false, 1000));
         assert cfam.getSortedColumns().size() == 100; // should be good enough?
         
         // do some writes
         rm = new RowMutation(ks.name, "key0");
-        rm.add(new QueryPath(newCfmName, null, "col5".getBytes()), "updated".getBytes(), 2L);
+        rm.add(new QueryPath(cfName, null, "col5".getBytes()), "updated".getBytes(), 2L);
         rm.apply();
         store.forceBlockingFlush();
         
-        cfam = store.getColumnFamily(QueryFilter.getNamesFilter("key0", new QueryPath(newCfmName), "col5".getBytes()));
+        cfam = store.getColumnFamily(QueryFilter.getNamesFilter("key0", new QueryPath(cfName), "col5".getBytes()));
         assert cfam.getColumnCount() == 1;
         assert Arrays.equals(cfam.getColumn("col5".getBytes()).value(), "updated".getBytes());
     }
     
     @Test
-    public void addNewKS() throws IOException, ExecutionException, InterruptedException
+    public void addNewKS() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
         CFMetaData newCf = new CFMetaData("NewKeyspace1", "AddedStandard1", "Standard", new UTF8Type(), null, "A new cf for a new ks", 0, 0);
         KSMetaData newKs = new KSMetaData(newCf.tableName, RackAwareStrategy.class, 5, new EndPointSnitch(), newCf);
         
         int segmentCount = CommitLog.instance().getSegmentCount();
-        DefsTable.add(newKs).get();
+        new AddKeyspace(newKs).apply();
         assert CommitLog.instance().getSegmentCount() == segmentCount + 1;
         
         assert DatabaseDescriptor.getTableDefinition(newCf.tableName) != null;
@@ -230,7 +307,7 @@ public class DefsTest extends CleanupHelper
     }
     
     @Test
-    public void dropKS() throws IOException, ExecutionException, InterruptedException
+    public void dropKS() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
         // sanity
         final KSMetaData ks = DatabaseDescriptor.getTableDefinition("Keyspace1");
@@ -248,7 +325,7 @@ public class DefsTest extends CleanupHelper
         store.forceBlockingFlush();
         assert DefsTable.getFiles(cfm.tableName, cfm.cfName).size() > 0;
         
-        DefsTable.drop(ks, true).get();
+        new DropKeyspace(ks.name, true).apply();
         
         assert DatabaseDescriptor.getTableDefinition(ks.name) == null;
         
@@ -278,7 +355,7 @@ public class DefsTest extends CleanupHelper
     }
     
     @Test
-    public void renameKs() throws IOException, ExecutionException, InterruptedException
+    public void renameKs() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
         final KSMetaData oldKs = DatabaseDescriptor.getTableDefinition("Keyspace2");
         assert oldKs != null;
@@ -297,7 +374,7 @@ public class DefsTest extends CleanupHelper
         assert DefsTable.getFiles(oldKs.name, cfName).size() > 0;
         
         final String newKsName = "RenamedKeyspace2";
-        DefsTable.rename(oldKs, newKsName).get();
+        new RenameKeyspace(oldKs.name, newKsName).apply();
         KSMetaData newKs = DatabaseDescriptor.getTableDefinition(newKsName);
         
         assert DatabaseDescriptor.getTableDefinition(oldKs.name) == null;

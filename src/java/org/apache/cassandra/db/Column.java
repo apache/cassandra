@@ -58,7 +58,7 @@ public class Column implements IColumn
         this(name, ArrayUtils.EMPTY_BYTE_ARRAY);
     }
 
-    Column(byte[] name, byte[] value)
+    public Column(byte[] name, byte[] value)
     {
         this(name, value, 0);
     }

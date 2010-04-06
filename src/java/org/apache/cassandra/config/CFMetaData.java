@@ -115,7 +115,6 @@ public final class CFMetaData
     /** clones existing CFMetaData. keeps the id but changes the table name.*/
     public static CFMetaData renameTable(CFMetaData cfm, String tableName)
     {
-        purge(cfm);
         return new CFMetaData(tableName, cfm.cfName, cfm.columnType, cfm.comparator, cfm.subcolumnComparator, cfm.comment, cfm.rowCacheSize, cfm.keyCacheSize, cfm.readRepairChance, cfm.cfId);
     }
     

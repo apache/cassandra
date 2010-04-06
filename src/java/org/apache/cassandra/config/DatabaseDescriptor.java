@@ -26,6 +26,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.locator.IEndPointSnitch;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -487,8 +488,8 @@ public class DatabaseDescriptor
             // todo: fill in repStrat and epSnitch when this table is set to replicate.
             CFMetaData[] definitionCfDefs = new CFMetaData[]
             {
-                new CFMetaData(Table.DEFINITIONS, DefsTable.MIGRATIONS_CF, "Standard", new TimeUUIDType(), null, "individual schema mutations", 0, 0),
-                new CFMetaData(Table.DEFINITIONS, DefsTable.SCHEMA_CF, "Standard", new UTF8Type(), null, "current state of the schema", 0, 0)
+                new CFMetaData(Table.DEFINITIONS, Migration.MIGRATIONS_CF, "Standard", new TimeUUIDType(), null, "individual schema mutations", 0, 0),
+                new CFMetaData(Table.DEFINITIONS, Migration.SCHEMA_CF, "Standard", new UTF8Type(), null, "current state of the schema", 0, 0)
             };
             KSMetaData ksDefs = new KSMetaData(Table.DEFINITIONS, null, -1, null, definitionCfDefs);
             tables.put(Table.DEFINITIONS, ksDefs);
@@ -1125,7 +1126,13 @@ public class DatabaseDescriptor
     public static void clearTableDefinition(KSMetaData ksm, UUID newVersion)
     {
         tables.remove(ksm.name);
+        StorageService.instance.clearReplicationStrategy(ksm.name);
         DatabaseDescriptor.defsVersion = newVersion;
+    }
+    
+    public static UUID getDefsVersion()
+    {
+        return defsVersion;
     }
 
     public static class ConfigurationException extends Exception

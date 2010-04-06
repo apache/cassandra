@@ -18,20 +18,13 @@
 
 package org.apache.cassandra.db;
 
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.UUIDGen;
-import org.apache.cassandra.utils.WrappedRunnable;
-
-import static org.apache.cassandra.config.DatabaseDescriptor.ConfigurationException;
+import org.apache.cassandra.db.migration.Migration;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -41,230 +34,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 
 public class DefsTable
 {
-    private static final ExecutorService executor = new JMXEnabledThreadPoolExecutor("DEFINITIONS-UPDATER");
-    
-    public static final String MIGRATIONS_CF = "Migrations";
-    public static final String SCHEMA_CF = "Schema";
-
-    /** add a column family. */
-    public static Future add(final CFMetaData cfm)
-    {
-        return executor.submit(new WrappedRunnable() 
-        {
-            protected void runMayThrow() throws Exception
-            {
-                // make sure the ks is real and the cf doesn't already exist.
-                KSMetaData ksm = DatabaseDescriptor.getTableDefinition(cfm.tableName);
-                if (ksm == null)
-                    throw new ConfigurationException("Keyspace does not already exist.");
-                else if (ksm.cfMetaData().containsKey(cfm.cfName))
-                    throw new ConfigurationException("CF is already defined in that keyspace.");
-        
-                // clone ksm but include the new cf def.
-                List<CFMetaData> newCfs = new ArrayList<CFMetaData>(ksm.cfMetaData().values());
-                newCfs.add(cfm);
-                ksm = new KSMetaData(ksm.name, ksm.strategyClass, ksm.replicationFactor, ksm.snitch, newCfs.toArray(new CFMetaData[newCfs.size()]));
-        
-                // store it.
-                
-                UUID newVersion = saveKeyspaceDefs(ksm, null);
-        
-                // reinitialize the table.
-                Table.open(ksm.name).addCf(cfm.cfName);
-                DatabaseDescriptor.setTableDefinition(ksm, newVersion);
-                
-                // force creation of a new commit log segment.
-                CommitLog.instance().forceNewSegment();    
-            }
-        });     
-    }
-
-    /**
-     * drop a column family. blockOnDeletion was added to make testing simpler.
-     */
-    public static Future drop(final CFMetaData cfm, final boolean blockOnFileDeletion)
-    {
-        return executor.submit(new WrappedRunnable() 
-        {
-            protected void runMayThrow() throws Exception
-            {
-                KSMetaData ksm = DatabaseDescriptor.getTableDefinition(cfm.tableName);
-                if (ksm == null)
-                    throw new ConfigurationException("Keyspace does not already exist.");
-                else if (!ksm.cfMetaData().containsKey(cfm.cfName))
-                    throw new ConfigurationException("CF is not defined in that keyspace.");
-                
-                // clone ksm but do not include the new def
-                List<CFMetaData> newCfs = new ArrayList<CFMetaData>(ksm.cfMetaData().values());
-                newCfs.remove(cfm);
-                assert newCfs.size() == ksm.cfMetaData().size() - 1;
-                ksm = new KSMetaData(ksm.name, ksm.strategyClass, ksm.replicationFactor, ksm.snitch, newCfs.toArray(new CFMetaData[newCfs.size()]));
-                
-                // store it.
-                UUID newVersion = saveKeyspaceDefs(ksm, null);
-                
-                // reinitialize the table.
-                CFMetaData.purge(cfm);
-                DatabaseDescriptor.setTableDefinition(ksm, newVersion);
-                Table.open(ksm.name).dropCf(cfm.cfName);
-                
-                // indicate that some files need to be deleted (eventually)
-                SystemTable.markForRemoval(cfm);
-                
-                // we don't really need a new segment, but let's force it to be consistent with other operations.
-                CommitLog.instance().forceNewSegment();
-        
-                cleanupDeadFiles(blockOnFileDeletion);    
-            }
-        });
-    }
-    
-    /** rename a column family */
-    public static Future rename(final CFMetaData oldCfm, final String newName)
-    {
-        return executor.submit(new WrappedRunnable()
-        {
-            protected void runMayThrow() throws Exception
-            {
-                KSMetaData ksm = DatabaseDescriptor.getTableDefinition(oldCfm.tableName);
-                if (ksm == null)
-                    throw new ConfigurationException("Keyspace does not already exist.");
-                if (!ksm.cfMetaData().containsKey(oldCfm.cfName))
-                    throw new ConfigurationException("CF is not defined in that keyspace.");
-                if (ksm.cfMetaData().containsKey(newName))
-                    throw new ConfigurationException("CF is already defined in that keyspace.");
-                
-                // clone the ksm, replacing cfm with the new one.
-                List<CFMetaData> newCfs = new ArrayList<CFMetaData>(ksm.cfMetaData().values());
-                newCfs.remove(oldCfm);
-                assert newCfs.size() == ksm.cfMetaData().size() - 1;
-                CFMetaData newCfm = CFMetaData.rename(oldCfm, newName);
-                newCfs.add(newCfm);
-                ksm = new KSMetaData(ksm.name, ksm.strategyClass, ksm.replicationFactor, ksm.snitch, newCfs.toArray(new CFMetaData[newCfs.size()]));
-                
-                // store it
-                UUID newVersion = saveKeyspaceDefs(ksm, null);
-                
-                // leave it up to operators to ensure there are no writes going on durng the file rename. Just know that
-                // attempting row mutations on oldcfName right now would be really bad.
-                try
-                {
-                    renameCfStorageFiles(ksm.name, oldCfm.cfName, newCfm.cfName);
-                }
-                catch (IOException e)
-                {
-                    // todo: is this a big enough problem to bring the entire node down?  For sure, it is something that needs to be addressed immediately.
-                    ConfigurationException cex = new ConfigurationException("Critical: encountered IOException while attempting to rename CF storage files for " + oldCfm.cfName);
-                    cex.initCause(e);
-                    throw cex;
-                }
-                // reset defs.
-                DatabaseDescriptor.setTableDefinition(ksm, newVersion);
-                Table.open(ksm.name).renameCf(oldCfm.cfName, newName);
-                
-                CommitLog.instance().forceNewSegment();
-            }
-        });
-    }
-
-    /** adds a keyspace */
-    public static Future add(final KSMetaData ksm)
-    {
-        return executor.submit(new WrappedRunnable()
-        {
-            protected void runMayThrow() throws Exception
-            {
-                if (DatabaseDescriptor.getTableDefinition(ksm.name) != null)
-                    throw new ConfigurationException("Keyspace already exists.");
-                
-                UUID versionId = saveKeyspaceDefs(ksm, null);
-                DatabaseDescriptor.setTableDefinition(ksm, versionId);
-                Table.open(ksm.name);
-                CommitLog.instance().forceNewSegment();
-            }
-        });
-    }
-    
-    /** drop a keyspace. */
-    public static Future drop(final KSMetaData ksm, final boolean blockOnFileDeletion)
-    {
-        return executor.submit(new WrappedRunnable()
-        {
-            protected void runMayThrow() throws Exception
-            {
-                if (DatabaseDescriptor.getTableDefinition(ksm.name) != ksm)
-                    throw new ConfigurationException("Either keyspace doesn't exist or the name of the one you supplied doesn't match with the one being used.");
-                
-                // remove the table from the static instances.
-                Table table = Table.clear(ksm.name);
-                if (table == null)
-                    throw new ConfigurationException("Table is not active. " + ksm.name);
-                
-                // remove all cfs from the table instance.
-                for (CFMetaData cfm : ksm.cfMetaData().values())
-                {
-                    CFMetaData.purge(cfm);
-                    table.dropCf(cfm.cfName);
-                    SystemTable.markForRemoval(cfm);
-                }
-                                
-                // update internal table.
-                UUID versionId = saveKeyspaceDefs(null, ksm);
-                
-                // reset defs.
-                DatabaseDescriptor.clearTableDefinition(ksm, versionId);
-                
-                CommitLog.instance().forceNewSegment();
-                cleanupDeadFiles(blockOnFileDeletion);
-                
-            }
-        });
-    }
-    
-    public static Future rename(final KSMetaData oldKsm, final String newName)
-    {
-        return executor.submit(new WrappedRunnable()
-        {
-            protected void runMayThrow() throws Exception
-            {
-                if (oldKsm == null || DatabaseDescriptor.getTableDefinition(oldKsm.name) != oldKsm)
-                    throw new ConfigurationException("Keyspace either does not exist or does not match the one currently defined.");
-                if (DatabaseDescriptor.getTableDefinition(newName) != null)
-                    throw new ConfigurationException("Keyspace already exists.");
-                
-                // clone the ksm, replacing thename.
-                KSMetaData newKsm = KSMetaData.rename(oldKsm, newName);
-                // at this point, the static methods in CFMetaData will start returning references to the new table, so
-                // it helps if the node is reasonably quiescent with respect to this ks. 
-                UUID newVersion = saveKeyspaceDefs(newKsm, oldKsm);
-                try
-                {
-                    renameKsStorageFiles(oldKsm.name, newName);
-                }
-                catch (IOException e)
-                {
-                    ConfigurationException cex = new ConfigurationException("Critical: encountered IOException while attempting to rename KS storage files from " + oldKsm.name + " to " + newName);
-                    throw cex;
-                }
-                
-                DatabaseDescriptor.clearTableDefinition(oldKsm, newVersion);
-                DatabaseDescriptor.setTableDefinition(newKsm, newVersion);
-                Table.clear(oldKsm.name);
-                Table.open(newName);
-                // this isn't strictly necessary since the set of all cfs was not modified.
-                CommitLog.instance().forceNewSegment(); 
-            }
-        });
-    }
-    
     /** dumps current keyspace definitions to storage */
     public static synchronized void dumpToStorage(UUID version) throws IOException
     {
@@ -274,7 +47,7 @@ public class DefsTable
         for (String tableName : DatabaseDescriptor.getNonSystemTables())
         {
             KSMetaData ks = DatabaseDescriptor.getTableDefinition(tableName);
-            rm.add(new QueryPath(SCHEMA_CF, null, ks.name.getBytes()), KSMetaData.serialize(ks), now);
+            rm.add(new QueryPath(Migration.SCHEMA_CF, null, ks.name.getBytes()), KSMetaData.serialize(ks), now);
         }
         rm.apply();
     }
@@ -283,8 +56,8 @@ public class DefsTable
     public static synchronized Collection<KSMetaData> loadFromStorage(UUID version) throws IOException
     {
         Table defs = Table.open(Table.DEFINITIONS);
-        ColumnFamilyStore cfStore = defs.getColumnFamilyStore(SCHEMA_CF);
-        QueryFilter filter = QueryFilter.getSliceFilter(version.toString(), new QueryPath(SCHEMA_CF), "".getBytes(), "".getBytes(), null, false, 1024);
+        ColumnFamilyStore cfStore = defs.getColumnFamilyStore(Migration.SCHEMA_CF);
+        QueryFilter filter = QueryFilter.getSliceFilter(version.toString(), new QueryPath(Migration.SCHEMA_CF), "".getBytes(), "".getBytes(), null, false, 1024);
         ColumnFamily cf = cfStore.getColumnFamily(filter);
         Collection<KSMetaData> tables = new ArrayList<KSMetaData>();
         for (IColumn col : cf.getSortedColumns())
@@ -296,7 +69,7 @@ public class DefsTable
     }
     
     /** gets all the files that belong to a given column family. */
-    static Collection<File> getFiles(String table, final String cf)
+    public static Collection<File> getFiles(String table, final String cf)
     {
         List<File> found = new ArrayList<File>();
         for (String path : DatabaseDescriptor.getAllDataFileLocationsForTable(table))
@@ -313,82 +86,4 @@ public class DefsTable
         return found;
     }
     
-    private static void cleanupDeadFiles(boolean wait)
-    {
-        Future cleanup = CompactionManager.instance.submitGraveyardCleanup();
-        if (wait)
-        {
-            // notify the compaction manager that it needs to clean up the dropped cf files.
-            try
-            {
-                cleanup.get();
-            }
-            catch (InterruptedException e)
-            {
-                throw new RuntimeException(e);
-            }
-            catch (ExecutionException e)
-            {
-                throw new RuntimeException(e);
-            }
-        } 
-    }
-    
-    private static void renameKsStorageFiles(String oldKs, String newKs) throws IOException
-    {
-        IOException mostRecentProblem = null;
-        Set<String> cfNames = DatabaseDescriptor.getTableDefinition(oldKs).cfMetaData().keySet();
-        for (String cfName : cfNames)
-        {
-            for (File existing : getFiles(oldKs, cfName))
-            {
-                try
-                {
-                    File newParent = new File(existing.getParentFile().getParent(), newKs);
-                    newParent.mkdirs();
-                    FileUtils.renameWithConfirm(existing, new File(newParent, existing.getName()));
-                }
-                catch (IOException ex)
-                {
-                    mostRecentProblem = ex;
-                }
-            }
-        }
-        if (mostRecentProblem != null)
-            throw new IOException("One or more IOExceptions encountered while renaming files. Most recent problem is included.", mostRecentProblem);
-    }
-    
-    // if this errors out, we are in a world of hurt.
-    private static void renameCfStorageFiles(String table, String oldCfName, String newCfName) throws IOException
-    {
-        // complete as much of the job as possible.  Don't let errors long the way prevent as much renaming as possible
-        // from happening.
-        IOException mostRecentProblem = null;
-        for (File existing : getFiles(table, oldCfName))
-        {
-            try
-            {
-                String newFileName = existing.getName().replaceFirst("\\w+-", newCfName + "-");
-                FileUtils.renameWithConfirm(existing, new File(existing.getParent(), newFileName));
-            }
-            catch (IOException ex)
-            {
-                mostRecentProblem = ex;
-            }
-        }
-        if (mostRecentProblem != null)
-            throw new IOException("One or more IOExceptions encountered while renaming files. Most recent problem is included.", mostRecentProblem);
-    }
-    
-    private static UUID saveKeyspaceDefs(KSMetaData add, KSMetaData remove) throws IOException
-    {
-        UUID versionId = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
-        RowMutation rm = new RowMutation(Table.DEFINITIONS, versionId.toString());
-        if (remove != null)
-            rm.delete(new QueryPath(SCHEMA_CF, null, remove.name.getBytes()), System.currentTimeMillis());
-        if (add != null)
-            rm.add(new QueryPath(SCHEMA_CF, null, add.name.getBytes()), KSMetaData.serialize(add), System.currentTimeMillis());
-        rm.apply();
-        return versionId;
-    }
 }

@@ -265,6 +265,36 @@ public class HintedHandOffManager
           logger_.debug("Finished hinted handoff for endpoint " + endPoint);
     }
 
+    /** called when a keyspace is dropped or rename. newTable==null in the case of a drop. */
+    public static void renameHints(String oldTable, String newTable) throws IOException
+    {
+        // we're basically going to fetch, drop and add the scf for the old and new table. we need to do it piecemeal 
+        // though since there could be GB of data.
+        ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
+        byte[] startCol = ArrayUtils.EMPTY_BYTE_ARRAY;
+        long now = System.currentTimeMillis();
+        while (true)
+        {
+            QueryFilter filter = QueryFilter.getSliceFilter(oldTable, new QueryPath(HINTS_CF), startCol, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, PAGE_SIZE);
+            ColumnFamily cf = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
+            if (pagingFinished(cf, startCol))
+                break;
+            if (newTable != null)
+            {
+                RowMutation insert = new RowMutation(Table.SYSTEM_TABLE, newTable);
+                insert.add(cf);
+                insert.apply();
+            }
+            RowMutation drop = new RowMutation(Table.SYSTEM_TABLE, oldTable);
+            for (byte[] key : cf.getColumnNames())
+            {
+                drop.delete(new QueryPath(HINTS_CF, key), now);
+                startCol = key;
+            }
+            drop.apply();
+        }
+    }
+
     /*
      * This method is used to deliver hints to a particular endpoint.
      * When we learn that some endpoint is back up we deliver the data

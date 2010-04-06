@@ -24,11 +24,12 @@ package org.apache.cassandra.utils;
 import org.safehaus.uuid.EthernetAddress;
 import org.safehaus.uuid.UUIDGenerator;
 
-import java.math.BigInteger;
+import java.io.DataInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetAddress;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Random;
 import java.util.UUID;
 
 /**
@@ -53,9 +54,16 @@ public class UUIDGen
             throw new RuntimeException("Your platform has no support for generating MD5 sums");
         }
     }
+    
+    public static UUID makeType1UUID(DataInputStream in) throws IOException
+    {
+        byte[] b = new byte[16];
+        in.readFully(b);
+        return makeType1UUID(b);
+    }
 
     /** creates a type 1 uuid from raw bytes. */
-    static UUID makeType1UUID(byte[] raw)
+    public static UUID makeType1UUID(byte[] raw)
     {
         long most = 0;
         long least = 0;
@@ -68,7 +76,7 @@ public class UUIDGen
     }
 
     /** decomposes a uuid into raw bytes. */
-    static byte[] decompose(UUID uuid)
+    public static byte[] decompose(UUID uuid)
     {
         long most = uuid.getMostSignificantBits();
         long least = uuid.getLeastSignificantBits();

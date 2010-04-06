@@ -248,6 +248,17 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         else
             return ars;
     }
+    
+    public void initReplicationStrategy(String table)
+    {
+        AbstractReplicationStrategy strat = getReplicationStrategy(tokenMetadata_, table);
+        replicationStrategies.put(table, strat);
+    }
+    
+    public void clearReplicationStrategy(String table)
+    {
+        replicationStrategies.remove(table);
+    }
 
     public static AbstractReplicationStrategy getReplicationStrategy(TokenMetadata tokenMetadata, String table)
     {
