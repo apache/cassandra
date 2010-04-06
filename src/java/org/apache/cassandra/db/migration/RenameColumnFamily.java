@@ -47,6 +47,7 @@ public class RenameColumnFamily extends Migration
     private String tableName;
     private String oldName;
     private String newName;
+    private int cfId;
     
     RenameColumnFamily(DataInputStream din) throws IOException
     {
@@ -55,8 +56,11 @@ public class RenameColumnFamily extends Migration
         tableName = din.readUTF();
         oldName = din.readUTF();
         newName = din.readUTF();
+        cfId = din.readInt();
     }
     
+    // this this constructor sets the cfid, it can only be called form a node that is starting the migration. It cannot
+    // be called during deserialization of this migration.
     public RenameColumnFamily(String tableName, String oldName, String newName) throws ConfigurationException, IOException
     {
         super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress()), DatabaseDescriptor.getDefsVersion());
@@ -71,6 +75,8 @@ public class RenameColumnFamily extends Migration
             throw new ConfigurationException("CF is not defined in that keyspace.");
         if (ksm.cfMetaData().containsKey(newName))
             throw new ConfigurationException("CF is already defined in that keyspace.");
+        
+        cfId = ksm.cfMetaData().get(oldName).cfId;
         
         // clone the ksm, replacing cfm with the new one.
         KSMetaData newKsm = makeNewKeyspaceDefinition(ksm);
@@ -104,7 +110,7 @@ public class RenameColumnFamily extends Migration
         // reset defs.
         KSMetaData ksm = makeNewKeyspaceDefinition(DatabaseDescriptor.getTableDefinition(tableName));
         DatabaseDescriptor.setTableDefinition(ksm, newVersion);
-        Table.open(ksm.name).renameCf(oldName, newName);
+        Table.open(ksm.name).renameCf(cfId, newName);
         
         CommitLog.instance().forceNewSegment();
     }
@@ -142,6 +148,7 @@ public class RenameColumnFamily extends Migration
             dos.writeUTF(renameColumnFamily.tableName);
             dos.writeUTF(renameColumnFamily.oldName);
             dos.writeUTF(renameColumnFamily.newName);
+            dos.writeInt(renameColumnFamily.cfId);
         }
 
         public RenameColumnFamily deserialize(DataInputStream dis) throws IOException

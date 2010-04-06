@@ -97,7 +97,7 @@ public class DropColumnFamily extends Migration
         KSMetaData ksm = makeNewKeyspaceDefinition(existing);
         CFMetaData.purge(cfm);
         DatabaseDescriptor.setTableDefinition(ksm, newVersion);
-        Table.open(ksm.name).dropCf(cfm.cfName);
+        Table.open(ksm.name).dropCf(cfm.cfId);
         
         // indicate that some files need to be deleted (eventually)
         SystemTable.markForRemoval(cfm);

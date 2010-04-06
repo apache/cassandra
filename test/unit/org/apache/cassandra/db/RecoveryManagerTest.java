@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.cassandra.Util;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
@@ -63,7 +64,7 @@ public class RecoveryManagerTest extends CleanupHelper
 
         CommitLog.recover();
 
-        assertColumns(table1.get("keymulti", "Standard1"), "col1");
-        assertColumns(table2.get("keymulti", "Standard3"), "col2");
+        assertColumns(Util.getColumnFamily(table1, "keymulti", "Standard1"), "col1");
+        assertColumns(Util.getColumnFamily(table2, "keymulti", "Standard3"), "col2");
     }
 }

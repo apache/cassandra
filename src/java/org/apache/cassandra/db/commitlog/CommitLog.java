@@ -241,20 +241,18 @@ public class CommitLog
                         RowMutation newRm = new RowMutation(rm.getTable(), rm.key());
                         
                         // Rebuild the row mutation, omitting column families that a) have already been flushed,
-                        // b) are part of a cf that was dropped. Keep in mind that a cf might have been renamed. (this
-                        // is why the old RM is not used in the actual transaction.
+                        // b) are part of a cf that was dropped. Keep in mind that the cf.name() is suspect. do every
+                        // thing based on the cfid instead.
                         for (ColumnFamily columnFamily : columnFamilies)
                         {
-                            Pair<String, String> key = new Pair<String, String>(table.name, columnFamily.name()); 
-                            int id = cfIdMap.get(key);
                             // make sure to use the current name of the cf (null means its been dropped).
-                            String currentName = CFMetaData.getCurrentName(id);
+                            String currentName = CFMetaData.getCurrentName(columnFamily.id());
                             if (currentName == null)
                                 continue;
                             else if (!currentName.equals(columnFamily.name()))
                                 columnFamily.rename(currentName);
                             
-                            if (clHeader.isDirty(id) && entryLocation >= clHeader.getPosition(id))
+                            if (clHeader.isDirty(columnFamily.id()) && entryLocation >= clHeader.getPosition(columnFamily.id()))
                                 newRm.add(columnFamily);
                         }
                         if (!newRm.isEmpty())

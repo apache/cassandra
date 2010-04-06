@@ -29,6 +29,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,22 +73,25 @@ public class ColumnFamily implements IColumnContainer
         String columnType = DatabaseDescriptor.getColumnFamilyType(tableName, cfName);
         AbstractType comparator = DatabaseDescriptor.getComparator(tableName, cfName);
         AbstractType subcolumnComparator = DatabaseDescriptor.getSubComparator(tableName, cfName);
-        return new ColumnFamily(cfName, columnType, comparator, subcolumnComparator);
+        int id = CFMetaData.getId(tableName, cfName);
+        return new ColumnFamily(cfName, columnType, comparator, subcolumnComparator, id);
     }
 
     private String name_;
+    private final int id_;
 
     private transient ICompactSerializer2<IColumn> columnSerializer_;
     AtomicLong markedForDeleteAt = new AtomicLong(Long.MIN_VALUE);
     AtomicInteger localDeletionTime = new AtomicInteger(Integer.MIN_VALUE);
     private ConcurrentSkipListMap<byte[], IColumn> columns_;
 
-    public ColumnFamily(String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator)
+    public ColumnFamily(String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator, int id)
     {
         name_ = cfName;
         type_ = columnType;
         columnSerializer_ = columnType.equals("Standard") ? Column.serializer() : SuperColumn.serializer(subcolumnComparator);
         columns_ = new ConcurrentSkipListMap<byte[], IColumn>(comparator);
+        id_ = id;
     }
     
     /** called during CL recovery when it is determined that a CF name was changed. */
@@ -98,7 +102,7 @@ public class ColumnFamily implements IColumnContainer
 
     public ColumnFamily cloneMeShallow()
     {
-        ColumnFamily cf = new ColumnFamily(name_, type_, getComparator(), getSubComparator());
+        ColumnFamily cf = new ColumnFamily(name_, type_, getComparator(), getSubComparator(), id_);
         cf.markedForDeleteAt = markedForDeleteAt;
         cf.localDeletionTime = localDeletionTime;
         return cf;
@@ -119,6 +123,11 @@ public class ColumnFamily implements IColumnContainer
     public String name()
     {
         return name_;
+    }
+    
+    public int id()
+    {
+        return id_;
     }
 
     /*
@@ -264,7 +273,7 @@ public class ColumnFamily implements IColumnContainer
      */
     public ColumnFamily diff(ColumnFamily cfComposite)
     {
-    	ColumnFamily cfDiff = new ColumnFamily(cfComposite.name(), cfComposite.type_, getComparator(), getSubComparator());
+    	ColumnFamily cfDiff = new ColumnFamily(cfComposite.name(), cfComposite.type_, getComparator(), getSubComparator(), cfComposite.id());
         if (cfComposite.getMarkedForDeleteAt() > getMarkedForDeleteAt())
         {
             cfDiff.delete(cfComposite.getLocalDeletionTime(), cfComposite.getMarkedForDeleteAt());
@@ -314,9 +323,15 @@ public class ColumnFamily implements IColumnContainer
         return size;
     }
 
+    private transient int hash_ = 0;
     public int hashCode()
     {
-        return name().hashCode();
+        if (hash_ == 0)
+        {
+            int h = id_ * 7 + name().hashCode();
+            hash_ = h;
+        }
+        return hash_;
     }
 
     public boolean equals(Object o)

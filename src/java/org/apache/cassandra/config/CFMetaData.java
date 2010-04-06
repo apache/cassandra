@@ -60,6 +60,14 @@ public final class CFMetaData
         return currentCfNames.get(id);
     }
     
+    public static final int getId(String table, String cfName)
+    {
+        Integer id = cfIdMap.get(new Pair<String, String>(table, cfName));
+        if (id == null)
+            throw new IllegalArgumentException(String.format("Illegal table/cf pair (%s.%s)", table, cfName));
+        return id;
+    }
+    
     // this gets called after initialization to make sure that id generation happens properly.
     public static final void fixMaxId()
     {

@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Arrays;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.Util;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
@@ -101,7 +102,7 @@ public class NameSortTest extends CleanupHelper
             String key = Integer.toString(i);
             ColumnFamily cf;
 
-            cf = table.get(key, "Standard1");
+            cf = Util.getColumnFamily(table, key, "Standard1");
             Collection<IColumn> columns = cf.getSortedColumns();
             for (IColumn column : columns)
             {
@@ -110,7 +111,7 @@ public class NameSortTest extends CleanupHelper
                 assert Arrays.equals(bytes, column.value());
             }
 
-            cf = table.get(key, "Super1");
+            cf = Util.getColumnFamily(table, key, "Super1");
             assert cf != null : "key " + key + " is missing!";
             Collection<IColumn> superColumns = cf.getSortedColumns();
             assert superColumns.size() == 8 : cf;

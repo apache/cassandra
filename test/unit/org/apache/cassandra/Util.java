@@ -27,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.db.*;
@@ -94,5 +95,12 @@ public class Util
 
         store.forceBlockingFlush();
         return store;
+    }
+    
+    public static ColumnFamily getColumnFamily(Table table, String key, String cfName) throws IOException
+    {
+        ColumnFamilyStore cfStore = table.getColumnFamilyStore(cfName);
+        assert cfStore != null : "Column family " + cfName + " has not been defined";
+        return cfStore.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName)));
     }
 }

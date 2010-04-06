@@ -80,7 +80,7 @@ public class DropKeyspace extends Migration
         for (CFMetaData cfm : ksm.cfMetaData().values())
         {
             CFMetaData.purge(cfm);
-            table.dropCf(cfm.cfName);
+            table.dropCf(cfm.cfId);
             SystemTable.markForRemoval(cfm);
         }
                         

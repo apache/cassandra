@@ -23,13 +23,12 @@ import java.util.*;
 import java.io.IOException;
 import java.io.File;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.concurrent.Future;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
@@ -41,7 +40,6 @@ import org.apache.cassandra.io.util.FileUtils;
 import java.net.InetAddress;
 
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.*;
 import org.apache.cassandra.db.filter.*;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -82,7 +80,9 @@ public class Table
     /* Table name. */
     public final String name;
     /* ColumnFamilyStore per column family */
-    private final Map<String, ColumnFamilyStore> columnFamilyStores = new HashMap<String, ColumnFamilyStore>();
+    private final Map<Integer, ColumnFamilyStore> columnFamilyStores = new HashMap<Integer, ColumnFamilyStore>();
+    /* map to make it easier to look up cfs by name */
+    private final Map<String, Integer> cfNameMap = new HashMap<String, Integer>();
     // cache application CFs since Range queries ask for them a _lot_
     private SortedSet<String> applicationColumnFamilies;
     private final TimerTask flushTask;
@@ -120,7 +120,7 @@ public class Table
     
     public Set<String> getColumnFamilies()
     {
-        return DatabaseDescriptor.getTableDefinition(name).cfMetaData().keySet();
+        return cfNameMap.keySet();
     }
 
     public Collection<ColumnFamilyStore> getColumnFamilyStores()
@@ -130,7 +130,7 @@ public class Table
 
     public ColumnFamilyStore getColumnFamilyStore(String cfName)
     {
-        return columnFamilyStores.get(cfName);
+        return columnFamilyStores.get(cfNameMap.get(cfName));
     }
 
     /**
@@ -141,13 +141,8 @@ public class Table
         if (name.equals(SYSTEM_TABLE))
             throw new RuntimeException("Cleanup of the system table is neither necessary nor wise");
 
-        Set<String> columnFamilies = getColumnFamilies();
-        for ( String columnFamily : columnFamilies )
-        {
-            ColumnFamilyStore cfStore = columnFamilyStores.get( columnFamily );
-            if ( cfStore != null )
-                cfStore.forceCleanup();
-        }   
+        for (ColumnFamilyStore cfStore : columnFamilyStores.values())
+            cfStore.forceCleanup();
     }
     
     
@@ -198,10 +193,8 @@ public class Table
     public List<SSTableReader> forceAntiCompaction(Collection<Range> ranges, InetAddress target)
     {
         List<SSTableReader> allResults = new ArrayList<SSTableReader>();
-        Set<String> columnFamilies = getColumnFamilies();
-        for ( String columnFamily : columnFamilies )
+        for (ColumnFamilyStore cfStore : columnFamilyStores.values())
         {
-            ColumnFamilyStore cfStore = columnFamilyStores.get( columnFamily );
             try
             {
                 allResults.addAll(CompactionManager.instance.submitAnticompaction(cfStore, ranges, target).get());
@@ -220,25 +213,15 @@ public class Table
     */
     public void forceCompaction()
     {
-        Set<String> columnFamilies = getColumnFamilies();
-        for ( String columnFamily : columnFamilies )
-        {
-            ColumnFamilyStore cfStore = columnFamilyStores.get( columnFamily );
-            if ( cfStore != null )
-                CompactionManager.instance.submitMajor(cfStore);
-        }
+        for (ColumnFamilyStore cfStore : columnFamilyStores.values())
+            CompactionManager.instance.submitMajor(cfStore);
     }
 
     List<SSTableReader> getAllSSTablesOnDisk()
     {
         List<SSTableReader> list = new ArrayList<SSTableReader>();
-        Set<String> columnFamilies = getColumnFamilies();
-        for ( String columnFamily : columnFamilies )
-        {
-            ColumnFamilyStore cfStore = columnFamilyStores.get( columnFamily );
-            if ( cfStore != null )
-                list.addAll(cfStore.getSSTables());
-        }
+        for (ColumnFamilyStore cfStore : columnFamilyStores.values())
+            list.addAll(cfStore.getSSTables());
         return list;
     }
 
@@ -265,9 +248,10 @@ public class Table
             }
         }
       
-        for (String columnFamily : getColumnFamilies())
+        for (CFMetaData cfm : DatabaseDescriptor.getTableDefinition(table).cfMetaData().values())
         {
-            columnFamilyStores.put(columnFamily, ColumnFamilyStore.createColumnFamilyStore(table, columnFamily));
+            columnFamilyStores.put(cfm.cfId, ColumnFamilyStore.createColumnFamilyStore(table, cfm.cfName));
+            cfNameMap.put(cfm.cfName, cfm.cfId);
         }
 
         // check 10x as often as the lifetime, so we can exceed lifetime by 10% at most
@@ -286,12 +270,13 @@ public class Table
     }
     
     /** removes a cf from internal structures (doesn't change disk files). */
-    public void dropCf(String cfName) throws IOException
+    public void dropCf(int cfId) throws IOException
     {
-        assert columnFamilyStores.containsKey(cfName);
-        ColumnFamilyStore cfs = columnFamilyStores.remove(cfName);
+        assert columnFamilyStores.containsKey(cfId);
+        ColumnFamilyStore cfs = columnFamilyStores.remove(cfId);
         if (cfs != null)
         {
+            cfNameMap.remove(cfs.getColumnFamilyName());
             try
             {
                 cfs.forceBlockingFlush();
@@ -308,33 +293,23 @@ public class Table
     }
     
     /** adds a cf to internal structures, ends up creating disk files). */
-    public void addCf(String cfName)
+    public void initCf(int cfId, String cfName)
     {
-        assert !columnFamilyStores.containsKey(cfName) : cfName;
-        columnFamilyStores.put(cfName, ColumnFamilyStore.createColumnFamilyStore(name, cfName));
+        assert !columnFamilyStores.containsKey(cfId) : cfId;
+        columnFamilyStores.put(cfId, ColumnFamilyStore.createColumnFamilyStore(name, cfName));
+        cfNameMap.put(cfName, cfId);
     }
     
     /** basically a combined drop and add */
-    public void renameCf(String oldName, String newName) throws IOException
+    public void renameCf(int cfId, String newName) throws IOException
     {
-        dropCf(oldName);
-        addCf(newName);
-    }
-
-    /**
-     * Selects the specified column family for the specified key.
-    */
-    @Deprecated // single CFs could be larger than memory
-    public ColumnFamily get(String key, String cfName) throws IOException
-    {
-        ColumnFamilyStore cfStore = columnFamilyStores.get(cfName);
-        assert cfStore != null : "Column family " + cfName + " has not been defined";
-        return cfStore.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName)));
+        dropCf(cfId);
+        initCf(cfId, newName);
     }
 
     public Row getRow(QueryFilter filter) throws IOException
     {
-        ColumnFamilyStore cfStore = columnFamilyStores.get(filter.getColumnFamilyName());
+        ColumnFamilyStore cfStore = columnFamilyStores.get(cfNameMap.get(filter.getColumnFamilyName()));
         ColumnFamily columnFamily = cfStore.getColumnFamily(filter);
         return new Row(filter.key, columnFamily);
     }
@@ -371,7 +346,7 @@ public class Table
             for (ColumnFamily columnFamily : mutation.getColumnFamilies())
             {
                 Memtable memtableToFlush;
-                ColumnFamilyStore cfs = columnFamilyStores.get(columnFamily.name());
+                ColumnFamilyStore cfs = columnFamilyStores.get(columnFamily.id());
                 if (cfs == null)
                 {
                     logger.error("Attempting to mutate non-existant column family " + columnFamily.name());
@@ -400,9 +375,9 @@ public class Table
     public List<Future<?>> flush() throws IOException
     {
         List<Future<?>> futures = new ArrayList<Future<?>>();
-        for (String cfName : columnFamilyStores.keySet())
+        for (Integer cfId : columnFamilyStores.keySet())
         {
-            Future<?> future = columnFamilyStores.get(cfName).forceFlush();
+            Future<?> future = columnFamilyStores.get(cfId).forceFlush();
             if (future != null)
                 futures.add(future);
         }
@@ -419,7 +394,7 @@ public class Table
             Collection<IColumn> columns = columnFamily.getSortedColumns();
             for (IColumn column : columns)
             {
-                ColumnFamilyStore cfStore = columnFamilyStores.get(new String(column.name(), "UTF-8"));
+                ColumnFamilyStore cfStore = columnFamilyStores.get(cfNameMap.get(new String(column.name(), "UTF-8")));
                 cfStore.applyBinary(key, column.value());
             }
         }

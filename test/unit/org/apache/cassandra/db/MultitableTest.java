@@ -24,6 +24,7 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.cassandra.Util;
 import org.junit.Test;
 
 import static org.apache.cassandra.db.TableTest.assertColumns;
@@ -56,7 +57,7 @@ public class MultitableTest extends CleanupHelper
         table1.getColumnFamilyStore("Standard1").forceBlockingFlush();
         table2.getColumnFamilyStore("Standard1").forceBlockingFlush();
 
-        assertColumns(table1.get("keymulti", "Standard1"), "col1");
-        assertColumns(table2.get("keymulti", "Standard1"), "col2");
+        assertColumns(Util.getColumnFamily(table1, "keymulti", "Standard1"), "col1");
+        assertColumns(Util.getColumnFamily(table2, "keymulti", "Standard1"), "col2");
     }
 }

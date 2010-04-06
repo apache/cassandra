@@ -77,7 +77,7 @@ public class AddColumnFamily extends Migration
         // reinitialize the table.
         KSMetaData ksm = DatabaseDescriptor.getTableDefinition(cfm.tableName);
         ksm = makeNewKeyspaceDefinition(ksm);
-        Table.open(ksm.name).addCf(cfm.cfName);
+        Table.open(ksm.name).initCf(cfm.cfId, cfm.cfName);
         DatabaseDescriptor.setTableDefinition(ksm, newVersion);
         
         // force creation of a new commit log segment.
