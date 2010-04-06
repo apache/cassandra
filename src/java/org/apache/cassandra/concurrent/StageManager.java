@@ -47,6 +47,7 @@ public class StageManager
     public static final String RESPONSE_STAGE = "RESPONSE-STAGE";
     public final static String AE_SERVICE_STAGE = "AE-SERVICE-STAGE";
     private static final String LOADBALANCE_STAGE = "LOAD-BALANCER-STAGE";
+    public static final String MIGRATION_STAGE = "MIGRATION-STAGE";
 
     static
     {
@@ -58,6 +59,7 @@ public class StageManager
         stages.put(GOSSIP_STAGE, new JMXEnabledThreadPoolExecutor("GMFD"));
         stages.put(AE_SERVICE_STAGE, new JMXEnabledThreadPoolExecutor(AE_SERVICE_STAGE));
         stages.put(LOADBALANCE_STAGE, new JMXEnabledThreadPoolExecutor(LOADBALANCE_STAGE));
+        stages.put(MIGRATION_STAGE, new JMXEnabledThreadPoolExecutor(MIGRATION_STAGE));
     }
 
     private static ThreadPoolExecutor multiThreadedStage(String name, int numThreads)

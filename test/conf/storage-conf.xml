@@ -77,7 +77,7 @@
      </Keyspace>
    </Keyspaces>
    <Seeds>
-     <!-- Add names of hosts that are deemed contact points -->
-     <Seed>127.0.0.1</Seed>
+     <!-- we don't want this node to think it is a seed. -->
+     <Seed>127.0.0.2</Seed>
    </Seeds>
 </Storage>

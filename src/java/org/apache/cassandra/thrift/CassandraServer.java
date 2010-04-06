@@ -530,14 +530,12 @@ public class CassandraServer implements Cassandra.Iface
     {
         Map<String, Map<String, String>> columnFamiliesMap = new HashMap<String, Map<String, String>>();
 
-        Map<String, CFMetaData> tableMetaData = DatabaseDescriptor.getTableMetaData(table);
-        // table doesn't exist
-        if (tableMetaData == null)
-        {
+        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(table); 
+        if (ksm == null)
             throw new NotFoundException();
-        }
+        
 
-        for (Map.Entry<String, CFMetaData> stringCFMetaDataEntry : tableMetaData.entrySet())
+        for (Map.Entry<String, CFMetaData> stringCFMetaDataEntry : ksm.cfMetaData().entrySet())
         {
             CFMetaData columnFamilyMetaData = stringCFMetaDataEntry.getValue();
 
@@ -679,3 +677,4 @@ public class CassandraServer implements Cassandra.Iface
     
     // main method moved to CassandraDaemon
 }
+    

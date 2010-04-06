@@ -19,7 +19,6 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
-import java.io.IOError;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Constructor;
 import java.util.*;
@@ -40,9 +39,7 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.DeletionService;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.io.sstable.IndexSummary;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
@@ -106,6 +103,8 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         GOSSIP_DIGEST_SYN,
         GOSSIP_DIGEST_ACK,
         GOSSIP_DIGEST_ACK2,
+        DEFINITIONS_ANNOUNCE,
+        DEFINITIONS_UPDATE_RESPONSE,
         ;
         // remember to add new verbs at the end, since we serialize by ordinal
     }
@@ -151,6 +150,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     private boolean isClientMode;
     private boolean initialized;
     private String operationMode;
+    private MigrationManager migrationManager = new MigrationManager();
 
     public void addBootstrapSource(InetAddress s, String table)
     {
@@ -226,14 +226,13 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         MessagingService.instance.registerVerbHandlers(Verb.GOSSIP_DIGEST_SYN, new Gossiper.GossipDigestSynVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.GOSSIP_DIGEST_ACK, new Gossiper.GossipDigestAckVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.GOSSIP_DIGEST_ACK2, new Gossiper.GossipDigestAck2VerbHandler());
+        
+        MessagingService.instance.registerVerbHandlers(Verb.DEFINITIONS_ANNOUNCE, new DefinitionsAnnounceVerbHandler());
+        MessagingService.instance.registerVerbHandlers(Verb.DEFINITIONS_UPDATE_RESPONSE, new DefinitionsUpdateResponseVerbHandler());
 
         replicationStrategies = new HashMap<String, AbstractReplicationStrategy>();
         for (String table : DatabaseDescriptor.getNonSystemTables())
-        {
-            AbstractReplicationStrategy strat = getReplicationStrategy(tokenMetadata_, table);
-            replicationStrategies.put(table, strat);
-        }
-        replicationStrategies = Collections.unmodifiableMap(replicationStrategies);
+            initReplicationStrategy(table);
 
         // spin up the streaming serivice so it is available for jmx tools.
         if (StreamingService.instance == null)
@@ -281,6 +280,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
 
     public void stopClient()
     {
+        Gossiper.instance.unregister(migrationManager);
         Gossiper.instance.unregister(this);
         Gossiper.instance.stop();
         MessagingService.shutdown();
@@ -336,6 +336,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         // for bootstrap to get the load info it needs.
         // (we won't be part of the storage ring though until we add a nodeId to our state, below.)
         Gossiper.instance.register(this);
+        Gossiper.instance.register(migrationManager);
         Gossiper.instance.start(FBUtilities.getLocalAddress(), storageMetadata_.getGeneration()); // needed for node-ring gathering.
 
         if (DatabaseDescriptor.isAutoBootstrap()
@@ -357,7 +358,17 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
             }
             setMode("Joining: getting bootstrap token", true);
             Token token = BootStrapper.getBootstrapToken(tokenMetadata_, StorageLoadBalancer.instance.getLoadInfo());
-            startBootstrap(token);
+            // don't bootstrap if there are no tables defined.
+            if (DatabaseDescriptor.getNonSystemTables().size() > 0)
+                startBootstrap(token);
+            else
+            {
+                isBootstrapMode = false;
+                SystemTable.setBootstrapped(true);
+                tokenMetadata_.updateNormalToken(token, FBUtilities.getLocalAddress());
+                Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_NORMAL + Delimiter + partitioner_.getTokenFactory().toString(token)));
+                setMode("Normal", false);
+            }
             // don't finish startup (enabling thrift) until after bootstrap is done
             while (isBootstrapMode)
             {

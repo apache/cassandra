@@ -132,7 +132,8 @@ public class DatabaseDescriptor
 
     private final static String STORAGE_CONF_FILE = "storage-conf.xml";
 
-    private static UUID defsVersion = null;
+    private static final UUID INITIAL_VERSION = new UUID(4096, 0); // has type nibble set to 1, everything else to zero.
+    private static UUID defsVersion = INITIAL_VERSION;
 
     /**
      * Try the storage-config system property, and then inspect the classpath.

@@ -1,0 +1,81 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p/>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p/>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.cassandra.db;
+
+import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.WrappedRunnable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOError;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.UUID;
+
+public class DefinitionsUpdateResponseVerbHandler implements IVerbHandler
+{
+    private static final Logger logger = LoggerFactory.getLogger(DefinitionsUpdateResponseVerbHandler.class);
+
+    /** someone sent me their data definitions */
+    public void doVerb(final Message message)
+    {
+        try
+        {
+            // these are the serialized row mutations that I must apply.
+            // check versions at every step along the way to make sure migrations are not applied out of order.
+            Collection<Column> cols = MigrationManager.makeColumns(message);
+            for (Column col : cols)
+            {
+                final UUID version = UUIDGen.makeType1UUID(col.name());
+                if (version.timestamp() > DatabaseDescriptor.getDefsVersion().timestamp())
+                {
+                    final Migration m = Migration.deserialize(new ByteArrayInputStream(col.value()));
+                    assert m.getVersion().equals(version);
+                    StageManager.getStage(StageManager.MIGRATION_STAGE).submit(new WrappedRunnable()
+                    {
+                        @Override
+                        protected void runMayThrow() throws Exception
+                        {
+                            // check to make sure the current version is before this one.
+                            if (DatabaseDescriptor.getDefsVersion().timestamp() >= version.timestamp())
+                                logger.debug("Not applying " + version.toString());
+                            else
+                            {
+                                logger.debug("Applying {} from {}", m.getClass().getSimpleName(), message.getFrom());
+                                m.apply();
+                                m.announce();
+                            }
+                        }
+                    });
+                }
+            }
+        }
+        catch (IOException ex)
+        {
+            throw new IOError(ex);
+        }
+    }
+}
