@@ -121,6 +121,10 @@
                     RowsCached="10000"
                     KeysCached="50%"
                     Comment="A column family with supercolumns, whose column and subcolumn names are UTF8 strings"/>
+      <ColumnFamily Name="Super3"
+                    ColumnType="Super"
+                    CompareWith="LongType"
+                    Comment="A column family with supercolumns, whose column names are Longs (8 bytes)"/>
 
       <!--
        ~ Strategy: Setting this to the class that implements
