@@ -336,6 +336,8 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         MessagingService.instance.listen(FBUtilities.getLocalAddress());
 
         StorageLoadBalancer.instance.startBroadcasting();
+        
+        MigrationManager.announce(DatabaseDescriptor.getDefsVersion(), DatabaseDescriptor.getSeeds());
 
         // have to start the gossip service before we can see any info on other nodes.  this is necessary
         // for bootstrap to get the load info it needs.
