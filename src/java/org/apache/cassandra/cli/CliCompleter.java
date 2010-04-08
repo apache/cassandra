@@ -27,7 +27,6 @@ public class CliCompleter extends SimpleCompletor
             "exit",
             "help",
             "quit",
-            "show config file",
             "show cluster name",
             "show keyspaces",
             "show api version",

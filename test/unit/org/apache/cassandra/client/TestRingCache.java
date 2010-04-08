@@ -36,11 +36,12 @@ import org.apache.thrift.transport.TTransport;
 public class TestRingCache
 {
     private static RingCache ringCache;
+    private static String keyspace = "Keyspace1";
     private static Cassandra.Client thriftClient;
 
     static
     {
-        ringCache = new RingCache();
+        ringCache = new RingCache(keyspace);
     }
 
     private static void setup(String server, int port) throws Exception
@@ -65,20 +66,18 @@ public class TestRingCache
      */
     public static void main(String[] args) throws Throwable
     {
-        String table;
         int minRow;
         int maxRow;
         String rowPrefix;
         if (args.length > 0)
         {
-            table = args[0];
+            keyspace = args[0];
             rowPrefix = args[1];
             minRow = Integer.parseInt(args[2]);
             maxRow = minRow + 1;
         }
         else
         {
-            table = "Keyspace1";
             minRow = 1;
             maxRow = 10;
             rowPrefix = "row";
@@ -89,7 +88,7 @@ public class TestRingCache
             String row = rowPrefix + nRows;
             ColumnPath col = new ColumnPath("Standard1").setSuper_column(null).setColumn("col1".getBytes());
 
-            List<InetAddress> endPoints = ringCache.getEndPoint(table, row);
+            List<InetAddress> endPoints = ringCache.getEndPoint(row);
             String hosts="";
             for (int i = 0; i < endPoints.size(); i++)
                 hosts = hosts + ((i > 0) ? "," : "") + endPoints.get(i);
@@ -97,8 +96,8 @@ public class TestRingCache
 
             // now, read the row back directly from the host owning the row locally
             setup(endPoints.get(0).getHostAddress(), DatabaseDescriptor.getRpcPort());
-            thriftClient.insert(table, row, col, "val1".getBytes(), 1, ConsistencyLevel.ONE);
-            Column column=thriftClient.get(table, row, col, ConsistencyLevel.ONE).column;
+            thriftClient.insert(keyspace, row, col, "val1".getBytes(), 1, ConsistencyLevel.ONE);
+            Column column=thriftClient.get(keyspace, row, col, ConsistencyLevel.ONE).column;
             System.out.println("read row " + row + " " + new String(column.name) + ":" + new String(column.value) + ":" + column.timestamp);
         }
 

@@ -9,6 +9,8 @@ Configuraton
 Thrift API
 ----------
     - The return type for login() is now AccessLevel.
+    - The get_string_property() method has been removed.
+    - The get_string_list_property() method has been removed.
 
 
 0.6.0

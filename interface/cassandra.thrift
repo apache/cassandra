@@ -456,12 +456,6 @@ service Cassandra {
   // Meta-APIs -- APIs to get information about the node or cluster,
   // rather than user data.  The nodeprobe program provides usage examples.
 
-  /** get property whose value is of type string. @Deprecated */
-  string get_string_property(1:required string property),
-
-  /** get property whose value is list of strings. @Deprecated */
-  list<string> get_string_list_property(1:required string property),
-
   /** list the defined keyspaces in this cluster */
   set<string> describe_keyspaces(),
 

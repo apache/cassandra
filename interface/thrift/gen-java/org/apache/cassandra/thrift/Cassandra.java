@@ -25,6 +25,7 @@ package org.apache.cassandra.thrift;
  * 
  */
 
+
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -182,20 +183,6 @@ public class Cassandra {
      * @param consistency_level
      */
     public void batch_mutate(String keyspace, Map<String,Map<String,List<Mutation>>> mutation_map, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
-
-    /**
-     * get property whose value is of type string. @Deprecated
-     * 
-     * @param property
-     */
-    public String get_string_property(String property) throws TException;
-
-    /**
-     * get property whose value is list of strings. @Deprecated
-     * 
-     * @param property
-     */
-    public List<String> get_string_list_property(String property) throws TException;
 
     /**
      * list the defined keyspaces in this cluster
@@ -821,72 +808,6 @@ public class Cassandra {
       return;
     }
 
-    public String get_string_property(String property) throws TException
-    {
-      send_get_string_property(property);
-      return recv_get_string_property();
-    }
-
-    public void send_get_string_property(String property) throws TException
-    {
-      oprot_.writeMessageBegin(new TMessage("get_string_property", TMessageType.CALL, seqid_));
-      get_string_property_args args = new get_string_property_args();
-      args.property = property;
-      args.write(oprot_);
-      oprot_.writeMessageEnd();
-      oprot_.getTransport().flush();
-    }
-
-    public String recv_get_string_property() throws TException
-    {
-      TMessage msg = iprot_.readMessageBegin();
-      if (msg.type == TMessageType.EXCEPTION) {
-        TApplicationException x = TApplicationException.read(iprot_);
-        iprot_.readMessageEnd();
-        throw x;
-      }
-      get_string_property_result result = new get_string_property_result();
-      result.read(iprot_);
-      iprot_.readMessageEnd();
-      if (result.isSetSuccess()) {
-        return result.success;
-      }
-      throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_string_property failed: unknown result");
-    }
-
-    public List<String> get_string_list_property(String property) throws TException
-    {
-      send_get_string_list_property(property);
-      return recv_get_string_list_property();
-    }
-
-    public void send_get_string_list_property(String property) throws TException
-    {
-      oprot_.writeMessageBegin(new TMessage("get_string_list_property", TMessageType.CALL, seqid_));
-      get_string_list_property_args args = new get_string_list_property_args();
-      args.property = property;
-      args.write(oprot_);
-      oprot_.writeMessageEnd();
-      oprot_.getTransport().flush();
-    }
-
-    public List<String> recv_get_string_list_property() throws TException
-    {
-      TMessage msg = iprot_.readMessageBegin();
-      if (msg.type == TMessageType.EXCEPTION) {
-        TApplicationException x = TApplicationException.read(iprot_);
-        iprot_.readMessageEnd();
-        throw x;
-      }
-      get_string_list_property_result result = new get_string_list_property_result();
-      result.read(iprot_);
-      iprot_.readMessageEnd();
-      if (result.isSetSuccess()) {
-        return result.success;
-      }
-      throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_string_list_property failed: unknown result");
-    }
-
     public Set<String> describe_keyspaces() throws TException
     {
       send_describe_keyspaces();
@@ -1307,8 +1228,6 @@ public class Cassandra {
       processMap_.put("batch_insert", new batch_insert());
       processMap_.put("remove", new remove());
       processMap_.put("batch_mutate", new batch_mutate());
-      processMap_.put("get_string_property", new get_string_property());
-      processMap_.put("get_string_list_property", new get_string_list_property());
       processMap_.put("describe_keyspaces", new describe_keyspaces());
       processMap_.put("describe_cluster_name", new describe_cluster_name());
       processMap_.put("describe_version", new describe_version());
@@ -1846,58 +1765,6 @@ public class Cassandra {
           return;
         }
         oprot.writeMessageBegin(new TMessage("batch_mutate", TMessageType.REPLY, seqid));
-        result.write(oprot);
-        oprot.writeMessageEnd();
-        oprot.getTransport().flush();
-      }
-
-    }
-
-    private class get_string_property implements ProcessFunction {
-      public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
-      {
-        get_string_property_args args = new get_string_property_args();
-        try {
-          args.read(iprot);
-        } catch (TProtocolException e) {
-          iprot.readMessageEnd();
-          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
-          oprot.writeMessageBegin(new TMessage("get_string_property", TMessageType.EXCEPTION, seqid));
-          x.write(oprot);
-          oprot.writeMessageEnd();
-          oprot.getTransport().flush();
-          return;
-        }
-        iprot.readMessageEnd();
-        get_string_property_result result = new get_string_property_result();
-        result.success = iface_.get_string_property(args.property);
-        oprot.writeMessageBegin(new TMessage("get_string_property", TMessageType.REPLY, seqid));
-        result.write(oprot);
-        oprot.writeMessageEnd();
-        oprot.getTransport().flush();
-      }
-
-    }
-
-    private class get_string_list_property implements ProcessFunction {
-      public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
-      {
-        get_string_list_property_args args = new get_string_list_property_args();
-        try {
-          args.read(iprot);
-        } catch (TProtocolException e) {
-          iprot.readMessageEnd();
-          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
-          oprot.writeMessageBegin(new TMessage("get_string_list_property", TMessageType.EXCEPTION, seqid));
-          x.write(oprot);
-          oprot.writeMessageEnd();
-          oprot.getTransport().flush();
-          return;
-        }
-        iprot.readMessageEnd();
-        get_string_list_property_result result = new get_string_list_property_result();
-        result.success = iface_.get_string_list_property(args.property);
-        oprot.writeMessageBegin(new TMessage("get_string_list_property", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
         oprot.getTransport().flush();
@@ -15983,1171 +15850,6 @@ public class Cassandra {
 
   }
 
-  public static class get_string_property_args implements TBase<get_string_property_args._Fields>, java.io.Serializable, Cloneable, Comparable<get_string_property_args>   {
-    private static final TStruct STRUCT_DESC = new TStruct("get_string_property_args");
-
-    private static final TField PROPERTY_FIELD_DESC = new TField("property", TType.STRING, (short)1);
-
-    public String property;
-
-    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-    public enum _Fields implements TFieldIdEnum {
-      PROPERTY((short)1, "property");
-
-      private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
-      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
-
-      static {
-        for (_Fields field : EnumSet.allOf(_Fields.class)) {
-          byId.put((int)field._thriftId, field);
-          byName.put(field.getFieldName(), field);
-        }
-      }
-
-      /**
-       * Find the _Fields constant that matches fieldId, or null if its not found.
-       */
-      public static _Fields findByThriftId(int fieldId) {
-        return byId.get(fieldId);
-      }
-
-      /**
-       * Find the _Fields constant that matches fieldId, throwing an exception
-       * if it is not found.
-       */
-      public static _Fields findByThriftIdOrThrow(int fieldId) {
-        _Fields fields = findByThriftId(fieldId);
-        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
-        return fields;
-      }
-
-      /**
-       * Find the _Fields constant that matches name, or null if its not found.
-       */
-      public static _Fields findByName(String name) {
-        return byName.get(name);
-      }
-
-      private final short _thriftId;
-      private final String _fieldName;
-
-      _Fields(short thriftId, String fieldName) {
-        _thriftId = thriftId;
-        _fieldName = fieldName;
-      }
-
-      public short getThriftFieldId() {
-        return _thriftId;
-      }
-
-      public String getFieldName() {
-        return _fieldName;
-      }
-    }
-
-    // isset id assignments
-
-    public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
-      put(_Fields.PROPERTY, new FieldMetaData("property", TFieldRequirementType.REQUIRED, 
-          new FieldValueMetaData(TType.STRING)));
-    }});
-
-    static {
-      FieldMetaData.addStructMetaDataMap(get_string_property_args.class, metaDataMap);
-    }
-
-    public get_string_property_args() {
-    }
-
-    public get_string_property_args(
-      String property)
-    {
-      this();
-      this.property = property;
-    }
-
-    /**
-     * Performs a deep copy on <i>other</i>.
-     */
-    public get_string_property_args(get_string_property_args other) {
-      if (other.isSetProperty()) {
-        this.property = other.property;
-      }
-    }
-
-    public get_string_property_args deepCopy() {
-      return new get_string_property_args(this);
-    }
-
-    @Deprecated
-    public get_string_property_args clone() {
-      return new get_string_property_args(this);
-    }
-
-    public String getProperty() {
-      return this.property;
-    }
-
-    public get_string_property_args setProperty(String property) {
-      this.property = property;
-      return this;
-    }
-
-    public void unsetProperty() {
-      this.property = null;
-    }
-
-    /** Returns true if field property is set (has been asigned a value) and false otherwise */
-    public boolean isSetProperty() {
-      return this.property != null;
-    }
-
-    public void setPropertyIsSet(boolean value) {
-      if (!value) {
-        this.property = null;
-      }
-    }
-
-    public void setFieldValue(_Fields field, Object value) {
-      switch (field) {
-      case PROPERTY:
-        if (value == null) {
-          unsetProperty();
-        } else {
-          setProperty((String)value);
-        }
-        break;
-
-      }
-    }
-
-    public void setFieldValue(int fieldID, Object value) {
-      setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
-    }
-
-    public Object getFieldValue(_Fields field) {
-      switch (field) {
-      case PROPERTY:
-        return getProperty();
-
-      }
-      throw new IllegalStateException();
-    }
-
-    public Object getFieldValue(int fieldId) {
-      return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-    }
-
-    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
-    public boolean isSet(_Fields field) {
-      switch (field) {
-      case PROPERTY:
-        return isSetProperty();
-      }
-      throw new IllegalStateException();
-    }
-
-    public boolean isSet(int fieldID) {
-      return isSet(_Fields.findByThriftIdOrThrow(fieldID));
-    }
-
-    @Override
-    public boolean equals(Object that) {
-      if (that == null)
-        return false;
-      if (that instanceof get_string_property_args)
-        return this.equals((get_string_property_args)that);
-      return false;
-    }
-
-    public boolean equals(get_string_property_args that) {
-      if (that == null)
-        return false;
-
-      boolean this_present_property = true && this.isSetProperty();
-      boolean that_present_property = true && that.isSetProperty();
-      if (this_present_property || that_present_property) {
-        if (!(this_present_property && that_present_property))
-          return false;
-        if (!this.property.equals(that.property))
-          return false;
-      }
-
-      return true;
-    }
-
-    @Override
-    public int hashCode() {
-      return 0;
-    }
-
-    public int compareTo(get_string_property_args other) {
-      if (!getClass().equals(other.getClass())) {
-        return getClass().getName().compareTo(other.getClass().getName());
-      }
-
-      int lastComparison = 0;
-      get_string_property_args typedOther = (get_string_property_args)other;
-
-      lastComparison = Boolean.valueOf(isSetProperty()).compareTo(typedOther.isSetProperty());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      if (isSetProperty()) {        lastComparison = TBaseHelper.compareTo(property, typedOther.property);
-        if (lastComparison != 0) {
-          return lastComparison;
-        }
-      }
-      return 0;
-    }
-
-    public void read(TProtocol iprot) throws TException {
-      TField field;
-      iprot.readStructBegin();
-      while (true)
-      {
-        field = iprot.readFieldBegin();
-        if (field.type == TType.STOP) { 
-          break;
-        }
-        switch (field.id) {
-          case 1: // PROPERTY
-            if (field.type == TType.STRING) {
-              this.property = iprot.readString();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          default:
-            TProtocolUtil.skip(iprot, field.type);
-        }
-        iprot.readFieldEnd();
-      }
-      iprot.readStructEnd();
-
-      // check for required fields of primitive type, which can't be checked in the validate method
-      validate();
-    }
-
-    public void write(TProtocol oprot) throws TException {
-      validate();
-
-      oprot.writeStructBegin(STRUCT_DESC);
-      if (this.property != null) {
-        oprot.writeFieldBegin(PROPERTY_FIELD_DESC);
-        oprot.writeString(this.property);
-        oprot.writeFieldEnd();
-      }
-      oprot.writeFieldStop();
-      oprot.writeStructEnd();
-    }
-
-    @Override
-    public String toString() {
-      StringBuilder sb = new StringBuilder("get_string_property_args(");
-      boolean first = true;
-
-      sb.append("property:");
-      if (this.property == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.property);
-      }
-      first = false;
-      sb.append(")");
-      return sb.toString();
-    }
-
-    public void validate() throws TException {
-      // check for required fields
-      if (property == null) {
-        throw new TProtocolException("Required field 'property' was not present! Struct: " + toString());
-      }
-    }
-
-  }
-
-  public static class get_string_property_result implements TBase<get_string_property_result._Fields>, java.io.Serializable, Cloneable, Comparable<get_string_property_result>   {
-    private static final TStruct STRUCT_DESC = new TStruct("get_string_property_result");
-
-    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRING, (short)0);
-
-    public String success;
-
-    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-    public enum _Fields implements TFieldIdEnum {
-      SUCCESS((short)0, "success");
-
-      private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
-      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
-
-      static {
-        for (_Fields field : EnumSet.allOf(_Fields.class)) {
-          byId.put((int)field._thriftId, field);
-          byName.put(field.getFieldName(), field);
-        }
-      }
-
-      /**
-       * Find the _Fields constant that matches fieldId, or null if its not found.
-       */
-      public static _Fields findByThriftId(int fieldId) {
-        return byId.get(fieldId);
-      }
-
-      /**
-       * Find the _Fields constant that matches fieldId, throwing an exception
-       * if it is not found.
-       */
-      public static _Fields findByThriftIdOrThrow(int fieldId) {
-        _Fields fields = findByThriftId(fieldId);
-        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
-        return fields;
-      }
-
-      /**
-       * Find the _Fields constant that matches name, or null if its not found.
-       */
-      public static _Fields findByName(String name) {
-        return byName.get(name);
-      }
-
-      private final short _thriftId;
-      private final String _fieldName;
-
-      _Fields(short thriftId, String fieldName) {
-        _thriftId = thriftId;
-        _fieldName = fieldName;
-      }
-
-      public short getThriftFieldId() {
-        return _thriftId;
-      }
-
-      public String getFieldName() {
-        return _fieldName;
-      }
-    }
-
-    // isset id assignments
-
-    public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
-      put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.STRING)));
-    }});
-
-    static {
-      FieldMetaData.addStructMetaDataMap(get_string_property_result.class, metaDataMap);
-    }
-
-    public get_string_property_result() {
-    }
-
-    public get_string_property_result(
-      String success)
-    {
-      this();
-      this.success = success;
-    }
-
-    /**
-     * Performs a deep copy on <i>other</i>.
-     */
-    public get_string_property_result(get_string_property_result other) {
-      if (other.isSetSuccess()) {
-        this.success = other.success;
-      }
-    }
-
-    public get_string_property_result deepCopy() {
-      return new get_string_property_result(this);
-    }
-
-    @Deprecated
-    public get_string_property_result clone() {
-      return new get_string_property_result(this);
-    }
-
-    public String getSuccess() {
-      return this.success;
-    }
-
-    public get_string_property_result setSuccess(String success) {
-      this.success = success;
-      return this;
-    }
-
-    public void unsetSuccess() {
-      this.success = null;
-    }
-
-    /** Returns true if field success is set (has been asigned a value) and false otherwise */
-    public boolean isSetSuccess() {
-      return this.success != null;
-    }
-
-    public void setSuccessIsSet(boolean value) {
-      if (!value) {
-        this.success = null;
-      }
-    }
-
-    public void setFieldValue(_Fields field, Object value) {
-      switch (field) {
-      case SUCCESS:
-        if (value == null) {
-          unsetSuccess();
-        } else {
-          setSuccess((String)value);
-        }
-        break;
-
-      }
-    }
-
-    public void setFieldValue(int fieldID, Object value) {
-      setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
-    }
-
-    public Object getFieldValue(_Fields field) {
-      switch (field) {
-      case SUCCESS:
-        return getSuccess();
-
-      }
-      throw new IllegalStateException();
-    }
-
-    public Object getFieldValue(int fieldId) {
-      return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-    }
-
-    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
-    public boolean isSet(_Fields field) {
-      switch (field) {
-      case SUCCESS:
-        return isSetSuccess();
-      }
-      throw new IllegalStateException();
-    }
-
-    public boolean isSet(int fieldID) {
-      return isSet(_Fields.findByThriftIdOrThrow(fieldID));
-    }
-
-    @Override
-    public boolean equals(Object that) {
-      if (that == null)
-        return false;
-      if (that instanceof get_string_property_result)
-        return this.equals((get_string_property_result)that);
-      return false;
-    }
-
-    public boolean equals(get_string_property_result that) {
-      if (that == null)
-        return false;
-
-      boolean this_present_success = true && this.isSetSuccess();
-      boolean that_present_success = true && that.isSetSuccess();
-      if (this_present_success || that_present_success) {
-        if (!(this_present_success && that_present_success))
-          return false;
-        if (!this.success.equals(that.success))
-          return false;
-      }
-
-      return true;
-    }
-
-    @Override
-    public int hashCode() {
-      return 0;
-    }
-
-    public int compareTo(get_string_property_result other) {
-      if (!getClass().equals(other.getClass())) {
-        return getClass().getName().compareTo(other.getClass().getName());
-      }
-
-      int lastComparison = 0;
-      get_string_property_result typedOther = (get_string_property_result)other;
-
-      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(success, typedOther.success);
-        if (lastComparison != 0) {
-          return lastComparison;
-        }
-      }
-      return 0;
-    }
-
-    public void read(TProtocol iprot) throws TException {
-      TField field;
-      iprot.readStructBegin();
-      while (true)
-      {
-        field = iprot.readFieldBegin();
-        if (field.type == TType.STOP) { 
-          break;
-        }
-        switch (field.id) {
-          case 0: // SUCCESS
-            if (field.type == TType.STRING) {
-              this.success = iprot.readString();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          default:
-            TProtocolUtil.skip(iprot, field.type);
-        }
-        iprot.readFieldEnd();
-      }
-      iprot.readStructEnd();
-
-      // check for required fields of primitive type, which can't be checked in the validate method
-      validate();
-    }
-
-    public void write(TProtocol oprot) throws TException {
-      oprot.writeStructBegin(STRUCT_DESC);
-
-      if (this.isSetSuccess()) {
-        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
-        oprot.writeString(this.success);
-        oprot.writeFieldEnd();
-      }
-      oprot.writeFieldStop();
-      oprot.writeStructEnd();
-    }
-
-    @Override
-    public String toString() {
-      StringBuilder sb = new StringBuilder("get_string_property_result(");
-      boolean first = true;
-
-      sb.append("success:");
-      if (this.success == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.success);
-      }
-      first = false;
-      sb.append(")");
-      return sb.toString();
-    }
-
-    public void validate() throws TException {
-      // check for required fields
-    }
-
-  }
-
-  public static class get_string_list_property_args implements TBase<get_string_list_property_args._Fields>, java.io.Serializable, Cloneable, Comparable<get_string_list_property_args>   {
-    private static final TStruct STRUCT_DESC = new TStruct("get_string_list_property_args");
-
-    private static final TField PROPERTY_FIELD_DESC = new TField("property", TType.STRING, (short)1);
-
-    public String property;
-
-    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-    public enum _Fields implements TFieldIdEnum {
-      PROPERTY((short)1, "property");
-
-      private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
-      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
-
-      static {
-        for (_Fields field : EnumSet.allOf(_Fields.class)) {
-          byId.put((int)field._thriftId, field);
-          byName.put(field.getFieldName(), field);
-        }
-      }
-
-      /**
-       * Find the _Fields constant that matches fieldId, or null if its not found.
-       */
-      public static _Fields findByThriftId(int fieldId) {
-        return byId.get(fieldId);
-      }
-
-      /**
-       * Find the _Fields constant that matches fieldId, throwing an exception
-       * if it is not found.
-       */
-      public static _Fields findByThriftIdOrThrow(int fieldId) {
-        _Fields fields = findByThriftId(fieldId);
-        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
-        return fields;
-      }
-
-      /**
-       * Find the _Fields constant that matches name, or null if its not found.
-       */
-      public static _Fields findByName(String name) {
-        return byName.get(name);
-      }
-
-      private final short _thriftId;
-      private final String _fieldName;
-
-      _Fields(short thriftId, String fieldName) {
-        _thriftId = thriftId;
-        _fieldName = fieldName;
-      }
-
-      public short getThriftFieldId() {
-        return _thriftId;
-      }
-
-      public String getFieldName() {
-        return _fieldName;
-      }
-    }
-
-    // isset id assignments
-
-    public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
-      put(_Fields.PROPERTY, new FieldMetaData("property", TFieldRequirementType.REQUIRED, 
-          new FieldValueMetaData(TType.STRING)));
-    }});
-
-    static {
-      FieldMetaData.addStructMetaDataMap(get_string_list_property_args.class, metaDataMap);
-    }
-
-    public get_string_list_property_args() {
-    }
-
-    public get_string_list_property_args(
-      String property)
-    {
-      this();
-      this.property = property;
-    }
-
-    /**
-     * Performs a deep copy on <i>other</i>.
-     */
-    public get_string_list_property_args(get_string_list_property_args other) {
-      if (other.isSetProperty()) {
-        this.property = other.property;
-      }
-    }
-
-    public get_string_list_property_args deepCopy() {
-      return new get_string_list_property_args(this);
-    }
-
-    @Deprecated
-    public get_string_list_property_args clone() {
-      return new get_string_list_property_args(this);
-    }
-
-    public String getProperty() {
-      return this.property;
-    }
-
-    public get_string_list_property_args setProperty(String property) {
-      this.property = property;
-      return this;
-    }
-
-    public void unsetProperty() {
-      this.property = null;
-    }
-
-    /** Returns true if field property is set (has been asigned a value) and false otherwise */
-    public boolean isSetProperty() {
-      return this.property != null;
-    }
-
-    public void setPropertyIsSet(boolean value) {
-      if (!value) {
-        this.property = null;
-      }
-    }
-
-    public void setFieldValue(_Fields field, Object value) {
-      switch (field) {
-      case PROPERTY:
-        if (value == null) {
-          unsetProperty();
-        } else {
-          setProperty((String)value);
-        }
-        break;
-
-      }
-    }
-
-    public void setFieldValue(int fieldID, Object value) {
-      setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
-    }
-
-    public Object getFieldValue(_Fields field) {
-      switch (field) {
-      case PROPERTY:
-        return getProperty();
-
-      }
-      throw new IllegalStateException();
-    }
-
-    public Object getFieldValue(int fieldId) {
-      return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-    }
-
-    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
-    public boolean isSet(_Fields field) {
-      switch (field) {
-      case PROPERTY:
-        return isSetProperty();
-      }
-      throw new IllegalStateException();
-    }
-
-    public boolean isSet(int fieldID) {
-      return isSet(_Fields.findByThriftIdOrThrow(fieldID));
-    }
-
-    @Override
-    public boolean equals(Object that) {
-      if (that == null)
-        return false;
-      if (that instanceof get_string_list_property_args)
-        return this.equals((get_string_list_property_args)that);
-      return false;
-    }
-
-    public boolean equals(get_string_list_property_args that) {
-      if (that == null)
-        return false;
-
-      boolean this_present_property = true && this.isSetProperty();
-      boolean that_present_property = true && that.isSetProperty();
-      if (this_present_property || that_present_property) {
-        if (!(this_present_property && that_present_property))
-          return false;
-        if (!this.property.equals(that.property))
-          return false;
-      }
-
-      return true;
-    }
-
-    @Override
-    public int hashCode() {
-      return 0;
-    }
-
-    public int compareTo(get_string_list_property_args other) {
-      if (!getClass().equals(other.getClass())) {
-        return getClass().getName().compareTo(other.getClass().getName());
-      }
-
-      int lastComparison = 0;
-      get_string_list_property_args typedOther = (get_string_list_property_args)other;
-
-      lastComparison = Boolean.valueOf(isSetProperty()).compareTo(typedOther.isSetProperty());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      if (isSetProperty()) {        lastComparison = TBaseHelper.compareTo(property, typedOther.property);
-        if (lastComparison != 0) {
-          return lastComparison;
-        }
-      }
-      return 0;
-    }
-
-    public void read(TProtocol iprot) throws TException {
-      TField field;
-      iprot.readStructBegin();
-      while (true)
-      {
-        field = iprot.readFieldBegin();
-        if (field.type == TType.STOP) { 
-          break;
-        }
-        switch (field.id) {
-          case 1: // PROPERTY
-            if (field.type == TType.STRING) {
-              this.property = iprot.readString();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          default:
-            TProtocolUtil.skip(iprot, field.type);
-        }
-        iprot.readFieldEnd();
-      }
-      iprot.readStructEnd();
-
-      // check for required fields of primitive type, which can't be checked in the validate method
-      validate();
-    }
-
-    public void write(TProtocol oprot) throws TException {
-      validate();
-
-      oprot.writeStructBegin(STRUCT_DESC);
-      if (this.property != null) {
-        oprot.writeFieldBegin(PROPERTY_FIELD_DESC);
-        oprot.writeString(this.property);
-        oprot.writeFieldEnd();
-      }
-      oprot.writeFieldStop();
-      oprot.writeStructEnd();
-    }
-
-    @Override
-    public String toString() {
-      StringBuilder sb = new StringBuilder("get_string_list_property_args(");
-      boolean first = true;
-
-      sb.append("property:");
-      if (this.property == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.property);
-      }
-      first = false;
-      sb.append(")");
-      return sb.toString();
-    }
-
-    public void validate() throws TException {
-      // check for required fields
-      if (property == null) {
-        throw new TProtocolException("Required field 'property' was not present! Struct: " + toString());
-      }
-    }
-
-  }
-
-  public static class get_string_list_property_result implements TBase<get_string_list_property_result._Fields>, java.io.Serializable, Cloneable, Comparable<get_string_list_property_result>   {
-    private static final TStruct STRUCT_DESC = new TStruct("get_string_list_property_result");
-
-    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.LIST, (short)0);
-
-    public List<String> success;
-
-    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-    public enum _Fields implements TFieldIdEnum {
-      SUCCESS((short)0, "success");
-
-      private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
-      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
-
-      static {
-        for (_Fields field : EnumSet.allOf(_Fields.class)) {
-          byId.put((int)field._thriftId, field);
-          byName.put(field.getFieldName(), field);
-        }
-      }
-
-      /**
-       * Find the _Fields constant that matches fieldId, or null if its not found.
-       */
-      public static _Fields findByThriftId(int fieldId) {
-        return byId.get(fieldId);
-      }
-
-      /**
-       * Find the _Fields constant that matches fieldId, throwing an exception
-       * if it is not found.
-       */
-      public static _Fields findByThriftIdOrThrow(int fieldId) {
-        _Fields fields = findByThriftId(fieldId);
-        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
-        return fields;
-      }
-
-      /**
-       * Find the _Fields constant that matches name, or null if its not found.
-       */
-      public static _Fields findByName(String name) {
-        return byName.get(name);
-      }
-
-      private final short _thriftId;
-      private final String _fieldName;
-
-      _Fields(short thriftId, String fieldName) {
-        _thriftId = thriftId;
-        _fieldName = fieldName;
-      }
-
-      public short getThriftFieldId() {
-        return _thriftId;
-      }
-
-      public String getFieldName() {
-        return _fieldName;
-      }
-    }
-
-    // isset id assignments
-
-    public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
-      put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
-          new ListMetaData(TType.LIST, 
-              new FieldValueMetaData(TType.STRING))));
-    }});
-
-    static {
-      FieldMetaData.addStructMetaDataMap(get_string_list_property_result.class, metaDataMap);
-    }
-
-    public get_string_list_property_result() {
-    }
-
-    public get_string_list_property_result(
-      List<String> success)
-    {
-      this();
-      this.success = success;
-    }
-
-    /**
-     * Performs a deep copy on <i>other</i>.
-     */
-    public get_string_list_property_result(get_string_list_property_result other) {
-      if (other.isSetSuccess()) {
-        List<String> __this__success = new ArrayList<String>();
-        for (String other_element : other.success) {
-          __this__success.add(other_element);
-        }
-        this.success = __this__success;
-      }
-    }
-
-    public get_string_list_property_result deepCopy() {
-      return new get_string_list_property_result(this);
-    }
-
-    @Deprecated
-    public get_string_list_property_result clone() {
-      return new get_string_list_property_result(this);
-    }
-
-    public int getSuccessSize() {
-      return (this.success == null) ? 0 : this.success.size();
-    }
-
-    public java.util.Iterator<String> getSuccessIterator() {
-      return (this.success == null) ? null : this.success.iterator();
-    }
-
-    public void addToSuccess(String elem) {
-      if (this.success == null) {
-        this.success = new ArrayList<String>();
-      }
-      this.success.add(elem);
-    }
-
-    public List<String> getSuccess() {
-      return this.success;
-    }
-
-    public get_string_list_property_result setSuccess(List<String> success) {
-      this.success = success;
-      return this;
-    }
-
-    public void unsetSuccess() {
-      this.success = null;
-    }
-
-    /** Returns true if field success is set (has been asigned a value) and false otherwise */
-    public boolean isSetSuccess() {
-      return this.success != null;
-    }
-
-    public void setSuccessIsSet(boolean value) {
-      if (!value) {
-        this.success = null;
-      }
-    }
-
-    public void setFieldValue(_Fields field, Object value) {
-      switch (field) {
-      case SUCCESS:
-        if (value == null) {
-          unsetSuccess();
-        } else {
-          setSuccess((List<String>)value);
-        }
-        break;
-
-      }
-    }
-
-    public void setFieldValue(int fieldID, Object value) {
-      setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
-    }
-
-    public Object getFieldValue(_Fields field) {
-      switch (field) {
-      case SUCCESS:
-        return getSuccess();
-
-      }
-      throw new IllegalStateException();
-    }
-
-    public Object getFieldValue(int fieldId) {
-      return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-    }
-
-    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
-    public boolean isSet(_Fields field) {
-      switch (field) {
-      case SUCCESS:
-        return isSetSuccess();
-      }
-      throw new IllegalStateException();
-    }
-
-    public boolean isSet(int fieldID) {
-      return isSet(_Fields.findByThriftIdOrThrow(fieldID));
-    }
-
-    @Override
-    public boolean equals(Object that) {
-      if (that == null)
-        return false;
-      if (that instanceof get_string_list_property_result)
-        return this.equals((get_string_list_property_result)that);
-      return false;
-    }
-
-    public boolean equals(get_string_list_property_result that) {
-      if (that == null)
-        return false;
-
-      boolean this_present_success = true && this.isSetSuccess();
-      boolean that_present_success = true && that.isSetSuccess();
-      if (this_present_success || that_present_success) {
-        if (!(this_present_success && that_present_success))
-          return false;
-        if (!this.success.equals(that.success))
-          return false;
-      }
-
-      return true;
-    }
-
-    @Override
-    public int hashCode() {
-      return 0;
-    }
-
-    public int compareTo(get_string_list_property_result other) {
-      if (!getClass().equals(other.getClass())) {
-        return getClass().getName().compareTo(other.getClass().getName());
-      }
-
-      int lastComparison = 0;
-      get_string_list_property_result typedOther = (get_string_list_property_result)other;
-
-      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(success, typedOther.success);
-        if (lastComparison != 0) {
-          return lastComparison;
-        }
-      }
-      return 0;
-    }
-
-    public void read(TProtocol iprot) throws TException {
-      TField field;
-      iprot.readStructBegin();
-      while (true)
-      {
-        field = iprot.readFieldBegin();
-        if (field.type == TType.STOP) { 
-          break;
-        }
-        switch (field.id) {
-          case 0: // SUCCESS
-            if (field.type == TType.LIST) {
-              {
-                TList _list86 = iprot.readListBegin();
-                this.success = new ArrayList<String>(_list86.size);
-                for (int _i87 = 0; _i87 < _list86.size; ++_i87)
-                {
-                  String _elem88;
-                  _elem88 = iprot.readString();
-                  this.success.add(_elem88);
-                }
-                iprot.readListEnd();
-              }
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          default:
-            TProtocolUtil.skip(iprot, field.type);
-        }
-        iprot.readFieldEnd();
-      }
-      iprot.readStructEnd();
-
-      // check for required fields of primitive type, which can't be checked in the validate method
-      validate();
-    }
-
-    public void write(TProtocol oprot) throws TException {
-      oprot.writeStructBegin(STRUCT_DESC);
-
-      if (this.isSetSuccess()) {
-        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
-        {
-          oprot.writeListBegin(new TList(TType.STRING, this.success.size()));
-          for (String _iter89 : this.success)
-          {
-            oprot.writeString(_iter89);
-          }
-          oprot.writeListEnd();
-        }
-        oprot.writeFieldEnd();
-      }
-      oprot.writeFieldStop();
-      oprot.writeStructEnd();
-    }
-
-    @Override
-    public String toString() {
-      StringBuilder sb = new StringBuilder("get_string_list_property_result(");
-      boolean first = true;
-
-      sb.append("success:");
-      if (this.success == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.success);
-      }
-      first = false;
-      sb.append(")");
-      return sb.toString();
-    }
-
-    public void validate() throws TException {
-      // check for required fields
-    }
-
-  }
-
   public static class describe_keyspaces_args implements TBase<describe_keyspaces_args._Fields>, java.io.Serializable, Cloneable, Comparable<describe_keyspaces_args>   {
     private static final TStruct STRUCT_DESC = new TStruct("describe_keyspaces_args");
 
@@ -17569,13 +16271,13 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.SET) {
               {
-                TSet _set90 = iprot.readSetBegin();
-                this.success = new HashSet<String>(2*_set90.size);
-                for (int _i91 = 0; _i91 < _set90.size; ++_i91)
+                TSet _set86 = iprot.readSetBegin();
+                this.success = new HashSet<String>(2*_set86.size);
+                for (int _i87 = 0; _i87 < _set86.size; ++_i87)
                 {
-                  String _elem92;
-                  _elem92 = iprot.readString();
-                  this.success.add(_elem92);
+                  String _elem88;
+                  _elem88 = iprot.readString();
+                  this.success.add(_elem88);
                 }
                 iprot.readSetEnd();
               }
@@ -17601,9 +16303,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeSetBegin(new TSet(TType.STRING, this.success.size()));
-          for (String _iter93 : this.success)
+          for (String _iter89 : this.success)
           {
-            oprot.writeString(_iter93);
+            oprot.writeString(_iter89);
           }
           oprot.writeSetEnd();
         }
@@ -19110,14 +17812,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list94 = iprot.readListBegin();
-                this.success = new ArrayList<TokenRange>(_list94.size);
-                for (int _i95 = 0; _i95 < _list94.size; ++_i95)
+                TList _list90 = iprot.readListBegin();
+                this.success = new ArrayList<TokenRange>(_list90.size);
+                for (int _i91 = 0; _i91 < _list90.size; ++_i91)
                 {
-                  TokenRange _elem96;
-                  _elem96 = new TokenRange();
-                  _elem96.read(iprot);
-                  this.success.add(_elem96);
+                  TokenRange _elem92;
+                  _elem92 = new TokenRange();
+                  _elem92.read(iprot);
+                  this.success.add(_elem92);
                 }
                 iprot.readListEnd();
               }
@@ -19143,9 +17845,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (TokenRange _iter97 : this.success)
+          for (TokenRange _iter93 : this.success)
           {
-            _iter97.write(oprot);
+            _iter93.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -19766,27 +18468,27 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.MAP) {
               {
-                TMap _map98 = iprot.readMapBegin();
-                this.success = new HashMap<String,Map<String,String>>(2*_map98.size);
-                for (int _i99 = 0; _i99 < _map98.size; ++_i99)
+                TMap _map94 = iprot.readMapBegin();
+                this.success = new HashMap<String,Map<String,String>>(2*_map94.size);
+                for (int _i95 = 0; _i95 < _map94.size; ++_i95)
                 {
-                  String _key100;
-                  Map<String,String> _val101;
-                  _key100 = iprot.readString();
+                  String _key96;
+                  Map<String,String> _val97;
+                  _key96 = iprot.readString();
                   {
-                    TMap _map102 = iprot.readMapBegin();
-                    _val101 = new HashMap<String,String>(2*_map102.size);
-                    for (int _i103 = 0; _i103 < _map102.size; ++_i103)
+                    TMap _map98 = iprot.readMapBegin();
+                    _val97 = new HashMap<String,String>(2*_map98.size);
+                    for (int _i99 = 0; _i99 < _map98.size; ++_i99)
                     {
-                      String _key104;
-                      String _val105;
-                      _key104 = iprot.readString();
-                      _val105 = iprot.readString();
-                      _val101.put(_key104, _val105);
+                      String _key100;
+                      String _val101;
+                      _key100 = iprot.readString();
+                      _val101 = iprot.readString();
+                      _val97.put(_key100, _val101);
                     }
                     iprot.readMapEnd();
                   }
-                  this.success.put(_key100, _val101);
+                  this.success.put(_key96, _val97);
                 }
                 iprot.readMapEnd();
               }
@@ -19820,15 +18522,15 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.MAP, this.success.size()));
-          for (Map.Entry<String, Map<String,String>> _iter106 : this.success.entrySet())
+          for (Map.Entry<String, Map<String,String>> _iter102 : this.success.entrySet())
           {
-            oprot.writeString(_iter106.getKey());
+            oprot.writeString(_iter102.getKey());
             {
-              oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, _iter106.getValue().size()));
-              for (Map.Entry<String, String> _iter107 : _iter106.getValue().entrySet())
+              oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, _iter102.getValue().size()));
+              for (Map.Entry<String, String> _iter103 : _iter102.getValue().entrySet())
               {
-                oprot.writeString(_iter107.getKey());
-                oprot.writeString(_iter107.getValue());
+                oprot.writeString(_iter103.getKey());
+                oprot.writeString(_iter103.getValue());
               }
               oprot.writeMapEnd();
             }
@@ -20584,13 +19286,13 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list108 = iprot.readListBegin();
-                this.success = new ArrayList<String>(_list108.size);
-                for (int _i109 = 0; _i109 < _list108.size; ++_i109)
+                TList _list104 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list104.size);
+                for (int _i105 = 0; _i105 < _list104.size; ++_i105)
                 {
-                  String _elem110;
-                  _elem110 = iprot.readString();
-                  this.success.add(_elem110);
+                  String _elem106;
+                  _elem106 = iprot.readString();
+                  this.success.add(_elem106);
                 }
                 iprot.readListEnd();
               }
@@ -20616,9 +19318,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.success.size()));
-          for (String _iter111 : this.success)
+          for (String _iter107 : this.success)
           {
-            oprot.writeString(_iter111);
+            oprot.writeString(_iter107);
           }
           oprot.writeListEnd();
         }

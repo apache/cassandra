@@ -29,13 +29,12 @@ import java.net.UnknownHostException;
 
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.CassandraServer;
+import org.apache.cassandra.thrift.TokenRange;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
-import org.json.simple.JSONValue;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
@@ -51,14 +50,16 @@ public class RingCache
     private Set<String> seeds_ = new HashSet<String>();
     final private int port_= DatabaseDescriptor.getRpcPort();
     final private static IPartitioner partitioner_ = DatabaseDescriptor.getPartitioner();
+    private final String keyspace;
     private TokenMetadata tokenMetadata;
 
-    public RingCache()
+    public RingCache(String keyspace)
     {
         for (InetAddress seed : DatabaseDescriptor.getSeeds())
         {
             seeds_.add(seed.getHostAddress());
         }
+        this.keyspace = keyspace;
         refreshEndPointMap();
     }
 
@@ -73,13 +74,14 @@ public class RingCache
                 Cassandra.Client client = new Cassandra.Client(binaryProtocol);
                 socket.open();
 
-                Map<String,String> tokenToHostMap = (Map<String,String>) JSONValue.parse(client.get_string_property(CassandraServer.TOKEN_MAP));
-                
+                List<TokenRange> ring = client.describe_ring(keyspace);
                 BiMap<Token, InetAddress> tokenEndpointMap = HashBiMap.create();
-                for (Map.Entry<String,String> entry : tokenToHostMap.entrySet())
+                
+                for (TokenRange range : ring)
                 {
-                    Token token = StorageService.getPartitioner().getTokenFactory().fromString(entry.getKey());
-                    String host = entry.getValue();
+                    Token<?> token = StorageService.getPartitioner().getTokenFactory().fromString(range.start_token);
+                    String host = range.endpoints.get(0);
+                    
                     try
                     {
                         tokenEndpointMap.put(token, InetAddress.getByName(host));
@@ -102,11 +104,11 @@ public class RingCache
         }
     }
 
-    public List<InetAddress> getEndPoint(String table, String key)
+    public List<InetAddress> getEndPoint(String key)
     {
         if (tokenMetadata == null)
             throw new RuntimeException("Must refresh endpoints before looking up a key.");
-        AbstractReplicationStrategy strat = StorageService.getReplicationStrategy(tokenMetadata, table);
-        return strat.getNaturalEndpoints(partitioner_.getToken(key), table);
+        AbstractReplicationStrategy strat = StorageService.getReplicationStrategy(tokenMetadata, keyspace);
+        return strat.getNaturalEndpoints(partitioner_.getToken(key), keyspace);
     }
 }

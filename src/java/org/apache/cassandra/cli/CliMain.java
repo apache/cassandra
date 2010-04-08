@@ -134,7 +134,7 @@ public class CliMain
 
         try
         {
-            clusterName = thriftClient_.get_string_property("cluster name");
+            clusterName = thriftClient_.describe_cluster_name();
         }
         catch (Exception e)
         {
@@ -150,7 +150,7 @@ public class CliMain
         // Extend the completer with keyspace and column family data.
         try
         {
-            for (String keyspace : thriftClient_.get_string_list_property("keyspaces"))
+            for (String keyspace : thriftClient_.describe_keyspaces())
             {
                 // Ignore system column family
                 if (keyspace.equals(SYSTEM_TABLE))

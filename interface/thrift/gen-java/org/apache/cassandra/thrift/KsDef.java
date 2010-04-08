@@ -24,6 +24,8 @@ package org.apache.cassandra.thrift;
  * under the License.
  * 
  */
+
+
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;

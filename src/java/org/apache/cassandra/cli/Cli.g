@@ -40,7 +40,6 @@ tokens {
     NODE_HELP;
     NODE_NO_OP;
     NODE_SHOW_CLUSTER_NAME;
-    NODE_SHOW_CONFIG_FILE;
     NODE_SHOW_VERSION;
     NODE_SHOW_TABLES;
     NODE_THRIFT_GET;
@@ -115,16 +114,11 @@ delStmt
 showStmt
     : showClusterName
     | showVersion
-    | showConfigFile
     | showTables
     ;
 
 showClusterName
     : K_SHOW K_CLUSTER K_NAME -> ^(NODE_SHOW_CLUSTER_NAME)
-    ;
-
-showConfigFile
-    : K_SHOW K_CONFIG K_FILE -> ^(NODE_SHOW_CONFIG_FILE)
     ;
 
 showVersion

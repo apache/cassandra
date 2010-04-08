@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.thrift;
 
-import java.io.BufferedInputStream;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.Future;
@@ -55,7 +53,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.thrift.TException;
-import org.json.simple.JSONValue;
 
 public class CassandraServer implements Cassandra.Iface
 {
@@ -486,57 +483,6 @@ public class CassandraServer implements Cassandra.Iface
         {
             StorageProxy.mutate(Arrays.asList(rm));
         }
-    }
-
-    public String get_string_property(String propertyName)
-    {
-        if (propertyName.equals("cluster name"))
-        {
-            return DatabaseDescriptor.getClusterName();
-        }
-        else if (propertyName.equals("config file"))
-        {
-            String filename = DatabaseDescriptor.getConfigFileName();
-            try
-            {
-                StringBuilder fileData = new StringBuilder(8192);
-                BufferedInputStream stream = new BufferedInputStream(new FileInputStream(filename));
-                byte[] buf = new byte[1024];
-                int numRead;
-                while( (numRead = stream.read(buf)) != -1)
-                {
-                    String str = new String(buf, 0, numRead);
-                    fileData.append(str);
-                }
-                stream.close();
-                return fileData.toString();
-            }
-            catch (IOException e)
-            {
-                return "file not found!";
-            }
-        }
-        else if (propertyName.equals(TOKEN_MAP))
-        {
-            return JSONValue.toJSONString(storageService.getStringEndpointMap());
-        }
-        else if (propertyName.equals("version"))
-        {
-            return Constants.VERSION;
-        }
-        else
-        {
-            return "?";
-        }
-    }
-
-    public List<String> get_string_list_property(String propertyName)
-    {
-        if (propertyName.equals("keyspaces"))
-        {
-            return new ArrayList<String>(DatabaseDescriptor.getTables());        
-        }
-        return Collections.emptyList();
     }
 
     public Map<String, Map<String, String>> describe_keyspace(String table) throws NotFoundException

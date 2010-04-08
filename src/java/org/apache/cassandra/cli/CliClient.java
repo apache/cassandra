@@ -71,13 +71,10 @@ public class CliClient
                     executeCount(ast);
                     break;
                 case CliParser.NODE_SHOW_CLUSTER_NAME:
-                    executeShowProperty(ast, "cluster name");
-                    break;
-                case CliParser.NODE_SHOW_CONFIG_FILE:
-                    executeShowProperty(ast, "config file");
+                    executeShowClusterName();
                     break;
                 case CliParser.NODE_SHOW_VERSION:
-                    executeShowProperty(ast, "version");
+                    executeShowVersion();
                     break;
                 case CliParser.NODE_SHOW_TABLES:
                     executeShowTables(ast);
@@ -111,7 +108,6 @@ public class CliClient
        css_.out.println("describe keyspace <keyspacename>                              Describe keyspace.");
        css_.out.println("exit                                                                   Exit CLI.");
        css_.out.println("quit                                                                   Exit CLI.");
-       css_.out.println("show config file                                Display contents of config file.");
        css_.out.println("show cluster name                                          Display cluster name.");
        css_.out.println("show keyspaces                                           Show list of keyspaces.");
        css_.out.println("show api version                                        Show server API version.");
@@ -420,14 +416,19 @@ public class CliClient
         
         css_.out.println("Value inserted.");
     }
-
-    private void executeShowProperty(CommonTree ast, String propertyName) throws TException
+    
+    private void executeShowClusterName() throws TException
     {
         if (!CliMain.isConnected())
             return;
-
-        String propertyValue = thriftClient_.get_string_property(propertyName);
-        css_.out.println(propertyValue);
+        css_.out.println(thriftClient_.describe_cluster_name());
+    }
+    
+    private void executeShowVersion() throws TException
+    {
+        if (!CliMain.isConnected())
+            return;
+        css_.out.println(thriftClient_.describe_version());
     }
 
     // process "show tables" statement
@@ -436,7 +437,7 @@ public class CliClient
         if (!CliMain.isConnected())
             return;
         
-        List<String> tables = thriftClient_.get_string_list_property("keyspaces");
+        Set<String> tables = thriftClient_.describe_keyspaces();
         for (String table : tables)
         {
             css_.out.println(table);
