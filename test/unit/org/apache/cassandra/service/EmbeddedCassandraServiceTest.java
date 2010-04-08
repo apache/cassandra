@@ -26,6 +26,7 @@ import java.io.UnsupportedEncodingException;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.ColumnOrSuperColumn;
 import org.apache.cassandra.thrift.ColumnPath;
@@ -70,7 +71,8 @@ public class EmbeddedCassandraServiceTest
         // Tell cassandra where the configuration files are.
         // Use the test configuration file.
         System.setProperty("storage-config", "test/conf");
-        DatabaseDescriptor.readTablesFromXml();
+        for (KSMetaData table : DatabaseDescriptor.readTablesFromXml())
+            DatabaseDescriptor.setTableDefinition(table, DatabaseDescriptor.getDefsVersion());
 
         cassandra = new EmbeddedCassandraService();
         cassandra.init();

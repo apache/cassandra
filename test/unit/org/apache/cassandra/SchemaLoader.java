@@ -20,6 +20,7 @@ package org.apache.cassandra;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
 import org.junit.BeforeClass;
 
 public class SchemaLoader
@@ -31,7 +32,8 @@ public class SchemaLoader
     {
         try
         {
-            DatabaseDescriptor.readTablesFromXml();
+            for (KSMetaData ksm : DatabaseDescriptor.readTablesFromXml())
+                DatabaseDescriptor.setTableDefinition(ksm, DatabaseDescriptor.getDefsVersion());
         }
         catch (ConfigurationException e)
         {

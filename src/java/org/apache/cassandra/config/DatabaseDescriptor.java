@@ -554,8 +554,10 @@ public class DatabaseDescriptor
         CFMetaData.fixMaxId();
     }
 
-    public static void readTablesFromXml() throws ConfigurationException
+    /** reads xml. doesn't populate any internal structures. */
+    public static Collection<KSMetaData> readTablesFromXml() throws ConfigurationException
     {
+        List<KSMetaData> defs = new ArrayList<KSMetaData>();
         XMLUtils xmlUtils = null;
         try
         {
@@ -741,9 +743,7 @@ public class DatabaseDescriptor
                     // insert it into the table dictionary.
                     cfDefs[j] = new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize, readRepairChance);
                 }
-
-                KSMetaData meta = new KSMetaData(ksName, strategyClass, replicationFactor, snitch, cfDefs);
-                tables.put(meta.name, meta);
+                defs.add(new KSMetaData(ksName, strategyClass, replicationFactor, snitch, cfDefs));
             }
         }
         catch (XPathExpressionException e)
@@ -758,8 +758,7 @@ public class DatabaseDescriptor
             ex.initCause(e);
             throw ex;
         }
-        if (DatabaseDescriptor.listenAddress != null)
-            defsVersion = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
+        return defs;
     }
 
     public static IAuthenticator getAuthenticator()

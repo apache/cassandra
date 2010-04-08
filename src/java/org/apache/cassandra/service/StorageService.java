@@ -35,8 +35,10 @@ import com.google.common.collect.Multimaps;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.migration.AddKeyspace;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.*;
@@ -1578,11 +1580,13 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
      * @throws IOException
      */
     public void loadSchemaFromXML() throws ConfigurationException, IOException
-    {
+    { 
         // blow up if there is a schema saved.
         if (DatabaseDescriptor.getDefsVersion().timestamp() > 0 || Migration.getLastMigrationId() != null)
             throw new ConfigurationException("Cannot load from XML on top of pre-existing schemas.");
-        DatabaseDescriptor.readTablesFromXml();
+        for (KSMetaData table : DatabaseDescriptor.readTablesFromXml())
+            new AddKeyspace(table).apply();
+        
         assert DatabaseDescriptor.getDefsVersion().timestamp() > 0;
         DefsTable.dumpToStorage(DatabaseDescriptor.getDefsVersion());
         // flush system and definition tables.
