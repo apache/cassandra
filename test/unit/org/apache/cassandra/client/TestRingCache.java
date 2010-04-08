@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.client;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.util.List;
 
@@ -35,16 +36,15 @@ import org.apache.thrift.transport.TTransport;
  */
 public class TestRingCache
 {
-    private static RingCache ringCache;
-    private static String keyspace = "Keyspace1";
-    private static Cassandra.Client thriftClient;
+    private RingCache ringCache;
+    private Cassandra.Client thriftClient;
 
-    static
+    public TestRingCache(String keyspace) throws IOException
     {
-        ringCache = new RingCache(keyspace);
+    	ringCache = new RingCache(keyspace);
     }
-
-    private static void setup(String server, int port) throws Exception
+    
+    private void setup(String server, int port) throws Exception
     {
         /* Establish a thrift connection to the cassandra instance */
         TSocket socket = new TSocket(server, port);
@@ -68,7 +68,7 @@ public class TestRingCache
     {
         int minRow;
         int maxRow;
-        String rowPrefix;
+        String rowPrefix, keyspace = "Keyspace1";
         if (args.length > 0)
         {
             keyspace = args[0];
@@ -82,22 +82,24 @@ public class TestRingCache
             maxRow = 10;
             rowPrefix = "row";
         }
+        
+        TestRingCache tester = new TestRingCache(keyspace);
 
         for (int nRows = minRow; nRows < maxRow; nRows++)
         {
             String row = rowPrefix + nRows;
             ColumnPath col = new ColumnPath("Standard1").setSuper_column(null).setColumn("col1".getBytes());
 
-            List<InetAddress> endPoints = ringCache.getEndPoint(row);
+            List<InetAddress> endPoints = tester.ringCache.getEndPoint(row);
             String hosts="";
             for (int i = 0; i < endPoints.size(); i++)
                 hosts = hosts + ((i > 0) ? "," : "") + endPoints.get(i);
             System.out.println("hosts with key " + row + " : " + hosts + "; choose " + endPoints.get(0));
 
             // now, read the row back directly from the host owning the row locally
-            setup(endPoints.get(0).getHostAddress(), DatabaseDescriptor.getRpcPort());
-            thriftClient.insert(keyspace, row, col, "val1".getBytes(), 1, ConsistencyLevel.ONE);
-            Column column=thriftClient.get(keyspace, row, col, ConsistencyLevel.ONE).column;
+            tester.setup(endPoints.get(0).getHostAddress(), DatabaseDescriptor.getRpcPort());
+            tester.thriftClient.insert(keyspace, row, col, "val1".getBytes(), 1, ConsistencyLevel.ONE);
+            Column column = tester.thriftClient.get(keyspace, row, col, ConsistencyLevel.ONE).column;
             System.out.println("read row " + row + " " + new String(column.name) + ":" + new String(column.value) + ":" + column.timestamp);
         }
 

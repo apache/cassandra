@@ -865,7 +865,10 @@ public class DatabaseDescriptor
 
     public static Class<? extends AbstractReplicationStrategy> getReplicaPlacementStrategyClass(String table)
     {
-        return tables.get(table).strategyClass;
+    	KSMetaData meta = tables.get(table);
+    	if (meta == null)
+            throw new RuntimeException(table + " not found. Failure to call loadSchemas() perhaps?");
+        return meta.strategyClass;
     }
     
     public static String getJobTrackerAddress()

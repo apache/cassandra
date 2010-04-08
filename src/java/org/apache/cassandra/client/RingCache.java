@@ -24,6 +24,8 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
+
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
@@ -53,13 +55,16 @@ public class RingCache
     private final String keyspace;
     private TokenMetadata tokenMetadata;
 
-    public RingCache(String keyspace)
+    public RingCache(String keyspace) throws IOException
     {
         for (InetAddress seed : DatabaseDescriptor.getSeeds())
         {
             seeds_.add(seed.getHostAddress());
         }
+        
         this.keyspace = keyspace;
+        
+        DatabaseDescriptor.loadSchemas();
         refreshEndPointMap();
     }
 
