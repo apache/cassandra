@@ -58,17 +58,10 @@ public class Util
         return bytes;
     }
     
-    public static File createTemporarySSTable(String keyspace, String colFam) throws IOException
-    {
-        File tmpDir = new File(System.getProperty("java.io.tmpdir") + File.separator + keyspace);
-        tmpDir.mkdirs();    // Create the per-keyspace temp directory
-        return File.createTempFile(colFam + "-", "-Data.db", tmpDir);
-    }
-
     public static RangeSliceReply getRangeSlice(ColumnFamilyStore cfs) throws IOException, ExecutionException, InterruptedException
     {
         Token min = StorageService.getPartitioner().getMinimumToken();
-        return cfs.getRangeSlice(ArrayUtils.EMPTY_BYTE_ARRAY,
+        return cfs.getRangeSlice(null,
                                  new Bounds(min, min),
                                  10000,
                                  new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 10000),
