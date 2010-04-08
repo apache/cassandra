@@ -7,3 +7,6 @@ configuration file
 
 (3) copy org/apache/cassandra/mutex/ClusterMutex.java to cassandra src
 directory
+
+(4) add the zookeeper jar to your Cassandra lib/, or update the
+classpath in cassandra.in.sh to include it
