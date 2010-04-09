@@ -25,6 +25,7 @@ import java.util.*;
 import java.io.IOError;
 import java.io.IOException;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.ColumnFamily;
@@ -32,7 +33,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.config.DatabaseDescriptor;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.AbstractIterator;
@@ -40,7 +40,7 @@ import com.google.common.collect.AbstractIterator;
 /**
  *  A Column Iterator over SSTable
  */
-class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIterator
+class SSTableSliceIterator extends AbstractIterator<IColumn> implements IColumnIterator
 {
     private final Predicate<IColumn> predicate;
     private final boolean reversed;
@@ -48,21 +48,47 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
     private final byte[] finishColumn;
     private final AbstractType comparator;
     private ColumnGroupReader reader;
-
+    private boolean closeFileWhenDone = false;
+    private DecoratedKey decoratedKey;
+    
     public SSTableSliceIterator(SSTableReader ssTable, String key, byte[] startColumn, byte[] finishColumn, Predicate<IColumn> predicate, boolean reversed)
     {
+        this(ssTable, null, ssTable.getPartitioner().decorateKey(key), startColumn, finishColumn, predicate, reversed); 
+    }
+    
+    public SSTableSliceIterator(SSTableReader ssTable, FileDataInput file, DecoratedKey key, byte[] startColumn, byte[] finishColumn, Predicate<IColumn> predicate, boolean reversed) 
+    {
         this.reversed = reversed;
-
         this.predicate = predicate;
-
-        /* Morph key into actual key based on the partition type. */
-        DecoratedKey decoratedKey = ssTable.getPartitioner().decorateKey(key);
-        FileDataInput fdi = ssTable.getFileDataInput(decoratedKey, DatabaseDescriptor.getSlicedReadBufferSizeInKB() * 1024);
         this.comparator = ssTable.getColumnComparator();
         this.startColumn = startColumn;
         this.finishColumn = finishColumn;
-        if (fdi != null)
-            reader = new ColumnGroupReader(ssTable, decoratedKey, fdi);
+        this.decoratedKey = key;
+
+        if (file == null)
+        {
+            file = ssTable.getFileDataInput(decoratedKey, DatabaseDescriptor.getSlicedReadBufferSizeInKB() * 1024);
+            if (file == null)
+                return;
+            try
+            {
+                DecoratedKey keyInDisk = ssTable.getPartitioner().convertFromDiskFormat(file.readUTF());
+                assert keyInDisk.equals(decoratedKey)
+                       : String.format("%s != %s in %s", keyInDisk, decoratedKey, file.getPath());
+                file.readInt(); // row size
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
+        }
+
+        reader = new ColumnGroupReader(ssTable, file);
+    }
+    
+    public DecoratedKey getKey()
+    {
+        return decoratedKey;
     }
 
     private boolean isColumnNeeded(IColumn column)
@@ -132,16 +158,11 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
         private int curRangeIndex;
         private Deque<IColumn> blockColumns = new ArrayDeque<IColumn>();
 
-        public ColumnGroupReader(SSTableReader ssTable, DecoratedKey key, FileDataInput input)
+        public ColumnGroupReader(SSTableReader ssTable, FileDataInput input)
         {
             this.file = input;
             try
             {
-                DecoratedKey keyInDisk = ssTable.getPartitioner().convertFromDiskFormat(file.readUTF());
-                assert keyInDisk.equals(key)
-                       : String.format("%s != %s in %s", keyInDisk, key, file.getPath());
-    
-                file.readInt(); // row size
                 IndexHelper.skipBloomFilter(file);
                 indexes = IndexHelper.deserializeIndex(file);
     
@@ -235,7 +256,8 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
 
         public void close() throws IOException
         {
-            file.close();
+            if(closeFileWhenDone)
+                file.close();
         }
     }
 }

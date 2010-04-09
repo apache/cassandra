@@ -217,12 +217,12 @@ public class SSTableExportTest extends SchemaLoader
         
         reader = SSTableReader.open(tempSS2.getPath(), DatabaseDescriptor.getPartitioner());
         QueryFilter qf = QueryFilter.getNamesFilter("rowA", new QueryPath("Standard1", null, null), "name".getBytes());
-        ColumnFamily cf = qf.getSSTableColumnIterator(reader, Integer.MAX_VALUE).getColumnFamily();
+        ColumnFamily cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
         assertTrue(cf != null);
         assertTrue(Arrays.equals(cf.getColumn("name".getBytes()).value(), hexToBytes("76616c")));
 
         qf = QueryFilter.getNamesFilter("rowExclude", new QueryPath("Standard1", null, null), "name".getBytes());
-        cf = qf.getSSTableColumnIterator(reader, Integer.MAX_VALUE).getColumnFamily();
+        cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
         assert cf == null;
 
     }

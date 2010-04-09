@@ -183,9 +183,13 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         return "Memtable(" + cfs.getColumnFamilyName() + ")@" + hashCode();
     }
 
-    public Iterator<DecoratedKey> getKeyIterator(DecoratedKey startWith)
+    /**
+     * @param startWith Include data in the result from and including this key and to the end of the memtable
+     * @return An iterator of entries with the data from the start key 
+     */
+    public Iterator<Map.Entry<DecoratedKey, ColumnFamily>> getEntryIterator(DecoratedKey startWith)
     {
-        return columnFamilies.navigableKeySet().tailSet(startWith).iterator();
+        return columnFamilies.tailMap(startWith).entrySet().iterator();
     }
 
     public boolean isClean()
@@ -201,7 +205,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     /**
      * obtain an iterator of columns in this memtable in the specified order starting from a given column.
      */
-    public static ColumnIterator getSliceIterator(final ColumnFamily cf, SliceQueryFilter filter, AbstractType typeComparator)
+    public static IColumnIterator getSliceIterator(final DecoratedKey key, final ColumnFamily cf, SliceQueryFilter filter, AbstractType typeComparator)
     {
         assert cf != null;
         Collection<IColumn> rawColumns = cf.getSortedColumns();
@@ -242,6 +246,11 @@ public class Memtable implements Comparable<Memtable>, IFlushable
                 return cf;
             }
 
+            public DecoratedKey getKey()
+            {
+                return key;
+            }
+
             public boolean hasNext()
             {
                 return curIndex_ < columns.length;
@@ -255,7 +264,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         };
     }
 
-    public static ColumnIterator getNamesIterator(final ColumnFamily cf, final NamesQueryFilter filter)
+    public static IColumnIterator getNamesIterator(final DecoratedKey key, final ColumnFamily cf, final NamesQueryFilter filter)
     {
         assert cf != null;
         final boolean isStandard = !cf.isSuper();
@@ -268,6 +277,11 @@ public class Memtable implements Comparable<Memtable>, IFlushable
             public ColumnFamily getColumnFamily()
             {
                 return cf;
+            }
+
+            public DecoratedKey getKey()
+            {
+                return key;
             }
 
             protected IColumn computeNext()

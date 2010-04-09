@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Iterator;
 
+import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.commons.collections.iterators.CollatingIterator;
@@ -41,13 +42,13 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 
-public class CompactionIterator extends ReducingIterator<IteratingRow, CompactionIterator.CompactedRow> implements Closeable
+public class CompactionIterator extends ReducingIterator<SSTableIdentityIterator, CompactionIterator.CompactedRow> implements Closeable
 {
     private static Logger logger = LoggerFactory.getLogger(CompactionIterator.class);
 
     protected static final int FILE_BUFFER_SIZE = 1024 * 1024;
 
-    private final List<IteratingRow> rows = new ArrayList<IteratingRow>();
+    private final List<SSTableIdentityIterator> rows = new ArrayList<SSTableIdentityIterator>();
     private final int gcBefore;
     private final boolean major;
 
@@ -77,7 +78,7 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
     @SuppressWarnings("unchecked")
     protected static CollatingIterator getCollatingIterator(Iterable<SSTableReader> sstables) throws IOException
     {
-        CollatingIterator iter = FBUtilities.<IteratingRow>getCollatingIterator();
+        CollatingIterator iter = FBUtilities.<SSTableIdentityIterator>getCollatingIterator();
         for (SSTableReader sstable : sstables)
         {
             iter.addIterator(sstable.getScanner(FILE_BUFFER_SIZE));
@@ -86,12 +87,12 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
     }
 
     @Override
-    protected boolean isEqual(IteratingRow o1, IteratingRow o2)
+    protected boolean isEqual(SSTableIdentityIterator o1, SSTableIdentityIterator o2)
     {
         return o1.getKey().equals(o2.getKey());
     }
 
-    public void reduce(IteratingRow current)
+    public void reduce(SSTableIdentityIterator current)
     {
         rows.add(current);
     }
@@ -107,7 +108,7 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
             if (rows.size() > 1 || major)
             {
                 ColumnFamily cf = null;
-                for (IteratingRow row : rows)
+                for (SSTableIdentityIterator row : rows)
                 {
                     ColumnFamily thisCF;
                     try

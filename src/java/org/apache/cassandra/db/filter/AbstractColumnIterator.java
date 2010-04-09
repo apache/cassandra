@@ -23,7 +23,7 @@ package org.apache.cassandra.db.filter;
 
 import java.io.IOException;
 
-public abstract class AbstractColumnIterator implements ColumnIterator
+public abstract class AbstractColumnIterator implements IColumnIterator
 {
     public void close() throws IOException
     {}

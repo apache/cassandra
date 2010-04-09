@@ -21,10 +21,11 @@ package org.apache.cassandra.db.filter;
  */
 
 
-import java.io.IOException;
 import java.util.*;
 
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ReducingIterator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -41,32 +42,38 @@ public class QueryFilter
         this.key = key;
         this.path = path;
         this.filter = filter;
-        superFilter = path.superColumnName == null ? null : new NamesQueryFilter(key, path.superColumnName);
+        superFilter = path.superColumnName == null ? null : new NamesQueryFilter(path.superColumnName);
     }
 
-    public ColumnIterator getMemtableColumnIterator(Memtable memtable, AbstractType comparator, int gcBefore)
+    public IColumnIterator getMemtableColumnIterator(Memtable memtable, AbstractType comparator)
     {
         ColumnFamily cf = memtable.getColumnFamily(key);
         if (cf == null)
             return null;
-        return getMemtableColumnIterator(cf, comparator, gcBefore);
+        return getMemtableColumnIterator(cf, StorageService.getPartitioner().decorateKey(key), comparator);
     }
 
-    // TODO move gcBefore into a field
-    public ColumnIterator getMemtableColumnIterator(ColumnFamily cf, AbstractType comparator, int gcBefore)
+    public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key, AbstractType comparator)
     {
         assert cf != null;
         if (path.superColumnName == null)
-            return filter.getMemtableColumnIterator(cf, comparator);
-        return superFilter.getMemtableColumnIterator(cf, comparator);
+            return filter.getMemtableColumnIterator(cf, key, comparator);
+        return superFilter.getMemtableColumnIterator(cf, key, comparator);
     }
 
     // TODO move gcBefore into a field
-    public ColumnIterator getSSTableColumnIterator(SSTableReader sstable, int gcBefore)
+    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable)
     {
         if (path.superColumnName == null)
-            return filter.getSSTableColumnIterator(sstable);
-        return superFilter.getSSTableColumnIterator(sstable);
+            return filter.getSSTableColumnIterator(sstable, key);
+        return superFilter.getSSTableColumnIterator(sstable, key);
+    }
+
+    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, long dataStart)
+    {
+        if (path.superColumnName == null)
+            return filter.getSSTableColumnIterator(sstable, file, key, dataStart);
+        return superFilter.getSSTableColumnIterator(sstable, file, key, dataStart);
     }
 
     public static Comparator<IColumn> getColumnComparator(final AbstractType comparator)
@@ -138,7 +145,7 @@ public class QueryFilter
      */
     public static QueryFilter getSliceFilter(String key, QueryPath path, byte[] start, byte[] finish, List<byte[]> bitmasks, boolean reversed, int limit)
     {
-        return new QueryFilter(key, path, new SliceQueryFilter(key, start, finish, bitmasks, reversed, limit));
+        return new QueryFilter(key, path, new SliceQueryFilter(start, finish, bitmasks, reversed, limit));
     }
 
     /**
@@ -147,7 +154,7 @@ public class QueryFilter
      */
     public static QueryFilter getIdentityFilter(String key, QueryPath path)
     {
-        return new QueryFilter(key, path, new IdentityQueryFilter(key));
+        return new QueryFilter(key, path, new IdentityQueryFilter());
     }
 
     /**
@@ -158,7 +165,7 @@ public class QueryFilter
      */
     public static QueryFilter getNamesFilter(String key, QueryPath path, SortedSet<byte[]> columns)
     {
-        return new QueryFilter(key, path, new NamesQueryFilter(key, columns));
+        return new QueryFilter(key, path, new NamesQueryFilter(columns));
     }
 
     /**
@@ -166,6 +173,6 @@ public class QueryFilter
      */
     public static QueryFilter getNamesFilter(String key, QueryPath path, byte[] column)
     {
-        return new QueryFilter(key, path, new NamesQueryFilter(key, column));
+        return new QueryFilter(key, path, new NamesQueryFilter(column));
     }
 }

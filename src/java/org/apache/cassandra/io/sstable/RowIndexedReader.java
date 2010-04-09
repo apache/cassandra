@@ -37,6 +37,7 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
@@ -400,6 +401,11 @@ class RowIndexedReader extends SSTableReader
         return new RowIndexedScanner(this, bufferSize);
     }
 
+    public SSTableScanner getScanner(int bufferSize, QueryFilter filter)
+    {
+        return new RowIndexedScanner(this, filter, bufferSize);
+    }
+    
     public FileDataInput getFileDataInput(DecoratedKey decoratedKey, int bufferSize)
     {
         PositionSize info = getPosition(decoratedKey);

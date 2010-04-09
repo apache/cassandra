@@ -29,8 +29,8 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.io.IteratingRow;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
@@ -106,7 +106,7 @@ public class SSTableExport
         return json.toString();
     }
     
-    private static String serializeRow(IteratingRow row) throws IOException
+    private static String serializeRow(SSTableIdentityIterator row) throws IOException
     {
         ColumnFamily cf = row.getColumnFamily();
         AbstractType comparator = cf.getComparator();
@@ -211,7 +211,7 @@ public class SSTableExport
             
             if (scanner.hasNext())
             {
-                IteratingRow row = scanner.next();
+                SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
                 try
                 {
                     String jsonOut = serializeRow(row);
@@ -264,7 +264,7 @@ public class SSTableExport
         
         while(scanner.hasNext())
         {
-            IteratingRow row = scanner.next();
+            SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
             if (excludeSet.contains(row.getKey().key))
                 continue;
             try

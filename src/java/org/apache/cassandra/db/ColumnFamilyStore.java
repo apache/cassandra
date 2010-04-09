@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
@@ -35,9 +34,7 @@ import javax.management.ObjectName;
 
 import org.apache.commons.collections.IteratorUtils;
 
-import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -47,6 +44,7 @@ import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.*;
@@ -91,8 +89,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                new LinkedBlockingQueue<Runnable>(1 + 2 * DatabaseDescriptor.getAllDataFileLocations().length),
                                                new NamedThreadFactory("FLUSH-WRITER-POOL"));
     private static ExecutorService commitLogUpdater_ = new JMXEnabledThreadPoolExecutor("MEMTABLE-POST-FLUSHER");
-
-    private static final int KEY_RANGE_FILE_BUFFER_SIZE = 256 * 1024;
 
     private Set<Memtable> memtablesPendingFlush = new ConcurrentSkipListSet<Memtable>();
 
@@ -649,19 +645,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    public Iterator<DecoratedKey> memtableKeyIterator(DecoratedKey startWith) throws ExecutionException, InterruptedException
-    {
-        Table.flusherLock.readLock().lock();
-        try
-        {
-             return memtable_.getKeyIterator(startWith);
-        }
-        finally
-        {
-            Table.flusherLock.readLock().unlock();
-        }
-    }
-
     public Collection<SSTableReader> getSSTables()
     {
         return ssTables_.getSSTables();
@@ -749,12 +732,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             ColumnFamily cached = cacheRow(filter.key);
             if (cached == null)
                 return null;
-            ColumnIterator ci = filter.getMemtableColumnIterator(cached, getComparator(), gcBefore);
+            IColumnIterator ci = filter.getMemtableColumnIterator(cached, null, getComparator());
             ColumnFamily returnCF = ci.getColumnFamily().cloneMeShallow();
             filter.collectCollatedColumns(returnCF, ci, gcBefore);
             // TODO this is necessary because when we collate supercolumns together, we don't check
             // their subcolumns for relevance, so we need to do a second prune post facto here.
             return removeDeleted(returnCF, gcBefore);
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
         }
         finally
         {
@@ -765,17 +752,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore)
     {
         // we are querying top-level columns, do a merging fetch with indexes.
-        List<ColumnIterator> iterators = new ArrayList<ColumnIterator>();
+        List<IColumnIterator> iterators = new ArrayList<IColumnIterator>();
         final ColumnFamily returnCF = ColumnFamily.create(table_, columnFamily_);
         try
         {
-            ColumnIterator iter;
+            IColumnIterator iter;
 
             /* add the current memtable */
             Table.flusherLock.readLock().lock();
             try
             {
-                iter = filter.getMemtableColumnIterator(memtable_, getComparator(), gcBefore);
+                iter = filter.getMemtableColumnIterator(memtable_, getComparator());
             }
             finally
             {
@@ -790,7 +777,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             /* add the memtables being flushed */
             for (Memtable memtable : getMemtablesPendingFlush())
             {
-                iter = filter.getMemtableColumnIterator(memtable, getComparator(), gcBefore);
+                iter = filter.getMemtableColumnIterator(memtable, getComparator());
                 if (iter != null)
                 {
                     returnCF.delete(iter.getColumnFamily());
@@ -801,7 +788,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             /* add the SSTables on disk */
             for (SSTableReader sstable : ssTables_)
             {
-                iter = filter.getSSTableColumnIterator(sstable, gcBefore);
+                iter = filter.getSSTableColumnIterator(sstable);
                 if (iter.hasNext()) // initializes iter.CF
                 {
                     returnCF.delete(iter.getColumnFamily());
@@ -817,10 +804,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             filter.collectCollatedColumns(returnCF, collated, gcBefore);
             return returnCF; // caller is responsible for final removeDeleted
         }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
         finally
         {
             /* close all cursors */
-            for (ColumnIterator ci : iterators)
+            for (IColumnIterator ci : iterators)
             {
                 try
                 {
@@ -835,124 +826,72 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /**
-     * @param range: either a Bounds, which includes start key, or a Range, which does not.
-     * @param maxResults
-     * @return list of keys between startWith and stopAt
-
-       TODO refactor better.  this is just getKeyRange w/o the deletion check, for the benefit of
-       range_slice.  still opens one randomaccessfile per key, which sucks.  something like compactioniterator
-       would be better.
+      * Fetch a range of rows and columns from memtables/sstables.
+      * 
+      * @param rows The resulting rows fetched during this operation 
+      * @param superColumn Super column to filter by
+      * @param range Either a Bounds, which includes start key, or a Range, which does not.
+      * @param maxResults Maximum rows to return
+      * @param sliceRange Information on how to slice columns
+      * @param columnNames Column names to filter by 
+      * @return true if we found all keys we were looking for, otherwise false
      */
-    private boolean getKeyRange(List<String> keys, final AbstractBounds range, int maxResults)
+    private boolean getRangeRows(List<Row> rows, byte[] superColumn, final AbstractBounds range, int maxResults, SliceRange sliceRange, List<byte[]> columnNames)
     throws ExecutionException, InterruptedException
     {
         final DecoratedKey startWith = new DecoratedKey(range.left, null);
         final DecoratedKey stopAt = new DecoratedKey(range.right, null);
-        // create a CollatedIterator that will return unique keys from different sources
-        // (current memtable, historical memtables, and SSTables) in the correct order.
-        final List<Iterator<DecoratedKey>> iterators = new ArrayList<Iterator<DecoratedKey>>();
+        
+        final int gcBefore = CompactionManager.getDefaultGCBefore();
 
-        // we iterate through memtables with a priority queue to avoid more sorting than necessary.
-        // this predicate throws out the keys before the start of our range.
-        Predicate<DecoratedKey> p = new Predicate<DecoratedKey>()
-        {
-            public boolean apply(DecoratedKey key)
-            {
-                return startWith.compareTo(key) <= 0
-                       && (stopAt.isEmpty() || key.compareTo(stopAt) <= 0);
-            }
-        };
+        final QueryPath queryPath =  new QueryPath(columnFamily_, superColumn, null);
+        final SortedSet<byte[]> columnNameSet = new TreeSet<byte[]>(getComparator());
+        if (columnNames != null)
+            columnNameSet.addAll(columnNames);
 
-        // current memtable keys.  have to go through the CFS api for locking.
-        iterators.add(Iterators.filter(memtableKeyIterator(startWith), p));
-        // historical memtables
-        for (Memtable memtable : memtablesPendingFlush)
-        {
-            iterators.add(Iterators.filter(memtable.getKeyIterator(startWith), p));
-        }
+        final QueryFilter filter = sliceRange == null ? QueryFilter.getNamesFilter(null, queryPath, columnNameSet)
+                                                      : QueryFilter.getSliceFilter(null, queryPath, sliceRange.start, sliceRange.finish, sliceRange.bitmasks, sliceRange.reversed, sliceRange.count);
 
-        // sstables
-        for (SSTableReader sstable : ssTables_)
-        {
-            final SSTableScanner scanner = sstable.getScanner(KEY_RANGE_FILE_BUFFER_SIZE);
-            scanner.seekTo(startWith);
-            Iterator<DecoratedKey> iter = new CloseableIterator<DecoratedKey>()
-            {
-                public boolean hasNext()
-                {
-                    return scanner.hasNext();
-                }
-                public DecoratedKey next()
-                {
-                    return scanner.next().getKey();
-                }
-                public void remove()
-                {
-                    throw new UnsupportedOperationException();
-                }
-                public void close() throws IOException
-                {
-                    scanner.close();
-                }
-            };
-            assert iter instanceof Closeable; // otherwise we leak FDs
-            iterators.add(iter);
-        }
+        Collection<Memtable> memtables = new ArrayList<Memtable>(memtablesPendingFlush);
 
-        Iterator<DecoratedKey> collated = IteratorUtils.collatedIterator(DecoratedKey.comparator, iterators);
-        Iterable<DecoratedKey> reduced = new ReducingIterator<DecoratedKey, DecoratedKey>(collated) {
-            DecoratedKey current;
+        Collection<SSTableReader> sstables = new ArrayList<SSTableReader>();
+        Iterables.addAll(sstables, ssTables_);
 
-            public void reduce(DecoratedKey current)
-            {
-                 this.current = current;
-            }
-
-            protected DecoratedKey getReduced()
-            {
-                return current;
-            }
-        };
+        RowIterator iterator = RowIteratorFactory.getIterator(memtable_, memtables, sstables, startWith, stopAt, filter, getComparator(), gcBefore);
 
         try
         {
-            // pull keys out of the CollatedIterator
+            // pull rows out of the iterator
             boolean first = true;
-            for (DecoratedKey current : reduced)
+            IPartitioner partitioner = StorageService.getPartitioner(); 
+            while(iterator.hasNext())
             {
-                if (!stopAt.isEmpty() && stopAt.compareTo(current) < 0)
-                {
-                    return true;
-                }
+                Row current = iterator.next();
+            	// TODO store decoratedkey in row?
+                DecoratedKey key = partitioner.decorateKey(current.key);
 
-                if (range instanceof Bounds || !first || !current.equals(startWith))
-                {
-                    keys.add(current.key);
-                }
+                if (!stopAt.isEmpty() && stopAt.compareTo(key) < 0)
+                    return true;
+
+                // skip first one
+                if(range instanceof Bounds || !first || !key.equals(startWith))
+                    rows.add(current);
                 first = false;
 
-                if (keys.size() >= maxResults)
-                {
+                if (rows.size() >= maxResults)
                     return true;
-                }
             }
             return false;
         }
         finally
         {
-            for (Iterator iter : iterators)
+            try
             {
-                if (iter instanceof Closeable)
-                {
-                    try
-                    {
-                        ((Closeable)iter).close();
-                    }
-                    catch (IOException e)
-                    {
-                        throw new IOError(e);
-                    }
-                }
+                iterator.close();
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
             }
         }
     }
@@ -970,35 +909,23 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public RangeSliceReply getRangeSlice(byte[] super_column, final AbstractBounds range, int keyMax, SliceRange sliceRange, List<byte[]> columnNames)
     throws ExecutionException, InterruptedException
     {
-        List<String> keys = new ArrayList<String>();
+        List<Row> rows = new ArrayList<Row>();
         boolean completed;
         if ((range instanceof Bounds || !((Range)range).isWrapAround()))
         {
-            completed = getKeyRange(keys, range, keyMax);
+            completed = getRangeRows(rows, super_column, range, keyMax, sliceRange, columnNames);
         }
         else
         {
             // wrapped range
             Token min = StorageService.getPartitioner().getMinimumToken();
             Range first = new Range(range.left, min);
-            completed = getKeyRange(keys, first, keyMax);
+            completed = getRangeRows(rows, super_column, first, keyMax, sliceRange, columnNames);
             if (!completed && min.compareTo(range.right) < 0)
             {
                 Range second = new Range(min, range.right);
-                getKeyRange(keys, second, keyMax);
+                getRangeRows(rows, super_column, second, keyMax, sliceRange, columnNames);
             }
-        }
-        List<Row> rows = new ArrayList<Row>(keys.size());
-        final QueryPath queryPath =  new QueryPath(columnFamily_, super_column, null);
-        final SortedSet<byte[]> columnNameSet = new TreeSet<byte[]>(getComparator());
-        if (columnNames != null)
-            columnNameSet.addAll(columnNames);
-        for (String key : keys)
-        {
-            QueryFilter filter = sliceRange == null
-                                 ? QueryFilter.getNamesFilter(key, queryPath, columnNameSet)
-                                 : QueryFilter.getSliceFilter(key, queryPath, sliceRange.start, sliceRange.finish, sliceRange.bitmasks, sliceRange.reversed, sliceRange.count);
-            rows.add(new Row(key, getColumnFamily(filter)));
         }
 
         return new RangeSliceReply(rows);

@@ -24,23 +24,22 @@ package org.apache.cassandra.db.filter;
 import java.util.*;
 
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 
 public class NamesQueryFilter implements IFilter
 {
-    private final String key;
     public final SortedSet<byte[]> columns;
 
-    public NamesQueryFilter(String key, SortedSet<byte[]> columns)
+    public NamesQueryFilter(SortedSet<byte[]> columns)
     {
-        this.key = key;
         this.columns = columns;
     }
 
-    public NamesQueryFilter(String key, byte[] column)
+    public NamesQueryFilter(byte[] column)
     {
-        this(key, getSingleColumnSet(column));
+        this(getSingleColumnSet(column));
     }
 
     private static TreeSet<byte[]> getSingleColumnSet(byte[] column)
@@ -57,14 +56,19 @@ public class NamesQueryFilter implements IFilter
         return set;
     }
 
-    public ColumnIterator getMemtableColumnIterator(ColumnFamily cf, AbstractType comparator)
+    public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key, AbstractType comparator)
     {
-        return Memtable.getNamesIterator(cf, this);
+        return Memtable.getNamesIterator(key, cf, this);
     }
 
-    public ColumnIterator getSSTableColumnIterator(SSTableReader sstable)
+    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, String key)
     {
         return new SSTableNamesIterator(sstable, key, columns);
+    }
+    
+    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, long dataStart)
+    {
+        return new SSTableNamesIterator(sstable, file, key, columns);
     }
 
     public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore)

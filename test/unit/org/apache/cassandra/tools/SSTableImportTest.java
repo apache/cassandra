@@ -48,7 +48,7 @@ public class SSTableImportTest extends SchemaLoader
         // Verify results
         SSTableReader reader = SSTableReader.open(tempSS.getPath(), DatabaseDescriptor.getPartitioner());
         QueryFilter qf = QueryFilter.getNamesFilter("rowA", new QueryPath("Standard1", null, null), "colAA".getBytes());
-        ColumnFamily cf = qf.getSSTableColumnIterator(reader, Integer.MAX_VALUE).getColumnFamily();
+        ColumnFamily cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
         assert Arrays.equals(cf.getColumn("colAA".getBytes()).value(), hexToBytes("76616c4141"));
     }
 
@@ -62,7 +62,7 @@ public class SSTableImportTest extends SchemaLoader
         // Verify results
         SSTableReader reader = SSTableReader.open(tempSS.getPath(), DatabaseDescriptor.getPartitioner());
         QueryFilter qf = QueryFilter.getNamesFilter("rowA", new QueryPath("Super4", null, null), "superA".getBytes());
-        ColumnFamily cf = qf.getSSTableColumnIterator(reader, Integer.MAX_VALUE).getColumnFamily();
+        ColumnFamily cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
         IColumn superCol = cf.getColumn("superA".getBytes());
         assert Arrays.equals(superCol.getSubColumn("colAA".getBytes()).value(), hexToBytes("76616c75654141"));
     }

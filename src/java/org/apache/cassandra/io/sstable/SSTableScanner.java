@@ -19,19 +19,14 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.IOException;
 import java.io.Closeable;
-import java.io.IOError;
 import java.util.Iterator;
-import java.util.Arrays;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.io.IteratingRow;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.db.filter.IColumnIterator;
 
 
-public abstract class SSTableScanner implements Iterator<IteratingRow>, Closeable
+public abstract class SSTableScanner implements Iterator<IColumnIterator>, Closeable
 {
     public abstract void seekTo(DecoratedKey seekKey);
 

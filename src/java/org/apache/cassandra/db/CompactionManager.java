@@ -28,8 +28,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import javax.management.*;
 
-import org.apache.cassandra.db.filter.QueryPath;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -560,10 +558,10 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 public boolean evaluate(Object row)
                 {
-                    return Range.isTokenInRanges(((IteratingRow)row).getKey().token, ranges);
+                    return Range.isTokenInRanges(((SSTableIdentityIterator)row).getKey().token, ranges);
                 }
             };
-            CollatingIterator iter = FBUtilities.<IteratingRow>getCollatingIterator();
+            CollatingIterator iter = FBUtilities.<SSTableIdentityIterator>getCollatingIterator();
             for (SSTableReader sstable : sstables)
             {
                 SSTableScanner scanner = sstable.getScanner(FILE_BUFFER_SIZE);

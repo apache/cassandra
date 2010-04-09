@@ -20,15 +20,15 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
-import java.io.Closeable;
 import java.io.IOError;
 import java.util.Iterator;
 import java.util.Arrays;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.io.IteratingRow;
+import org.apache.cassandra.db.filter.IColumnIterator;
+import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.service.StorageService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,9 +40,10 @@ public class RowIndexedScanner extends SSTableScanner
 
     private final BufferedRandomAccessFile file;
     private final SSTableReader sstable;
-    private IteratingRow row;
+    private IColumnIterator row;
     private boolean exhausted = false;
-    private Iterator<IteratingRow> iterator;
+    private Iterator<IColumnIterator> iterator;
+    private QueryFilter filter;
 
     /**
      * @param sstable SSTable to scan.
@@ -58,6 +59,24 @@ public class RowIndexedScanner extends SSTableScanner
             throw new IOError(e);
         }
         this.sstable = sstable;
+    }
+    
+    /**
+     * @param sstable SSTable to scan.
+     * @param filter filter to use when scanning the columns
+     */
+    RowIndexedScanner(SSTableReader sstable, QueryFilter filter, int bufferSize)
+    {
+        try
+        {
+            this.file = new BufferedRandomAccessFile(sstable.getFilename(), "r", bufferSize);
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+        this.sstable = sstable;
+        this.filter = filter;
     }
 
     public void close() throws IOException
@@ -104,14 +123,14 @@ public class RowIndexedScanner extends SSTableScanner
     public boolean hasNext()
     {
         if (iterator == null)
-            iterator = exhausted ? Arrays.asList(new IteratingRow[0]).iterator() : new KeyScanningIterator();
+            iterator = exhausted ? Arrays.asList(new IColumnIterator[0]).iterator() : new KeyScanningIterator();
         return iterator.hasNext();
     }
 
-    public IteratingRow next()
+    public IColumnIterator next()
     {
         if (iterator == null)
-            iterator = exhausted ? Arrays.asList(new IteratingRow[0]).iterator() : new KeyScanningIterator();
+            iterator = exhausted ? Arrays.asList(new IColumnIterator[0]).iterator() : new KeyScanningIterator();
         return iterator.next();
     }
 
@@ -120,15 +139,18 @@ public class RowIndexedScanner extends SSTableScanner
         throw new UnsupportedOperationException();
     }
 
-    private class KeyScanningIterator implements Iterator<IteratingRow>
+    private class KeyScanningIterator implements Iterator<IColumnIterator>
     {
+        private long dataStart;
+        private long finishedAt;
+        
         public boolean hasNext()
         {
             try
             {
                 if (row == null)
                     return !file.isEOF();
-                return row.getEndPosition() < file.length();
+                return finishedAt < file.length();
             }
             catch (IOException e)
             {
@@ -136,14 +158,27 @@ public class RowIndexedScanner extends SSTableScanner
             }
         }
 
-        public IteratingRow next()
+        public IColumnIterator next()
         {
             try
             {
                 if (row != null)
-                    row.skipRemaining();
+                    file.seek(finishedAt);
                 assert !file.isEOF();
-                return row = new IteratingRow(file, sstable);
+
+                DecoratedKey key = StorageService.getPartitioner().convertFromDiskFormat(file.readUTF());
+                int dataSize = file.readInt();
+                dataStart = file.getFilePointer();
+                finishedAt = dataStart + dataSize;
+
+                if (filter == null)
+                {
+                    return row = new SSTableIdentityIterator(sstable, file, key, dataStart, finishedAt);
+                }
+                else
+                {
+                    return row = filter.getSSTableColumnIterator(sstable, file, key, dataStart);
+                }
             }
             catch (IOException e)
             {

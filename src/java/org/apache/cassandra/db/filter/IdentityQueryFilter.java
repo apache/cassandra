@@ -30,9 +30,9 @@ class IdentityQueryFilter extends SliceQueryFilter
     /**
      * Only for use in testing; will read entire CF into memory.
      */
-    public IdentityQueryFilter(String key)
+    public IdentityQueryFilter()
     {
-        super(key, ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, Integer.MAX_VALUE);
+        super(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, Integer.MAX_VALUE);
     }
 
     public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore)

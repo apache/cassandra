@@ -31,6 +31,7 @@ import org.apache.commons.collections.IteratorUtils;
 
 import com.google.common.collect.Collections2;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 
@@ -42,16 +43,14 @@ public class SliceQueryFilter implements IFilter
 {
     private static Logger logger = LoggerFactory.getLogger(SliceQueryFilter.class);
 
-    private final String key;
     public final byte[] start;
     public final byte[] finish;
     public final List<byte[]> bitmasks;
     public final boolean reversed;
     public final int count;
 
-    public SliceQueryFilter(String key, byte[] start, byte[] finish, List<byte[]> bitmasks, boolean reversed, int count)
+    public SliceQueryFilter(byte[] start, byte[] finish, List<byte[]> bitmasks, boolean reversed, int count)
     {
-        this.key = key;
         this.start = start;
         this.finish = finish;
         this.reversed = reversed;
@@ -59,18 +58,28 @@ public class SliceQueryFilter implements IFilter
         this.bitmasks = bitmasks;
     }
 
-    public ColumnIterator getMemtableColumnIterator(ColumnFamily cf, AbstractType comparator)
+    public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key, AbstractType comparator)
     {
-        return Memtable.getSliceIterator(cf, this, comparator);
+        return Memtable.getSliceIterator(key, cf, this, comparator);
     }
 
-    public ColumnIterator getSSTableColumnIterator(SSTableReader sstable)
+    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, String key)
     {
-        Predicate<IColumn> predicate = (bitmasks == null || bitmasks.isEmpty())
-                                       ? Predicates.<IColumn>alwaysTrue()
-                                       : getBitmaskMatchColumnPredicate();
-        return new SSTableSliceIterator(sstable, key, start, finish, predicate, reversed);
+        return new SSTableSliceIterator(sstable, key, start, finish, getPredicate(), reversed);
     }
+    
+    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, long dataStart)
+    {
+        return new SSTableSliceIterator(sstable, file, key, start, finish, getPredicate(), reversed);
+    }
+    
+    private Predicate<IColumn> getPredicate()
+    {
+        return (bitmasks == null || bitmasks.isEmpty())
+               ? Predicates.<IColumn>alwaysTrue()
+               : getBitmaskMatchColumnPredicate();
+    }
+
 
     public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore)
     {

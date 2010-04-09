@@ -26,6 +26,7 @@ import java.util.Iterator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.util.FileDataInput;
 
 /**
  * Given an implementation-specific description of what columns to look for, provides methods
@@ -40,13 +41,23 @@ interface IFilter
      * returns an iterator that returns columns from the given memtable
      * matching the Filter criteria in sorted order.
      */
-    public abstract ColumnIterator getMemtableColumnIterator(ColumnFamily cf, AbstractType comparator);
+    public abstract IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key, AbstractType comparator);
+
+    /**
+     * Get an iterator that returns columns from the given SSTable using the opened file
+     * matching the Filter criteria in sorted order.
+     * @param sstable SSTable we are reading from
+     * @param file Already opened file data input, saves us opening another one
+     * @param key The key of the row we are about to iterate over
+     * @param dataStart Used to seek to the start of the data
+     */
+    public abstract IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, long dataStart);
 
     /**
      * returns an iterator that returns columns from the given SSTable
      * matching the Filter criteria in sorted order.
      */
-    public abstract ColumnIterator getSSTableColumnIterator(SSTableReader sstable);
+    public abstract IColumnIterator getSSTableColumnIterator(SSTableReader sstable, String key);
 
     /**
      * collects columns from reducedColumns into returnCF.  Termination is determined
