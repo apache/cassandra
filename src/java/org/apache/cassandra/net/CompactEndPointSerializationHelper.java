@@ -24,13 +24,15 @@ import java.net.InetAddress;
 public class CompactEndPointSerializationHelper
 {
     public static void serialize(InetAddress endPoint, DataOutputStream dos) throws IOException
-    {        
-        dos.write(endPoint.getAddress());
+    {
+        byte[] buf = endPoint.getAddress();
+        dos.writeByte(buf.length);
+        dos.write(buf);
     }
     
     public static InetAddress deserialize(DataInputStream dis) throws IOException
     {     
-        byte[] bytes = new byte[4];
+        byte[] bytes = new byte[dis.readByte()];
         dis.readFully(bytes, 0, bytes.length);
         return InetAddress.getByAddress(bytes);
     }

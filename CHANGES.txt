@@ -18,6 +18,10 @@ dev
    during post-flush discard of old commitlog segments (CASSANDRA-936)
  * fix neighbor calculation for anti-entropy repair (CASSANDRA-924)
  * perform repair even for small entropy differences (CASSANDRA-924)
+ * Use hostnames in CFInputFormat to allow Hadoop's naive string-based
+   locality comparisons to work (CASSANDRA-955)
+ * nodes with IPv6 (and no IPv4) addresses could not join cluster
+   (CASSANDRA-969)
 
 
 0.6.0-RC1
