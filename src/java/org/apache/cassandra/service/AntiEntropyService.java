@@ -554,9 +554,9 @@ public class AntiEntropyService
 
             // restore partitioners (in case we were serialized)
             if (ltree.partitioner() == null)
-                ltree.partitioner(ss.getPartitioner());
+                ltree.partitioner(StorageService.getPartitioner());
             if (rtree.partitioner() == null)
-                rtree.partitioner(ss.getPartitioner());
+                rtree.partitioner(StorageService.getPartitioner());
 
             // determine the ranges where responsibility overlaps
             Set<Range> interesting = new HashSet(ss.getRangesForEndPoint(cf.left, local));

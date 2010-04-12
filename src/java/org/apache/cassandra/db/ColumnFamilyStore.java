@@ -796,7 +796,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 iterators.add(iter);
             }
 
-            Comparator<IColumn> comparator = filter.getColumnComparator(getComparator());
+            Comparator<IColumn> comparator = QueryFilter.getColumnComparator(getComparator());
             Iterator collated = IteratorUtils.collatedIterator(comparator, iterators);
             if (!collated.hasNext())
                 return null;
