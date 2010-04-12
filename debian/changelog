@@ -1,3 +1,9 @@
+cassandra (0.6.0-1) unstable; urgency=low
+
+  * New stable release.
+
+ -- Eric Evans <eevans@apache.org>  Sun, 11 Apr 2010 19:48:36 -0500
+
 cassandra (0.6.0~rc1-1) unstable; urgency=low
 
   * New release candidated.
