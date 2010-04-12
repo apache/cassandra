@@ -105,7 +105,7 @@ public class FBUtilities
         if (fractOrAbs < 0)
             throw new UnsupportedOperationException("unexpected negative value " + fractOrAbs);
 
-        if (0 < fractOrAbs && fractOrAbs < 1)
+        if (0 < fractOrAbs && fractOrAbs <= 1)
         {
             // fraction
             return Math.max(1, (long)(fractOrAbs * total));
