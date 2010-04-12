@@ -779,10 +779,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     return null;
                 sc = (SuperColumn)sc.cloneMe();
             }
-            
+
+            // filterSuperColumn only looks at immediate parent (the supercolumn) when determining if a subcolumn
+            // is still live, i.e., not shadowed by the parent's tombstone.  so, bump it up temporarily to the tombstone
+            // time of the cf, if that is greater.
+            long deletedAt = sc.getMarkedForDeleteAt();
+            if (cf.getMarkedForDeleteAt() > deletedAt)
+                sc.markForDeleteAt(sc.getLocalDeletionTime(), cf.getMarkedForDeleteAt());
+
             SuperColumn scFiltered = filter.filterSuperColumn(sc, gcBefore);
             ColumnFamily cfFiltered = cf.cloneMeShallow();
+            scFiltered.markForDeleteAt(sc.getLocalDeletionTime(), deletedAt); // reset sc tombstone time to what it should be
             cfFiltered.addColumn(scFiltered);
+
             return removeDeleted(cfFiltered, gcBefore);
         }
         finally

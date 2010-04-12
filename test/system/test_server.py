@@ -203,6 +203,20 @@ class TestMutations(CassandraTester):
         _insert_super()
         _verify_super()
 
+    def test_super_reinsert(self):
+        for x in xrange(3):
+            client.insert('Keyspace1', 'key1', ColumnPath('Super1', 'sc2', _i64(x)), 'value', 1, ConsistencyLevel.ONE)
+
+        client.remove('Keyspace1', 'key1', ColumnPath('Super1'), 2, ConsistencyLevel.ONE)
+
+        for x in xrange(3):
+            client.insert('Keyspace1', 'key1', ColumnPath('Super1', 'sc2', _i64(x + 3)), 'value', 3, ConsistencyLevel.ONE)
+
+        for n in xrange(1, 4):
+            p =  SlicePredicate(slice_range=SliceRange('', '', False, n))
+            slice = client.get_slice('Keyspace1', 'key1', ColumnParent('Super1', 'sc2'), p, ConsistencyLevel.ONE)
+            assert len(slice) == n, "expected %s results; found %s" % (n, slice)
+
     def test_super_get(self):
         _insert_super()
         result = client.get('Keyspace1', 'key1', ColumnPath('Super1', 'sc2'), ConsistencyLevel.ONE).super_column
