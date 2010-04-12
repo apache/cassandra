@@ -1,0 +1,16 @@
+
+# Override JAVA_HOME if you are not using the openjdk-6-jre package.
+#JAVA_HOME="/usr/lib/jvm/java-6-openjdk/jre"
+
+# Specifies the max size (in bytes) of memory allocation. Must be a 
+# multiple of 1024. You can append the letter K, M, or G to indicate
+# kilobytes, megabytes, or gigabytes respectively.
+JVM_MAX_MEM="1G"
+
+# Specifies the initial size (in bytes) of memory allocation. Must be
+# a multiple of 1024 greater than 1MB. You can append the letters K or
+# M to indicate kilobytes or megabytes respectively. 
+JVM_START_MEM="128M"
+
+# Specifies any additional arguments to the JVM.
+JVM_EXTRA_OPTS="-Xdebug -Xrunjdwp:transport=dt_socket,server=y,address=8888,suspend=n -XX:SurvivorRatio=128 -XX:TargetSurvivorRatio=90 -XX:+AggressiveOpts -XX:+UseParNewGC -XX:+UseConcMarkSweepGC -XX:+CMSParallelRemarkEnabled -XX:+HeapDumpOnOutOfMemoryError -XX:MaxTenuringThreshold=0"
