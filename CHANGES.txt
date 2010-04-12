@@ -10,6 +10,8 @@
  * perform repair even for small entropy differences (CASSANDRA-924)
  * Use hostnames in CFInputFormat to allow Hadoop's naive string-based
    locality comparisons to work (CASSANDRA-955)
+ * cache read-only BufferedRandomAccessFile length to avoid
+   3 system calls per invocation (CASSANDRA-950)
  * nodes with IPv6 (and no IPv4) addresses could not join cluster
    (CASSANDRA-969)
 
