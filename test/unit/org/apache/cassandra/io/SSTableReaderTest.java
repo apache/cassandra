@@ -7,6 +7,7 @@ import java.util.concurrent.ExecutionException;
 
 import org.junit.Test;
 
+import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -14,7 +15,7 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.service.StorageService;
 
 
-public class SSTableReaderTest
+public class SSTableReaderTest extends CleanupHelper
 {
     @Test
     public void testSpannedIndexPositions() throws IOException, ExecutionException, InterruptedException
