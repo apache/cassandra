@@ -24,6 +24,8 @@ dev
    (CASSANDRA-969)
  * Retrieve the correct number of undeleted columns, if any, from
    a supercolumn in a row that had been deleted previously (CASSANDRA-920)
+ * fix index scans that cross the 2GB mmap boundaries for both mmap
+   and standard i/o modes (CASSANDRA-866)
 
 
 0.6.0-RC1

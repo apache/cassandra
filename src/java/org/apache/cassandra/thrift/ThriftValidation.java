@@ -34,6 +34,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class ThriftValidation
 {
@@ -44,18 +45,7 @@ public class ThriftValidation
             throw new InvalidRequestException("Key may not be empty");
         }
         // check that writeUTF will be able to handle it -- encoded length must fit in 2 bytes
-        int strlen = key.length();
-        int utflen = 0;
-        for (int i = 0; i < strlen; i++)
-        {
-            int c = key.charAt(i);
-            if ((c >= 0x0001) && (c <= 0x007F))
-                utflen++;
-            else if (c > 0x07FF)
-                utflen += 3;
-            else
-                utflen += 2;
-        }
+        int utflen = FBUtilities.encodedUTF8Length(key);
         if (utflen > 65535)
             throw new InvalidRequestException("Encoded key length of " + utflen + " is longer than maximum of 65535");
     }

@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 
 public class IndexSummary
@@ -36,11 +37,13 @@ public class IndexSummary
     private ArrayList<KeyPosition> indexPositions;
     private Map<KeyPosition, SSTable.PositionSize> spannedIndexDataPositions;
     private Map<Long, KeyPosition> spannedIndexPositions;
-    int keysWritten = 0;
+    private int keysWritten = 0;
+    private long lastIndexPosition;
 
     public void maybeAddEntry(DecoratedKey decoratedKey, long dataPosition, long dataSize, long indexPosition, long nextIndexPosition)
     {
-        boolean spannedIndexEntry = RowIndexedReader.bufferIndex(indexPosition) != RowIndexedReader.bufferIndex(nextIndexPosition);
+        boolean spannedIndexEntry = DatabaseDescriptor.getIndexAccessMode() == DatabaseDescriptor.DiskAccessMode.mmap
+                                    && RowIndexedReader.bufferIndex(indexPosition) != RowIndexedReader.bufferIndex(nextIndexPosition);
         if (keysWritten++ % INDEX_INTERVAL == 0 || spannedIndexEntry)
         {
             if (indexPositions == null)
@@ -61,6 +64,7 @@ public class IndexSummary
                 spannedIndexPositions.put(info.indexPosition, info);
             }
         }
+        lastIndexPosition = indexPosition;
     }
 
     public List<KeyPosition> getIndexPositions()
@@ -73,14 +77,19 @@ public class IndexSummary
         indexPositions.trimToSize();
     }
 
-    public SSTable.PositionSize getSpannedPosition(KeyPosition sampledPosition)
+    public SSTable.PositionSize getSpannedDataPosition(KeyPosition sampledPosition)
     {
         if (spannedIndexDataPositions == null)
             return null;
         return spannedIndexDataPositions.get(sampledPosition);
     }
 
-    public SSTable.PositionSize getSpannedPosition(long nextIndexPosition)
+    public KeyPosition getSpannedIndexPosition(long nextIndexPosition)
+    {
+        return spannedIndexPositions == null ? null : spannedIndexPositions.get(nextIndexPosition);
+    }
+
+    public SSTable.PositionSize getSpannedDataPosition(long nextIndexPosition)
     {
         if (spannedIndexDataPositions == null)
             return null;
@@ -91,6 +100,12 @@ public class IndexSummary
 
         return spannedIndexDataPositions.get(info);
     }
+
+    public long getLastIndexPosition()
+    {
+        return lastIndexPosition;
+    }
+
 
     /**
      * This is a simple container for the index Key and its corresponding position
