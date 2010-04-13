@@ -910,6 +910,20 @@ class TestMutations(ThriftTester):
         client.batch_mutate('Keyspace1', mutation_map, ConsistencyLevel.ONE)
         _expect_missing(lambda: client.get('Keyspace1', 'key1', ColumnPath('Super1', 'sc1'), ConsistencyLevel.ONE))
 
+    def test_super_reinsert(self):
+        for x in xrange(3):
+            client.insert('Keyspace1', 'key1', ColumnPath('Super1', 'sc2', _i64(x)), 'value', 1, ConsistencyLevel.ONE)
+
+        client.remove('Keyspace1', 'key1', ColumnPath('Super1'), 2, ConsistencyLevel.ONE)
+
+        for x in xrange(3):
+            client.insert('Keyspace1', 'key1', ColumnPath('Super1', 'sc2', _i64(x + 3)), 'value', 3, ConsistencyLevel.ONE)
+
+        for n in xrange(1, 4):
+            p =  SlicePredicate(slice_range=SliceRange('', '', False, n))
+            slice = client.get_slice('Keyspace1', 'key1', ColumnParent('Super1', 'sc2'), p, ConsistencyLevel.ONE)
+            assert len(slice) == n, "expected %s results; found %s" % (n, slice)
+
     def test_describe_keyspace(self):
         """ Test keyspace description """
         kspaces = client.describe_keyspaces()

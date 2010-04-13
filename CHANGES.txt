@@ -22,6 +22,8 @@ dev
    locality comparisons to work (CASSANDRA-955)
  * nodes with IPv6 (and no IPv4) addresses could not join cluster
    (CASSANDRA-969)
+ * Retrieve the correct number of undeleted columns, if any, from
+   a supercolumn in a row that had been deleted previously (CASSANDRA-920)
 
 
 0.6.0-RC1

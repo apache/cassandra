@@ -109,7 +109,17 @@ public class QueryFilter
             {
                 IColumn c = curCF.getSortedColumns().iterator().next();
                 if (superFilter != null)
+                {
+                    // filterSuperColumn only looks at immediate parent (the supercolumn) when determining if a subcolumn
+                    // is still live, i.e., not shadowed by the parent's tombstone.  so, bump it up temporarily to the tombstone
+                    // time of the cf, if that is greater.
+                    long deletedAt = c.getMarkedForDeleteAt();
+                    if (returnCF.getMarkedForDeleteAt() > deletedAt)
+                        ((SuperColumn)c).markForDeleteAt(c.getLocalDeletionTime(), returnCF.getMarkedForDeleteAt());
+
                     c = filter.filterSuperColumn((SuperColumn)c, gcBefore);
+                    ((SuperColumn)c).markForDeleteAt(c.getLocalDeletionTime(), deletedAt); // reset sc tombstone time to what it should be
+                }
                 curCF.clear();
                 return c;
             }
