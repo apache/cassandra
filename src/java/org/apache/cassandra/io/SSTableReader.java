@@ -32,6 +32,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.cassandra.cache.InstrumentedCache;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.BloomFilter;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -85,7 +86,8 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         };
         new Thread(runnable, "SSTABLE-DELETER").start();
     }};
-    private static final long BUFFER_SIZE = Integer.MAX_VALUE;
+    // in a perfect world, BUFFER_SIZE would be final, but we need to test with a smaller size to stay sane.
+    static long BUFFER_SIZE = Integer.MAX_VALUE;
 
     public static int indexInterval()
     {
@@ -326,15 +328,9 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         if (sampledPosition == null)
             return null;
 
-        // handle exact sampled index hit
-        PositionSize info = indexSummary.getSpannedPosition(sampledPosition);
-        if (info != null)
-            return info;
-
         // get either a buffered or a mmap'd input for the on-disk index
         long p = sampledPosition.indexPosition;
         FileDataInput input;
-        int bufferIndex = bufferIndex(p);
         if (indexBuffers == null)
         {
             input = new BufferedRandomAccessFile(indexFilename(), "r");
@@ -342,7 +338,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         }
         else
         {
-            input = new MappedFileDataInput(indexBuffers[bufferIndex], indexFilename(), BUFFER_SIZE * bufferIndex, (int)(p % BUFFER_SIZE));
+            input = indexInputAt(p);
         }
 
         // scan the on-disk index, starting at the nearest sampled position
@@ -351,12 +347,33 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
             int i = 0;
             do
             {
+                // handle exact sampled index hit
+                IndexSummary.KeyPosition kp = indexSummary.getSpannedIndexPosition(input.getAbsolutePosition());
+                if (kp != null && kp.key.equals(decoratedKey))
+                    return indexSummary.getSpannedDataPosition(kp);
+
                 // if using mmapped i/o, skip to the next mmap buffer if necessary
-                if (input.isEOF() || indexSummary.getSpannedPosition(input.getAbsolutePosition()) != null)
+                if (input.isEOF() || kp != null)
                 {
-                    if (indexBuffers == null || ++bufferIndex == indexBuffers.length)
+                    if (indexBuffers == null) // not mmap-ing, just one index input
                         break;
-                    input = new MappedFileDataInput(indexBuffers[bufferIndex], indexFilename(), BUFFER_SIZE * bufferIndex, 0);
+
+                    FileDataInput oldInput = input;
+                    if (kp == null)
+                    {
+                        input = indexInputAt(input.getAbsolutePosition());
+                    }
+                    else
+                    {
+                        long nextUnspannedPostion = input.getAbsolutePosition()
+                                                    + 2 + FBUtilities.encodedUTF8Length(StorageService.getPartitioner().convertToDiskFormat(kp.key))
+                                                    + 8;
+                        input = indexInputAt(nextUnspannedPostion);
+                    }
+                    oldInput.close();
+                    if (input == null)
+                        break;
+
                     continue;
                 }
 
@@ -367,7 +384,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                 int v = indexDecoratedKey.compareTo(decoratedKey);
                 if (v == 0)
                 {
-                    info = getDataPositionSize(input, dataPosition);
+                    PositionSize info = getDataPositionSize(input, dataPosition);
                     if (keyCache != null && keyCache.getCapacity() > 0)
                         keyCache.put(unifiedKey, info);
                     return info;
@@ -378,9 +395,18 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         }
         finally
         {
-            input.close();
+            if (input != null)
+                input.close();
         }
         return null;
+    }
+
+    private FileDataInput indexInputAt(long indexPosition)
+    {
+        if (indexPosition > indexSummary.getLastIndexPosition())
+            return null;
+        int bufferIndex = bufferIndex(indexPosition);
+        return new MappedFileDataInput(indexBuffers[bufferIndex], indexFilename(), BUFFER_SIZE * bufferIndex, (int)(indexPosition % BUFFER_SIZE));
     }
 
     private PositionSize getDataPositionSize(FileDataInput input, long dataPosition) throws IOException
@@ -392,7 +418,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         // otherwise, row size is the start of the next row (in next index entry), minus the start of this one.
         long nextIndexPosition = input.getAbsolutePosition();
         // if next index entry would span mmap boundary, get the next row position from the summary instead
-        PositionSize nextPositionSize = indexSummary.getSpannedPosition(nextIndexPosition);
+        PositionSize nextPositionSize = indexSummary.getSpannedDataPosition(nextIndexPosition);
         if (nextPositionSize != null)
             return new PositionSize(dataPosition, nextPositionSize.position - dataPosition);
 
