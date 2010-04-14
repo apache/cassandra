@@ -19,10 +19,11 @@
 package org.apache.cassandra.dht;
 
 import java.math.BigInteger;
+import java.util.Arrays;
 import java.util.Comparator;
-import java.util.regex.Pattern;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.DBConstants;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.GuidGenerator;
@@ -37,26 +38,46 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
 
     public static final BigIntegerToken MINIMUM = new BigIntegerToken("0");
 
-    private static final String DELIMITER = ":";
+    private static final byte DELIMITER_BYTE = ":".getBytes()[0];
 
     public DecoratedKey<BigIntegerToken> decorateKey(String key)
     {
         return new DecoratedKey<BigIntegerToken>(getToken(key), key);
     }
     
-    public DecoratedKey<BigIntegerToken> convertFromDiskFormat(String key)
+    public DecoratedKey<BigIntegerToken> convertFromDiskFormat(byte[] fromdisk)
     {
-        int splitPoint = key.indexOf(DELIMITER);
-        String first = key.substring(0, splitPoint);
-        String second = key.substring(splitPoint+1);
+        // find the delimiter position
+        int splitPoint = -1;
+        for (int i = 0; i < fromdisk.length; i++)
+        {
+            if (fromdisk[i] == DELIMITER_BYTE)
+            {
+                splitPoint = i;
+                break;
+            }
+        }
+        assert splitPoint != -1;
 
-        return new DecoratedKey<BigIntegerToken>(new BigIntegerToken(first), second);
+        // and decode the token and key
+        String token = new String(fromdisk, 0, splitPoint, FBUtilities.UTF8);
+        byte[] key = Arrays.copyOfRange(fromdisk, splitPoint + 1, fromdisk.length);
+        return new DecoratedKey<BigIntegerToken>(new BigIntegerToken(token), key);
     }
 
-    public String convertToDiskFormat(DecoratedKey<BigIntegerToken> key)
+    public byte[] convertToDiskFormat(DecoratedKey<BigIntegerToken> key)
     {
-        // FIXME
-        return key.token + DELIMITER + new String(key.key, FBUtilities.UTF8);
+        // encode token prefix and calculate final length (with delimiter)
+        byte[] prefix = key.token.toString().getBytes(FBUtilities.UTF8);
+        int length = prefix.length + 1 + key.key.length;
+        assert length <= FBUtilities.MAX_UNSIGNED_SHORT;
+
+        // copy into output bytes
+        byte[] todisk = new byte[length];
+        System.arraycopy(prefix, 0, todisk, 0, prefix.length);
+        todisk[prefix.length] = DELIMITER_BYTE;
+        System.arraycopy(key.key, 0, todisk, prefix.length + 1, key.key.length);
+        return todisk;
     }
 
     public BigIntegerToken midpoint(BigIntegerToken ltoken, BigIntegerToken rtoken)

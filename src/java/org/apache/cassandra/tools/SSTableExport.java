@@ -164,7 +164,7 @@ public class SSTableExport
         BufferedRandomAccessFile input = new BufferedRandomAccessFile(SSTable.indexFilename(ssTableFile), "r");
         while (!input.isEOF())
         {
-            DecoratedKey decoratedKey = partitioner.convertFromDiskFormat(input.readUTF());
+            DecoratedKey decoratedKey = partitioner.convertFromDiskFormat(FBUtilities.readShortByteArray(input));
             long dataPosition = input.readLong();
             outs.println(asStr(decoratedKey.key));
         }

@@ -29,6 +29,7 @@ import org.apache.cassandra.db.filter.IColumnIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -166,7 +167,7 @@ public class RowIndexedScanner extends SSTableScanner
                     file.seek(finishedAt);
                 assert !file.isEOF();
 
-                DecoratedKey key = StorageService.getPartitioner().convertFromDiskFormat(file.readUTF());
+                DecoratedKey key = StorageService.getPartitioner().convertFromDiskFormat(FBUtilities.readShortByteArray(file));
                 int dataSize = file.readInt();
                 dataStart = file.getFilePointer();
                 finishedAt = dataStart + dataSize;

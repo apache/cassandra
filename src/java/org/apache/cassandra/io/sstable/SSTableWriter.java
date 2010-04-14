@@ -74,11 +74,12 @@ public class SSTableWriter extends SSTable
 
     private void afterAppend(DecoratedKey decoratedKey, long dataPosition, int dataSize) throws IOException
     {
-        String diskKey = partitioner.convertToDiskFormat(decoratedKey);
-        bf.add(diskKey);
+        byte[] diskKey = partitioner.convertToDiskFormat(decoratedKey);
+        // FIXME: needs format change
+        bf.add(new String(diskKey, FBUtilities.UTF8));
         lastWrittenKey = decoratedKey;
         long indexPosition = indexFile.getFilePointer();
-        indexFile.writeUTF(diskKey);
+        FBUtilities.writeShortByteArray(diskKey, indexFile);
         indexFile.writeLong(dataPosition);
         if (logger.isTraceEnabled())
             logger.trace("wrote " + decoratedKey + " at " + dataPosition);
@@ -92,7 +93,7 @@ public class SSTableWriter extends SSTable
     public void append(DecoratedKey decoratedKey, DataOutputBuffer buffer) throws IOException
     {
         long currentPosition = beforeAppend(decoratedKey);
-        dataFile.writeUTF(partitioner.convertToDiskFormat(decoratedKey));
+        FBUtilities.writeShortByteArray(partitioner.convertToDiskFormat(decoratedKey), dataFile);
         int length = buffer.getLength();
         assert length > 0;
         dataFile.writeInt(length);
@@ -103,7 +104,7 @@ public class SSTableWriter extends SSTable
     public void append(DecoratedKey decoratedKey, byte[] value) throws IOException
     {
         long currentPosition = beforeAppend(decoratedKey);
-        dataFile.writeUTF(partitioner.convertToDiskFormat(decoratedKey));
+        FBUtilities.writeShortByteArray(partitioner.convertToDiskFormat(decoratedKey), dataFile);
         assert value.length > 0;
         dataFile.writeInt(value.length);
         dataFile.write(value);

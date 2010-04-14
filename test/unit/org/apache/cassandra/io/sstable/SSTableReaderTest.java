@@ -13,6 +13,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 
 public class SSTableReaderTest extends CleanupHelper
@@ -44,7 +45,7 @@ public class SSTableReaderTest extends CleanupHelper
             String key = String.valueOf(j);
             DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
             FileDataInput file = sstable.getFileDataInput(dk, DatabaseDescriptor.getIndexedReadBufferSizeInKB() * 1024);
-            DecoratedKey keyInDisk = sstable.getPartitioner().convertFromDiskFormat(file.readUTF());
+            DecoratedKey keyInDisk = sstable.getPartitioner().convertFromDiskFormat(FBUtilities.readShortByteArray(file));
             assert keyInDisk.equals(dk) : String.format("%s != %s in %s", keyInDisk, dk, file.getPath());
         }
 

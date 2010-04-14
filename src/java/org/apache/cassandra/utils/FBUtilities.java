@@ -362,34 +362,6 @@ public class FBUtilities
         return sb.toString();
     }
 
-    public static String mapToString(Map<?,?> map)
-    {
-        StringBuilder sb = new StringBuilder("{");
-
-        for (Map.Entry entry : map.entrySet())
-        {
-            sb.append(entry.getKey()).append(": ").append(entry.getValue()).append(", ");
-        }
-
-        return sb.append("}").toString();
-    }
-
-    public static void writeNullableString(String key, DataOutput dos) throws IOException
-    {
-        dos.writeBoolean(key == null);
-        if (key != null)
-        {
-            dos.writeUTF(key);
-        }
-    }
-
-    public static String readNullableString(DataInput dis) throws IOException
-    {
-        if (dis.readBoolean())
-            return null;
-        return dis.readUTF();
-    }
-
     public static void renameWithConfirm(String tmpFilename, String filename) throws IOException
     {
         if (!new File(tmpFilename).renameTo(new File(filename)))

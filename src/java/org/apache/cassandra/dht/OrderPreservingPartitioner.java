@@ -40,15 +40,15 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
         return new DecoratedKey<StringToken>(new StringToken(key), key);
     }
     
-    public DecoratedKey<StringToken> convertFromDiskFormat(String key)
+    public DecoratedKey<StringToken> convertFromDiskFormat(byte[] fromdisk)
     {
-        return new DecoratedKey<StringToken>(new StringToken(key), key);
+        String key = new String(fromdisk, FBUtilities.UTF8);
+        return new DecoratedKey<StringToken>(new StringToken(key), fromdisk);
     }
 
-    public String convertToDiskFormat(DecoratedKey<StringToken> key)
+    public byte[] convertToDiskFormat(DecoratedKey<StringToken> key)
     {
-        // FIXME
-        return new String(key.key, FBUtilities.UTF8);
+        return key.key;
     }
 
     public StringToken midpoint(StringToken ltoken, StringToken rtoken)

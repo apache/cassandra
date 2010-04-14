@@ -24,13 +24,12 @@ import org.apache.cassandra.db.DecoratedKey;
 
 public interface IPartitioner<T extends Token>
 {
-    
     /**
      * Convert the on disk representation to a DecoratedKey object
      * @param key On disk representation 
      * @return DecoratedKey object
      */
-    public DecoratedKey<T> convertFromDiskFormat(String key);
+    public DecoratedKey<T> convertFromDiskFormat(byte[] key);
     
     /**
      * Convert the DecoratedKey to the on disk format used for
@@ -38,7 +37,7 @@ public interface IPartitioner<T extends Token>
      * @param key The DecoratedKey in question
      * @return
      */
-    public String convertToDiskFormat(DecoratedKey<T> key);    
+    public byte[] convertToDiskFormat(DecoratedKey<T> key);    
     
     /**
      * Transform key to object representation of the on-disk format.
@@ -46,6 +45,7 @@ public interface IPartitioner<T extends Token>
      * @param key the raw, client-facing key
      * @return decorated version of key
      */
+    @Deprecated
     public DecoratedKey<T> decorateKey(String key);
 
     /**
@@ -66,6 +66,7 @@ public interface IPartitioner<T extends Token>
      * (This is NOT a method to create a Token from its string representation;
      * for that, use TokenFactory.fromString.)
      */
+    @Deprecated
     public T getToken(String key);
 
     /**
