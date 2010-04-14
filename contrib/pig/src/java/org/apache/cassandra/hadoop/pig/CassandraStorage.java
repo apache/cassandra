@@ -60,7 +60,7 @@ public class CassandraStorage extends LoadFunc
             // load the next pair
             if (!reader.nextKeyValue())
                 return null;
-            String key = (String)reader.getCurrentKey();
+            byte[] key = (byte[])reader.getCurrentKey();
             SortedMap<byte[],IColumn> cf = (SortedMap<byte[],IColumn>)reader.getCurrentValue();
             assert key != null && cf != null;
             

@@ -57,7 +57,7 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
   private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)1);
   private static final TField COLUMNS_FIELD_DESC = new TField("columns", TType.LIST, (short)2);
 
-  public String key;
+  public byte[] key;
   public List<ColumnOrSuperColumn> columns;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
@@ -134,7 +134,7 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
   }
 
   public KeySlice(
-    String key,
+    byte[] key,
     List<ColumnOrSuperColumn> columns)
   {
     this();
@@ -147,7 +147,8 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
    */
   public KeySlice(KeySlice other) {
     if (other.isSetKey()) {
-      this.key = other.key;
+      this.key = new byte[other.key.length];
+      System.arraycopy(other.key, 0, key, 0, other.key.length);
     }
     if (other.isSetColumns()) {
       List<ColumnOrSuperColumn> __this__columns = new ArrayList<ColumnOrSuperColumn>();
@@ -167,11 +168,11 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
     return new KeySlice(this);
   }
 
-  public String getKey() {
+  public byte[] getKey() {
     return this.key;
   }
 
-  public KeySlice setKey(String key) {
+  public KeySlice setKey(byte[] key) {
     this.key = key;
     return this;
   }
@@ -236,7 +237,7 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
       if (value == null) {
         unsetKey();
       } else {
-        setKey((String)value);
+        setKey((byte[])value);
       }
       break;
 
@@ -304,7 +305,7 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
     if (this_present_key || that_present_key) {
       if (!(this_present_key && that_present_key))
         return false;
-      if (!this.key.equals(that.key))
+      if (!java.util.Arrays.equals(this.key, that.key))
         return false;
     }
 
@@ -366,7 +367,7 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
       switch (field.id) {
         case 1: // KEY
           if (field.type == TType.STRING) {
-            this.key = iprot.readString();
+            this.key = iprot.readBinary();
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -406,7 +407,7 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
     oprot.writeStructBegin(STRUCT_DESC);
     if (this.key != null) {
       oprot.writeFieldBegin(KEY_FIELD_DESC);
-      oprot.writeString(this.key);
+      oprot.writeBinary(this.key);
       oprot.writeFieldEnd();
     }
     if (this.columns != null) {
@@ -434,7 +435,12 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
     if (this.key == null) {
       sb.append("null");
     } else {
-      sb.append(this.key);
+        int __key_size = Math.min(this.key.length, 128);
+        for (int i = 0; i < __key_size; i++) {
+          if (i != 0) sb.append(" ");
+          sb.append(Integer.toHexString(this.key[i]).length() > 1 ? Integer.toHexString(this.key[i]).substring(Integer.toHexString(this.key[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.key[i]).toUpperCase());
+        }
+        if (this.key.length > 128) sb.append(" ...");
     }
     first = false;
     if (!first) sb.append(", ");

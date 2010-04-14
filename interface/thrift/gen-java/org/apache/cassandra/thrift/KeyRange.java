@@ -61,8 +61,8 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
   private static final TField END_TOKEN_FIELD_DESC = new TField("end_token", TType.STRING, (short)4);
   private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)5);
 
-  public String start_key;
-  public String end_key;
+  public byte[] start_key;
+  public byte[] end_key;
   public String start_token;
   public String end_token;
   public int count;
@@ -167,10 +167,12 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
     __isset_bit_vector.clear();
     __isset_bit_vector.or(other.__isset_bit_vector);
     if (other.isSetStart_key()) {
-      this.start_key = other.start_key;
+      this.start_key = new byte[other.start_key.length];
+      System.arraycopy(other.start_key, 0, start_key, 0, other.start_key.length);
     }
     if (other.isSetEnd_key()) {
-      this.end_key = other.end_key;
+      this.end_key = new byte[other.end_key.length];
+      System.arraycopy(other.end_key, 0, end_key, 0, other.end_key.length);
     }
     if (other.isSetStart_token()) {
       this.start_token = other.start_token;
@@ -190,11 +192,11 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
     return new KeyRange(this);
   }
 
-  public String getStart_key() {
+  public byte[] getStart_key() {
     return this.start_key;
   }
 
-  public KeyRange setStart_key(String start_key) {
+  public KeyRange setStart_key(byte[] start_key) {
     this.start_key = start_key;
     return this;
   }
@@ -214,11 +216,11 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
     }
   }
 
-  public String getEnd_key() {
+  public byte[] getEnd_key() {
     return this.end_key;
   }
 
-  public KeyRange setEnd_key(String end_key) {
+  public KeyRange setEnd_key(byte[] end_key) {
     this.end_key = end_key;
     return this;
   }
@@ -315,7 +317,7 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
       if (value == null) {
         unsetStart_key();
       } else {
-        setStart_key((String)value);
+        setStart_key((byte[])value);
       }
       break;
 
@@ -323,7 +325,7 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
       if (value == null) {
         unsetEnd_key();
       } else {
-        setEnd_key((String)value);
+        setEnd_key((byte[])value);
       }
       break;
 
@@ -422,7 +424,7 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
     if (this_present_start_key || that_present_start_key) {
       if (!(this_present_start_key && that_present_start_key))
         return false;
-      if (!this.start_key.equals(that.start_key))
+      if (!java.util.Arrays.equals(this.start_key, that.start_key))
         return false;
     }
 
@@ -431,7 +433,7 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
     if (this_present_end_key || that_present_end_key) {
       if (!(this_present_end_key && that_present_end_key))
         return false;
-      if (!this.end_key.equals(that.end_key))
+      if (!java.util.Arrays.equals(this.end_key, that.end_key))
         return false;
     }
 
@@ -538,14 +540,14 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
       switch (field.id) {
         case 1: // START_KEY
           if (field.type == TType.STRING) {
-            this.start_key = iprot.readString();
+            this.start_key = iprot.readBinary();
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 2: // END_KEY
           if (field.type == TType.STRING) {
-            this.end_key = iprot.readString();
+            this.end_key = iprot.readBinary();
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -593,14 +595,14 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
     if (this.start_key != null) {
       if (isSetStart_key()) {
         oprot.writeFieldBegin(START_KEY_FIELD_DESC);
-        oprot.writeString(this.start_key);
+        oprot.writeBinary(this.start_key);
         oprot.writeFieldEnd();
       }
     }
     if (this.end_key != null) {
       if (isSetEnd_key()) {
         oprot.writeFieldBegin(END_KEY_FIELD_DESC);
-        oprot.writeString(this.end_key);
+        oprot.writeBinary(this.end_key);
         oprot.writeFieldEnd();
       }
     }
@@ -635,7 +637,12 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
       if (this.start_key == null) {
         sb.append("null");
       } else {
-        sb.append(this.start_key);
+          int __start_key_size = Math.min(this.start_key.length, 128);
+          for (int i = 0; i < __start_key_size; i++) {
+            if (i != 0) sb.append(" ");
+            sb.append(Integer.toHexString(this.start_key[i]).length() > 1 ? Integer.toHexString(this.start_key[i]).substring(Integer.toHexString(this.start_key[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.start_key[i]).toUpperCase());
+          }
+          if (this.start_key.length > 128) sb.append(" ...");
       }
       first = false;
     }
@@ -645,7 +652,12 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
       if (this.end_key == null) {
         sb.append("null");
       } else {
-        sb.append(this.end_key);
+          int __end_key_size = Math.min(this.end_key.length, 128);
+          for (int i = 0; i < __end_key_size; i++) {
+            if (i != 0) sb.append(" ");
+            sb.append(Integer.toHexString(this.end_key[i]).length() > 1 ? Integer.toHexString(this.end_key[i]).substring(Integer.toHexString(this.end_key[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.end_key[i]).toUpperCase());
+          }
+          if (this.end_key.length > 128) sb.append(" ...");
       }
       first = false;
     }

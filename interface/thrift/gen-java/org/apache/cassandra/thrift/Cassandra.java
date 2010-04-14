@@ -59,7 +59,7 @@ public class Cassandra {
      * @param column_path
      * @param consistency_level
      */
-    public ColumnOrSuperColumn get(String keyspace, String key, ColumnPath column_path, ConsistencyLevel consistency_level) throws InvalidRequestException, NotFoundException, UnavailableException, TimedOutException, TException;
+    public ColumnOrSuperColumn get(String keyspace, byte[] key, ColumnPath column_path, ConsistencyLevel consistency_level) throws InvalidRequestException, NotFoundException, UnavailableException, TimedOutException, TException;
 
     /**
      * Get the group of columns contained by column_parent (either a ColumnFamily name or a ColumnFamily/SuperColumn name
@@ -71,10 +71,10 @@ public class Cassandra {
      * @param predicate
      * @param consistency_level
      */
-    public List<ColumnOrSuperColumn> get_slice(String keyspace, String key, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
+    public List<ColumnOrSuperColumn> get_slice(String keyspace, byte[] key, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
-     * Perform a get for column_path in parallel on the given list<string> keys. The return value maps keys to the
+     * Perform a get for column_path in parallel on the given list<binary> keys. The return value maps keys to the
      * ColumnOrSuperColumn found. If no value corresponding to a key is present, the key will still be in the map, but both
      * the column and super_column references of the ColumnOrSuperColumn object it maps to will be null.
      * @deprecated; use multiget_slice
@@ -84,7 +84,7 @@ public class Cassandra {
      * @param column_path
      * @param consistency_level
      */
-    public Map<String,ColumnOrSuperColumn> multiget(String keyspace, List<String> keys, ColumnPath column_path, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
+    public Map<byte[],ColumnOrSuperColumn> multiget(String keyspace, List<byte[]> keys, ColumnPath column_path, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
      * Performs a get_slice for column_parent and predicate for the given keys in parallel.
@@ -95,7 +95,7 @@ public class Cassandra {
      * @param predicate
      * @param consistency_level
      */
-    public Map<String,List<ColumnOrSuperColumn>> multiget_slice(String keyspace, List<String> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
+    public Map<byte[],List<ColumnOrSuperColumn>> multiget_slice(String keyspace, List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
      * returns the number of columns for a particular <code>key</code> and <code>ColumnFamily</code> or <code>SuperColumn</code>.
@@ -105,7 +105,7 @@ public class Cassandra {
      * @param column_parent
      * @param consistency_level
      */
-    public int get_count(String keyspace, String key, ColumnParent column_parent, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
+    public int get_count(String keyspace, byte[] key, ColumnParent column_parent, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
      * returns a subset of columns for a range of keys.
@@ -119,7 +119,7 @@ public class Cassandra {
      * @param row_count
      * @param consistency_level
      */
-    public List<KeySlice> get_range_slice(String keyspace, ColumnParent column_parent, SlicePredicate predicate, String start_key, String finish_key, int row_count, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
+    public List<KeySlice> get_range_slice(String keyspace, ColumnParent column_parent, SlicePredicate predicate, byte[] start_key, byte[] finish_key, int row_count, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
      * returns a subset of columns for a range of keys.
@@ -144,7 +144,7 @@ public class Cassandra {
      * @param timestamp
      * @param consistency_level
      */
-    public void insert(String keyspace, String key, ColumnPath column_path, byte[] value, long timestamp, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
+    public void insert(String keyspace, byte[] key, ColumnPath column_path, byte[] value, long timestamp, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
      * Insert Columns or SuperColumns across different Column Families for the same row key. batch_mutation is a
@@ -157,7 +157,7 @@ public class Cassandra {
      * @param cfmap
      * @param consistency_level
      */
-    public void batch_insert(String keyspace, String key, Map<String,List<ColumnOrSuperColumn>> cfmap, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
+    public void batch_insert(String keyspace, byte[] key, Map<String,List<ColumnOrSuperColumn>> cfmap, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
      * Remove data from the row specified by key at the granularity specified by column_path, and the given timestamp. Note
@@ -170,7 +170,7 @@ public class Cassandra {
      * @param timestamp
      * @param consistency_level
      */
-    public void remove(String keyspace, String key, ColumnPath column_path, long timestamp, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
+    public void remove(String keyspace, byte[] key, ColumnPath column_path, long timestamp, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
      *   Mutate many columns or super columns for many row keys. See also: Mutation.
@@ -182,7 +182,7 @@ public class Cassandra {
      * @param mutation_map
      * @param consistency_level
      */
-    public void batch_mutate(String keyspace, Map<String,Map<String,List<Mutation>>> mutation_map, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
+    public void batch_mutate(String keyspace, Map<byte[],Map<String,List<Mutation>>> mutation_map, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
      * list the defined keyspaces in this cluster
@@ -314,13 +314,13 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "login failed: unknown result");
     }
 
-    public ColumnOrSuperColumn get(String keyspace, String key, ColumnPath column_path, ConsistencyLevel consistency_level) throws InvalidRequestException, NotFoundException, UnavailableException, TimedOutException, TException
+    public ColumnOrSuperColumn get(String keyspace, byte[] key, ColumnPath column_path, ConsistencyLevel consistency_level) throws InvalidRequestException, NotFoundException, UnavailableException, TimedOutException, TException
     {
       send_get(keyspace, key, column_path, consistency_level);
       return recv_get();
     }
 
-    public void send_get(String keyspace, String key, ColumnPath column_path, ConsistencyLevel consistency_level) throws TException
+    public void send_get(String keyspace, byte[] key, ColumnPath column_path, ConsistencyLevel consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get", TMessageType.CALL, seqid_));
       get_args args = new get_args();
@@ -362,13 +362,13 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get failed: unknown result");
     }
 
-    public List<ColumnOrSuperColumn> get_slice(String keyspace, String key, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    public List<ColumnOrSuperColumn> get_slice(String keyspace, byte[] key, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
       send_get_slice(keyspace, key, column_parent, predicate, consistency_level);
       return recv_get_slice();
     }
 
-    public void send_get_slice(String keyspace, String key, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws TException
+    public void send_get_slice(String keyspace, byte[] key, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_slice", TMessageType.CALL, seqid_));
       get_slice_args args = new get_slice_args();
@@ -408,13 +408,13 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_slice failed: unknown result");
     }
 
-    public Map<String,ColumnOrSuperColumn> multiget(String keyspace, List<String> keys, ColumnPath column_path, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    public Map<byte[],ColumnOrSuperColumn> multiget(String keyspace, List<byte[]> keys, ColumnPath column_path, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
       send_multiget(keyspace, keys, column_path, consistency_level);
       return recv_multiget();
     }
 
-    public void send_multiget(String keyspace, List<String> keys, ColumnPath column_path, ConsistencyLevel consistency_level) throws TException
+    public void send_multiget(String keyspace, List<byte[]> keys, ColumnPath column_path, ConsistencyLevel consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("multiget", TMessageType.CALL, seqid_));
       multiget_args args = new multiget_args();
@@ -427,7 +427,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public Map<String,ColumnOrSuperColumn> recv_multiget() throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    public Map<byte[],ColumnOrSuperColumn> recv_multiget() throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -453,13 +453,13 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "multiget failed: unknown result");
     }
 
-    public Map<String,List<ColumnOrSuperColumn>> multiget_slice(String keyspace, List<String> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    public Map<byte[],List<ColumnOrSuperColumn>> multiget_slice(String keyspace, List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
       send_multiget_slice(keyspace, keys, column_parent, predicate, consistency_level);
       return recv_multiget_slice();
     }
 
-    public void send_multiget_slice(String keyspace, List<String> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws TException
+    public void send_multiget_slice(String keyspace, List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("multiget_slice", TMessageType.CALL, seqid_));
       multiget_slice_args args = new multiget_slice_args();
@@ -473,7 +473,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public Map<String,List<ColumnOrSuperColumn>> recv_multiget_slice() throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    public Map<byte[],List<ColumnOrSuperColumn>> recv_multiget_slice() throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -499,13 +499,13 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "multiget_slice failed: unknown result");
     }
 
-    public int get_count(String keyspace, String key, ColumnParent column_parent, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    public int get_count(String keyspace, byte[] key, ColumnParent column_parent, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
       send_get_count(keyspace, key, column_parent, consistency_level);
       return recv_get_count();
     }
 
-    public void send_get_count(String keyspace, String key, ColumnParent column_parent, ConsistencyLevel consistency_level) throws TException
+    public void send_get_count(String keyspace, byte[] key, ColumnParent column_parent, ConsistencyLevel consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_count", TMessageType.CALL, seqid_));
       get_count_args args = new get_count_args();
@@ -544,13 +544,13 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_count failed: unknown result");
     }
 
-    public List<KeySlice> get_range_slice(String keyspace, ColumnParent column_parent, SlicePredicate predicate, String start_key, String finish_key, int row_count, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    public List<KeySlice> get_range_slice(String keyspace, ColumnParent column_parent, SlicePredicate predicate, byte[] start_key, byte[] finish_key, int row_count, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
       send_get_range_slice(keyspace, column_parent, predicate, start_key, finish_key, row_count, consistency_level);
       return recv_get_range_slice();
     }
 
-    public void send_get_range_slice(String keyspace, ColumnParent column_parent, SlicePredicate predicate, String start_key, String finish_key, int row_count, ConsistencyLevel consistency_level) throws TException
+    public void send_get_range_slice(String keyspace, ColumnParent column_parent, SlicePredicate predicate, byte[] start_key, byte[] finish_key, int row_count, ConsistencyLevel consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_range_slice", TMessageType.CALL, seqid_));
       get_range_slice_args args = new get_range_slice_args();
@@ -638,13 +638,13 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_range_slices failed: unknown result");
     }
 
-    public void insert(String keyspace, String key, ColumnPath column_path, byte[] value, long timestamp, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    public void insert(String keyspace, byte[] key, ColumnPath column_path, byte[] value, long timestamp, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
       send_insert(keyspace, key, column_path, value, timestamp, consistency_level);
       recv_insert();
     }
 
-    public void send_insert(String keyspace, String key, ColumnPath column_path, byte[] value, long timestamp, ConsistencyLevel consistency_level) throws TException
+    public void send_insert(String keyspace, byte[] key, ColumnPath column_path, byte[] value, long timestamp, ConsistencyLevel consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("insert", TMessageType.CALL, seqid_));
       insert_args args = new insert_args();
@@ -682,13 +682,13 @@ public class Cassandra {
       return;
     }
 
-    public void batch_insert(String keyspace, String key, Map<String,List<ColumnOrSuperColumn>> cfmap, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    public void batch_insert(String keyspace, byte[] key, Map<String,List<ColumnOrSuperColumn>> cfmap, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
       send_batch_insert(keyspace, key, cfmap, consistency_level);
       recv_batch_insert();
     }
 
-    public void send_batch_insert(String keyspace, String key, Map<String,List<ColumnOrSuperColumn>> cfmap, ConsistencyLevel consistency_level) throws TException
+    public void send_batch_insert(String keyspace, byte[] key, Map<String,List<ColumnOrSuperColumn>> cfmap, ConsistencyLevel consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("batch_insert", TMessageType.CALL, seqid_));
       batch_insert_args args = new batch_insert_args();
@@ -724,13 +724,13 @@ public class Cassandra {
       return;
     }
 
-    public void remove(String keyspace, String key, ColumnPath column_path, long timestamp, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    public void remove(String keyspace, byte[] key, ColumnPath column_path, long timestamp, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
       send_remove(keyspace, key, column_path, timestamp, consistency_level);
       recv_remove();
     }
 
-    public void send_remove(String keyspace, String key, ColumnPath column_path, long timestamp, ConsistencyLevel consistency_level) throws TException
+    public void send_remove(String keyspace, byte[] key, ColumnPath column_path, long timestamp, ConsistencyLevel consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("remove", TMessageType.CALL, seqid_));
       remove_args args = new remove_args();
@@ -767,13 +767,13 @@ public class Cassandra {
       return;
     }
 
-    public void batch_mutate(String keyspace, Map<String,Map<String,List<Mutation>>> mutation_map, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    public void batch_mutate(String keyspace, Map<byte[],Map<String,List<Mutation>>> mutation_map, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
       send_batch_mutate(keyspace, mutation_map, consistency_level);
       recv_batch_mutate();
     }
 
-    public void send_batch_mutate(String keyspace, Map<String,Map<String,List<Mutation>>> mutation_map, ConsistencyLevel consistency_level) throws TException
+    public void send_batch_mutate(String keyspace, Map<byte[],Map<String,List<Mutation>>> mutation_map, ConsistencyLevel consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("batch_mutate", TMessageType.CALL, seqid_));
       batch_mutate_args args = new batch_mutate_args();
@@ -2989,7 +2989,7 @@ public class Cassandra {
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)4);
 
     public String keyspace;
-    public String key;
+    public byte[] key;
     public ColumnPath column_path;
     /**
      * 
@@ -3083,7 +3083,7 @@ public class Cassandra {
 
     public get_args(
       String keyspace,
-      String key,
+      byte[] key,
       ColumnPath column_path,
       ConsistencyLevel consistency_level)
     {
@@ -3102,7 +3102,8 @@ public class Cassandra {
         this.keyspace = other.keyspace;
       }
       if (other.isSetKey()) {
-        this.key = other.key;
+        this.key = new byte[other.key.length];
+        System.arraycopy(other.key, 0, key, 0, other.key.length);
       }
       if (other.isSetColumn_path()) {
         this.column_path = new ColumnPath(other.column_path);
@@ -3145,11 +3146,11 @@ public class Cassandra {
       }
     }
 
-    public String getKey() {
+    public byte[] getKey() {
       return this.key;
     }
 
-    public get_args setKey(String key) {
+    public get_args setKey(byte[] key) {
       this.key = key;
       return this;
     }
@@ -3239,7 +3240,7 @@ public class Cassandra {
         if (value == null) {
           unsetKey();
         } else {
-          setKey((String)value);
+          setKey((byte[])value);
         }
         break;
 
@@ -3334,7 +3335,7 @@ public class Cassandra {
       if (this_present_key || that_present_key) {
         if (!(this_present_key && that_present_key))
           return false;
-        if (!this.key.equals(that.key))
+        if (!java.util.Arrays.equals(this.key, that.key))
           return false;
       }
 
@@ -3430,7 +3431,7 @@ public class Cassandra {
             break;
           case 2: // KEY
             if (field.type == TType.STRING) {
-              this.key = iprot.readString();
+              this.key = iprot.readBinary();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -3472,7 +3473,7 @@ public class Cassandra {
       }
       if (this.key != null) {
         oprot.writeFieldBegin(KEY_FIELD_DESC);
-        oprot.writeString(this.key);
+        oprot.writeBinary(this.key);
         oprot.writeFieldEnd();
       }
       if (this.column_path != null) {
@@ -3506,7 +3507,12 @@ public class Cassandra {
       if (this.key == null) {
         sb.append("null");
       } else {
-        sb.append(this.key);
+          int __key_size = Math.min(this.key.length, 128);
+          for (int i = 0; i < __key_size; i++) {
+            if (i != 0) sb.append(" ");
+            sb.append(Integer.toHexString(this.key[i]).length() > 1 ? Integer.toHexString(this.key[i]).substring(Integer.toHexString(this.key[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.key[i]).toUpperCase());
+          }
+          if (this.key.length > 128) sb.append(" ...");
       }
       first = false;
       if (!first) sb.append(", ");
@@ -4178,7 +4184,7 @@ public class Cassandra {
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)5);
 
     public String keyspace;
-    public String key;
+    public byte[] key;
     public ColumnParent column_parent;
     public SlicePredicate predicate;
     /**
@@ -4276,7 +4282,7 @@ public class Cassandra {
 
     public get_slice_args(
       String keyspace,
-      String key,
+      byte[] key,
       ColumnParent column_parent,
       SlicePredicate predicate,
       ConsistencyLevel consistency_level)
@@ -4297,7 +4303,8 @@ public class Cassandra {
         this.keyspace = other.keyspace;
       }
       if (other.isSetKey()) {
-        this.key = other.key;
+        this.key = new byte[other.key.length];
+        System.arraycopy(other.key, 0, key, 0, other.key.length);
       }
       if (other.isSetColumn_parent()) {
         this.column_parent = new ColumnParent(other.column_parent);
@@ -4343,11 +4350,11 @@ public class Cassandra {
       }
     }
 
-    public String getKey() {
+    public byte[] getKey() {
       return this.key;
     }
 
-    public get_slice_args setKey(String key) {
+    public get_slice_args setKey(byte[] key) {
       this.key = key;
       return this;
     }
@@ -4461,7 +4468,7 @@ public class Cassandra {
         if (value == null) {
           unsetKey();
         } else {
-          setKey((String)value);
+          setKey((byte[])value);
         }
         break;
 
@@ -4569,7 +4576,7 @@ public class Cassandra {
       if (this_present_key || that_present_key) {
         if (!(this_present_key && that_present_key))
           return false;
-        if (!this.key.equals(that.key))
+        if (!java.util.Arrays.equals(this.key, that.key))
           return false;
       }
 
@@ -4683,7 +4690,7 @@ public class Cassandra {
             break;
           case 2: // KEY
             if (field.type == TType.STRING) {
-              this.key = iprot.readString();
+              this.key = iprot.readBinary();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -4733,7 +4740,7 @@ public class Cassandra {
       }
       if (this.key != null) {
         oprot.writeFieldBegin(KEY_FIELD_DESC);
-        oprot.writeString(this.key);
+        oprot.writeBinary(this.key);
         oprot.writeFieldEnd();
       }
       if (this.column_parent != null) {
@@ -4772,7 +4779,12 @@ public class Cassandra {
       if (this.key == null) {
         sb.append("null");
       } else {
-        sb.append(this.key);
+          int __key_size = Math.min(this.key.length, 128);
+          for (int i = 0; i < __key_size; i++) {
+            if (i != 0) sb.append(" ");
+            sb.append(Integer.toHexString(this.key[i]).length() > 1 ? Integer.toHexString(this.key[i]).substring(Integer.toHexString(this.key[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.key[i]).toUpperCase());
+          }
+          if (this.key.length > 128) sb.append(" ...");
       }
       first = false;
       if (!first) sb.append(", ");
@@ -5406,7 +5418,7 @@ public class Cassandra {
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)4);
 
     public String keyspace;
-    public List<String> keys;
+    public List<byte[]> keys;
     public ColumnPath column_path;
     /**
      * 
@@ -5501,7 +5513,7 @@ public class Cassandra {
 
     public multiget_args(
       String keyspace,
-      List<String> keys,
+      List<byte[]> keys,
       ColumnPath column_path,
       ConsistencyLevel consistency_level)
     {
@@ -5520,9 +5532,11 @@ public class Cassandra {
         this.keyspace = other.keyspace;
       }
       if (other.isSetKeys()) {
-        List<String> __this__keys = new ArrayList<String>();
-        for (String other_element : other.keys) {
-          __this__keys.add(other_element);
+        List<byte[]> __this__keys = new ArrayList<byte[]>();
+        for (byte[] other_element : other.keys) {
+          byte[] temp_binary_element = new byte[other_element.length];
+          System.arraycopy(other_element, 0, temp_binary_element, 0, other_element.length);
+          __this__keys.add(temp_binary_element);
         }
         this.keys = __this__keys;
       }
@@ -5571,22 +5585,22 @@ public class Cassandra {
       return (this.keys == null) ? 0 : this.keys.size();
     }
 
-    public java.util.Iterator<String> getKeysIterator() {
+    public java.util.Iterator<byte[]> getKeysIterator() {
       return (this.keys == null) ? null : this.keys.iterator();
     }
 
-    public void addToKeys(String elem) {
+    public void addToKeys(byte[] elem) {
       if (this.keys == null) {
-        this.keys = new ArrayList<String>();
+        this.keys = new ArrayList<byte[]>();
       }
       this.keys.add(elem);
     }
 
-    public List<String> getKeys() {
+    public List<byte[]> getKeys() {
       return this.keys;
     }
 
-    public multiget_args setKeys(List<String> keys) {
+    public multiget_args setKeys(List<byte[]> keys) {
       this.keys = keys;
       return this;
     }
@@ -5676,7 +5690,7 @@ public class Cassandra {
         if (value == null) {
           unsetKeys();
         } else {
-          setKeys((List<String>)value);
+          setKeys((List<byte[]>)value);
         }
         break;
 
@@ -5869,11 +5883,11 @@ public class Cassandra {
             if (field.type == TType.LIST) {
               {
                 TList _list33 = iprot.readListBegin();
-                this.keys = new ArrayList<String>(_list33.size);
+                this.keys = new ArrayList<byte[]>(_list33.size);
                 for (int _i34 = 0; _i34 < _list33.size; ++_i34)
                 {
-                  String _elem35;
-                  _elem35 = iprot.readString();
+                  byte[] _elem35;
+                  _elem35 = iprot.readBinary();
                   this.keys.add(_elem35);
                 }
                 iprot.readListEnd();
@@ -5921,9 +5935,9 @@ public class Cassandra {
         oprot.writeFieldBegin(KEYS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.keys.size()));
-          for (String _iter36 : this.keys)
+          for (byte[] _iter36 : this.keys)
           {
-            oprot.writeString(_iter36);
+            oprot.writeBinary(_iter36);
           }
           oprot.writeListEnd();
         }
@@ -6009,7 +6023,7 @@ public class Cassandra {
     private static final TField UE_FIELD_DESC = new TField("ue", TType.STRUCT, (short)2);
     private static final TField TE_FIELD_DESC = new TField("te", TType.STRUCT, (short)3);
 
-    public Map<String,ColumnOrSuperColumn> success;
+    public Map<byte[],ColumnOrSuperColumn> success;
     public InvalidRequestException ire;
     public UnavailableException ue;
     public TimedOutException te;
@@ -6095,7 +6109,7 @@ public class Cassandra {
     }
 
     public multiget_result(
-      Map<String,ColumnOrSuperColumn> success,
+      Map<byte[],ColumnOrSuperColumn> success,
       InvalidRequestException ire,
       UnavailableException ue,
       TimedOutException te)
@@ -6112,13 +6126,14 @@ public class Cassandra {
      */
     public multiget_result(multiget_result other) {
       if (other.isSetSuccess()) {
-        Map<String,ColumnOrSuperColumn> __this__success = new HashMap<String,ColumnOrSuperColumn>();
-        for (Map.Entry<String, ColumnOrSuperColumn> other_element : other.success.entrySet()) {
+        Map<byte[],ColumnOrSuperColumn> __this__success = new HashMap<byte[],ColumnOrSuperColumn>();
+        for (Map.Entry<byte[], ColumnOrSuperColumn> other_element : other.success.entrySet()) {
 
-          String other_element_key = other_element.getKey();
+          byte[] other_element_key = other_element.getKey();
           ColumnOrSuperColumn other_element_value = other_element.getValue();
 
-          String __this__success_copy_key = other_element_key;
+          byte[] __this__success_copy_key = new byte[other_element_key.length];
+          System.arraycopy(other_element_key, 0, __this__success_copy_key, 0, other_element_key.length);
 
           ColumnOrSuperColumn __this__success_copy_value = new ColumnOrSuperColumn(other_element_value);
 
@@ -6150,18 +6165,18 @@ public class Cassandra {
       return (this.success == null) ? 0 : this.success.size();
     }
 
-    public void putToSuccess(String key, ColumnOrSuperColumn val) {
+    public void putToSuccess(byte[] key, ColumnOrSuperColumn val) {
       if (this.success == null) {
-        this.success = new HashMap<String,ColumnOrSuperColumn>();
+        this.success = new HashMap<byte[],ColumnOrSuperColumn>();
       }
       this.success.put(key, val);
     }
 
-    public Map<String,ColumnOrSuperColumn> getSuccess() {
+    public Map<byte[],ColumnOrSuperColumn> getSuccess() {
       return this.success;
     }
 
-    public multiget_result setSuccess(Map<String,ColumnOrSuperColumn> success) {
+    public multiget_result setSuccess(Map<byte[],ColumnOrSuperColumn> success) {
       this.success = success;
       return this;
     }
@@ -6259,7 +6274,7 @@ public class Cassandra {
         if (value == null) {
           unsetSuccess();
         } else {
-          setSuccess((Map<String,ColumnOrSuperColumn>)value);
+          setSuccess((Map<byte[],ColumnOrSuperColumn>)value);
         }
         break;
 
@@ -6406,12 +6421,12 @@ public class Cassandra {
             if (field.type == TType.MAP) {
               {
                 TMap _map37 = iprot.readMapBegin();
-                this.success = new HashMap<String,ColumnOrSuperColumn>(2*_map37.size);
+                this.success = new HashMap<byte[],ColumnOrSuperColumn>(2*_map37.size);
                 for (int _i38 = 0; _i38 < _map37.size; ++_i38)
                 {
-                  String _key39;
+                  byte[] _key39;
                   ColumnOrSuperColumn _val40;
-                  _key39 = iprot.readString();
+                  _key39 = iprot.readBinary();
                   _val40 = new ColumnOrSuperColumn();
                   _val40.read(iprot);
                   this.success.put(_key39, _val40);
@@ -6464,9 +6479,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.STRUCT, this.success.size()));
-          for (Map.Entry<String, ColumnOrSuperColumn> _iter41 : this.success.entrySet())
+          for (Map.Entry<byte[], ColumnOrSuperColumn> _iter41 : this.success.entrySet())
           {
-            oprot.writeString(_iter41.getKey());
+            oprot.writeBinary(_iter41.getKey());
             _iter41.getValue().write(oprot);
           }
           oprot.writeMapEnd();
@@ -6545,7 +6560,7 @@ public class Cassandra {
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)5);
 
     public String keyspace;
-    public List<String> keys;
+    public List<byte[]> keys;
     public ColumnParent column_parent;
     public SlicePredicate predicate;
     /**
@@ -6644,7 +6659,7 @@ public class Cassandra {
 
     public multiget_slice_args(
       String keyspace,
-      List<String> keys,
+      List<byte[]> keys,
       ColumnParent column_parent,
       SlicePredicate predicate,
       ConsistencyLevel consistency_level)
@@ -6665,9 +6680,11 @@ public class Cassandra {
         this.keyspace = other.keyspace;
       }
       if (other.isSetKeys()) {
-        List<String> __this__keys = new ArrayList<String>();
-        for (String other_element : other.keys) {
-          __this__keys.add(other_element);
+        List<byte[]> __this__keys = new ArrayList<byte[]>();
+        for (byte[] other_element : other.keys) {
+          byte[] temp_binary_element = new byte[other_element.length];
+          System.arraycopy(other_element, 0, temp_binary_element, 0, other_element.length);
+          __this__keys.add(temp_binary_element);
         }
         this.keys = __this__keys;
       }
@@ -6719,22 +6736,22 @@ public class Cassandra {
       return (this.keys == null) ? 0 : this.keys.size();
     }
 
-    public java.util.Iterator<String> getKeysIterator() {
+    public java.util.Iterator<byte[]> getKeysIterator() {
       return (this.keys == null) ? null : this.keys.iterator();
     }
 
-    public void addToKeys(String elem) {
+    public void addToKeys(byte[] elem) {
       if (this.keys == null) {
-        this.keys = new ArrayList<String>();
+        this.keys = new ArrayList<byte[]>();
       }
       this.keys.add(elem);
     }
 
-    public List<String> getKeys() {
+    public List<byte[]> getKeys() {
       return this.keys;
     }
 
-    public multiget_slice_args setKeys(List<String> keys) {
+    public multiget_slice_args setKeys(List<byte[]> keys) {
       this.keys = keys;
       return this;
     }
@@ -6848,7 +6865,7 @@ public class Cassandra {
         if (value == null) {
           unsetKeys();
         } else {
-          setKeys((List<String>)value);
+          setKeys((List<byte[]>)value);
         }
         break;
 
@@ -7072,11 +7089,11 @@ public class Cassandra {
             if (field.type == TType.LIST) {
               {
                 TList _list42 = iprot.readListBegin();
-                this.keys = new ArrayList<String>(_list42.size);
+                this.keys = new ArrayList<byte[]>(_list42.size);
                 for (int _i43 = 0; _i43 < _list42.size; ++_i43)
                 {
-                  String _elem44;
-                  _elem44 = iprot.readString();
+                  byte[] _elem44;
+                  _elem44 = iprot.readBinary();
                   this.keys.add(_elem44);
                 }
                 iprot.readListEnd();
@@ -7132,9 +7149,9 @@ public class Cassandra {
         oprot.writeFieldBegin(KEYS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.keys.size()));
-          for (String _iter45 : this.keys)
+          for (byte[] _iter45 : this.keys)
           {
-            oprot.writeString(_iter45);
+            oprot.writeBinary(_iter45);
           }
           oprot.writeListEnd();
         }
@@ -7236,7 +7253,7 @@ public class Cassandra {
     private static final TField UE_FIELD_DESC = new TField("ue", TType.STRUCT, (short)2);
     private static final TField TE_FIELD_DESC = new TField("te", TType.STRUCT, (short)3);
 
-    public Map<String,List<ColumnOrSuperColumn>> success;
+    public Map<byte[],List<ColumnOrSuperColumn>> success;
     public InvalidRequestException ire;
     public UnavailableException ue;
     public TimedOutException te;
@@ -7323,7 +7340,7 @@ public class Cassandra {
     }
 
     public multiget_slice_result(
-      Map<String,List<ColumnOrSuperColumn>> success,
+      Map<byte[],List<ColumnOrSuperColumn>> success,
       InvalidRequestException ire,
       UnavailableException ue,
       TimedOutException te)
@@ -7340,13 +7357,14 @@ public class Cassandra {
      */
     public multiget_slice_result(multiget_slice_result other) {
       if (other.isSetSuccess()) {
-        Map<String,List<ColumnOrSuperColumn>> __this__success = new HashMap<String,List<ColumnOrSuperColumn>>();
-        for (Map.Entry<String, List<ColumnOrSuperColumn>> other_element : other.success.entrySet()) {
+        Map<byte[],List<ColumnOrSuperColumn>> __this__success = new HashMap<byte[],List<ColumnOrSuperColumn>>();
+        for (Map.Entry<byte[], List<ColumnOrSuperColumn>> other_element : other.success.entrySet()) {
 
-          String other_element_key = other_element.getKey();
+          byte[] other_element_key = other_element.getKey();
           List<ColumnOrSuperColumn> other_element_value = other_element.getValue();
 
-          String __this__success_copy_key = other_element_key;
+          byte[] __this__success_copy_key = new byte[other_element_key.length];
+          System.arraycopy(other_element_key, 0, __this__success_copy_key, 0, other_element_key.length);
 
           List<ColumnOrSuperColumn> __this__success_copy_value = new ArrayList<ColumnOrSuperColumn>();
           for (ColumnOrSuperColumn other_element_value_element : other_element_value) {
@@ -7381,18 +7399,18 @@ public class Cassandra {
       return (this.success == null) ? 0 : this.success.size();
     }
 
-    public void putToSuccess(String key, List<ColumnOrSuperColumn> val) {
+    public void putToSuccess(byte[] key, List<ColumnOrSuperColumn> val) {
       if (this.success == null) {
-        this.success = new HashMap<String,List<ColumnOrSuperColumn>>();
+        this.success = new HashMap<byte[],List<ColumnOrSuperColumn>>();
       }
       this.success.put(key, val);
     }
 
-    public Map<String,List<ColumnOrSuperColumn>> getSuccess() {
+    public Map<byte[],List<ColumnOrSuperColumn>> getSuccess() {
       return this.success;
     }
 
-    public multiget_slice_result setSuccess(Map<String,List<ColumnOrSuperColumn>> success) {
+    public multiget_slice_result setSuccess(Map<byte[],List<ColumnOrSuperColumn>> success) {
       this.success = success;
       return this;
     }
@@ -7490,7 +7508,7 @@ public class Cassandra {
         if (value == null) {
           unsetSuccess();
         } else {
-          setSuccess((Map<String,List<ColumnOrSuperColumn>>)value);
+          setSuccess((Map<byte[],List<ColumnOrSuperColumn>>)value);
         }
         break;
 
@@ -7637,12 +7655,12 @@ public class Cassandra {
             if (field.type == TType.MAP) {
               {
                 TMap _map46 = iprot.readMapBegin();
-                this.success = new HashMap<String,List<ColumnOrSuperColumn>>(2*_map46.size);
+                this.success = new HashMap<byte[],List<ColumnOrSuperColumn>>(2*_map46.size);
                 for (int _i47 = 0; _i47 < _map46.size; ++_i47)
                 {
-                  String _key48;
+                  byte[] _key48;
                   List<ColumnOrSuperColumn> _val49;
-                  _key48 = iprot.readString();
+                  _key48 = iprot.readBinary();
                   {
                     TList _list50 = iprot.readListBegin();
                     _val49 = new ArrayList<ColumnOrSuperColumn>(_list50.size);
@@ -7705,9 +7723,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, this.success.size()));
-          for (Map.Entry<String, List<ColumnOrSuperColumn>> _iter53 : this.success.entrySet())
+          for (Map.Entry<byte[], List<ColumnOrSuperColumn>> _iter53 : this.success.entrySet())
           {
-            oprot.writeString(_iter53.getKey());
+            oprot.writeBinary(_iter53.getKey());
             {
               oprot.writeListBegin(new TList(TType.STRUCT, _iter53.getValue().size()));
               for (ColumnOrSuperColumn _iter54 : _iter53.getValue())
@@ -7792,7 +7810,7 @@ public class Cassandra {
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)4);
 
     public String keyspace;
-    public String key;
+    public byte[] key;
     public ColumnParent column_parent;
     /**
      * 
@@ -7886,7 +7904,7 @@ public class Cassandra {
 
     public get_count_args(
       String keyspace,
-      String key,
+      byte[] key,
       ColumnParent column_parent,
       ConsistencyLevel consistency_level)
     {
@@ -7905,7 +7923,8 @@ public class Cassandra {
         this.keyspace = other.keyspace;
       }
       if (other.isSetKey()) {
-        this.key = other.key;
+        this.key = new byte[other.key.length];
+        System.arraycopy(other.key, 0, key, 0, other.key.length);
       }
       if (other.isSetColumn_parent()) {
         this.column_parent = new ColumnParent(other.column_parent);
@@ -7948,11 +7967,11 @@ public class Cassandra {
       }
     }
 
-    public String getKey() {
+    public byte[] getKey() {
       return this.key;
     }
 
-    public get_count_args setKey(String key) {
+    public get_count_args setKey(byte[] key) {
       this.key = key;
       return this;
     }
@@ -8042,7 +8061,7 @@ public class Cassandra {
         if (value == null) {
           unsetKey();
         } else {
-          setKey((String)value);
+          setKey((byte[])value);
         }
         break;
 
@@ -8137,7 +8156,7 @@ public class Cassandra {
       if (this_present_key || that_present_key) {
         if (!(this_present_key && that_present_key))
           return false;
-        if (!this.key.equals(that.key))
+        if (!java.util.Arrays.equals(this.key, that.key))
           return false;
       }
 
@@ -8233,7 +8252,7 @@ public class Cassandra {
             break;
           case 2: // KEY
             if (field.type == TType.STRING) {
-              this.key = iprot.readString();
+              this.key = iprot.readBinary();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -8275,7 +8294,7 @@ public class Cassandra {
       }
       if (this.key != null) {
         oprot.writeFieldBegin(KEY_FIELD_DESC);
-        oprot.writeString(this.key);
+        oprot.writeBinary(this.key);
         oprot.writeFieldEnd();
       }
       if (this.column_parent != null) {
@@ -8309,7 +8328,12 @@ public class Cassandra {
       if (this.key == null) {
         sb.append("null");
       } else {
-        sb.append(this.key);
+          int __key_size = Math.min(this.key.length, 128);
+          for (int i = 0; i < __key_size; i++) {
+            if (i != 0) sb.append(" ");
+            sb.append(Integer.toHexString(this.key[i]).length() > 1 ? Integer.toHexString(this.key[i]).substring(Integer.toHexString(this.key[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.key[i]).toUpperCase());
+          }
+          if (this.key.length > 128) sb.append(" ...");
       }
       first = false;
       if (!first) sb.append(", ");
@@ -8898,8 +8922,8 @@ public class Cassandra {
     public String keyspace;
     public ColumnParent column_parent;
     public SlicePredicate predicate;
-    public String start_key;
-    public String finish_key;
+    public byte[] start_key;
+    public byte[] finish_key;
     public int row_count;
     /**
      * 
@@ -8998,10 +9022,6 @@ public class Cassandra {
     }
 
     public get_range_slice_args() {
-      this.start_key = "";
-
-      this.finish_key = "";
-
       this.row_count = 100;
 
       this.consistency_level = ConsistencyLevel.ONE;
@@ -9012,8 +9032,8 @@ public class Cassandra {
       String keyspace,
       ColumnParent column_parent,
       SlicePredicate predicate,
-      String start_key,
-      String finish_key,
+      byte[] start_key,
+      byte[] finish_key,
       int row_count,
       ConsistencyLevel consistency_level)
     {
@@ -9044,10 +9064,12 @@ public class Cassandra {
         this.predicate = new SlicePredicate(other.predicate);
       }
       if (other.isSetStart_key()) {
-        this.start_key = other.start_key;
+        this.start_key = new byte[other.start_key.length];
+        System.arraycopy(other.start_key, 0, start_key, 0, other.start_key.length);
       }
       if (other.isSetFinish_key()) {
-        this.finish_key = other.finish_key;
+        this.finish_key = new byte[other.finish_key.length];
+        System.arraycopy(other.finish_key, 0, finish_key, 0, other.finish_key.length);
       }
       this.row_count = other.row_count;
       if (other.isSetConsistency_level()) {
@@ -9136,11 +9158,11 @@ public class Cassandra {
       }
     }
 
-    public String getStart_key() {
+    public byte[] getStart_key() {
       return this.start_key;
     }
 
-    public get_range_slice_args setStart_key(String start_key) {
+    public get_range_slice_args setStart_key(byte[] start_key) {
       this.start_key = start_key;
       return this;
     }
@@ -9160,11 +9182,11 @@ public class Cassandra {
       }
     }
 
-    public String getFinish_key() {
+    public byte[] getFinish_key() {
       return this.finish_key;
     }
 
-    public get_range_slice_args setFinish_key(String finish_key) {
+    public get_range_slice_args setFinish_key(byte[] finish_key) {
       this.finish_key = finish_key;
       return this;
     }
@@ -9269,7 +9291,7 @@ public class Cassandra {
         if (value == null) {
           unsetStart_key();
         } else {
-          setStart_key((String)value);
+          setStart_key((byte[])value);
         }
         break;
 
@@ -9277,7 +9299,7 @@ public class Cassandra {
         if (value == null) {
           unsetFinish_key();
         } else {
-          setFinish_key((String)value);
+          setFinish_key((byte[])value);
         }
         break;
 
@@ -9405,7 +9427,7 @@ public class Cassandra {
       if (this_present_start_key || that_present_start_key) {
         if (!(this_present_start_key && that_present_start_key))
           return false;
-        if (!this.start_key.equals(that.start_key))
+        if (!java.util.Arrays.equals(this.start_key, that.start_key))
           return false;
       }
 
@@ -9414,7 +9436,7 @@ public class Cassandra {
       if (this_present_finish_key || that_present_finish_key) {
         if (!(this_present_finish_key && that_present_finish_key))
           return false;
-        if (!this.finish_key.equals(that.finish_key))
+        if (!java.util.Arrays.equals(this.finish_key, that.finish_key))
           return false;
       }
 
@@ -9553,14 +9575,14 @@ public class Cassandra {
             break;
           case 4: // START_KEY
             if (field.type == TType.STRING) {
-              this.start_key = iprot.readString();
+              this.start_key = iprot.readBinary();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case 5: // FINISH_KEY
             if (field.type == TType.STRING) {
-              this.finish_key = iprot.readString();
+              this.finish_key = iprot.readBinary();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -9615,12 +9637,12 @@ public class Cassandra {
       }
       if (this.start_key != null) {
         oprot.writeFieldBegin(START_KEY_FIELD_DESC);
-        oprot.writeString(this.start_key);
+        oprot.writeBinary(this.start_key);
         oprot.writeFieldEnd();
       }
       if (this.finish_key != null) {
         oprot.writeFieldBegin(FINISH_KEY_FIELD_DESC);
-        oprot.writeString(this.finish_key);
+        oprot.writeBinary(this.finish_key);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldBegin(ROW_COUNT_FIELD_DESC);
@@ -9668,7 +9690,12 @@ public class Cassandra {
       if (this.start_key == null) {
         sb.append("null");
       } else {
-        sb.append(this.start_key);
+          int __start_key_size = Math.min(this.start_key.length, 128);
+          for (int i = 0; i < __start_key_size; i++) {
+            if (i != 0) sb.append(" ");
+            sb.append(Integer.toHexString(this.start_key[i]).length() > 1 ? Integer.toHexString(this.start_key[i]).substring(Integer.toHexString(this.start_key[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.start_key[i]).toUpperCase());
+          }
+          if (this.start_key.length > 128) sb.append(" ...");
       }
       first = false;
       if (!first) sb.append(", ");
@@ -9676,7 +9703,12 @@ public class Cassandra {
       if (this.finish_key == null) {
         sb.append("null");
       } else {
-        sb.append(this.finish_key);
+          int __finish_key_size = Math.min(this.finish_key.length, 128);
+          for (int i = 0; i < __finish_key_size; i++) {
+            if (i != 0) sb.append(" ");
+            sb.append(Integer.toHexString(this.finish_key[i]).length() > 1 ? Integer.toHexString(this.finish_key[i]).substring(Integer.toHexString(this.finish_key[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.finish_key[i]).toUpperCase());
+          }
+          if (this.finish_key.length > 128) sb.append(" ...");
       }
       first = false;
       if (!first) sb.append(", ");
@@ -11534,7 +11566,7 @@ public class Cassandra {
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)6);
 
     public String keyspace;
-    public String key;
+    public byte[] key;
     public ColumnPath column_path;
     public byte[] value;
     public long timestamp;
@@ -11638,7 +11670,7 @@ public class Cassandra {
 
     public insert_args(
       String keyspace,
-      String key,
+      byte[] key,
       ColumnPath column_path,
       byte[] value,
       long timestamp,
@@ -11664,7 +11696,8 @@ public class Cassandra {
         this.keyspace = other.keyspace;
       }
       if (other.isSetKey()) {
-        this.key = other.key;
+        this.key = new byte[other.key.length];
+        System.arraycopy(other.key, 0, key, 0, other.key.length);
       }
       if (other.isSetColumn_path()) {
         this.column_path = new ColumnPath(other.column_path);
@@ -11712,11 +11745,11 @@ public class Cassandra {
       }
     }
 
-    public String getKey() {
+    public byte[] getKey() {
       return this.key;
     }
 
-    public insert_args setKey(String key) {
+    public insert_args setKey(byte[] key) {
       this.key = key;
       return this;
     }
@@ -11853,7 +11886,7 @@ public class Cassandra {
         if (value == null) {
           unsetKey();
         } else {
-          setKey((String)value);
+          setKey((byte[])value);
         }
         break;
 
@@ -11974,7 +12007,7 @@ public class Cassandra {
       if (this_present_key || that_present_key) {
         if (!(this_present_key && that_present_key))
           return false;
-        if (!this.key.equals(that.key))
+        if (!java.util.Arrays.equals(this.key, that.key))
           return false;
       }
 
@@ -12106,7 +12139,7 @@ public class Cassandra {
             break;
           case 2: // KEY
             if (field.type == TType.STRING) {
-              this.key = iprot.readString();
+              this.key = iprot.readBinary();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -12166,7 +12199,7 @@ public class Cassandra {
       }
       if (this.key != null) {
         oprot.writeFieldBegin(KEY_FIELD_DESC);
-        oprot.writeString(this.key);
+        oprot.writeBinary(this.key);
         oprot.writeFieldEnd();
       }
       if (this.column_path != null) {
@@ -12208,7 +12241,12 @@ public class Cassandra {
       if (this.key == null) {
         sb.append("null");
       } else {
-        sb.append(this.key);
+          int __key_size = Math.min(this.key.length, 128);
+          for (int i = 0; i < __key_size; i++) {
+            if (i != 0) sb.append(" ");
+            sb.append(Integer.toHexString(this.key[i]).length() > 1 ? Integer.toHexString(this.key[i]).substring(Integer.toHexString(this.key[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.key[i]).toUpperCase());
+          }
+          if (this.key.length > 128) sb.append(" ...");
       }
       first = false;
       if (!first) sb.append(", ");
@@ -12730,7 +12768,7 @@ public class Cassandra {
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)4);
 
     public String keyspace;
-    public String key;
+    public byte[] key;
     public Map<String,List<ColumnOrSuperColumn>> cfmap;
     /**
      * 
@@ -12827,7 +12865,7 @@ public class Cassandra {
 
     public batch_insert_args(
       String keyspace,
-      String key,
+      byte[] key,
       Map<String,List<ColumnOrSuperColumn>> cfmap,
       ConsistencyLevel consistency_level)
     {
@@ -12846,7 +12884,8 @@ public class Cassandra {
         this.keyspace = other.keyspace;
       }
       if (other.isSetKey()) {
-        this.key = other.key;
+        this.key = new byte[other.key.length];
+        System.arraycopy(other.key, 0, key, 0, other.key.length);
       }
       if (other.isSetCfmap()) {
         Map<String,List<ColumnOrSuperColumn>> __this__cfmap = new HashMap<String,List<ColumnOrSuperColumn>>();
@@ -12904,11 +12943,11 @@ public class Cassandra {
       }
     }
 
-    public String getKey() {
+    public byte[] getKey() {
       return this.key;
     }
 
-    public batch_insert_args setKey(String key) {
+    public batch_insert_args setKey(byte[] key) {
       this.key = key;
       return this;
     }
@@ -13009,7 +13048,7 @@ public class Cassandra {
         if (value == null) {
           unsetKey();
         } else {
-          setKey((String)value);
+          setKey((byte[])value);
         }
         break;
 
@@ -13104,7 +13143,7 @@ public class Cassandra {
       if (this_present_key || that_present_key) {
         if (!(this_present_key && that_present_key))
           return false;
-        if (!this.key.equals(that.key))
+        if (!java.util.Arrays.equals(this.key, that.key))
           return false;
       }
 
@@ -13153,7 +13192,7 @@ public class Cassandra {
             break;
           case 2: // KEY
             if (field.type == TType.STRING) {
-              this.key = iprot.readString();
+              this.key = iprot.readBinary();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -13217,7 +13256,7 @@ public class Cassandra {
       }
       if (this.key != null) {
         oprot.writeFieldBegin(KEY_FIELD_DESC);
-        oprot.writeString(this.key);
+        oprot.writeBinary(this.key);
         oprot.writeFieldEnd();
       }
       if (this.cfmap != null) {
@@ -13266,7 +13305,12 @@ public class Cassandra {
       if (this.key == null) {
         sb.append("null");
       } else {
-        sb.append(this.key);
+          int __key_size = Math.min(this.key.length, 128);
+          for (int i = 0; i < __key_size; i++) {
+            if (i != 0) sb.append(" ");
+            sb.append(Integer.toHexString(this.key[i]).length() > 1 ? Integer.toHexString(this.key[i]).substring(Integer.toHexString(this.key[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.key[i]).toUpperCase());
+          }
+          if (this.key.length > 128) sb.append(" ...");
       }
       first = false;
       if (!first) sb.append(", ");
@@ -13768,7 +13812,7 @@ public class Cassandra {
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)5);
 
     public String keyspace;
-    public String key;
+    public byte[] key;
     public ColumnPath column_path;
     public long timestamp;
     /**
@@ -13868,7 +13912,7 @@ public class Cassandra {
 
     public remove_args(
       String keyspace,
-      String key,
+      byte[] key,
       ColumnPath column_path,
       long timestamp,
       ConsistencyLevel consistency_level)
@@ -13892,7 +13936,8 @@ public class Cassandra {
         this.keyspace = other.keyspace;
       }
       if (other.isSetKey()) {
-        this.key = other.key;
+        this.key = new byte[other.key.length];
+        System.arraycopy(other.key, 0, key, 0, other.key.length);
       }
       if (other.isSetColumn_path()) {
         this.column_path = new ColumnPath(other.column_path);
@@ -13936,11 +13981,11 @@ public class Cassandra {
       }
     }
 
-    public String getKey() {
+    public byte[] getKey() {
       return this.key;
     }
 
-    public remove_args setKey(String key) {
+    public remove_args setKey(byte[] key) {
       this.key = key;
       return this;
     }
@@ -14053,7 +14098,7 @@ public class Cassandra {
         if (value == null) {
           unsetKey();
         } else {
-          setKey((String)value);
+          setKey((byte[])value);
         }
         break;
 
@@ -14161,7 +14206,7 @@ public class Cassandra {
       if (this_present_key || that_present_key) {
         if (!(this_present_key && that_present_key))
           return false;
-        if (!this.key.equals(that.key))
+        if (!java.util.Arrays.equals(this.key, that.key))
           return false;
       }
 
@@ -14275,7 +14320,7 @@ public class Cassandra {
             break;
           case 2: // KEY
             if (field.type == TType.STRING) {
-              this.key = iprot.readString();
+              this.key = iprot.readBinary();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -14328,7 +14373,7 @@ public class Cassandra {
       }
       if (this.key != null) {
         oprot.writeFieldBegin(KEY_FIELD_DESC);
-        oprot.writeString(this.key);
+        oprot.writeBinary(this.key);
         oprot.writeFieldEnd();
       }
       if (this.column_path != null) {
@@ -14365,7 +14410,12 @@ public class Cassandra {
       if (this.key == null) {
         sb.append("null");
       } else {
-        sb.append(this.key);
+          int __key_size = Math.min(this.key.length, 128);
+          for (int i = 0; i < __key_size; i++) {
+            if (i != 0) sb.append(" ");
+            sb.append(Integer.toHexString(this.key[i]).length() > 1 ? Integer.toHexString(this.key[i]).substring(Integer.toHexString(this.key[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.key[i]).toUpperCase());
+          }
+          if (this.key.length > 128) sb.append(" ...");
       }
       first = false;
       if (!first) sb.append(", ");
@@ -14867,7 +14917,7 @@ public class Cassandra {
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)3);
 
     public String keyspace;
-    public Map<String,Map<String,List<Mutation>>> mutation_map;
+    public Map<byte[],Map<String,List<Mutation>>> mutation_map;
     /**
      * 
      * @see ConsistencyLevel
@@ -14962,7 +15012,7 @@ public class Cassandra {
 
     public batch_mutate_args(
       String keyspace,
-      Map<String,Map<String,List<Mutation>>> mutation_map,
+      Map<byte[],Map<String,List<Mutation>>> mutation_map,
       ConsistencyLevel consistency_level)
     {
       this();
@@ -14979,13 +15029,14 @@ public class Cassandra {
         this.keyspace = other.keyspace;
       }
       if (other.isSetMutation_map()) {
-        Map<String,Map<String,List<Mutation>>> __this__mutation_map = new HashMap<String,Map<String,List<Mutation>>>();
-        for (Map.Entry<String, Map<String,List<Mutation>>> other_element : other.mutation_map.entrySet()) {
+        Map<byte[],Map<String,List<Mutation>>> __this__mutation_map = new HashMap<byte[],Map<String,List<Mutation>>>();
+        for (Map.Entry<byte[], Map<String,List<Mutation>>> other_element : other.mutation_map.entrySet()) {
 
-          String other_element_key = other_element.getKey();
+          byte[] other_element_key = other_element.getKey();
           Map<String,List<Mutation>> other_element_value = other_element.getValue();
 
-          String __this__mutation_map_copy_key = other_element_key;
+          byte[] __this__mutation_map_copy_key = new byte[other_element_key.length];
+          System.arraycopy(other_element_key, 0, __this__mutation_map_copy_key, 0, other_element_key.length);
 
           Map<String,List<Mutation>> __this__mutation_map_copy_value = new HashMap<String,List<Mutation>>();
           for (Map.Entry<String, List<Mutation>> other_element_value_element : other_element_value.entrySet()) {
@@ -15049,18 +15100,18 @@ public class Cassandra {
       return (this.mutation_map == null) ? 0 : this.mutation_map.size();
     }
 
-    public void putToMutation_map(String key, Map<String,List<Mutation>> val) {
+    public void putToMutation_map(byte[] key, Map<String,List<Mutation>> val) {
       if (this.mutation_map == null) {
-        this.mutation_map = new HashMap<String,Map<String,List<Mutation>>>();
+        this.mutation_map = new HashMap<byte[],Map<String,List<Mutation>>>();
       }
       this.mutation_map.put(key, val);
     }
 
-    public Map<String,Map<String,List<Mutation>>> getMutation_map() {
+    public Map<byte[],Map<String,List<Mutation>>> getMutation_map() {
       return this.mutation_map;
     }
 
-    public batch_mutate_args setMutation_map(Map<String,Map<String,List<Mutation>>> mutation_map) {
+    public batch_mutate_args setMutation_map(Map<byte[],Map<String,List<Mutation>>> mutation_map) {
       this.mutation_map = mutation_map;
       return this;
     }
@@ -15126,7 +15177,7 @@ public class Cassandra {
         if (value == null) {
           unsetMutation_map();
         } else {
-          setMutation_map((Map<String,Map<String,List<Mutation>>>)value);
+          setMutation_map((Map<byte[],Map<String,List<Mutation>>>)value);
         }
         break;
 
@@ -15250,12 +15301,12 @@ public class Cassandra {
             if (field.type == TType.MAP) {
               {
                 TMap _map72 = iprot.readMapBegin();
-                this.mutation_map = new HashMap<String,Map<String,List<Mutation>>>(2*_map72.size);
+                this.mutation_map = new HashMap<byte[],Map<String,List<Mutation>>>(2*_map72.size);
                 for (int _i73 = 0; _i73 < _map72.size; ++_i73)
                 {
-                  String _key74;
+                  byte[] _key74;
                   Map<String,List<Mutation>> _val75;
-                  _key74 = iprot.readString();
+                  _key74 = iprot.readBinary();
                   {
                     TMap _map76 = iprot.readMapBegin();
                     _val75 = new HashMap<String,List<Mutation>>(2*_map76.size);
@@ -15319,9 +15370,9 @@ public class Cassandra {
         oprot.writeFieldBegin(MUTATION_MAP_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.MAP, this.mutation_map.size()));
-          for (Map.Entry<String, Map<String,List<Mutation>>> _iter83 : this.mutation_map.entrySet())
+          for (Map.Entry<byte[], Map<String,List<Mutation>>> _iter83 : this.mutation_map.entrySet())
           {
-            oprot.writeString(_iter83.getKey());
+            oprot.writeBinary(_iter83.getKey());
             {
               oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, _iter83.getValue().size()));
               for (Map.Entry<String, List<Mutation>> _iter84 : _iter83.getValue().entrySet())

@@ -166,7 +166,7 @@ public class CliClient
            colParent = new ColumnParent(columnFamily).setSuper_column(CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8"));
        }
        
-       int count = thriftClient_.get_count(tableName, key, colParent, ConsistencyLevel.ONE);
+       int count = thriftClient_.get_count(tableName, key.getBytes(), colParent, ConsistencyLevel.ONE);
        css_.out.printf("%d columns\n", count);
     }
     
@@ -227,7 +227,7 @@ public class CliClient
             columnName = CliCompiler.getColumn(columnFamilySpec, 1).getBytes("UTF-8");
         }
 
-        thriftClient_.remove(tableName, key, new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnName),
+        thriftClient_.remove(tableName, key.getBytes(), new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnName),
                              timestampMicros(), ConsistencyLevel.ONE);
         css_.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "column"));
     }
@@ -243,7 +243,7 @@ public class CliClient
             throws InvalidRequestException, UnavailableException, TimedOutException, TException, UnsupportedEncodingException, IllegalAccessException, NotFoundException, InstantiationException, ClassNotFoundException
     {
         SliceRange range = new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 1000000);
-        List<ColumnOrSuperColumn> columns = thriftClient_.get_slice(keyspace, key,
+        List<ColumnOrSuperColumn> columns = thriftClient_.get_slice(keyspace, key.getBytes(),
                                                                     new ColumnParent(columnFamily).setSuper_column(superColumnName),
                                                                     new SlicePredicate().setColumn_names(null).setSlice_range(range), ConsistencyLevel.ONE);
         int size = columns.size();
@@ -363,7 +363,7 @@ public class CliClient
         
         // Perform a get(), print out the results.
         ColumnPath path = new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnName);
-        Column column = thriftClient_.get(tableName, key, path, ConsistencyLevel.ONE).column;
+        Column column = thriftClient_.get(tableName, key.getBytes(), path, ConsistencyLevel.ONE).column;
         css_.out.printf("=> (column=%s, value=%s, timestamp=%d)\n", formatColumnName(tableName, columnFamily, column),
                         new String(column.value, "UTF-8"), column.timestamp);
     }
@@ -411,7 +411,7 @@ public class CliClient
         }
         
         // do the insert
-        thriftClient_.insert(tableName, key, new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnName),
+        thriftClient_.insert(tableName, key.getBytes(), new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnName),
                              value.getBytes(), timestampMicros(), ConsistencyLevel.ONE);
         
         css_.out.println("Value inserted.");

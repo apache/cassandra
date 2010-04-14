@@ -60,7 +60,7 @@ import org.apache.thrift.transport.TTransportException;
  *
  * The default split size is 64k rows.
  */
-public class ColumnFamilyInputFormat extends InputFormat<String, SortedMap<byte[], IColumn>>
+public class ColumnFamilyInputFormat extends InputFormat<byte[], SortedMap<byte[], IColumn>>
 {
 
     private static final Logger logger = LoggerFactory.getLogger(StorageService.class);
@@ -218,7 +218,7 @@ public class ColumnFamilyInputFormat extends InputFormat<String, SortedMap<byte[
     }
 
     @Override
-    public RecordReader<String, SortedMap<byte[], IColumn>> createRecordReader(InputSplit inputSplit, TaskAttemptContext taskAttemptContext) throws IOException, InterruptedException
+    public RecordReader<byte[], SortedMap<byte[], IColumn>> createRecordReader(InputSplit inputSplit, TaskAttemptContext taskAttemptContext) throws IOException, InterruptedException
     {
         return new ColumnFamilyRecordReader();
     }

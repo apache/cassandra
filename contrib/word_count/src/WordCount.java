@@ -63,13 +63,13 @@ public class WordCount extends Configured implements Tool
         System.exit(0);
     }
 
-    public static class TokenizerMapper extends Mapper<String, SortedMap<byte[], IColumn>, Text, IntWritable>
+    public static class TokenizerMapper extends Mapper<byte[], SortedMap<byte[], IColumn>, Text, IntWritable>
     {
         private final static IntWritable one = new IntWritable(1);
         private Text word = new Text();
         private String columnName;
 
-        public void map(String key, SortedMap<byte[], IColumn> columns, Context context) throws IOException, InterruptedException
+        public void map(byte[] key, SortedMap<byte[], IColumn> columns, Context context) throws IOException, InterruptedException
         {
             IColumn column = columns.get(columnName.getBytes());
             if (column == null)

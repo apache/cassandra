@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "3.0.0"
+const string VERSION = "4.0.0"
 
 #
 # data structures
@@ -240,8 +240,8 @@ one-element range, but a range from tokenY to tokenY is the
 full ring.
 */
 struct KeyRange {
-    1: optional string start_key,
-    2: optional string end_key,
+    1: optional binary start_key,
+    2: optional binary end_key,
     3: optional string start_token,
     4: optional string end_token,
     5: required i32 count=100
@@ -255,7 +255,7 @@ struct KeyRange {
                     a SlicePredicate.
  */
 struct KeySlice {
-    1: required string key,
+    1: required binary key,
     2: required list<ColumnOrSuperColumn> columns,
 }
 
@@ -334,7 +334,7 @@ service Cassandra {
     the only method that can throw an exception under non-failure conditions.)
    */
   ColumnOrSuperColumn get(1:required string keyspace,
-                          2:required string key,
+                          2:required binary key,
                           3:required ColumnPath column_path,
                           4:required ConsistencyLevel consistency_level=ONE)
                       throws (1:InvalidRequestException ire, 2:NotFoundException nfe, 3:UnavailableException ue, 4:TimedOutException te),
@@ -344,20 +344,20 @@ service Cassandra {
     pair) specified by the given SlicePredicate. If no matching values are found, an empty list is returned.
    */
   list<ColumnOrSuperColumn> get_slice(1:required string keyspace, 
-                                      2:required string key, 
+                                      2:required binary key, 
                                       3:required ColumnParent column_parent, 
                                       4:required SlicePredicate predicate, 
                                       5:required ConsistencyLevel consistency_level=ONE)
                             throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
-    Perform a get for column_path in parallel on the given list<string> keys. The return value maps keys to the
+    Perform a get for column_path in parallel on the given list<binary> keys. The return value maps keys to the
     ColumnOrSuperColumn found. If no value corresponding to a key is present, the key will still be in the map, but both
     the column and super_column references of the ColumnOrSuperColumn object it maps to will be null.  
     @deprecated; use multiget_slice
   */
-  map<string,ColumnOrSuperColumn> multiget(1:required string keyspace, 
-                                           2:required list<string> keys, 
+  map<binary,ColumnOrSuperColumn> multiget(1:required string keyspace, 
+                                           2:required list<binary> keys, 
                                            3:required ColumnPath column_path, 
                                            4:required ConsistencyLevel consistency_level=ONE)
                                   throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
@@ -365,8 +365,8 @@ service Cassandra {
   /**
     Performs a get_slice for column_parent and predicate for the given keys in parallel.
   */
-  map<string,list<ColumnOrSuperColumn>> multiget_slice(1:required string keyspace, 
-                                                       2:required list<string> keys, 
+  map<binary,list<ColumnOrSuperColumn>> multiget_slice(1:required string keyspace, 
+                                                       2:required list<binary> keys, 
                                                        3:required ColumnParent column_parent, 
                                                        4:required SlicePredicate predicate, 
                                                        5:required ConsistencyLevel consistency_level=ONE)
@@ -376,7 +376,7 @@ service Cassandra {
     returns the number of columns for a particular <code>key</code> and <code>ColumnFamily</code> or <code>SuperColumn</code>.
   */
   i32 get_count(1:required string keyspace, 
-                2:required string key, 
+                2:required binary key, 
                 3:required ColumnParent column_parent, 
                 4:required ConsistencyLevel consistency_level=ONE)
       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
@@ -388,8 +388,8 @@ service Cassandra {
   list<KeySlice> get_range_slice(1:required string keyspace, 
                                  2:required ColumnParent column_parent, 
                                  3:required SlicePredicate predicate,
-                                 4:required string start_key="", 
-                                 5:required string finish_key="", 
+                                 4:required binary start_key, 
+                                 5:required binary finish_key, 
                                  6:required i32 row_count=100, 
                                  7:required ConsistencyLevel consistency_level=ONE)
                  throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
@@ -412,7 +412,7 @@ service Cassandra {
     values -- it can only contain sub-Columns. 
    */
   void insert(1:required string keyspace, 
-              2:required string key, 
+              2:required binary key, 
               3:required ColumnPath column_path, 
               4:required binary value, 
               5:required i64 timestamp, 
@@ -426,7 +426,7 @@ service Cassandra {
     @deprecated; use batch_mutate instead
    */
   void batch_insert(1:required string keyspace, 
-                    2:required string key, 
+                    2:required binary key, 
                     3:required map<string, list<ColumnOrSuperColumn>> cfmap,
                     4:required ConsistencyLevel consistency_level=ONE)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
@@ -437,7 +437,7 @@ service Cassandra {
     row by just specifying the ColumnFamily, or you can remove a SuperColumn or a single Column by specifying those levels too.
    */
   void remove(1:required string keyspace,
-              2:required string key,
+              2:required binary key,
               3:required ColumnPath column_path,
               4:required i64 timestamp,
               5:ConsistencyLevel consistency_level=ONE)
@@ -449,7 +449,7 @@ service Cassandra {
     mutation_map maps key to column family to a list of Mutation objects to take place at that scope.
   **/
   void batch_mutate(1:required string keyspace,
-                    2:required map<string, map<string, list<Mutation>>> mutation_map,
+                    2:required map<binary, map<string, list<Mutation>>> mutation_map,
                     3:required ConsistencyLevel consistency_level=ONE)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
        
@@ -485,7 +485,7 @@ service Cassandra {
       returns list of token strings such that first subrange is (list[0], list[1]],
       next is (list[1], list[2]], etc. */
   list<string> describe_splits(1:required string start_token, 
-  	                       2:required string end_token,
+  	                           2:required string end_token,
                                3:required i32 keys_per_split),
   
   void system_add_column_family(1:required CfDef cf_def)

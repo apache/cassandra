@@ -38,16 +38,18 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class ThriftValidation
 {
-    static void validateKey(String key) throws InvalidRequestException
+    static void validateKey(byte[] key) throws InvalidRequestException
     {
-        if (key.isEmpty())
+        if (key == null || key.length == 0)
         {
             throw new InvalidRequestException("Key may not be empty");
         }
-        // check that writeUTF will be able to handle it -- encoded length must fit in 2 bytes
-        int utflen = FBUtilities.encodedUTF8Length(key);
-        if (utflen > 65535)
-            throw new InvalidRequestException("Encoded key length of " + utflen + " is longer than maximum of 65535");
+        // check that key can be handled by FBUtilities.writeShortByteArray
+        if (key.length > FBUtilities.MAX_UNSIGNED_SHORT)
+        {
+            throw new InvalidRequestException("Key length of " + key.length +
+                    " is longer than maximum of " + FBUtilities.MAX_UNSIGNED_SHORT);
+        }
     }
 
     private static void validateTable(String tablename) throws KeyspaceNotDefinedException
@@ -303,9 +305,8 @@ public class ThriftValidation
         if (range.start_key != null)
         {
             IPartitioner p = StorageService.getPartitioner();
-            // FIXME: string keys
-            Token startToken = p.getToken(range.start_key.getBytes(FBUtilities.UTF8));
-            Token endToken = p.getToken(range.end_key.getBytes(FBUtilities.UTF8));
+            Token startToken = p.getToken(range.start_key);
+            Token endToken = p.getToken(range.end_key);
             if (startToken.compareTo(endToken) > 0 && !endToken.equals(p.getMinimumToken()))
             {
                 if (p instanceof RandomPartitioner)

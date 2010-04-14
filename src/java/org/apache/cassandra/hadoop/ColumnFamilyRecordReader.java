@@ -46,11 +46,11 @@ import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransportException;
 
-public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byte[], IColumn>>
+public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byte[], IColumn>>
 {
     private ColumnFamilySplit split;
     private RowIterator iter;
-    private Pair<String, SortedMap<byte[], IColumn>> currentRow;
+    private Pair<byte[], SortedMap<byte[], IColumn>> currentRow;
     private SlicePredicate predicate;
     private int totalRowCount; // total number of rows to fetch
     private int batchRowCount; // fetch this many per batch
@@ -59,7 +59,7 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
 
     public void close() {}
     
-    public String getCurrentKey()
+    public byte[] getCurrentKey()
     {
         return currentRow.left;
     }
@@ -95,7 +95,7 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
         return true;
     }
 
-    private class RowIterator extends AbstractIterator<Pair<String, SortedMap<byte[], IColumn>>>
+    private class RowIterator extends AbstractIterator<Pair<byte[], SortedMap<byte[], IColumn>>>
     {
 
         private List<KeySlice> rows;
@@ -159,8 +159,7 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
                 // prepare for the next slice to be read
                 KeySlice lastRow = rows.get(rows.size() - 1);
                 IPartitioner p = DatabaseDescriptor.getPartitioner();
-                // FIXME: thrift strings
-                byte[] rowkey = lastRow.getKey().getBytes(UTF8);
+                byte[] rowkey = lastRow.getKey();
                 startToken = p.getTokenFactory().toString(p.getToken(rowkey));
             }
             catch (Exception e)
@@ -213,7 +212,7 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
         }
 
         @Override
-        protected Pair<String, SortedMap<byte[], IColumn>> computeNext()
+        protected Pair<byte[], SortedMap<byte[], IColumn>> computeNext()
         {
             maybeInit();
             if (rows == null)
@@ -227,7 +226,7 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
                 IColumn column = unthriftify(cosc);
                 map.put(column.name(), column);
             }
-            return new Pair<String, SortedMap<byte[], IColumn>>(ks.key, map);
+            return new Pair<byte[], SortedMap<byte[], IColumn>>(ks.key, map);
         }
     }
 

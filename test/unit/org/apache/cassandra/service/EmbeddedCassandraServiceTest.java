@@ -89,7 +89,7 @@ public class EmbeddedCassandraServiceTest
     {
         Cassandra.Client client = getClient();
 
-        String key_user_id = "1";
+        byte[] key_user_id = "1".getBytes();
 
         long timestamp = System.currentTimeMillis();
         ColumnPath cp = new ColumnPath("Standard1");
