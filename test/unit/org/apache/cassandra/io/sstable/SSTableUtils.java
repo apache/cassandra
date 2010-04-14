@@ -29,15 +29,12 @@ import java.util.TreeMap;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 
-/**
- * TODO: These methods imitate Memtable.writeSortedKeys to some degree, but
- * because it is so monolithic, we can't reuse much.
- */
 public class SSTableUtils
 {
     // first configured table and cf
@@ -47,6 +44,15 @@ public class SSTableUtils
     {
         TABLENAME = DatabaseDescriptor.getTables().iterator().next();
         CFNAME = Table.open(TABLENAME).getColumnFamilies().iterator().next();
+    }
+
+    public static ColumnFamily createCF(long mfda, int ldt, IColumn... cols)
+    {
+        ColumnFamily cf = ColumnFamily.create(TABLENAME, CFNAME);
+        cf.delete(ldt, mfda);
+        for (IColumn col : cols)
+            cf.addColumn(col);
+        return cf;
     }
 
     public static File tempSSTableFile(String tablename, String cfname) throws IOException
