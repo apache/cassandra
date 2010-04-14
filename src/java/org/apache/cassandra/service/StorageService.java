@@ -1170,7 +1170,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
      * @param key - key for which we need to find the endpoint return value -
      * the endpoint responsible for this key
      */
-    public List<InetAddress> getNaturalEndpoints(String table, String key)
+    public List<InetAddress> getNaturalEndpoints(String table, byte[] key)
     {
         return getNaturalEndpoints(table, partitioner_.getToken(key));
     }
@@ -1194,7 +1194,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
      * @param key - key for which we need to find the endpoint return value -
      * the endpoint responsible for this key
      */
-    public List<InetAddress> getLiveNaturalEndpoints(String table, String key)
+    public List<InetAddress> getLiveNaturalEndpoints(String table, byte[] key)
     {
         return getLiveNaturalEndpoints(table, partitioner_.getToken(key));
     }
@@ -1216,7 +1216,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     /**
      * This function finds the closest live endpoint that contains a given key.
      */
-    public InetAddress findSuitableEndPoint(String table, String key) throws IOException, UnavailableException
+    public InetAddress findSuitableEndPoint(String table, byte[] key) throws IOException, UnavailableException
     {
         List<InetAddress> endpoints = getNaturalEndpoints(table, key);
         DatabaseDescriptor.getEndPointSnitch(table).sortByProximity(FBUtilities.getLocalAddress(), endpoints);

@@ -44,7 +44,7 @@ public class SSTableTracker implements Iterable<SSTableReader>
     private final String cfname;
 
     private final JMXInstrumentedCache<Pair<SSTable.Descriptor,DecoratedKey>,SSTable.PositionSize> keyCache;
-    private final JMXInstrumentedCache<String, ColumnFamily> rowCache;
+    private final JMXInstrumentedCache<DecoratedKey, ColumnFamily> rowCache;
 
     public SSTableTracker(String ksname, String cfname)
     {
@@ -52,7 +52,7 @@ public class SSTableTracker implements Iterable<SSTableReader>
         this.cfname = cfname;
         sstables = Collections.emptySet();
         keyCache = new JMXInstrumentedCache<Pair<SSTable.Descriptor,DecoratedKey>,SSTable.PositionSize>(ksname, cfname + "KeyCache", 0);
-        rowCache = new JMXInstrumentedCache<String, ColumnFamily>(ksname, cfname + "RowCache", 0);
+        rowCache = new JMXInstrumentedCache<DecoratedKey, ColumnFamily>(ksname, cfname + "RowCache", 0);
     }
 
     public synchronized void replace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements)
@@ -139,7 +139,7 @@ public class SSTableTracker implements Iterable<SSTableReader>
         sstables = Collections.emptySet();
     }
 
-    public JMXInstrumentedCache<String, ColumnFamily> getRowCache()
+    public JMXInstrumentedCache<DecoratedKey, ColumnFamily> getRowCache()
     {
         return rowCache;
     }

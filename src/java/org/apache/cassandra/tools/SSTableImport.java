@@ -31,6 +31,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
+import static org.apache.cassandra.utils.FBUtilities.UTF8;
 import org.apache.commons.cli.*;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -153,7 +154,8 @@ public class SSTableImport
             List<DecoratedKey<?>> decoratedKeys = new ArrayList<DecoratedKey<?>>();
             
             for (String key : (Set<String>)json.keySet())
-                decoratedKeys.add(partitioner.decorateKey(key));
+                // FIXME: assuming string keys
+                decoratedKeys.add(partitioner.decorateKey(key.getBytes(UTF8)));
             Collections.sort(decoratedKeys);
 
             for (DecoratedKey<?> rowKey : decoratedKeys)

@@ -59,11 +59,11 @@ public abstract class ReadCommand
 
     public final QueryPath queryPath;
     public final String table;
-    public final String key;
+    public final byte[] key;
     private boolean isDigestQuery = false;    
     protected final byte commandType;
 
-    protected ReadCommand(String table, String key, QueryPath queryPath, byte cmdType)
+    protected ReadCommand(String table, byte[] key, QueryPath queryPath, byte cmdType)
     {
         this.table = table;
         this.key = key;

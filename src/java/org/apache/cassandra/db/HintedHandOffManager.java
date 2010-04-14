@@ -42,6 +42,8 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.utils.FBUtilities;
+import static org.apache.cassandra.utils.FBUtilities.UTF8;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 
@@ -102,7 +104,7 @@ public class HintedHandOffManager
         }, "Hint delivery").start();
     }
 
-    private static boolean sendMessage(InetAddress endPoint, String tableName, String key) throws IOException
+    private static boolean sendMessage(InetAddress endPoint, String tableName, byte[] key) throws IOException
     {
         if (!Gossiper.instance.isKnownEndpoint(endPoint))
         {
@@ -116,9 +118,10 @@ public class HintedHandOffManager
 
         Table table = Table.open(tableName);
         RowMutation rm = new RowMutation(tableName, key);
+        DecoratedKey dkey = StorageService.getPartitioner().decorateKey(key);
         for (ColumnFamilyStore cfstore : table.getColumnFamilyStores())
         {
-            ColumnFamily cf = cfstore.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfstore.getColumnFamilyName())));
+            ColumnFamily cf = cfstore.getColumnFamily(QueryFilter.getIdentityFilter(dkey, new QueryPath(cfstore.getColumnFamilyName())));
             if (cf != null)
                 rm.add(cf);
         }
@@ -139,14 +142,14 @@ public class HintedHandOffManager
 
     private static void deleteEndPoint(byte[] endpointAddress, String tableName, byte[] key, long timestamp) throws IOException
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, tableName);
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, tableName.getBytes(UTF8));
         rm.delete(new QueryPath(HINTS_CF, key, endpointAddress), timestamp);
         rm.apply();
     }
 
     private static void deleteHintKey(String tableName, byte[] key) throws IOException
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, tableName);
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, tableName.getBytes(UTF8));
         rm.delete(new QueryPath(HINTS_CF, key, null), System.currentTimeMillis());
         rm.apply();
     }
@@ -167,10 +170,11 @@ public class HintedHandOffManager
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
         for (String tableName : DatabaseDescriptor.getTables())
         {
+            DecoratedKey tableNameKey = StorageService.getPartitioner().decorateKey(tableName.getBytes(UTF8));
             byte[] startColumn = ArrayUtils.EMPTY_BYTE_ARRAY;
             while (true)
             {
-                QueryFilter filter = QueryFilter.getSliceFilter(tableName, new QueryPath(HINTS_CF), startColumn, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, PAGE_SIZE);
+                QueryFilter filter = QueryFilter.getSliceFilter(tableNameKey, new QueryPath(HINTS_CF), startColumn, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, PAGE_SIZE);
                 ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
                 if (pagingFinished(hintColumnFamily, startColumn))
                     break;
@@ -179,11 +183,11 @@ public class HintedHandOffManager
                 for (IColumn keyColumn : keys)
                 {
                     Collection<IColumn> endpoints = keyColumn.getSubColumns();
-                    String keyStr = new String(keyColumn.name(), "UTF-8");
+                    byte[] keyBytes = keyColumn.name();
                     int deleted = 0;
                     for (IColumn endpoint : endpoints)
                     {
-                        if (sendMessage(InetAddress.getByAddress(endpoint.name()), tableName, keyStr))
+                        if (sendMessage(InetAddress.getByAddress(endpoint.name()), tableName, keyBytes))
                         {
                             deleteEndPoint(endpoint.name(), tableName, keyColumn.name(), System.currentTimeMillis());
                             deleted++;
@@ -231,10 +235,11 @@ public class HintedHandOffManager
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
         for (String tableName : DatabaseDescriptor.getTables())
         {
+            DecoratedKey tableNameKey = StorageService.getPartitioner().decorateKey(tableName.getBytes(UTF8));
             byte[] startColumn = ArrayUtils.EMPTY_BYTE_ARRAY;
             while (true)
             {
-                QueryFilter filter = QueryFilter.getSliceFilter(tableName, new QueryPath(HINTS_CF), startColumn, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, PAGE_SIZE);
+                QueryFilter filter = QueryFilter.getSliceFilter(tableNameKey, new QueryPath(HINTS_CF), startColumn, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, PAGE_SIZE);
                 ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
                 if (pagingFinished(hintColumnFamily, startColumn))
                     break;
@@ -242,11 +247,11 @@ public class HintedHandOffManager
 
                 for (IColumn keyColumn : keys)
                 {
-                    String keyStr = new String(keyColumn.name(), "UTF-8");
+                    byte[] keyBytes = keyColumn.name();
                     Collection<IColumn> endpoints = keyColumn.getSubColumns();
                     for (IColumn hintEndPoint : endpoints)
                     {
-                        if (Arrays.equals(hintEndPoint.name(), targetEPBytes) && sendMessage(endPoint, tableName, keyStr))
+                        if (Arrays.equals(hintEndPoint.name(), targetEPBytes) && sendMessage(endPoint, tableName, keyBytes))
                         {
                             if (endpoints.size() == 1)
                                 deleteHintKey(tableName, keyColumn.name());
@@ -268,6 +273,7 @@ public class HintedHandOffManager
     /** called when a keyspace is dropped or rename. newTable==null in the case of a drop. */
     public static void renameHints(String oldTable, String newTable) throws IOException
     {
+        DecoratedKey oldTableKey = StorageService.getPartitioner().decorateKey(oldTable.getBytes(UTF8));
         // we're basically going to fetch, drop and add the scf for the old and new table. we need to do it piecemeal 
         // though since there could be GB of data.
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
@@ -275,17 +281,17 @@ public class HintedHandOffManager
         long now = System.currentTimeMillis();
         while (true)
         {
-            QueryFilter filter = QueryFilter.getSliceFilter(oldTable, new QueryPath(HINTS_CF), startCol, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, PAGE_SIZE);
+            QueryFilter filter = QueryFilter.getSliceFilter(oldTableKey, new QueryPath(HINTS_CF), startCol, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, PAGE_SIZE);
             ColumnFamily cf = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
             if (pagingFinished(cf, startCol))
                 break;
             if (newTable != null)
             {
-                RowMutation insert = new RowMutation(Table.SYSTEM_TABLE, newTable);
+                RowMutation insert = new RowMutation(Table.SYSTEM_TABLE, newTable.getBytes(UTF8));
                 insert.add(cf);
                 insert.apply();
             }
-            RowMutation drop = new RowMutation(Table.SYSTEM_TABLE, oldTable);
+            RowMutation drop = new RowMutation(Table.SYSTEM_TABLE, oldTableKey.key);
             for (byte[] key : cf.getColumnNames())
             {
                 drop.delete(new QueryPath(HINTS_CF, key), now);

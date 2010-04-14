@@ -40,10 +40,10 @@ public class OneCompactionTest extends CleanupHelper
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore store = table.getColumnFamilyStore(columnFamilyName);
 
-        Set<String> inserted = new HashSet<String>();
+        Set<DecoratedKey> inserted = new HashSet<DecoratedKey>();
         for (int j = 0; j < insertsPerTable; j++) {
-            String key = String.valueOf(j);
-            RowMutation rm = new RowMutation("Keyspace1", key);
+            DecoratedKey key = Util.dk(String.valueOf(j));
+            RowMutation rm = new RowMutation("Keyspace1", key.key);
             rm.add(new QueryPath(columnFamilyName, null, "0".getBytes()), new byte[0], j);
             rm.apply();
             inserted.add(key);

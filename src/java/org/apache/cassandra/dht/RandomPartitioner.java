@@ -40,7 +40,7 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
 
     private static final byte DELIMITER_BYTE = ":".getBytes()[0];
 
-    public DecoratedKey<BigIntegerToken> decorateKey(String key)
+    public DecoratedKey<BigIntegerToken> decorateKey(byte[] key)
     {
         return new DecoratedKey<BigIntegerToken>(getToken(key), key);
     }
@@ -94,8 +94,7 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
 
     public BigIntegerToken getRandomToken()
     {
-        String guid = GuidGenerator.guid();
-        BigInteger token = FBUtilities.hash(guid);
+        BigInteger token = FBUtilities.md5hash(GuidGenerator.guid().getBytes());
         if ( token.signum() == -1 )
             token = token.multiply(BigInteger.valueOf(-1L));
         return new BigIntegerToken(token);
@@ -133,10 +132,10 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
         return false;
     }
 
-    public BigIntegerToken getToken(String key)
+    public BigIntegerToken getToken(byte[] key)
     {
-        if (key.isEmpty())
+        if (key.length == 0)
             return MINIMUM;
-        return new BigIntegerToken(FBUtilities.hash(key));
+        return new BigIntegerToken(FBUtilities.md5hash(key));
     }
 }

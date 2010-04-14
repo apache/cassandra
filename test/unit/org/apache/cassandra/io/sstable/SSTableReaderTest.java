@@ -15,6 +15,7 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
+import org.apache.cassandra.Util;
 
 public class SSTableReaderTest extends CleanupHelper
 {
@@ -30,7 +31,7 @@ public class SSTableReaderTest extends CleanupHelper
         CompactionManager.instance.disableAutoCompaction();
         for (int j = 0; j < 100; j += 2)
         {
-            String key = String.valueOf(j);
+            byte[] key = String.valueOf(j).getBytes();
             RowMutation rm = new RowMutation("Keyspace1", key);
             rm.add(new QueryPath("Standard1", null, "0".getBytes()), new byte[0], j);
             rm.apply();
@@ -42,8 +43,7 @@ public class SSTableReaderTest extends CleanupHelper
         SSTableReader sstable = store.getSSTables().iterator().next();
         for (int j = 0; j < 100; j += 2)
         {
-            String key = String.valueOf(j);
-            DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
+            DecoratedKey dk = Util.dk(String.valueOf(j));
             FileDataInput file = sstable.getFileDataInput(dk, DatabaseDescriptor.getIndexedReadBufferSizeInKB() * 1024);
             DecoratedKey keyInDisk = sstable.getPartitioner().convertFromDiskFormat(FBUtilities.readShortByteArray(file));
             assert keyInDisk.equals(dk) : String.format("%s != %s in %s", keyInDisk, dk, file.getPath());
@@ -52,8 +52,7 @@ public class SSTableReaderTest extends CleanupHelper
         // check no false positives
         for (int j = 1; j < 110; j += 2)
         {
-            String key = String.valueOf(j);
-            DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
+            DecoratedKey dk = Util.dk(String.valueOf(j));
             assert sstable.getPosition(dk) == null;
         }
     }

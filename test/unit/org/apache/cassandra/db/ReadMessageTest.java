@@ -33,6 +33,8 @@ import org.junit.Test;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 
+import org.apache.cassandra.Util;
+
 public class ReadMessageTest extends SchemaLoader
 {
     @Test
@@ -43,24 +45,25 @@ public class ReadMessageTest extends SchemaLoader
         colList.add("col2".getBytes());
         
         ReadCommand rm, rm2;
+        DecoratedKey dk = Util.dk("row1");
         
-        rm = new SliceByNamesReadCommand("Keyspace1", "row1", new QueryPath("Standard1"), colList);
+        rm = new SliceByNamesReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), colList);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
 
-        rm = new SliceFromReadCommand("Keyspace1", "row1", new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, new ArrayList<byte[]>(0), true, 2);
+        rm = new SliceFromReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, new ArrayList<byte[]>(0), true, 2);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
         
-        rm = new SliceFromReadCommand("Keyspace1", "row1", new QueryPath("Standard1"), "a".getBytes(), "z".getBytes(), new ArrayList<byte[]>(0), true, 5);
+        rm = new SliceFromReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), "a".getBytes(), "z".getBytes(), new ArrayList<byte[]>(0), true, 5);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assertEquals(rm2.toString(), rm.toString());
 
-        rm = new SliceFromReadCommand("Keyspace1", "row1", new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, null, true, 2);
+        rm = new SliceFromReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, null, true, 2);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
 
-        rm = new SliceFromReadCommand("Keyspace1", "row1", new QueryPath("Standard1"), "a".getBytes(), "z".getBytes(), null, true, 5);
+        rm = new SliceFromReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), "a".getBytes(), "z".getBytes(), null, true, 5);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assertEquals(rm2.toString(), rm.toString());
 
@@ -72,11 +75,11 @@ public class ReadMessageTest extends SchemaLoader
                 bitmasks.add(bitmaskTest.getBytes("UTF-8"));
             }
 
-            rm = new SliceFromReadCommand("Keyspace1", "row1", new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, bitmasks, true, 2);
+            rm = new SliceFromReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, bitmasks, true, 2);
             rm2 = serializeAndDeserializeReadMessage(rm);
             assert rm2.toString().equals(rm.toString());
 
-            rm = new SliceFromReadCommand("Keyspace1", "row1", new QueryPath("Standard1"), "a".getBytes(), "z".getBytes(), bitmasks, true, 5);
+            rm = new SliceFromReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), "a".getBytes(), "z".getBytes(), bitmasks, true, 5);
             rm2 = serializeAndDeserializeReadMessage(rm);
             assertEquals(rm2.toString(), rm.toString());
         }
@@ -98,13 +101,14 @@ public class ReadMessageTest extends SchemaLoader
     {
         Table table = Table.open("Keyspace1");
         RowMutation rm;
+        DecoratedKey dk = Util.dk("key1");
 
         // add data
-        rm = new RowMutation("Keyspace1", "key1");
+        rm = new RowMutation("Keyspace1", dk.key);
         rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "abcd".getBytes(), 0);
         rm.apply();
 
-        ReadCommand command = new SliceByNamesReadCommand("Keyspace1", "key1", new QueryPath("Standard1"), Arrays.asList("Column1".getBytes()));
+        ReadCommand command = new SliceByNamesReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), Arrays.asList("Column1".getBytes()));
         Row row = command.getRow(table);
         IColumn col = row.cf.getColumn("Column1".getBytes());
         assert Arrays.equals(col.value(), "abcd".getBytes());  

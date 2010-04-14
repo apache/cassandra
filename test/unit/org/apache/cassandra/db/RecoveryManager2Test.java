@@ -58,7 +58,7 @@ public class RecoveryManager2Test extends CleanupHelper
 
     private void insertRow(String key) throws IOException
     {
-        RowMutation rm = new RowMutation("Keyspace1", key);
+        RowMutation rm = new RowMutation("Keyspace1", key.getBytes());
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1", "val1", 1L));
         rm.add(cf);

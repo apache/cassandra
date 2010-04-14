@@ -23,6 +23,7 @@ import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.CompactionManager;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
@@ -34,7 +35,9 @@ import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.UUIDGen;
+import static org.apache.cassandra.utils.FBUtilities.UTF8;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,8 +78,8 @@ public abstract class Migration
     
     public static final String MIGRATIONS_CF = "Migrations";
     public static final String SCHEMA_CF = "Schema";
-    public static final String MIGRATIONS_KEY = "Migrations Key";
-    public static final String LAST_MIGRATION_KEY = "Last Migration";
+    public static final byte[] MIGRATIONS_KEY = "Migrations Key".getBytes(UTF8);
+    public static final byte[] LAST_MIGRATION_KEY = "Last Migration".getBytes(UTF8);
     
     protected RowMutation rm;
     protected final UUID newVersion;
@@ -108,7 +111,7 @@ public abstract class Migration
         // note that we storing this in the system table, which is not replicated, instead of the definitions table, which is.
         logger.debug("Applying migration " + newVersion.toString());
         migration = new RowMutation(Table.DEFINITIONS, LAST_MIGRATION_KEY);
-        migration.add(new QueryPath(SCHEMA_CF, null, LAST_MIGRATION_KEY.getBytes()), UUIDGen.decompose(newVersion), now);
+        migration.add(new QueryPath(SCHEMA_CF, null, LAST_MIGRATION_KEY), UUIDGen.decompose(newVersion), now);
         migration.apply();
         
         // flush changes out of memtables so we don't need to rely on the commit log.
@@ -141,14 +144,15 @@ public abstract class Migration
     
     public static UUID getLastMigrationId()
     {
+        DecoratedKey dkey = StorageService.getPartitioner().decorateKey(LAST_MIGRATION_KEY);
         Table defs = Table.open(Table.DEFINITIONS);
         ColumnFamilyStore cfStore = defs.getColumnFamilyStore(SCHEMA_CF);
-        QueryFilter filter = QueryFilter.getNamesFilter(LAST_MIGRATION_KEY, new QueryPath(SCHEMA_CF), LAST_MIGRATION_KEY.getBytes());
+        QueryFilter filter = QueryFilter.getNamesFilter(dkey, new QueryPath(SCHEMA_CF), LAST_MIGRATION_KEY);
         ColumnFamily cf = cfStore.getColumnFamily(filter);
         if (cf == null || cf.getColumnNames().size() == 0)
             return null;
         else
-            return UUIDGen.makeType1UUID(cf.getColumn(LAST_MIGRATION_KEY.getBytes()).value());
+            return UUIDGen.makeType1UUID(cf.getColumn(LAST_MIGRATION_KEY).value());
     }
     
     /** keep in mind that applyLive might happen on another machine */
@@ -171,11 +175,11 @@ public abstract class Migration
     {
         return newVersion;
     }
-    
+
     static RowMutation makeDefinitionMutation(KSMetaData add, KSMetaData remove, UUID versionId) throws IOException
     {
         final long now = System.currentTimeMillis();
-        RowMutation rm = new RowMutation(Table.DEFINITIONS, versionId.toString());
+        RowMutation rm = new RowMutation(Table.DEFINITIONS, toBytes(versionId));
         if (remove != null)
             rm.delete(new QueryPath(SCHEMA_CF, null, remove.name.getBytes()), System.currentTimeMillis());
         if (add != null)
@@ -226,11 +230,16 @@ public abstract class Migration
     /** load serialized migrations. */
     public static Collection<IColumn> getLocalMigrations(UUID start, UUID end)
     {
+        DecoratedKey dkey = StorageService.getPartitioner().decorateKey(MIGRATIONS_KEY);
         Table defs = Table.open(Table.DEFINITIONS);
         ColumnFamilyStore cfStore = defs.getColumnFamilyStore(Migration.MIGRATIONS_CF);
-        QueryFilter filter = QueryFilter.getSliceFilter(Migration.MIGRATIONS_KEY, new QueryPath(MIGRATIONS_CF), UUIDGen.decompose(start), UUIDGen.decompose(end), null, false, 1000);
+        QueryFilter filter = QueryFilter.getSliceFilter(dkey, new QueryPath(MIGRATIONS_CF), UUIDGen.decompose(start), UUIDGen.decompose(end), null, false, 1000);
         ColumnFamily cf = cfStore.getColumnFamily(filter);
         return cf.getSortedColumns();
     }
     
+    public static byte[] toBytes(UUID version)
+    {
+        return version.toString().getBytes(UTF8);
+    }
 }

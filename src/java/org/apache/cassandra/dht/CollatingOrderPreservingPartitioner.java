@@ -39,15 +39,14 @@ public class CollatingOrderPreservingPartitioner implements IPartitioner<BytesTo
     
     public static final BigInteger BYTE_MASK = new BigInteger("255");
 
-    public DecoratedKey<BytesToken> decorateKey(String key)
+    public DecoratedKey<BytesToken> decorateKey(byte[] key)
     {
         return new DecoratedKey<BytesToken>(getToken(key), key);
     }
     
-    public DecoratedKey<BytesToken> convertFromDiskFormat(byte[] fromdisk)
+    public DecoratedKey<BytesToken> convertFromDiskFormat(byte[] key)
     {
-        String key = new String(fromdisk, FBUtilities.UTF8);
-        return new DecoratedKey<BytesToken>(getToken(key), fromdisk);
+        return new DecoratedKey<BytesToken>(getToken(key), key);
     }
 
     public byte[] convertToDiskFormat(DecoratedKey<BytesToken> key)
@@ -147,10 +146,11 @@ public class CollatingOrderPreservingPartitioner implements IPartitioner<BytesTo
         return true;
     }
 
-    public BytesToken getToken(String key)
+    public BytesToken getToken(byte[] key)
     {
-        if (key.isEmpty())
+        if (key.length == 0)
             return MINIMUM;
-        return new BytesToken(collator.getCollationKey(key).toByteArray());
+        String skey = new String(key, FBUtilities.UTF8);
+        return new BytesToken(collator.getCollationKey(skey).toByteArray());
     }
 }

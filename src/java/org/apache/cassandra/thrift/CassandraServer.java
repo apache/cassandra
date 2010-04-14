@@ -52,6 +52,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
+import static org.apache.cassandra.utils.FBUtilities.UTF8;
 import org.apache.thrift.TException;
 
 public class CassandraServer implements Cassandra.Iface
@@ -83,11 +84,11 @@ public class CassandraServer implements Cassandra.Iface
         storageService = StorageService.instance;
     }
     
-    protected Map<String, ColumnFamily> readColumnFamily(List<ReadCommand> commands, ConsistencyLevel consistency_level)
+    protected Map<byte[], ColumnFamily> readColumnFamily(List<ReadCommand> commands, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         // TODO - Support multiple column families per row, right now row only contains 1 column family
-        Map<String, ColumnFamily> columnFamilyKeyMap = new HashMap<String,ColumnFamily>();
+        Map<byte[], ColumnFamily> columnFamilyKeyMap = new HashMap<byte[],ColumnFamily>();
 
         if (consistency_level == ConsistencyLevel.ZERO)
         {
@@ -118,7 +119,7 @@ public class CassandraServer implements Cassandra.Iface
 
         for (Row row: rows)
         {
-            columnFamilyKeyMap.put(row.key, row.cf);
+            columnFamilyKeyMap.put(row.key.key, row.cf);
         }
         return columnFamilyKeyMap;
     }
@@ -188,14 +189,15 @@ public class CassandraServer implements Cassandra.Iface
     private Map<String, List<ColumnOrSuperColumn>> getSlice(List<ReadCommand> commands, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        Map<String, ColumnFamily> columnFamilies = readColumnFamily(commands, consistency_level);
+        Map<byte[], ColumnFamily> columnFamilies = readColumnFamily(commands, consistency_level);
         Map<String, List<ColumnOrSuperColumn>> columnFamiliesMap = new HashMap<String, List<ColumnOrSuperColumn>>();
         for (ReadCommand command: commands)
         {
             ColumnFamily cf = columnFamilies.get(command.key);
             boolean reverseOrder = command instanceof SliceFromReadCommand && ((SliceFromReadCommand)command).reversed;
             List<ColumnOrSuperColumn> thriftifiedColumns = thriftifyColumnFamily(cf, command.queryPath.superColumnName != null, reverseOrder);
-            columnFamiliesMap.put(command.key, thriftifiedColumns);
+            // FIXME: string keys
+            columnFamiliesMap.put(new String(command.key, UTF8), thriftifiedColumns);
         }
 
         return columnFamiliesMap;
@@ -253,7 +255,8 @@ public class CassandraServer implements Cassandra.Iface
             for (String key: keys)
             {
                 ThriftValidation.validateKey(key);
-                commands.add(new SliceByNamesReadCommand(keyspace, key, column_parent, predicate.column_names));
+                // FIXME: string keys
+                commands.add(new SliceByNamesReadCommand(keyspace, key.getBytes(UTF8), column_parent, predicate.column_names));
             }
         }
         else
@@ -262,7 +265,8 @@ public class CassandraServer implements Cassandra.Iface
             for (String key: keys)
             {
                 ThriftValidation.validateKey(key);
-                commands.add(new SliceFromReadCommand(keyspace, key, column_parent, range.start, range.finish, range.reversed, range.count));
+                // FIXME: string keys
+                commands.add(new SliceFromReadCommand(keyspace, key.getBytes(UTF8), column_parent, range.start, range.finish, range.reversed, range.count));
             }
         }
 
@@ -308,23 +312,27 @@ public class CassandraServer implements Cassandra.Iface
         for (String key: keys)
         {
             ThriftValidation.validateKey(key);
-            commands.add(new SliceByNamesReadCommand(table, key, path, nameAsList));
+            // FIXME: string keys
+            commands.add(new SliceByNamesReadCommand(table, key.getBytes(UTF8), path, nameAsList));
         }
 
         Map<String, ColumnOrSuperColumn> columnFamiliesMap = new HashMap<String, ColumnOrSuperColumn>();
-        Map<String, ColumnFamily> cfamilies = readColumnFamily(commands, consistency_level);
+        Map<byte[], ColumnFamily> cfamilies = readColumnFamily(commands, consistency_level);
+
 
         for (ReadCommand command: commands)
         {
             ColumnFamily cf = cfamilies.get(command.key);
+            // FIXME: string keys
+            String skey = new String(command.key, UTF8);
             if (cf == null)
             {
-                columnFamiliesMap.put(command.key, new ColumnOrSuperColumn());
+                columnFamiliesMap.put(skey, new ColumnOrSuperColumn());
             }
             else
             {
                 List<ColumnOrSuperColumn> tcolumns = thriftifyColumnFamily(cf, command.queryPath.superColumnName != null, false);
-                columnFamiliesMap.put(command.key, tcolumns.size() > 0 ? tcolumns.iterator().next() : new ColumnOrSuperColumn());
+                columnFamiliesMap.put(skey, tcolumns.size() > 0 ? tcolumns.iterator().next() : new ColumnOrSuperColumn());
             }
         }
 
@@ -355,7 +363,8 @@ public class CassandraServer implements Cassandra.Iface
         ThriftValidation.validateKey(key);
         ThriftValidation.validateColumnPath(table, column_path);
 
-        RowMutation rm = new RowMutation(table, key);
+        // FIXME: string keys
+        RowMutation rm = new RowMutation(table, key.getBytes(UTF8));
         try
         {
             rm.add(new QueryPath(column_path), value, timestamp);
@@ -385,7 +394,8 @@ public class CassandraServer implements Cassandra.Iface
             }
         }
 
-        doInsert(consistency_level, RowMutation.getRowMutation(keyspace, key, cfmap));
+        // FIXME: string keys
+        doInsert(consistency_level, RowMutation.getRowMutation(keyspace, key.getBytes(UTF8), cfmap));
     }
 
     public void batch_mutate(String keyspace, Map<String,Map<String,List<Mutation>>> mutation_map, ConsistencyLevel consistency_level)
@@ -430,7 +440,8 @@ public class CassandraServer implements Cassandra.Iface
                     ThriftValidation.validateMutation(keyspace, cfName, mutation);
                 }
             }
-            rowMutations.add(RowMutation.getRowMutationFromMutations(keyspace, key, columnFamilyToMutations));
+            // FIXME: string keys
+            rowMutations.add(RowMutation.getRowMutationFromMutations(keyspace, key.getBytes(UTF8), columnFamilyToMutations));
         }
         if (consistency_level == ConsistencyLevel.ZERO)
         {
@@ -460,7 +471,8 @@ public class CassandraServer implements Cassandra.Iface
         ThriftValidation.validateKey(key);
         ThriftValidation.validateColumnPathOrParent(table, column_path);
         
-        RowMutation rm = new RowMutation(table, key);
+        // FIXME: string keys
+        RowMutation rm = new RowMutation(table, key.getBytes(UTF8));
         rm.delete(new QueryPath(column_path), timestamp);
 
         doInsert(consistency_level, rm);
@@ -553,7 +565,8 @@ public class CassandraServer implements Cassandra.Iface
             }
             else
             {
-                bounds = new Bounds(p.getToken(range.start_key), p.getToken(range.end_key));
+                // FIXME: string keys
+                bounds = new Bounds(p.getToken(range.start_key.getBytes(UTF8)), p.getToken(range.end_key.getBytes(UTF8)));
             }
             rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, predicate, bounds, range.count), consistency_level);
             assert rows != null;
@@ -572,7 +585,8 @@ public class CassandraServer implements Cassandra.Iface
         for (Row row : rows)
         {
             List<ColumnOrSuperColumn> thriftifiedColumns = thriftifyColumnFamily(row.cf, column_parent.super_column != null, reversed);
-            keySlices.add(new KeySlice(row.key, thriftifiedColumns));
+            // FIXME: string keys
+            keySlices.add(new KeySlice(new String(row.key.key, UTF8), thriftifiedColumns));
         }
 
         return keySlices;

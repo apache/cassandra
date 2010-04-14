@@ -24,6 +24,7 @@ import java.io.IOError;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.utils.FBUtilities;
+import static org.apache.cassandra.utils.FBUtilities.UTF8;
 
 import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
@@ -46,25 +47,18 @@ public class SystemTable
 {
     private static Logger logger = LoggerFactory.getLogger(SystemTable.class);
     public static final String STATUS_CF = "LocationInfo"; // keep the old CF string for backwards-compatibility
-    private static final String LOCATION_KEY = "L";
-    private static final String BOOTSTRAP_KEY = "Bootstrap";
-    private static final String GRAVEYARD_KEY = "Graveyard";
-    private static final byte[] BOOTSTRAP = utf8("B");
-    private static final byte[] TOKEN = utf8("Token");
-    private static final byte[] GENERATION = utf8("Generation");
-    private static final byte[] CLUSTERNAME = utf8("ClusterName");
+    private static final byte[] LOCATION_KEY = "L".getBytes(UTF8);
+    private static final byte[] BOOTSTRAP_KEY = "Bootstrap".getBytes(UTF8);
+    private static final byte[] GRAVEYARD_KEY = "Graveyard".getBytes(UTF8);
+    private static final byte[] BOOTSTRAP = "B".getBytes(UTF8);
+    private static final byte[] TOKEN = "Token".getBytes(UTF8);
+    private static final byte[] GENERATION = "Generation".getBytes(UTF8);
+    private static final byte[] CLUSTERNAME = "ClusterName".getBytes(UTF8);
     private static StorageMetadata metadata;
 
-    private static byte[] utf8(String str)
+    private static DecoratedKey decorate(byte[] key)
     {
-        try
-        {
-            return str.getBytes("UTF-8");
-        }
-        catch (UnsupportedEncodingException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return StorageService.getPartitioner().decorateKey(key);
     }
 
     /**
@@ -123,15 +117,15 @@ public class SystemTable
             return metadata;
 
         /* Read the system table to retrieve the storage ID and the generation */
+        IPartitioner p = StorageService.getPartitioner();
         Table table = Table.open(Table.SYSTEM_TABLE);
         SortedSet<byte[]> columns = new TreeSet<byte[]>(new BytesType());
         columns.add(TOKEN);
         columns.add(GENERATION);
         columns.add(CLUSTERNAME);
-        QueryFilter filter = QueryFilter.getNamesFilter(LOCATION_KEY, new QueryPath(STATUS_CF), columns);
+        QueryFilter filter = QueryFilter.getNamesFilter(decorate(LOCATION_KEY), new QueryPath(STATUS_CF), columns);
         ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
 
-        IPartitioner p = StorageService.getPartitioner();
         if (cf == null)
         {
             Token token;
@@ -199,9 +193,10 @@ public class SystemTable
 
     public static boolean isBootstrapped()
     {
-        Table table = null;
-        table = Table.open(Table.SYSTEM_TABLE);
-        QueryFilter filter = QueryFilter.getNamesFilter(BOOTSTRAP_KEY, new QueryPath(STATUS_CF), BOOTSTRAP);
+        Table table = Table.open(Table.SYSTEM_TABLE);
+        QueryFilter filter = QueryFilter.getNamesFilter(decorate(BOOTSTRAP_KEY),
+                                                        new QueryPath(STATUS_CF),
+                                                        BOOTSTRAP);
         ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
         return cf != null && cf.getColumn(BOOTSTRAP).value()[0] == 1;
     }
@@ -225,7 +220,7 @@ public class SystemTable
     public static ColumnFamily getDroppedCFs() throws IOException
     {
         ColumnFamilyStore cfs = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(SystemTable.STATUS_CF);
-        return cfs.getColumnFamily(QueryFilter.getSliceFilter(SystemTable.GRAVEYARD_KEY, new QueryPath(STATUS_CF), "".getBytes(), "".getBytes(), null, false, 100));
+        return cfs.getColumnFamily(QueryFilter.getSliceFilter(decorate(GRAVEYARD_KEY), new QueryPath(STATUS_CF), "".getBytes(), "".getBytes(), null, false, 100));
     }
     
     public static void deleteDroppedCfMarkers(Collection<IColumn> cols) throws IOException

@@ -38,6 +38,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.FBUtilities.bytesToHex;
+import static org.apache.cassandra.utils.FBUtilities.UTF8;
 import org.apache.commons.cli.*;
 
 /**
@@ -212,7 +213,8 @@ public class SSTableExport
         {
             if (excludeSet.contains(key))
                 continue;
-            DecoratedKey<?> dk = partitioner.decorateKey(key);
+            // FIXME: assuming string keys
+            DecoratedKey<?> dk = partitioner.decorateKey(key.getBytes(UTF8));
             scanner.seekTo(dk);
             
             i++;

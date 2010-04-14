@@ -57,7 +57,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
     {
         List<RowMutation> rms = new LinkedList<RowMutation>();
         RowMutation rm;
-        rm = new RowMutation("Keyspace1", "key1");
+        rm = new RowMutation("Keyspace1", "key1".getBytes());
         rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
         rm.add(new QueryPath("Standard1", null, "Column2".getBytes()), "asdf".getBytes(), 0);
         rms.add(rm);
@@ -67,7 +67,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         List<SSTableReader> ssTables = table.getAllSSTablesOnDisk();
         assertEquals(1, ssTables.size());
         ssTables.get(0).forceFilterFailures();
-        ColumnFamily cf = store.getColumnFamily(QueryFilter.getIdentityFilter("key2", new QueryPath("Standard1", null, "Column1".getBytes())));
+        ColumnFamily cf = store.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("key2"), new QueryPath("Standard1", null, "Column1".getBytes())));
         assertNull(cf);
     }
 
@@ -78,7 +78,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         final ColumnFamilyStore store = table.getColumnFamilyStore("Standard2");
         RowMutation rm;
 
-        rm = new RowMutation("Keyspace1", "key1");
+        rm = new RowMutation("Keyspace1", "key1".getBytes());
         rm.delete(new QueryPath("Standard2", null, null), System.currentTimeMillis());
         rm.apply();
 
@@ -86,9 +86,9 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         {
             public void runMayThrow() throws IOException
             {
-                QueryFilter sliceFilter = QueryFilter.getSliceFilter("key1", new QueryPath("Standard2", null, null), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, 1);
+                QueryFilter sliceFilter = QueryFilter.getSliceFilter(Util.dk("key1"), new QueryPath("Standard2", null, null), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, 1);
                 assertNull(store.getColumnFamily(sliceFilter));
-                QueryFilter namesFilter = QueryFilter.getNamesFilter("key1", new QueryPath("Standard2", null, null), "a".getBytes());
+                QueryFilter namesFilter = QueryFilter.getNamesFilter(Util.dk("key1"), new QueryPath("Standard2", null, null), "a".getBytes());
                 assertNull(store.getColumnFamily(namesFilter));
             }
         };
@@ -106,7 +106,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         for (int j = 0; j < insertsPerTable; j++)
         {
             String key = String.valueOf(j);
-            RowMutation rm = new RowMutation("Keyspace1", key);
+            RowMutation rm = new RowMutation("Keyspace1", key.getBytes());
             rm.add(new QueryPath(columnFamilyName, null, "0".getBytes()), new byte[0], j);
             rms.add(rm);
         }
@@ -114,7 +114,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
 
         List<Range> ranges  = new ArrayList<Range>();
         IPartitioner partitioner = new CollatingOrderPreservingPartitioner();
-        Range r = new Range(partitioner.getToken("0"), partitioner.getToken("zzzzzzz"));
+        Range r = Util.range(partitioner, "0", "zzzzzzz");
         ranges.add(r);
 
         List<SSTableReader> fileList = CompactionManager.instance.submitAnticompaction(store, ranges, InetAddress.getByName("127.0.0.1")).get();
@@ -134,7 +134,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
 
         IPartitioner p = StorageService.getPartitioner();
         RangeSliceReply result = cfs.getRangeSlice(ArrayUtils.EMPTY_BYTE_ARRAY,
-                                                   new Range(p.getToken("key15"), p.getToken("key1")),
+                                                   Util.range(p, "key15", "key1"),
                                                    10,
                                                    null,
                                                    Arrays.asList("asdf".getBytes()));
@@ -148,24 +148,24 @@ public class ColumnFamilyStoreTest extends CleanupHelper
 
         IPartitioner p = StorageService.getPartitioner();
         RangeSliceReply result = cfs.getRangeSlice(ArrayUtils.EMPTY_BYTE_ARRAY,
-                                                   new Range(p.getToken("key1"), p.getToken("key2")),
+                                                   Util.range(p, "key1", "key2"),
                                                    10,
                                                    null,
                                                    Arrays.asList("asdf".getBytes()));
         assertEquals(1, result.rows.size());
-        assert result.rows.get(0).key.equals("key2");
+        assert Arrays.equals(result.rows.get(0).key.key, "key2".getBytes());
     }
 
     private ColumnFamilyStore insertKey1Key2() throws IOException, ExecutionException, InterruptedException
     {
         List<RowMutation> rms = new LinkedList<RowMutation>();
         RowMutation rm;
-        rm = new RowMutation("Keyspace2", "key1");
+        rm = new RowMutation("Keyspace2", "key1".getBytes());
         rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
         rms.add(rm);
         Util.writeColumnFamily(rms);
 
-        rm = new RowMutation("Keyspace2", "key2");
+        rm = new RowMutation("Keyspace2", "key2".getBytes());
         rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
         rms.add(rm);
         return Util.writeColumnFamily(rms);

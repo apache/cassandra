@@ -29,6 +29,7 @@ import static org.junit.Assert.*;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.utils.FBUtilities;
 
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
@@ -38,11 +39,11 @@ public class SSTableTest extends CleanupHelper
     @Test
     public void testSingleWrite() throws IOException {
         // write test data
-        String key = Integer.toString(1);
+        byte[] key = Integer.toString(1).getBytes();
         byte[] bytes = new byte[1024];
         new Random().nextBytes(bytes);
 
-        TreeMap<String, byte[]> map = new TreeMap<String,byte[]>();
+        Map<byte[], byte[]> map = new HashMap<byte[],byte[]>();
         map.put(key, bytes);
         SSTableReader ssTable = SSTableUtils.writeRawSSTable("Keyspace1", "Standard1", map);
 
@@ -52,11 +53,11 @@ public class SSTableTest extends CleanupHelper
         verifySingle(ssTable, bytes, key);
     }
 
-    private void verifySingle(SSTableReader sstable, byte[] bytes, String key) throws IOException
+    private void verifySingle(SSTableReader sstable, byte[] bytes, byte[] key) throws IOException
     {
         BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.getFilename(), "r");
         file.seek(sstable.getPosition(sstable.partitioner.decorateKey(key)).position);
-        assert key.equals(file.readUTF());
+        assert Arrays.equals(key, FBUtilities.readShortByteArray(file));
         int size = file.readInt();
         byte[] bytes2 = new byte[size];
         file.readFully(bytes2);
@@ -65,10 +66,10 @@ public class SSTableTest extends CleanupHelper
 
     @Test
     public void testManyWrites() throws IOException {
-        TreeMap<String, byte[]> map = new TreeMap<String,byte[]>();
-        for ( int i = 100; i < 1000; ++i )
+        Map<byte[], byte[]> map = new HashMap<byte[],byte[]>();
+        for (int i = 100; i < 1000; ++i)
         {
-            map.put(Integer.toString(i), ("Avinash Lakshman is a good man: " + i).getBytes());
+            map.put(Integer.toString(i).getBytes(), ("Avinash Lakshman is a good man: " + i).getBytes());
         }
 
         // write
@@ -80,15 +81,15 @@ public class SSTableTest extends CleanupHelper
         verifyMany(ssTable, map);
     }
 
-    private void verifyMany(SSTableReader sstable, TreeMap<String, byte[]> map) throws IOException
+    private void verifyMany(SSTableReader sstable, Map<byte[], byte[]> map) throws IOException
     {
-        List<String> keys = new ArrayList<String>(map.keySet());
+        List<byte[]> keys = new ArrayList<byte[]>(map.keySet());
         Collections.shuffle(keys);
         BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.getFilename(), "r");
-        for (String key : keys)
+        for (byte[] key : keys)
         {
             file.seek(sstable.getPosition(sstable.partitioner.decorateKey(key)).position);
-            assert key.equals(file.readUTF());
+            assert Arrays.equals(key, FBUtilities.readShortByteArray(file));
             int size = file.readInt();
             byte[] bytes2 = new byte[size];
             file.readFully(bytes2);

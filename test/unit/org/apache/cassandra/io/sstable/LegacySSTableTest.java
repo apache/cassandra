@@ -30,6 +30,7 @@ import static org.junit.Assert.*;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.utils.FBUtilities;
 
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
@@ -44,7 +45,7 @@ public class LegacySSTableTest extends CleanupHelper
     public static final String KSNAME = "Keyspace1";
     public static final String CFNAME = "Standard1";
 
-    public static SortedMap<String, byte[]> TEST_DATA;
+    public static Map<byte[], byte[]> TEST_DATA;
     public static File LEGACY_SSTABLE_ROOT;
 
     @BeforeClass
@@ -55,10 +56,10 @@ public class LegacySSTableTest extends CleanupHelper
         LEGACY_SSTABLE_ROOT = new File(scp);
         assert LEGACY_SSTABLE_ROOT.isDirectory();
 
-        TEST_DATA = new TreeMap<String,byte[]>();
-        for ( int i = 100; i < 1000; ++i )
+        TEST_DATA = new HashMap<byte[],byte[]>();
+        for (int i = 100; i < 1000; ++i)
         {
-            TEST_DATA.put(Integer.toString(i), ("Avinash Lakshman is a good man: " + i).getBytes());
+            TEST_DATA.put(Integer.toString(i).getBytes(), ("Avinash Lakshman is a good man: " + i).getBytes());
         }
     }
 
@@ -100,14 +101,14 @@ public class LegacySSTableTest extends CleanupHelper
     {
         SSTableReader reader = SSTableReader.open(getDescriptor("b"));
 
-        List<String> keys = new ArrayList<String>(TEST_DATA.keySet());
+        List<byte[]> keys = new ArrayList<byte[]>(TEST_DATA.keySet());
         Collections.shuffle(keys);
         BufferedRandomAccessFile file = new BufferedRandomAccessFile(reader.getFilename(), "r");
-        for (String key : keys)
+        for (byte[] key : keys)
         {
             // confirm that the bloom filter does not reject any keys
             file.seek(reader.getPosition(reader.partitioner.decorateKey(key)).position);
-            assert key.equals(file.readUTF());
+            assert Arrays.equals(key, FBUtilities.readShortByteArray(file));
         }
     }
 }

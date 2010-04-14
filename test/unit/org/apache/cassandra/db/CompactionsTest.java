@@ -52,17 +52,17 @@ public class CompactionsTest extends CleanupHelper
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
 
         final int ROWS_PER_SSTABLE = 10;
-        Set<String> inserted = new HashSet<String>();
+        Set<DecoratedKey> inserted = new HashSet<DecoratedKey>();
         for (int j = 0; j < (SSTableReader.indexInterval() * 3) / ROWS_PER_SSTABLE; j++) {
             for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
-                String key = String.valueOf(i % 2);
-                RowMutation rm = new RowMutation(TABLE1, key);
+                DecoratedKey key = Util.dk(String.valueOf(i % 2));
+                RowMutation rm = new RowMutation(TABLE1, key.key);
                 rm.add(new QueryPath("Standard1", null, String.valueOf(i / 2).getBytes()), new byte[0], j * ROWS_PER_SSTABLE + i);
                 rm.apply();
                 inserted.add(key);
             }
             store.forceBlockingFlush();
-            assertEquals(inserted.size(), Util.getRangeSlice(store).rows.size());
+            assertEquals(inserted.toString(), inserted.size(), Util.getRangeSlice(store).rows.size());
         }
         while (true)
         {
@@ -86,23 +86,19 @@ public class CompactionsTest extends CleanupHelper
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
 
         final int ROWS_PER_SSTABLE = 10;
-        Set<String> inserted = new HashSet<String>();
         for (int j = 0; j < (SSTableReader.indexInterval() * 3) / ROWS_PER_SSTABLE; j++) {
             for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
-                String key = String.valueOf(i % 2);
+                byte[] key = String.valueOf(i % 2).getBytes();
                 RowMutation rm = new RowMutation(TABLE2, key);
                 rm.add(new QueryPath("Standard1", null, String.valueOf(i / 2).getBytes()), new byte[0], j * ROWS_PER_SSTABLE + i);
                 rm.apply();
-                inserted.add(key);
             }
             store.forceBlockingFlush();
-            assertEquals(inserted.size(), Util.getRangeSlice(store).rows.size());
         }
 
         // perform readonly compaction and confirm that no sstables changed
         ArrayList<SSTableReader> oldsstables = new ArrayList<SSTableReader>(store.getSSTables());
         CompactionManager.instance.submitReadonly(store, LOCAL).get();
         assertEquals(oldsstables, new ArrayList<SSTableReader>(store.getSSTables()));
-        assertEquals(inserted.size(), Util.getRangeSlice(store).rows.size());
     }
 }

@@ -51,10 +51,10 @@ public class WriteResponse
     }
 
 	private final String table_;
-	private final String key_;
+	private final byte[] key_;
 	private final boolean status_;
 
-	public WriteResponse(String table, String key, boolean bVal) {
+	public WriteResponse(String table, byte[] key, boolean bVal) {
 		table_ = table;
 		key_ = key;
 		status_ = bVal;
@@ -65,7 +65,7 @@ public class WriteResponse
 		return table_;
 	}
 
-	public String key()
+	public byte[] key()
 	{
 		return key_;
 	}
@@ -80,14 +80,14 @@ public class WriteResponse
         public void serialize(WriteResponse wm, DataOutputStream dos) throws IOException
         {
             dos.writeUTF(wm.table());
-            dos.writeUTF(wm.key());
+            FBUtilities.writeShortByteArray(wm.key(), dos);
             dos.writeBoolean(wm.isSuccess());
         }
 
         public WriteResponse deserialize(DataInputStream dis) throws IOException
         {
             String table = dis.readUTF();
-            String key = dis.readUTF();
+            byte[] key = FBUtilities.readShortByteArray(dis);
             boolean status = dis.readBoolean();
             return new WriteResponse(table, key, status);
         }

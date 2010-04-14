@@ -23,20 +23,21 @@ import java.io.IOException;
 import java.util.*;
 
 import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.db.filter.QueryPath;
 
 public class SliceByNamesReadCommand extends ReadCommand
 {
     public final SortedSet<byte[]> columnNames;
 
-    public SliceByNamesReadCommand(String table, String key, ColumnParent column_parent, Collection<byte[]> columnNames)
+    public SliceByNamesReadCommand(String table, byte[] key, ColumnParent column_parent, Collection<byte[]> columnNames)
     {
         this(table, key, new QueryPath(column_parent), columnNames);
     }
 
-    public SliceByNamesReadCommand(String table, String key, QueryPath path, Collection<byte[]> columnNames)
+    public SliceByNamesReadCommand(String table, byte[] key, QueryPath path, Collection<byte[]> columnNames)
     {
         super(table, key, path, CMD_TYPE_GET_SLICE_BY_NAMES);
         this.columnNames = new TreeSet<byte[]>(getComparator());
@@ -53,8 +54,9 @@ public class SliceByNamesReadCommand extends ReadCommand
     
     @Override
     public Row getRow(Table table) throws IOException
-    {        
-        return table.getRow(QueryFilter.getNamesFilter(key, queryPath, columnNames));
+    {
+        DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
+        return table.getRow(QueryFilter.getNamesFilter(dk, queryPath, columnNames));
     }
 
     @Override
@@ -62,7 +64,7 @@ public class SliceByNamesReadCommand extends ReadCommand
     {
         return "SliceByNamesReadCommand(" +
                "table='" + table + '\'' +
-               ", key='" + key + '\'' +
+               ", key=" + FBUtilities.bytesToHex(key) +
                ", columnParent='" + queryPath + '\'' +
                ", columns=[" + getComparator().getString(columnNames) + "]" +
                ')';
@@ -78,7 +80,7 @@ class SliceByNamesReadCommandSerializer extends ReadCommandSerializer
         SliceByNamesReadCommand realRM = (SliceByNamesReadCommand)rm;
         dos.writeBoolean(realRM.isDigestQuery());
         dos.writeUTF(realRM.table);
-        dos.writeUTF(realRM.key);
+        FBUtilities.writeShortByteArray(realRM.key, dos);
         realRM.queryPath.serialize(dos);
         dos.writeInt(realRM.columnNames.size());
         if (realRM.columnNames.size() > 0)
@@ -95,7 +97,7 @@ class SliceByNamesReadCommandSerializer extends ReadCommandSerializer
     {
         boolean isDigest = dis.readBoolean();
         String table = dis.readUTF();
-        String key = dis.readUTF();
+        byte[] key = FBUtilities.readShortByteArray(dis);
         QueryPath columnParent = QueryPath.deserialize(dis);
 
         int size = dis.readInt();

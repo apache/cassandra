@@ -28,6 +28,7 @@ import static org.junit.Assert.assertEquals;
 
 import org.apache.cassandra.CleanupHelper;
 import static org.apache.cassandra.Util.getBytes;
+import org.apache.cassandra.Util;
 
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -42,17 +43,18 @@ public class TimeSortTest extends CleanupHelper
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfStore = table.getColumnFamilyStore("StandardLong1");
         RowMutation rm;
+        DecoratedKey key = Util.dk("key0");
 
-        rm = new RowMutation("Keyspace1", "key0");
+        rm = new RowMutation("Keyspace1", key.key);
         rm.add(new QueryPath("StandardLong1", null, getBytes(100)), "a".getBytes(), 100);
         rm.apply();
         cfStore.forceBlockingFlush();
 
-        rm = new RowMutation("Keyspace1", "key0");
+        rm = new RowMutation("Keyspace1", key.key);
         rm.add(new QueryPath("StandardLong1", null, getBytes(0)), "b".getBytes(), 0);
         rm.apply();
 
-        ColumnFamily cf = cfStore.getColumnFamily("key0", new QueryPath("StandardLong1"), getBytes(10), ArrayUtils.EMPTY_BYTE_ARRAY, false, 1000);
+        ColumnFamily cf = cfStore.getColumnFamily(key, new QueryPath("StandardLong1"), getBytes(10), ArrayUtils.EMPTY_BYTE_ARRAY, false, 1000);
         Collection<IColumn> columns = cf.getSortedColumns();
         assert columns.size() == 1;
     }
@@ -65,7 +67,7 @@ public class TimeSortTest extends CleanupHelper
 
         for (int i = 900; i < 1000; ++i)
         {
-            RowMutation rm = new RowMutation("Keyspace1", Integer.toString(i));
+            RowMutation rm = new RowMutation("Keyspace1", Integer.toString(i).getBytes());
             for (int j = 0; j < 8; ++j)
             {
                 rm.add(new QueryPath("StandardLong1", null, getBytes(j * 2)), "a".getBytes(), j * 2);
@@ -79,15 +81,15 @@ public class TimeSortTest extends CleanupHelper
         validateTimeSort(table);
 
         // interleave some new data to test memtable + sstable
-        String key = "900";
-        RowMutation rm = new RowMutation("Keyspace1", key);
+        DecoratedKey key = Util.dk("900");
+        RowMutation rm = new RowMutation("Keyspace1", key.key);
         for (int j = 0; j < 4; ++j)
         {
             rm.add(new QueryPath("StandardLong1", null, getBytes(j * 2 + 1)), "b".getBytes(), j * 2 + 1);
         }
         rm.apply();
         // and some overwrites
-        rm = new RowMutation("Keyspace1", key);
+        rm = new RowMutation("Keyspace1", key.key);
         rm.add(new QueryPath("StandardLong1", null, getBytes(0)), "c".getBytes(), 100);
         rm.add(new QueryPath("StandardLong1", null, getBytes(10)), "c".getBytes(), 100);
         rm.apply();
@@ -106,7 +108,7 @@ public class TimeSortTest extends CleanupHelper
         TreeSet<byte[]> columnNames = new TreeSet<byte[]>(new LongType());
         columnNames.add(getBytes(10));
         columnNames.add(getBytes(0));
-        cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter("900", new QueryPath("StandardLong1"), columnNames));
+        cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(Util.dk("900"), new QueryPath("StandardLong1"), columnNames));
         assert "c".equals(new String(cf.getColumn(getBytes(0)).value()));
         assert "c".equals(new String(cf.getColumn(getBytes(10)).value()));
     }
@@ -115,7 +117,7 @@ public class TimeSortTest extends CleanupHelper
     {
         for (int i = 900; i < 1000; ++i)
         {
-            String key = Integer.toString(i);
+            DecoratedKey key = Util.dk(Integer.toString(i));
             for (int j = 0; j < 8; j += 3)
             {
                 ColumnFamily cf = table.getColumnFamilyStore("StandardLong1").getColumnFamily(key, new QueryPath("StandardLong1"), getBytes(j * 2), ArrayUtils.EMPTY_BYTE_ARRAY, false, 1000);

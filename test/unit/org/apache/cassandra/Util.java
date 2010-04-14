@@ -32,17 +32,26 @@ import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.dht.Bounds;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.dht.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.SliceRange;
+import static org.apache.cassandra.utils.FBUtilities.UTF8;
 
 public class Util
 {
+    public static DecoratedKey dk(String key)
+    {
+        return StorageService.getPartitioner().decorateKey(key.getBytes(UTF8));
+    }
+
     public static Column column(String name, String value, long timestamp)
     {
         return new Column(name.getBytes(), value.getBytes(), timestamp);
+    }
+
+    public static Range range(IPartitioner p, String left, String right)
+    {
+        return new Range(p.getToken(left.getBytes()), p.getToken(right.getBytes()));
     }
 
     public static void addMutation(RowMutation rm, String columnFamilyName, String superColumnName, long columnName, String value, long timestamp)
@@ -91,6 +100,11 @@ public class Util
     }
     
     public static ColumnFamily getColumnFamily(Table table, String key, String cfName) throws IOException
+    {
+        return getColumnFamily(table, dk(key), cfName);
+    }
+
+    public static ColumnFamily getColumnFamily(Table table, DecoratedKey key, String cfName) throws IOException
     {
         ColumnFamilyStore cfStore = table.getColumnFamilyStore(cfName);
         assert cfStore != null : "Column family " + cfName + " has not been defined";

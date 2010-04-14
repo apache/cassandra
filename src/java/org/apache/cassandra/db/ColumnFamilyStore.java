@@ -382,7 +382,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    void switchBinaryMemtable(String key, byte[] buffer)
+    void switchBinaryMemtable(DecoratedKey key, byte[] buffer)
     {
         binaryMemtable_.set(new BinaryMemtable(this));
         binaryMemtable_.get().put(key, buffer);
@@ -424,7 +424,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * param @ key - key for update/insert
      * param @ columnFamily - columnFamily changes
      */
-    Memtable apply(String key, ColumnFamily columnFamily)
+    Memtable apply(DecoratedKey key, ColumnFamily columnFamily)
     {
         long start = System.nanoTime();
 
@@ -440,7 +440,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * needs to be used. param @ key - key for update/insert param @
      * columnFamily - columnFamily changes
      */
-    void applyBinary(String key, byte[] buffer)
+    void applyBinary(DecoratedKey key, byte[] buffer)
     {
         long start = System.nanoTime();
         binaryMemtable_.get().put(key, buffer);
@@ -686,12 +686,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return writeStats_.getRecentLatencyMicros();
     }
 
-    public ColumnFamily getColumnFamily(String key, QueryPath path, byte[] start, byte[] finish, List<byte[]> bitmasks, boolean reversed, int limit)
+    public ColumnFamily getColumnFamily(DecoratedKey key, QueryPath path, byte[] start, byte[] finish, List<byte[]> bitmasks, boolean reversed, int limit)
     {
         return getColumnFamily(QueryFilter.getSliceFilter(key, path, start, finish, bitmasks, reversed, limit));
     }
 
-    public ColumnFamily getColumnFamily(String key, QueryPath path, byte[] start, byte[] finish, boolean reversed, int limit)
+    public ColumnFamily getColumnFamily(DecoratedKey key, QueryPath path, byte[] start, byte[] finish, boolean reversed, int limit)
     {
         return getColumnFamily(QueryFilter.getSliceFilter(key, path, start, finish, null, reversed, limit));
     }
@@ -701,7 +701,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return getColumnFamily(filter, CompactionManager.getDefaultGCBefore());
     }
 
-    private ColumnFamily cacheRow(String key)
+    private ColumnFamily cacheRow(DecoratedKey key)
     {
         ColumnFamily cached;
         if ((cached = ssTables_.getRowCache().get(key)) == null)
@@ -867,8 +867,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             while(iterator.hasNext())
             {
                 Row current = iterator.next();
-            	// TODO store decoratedkey in row?
-                DecoratedKey key = partitioner.decorateKey(current.key);
+                DecoratedKey key = current.key;
 
                 if (!stopAt.isEmpty() && stopAt.compareTo(key) < 0)
                     return true;
@@ -1010,12 +1009,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /** raw cached row -- does not fetch the row if it is not present.  not counted in cache statistics.  */
-    public ColumnFamily getRawCachedRow(String key)
+    public ColumnFamily getRawCachedRow(DecoratedKey key)
     {
         return ssTables_.getRowCache().getCapacity() == 0 ? null : ssTables_.getRowCache().getInternal(key);
     }
 
-    void invalidateCachedRow(String key)
+    void invalidateCachedRow(DecoratedKey key)
     {
         ssTables_.getRowCache().remove(key);
     }

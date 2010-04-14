@@ -63,7 +63,7 @@ public class SliceQueryFilter implements IFilter
         return Memtable.getSliceIterator(key, cf, this, comparator);
     }
 
-    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, String key)
+    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey key)
     {
         return new SSTableSliceIterator(sstable, key, start, finish, getPredicate(), reversed);
     }

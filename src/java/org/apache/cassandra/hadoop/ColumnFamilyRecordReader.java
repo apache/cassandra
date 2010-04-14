@@ -36,6 +36,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.SuperColumn;
+import static org.apache.cassandra.utils.FBUtilities.UTF8;
 import org.apache.cassandra.utils.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputSplit;
@@ -158,7 +159,9 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
                 // prepare for the next slice to be read
                 KeySlice lastRow = rows.get(rows.size() - 1);
                 IPartitioner p = DatabaseDescriptor.getPartitioner();
-                startToken = p.getTokenFactory().toString(p.getToken(lastRow.getKey()));
+                // FIXME: thrift strings
+                byte[] rowkey = lastRow.getKey().getBytes(UTF8);
+                startToken = p.getTokenFactory().toString(p.getToken(rowkey));
             }
             catch (Exception e)
             {

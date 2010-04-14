@@ -68,7 +68,7 @@ public class BinaryMemtable implements IFlushable
      * the memtable. This version will respect the threshold and flush
      * the memtable to disk when the size exceeds the threshold.
     */
-    void put(String key, byte[] buffer)
+    void put(DecoratedKey key, byte[] buffer)
     {
         if (isThresholdViolated())
         {
@@ -102,10 +102,10 @@ public class BinaryMemtable implements IFlushable
         return columnFamilies.isEmpty();
     }
 
-    private void resolve(String key, byte[] buffer)
+    private void resolve(DecoratedKey key, byte[] buffer)
     {
-        columnFamilies.put(partitioner.decorateKey(key), buffer);
-        currentSize.addAndGet(buffer.length + key.length());
+        columnFamilies.put(key, buffer);
+        currentSize.addAndGet(buffer.length + key.key.length);
     }
 
     private List<DecoratedKey> getSortedKeys()

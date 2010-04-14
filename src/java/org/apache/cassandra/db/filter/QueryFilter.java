@@ -32,12 +32,12 @@ import org.apache.cassandra.db.marshal.AbstractType;
 
 public class QueryFilter
 {
-    public final String key;
+    public final DecoratedKey key;
     public final QueryPath path;
     private final IFilter filter;
     private final IFilter superFilter;
 
-    protected QueryFilter(String key, QueryPath path, IFilter filter)
+    protected QueryFilter(DecoratedKey key, QueryPath path, IFilter filter)
     {
         this.key = key;
         this.path = path;
@@ -50,7 +50,7 @@ public class QueryFilter
         ColumnFamily cf = memtable.getColumnFamily(key);
         if (cf == null)
             return null;
-        return getMemtableColumnIterator(cf, StorageService.getPartitioner().decorateKey(key), comparator);
+        return getMemtableColumnIterator(cf, key, comparator);
     }
 
     public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key, AbstractType comparator)
@@ -153,7 +153,7 @@ public class QueryFilter
      * @param reversed true to start with the largest column (as determined by configured sort order) instead of smallest
      * @param limit maximum number of non-deleted columns to return
      */
-    public static QueryFilter getSliceFilter(String key, QueryPath path, byte[] start, byte[] finish, List<byte[]> bitmasks, boolean reversed, int limit)
+    public static QueryFilter getSliceFilter(DecoratedKey key, QueryPath path, byte[] start, byte[] finish, List<byte[]> bitmasks, boolean reversed, int limit)
     {
         return new QueryFilter(key, path, new SliceQueryFilter(start, finish, bitmasks, reversed, limit));
     }
@@ -162,7 +162,7 @@ public class QueryFilter
      * return a QueryFilter object that includes every column in the row.
      * This is dangerous on large rows; avoid except for test code.
      */
-    public static QueryFilter getIdentityFilter(String key, QueryPath path)
+    public static QueryFilter getIdentityFilter(DecoratedKey key, QueryPath path)
     {
         return new QueryFilter(key, path, new IdentityQueryFilter());
     }
@@ -173,7 +173,7 @@ public class QueryFilter
      * @param path path to the level to slice at (CF or SuperColumn)
      * @param columns the column names to restrict the results to
      */
-    public static QueryFilter getNamesFilter(String key, QueryPath path, SortedSet<byte[]> columns)
+    public static QueryFilter getNamesFilter(DecoratedKey key, QueryPath path, SortedSet<byte[]> columns)
     {
         return new QueryFilter(key, path, new NamesQueryFilter(columns));
     }
@@ -181,7 +181,7 @@ public class QueryFilter
     /**
      * convenience method for creating a name filter matching a single column
      */
-    public static QueryFilter getNamesFilter(String key, QueryPath path, byte[] column)
+    public static QueryFilter getNamesFilter(DecoratedKey key, QueryPath path, byte[] column)
     {
         return new QueryFilter(key, path, new NamesQueryFilter(column));
     }

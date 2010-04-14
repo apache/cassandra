@@ -25,6 +25,9 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
 import java.io.ByteArrayInputStream;
@@ -42,7 +45,7 @@ public class DefsTable
     /** dumps current keyspace definitions to storage */
     public static synchronized void dumpToStorage(UUID version) throws IOException
     {
-        String versionKey = version.toString();
+        byte[] versionKey = Migration.toBytes(version);
         long now = System.currentTimeMillis();
         RowMutation rm = new RowMutation(Table.DEFINITIONS, versionKey);
         for (String tableName : DatabaseDescriptor.getNonSystemTables())
@@ -53,16 +56,17 @@ public class DefsTable
         rm.apply();
         
         rm = new RowMutation(Table.DEFINITIONS, Migration.LAST_MIGRATION_KEY);
-        rm.add(new QueryPath(Migration.SCHEMA_CF, null, Migration.LAST_MIGRATION_KEY.getBytes()), UUIDGen.decompose(version), now);
+        rm.add(new QueryPath(Migration.SCHEMA_CF, null, Migration.LAST_MIGRATION_KEY), UUIDGen.decompose(version), now);
         rm.apply();
     }
 
     /** loads a version of keyspace definitions from storage */
     public static synchronized Collection<KSMetaData> loadFromStorage(UUID version) throws IOException
     {
+        DecoratedKey vkey = StorageService.getPartitioner().decorateKey(Migration.toBytes(version));
         Table defs = Table.open(Table.DEFINITIONS);
         ColumnFamilyStore cfStore = defs.getColumnFamilyStore(Migration.SCHEMA_CF);
-        QueryFilter filter = QueryFilter.getSliceFilter(version.toString(), new QueryPath(Migration.SCHEMA_CF), "".getBytes(), "".getBytes(), null, false, 1024);
+        QueryFilter filter = QueryFilter.getSliceFilter(vkey, new QueryPath(Migration.SCHEMA_CF), "".getBytes(), "".getBytes(), null, false, 1024);
         ColumnFamily cf = cfStore.getColumnFamily(filter);
         Collection<KSMetaData> tables = new ArrayList<KSMetaData>();
         for (IColumn col : cf.getSortedColumns())
@@ -90,5 +94,4 @@ public class DefsTable
         }
         return found;
     }
-    
 }

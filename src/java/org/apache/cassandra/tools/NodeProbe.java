@@ -48,6 +48,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamingService;
 import org.apache.cassandra.streaming.StreamingServiceMBean;
+import static org.apache.cassandra.utils.FBUtilities.UTF8;
 
 /**
  * JMX client operations for Cassandra.
@@ -402,7 +403,8 @@ public class NodeProbe
 
     public List<InetAddress> getEndPoints(String keyspace, String key)
     {
-        return ssProxy.getNaturalEndpoints(keyspace, key);
+        // FIXME: string key
+        return ssProxy.getNaturalEndpoints(keyspace, key.getBytes(UTF8));
     }
 
     public Set<InetAddress> getStreamDestinations()

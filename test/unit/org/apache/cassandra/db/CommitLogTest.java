@@ -44,7 +44,7 @@ public class CommitLogTest extends CleanupHelper
         // add data.  use relatively large values to force quick segment creation since we have a low flush threshold in the test config.
         for (int i = 0; i < 10; i++)
         {
-            rm = new RowMutation("Keyspace1", "key1");
+            rm = new RowMutation("Keyspace1", "key1".getBytes());
             rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), value, 0);
             rm.add(new QueryPath("Standard2", null, "Column1".getBytes()), value, 0);
             rm.apply();

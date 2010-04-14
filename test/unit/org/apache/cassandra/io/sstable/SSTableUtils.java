@@ -22,16 +22,10 @@ package org.apache.cassandra.io.sstable;
 import java.io.File;
 import java.io.IOException;
 
-import java.util.Map;
-import java.util.SortedMap;
-import java.util.Set;
-import java.util.TreeMap;
+import java.util.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 
@@ -68,7 +62,7 @@ public class SSTableUtils
 
     public static SSTableReader writeSSTable(Set<String> keys) throws IOException
     {
-        TreeMap<String, ColumnFamily> map = new TreeMap<String, ColumnFamily>();
+        Map<String, ColumnFamily> map = new HashMap<String, ColumnFamily>();
         for (String key : keys)
         {
             ColumnFamily cf = ColumnFamily.create(TABLENAME, CFNAME);
@@ -78,24 +72,24 @@ public class SSTableUtils
         return writeSSTable(map);
     }
 
-    public static SSTableReader writeSSTable(SortedMap<String, ColumnFamily> entries) throws IOException
+    public static SSTableReader writeSSTable(Map<String, ColumnFamily> entries) throws IOException
     {
-        TreeMap<String, byte[]> map = new TreeMap<String, byte[]>();
+        Map<byte[], byte[]> map = new HashMap<byte[], byte[]>();
         for (Map.Entry<String, ColumnFamily> entry : entries.entrySet())
         {
             DataOutputBuffer buffer = new DataOutputBuffer();
             ColumnFamily.serializer().serializeWithIndexes(entry.getValue(), buffer);
-            map.put(entry.getKey(), buffer.getData());
+            map.put(entry.getKey().getBytes(), buffer.getData());
         }
         return writeRawSSTable(TABLENAME, CFNAME, map);
     }
 
-    public static SSTableReader writeRawSSTable(String tablename, String cfname, SortedMap<String, byte[]> entries) throws IOException
+    public static SSTableReader writeRawSSTable(String tablename, String cfname, Map<byte[], byte[]> entries) throws IOException
     {
         return writeRawSSTable(null, tablename, cfname, entries);
     }
 
-    public static SSTableReader writeRawSSTable(File datafile, String tablename, String cfname, SortedMap<String, byte[]> entries) throws IOException
+    public static SSTableReader writeRawSSTable(File datafile, String tablename, String cfname, Map<byte[], byte[]> entries) throws IOException
     {
         boolean temporary = false;
         if (datafile == null)
@@ -104,9 +98,11 @@ public class SSTableUtils
             temporary = true;
         }
         SSTableWriter writer = new SSTableWriter(datafile.getAbsolutePath(), entries.size(), StorageService.getPartitioner());
-        for (Map.Entry<String, byte[]> entry : entries.entrySet())
-            writer.append(writer.partitioner.decorateKey(entry.getKey()),
-                          entry.getValue());
+        SortedMap<DecoratedKey, byte[]> sortedEntries = new TreeMap<DecoratedKey, byte[]>();
+        for (Map.Entry<byte[], byte[]> entry : entries.entrySet())
+            sortedEntries.put(writer.partitioner.decorateKey(entry.getKey()), entry.getValue());
+        for (Map.Entry<DecoratedKey, byte[]> entry : sortedEntries.entrySet())
+            writer.append(entry.getKey(), entry.getValue());
         if (temporary)
         {
             new File(writer.indexFilename()).deleteOnExit();

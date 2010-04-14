@@ -28,7 +28,9 @@ import org.apache.cassandra.Util;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.Util;
 import static org.apache.cassandra.Util.addMutation;
+
 import org.apache.cassandra.db.filter.QueryPath;
 
 import static junit.framework.Assert.assertEquals;
@@ -63,7 +65,7 @@ public class NameSortTest extends CleanupHelper
 
         for (int i = 0; i < N; ++i)
         {
-            String key = Integer.toString(i);
+            byte[] key = Integer.toString(i).getBytes();
             RowMutation rm;
 
             // standard
@@ -99,7 +101,7 @@ public class NameSortTest extends CleanupHelper
     {
         for (int i = 0; i < N; ++i)
         {
-            String key = Integer.toString(i);
+            DecoratedKey key = Util.dk(Integer.toString(i));
             ColumnFamily cf;
 
             cf = Util.getColumnFamily(table, key, "Standard1");

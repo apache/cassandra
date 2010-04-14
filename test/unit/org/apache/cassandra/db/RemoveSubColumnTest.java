@@ -26,8 +26,8 @@ import org.junit.Test;
 import static junit.framework.Assert.assertNull;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
-import static org.apache.cassandra.Util.addMutation;
 import static org.apache.cassandra.Util.getBytes;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.CleanupHelper;
 
 public class RemoveSubColumnTest extends CleanupHelper
@@ -38,19 +38,20 @@ public class RemoveSubColumnTest extends CleanupHelper
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Super1");
         RowMutation rm;
+        DecoratedKey dk = Util.dk("key1");
 
         // add data
-        rm = new RowMutation("Keyspace1", "key1");
-        addMutation(rm, "Super1", "SC1", 1, "asdf", 0);
+        rm = new RowMutation("Keyspace1", dk.key);
+        Util.addMutation(rm, "Super1", "SC1", 1, "asdf", 0);
         rm.apply();
         store.forceBlockingFlush();
 
         // remove
-        rm = new RowMutation("Keyspace1", "key1");
+        rm = new RowMutation("Keyspace1", dk.key);
         rm.delete(new QueryPath("Super1", "SC1".getBytes(), getBytes(1)), 1);
         rm.apply();
 
-        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter("key1", new QueryPath("Super1", "SC1".getBytes())));
+        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, new QueryPath("Super1", "SC1".getBytes())));
         assert retrieved.getColumn("SC1".getBytes()).getSubColumn(getBytes(1)).isMarkedForDelete();
         assertNull(ColumnFamilyStore.removeDeleted(retrieved, Integer.MAX_VALUE));
     }

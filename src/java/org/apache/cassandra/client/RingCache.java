@@ -109,7 +109,7 @@ public class RingCache
         }
     }
 
-    public List<InetAddress> getEndPoint(String key)
+    public List<InetAddress> getEndPoint(byte[] key)
     {
         if (tokenMetadata == null)
             throw new RuntimeException("Must refresh endpoints before looking up a key.");

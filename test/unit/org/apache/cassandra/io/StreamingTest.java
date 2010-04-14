@@ -57,6 +57,6 @@ public class StreamingTest extends CleanupHelper
         ColumnFamilyStore cfstore = Table.open(tablename).getColumnFamilyStore(cfname);
         RangeSliceReply rr = Util.getRangeSlice(cfstore);
         assert rr.rows.size() == 1;
-        assert rr.rows.get(0).key.equals("key");
+        assert Arrays.equals(rr.rows.get(0).key.key, "key".getBytes());
     }
 }

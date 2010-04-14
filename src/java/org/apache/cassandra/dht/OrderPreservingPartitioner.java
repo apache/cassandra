@@ -35,15 +35,14 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
 
     public static final BigInteger CHAR_MASK = new BigInteger("65535");
 
-    public DecoratedKey<StringToken> decorateKey(String key)
+    public DecoratedKey<StringToken> decorateKey(byte[] key)
     {
-        return new DecoratedKey<StringToken>(new StringToken(key), key);
+        return new DecoratedKey<StringToken>(getToken(key), key);
     }
     
-    public DecoratedKey<StringToken> convertFromDiskFormat(byte[] fromdisk)
+    public DecoratedKey<StringToken> convertFromDiskFormat(byte[] key)
     {
-        String key = new String(fromdisk, FBUtilities.UTF8);
-        return new DecoratedKey<StringToken>(new StringToken(key), fromdisk);
+        return new DecoratedKey<StringToken>(getToken(key), key);
     }
 
     public byte[] convertToDiskFormat(DecoratedKey<StringToken> key)
@@ -162,8 +161,8 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
         return true;
     }
 
-    public StringToken getToken(String key)
+    public StringToken getToken(byte[] key)
     {
-        return new StringToken(key);
+        return new StringToken(new String(key, FBUtilities.UTF8));
     }
 }

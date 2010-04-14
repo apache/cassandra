@@ -303,8 +303,9 @@ public class ThriftValidation
         if (range.start_key != null)
         {
             IPartitioner p = StorageService.getPartitioner();
-            Token startToken = p.decorateKey(range.start_key).token;
-            Token endToken = p.decorateKey(range.end_key).token;
+            // FIXME: string keys
+            Token startToken = p.getToken(range.start_key.getBytes(FBUtilities.UTF8));
+            Token endToken = p.getToken(range.end_key.getBytes(FBUtilities.UTF8));
             if (startToken.compareTo(endToken) > 0 && !endToken.equals(p.getMinimumToken()))
             {
                 if (p instanceof RandomPartitioner)

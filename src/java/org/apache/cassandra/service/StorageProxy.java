@@ -82,15 +82,6 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    private static final Comparator<String> keyComparator = new Comparator<String>()
-    {
-        public int compare(String o1, String o2)
-        {
-            IPartitioner<?> p = StorageService.getPartitioner();
-            return p.decorateKey(o1).compareTo(p.decorateKey(o2));
-        }
-    };
-
     /**
      * Use this method to have these RowMutations applied
      * across all replicas. This method will take care

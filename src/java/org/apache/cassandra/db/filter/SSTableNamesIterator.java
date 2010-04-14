@@ -46,11 +46,11 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
     private ColumnFamily cf;
     private Iterator<IColumn> iter;
     public final SortedSet<byte[]> columns;
-    private DecoratedKey decoratedKey;
+    public final DecoratedKey decoratedKey;
     
-    public SSTableNamesIterator(SSTableReader ssTable, String key, SortedSet<byte[]> columnNames)
+    public SSTableNamesIterator(SSTableReader ssTable, DecoratedKey key, SortedSet<byte[]> columnNames)
     {
-        this (ssTable, null, ssTable.getPartitioner().decorateKey(key), columnNames);
+        this (ssTable, null, key, columnNames);
     }
 
     public SSTableNamesIterator(SSTableReader ssTable, FileDataInput file, DecoratedKey key, SortedSet<byte[]> columnNames)

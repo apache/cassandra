@@ -41,7 +41,7 @@ public class SystemTableTest extends CleanupHelper
     public void testTokenGetsUpdated() throws IOException
     {
         SystemTable.StorageMetadata storageMetadata1 = SystemTable.initMetadata();
-        SystemTable.updateToken(StorageService.getPartitioner().getToken("503545744:0"));
+        SystemTable.updateToken(StorageService.getPartitioner().getToken("503545744:0".getBytes()));
         SystemTable.StorageMetadata storageMetadata2 = SystemTable.initMetadata();
         Assert.assertTrue("smd should still be a singleton after updateToken", storageMetadata1 == storageMetadata2);
     }

@@ -86,7 +86,7 @@ public class RackUnawareStrategyTest extends SchemaLoader
         List<Token> keyTokens = new ArrayList<Token>();
         for (int i = 0; i < 5; i++) {
             endPointTokens.add(new StringToken(String.valueOf((char)('a' + i * 2))));
-            keyTokens.add(partitioner.getToken(String.valueOf((char)('a' + i * 2 + 1))));
+            keyTokens.add(partitioner.getToken(String.valueOf((char)('a' + i * 2 + 1)).getBytes()));
         }
         for (String table : DatabaseDescriptor.getNonSystemTables())
             testGetEndpoints(tmd, strategy, endPointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]), table);

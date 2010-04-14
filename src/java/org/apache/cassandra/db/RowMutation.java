@@ -61,10 +61,10 @@ public class RowMutation
     }
 
     private String table_;
-    private String key_;
+    private byte[] key_;
     protected Map<String, ColumnFamily> modifications_ = new HashMap<String, ColumnFamily>();
 
-    public RowMutation(String table, String key)
+    public RowMutation(String table, byte[] key)
     {
         table_ = table;
         key_ = key;
@@ -73,11 +73,11 @@ public class RowMutation
     public RowMutation(String table, Row row)
     {
         table_ = table;
-        key_ = row.key;
+        key_ = row.key.key;
         add(row.cf);
     }
 
-    protected RowMutation(String table, String key, Map<String, ColumnFamily> modifications)
+    protected RowMutation(String table, byte[] key, Map<String, ColumnFamily> modifications)
     {
         table_ = table;
         key_ = key;
@@ -89,7 +89,7 @@ public class RowMutation
         return table_;
     }
 
-    public String key()
+    public byte[] key()
     {
         return key_;
     }
@@ -104,9 +104,9 @@ public class RowMutation
         return modifications_.values();
     }
 
-    void addHints(String key, byte[] host) throws IOException
+    void addHints(byte[] key, byte[] host) throws IOException
     {
-        QueryPath path = new QueryPath(HintedHandOffManager.HINTS_CF, key.getBytes("UTF-8"), host);
+        QueryPath path = new QueryPath(HintedHandOffManager.HINTS_CF, key, host);
         add(path, ArrayUtils.EMPTY_BYTE_ARRAY, System.currentTimeMillis());
     }
 
@@ -222,9 +222,9 @@ public class RowMutation
         return new Message(FBUtilities.getLocalAddress(), StageManager.MUTATION_STAGE, verb, bos.toByteArray());
     }
 
-    public static RowMutation getRowMutationFromMutations(String keyspace, String key, Map<String, List<Mutation>> cfmap)
+    public static RowMutation getRowMutationFromMutations(String keyspace, byte[] key, Map<String, List<Mutation>> cfmap)
     {
-        RowMutation rm = new RowMutation(keyspace, key.trim());
+        RowMutation rm = new RowMutation(keyspace, key);
         for (Map.Entry<String, List<Mutation>> entry : cfmap.entrySet())
         {
             String cfName = entry.getKey();
@@ -243,9 +243,9 @@ public class RowMutation
         return rm;
     }
     
-    public static RowMutation getRowMutation(String table, String key, Map<String, List<ColumnOrSuperColumn>> cfmap)
+    public static RowMutation getRowMutation(String table, byte[] key, Map<String, List<ColumnOrSuperColumn>> cfmap)
     {
-        RowMutation rm = new RowMutation(table, key.trim());
+        RowMutation rm = new RowMutation(table, key);
         for (Map.Entry<String, List<ColumnOrSuperColumn>> entry : cfmap.entrySet())
         {
             String cfName = entry.getKey();
@@ -280,7 +280,7 @@ public class RowMutation
     {
         return "RowMutation(" +
                "table='" + table_ + '\'' +
-               ", key='" + key_ + '\'' +
+               ", key='" + FBUtilities.bytesToHex(key_) + '\'' +
                ", modifications=[" + StringUtils.join(modifications_.values(), ", ") + "]" +
                ')';
     }
@@ -327,15 +327,10 @@ class RowMutationSerializer implements ICompactSerializer<RowMutation>
         dos.writeInt(size);
         if (size > 0)
         {
-            Set<String> keys = map.keySet();
-            for (String key : keys)
+            for (Map.Entry<String,ColumnFamily> entry : map.entrySet())
             {
-                dos.writeUTF(key);
-                ColumnFamily cf = map.get(key);
-                if (cf != null)
-                {
-                    ColumnFamily.serializer().serialize(cf, dos);
-                }
+                dos.writeUTF(entry.getKey());
+                ColumnFamily.serializer().serialize(entry.getValue(), dos);
             }
         }
     }
@@ -343,7 +338,7 @@ class RowMutationSerializer implements ICompactSerializer<RowMutation>
     public void serialize(RowMutation rm, DataOutputStream dos) throws IOException
     {
         dos.writeUTF(rm.getTable());
-        dos.writeUTF(rm.key());
+        FBUtilities.writeShortByteArray(rm.key(), dos);
 
         /* serialize the modifications_ in the mutation */
         freezeTheMaps(rm.modifications_, dos);
@@ -365,10 +360,8 @@ class RowMutationSerializer implements ICompactSerializer<RowMutation>
     public RowMutation deserialize(DataInputStream dis) throws IOException
     {
         String table = dis.readUTF();
-        String key = dis.readUTF();
+        byte[] key = FBUtilities.readShortByteArray(dis);
         Map<String, ColumnFamily> modifications = defreezeTheMaps(dis);
         return new RowMutation(table, key, modifications);
     }
-
-  
 }

@@ -57,7 +57,7 @@ interface IFilter
      * returns an iterator that returns columns from the given SSTable
      * matching the Filter criteria in sorted order.
      */
-    public abstract IColumnIterator getSSTableColumnIterator(SSTableReader sstable, String key);
+    public abstract IColumnIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey key);
 
     /**
      * collects columns from reducedColumns into returnCF.  Termination is determined

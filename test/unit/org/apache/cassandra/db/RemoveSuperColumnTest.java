@@ -42,26 +42,27 @@ public class RemoveSuperColumnTest extends CleanupHelper
     {
         ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super1");
         RowMutation rm;
+        DecoratedKey dk = Util.dk("key1");
 
         // add data
-        rm = new RowMutation("Keyspace1", "key1");
+        rm = new RowMutation("Keyspace1", dk.key);
         addMutation(rm, "Super1", "SC1", 1, "val1", 0);
         rm.apply();
         store.forceBlockingFlush();
 
         // remove
-        rm = new RowMutation("Keyspace1", "key1");
+        rm = new RowMutation("Keyspace1", dk.key);
         rm.delete(new QueryPath("Super1", "SC1".getBytes()), 1);
         rm.apply();
 
-        validateRemoveTwoSources();
+        validateRemoveTwoSources(dk);
 
         store.forceBlockingFlush();
-        validateRemoveTwoSources();
+        validateRemoveTwoSources(dk);
 
         CompactionManager.instance.submitMajor(store).get();
         assertEquals(1, store.getSSTables().size());
-        validateRemoveCompacted();
+        validateRemoveCompacted(dk);
     }
 
     @Test
@@ -69,48 +70,49 @@ public class RemoveSuperColumnTest extends CleanupHelper
     {
         ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super3");
         RowMutation rm;
+        DecoratedKey dk = Util.dk("key1");
 
         // add data
-        rm = new RowMutation("Keyspace1", "key1");
+        rm = new RowMutation("Keyspace1", dk.key);
         addMutation(rm, "Super3", "SC1", 1, "val1", 0);
         addMutation(rm, "Super3", "SC1", 2, "val1", 0);
         rm.apply();
         store.forceBlockingFlush();
 
         // remove
-        rm = new RowMutation("Keyspace1", "key1");
+        rm = new RowMutation("Keyspace1", dk.key);
         rm.delete(new QueryPath("Super3", "SC1".getBytes(), Util.getBytes(1)), 1);
         rm.apply();
 
-        validateRemoveSubColumn();
+        validateRemoveSubColumn(dk);
 
         store.forceBlockingFlush();
-        validateRemoveSubColumn();
+        validateRemoveSubColumn(dk);
     }
 
-    private void validateRemoveSubColumn() throws IOException
+    private void validateRemoveSubColumn(DecoratedKey dk) throws IOException
     {
         ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super3");
-        assertNull(store.getColumnFamily(QueryFilter.getNamesFilter("key1", new QueryPath("Super3", "SC1".getBytes()), Util.getBytes(1)), Integer.MAX_VALUE));
-        assertNotNull(store.getColumnFamily(QueryFilter.getNamesFilter("key1", new QueryPath("Super3", "SC1".getBytes()), Util.getBytes(2)), Integer.MAX_VALUE));
+        assertNull(store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super3", "SC1".getBytes()), Util.getBytes(1)), Integer.MAX_VALUE));
+        assertNotNull(store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super3", "SC1".getBytes()), Util.getBytes(2)), Integer.MAX_VALUE));
     }
 
-    private void validateRemoveTwoSources() throws IOException
+    private void validateRemoveTwoSources(DecoratedKey dk) throws IOException
     {
         ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super1");
-        ColumnFamily resolved = store.getColumnFamily(QueryFilter.getNamesFilter("key1", new QueryPath("Super1"), "SC1".getBytes()));
+        ColumnFamily resolved = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super1"), "SC1".getBytes()));
         assert resolved.getSortedColumns().iterator().next().getMarkedForDeleteAt() == 1 : resolved;
         assert resolved.getSortedColumns().iterator().next().getSubColumns().size() == 0 : resolved;
         assertNull(ColumnFamilyStore.removeDeleted(resolved, Integer.MAX_VALUE));
-        assertNull(store.getColumnFamily(QueryFilter.getNamesFilter("key1", new QueryPath("Super1"), "SC1".getBytes()), Integer.MAX_VALUE));
-        assertNull(store.getColumnFamily(QueryFilter.getIdentityFilter("key1", new QueryPath("Super1")), Integer.MAX_VALUE));
-        assertNull(ColumnFamilyStore.removeDeleted(store.getColumnFamily(QueryFilter.getIdentityFilter("key1", new QueryPath("Super1"))), Integer.MAX_VALUE));
+        assertNull(store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super1"), "SC1".getBytes()), Integer.MAX_VALUE));
+        assertNull(store.getColumnFamily(QueryFilter.getIdentityFilter(dk, new QueryPath("Super1")), Integer.MAX_VALUE));
+        assertNull(ColumnFamilyStore.removeDeleted(store.getColumnFamily(QueryFilter.getIdentityFilter(dk, new QueryPath("Super1"))), Integer.MAX_VALUE));
     }
 
-    private void validateRemoveCompacted() throws IOException
+    private void validateRemoveCompacted(DecoratedKey dk) throws IOException
     {
         ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super1");
-        ColumnFamily resolved = store.getColumnFamily(QueryFilter.getNamesFilter("key1", new QueryPath("Super1"), "SC1".getBytes()));
+        ColumnFamily resolved = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super1"), "SC1".getBytes()));
         assert resolved.getSortedColumns().iterator().next().getMarkedForDeleteAt() == 1;
         Collection<IColumn> subColumns = resolved.getSortedColumns().iterator().next().getSubColumns();
         assert subColumns.size() == 0;
@@ -121,37 +123,38 @@ public class RemoveSuperColumnTest extends CleanupHelper
     {
         ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super2");
         RowMutation rm;
+        DecoratedKey dk = Util.dk("key1");
 
         // add data
-        rm = new RowMutation("Keyspace1", "key1");
+        rm = new RowMutation("Keyspace1", dk.key);
         addMutation(rm, "Super2", "SC1", 1, "val1", 0);
         rm.apply();
         store.forceBlockingFlush();
 
         // remove
-        rm = new RowMutation("Keyspace1", "key1");
+        rm = new RowMutation("Keyspace1", dk.key);
         rm.delete(new QueryPath("Super2", "SC1".getBytes()), 1);
         rm.apply();
 
         // new data
-        rm = new RowMutation("Keyspace1", "key1");
+        rm = new RowMutation("Keyspace1", dk.key);
         addMutation(rm, "Super2", "SC1", 2, "val2", 2);
         rm.apply();
 
-        validateRemoveWithNewData();
+        validateRemoveWithNewData(dk);
 
         store.forceBlockingFlush();
-        validateRemoveWithNewData();
+        validateRemoveWithNewData(dk);
 
         CompactionManager.instance.submitMajor(store).get();
         assertEquals(1, store.getSSTables().size());
-        validateRemoveWithNewData();
+        validateRemoveWithNewData(dk);
     }
 
-    private void validateRemoveWithNewData() throws IOException
+    private void validateRemoveWithNewData(DecoratedKey dk) throws IOException
     {
         ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super2");
-        ColumnFamily resolved = store.getColumnFamily(QueryFilter.getNamesFilter("key1", new QueryPath("Super2", "SC1".getBytes()), getBytes(2)), Integer.MAX_VALUE);
+        ColumnFamily resolved = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super2", "SC1".getBytes()), getBytes(2)), Integer.MAX_VALUE);
         Collection<IColumn> subColumns = resolved.getSortedColumns().iterator().next().getSubColumns();
         assert subColumns.size() == 1;
         assert subColumns.iterator().next().timestamp() == 2;
@@ -162,21 +165,21 @@ public class RemoveSuperColumnTest extends CleanupHelper
     {
         ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super2");
         RowMutation rm;
-        String key = "keyC";
+        DecoratedKey key = Util.dk("keyC");
 
         // add data
-        rm = new RowMutation("Keyspace1", key);
+        rm = new RowMutation("Keyspace1", key.key);
         addMutation(rm, "Super2", "SC1", 1, "val1", 0);
         rm.apply();
 
         // remove
-        rm = new RowMutation("Keyspace1", key);
+        rm = new RowMutation("Keyspace1", key.key);
         rm.delete(new QueryPath("Super2", "SC1".getBytes()), 1);
         rm.apply();
         assertNull(store.getColumnFamily(QueryFilter.getNamesFilter(key, new QueryPath("Super2"), "SC1".getBytes()), Integer.MAX_VALUE));
 
         // resurrect
-        rm = new RowMutation("Keyspace1", key);
+        rm = new RowMutation("Keyspace1", key.key);
         addMutation(rm, "Super2", "SC1", 1, "val2", 2);
         rm.apply();
 

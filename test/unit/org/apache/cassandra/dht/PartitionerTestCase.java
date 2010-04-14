@@ -40,7 +40,7 @@ public abstract class PartitionerTestCase<T extends Token> {
 
     public T tok(String string)
     {
-        return partitioner.getToken(string);
+        return partitioner.getToken(string.getBytes());
     }
 
     /**
@@ -97,7 +97,7 @@ public abstract class PartitionerTestCase<T extends Token> {
     @Test
     public void testDiskFormat()
     {
-        String key = "key";
+        byte[] key = "key".getBytes();
         DecoratedKey<T> decKey = partitioner.decorateKey(key);
         DecoratedKey<T> result = partitioner.convertFromDiskFormat(partitioner.convertToDiskFormat(decKey));
         assertEquals(decKey, result);

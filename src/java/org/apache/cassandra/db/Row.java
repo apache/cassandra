@@ -29,6 +29,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class Row
 {
@@ -40,10 +42,10 @@ public class Row
         return serializer;
     }
 
-    public final String key;
+    public final DecoratedKey key;
     public final ColumnFamily cf;
 
-    public Row(String key, ColumnFamily cf)
+    public Row(DecoratedKey key, ColumnFamily cf)
     {
         assert key != null;
         // cf may be null, indicating no data
@@ -55,7 +57,7 @@ public class Row
     public String toString()
     {
         return "Row(" +
-               "key='" + key + '\'' +
+               "key=" + key +
                ", cf=" + cf +
                ')';
     }
@@ -65,12 +67,13 @@ class RowSerializer implements ICompactSerializer<Row>
 {
     public void serialize(Row row, DataOutputStream dos) throws IOException
     {
-        dos.writeUTF(row.key);
+        FBUtilities.writeShortByteArray(row.key.key, dos);
         ColumnFamily.serializer().serialize(row.cf, dos);
     }
 
     public Row deserialize(DataInputStream dis) throws IOException
     {
-        return new Row(dis.readUTF(), ColumnFamily.serializer().deserialize(dis));
+        return new Row(StorageService.getPartitioner().decorateKey(FBUtilities.readShortByteArray(dis)),
+                       ColumnFamily.serializer().deserialize(dis));
     }
 }

@@ -236,9 +236,9 @@ public class FBUtilities
         return out;
     }
 
-    public static BigInteger hash(String data)
+    public static BigInteger md5hash(byte[] data)
     {
-        byte[] result = hash("MD5", data.getBytes());
+        byte[] result = hash("MD5", data);
         BigInteger hash = new BigInteger(result);
         return hash.abs();        
     }

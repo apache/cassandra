@@ -343,6 +343,7 @@ public class Table
                 }
             }
         
+            DecoratedKey key = StorageService.getPartitioner().decorateKey(mutation.key());
             for (ColumnFamily columnFamily : mutation.getColumnFamilies())
             {
                 Memtable memtableToFlush;
@@ -353,10 +354,10 @@ public class Table
                 }
                 else
                 {
-                    if ((memtableToFlush=cfs.apply(mutation.key(), columnFamily)) != null)
+                    if ((memtableToFlush=cfs.apply(key, columnFamily)) != null)
                         memtablesToFlush.put(cfs, memtableToFlush);
     
-                    ColumnFamily cachedRow = cfs.getRawCachedRow(mutation.key());
+                    ColumnFamily cachedRow = cfs.getRawCachedRow(key);
                     if (cachedRow != null)
                         cachedRow.addAll(columnFamily);
                 }
@@ -387,8 +388,7 @@ public class Table
     // for binary load path.  skips commitlog.
     void load(RowMutation rowMutation) throws IOException
     {
-        String key = rowMutation.key();
-                
+        DecoratedKey key = StorageService.getPartitioner().decorateKey(rowMutation.key());
         for (ColumnFamily columnFamily : rowMutation.getColumnFamilies())
         {
             Collection<IColumn> columns = columnFamily.getSortedColumns();

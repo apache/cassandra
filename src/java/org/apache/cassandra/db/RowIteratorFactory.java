@@ -133,8 +133,7 @@ public class RowIteratorFactory
                 Comparator<IColumn> colComparator = QueryFilter.getColumnComparator(comparator);
                 Iterator<IColumn> colCollated = IteratorUtils.collatedIterator(colComparator, colIters);
 
-                // FIXME: string keys
-                ColumnFamily returnCF = current.getColumnFamily(new String(key.key));
+                ColumnFamily returnCF = current.getColumnFamily(key);
                 // TODO this is a little subtle: the Memtable ColumnIterator has to be a shallow clone of the source CF,
                 // with deletion times set correctly, so we can use it as the "base" CF to add query results to.
                 // (for sstable ColumnIterators we do not care if it is a shallow clone or not.)
@@ -150,8 +149,7 @@ public class RowIteratorFactory
                     returnCF = null;
                 }
 
-                // FIXME: string keys
-                Row rv = new Row(new String(key.key), returnCF);
+                Row rv = new Row(key, returnCF);
                 colIters.clear();
                 key = null;
                 return rv;

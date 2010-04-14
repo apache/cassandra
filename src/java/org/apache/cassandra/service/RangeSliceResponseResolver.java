@@ -29,6 +29,7 @@ import org.apache.commons.collections.iterators.CollatingIterator;
 
 import com.google.common.collect.AbstractIterator;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RangeSliceReply;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.net.Message;
@@ -75,7 +76,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
         {
             List<ColumnFamily> versions = new ArrayList<ColumnFamily>(sources.size());
             List<InetAddress> versionSources = new ArrayList<InetAddress>(sources.size());
-            String key;
+            DecoratedKey key;
 
             @Override
             protected boolean isEqual(Pair<Row, InetAddress> o1, Pair<Row, InetAddress> o2)

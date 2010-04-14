@@ -45,6 +45,7 @@ import org.apache.cassandra.db.SliceByNamesReadCommand;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.service.StorageProxy;
+import static org.apache.cassandra.utils.FBUtilities.UTF8;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import static org.apache.cassandra.avro.AvroRecordFactory.*;
@@ -87,7 +88,8 @@ public class CassandraServer implements Cassandra {
         for (String key: keys)
         {
             AvroValidation.validateKey(key);
-            commands.add(new SliceByNamesReadCommand(keyspace, key, path, nameAsList));
+            // FIXME: string key
+            commands.add(new SliceByNamesReadCommand(keyspace, key.getBytes(UTF8), path, nameAsList));
         }
         
         Map<String, ColumnOrSuperColumn> columnFamiliesMap = new HashMap<String, ColumnOrSuperColumn>();
@@ -120,7 +122,8 @@ public class CassandraServer implements Cassandra {
                 }
 
             }
-            columnFamiliesMap.put(command.key, columnorsupercolumn);
+            // FIXME: assuming string keys
+            columnFamiliesMap.put(new String(command.key, UTF8), columnorsupercolumn);
         }
 
         return columnFamiliesMap;
@@ -129,10 +132,10 @@ public class CassandraServer implements Cassandra {
     private Map<String, Collection<IColumn>> multigetColumns(List<ReadCommand> commands, ConsistencyLevel level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        Map<String, ColumnFamily> cfamilies = readColumnFamily(commands, level);
+        Map<byte[], ColumnFamily> cfamilies = readColumnFamily(commands, level);
         Map<String, Collection<IColumn>> columnFamiliesMap = new HashMap<String, Collection<IColumn>>();
         
-        for (ReadCommand command: commands)
+        for (ReadCommand command : commands)
         {
             ColumnFamily cfamily = cfamilies.get(command.key);
             if (cfamily == null)
@@ -154,18 +157,19 @@ public class CassandraServer implements Cassandra {
 
             if (columns != null && columns.size() != 0)
             {
-                columnFamiliesMap.put(command.key, columns);
+                // FIXME: assuming string keys
+                columnFamiliesMap.put(new String(command.key, UTF8), columns);
             }
         }
         
         return columnFamiliesMap;
     }
     
-    protected Map<String, ColumnFamily> readColumnFamily(List<ReadCommand> commands, ConsistencyLevel consistency)
+    protected Map<byte[], ColumnFamily> readColumnFamily(List<ReadCommand> commands, ConsistencyLevel consistency)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         // TODO - Support multiple column families per row, right now row only contains 1 column family
-        Map<String, ColumnFamily> columnFamilyKeyMap = new HashMap<String,ColumnFamily>();
+        Map<byte[], ColumnFamily> columnFamilyKeyMap = new HashMap<byte[],ColumnFamily>();
         
         if (consistency == ConsistencyLevel.ZERO)
             throw newInvalidRequestException("Consistency level zero may not be applied to read operations");
@@ -195,7 +199,7 @@ public class CassandraServer implements Cassandra {
 
         for (Row row: rows)
         {
-            columnFamilyKeyMap.put(row.key, row.cf);
+            columnFamilyKeyMap.put(row.key.key, row.cf);
         }
         
         return columnFamilyKeyMap;
@@ -238,7 +242,7 @@ public class CassandraServer implements Cassandra {
         AvroValidation.validateKey(keyspace_string);
         AvroValidation.validateColumnPath(keyspace_string, cp);
 
-        RowMutation rm = new RowMutation(keyspace_string, key.toString());
+        RowMutation rm = new RowMutation(keyspace_string, key.getBytes());
         try
         {
             rm.add(new QueryPath(column_family, super_column, column), value.array(), timestamp);
@@ -282,10 +286,10 @@ public class CassandraServer implements Cassandra {
         if (logger.isDebugEnabled())
             logger.debug("batch_insert");
 
-        String keyString = key.toString();
+        byte[] keyBytes = key.getBytes();
         String keyspaceString = keyspace.toString();
 
-        AvroValidation.validateKey(keyString);
+        AvroValidation.validateKey(key.toString());
 
         for (Utf8 cfName : cfmap.keySet())
         {
@@ -293,14 +297,14 @@ public class CassandraServer implements Cassandra {
                 AvroValidation.validateColumnOrSuperColumn(keyspaceString, cfName.toString(), cosc);
         }
 
-        doInsert(consistency, getRowMutation(keyspaceString, keyString, cfmap));
+        doInsert(consistency, getRowMutation(keyspaceString, keyBytes, cfmap));
         return null;
     }
 
     // FIXME: This is copypasta from o.a.c.db.RowMutation, (RowMutation.getRowMutation uses Thrift types directly).
-    private static RowMutation getRowMutation(String keyspace, String key, Map<Utf8, GenericArray<ColumnOrSuperColumn>> cfmap)
+    private static RowMutation getRowMutation(String keyspace, byte[] key, Map<Utf8, GenericArray<ColumnOrSuperColumn>> cfmap)
     {
-        RowMutation rm = new RowMutation(keyspace, key.trim());
+        RowMutation rm = new RowMutation(keyspace, key);
         for (Map.Entry<Utf8, GenericArray<ColumnOrSuperColumn>> entry : cfmap.entrySet())
         {
             String cfName = entry.getKey().toString();
@@ -379,7 +383,8 @@ public class CassandraServer implements Cassandra {
     // FIXME: This is copypasta from o.a.c.db.RowMutation, (RowMutation.getRowMutation uses Thrift types directly).
     private static RowMutation getRowMutationFromMutations(String keyspace, String key, Map<Utf8, GenericArray<Mutation>> cfMap)
     {
-        RowMutation rm = new RowMutation(keyspace, key.trim());
+        // FIXME: string key
+        RowMutation rm = new RowMutation(keyspace, key.trim().getBytes(UTF8));
         
         for (Map.Entry<Utf8, GenericArray<Mutation>> entry : cfMap.entrySet())
         {

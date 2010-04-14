@@ -52,9 +52,9 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements IColumnI
     private boolean closeFileWhenDone = false;
     private DecoratedKey decoratedKey;
     
-    public SSTableSliceIterator(SSTableReader ssTable, String key, byte[] startColumn, byte[] finishColumn, Predicate<IColumn> predicate, boolean reversed)
+    public SSTableSliceIterator(SSTableReader ssTable, DecoratedKey key, byte[] startColumn, byte[] finishColumn, Predicate<IColumn> predicate, boolean reversed)
     {
-        this(ssTable, null, ssTable.getPartitioner().decorateKey(key), startColumn, finishColumn, predicate, reversed); 
+        this(ssTable, null, key, startColumn, finishColumn, predicate, reversed); 
     }
     
     public SSTableSliceIterator(SSTableReader ssTable, FileDataInput file, DecoratedKey key, byte[] startColumn, byte[] finishColumn, Predicate<IColumn> predicate, boolean reversed) 

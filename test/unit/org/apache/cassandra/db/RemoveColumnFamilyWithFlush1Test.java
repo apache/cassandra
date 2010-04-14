@@ -26,7 +26,9 @@ import org.junit.Test;
 import static junit.framework.Assert.assertNull;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.Util;
 
 public class RemoveColumnFamilyWithFlush1Test extends CleanupHelper
 {
@@ -36,20 +38,21 @@ public class RemoveColumnFamilyWithFlush1Test extends CleanupHelper
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
         RowMutation rm;
+        DecoratedKey dk = Util.dk("key1");
 
         // add data
-        rm = new RowMutation("Keyspace1", "key1");
+        rm = new RowMutation("Keyspace1", dk.key);
         rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
         rm.add(new QueryPath("Standard1", null, "Column2".getBytes()), "asdf".getBytes(), 0);
         rm.apply();
         store.forceBlockingFlush();
 
         // remove
-        rm = new RowMutation("Keyspace1", "key1");
+        rm = new RowMutation("Keyspace1", dk.key);
         rm.delete(new QueryPath("Standard1"), 1);
         rm.apply();
 
-        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter("key1", new QueryPath("Standard1")));
+        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, new QueryPath("Standard1")));
         assert retrieved.isMarkedForDelete();
         assertNull(retrieved.getColumn("Column1".getBytes()));
         assertNull(ColumnFamilyStore.removeDeleted(retrieved, Integer.MAX_VALUE));

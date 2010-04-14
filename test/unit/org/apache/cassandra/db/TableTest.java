@@ -38,6 +38,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.utils.WrappedRunnable;
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.getBytes;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
@@ -46,11 +47,13 @@ import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class TableTest extends CleanupHelper
 {
-    private static final String KEY2 = "key2";
-    private static final String TEST_KEY = "key1";
+    private static final DecoratedKey KEY2 = Util.dk("key2");
+    private static final DecoratedKey TEST_KEY = Util.dk("key1");
+    private static final DecoratedKey TEST_SLICE_KEY = Util.dk("key1-slicerange");
 
     public static void reTest(ColumnFamilyStore cfs, Runnable verify) throws Exception
     {
@@ -65,7 +68,7 @@ public class TableTest extends CleanupHelper
         final Table table = Table.open("Keyspace2");
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard3");
 
-        RowMutation rm = new RowMutation("Keyspace2", TEST_KEY);
+        RowMutation rm = new RowMutation("Keyspace2", TEST_KEY.key);
         ColumnFamily cf = ColumnFamily.create("Keyspace2", "Standard3");
         cf.addColumn(column("col1","val1", 1L));
         rm.add(cf);
@@ -96,7 +99,7 @@ public class TableTest extends CleanupHelper
         final Table table = Table.open("Keyspace1");
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
 
-        RowMutation rm = new RowMutation("Keyspace1", TEST_KEY);
+        RowMutation rm = new RowMutation("Keyspace1", TEST_KEY.key);
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1","val1", 1L));
         cf.addColumn(column("col2","val2", 1L));
@@ -123,10 +126,10 @@ public class TableTest extends CleanupHelper
     @Test
     public void testGetRowSliceByRange() throws Throwable
     {
-    	String key = TEST_KEY+"slicerow";
+    	DecoratedKey key = TEST_SLICE_KEY;
     	Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
-    	RowMutation rm = new RowMutation("Keyspace1", key);
+    	RowMutation rm = new RowMutation("Keyspace1", key.key);
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         // First write "a", "b", "c"
         cf.addColumn(column("a", "val1", 1L));
@@ -152,7 +155,7 @@ public class TableTest extends CleanupHelper
     public void testGetSliceNoMatch() throws Throwable
     {
         Table table = Table.open("Keyspace1");
-        RowMutation rm = new RowMutation("Keyspace1", "row1000");
+        RowMutation rm = new RowMutation("Keyspace1", "row1000".getBytes());
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard2");
         cf.addColumn(column("col1", "val1", 1));
         rm.add(cf);
@@ -174,10 +177,10 @@ public class TableTest extends CleanupHelper
         // tests slicing against data from one row in a memtable and then flushed to an sstable
         final Table table = Table.open("Keyspace1");
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
-        final String ROW = "row4";
+        final DecoratedKey ROW = Util.dk("row4");
         final NumberFormat fmt = new DecimalFormat("000");
 
-        RowMutation rm = new RowMutation("Keyspace1", ROW);
+        RowMutation rm = new RowMutation("Keyspace1", ROW.key);
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         // at this rate, we're getting 78-79 cos/block, assuming the blocks are set to be about 4k.
         // so if we go to 300, we'll get at least 4 blocks, which is plenty for testing.
@@ -233,10 +236,10 @@ public class TableTest extends CleanupHelper
         // tests slicing against data from one row in a memtable and then flushed to an sstable
         final Table table = Table.open("Keyspace1");
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
-        final String ROW = "row-bitmasktest";
+        final DecoratedKey ROW = Util.dk("row-bitmasktest");
         final NumberFormat fmt = new DecimalFormat("000");
 
-        RowMutation rm = new RowMutation("Keyspace1", ROW);
+        RowMutation rm = new RowMutation("Keyspace1", ROW.key);
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         // at this rate, we're getting 78-79 cos/block, assuming the blocks are set to be about 4k.
         // so if we go to 300, we'll get at least 4 blocks, which is plenty for testing.
@@ -297,11 +300,11 @@ public class TableTest extends CleanupHelper
         ColumnFamily cf;
 
         // key before the rows that exists
-        cf = cfStore.getColumnFamily("a", new QueryPath("Standard2"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 1);
+        cf = cfStore.getColumnFamily(Util.dk("a"), new QueryPath("Standard2"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 1);
         assertColumns(cf);
 
         // key after the rows that exist
-        cf = cfStore.getColumnFamily("z", new QueryPath("Standard2"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 1);
+        cf = cfStore.getColumnFamily(Util.dk("z"), new QueryPath("Standard2"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 1);
         assertColumns(cf);
     }
 
@@ -311,9 +314,9 @@ public class TableTest extends CleanupHelper
         // tests slicing against data from one row in a memtable and then flushed to an sstable
         final Table table = Table.open("Keyspace1");
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
-        final String ROW = "row1";
+        final DecoratedKey ROW = Util.dk("row1");
 
-        RowMutation rm = new RowMutation("Keyspace1", ROW);
+        RowMutation rm = new RowMutation("Keyspace1", ROW.key);
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1", "val1", 1L));
         cf.addColumn(column("col3", "val3", 1L));
@@ -324,7 +327,7 @@ public class TableTest extends CleanupHelper
         rm.add(cf);
         rm.apply();
 
-        rm = new RowMutation("Keyspace1", ROW);
+        rm = new RowMutation("Keyspace1", ROW.key);
         rm.delete(new QueryPath("Standard1", null, "col4".getBytes()), 2L);
         rm.apply();
 
@@ -367,9 +370,9 @@ public class TableTest extends CleanupHelper
         // tests slicing against data from one row spread across two sstables
         final Table table = Table.open("Keyspace1");
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
-        final String ROW = "row2";
+        final DecoratedKey ROW = Util.dk("row2");
 
-        RowMutation rm = new RowMutation("Keyspace1", ROW);
+        RowMutation rm = new RowMutation("Keyspace1", ROW.key);
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1", "val1", 1L));
         cf.addColumn(column("col2", "val2", 1L));
@@ -381,7 +384,7 @@ public class TableTest extends CleanupHelper
         rm.apply();
         cfStore.forceBlockingFlush();
 
-        rm = new RowMutation("Keyspace1", ROW);
+        rm = new RowMutation("Keyspace1", ROW.key);
         cf = ColumnFamily.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1", "valx", 2L));
         cf.addColumn(column("col2", "valx", 2L));
@@ -412,8 +415,8 @@ public class TableTest extends CleanupHelper
         // tests slicing against 1000 columns in an sstable
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
-        String key = "row3";
-        RowMutation rm = new RowMutation("Keyspace1", key);
+        DecoratedKey key = Util.dk("row3");
+        RowMutation rm = new RowMutation("Keyspace1", key.key);
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         for (int i = 1000; i < 2000; i++)
             cf.addColumn(column("col" + i, ("v" + i), 1L));
@@ -428,11 +431,10 @@ public class TableTest extends CleanupHelper
             CompactionManager.instance.submitMajor(cfStore).get();
         }
         SSTableReader sstable = cfStore.getSSTables().iterator().next();
-        DecoratedKey decKey = sstable.getPartitioner().decorateKey(key);
-        SSTable.PositionSize info = sstable.getPosition(decKey);
+        SSTable.PositionSize info = sstable.getPosition(key);
         BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.getFilename(), "r");
         file.seek(info.position);
-        assert file.readUTF().equals(key);
+        assert Arrays.equals(FBUtilities.readShortByteArray(file), key.key);
         file.readInt();
         IndexHelper.skipBloomFilter(file);
         ArrayList<IndexHelper.IndexInfo> indexes = IndexHelper.deserializeIndex(file);
@@ -442,7 +444,7 @@ public class TableTest extends CleanupHelper
 
     private void validateSliceLarge(ColumnFamilyStore cfStore) throws IOException
     {
-        String key = "row3";
+        DecoratedKey key = Util.dk("row3");
         ColumnFamily cf;
         cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "col1000".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, false, 3);
         assertColumns(cf, "col1000", "col1001", "col1002");
@@ -491,9 +493,9 @@ public class TableTest extends CleanupHelper
         // tests slicing against data from one row spread across two sstables
         final Table table = Table.open("Keyspace1");
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Super1");
-        final String ROW = "row2";
+        final DecoratedKey ROW = Util.dk("row2");
 
-        RowMutation rm = new RowMutation("Keyspace1", ROW);
+        RowMutation rm = new RowMutation("Keyspace1", ROW.key);
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Super1");
         SuperColumn sc = new SuperColumn("sc1".getBytes(), new LongType());
         sc.addColumn(new Column(getBytes(1), "val1".getBytes(), 1L));

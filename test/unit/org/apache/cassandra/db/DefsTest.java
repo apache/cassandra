@@ -19,6 +19,8 @@
 package org.apache.cassandra.db;
 
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.Util;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -174,14 +176,15 @@ public class DefsTest extends CleanupHelper
         assert DatabaseDescriptor.getTableDefinition(ks).cfMetaData().get(newCf.cfName).equals(newCf);
 
         // now read and write to it.
-        RowMutation rm = new RowMutation(ks, "key0");
+        DecoratedKey dk = Util.dk("key0");
+        RowMutation rm = new RowMutation(ks, dk.key);
         rm.add(new QueryPath(cf, null, "col0".getBytes()), "value0".getBytes(), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(ks).getColumnFamilyStore(cf);
         assert store != null;
         store.forceBlockingFlush();
         
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter("key0", new QueryPath(cf), "col0".getBytes()));
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(cf), "col0".getBytes()));
         assert cfam.getColumn("col0".getBytes()) != null;
         IColumn col = cfam.getColumn("col0".getBytes());
         assert Arrays.equals("value0".getBytes(), col.value());
@@ -190,6 +193,7 @@ public class DefsTest extends CleanupHelper
     @Test
     public void dropCf() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
+        DecoratedKey dk = Util.dk("dropCf");
         // sanity
         final KSMetaData ks = DatabaseDescriptor.getTableDefinition("Keyspace1");
         assert ks != null;
@@ -197,7 +201,7 @@ public class DefsTest extends CleanupHelper
         assert cfm != null;
         
         // write some data, force a flush, then verify that files exist on disk.
-        RowMutation rm = new RowMutation(ks.name, "dropCf");
+        RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
             rm.add(new QueryPath(cfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), 1L);
         rm.apply();
@@ -212,7 +216,7 @@ public class DefsTest extends CleanupHelper
         assert !DatabaseDescriptor.getTableDefinition(ks.name).cfMetaData().containsKey(cfm.cfName);
         
         // any write should fail.
-        rm = new RowMutation(ks.name, "dropCf");
+        rm = new RowMutation(ks.name, dk.key);
         try
         {
             rm.add(new QueryPath("Standard1", null, "col0".getBytes()), "value0".getBytes(), 1L);
@@ -231,13 +235,14 @@ public class DefsTest extends CleanupHelper
     @Test
     public void renameCf() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
+        DecoratedKey dk = Util.dk("key0");
         final KSMetaData ks = DatabaseDescriptor.getTableDefinition("Keyspace2");
         assert ks != null;
         final CFMetaData oldCfm = ks.cfMetaData().get("Standard1");
         assert oldCfm != null;
         
         // write some data, force a flush, then verify that files exist on disk.
-        RowMutation rm = new RowMutation(ks.name, "key0");
+        RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
             rm.add(new QueryPath(oldCfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), 1L);
         rm.apply();
@@ -259,16 +264,16 @@ public class DefsTest extends CleanupHelper
         // do some reads.
         store = Table.open(oldCfm.tableName).getColumnFamilyStore(cfName);
         assert store != null;
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getSliceFilter("key0", new QueryPath(cfName), "".getBytes(), "".getBytes(), null, false, 1000));
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getSliceFilter(dk, new QueryPath(cfName), "".getBytes(), "".getBytes(), null, false, 1000));
         assert cfam.getSortedColumns().size() == 100; // should be good enough?
         
         // do some writes
-        rm = new RowMutation(ks.name, "key0");
+        rm = new RowMutation(ks.name, dk.key);
         rm.add(new QueryPath(cfName, null, "col5".getBytes()), "updated".getBytes(), 2L);
         rm.apply();
         store.forceBlockingFlush();
         
-        cfam = store.getColumnFamily(QueryFilter.getNamesFilter("key0", new QueryPath(cfName), "col5".getBytes()));
+        cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(cfName), "col5".getBytes()));
         assert cfam.getColumnCount() == 1;
         assert Arrays.equals(cfam.getColumn("col5".getBytes()).value(), "updated".getBytes());
     }
@@ -276,6 +281,7 @@ public class DefsTest extends CleanupHelper
     @Test
     public void addNewKS() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
+        DecoratedKey dk = Util.dk("key0");
         CFMetaData newCf = new CFMetaData("NewKeyspace1", "AddedStandard1", "Standard", new UTF8Type(), null, "A new cf for a new ks", 0, 0);
         KSMetaData newKs = new KSMetaData(newCf.tableName, RackAwareStrategy.class, 5, new EndPointSnitch(), newCf);
         
@@ -287,14 +293,14 @@ public class DefsTest extends CleanupHelper
         assert DatabaseDescriptor.getTableDefinition(newCf.tableName) == newKs;
 
         // test reads and writes.
-        RowMutation rm = new RowMutation(newCf.tableName, "key0");
+        RowMutation rm = new RowMutation(newCf.tableName, dk.key);
         rm.add(new QueryPath(newCf.cfName, null, "col0".getBytes()), "value0".getBytes(), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(newCf.tableName).getColumnFamilyStore(newCf.cfName);
         assert store != null;
         store.forceBlockingFlush();
         
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter("key0", new QueryPath(newCf.cfName), "col0".getBytes()));
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(newCf.cfName), "col0".getBytes()));
         assert cfam.getColumn("col0".getBytes()) != null;
         IColumn col = cfam.getColumn("col0".getBytes());
         assert Arrays.equals("value0".getBytes(), col.value());
@@ -303,6 +309,7 @@ public class DefsTest extends CleanupHelper
     @Test
     public void dropKS() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
+        DecoratedKey dk = Util.dk("dropKs");
         // sanity
         final KSMetaData ks = DatabaseDescriptor.getTableDefinition("Keyspace1");
         assert ks != null;
@@ -310,7 +317,7 @@ public class DefsTest extends CleanupHelper
         assert cfm != null;
         
         // write some data, force a flush, then verify that files exist on disk.
-        RowMutation rm = new RowMutation(ks.name, "dropKs");
+        RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
             rm.add(new QueryPath(cfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), 1L);
         rm.apply();
@@ -324,7 +331,7 @@ public class DefsTest extends CleanupHelper
         assert DatabaseDescriptor.getTableDefinition(ks.name) == null;
         
         // write should fail.
-        rm = new RowMutation(ks.name, "dropKs");
+        rm = new RowMutation(ks.name, dk.key);
         try
         {
             rm.add(new QueryPath("Standard1", null, "col0".getBytes()), "value0".getBytes(), 1L);
@@ -351,6 +358,7 @@ public class DefsTest extends CleanupHelper
     @Test
     public void renameKs() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
+        DecoratedKey dk = Util.dk("renameKs");
         final KSMetaData oldKs = DatabaseDescriptor.getTableDefinition("Keyspace2");
         assert oldKs != null;
         final String cfName = "Standard3";
@@ -358,7 +366,7 @@ public class DefsTest extends CleanupHelper
         assert oldKs.cfMetaData().get(cfName).tableName.equals(oldKs.name);
         
         // write some data that we hope to read back later.
-        RowMutation rm = new RowMutation(oldKs.name, "renameKs");
+        RowMutation rm = new RowMutation(oldKs.name, dk.key);
         for (int i = 0; i < 10; i++)
             rm.add(new QueryPath(cfName, null, ("col" + i).getBytes()), "value".getBytes(), 1L);
         rm.apply();
@@ -390,7 +398,7 @@ public class DefsTest extends CleanupHelper
         }
         
         // write on old should fail.
-        rm = new RowMutation(oldKs.name, "any key will do");
+        rm = new RowMutation(oldKs.name, "any key will do".getBytes());
         try
         {
             rm.add(new QueryPath(cfName, null, "col0".getBytes()), "value0".getBytes(), 1L);
@@ -403,7 +411,7 @@ public class DefsTest extends CleanupHelper
         }
         
         // write on new should work.
-        rm = new RowMutation(newKsName, "renameKs");
+        rm = new RowMutation(newKsName, dk.key);
         rm.add(new QueryPath(cfName, null, "col0".getBytes()), "newvalue".getBytes(), 2L);
         rm.apply();
         store = Table.open(newKs.name).getColumnFamilyStore(cfName);
@@ -414,7 +422,7 @@ public class DefsTest extends CleanupHelper
         SortedSet<byte[]> cols = new TreeSet<byte[]>(new BytesType());
         cols.add("col0".getBytes());
         cols.add("col1".getBytes());
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter("renameKs", new QueryPath(cfName), cols));
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(cfName), cols));
         assert cfam.getColumnCount() == cols.size();
         // tests new write.
         assert Arrays.equals(cfam.getColumn("col0".getBytes()).value(), "newvalue".getBytes());

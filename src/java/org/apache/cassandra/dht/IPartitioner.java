@@ -46,7 +46,7 @@ public interface IPartitioner<T extends Token>
      * @return decorated version of key
      */
     @Deprecated
-    public DecoratedKey<T> decorateKey(String key);
+    public DecoratedKey<T> decorateKey(byte[] key);
 
     /**
      * Calculate a Token representing the approximate "middle" of the given
@@ -67,7 +67,7 @@ public interface IPartitioner<T extends Token>
      * for that, use TokenFactory.fromString.)
      */
     @Deprecated
-    public T getToken(String key);
+    public T getToken(byte[] key);
 
     /**
      * @return a randomly generated token

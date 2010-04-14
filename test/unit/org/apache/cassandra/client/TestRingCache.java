@@ -90,7 +90,7 @@ public class TestRingCache
             String row = rowPrefix + nRows;
             ColumnPath col = new ColumnPath("Standard1").setSuper_column(null).setColumn("col1".getBytes());
 
-            List<InetAddress> endPoints = tester.ringCache.getEndPoint(row);
+            List<InetAddress> endPoints = tester.ringCache.getEndPoint(row.getBytes());
             String hosts="";
             for (int i = 0; i < endPoints.size(); i++)
                 hosts = hosts + ((i > 0) ? "," : "") + endPoints.get(i);
