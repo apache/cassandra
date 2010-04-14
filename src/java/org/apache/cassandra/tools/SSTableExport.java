@@ -35,6 +35,7 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.FBUtilities.bytesToHex;
 import org.apache.commons.cli.*;
@@ -80,6 +81,13 @@ public class SSTableExport
         return String.format("%s: ", quote(val));
     }
     
+    @Deprecated
+    private static String asStr(byte[] val)
+    {
+        // FIXME: should not interpret as a string
+        return new String(val, FBUtilities.UTF8);
+    }
+    
     private static String serializeColumns(Collection<IColumn> cols, AbstractType comp)
     {
         StringBuilder json = new StringBuilder("[");
@@ -110,7 +118,7 @@ public class SSTableExport
     {
         ColumnFamily cf = row.getColumnFamily();
         AbstractType comparator = cf.getComparator();
-        StringBuilder json = new StringBuilder(asKey(row.getKey().key));
+        StringBuilder json = new StringBuilder(asKey(asStr(row.getKey().key)));
         
         if (cf.isSuper())
         {
@@ -158,7 +166,7 @@ public class SSTableExport
         {
             DecoratedKey decoratedKey = partitioner.convertFromDiskFormat(input.readUTF());
             long dataPosition = input.readLong();
-            outs.println(decoratedKey.key);
+            outs.println(asStr(decoratedKey.key));
         }
 
         outs.flush();
@@ -265,7 +273,7 @@ public class SSTableExport
         while(scanner.hasNext())
         {
             SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
-            if (excludeSet.contains(row.getKey().key))
+            if (excludeSet.contains(asStr(row.getKey().key)))
                 continue;
             try
             {
@@ -278,12 +286,12 @@ public class SSTableExport
             }
             catch (IOException ioexcep)
             {
-                System.err.println("WARNING: Corrupt row " + row.getKey().key + " (skipping).");
+                System.err.println("WARNING: Corrupt row " + asStr(row.getKey().key) + " (skipping).");
                 continue;
             }
             catch (OutOfMemoryError oom)
             {
-                System.err.println("ERROR: Out of memory deserializing row " + row.getKey().key);
+                System.err.println("ERROR: Out of memory deserializing row " + asStr(row.getKey().key));
                 continue;
             }
         }

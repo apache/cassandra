@@ -55,7 +55,8 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
 
     public String convertToDiskFormat(DecoratedKey<BigIntegerToken> key)
     {
-        return key.token + DELIMITER + key.key;
+        // FIXME
+        return key.token + DELIMITER + new String(key.key, FBUtilities.UTF8);
     }
 
     public BigIntegerToken midpoint(BigIntegerToken ltoken, BigIntegerToken rtoken)

@@ -29,6 +29,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.sstable.SSTableWriter;
+import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
 import org.apache.commons.cli.*;
 import org.json.simple.JSONArray;
@@ -75,6 +76,13 @@ public class SSTableImport
         }
     }
 
+    @Deprecated
+    private static String asStr(byte[] val)
+    {
+        // FIXME: should not interpret as a string
+        return new String(val, FBUtilities.UTF8);
+    }
+    
     /**
      * Add columns to a column family.
      * 
@@ -151,9 +159,9 @@ public class SSTableImport
             for (DecoratedKey<?> rowKey : decoratedKeys)
             {
                 if (cfType.equals("Super"))
-                    addToSuperCF((JSONObject)json.get(rowKey.key), cfamily);
+                    addToSuperCF((JSONObject)json.get(asStr(rowKey.key)), cfamily);
                 else
-                    addToStandardCF((JSONArray)json.get(rowKey.key), cfamily);
+                    addToStandardCF((JSONArray)json.get(asStr(rowKey.key)), cfamily);
                            
                 ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
                 writer.append(rowKey, dob);

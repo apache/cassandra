@@ -41,13 +41,7 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
 {
-    private static DecoratedKeySerializer serializer = new DecoratedKeySerializer();
     private static IPartitioner partitioner = StorageService.getPartitioner();
-
-    public static DecoratedKeySerializer serializer()
-    {
-        return serializer;
-    }
 
     public static final Comparator<DecoratedKey> comparator = new Comparator<DecoratedKey>()
     {
@@ -58,9 +52,18 @@ public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
     };
 
     public final T token;
-    public final String key;
+    public final byte[] key;
 
+    @Deprecated
     public DecoratedKey(T token, String key)
+    {
+        super();
+        assert token != null;
+        this.token = token;
+        this.key = key == null ? null : key.getBytes(FBUtilities.UTF8);
+    }
+
+    public DecoratedKey(T token, byte[] key)
     {
         super();
         assert token != null;
@@ -101,20 +104,7 @@ public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
     @Override
     public String toString()
     {
-        return "DecoratedKey(" + token + ", " + key + ")";
-    }
-}
-
-class DecoratedKeySerializer implements ICompactSerializer2<DecoratedKey>
-{
-    public void serialize(DecoratedKey dk, DataOutput dos) throws IOException
-    {
-        Token.serializer().serialize(dk.token, dos);
-        FBUtilities.writeNullableString(dk.key, dos);
-    }
-
-    public DecoratedKey deserialize(DataInput dis) throws IOException
-    {
-        return new DecoratedKey(Token.serializer().deserialize(dis), FBUtilities.readNullableString(dis));
+        String keystring = key == null ? "null" : FBUtilities.bytesToHex(key);
+        return "DecoratedKey(" + token + ", " + keystring + ")";
     }
 }

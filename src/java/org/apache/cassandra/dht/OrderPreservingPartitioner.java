@@ -47,7 +47,8 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
 
     public String convertToDiskFormat(DecoratedKey<StringToken> key)
     {
-        return key.key;
+        // FIXME
+        return new String(key.key, FBUtilities.UTF8);
     }
 
     public StringToken midpoint(StringToken ltoken, StringToken rtoken)

@@ -22,6 +22,7 @@ import java.io.*;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -52,6 +53,19 @@ public class FBUtilities
     public static final BigInteger TWO = new BigInteger("2");
 
     private static volatile InetAddress localInetAddress_;
+
+    public static Charset UTF8;
+    static
+    {
+        try
+        {
+            UTF8 = Charset.forName("UTF-8");
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
 
     public static String[] strip(String string, String token)
     {

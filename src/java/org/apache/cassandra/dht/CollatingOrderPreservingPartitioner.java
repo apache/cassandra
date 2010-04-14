@@ -51,7 +51,8 @@ public class CollatingOrderPreservingPartitioner implements IPartitioner<BytesTo
 
     public String convertToDiskFormat(DecoratedKey<BytesToken> key)
     {
-        return key.key;
+        // FIXME
+        return new String(key.key, FBUtilities.UTF8);
     }
 
     public BytesToken midpoint(BytesToken ltoken, BytesToken rtoken)

@@ -839,8 +839,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private boolean getRangeRows(List<Row> rows, byte[] superColumn, final AbstractBounds range, int maxResults, SliceRange sliceRange, List<byte[]> columnNames)
     throws ExecutionException, InterruptedException
     {
-        final DecoratedKey startWith = new DecoratedKey(range.left, null);
-        final DecoratedKey stopAt = new DecoratedKey(range.right, null);
+        final DecoratedKey startWith = new DecoratedKey(range.left, (byte[])null);
+        final DecoratedKey stopAt = new DecoratedKey(range.right, (byte[])null);
         
         final int gcBefore = CompactionManager.getDefaultGCBefore();
 

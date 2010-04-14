@@ -443,7 +443,7 @@ public class AntiEntropyService
         {
             validated++;
             // MerkleTree uses XOR internally, so we want lots of output bits here
-            byte[] rowhash = FBUtilities.hash("SHA-256", row.key.key.getBytes(), row.buffer.getData());
+            byte[] rowhash = FBUtilities.hash("SHA-256", row.key.key, row.buffer.getData());
             return new MerkleTree.RowHash(row.key.token, rowhash);
         }
 
