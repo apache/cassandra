@@ -7,6 +7,7 @@ dev
  * add ReadRepairChance to CF definition (CASSANDRA-930)
  * fix heisenbug in system tests, especially common on OS X (CASSANDRA-944)
  * convert to byte[] keys internally and all public APIs (CASSANDRA-767)
+ * ability to alter schema definitions on a live cluster (CASSANDRA-44)
 
 
 0.6.1

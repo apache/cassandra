@@ -5,6 +5,14 @@ Configuraton
 ------------
     - The ThriftAddress and ThriftPort directives have been renamed to
       RPCAddress and RPCPort respectively.
+    - The keyspaces defined in storage-conf.xml are ignored on startup as a
+      result of CASSANDRA-44.  A JMX method has been exposed in the 
+      StorageServiceMBean to force a schema load from storage-conf.xml. It
+      is a one-shot affair though and you should conduct it on a seed node
+      before other nodes. Subsequent restarts will load the schema from the 
+      system table and attempts to load the schema from XML will be ignored.  
+      You shoud only have to do this for one node since new nodes will receive
+      schema updates on startup from the seed node you updated manually. 
 
 Thrift API
 ----------
