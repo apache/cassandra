@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Map.Entry;
+import java.util.concurrent.ExecutionException;
 
 import javax.management.*;
 import javax.management.remote.JMXConnector;
@@ -144,6 +145,11 @@ public class NodeProbe
     public void forceTableRepair(String tableName, String... columnFamilies) throws IOException
     {
         ssProxy.forceTableRepair(tableName, columnFamilies);
+    }
+    
+    public void drain() throws IOException, InterruptedException, ExecutionException
+    {
+        ssProxy.drain();	
     }
     
     public Map<Range, List<String>> getRangeToEndPointMap(String tableName)

@@ -3,9 +3,9 @@ Section: misc
 Priority: extra
 Maintainer: Eric Evans <eevans@apache.org>
 Build-Depends: debhelper (>= 5), openjdk-6-jdk (>= 6b11) | java6-sdk, ant (>= 1.7)
-Homepage: http://incubator.apache.org/cassandra/
-Vcs-Git: git://github.com/eevans/cassandra-debian.git
-Vcs-Browser: http://github.com/eevans/cassandra-debian/tree
+Homepage: http://cassandra.apache.org
+Vcs-Svn: https://svn.apache.org/repos/asf/cassandra/trunk
+Vcs-Browser: http://svn.apache.org/viewvc/cassandra/trunk
 Standards-Version: 3.8.3
 
 Package: cassandra
