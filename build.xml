@@ -363,7 +363,7 @@
     <echo message="running tests"/>
     <mkdir dir="${build.test.dir}/cassandra"/>
     <mkdir dir="${build.test.dir}/output"/>
-    <junit fork="on" failureproperty="testfailed">
+    <junit fork="on" failureproperty="testfailed" maxmemory="1024m">
       <sysproperty key="net.sourceforge.cobertura.datafile" file="${cobertura.datafile}"/>
       <formatter type="xml" usefile="true"/>
       <formatter type="brief" usefile="false"/>
