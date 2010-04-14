@@ -18,6 +18,7 @@
    a supercolumn in a row that had been deleted previously (CASSANDRA-920)
  * fix index scans that cross the 2GB mmap boundaries for both mmap
    and standard i/o modes (CASSANDRA-866)
+ * expose drain via nodetool (CASSANDRA-978)
 
 
 0.6.0-RC1

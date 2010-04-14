@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Map.Entry;
+import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
 import org.apache.cassandra.concurrent.IExecutorMBean;
@@ -76,7 +77,7 @@ public class NodeCmd {
         HelpFormatter hf = new HelpFormatter();
         String header = String.format(
                 "%nAvailable commands: ring, info, cleanup, compact, cfstats, snapshot [snapshotname], clearsnapshot, " +
-                "tpstats, flush, repair, decommission, move, loadbalance, removetoken, " +
+                "tpstats, flush, drain, repair, decommission, move, loadbalance, removetoken, " +
                 "setcachecapacity <keyspace> <cfname> <keycachecapacity> <rowcachecapacity>, " +
                 "getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold])" +
                 "streams [host]");
@@ -501,6 +502,18 @@ public class NodeCmd {
                 probe.forceTableFlush(cmd.getArgs()[1], columnFamilies);
             else // cmdName.equals("repair")
                 probe.forceTableRepair(cmd.getArgs()[1], columnFamilies);
+        }
+        else if (cmdName.equals("drain"))
+        {
+            try 
+            {
+                probe.drain();
+            } catch (ExecutionException ee) 
+            {
+                System.err.println("Error occured during flushing");
+                ee.printStackTrace();
+                System.exit(3);
+            }    	
         }
         else if (cmdName.equals("setcachecapacity"))
         {
