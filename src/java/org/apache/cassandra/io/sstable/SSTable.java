@@ -232,7 +232,7 @@ public abstract class SSTable
     public static class Descriptor
     {
         public static final String LEGACY_VERSION = "a";
-        public static final String CURRENT_VERSION = "b";
+        public static final String CURRENT_VERSION = "c";
 
         public final File directory;
         public final String version;
@@ -342,6 +342,14 @@ public abstract class SSTable
                 if (!Character.isLetter(ch) || !Character.isLowerCase(ch))
                     return false;
             return true;
+        }
+
+        /**
+         * @return Compares the version for this descriptor to the given version.
+         */
+        public int versionCompareTo(String ver)
+        {
+            return version.compareTo(ver);
         }
 
         @Override

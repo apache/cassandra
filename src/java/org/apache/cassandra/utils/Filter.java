@@ -34,22 +34,16 @@ public abstract class Filter
         return hashCount;
     }
 
-    public int[] getHashBuckets(String key)
-    {
-        return Filter.getHashBuckets(key, hashCount, buckets());
-    }
-
     public int[] getHashBuckets(byte[] key)
     {
         return Filter.getHashBuckets(key, hashCount, buckets());
     }
 
-
     abstract int buckets();
 
-    public abstract void add(String key);
+    public abstract void add(byte[] key);
 
-    public abstract boolean isPresent(String key);
+    public abstract boolean isPresent(byte[] key);
 
     // for testing
     abstract int emptyBuckets();
@@ -73,20 +67,6 @@ public abstract class Filter
     // http://www.eecs.harvard.edu/~kirsch/pubs/bbbf/esa06.pdf
     // does prove to work in actual tests, and is obviously faster
     // than performing further iterations of murmur.
-    static int[] getHashBuckets(String key, int hashCount, int max)
-    {
-        byte[] b;
-        try
-        {
-            b = key.getBytes("UTF-16");
-        }
-        catch (UnsupportedEncodingException e)
-        {
-            throw new RuntimeException(e);
-        }
-        return getHashBuckets(b, hashCount, max);
-    }
-
     static int[] getHashBuckets(byte[] b, int hashCount, int max)
     {
         int[] result = new int[hashCount];

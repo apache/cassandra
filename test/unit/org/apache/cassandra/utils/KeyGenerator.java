@@ -22,15 +22,13 @@ import java.io.*;
 import java.util.Random;
 
 public class KeyGenerator {
-    private static String randomKey(Random r) {
-        StringBuilder buffer = new StringBuilder();
-        for (int j = 0; j < 16; j++) {
-            buffer.append((char)r.nextInt());
-        }
-        return buffer.toString();
+    private static byte[] randomKey(Random r) {
+        byte[] bytes = new byte[48];
+        r.nextBytes(bytes);
+        return bytes;
     }
 
-    static class RandomStringGenerator implements ResetableIterator<String> {
+    static class RandomStringGenerator implements ResetableIterator<byte[]> {
         int i, n, seed;
         Random random;
 
@@ -53,7 +51,7 @@ public class KeyGenerator {
             return i < n;
         }
 
-        public String next() {
+        public byte[] next() {
             i++;
             return randomKey(random);
         }
@@ -63,7 +61,7 @@ public class KeyGenerator {
         }
     }
 
-    static class IntGenerator implements ResetableIterator<String> {
+    static class IntGenerator implements ResetableIterator<byte[]> {
         private int i, start, n;
 
         IntGenerator(int n) {
@@ -88,8 +86,8 @@ public class KeyGenerator {
             return i < n;
         }
 
-        public String next() {
-            return Integer.toString(i++);
+        public byte[] next() {
+            return Integer.toString(i++).getBytes();
         }
 
         public void remove() {
@@ -97,7 +95,7 @@ public class KeyGenerator {
         }
     }
 
-    static class WordGenerator implements ResetableIterator<String> {
+    static class WordGenerator implements ResetableIterator<byte[]> {
         static int WORDS;
 
         static {
@@ -115,7 +113,7 @@ public class KeyGenerator {
         BufferedReader reader;
         private int modulo;
         private int skip;
-        String next;
+        byte[] next;
 
         WordGenerator(int skip, int modulo) {
             this.skip = skip;
@@ -147,11 +145,12 @@ public class KeyGenerator {
             return next != null;
         }
 
-        public String next() {
+        public byte[] next() {
             try {
-                String s = next;
+                byte[] s = next;
                 for (int i = 0; i < modulo; i++) {
-                    next = reader.readLine();
+                    String line = reader.readLine();
+                    next = line == null ? null : line.getBytes();
                 }
                 return s;
             } catch (IOException e) {

@@ -121,8 +121,17 @@ class RowIndexedReader extends SSTableReader
     public static RowIndexedReader open(Descriptor desc, IPartitioner partitioner) throws IOException
     {
         RowIndexedReader sstable = new RowIndexedReader(desc, partitioner);
-        sstable.loadIndexFile();
-        sstable.loadBloomFilter();
+
+        if (desc.versionCompareTo("c") < 0)
+        {
+            // versions before 'c' encoded keys as utf-16 before hashing to the filter
+            sstable.loadIndexFile(true);
+        }
+        else
+        {
+            sstable.loadIndexFile(false);
+            sstable.loadBloomFilter();
+        }
 
         return sstable;
     }
@@ -156,13 +165,22 @@ class RowIndexedReader extends SSTableReader
         }
     }
 
-    void loadIndexFile() throws IOException
+    /**
+     * @param recreatebloom If true, rebuild the bloom filter based on keys from the index.
+     */
+    void loadIndexFile(boolean recreatebloom) throws IOException
     {
+
         // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
         // any entries that do, we force into the in-memory sample so key lookup can always bsearch within
         // a single mmapped segment.
         indexSummary = new IndexSummary();
         BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(), "r");
+        if (recreatebloom)
+        {
+            // estimate key count based on index length
+            bf = BloomFilter.getFilter((int)(input.length() / 32), 15);
+        }
         try
         {
             long indexSize = input.length();
@@ -174,6 +192,10 @@ class RowIndexedReader extends SSTableReader
                     break;
                 }
                 DecoratedKey decoratedKey = partitioner.convertFromDiskFormat(FBUtilities.readShortByteArray(input));
+                if (recreatebloom)
+                {
+                    bf.add(decoratedKey.key);
+                }
                 long dataPosition = input.readLong();
                 long nextIndexPosition = input.getFilePointer();
                 // read the next index entry to see how big the row is
@@ -231,8 +253,7 @@ class RowIndexedReader extends SSTableReader
     public PositionSize getPosition(DecoratedKey decoratedKey)
     {
         // first, check bloom filter
-        // FIXME: expecting utf8
-        if (!bf.isPresent(new String(partitioner.convertToDiskFormat(decoratedKey), FBUtilities.UTF8)))
+        if (!bf.isPresent(partitioner.convertToDiskFormat(decoratedKey)))
             return null;
 
         // next, the key cache

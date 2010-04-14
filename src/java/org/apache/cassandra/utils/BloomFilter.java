@@ -116,18 +116,6 @@ public class BloomFilter extends Filter
         return filter_;
     }
 
-    public boolean isPresent(String key)
-    {
-        for (int bucketIndex : getHashBuckets(key))
-        {
-            if (!filter_.get(bucketIndex))
-            {
-                return false;
-            }
-        }
-        return true;
-    }
-
     public boolean isPresent(byte[] key)
     {
         for (int bucketIndex : getHashBuckets(key))
@@ -145,14 +133,6 @@ public class BloomFilter extends Filter
      the filter_.
      This is a general purpose API.
      */
-    public void add(String key)
-    {
-        for (int bucketIndex : getHashBuckets(key))
-        {
-            filter_.set(bucketIndex);
-        }
-    }
-
     public void add(byte[] key)
     {
         for (int bucketIndex : getHashBuckets(key))

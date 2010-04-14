@@ -36,6 +36,7 @@ import org.apache.cassandra.io.util.FileDataInput;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.AbstractIterator;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  *  A Column Iterator over SSTable
@@ -72,7 +73,7 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements IColumnI
                 return;
             try
             {
-                DecoratedKey keyInDisk = ssTable.getPartitioner().convertFromDiskFormat(file.readUTF());
+                DecoratedKey keyInDisk = ssTable.getPartitioner().convertFromDiskFormat(FBUtilities.readShortByteArray(file));
                 assert keyInDisk.equals(decoratedKey)
                        : String.format("%s != %s in %s", keyInDisk, decoratedKey, file.getPath());
                 file.readInt(); // row size
