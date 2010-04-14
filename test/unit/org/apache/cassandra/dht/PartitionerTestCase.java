@@ -27,7 +27,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.DecoratedKey;
 
-public abstract class PartitionerTestCase<T extends Token> {
+public abstract class PartitionerTestCase<T extends Token>
+{
     protected IPartitioner<T> partitioner;
 
     public abstract void initPartitioner();
@@ -38,9 +39,14 @@ public abstract class PartitionerTestCase<T extends Token> {
         initPartitioner();
     }
 
-    public T tok(String string)
+    public T tok(byte... key)
     {
-        return partitioner.getToken(string.getBytes());
+        return partitioner.getToken(key);
+    }
+
+    public T tok(String key)
+    {
+        return tok(key.getBytes());
     }
 
     /**

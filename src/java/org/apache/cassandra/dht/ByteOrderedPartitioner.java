@@ -31,15 +31,12 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
-public class CollatingOrderPreservingPartitioner extends AbstractByteOrderedPartitioner
+public class ByteOrderedPartitioner extends AbstractByteOrderedPartitioner
 {
-    static final Collator collator = Collator.getInstance(new Locale("en", "US"));
-
     public BytesToken getToken(byte[] key)
     {
         if (key.length == 0)
             return MINIMUM;
-        String skey = new String(key, FBUtilities.UTF8);
-        return new BytesToken(collator.getCollationKey(skey).toByteArray());
+        return new BytesToken(key);
     }
 }
