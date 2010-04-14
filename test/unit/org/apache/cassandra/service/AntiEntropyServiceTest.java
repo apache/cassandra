@@ -145,11 +145,11 @@ public class AntiEntropyServiceTest extends CleanupHelper
         validator.prepare();
 
         // add a row with the minimum token
-        validator.add(new CompactedRow(new DecoratedKey(min, "nonsense!"),
+        validator.add(new CompactedRow(new DecoratedKey(min, "nonsense!".getBytes(FBUtilities.UTF8)),
                                        new DataOutputBuffer()));
 
         // and a row after it
-        validator.add(new CompactedRow(new DecoratedKey(mid, "inconceivable!"),
+        validator.add(new CompactedRow(new DecoratedKey(mid, "inconceivable!".getBytes(FBUtilities.UTF8)),
                                        new DataOutputBuffer()));
         validator.complete();
 

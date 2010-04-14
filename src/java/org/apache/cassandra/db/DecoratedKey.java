@@ -18,15 +18,10 @@
 
 package org.apache.cassandra.db;
 
-import java.io.DataOutput;
-import java.io.IOException;
-import java.io.DataInput;
 import java.util.Comparator;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.ICompactSerializer2;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -53,15 +48,6 @@ public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
 
     public final T token;
     public final byte[] key;
-
-    @Deprecated
-    public DecoratedKey(T token, String key)
-    {
-        super();
-        assert token != null;
-        this.token = token;
-        this.key = key == null ? null : key.getBytes(FBUtilities.UTF8);
-    }
 
     public DecoratedKey(T token, byte[] key)
     {

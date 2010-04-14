@@ -23,7 +23,6 @@ package org.apache.cassandra.db.filter;
 
 import org.apache.commons.lang.ArrayUtils;
 
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SuperColumn;
 
 class IdentityQueryFilter extends SliceQueryFilter

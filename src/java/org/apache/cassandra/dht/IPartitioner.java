@@ -66,7 +66,6 @@ public interface IPartitioner<T extends Token>
      * (This is NOT a method to create a Token from its string representation;
      * for that, use TokenFactory.fromString.)
      */
-    @Deprecated
     public T getToken(byte[] key);
 
     /**

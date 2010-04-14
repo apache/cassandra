@@ -19,20 +19,14 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
 import org.junit.Test;
-import static org.junit.Assert.*;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.FBUtilities;
-
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
 
 public class SSTableTest extends CleanupHelper
 {

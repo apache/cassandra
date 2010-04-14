@@ -18,19 +18,6 @@
 
 package org.apache.cassandra.dht;
 
-import java.math.BigInteger;
-import java.text.Collator;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Locale;
-import java.util.Random;
-
-import org.apache.commons.lang.ArrayUtils;
-
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
-
 public class ByteOrderedPartitioner extends AbstractByteOrderedPartitioner
 {
     public BytesToken getToken(byte[] key)

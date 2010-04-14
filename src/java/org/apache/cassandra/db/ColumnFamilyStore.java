@@ -862,8 +862,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         try
         {
             // pull rows out of the iterator
-            boolean first = true;
-            IPartitioner partitioner = StorageService.getPartitioner(); 
+            boolean first = true; 
             while(iterator.hasNext())
             {
                 Row current = iterator.next();

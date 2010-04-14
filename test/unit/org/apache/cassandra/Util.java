@@ -98,11 +98,6 @@ public class Util
         store.forceBlockingFlush();
         return store;
     }
-    
-    public static ColumnFamily getColumnFamily(Table table, String key, String cfName) throws IOException
-    {
-        return getColumnFamily(table, dk(key), cfName);
-    }
 
     public static ColumnFamily getColumnFamily(Table table, DecoratedKey key, String cfName) throws IOException
     {

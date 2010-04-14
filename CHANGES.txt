@@ -6,6 +6,7 @@ dev
  * access levels for authentication/authorization (CASSANDRA-900)
  * add ReadRepairChance to CF definition (CASSANDRA-930)
  * fix heisenbug in system tests, especially common on OS X (CASSANDRA-944)
+ * convert to byte[] keys internally and all public APIs (CASSANDRA-767)
 
 
 0.6.1
