@@ -39,6 +39,7 @@
     <property name="test.resources" value="${test.dir}/resources"/>
     <property name="test.classes" value="${build.dir}/test/classes"/>
     <property name="test.conf" value="${test.dir}/conf"/>
+    <property name="test.data" value="${test.dir}/data"/>
     <property name="test.name" value="*Test"/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
@@ -369,6 +370,7 @@
       <formatter type="brief" usefile="false"/>
       <jvmarg value="-Dstorage-config=${test.conf}"/>
       <jvmarg value="-Dlog4j.configuration=log4j-junit.properties" />
+      <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-ea"/>
       <classpath>
         <path refid="cassandra.classpath" />

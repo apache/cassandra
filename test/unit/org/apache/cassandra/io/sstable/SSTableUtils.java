@@ -38,13 +38,8 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 public class SSTableUtils
 {
     // first configured table and cf
-    public static String TABLENAME;
-    public static String CFNAME;
-    static
-    {
-        TABLENAME = DatabaseDescriptor.getTables().iterator().next();
-        CFNAME = Table.open(TABLENAME).getColumnFamilies().iterator().next();
-    }
+    public static String TABLENAME = "Keyspace1";
+    public static String CFNAME = "Standard1";
 
     public static ColumnFamily createCF(long mfda, int ldt, IColumn... cols)
     {
@@ -97,13 +92,26 @@ public class SSTableUtils
 
     public static SSTableReader writeRawSSTable(String tablename, String cfname, SortedMap<String, byte[]> entries) throws IOException
     {
-        File f = tempSSTableFile(tablename, cfname);
-        SSTableWriter writer = new SSTableWriter(f.getAbsolutePath(), entries.size(), StorageService.getPartitioner());
+        return writeRawSSTable(null, tablename, cfname, entries);
+    }
+
+    public static SSTableReader writeRawSSTable(File datafile, String tablename, String cfname, SortedMap<String, byte[]> entries) throws IOException
+    {
+        boolean temporary = false;
+        if (datafile == null)
+        {
+            datafile = tempSSTableFile(tablename, cfname);
+            temporary = true;
+        }
+        SSTableWriter writer = new SSTableWriter(datafile.getAbsolutePath(), entries.size(), StorageService.getPartitioner());
         for (Map.Entry<String, byte[]> entry : entries.entrySet())
             writer.append(writer.partitioner.decorateKey(entry.getKey()),
                           entry.getValue());
-        new File(writer.indexFilename()).deleteOnExit();
-        new File(writer.filterFilename()).deleteOnExit();
+        if (temporary)
+        {
+            new File(writer.indexFilename()).deleteOnExit();
+            new File(writer.filterFilename()).deleteOnExit();
+        }
         return writer.closeAndOpenReader();
     }
 }
