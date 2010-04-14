@@ -132,18 +132,13 @@ public class Column implements IColumn
     {
         /*
          * Size of a column is =
-         *   size of a name (UtfPrefix + length of the string)
+         *   size of a name (short + length of the string)
          * + 1 byte to indicate if the column has been deleted
          * + 8 bytes for timestamp
          * + 4 bytes which basically indicates the size of the byte array
          * + entire byte array.
         */
-
-        /*
-           * We store the string as UTF-8 encoded, so when we calculate the length, it
-           * should be converted to UTF-8.
-           */
-        return IColumn.UtfPrefix_ + name.length + DBConstants.boolSize_ + DBConstants.tsSize_ + DBConstants.intSize_ + value.length;
+        return DBConstants.shortSize_ + name.length + DBConstants.boolSize_ + DBConstants.tsSize_ + DBConstants.intSize_ + value.length;
     }
 
     /*

@@ -28,37 +28,9 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class ColumnSerializer implements ICompactSerializer2<IColumn>
 {
-    public static void writeName(byte[] name, DataOutput out)
-    {
-        int length = name.length;
-        assert 0 <= length && length <= IColumn.MAX_NAME_LENGTH;
-        try
-        {
-            out.writeByte((length >> 8) & 0xFF);
-            out.writeByte(length & 0xFF);
-            out.write(name);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static byte[] readName(DataInput in) throws IOException
-    {
-        int length = 0;
-        length |= (in.readByte() & 0xFF) << 8;
-        length |= in.readByte() & 0xFF;
-        if (!(0 <= length && length <= IColumn.MAX_NAME_LENGTH))
-            throw new IOException("Corrupt name length " + length);
-        byte[] bytes = new byte[length];
-        in.readFully(bytes);
-        return bytes;
-    }
-
     public void serialize(IColumn column, DataOutput dos)
     {
-        ColumnSerializer.writeName(column.name(), dos);
+        FBUtilities.writeShortByteArray(column.name(), dos);
         try
         {
             dos.writeBoolean(column.isMarkedForDelete());
@@ -73,7 +45,7 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
 
     public Column deserialize(DataInput dis) throws IOException
     {
-        byte[] name = ColumnSerializer.readName(dis);
+        byte[] name = FBUtilities.readShortByteArray(dis);
         boolean delete = dis.readBoolean();
         long ts = dis.readLong();
         int length = dis.readInt();

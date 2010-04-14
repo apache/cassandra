@@ -54,6 +54,8 @@ public class FBUtilities
 
     private static volatile InetAddress localInetAddress_;
 
+    public static final int MAX_UNSIGNED_SHORT = 0xFFFF;
+
     public static Charset UTF8;
     static
     {
@@ -305,6 +307,34 @@ public class FBUtilities
     {
         out.writeInt(bytes.length);
         out.write(bytes);
+    }
+
+    public static void writeShortByteArray(byte[] name, DataOutput out)
+    {
+        int length = name.length;
+        assert 0 <= length && length <= MAX_UNSIGNED_SHORT;
+        try
+        {
+            out.writeByte((length >> 8) & 0xFF);
+            out.writeByte(length & 0xFF);
+            out.write(name);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static byte[] readShortByteArray(DataInput in) throws IOException
+    {
+        int length = 0;
+        length |= (in.readByte() & 0xFF) << 8;
+        length |= in.readByte() & 0xFF;
+        if (!(0 <= length && length <= MAX_UNSIGNED_SHORT))
+            throw new IOException("Corrupt name length " + length);
+        byte[] bytes = new byte[length];
+        in.readFully(bytes);
+        return bytes;
     }
 
     public static byte[] hexToBytes(String str)

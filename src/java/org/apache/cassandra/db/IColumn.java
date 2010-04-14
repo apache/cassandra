@@ -22,11 +22,11 @@ import java.util.Collection;
 import java.security.MessageDigest;
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.utils.FBUtilities;
 
 public interface IColumn
 {
-    public static short UtfPrefix_ = 2;
-    public static final int MAX_NAME_LENGTH = 0xFFFF; // we use 2 bytes to hold length
+    public static final int MAX_NAME_LENGTH = FBUtilities.MAX_UNSIGNED_SHORT;
 
     public boolean isMarkedForDelete();
     public long getMarkedForDeleteAt();

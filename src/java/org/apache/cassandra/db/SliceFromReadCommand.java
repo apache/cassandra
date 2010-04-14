@@ -26,6 +26,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.utils.ByteArrayListSerializer;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class SliceFromReadCommand extends ReadCommand
 {
@@ -116,8 +117,8 @@ class SliceFromReadCommandSerializer extends ReadCommandSerializer
         dos.writeUTF(realRM.table);
         dos.writeUTF(realRM.key);
         realRM.queryPath.serialize(dos);
-        ColumnSerializer.writeName(realRM.start, dos);
-        ColumnSerializer.writeName(realRM.finish, dos);
+        FBUtilities.writeShortByteArray(realRM.start, dos);
+        FBUtilities.writeShortByteArray(realRM.finish, dos);
         ByteArrayListSerializer.serialize(realRM.bitmasks, dos);
         dos.writeBoolean(realRM.reversed);
         dos.writeInt(realRM.count);
@@ -130,8 +131,8 @@ class SliceFromReadCommandSerializer extends ReadCommandSerializer
         SliceFromReadCommand rm = new SliceFromReadCommand(dis.readUTF(),
                                                            dis.readUTF(),
                                                            QueryPath.deserialize(dis),
-                                                           ColumnSerializer.readName(dis),
-                                                           ColumnSerializer.readName(dis),
+                                                           FBUtilities.readShortByteArray(dis),
+                                                           FBUtilities.readShortByteArray(dis),
                                                            ByteArrayListSerializer.deserialize(dis),
                                                            dis.readBoolean(), 
                                                            dis.readInt());

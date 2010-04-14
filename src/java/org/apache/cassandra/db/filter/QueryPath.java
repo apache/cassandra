@@ -30,6 +30,7 @@ import org.apache.commons.lang.ArrayUtils;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.ColumnPath;
 import org.apache.cassandra.db.ColumnSerializer;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class QueryPath
 {
@@ -85,15 +86,15 @@ public class QueryPath
         assert superColumnName == null || superColumnName.length > 0;
         assert columnName == null || columnName.length > 0;
         dos.writeUTF(columnFamilyName == null ? "" : columnFamilyName);
-        ColumnSerializer.writeName(superColumnName == null ? ArrayUtils.EMPTY_BYTE_ARRAY : superColumnName, dos);
-        ColumnSerializer.writeName(columnName == null ? ArrayUtils.EMPTY_BYTE_ARRAY : columnName, dos);
+        FBUtilities.writeShortByteArray(superColumnName == null ? ArrayUtils.EMPTY_BYTE_ARRAY : superColumnName, dos);
+        FBUtilities.writeShortByteArray(columnName == null ? ArrayUtils.EMPTY_BYTE_ARRAY : columnName, dos);
     }
 
     public static QueryPath deserialize(DataInputStream din) throws IOException
     {
         String cfName = din.readUTF();
-        byte[] scName = ColumnSerializer.readName(din);
-        byte[] cName = ColumnSerializer.readName(din);
+        byte[] scName = FBUtilities.readShortByteArray(din);
+        byte[] cName = FBUtilities.readShortByteArray(din);
         return new QueryPath(cfName.isEmpty() ? null : cfName, scName.length == 0 ? null : scName, cName.length == 0 ? null : cName);
     }
 }

@@ -125,7 +125,7 @@ public class SuperColumn implements IColumn, IColumnContainer
     	 * We need to keep the way we are calculating the column size in sync with the
     	 * way we are calculating the size for the column family serializer.
     	 */
-    	return IColumn.UtfPrefix_ + name_.length + DBConstants.intSize_ + DBConstants.longSize_ + DBConstants.intSize_ + size();
+    	return DBConstants.shortSize_ + name_.length + DBConstants.intSize_ + DBConstants.longSize_ + DBConstants.intSize_ + size();
     }
 
     public void remove(byte[] columnName)
@@ -299,7 +299,7 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
     public void serialize(IColumn column, DataOutput dos)
     {
     	SuperColumn superColumn = (SuperColumn)column;
-        ColumnSerializer.writeName(column.name(), dos);
+        FBUtilities.writeShortByteArray(column.name(), dos);
         try
         {
             dos.writeInt(superColumn.getLocalDeletionTime());
@@ -320,7 +320,7 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
 
     public IColumn deserialize(DataInput dis) throws IOException
     {
-        byte[] name = ColumnSerializer.readName(dis);
+        byte[] name = FBUtilities.readShortByteArray(dis);
         SuperColumn superColumn = new SuperColumn(name, comparator);
         int localDeleteTime = dis.readInt();
         if (localDeleteTime != Integer.MIN_VALUE && localDeleteTime <= 0)

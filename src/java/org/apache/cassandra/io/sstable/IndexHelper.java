@@ -21,11 +21,10 @@ package org.apache.cassandra.io.sstable;
 import java.io.*;
 import java.util.*;
 
-import org.apache.cassandra.db.ColumnSerializer;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.BloomFilter;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.io.util.FileDataInput;
-
 
 /**
  * Provides helper to serialize, deserialize and use column indexes.
@@ -138,8 +137,8 @@ public class IndexHelper
 
         public void serialize(DataOutput dos) throws IOException
         {
-            ColumnSerializer.writeName(firstName, dos);
-            ColumnSerializer.writeName(lastName, dos);
+            FBUtilities.writeShortByteArray(firstName, dos);
+            FBUtilities.writeShortByteArray(lastName, dos);
             dos.writeLong(offset);
             dos.writeLong(width);
         }
@@ -151,7 +150,7 @@ public class IndexHelper
 
         public static IndexInfo deserialize(FileDataInput dis) throws IOException
         {
-            return new IndexInfo(ColumnSerializer.readName(dis), ColumnSerializer.readName(dis), dis.readLong(), dis.readLong());
+            return new IndexInfo(FBUtilities.readShortByteArray(dis), FBUtilities.readShortByteArray(dis), dis.readLong(), dis.readLong());
         }
     }
 }
