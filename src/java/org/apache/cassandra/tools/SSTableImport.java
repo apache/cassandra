@@ -31,7 +31,6 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
-import static org.apache.cassandra.utils.FBUtilities.UTF8;
 import org.apache.commons.cli.*;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -77,13 +76,6 @@ public class SSTableImport
         }
     }
 
-    @Deprecated
-    private static String asStr(byte[] val)
-    {
-        // FIXME: should not interpret as a string
-        return new String(val, FBUtilities.UTF8);
-    }
-    
     /**
      * Add columns to a column family.
      * 
@@ -151,22 +143,21 @@ public class SSTableImport
             JSONObject json = (JSONObject)JSONValue.parseWithException(new FileReader(jsonFile));
             
             SSTableWriter writer = new SSTableWriter(ssTablePath, json.size(), partitioner);
-            List<DecoratedKey<?>> decoratedKeys = new ArrayList<DecoratedKey<?>>();
+            SortedMap<DecoratedKey,String> decoratedKeys = new TreeMap<DecoratedKey,String>();
             
+            // sort by dk representation, but hold onto the hex version
             for (String key : (Set<String>)json.keySet())
-                // FIXME: assuming string keys
-                decoratedKeys.add(partitioner.decorateKey(key.getBytes(UTF8)));
-            Collections.sort(decoratedKeys);
+                decoratedKeys.put(partitioner.decorateKey(hexToBytes(key)), key);
 
-            for (DecoratedKey<?> rowKey : decoratedKeys)
+            for (Map.Entry<DecoratedKey, String> rowKey : decoratedKeys.entrySet())
             {
                 if (cfType.equals("Super"))
-                    addToSuperCF((JSONObject)json.get(asStr(rowKey.key)), cfamily);
+                    addToSuperCF((JSONObject)json.get(rowKey.getValue()), cfamily);
                 else
-                    addToStandardCF((JSONArray)json.get(asStr(rowKey.key)), cfamily);
+                    addToStandardCF((JSONArray)json.get(rowKey.getValue()), cfamily);
                            
                 ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
-                writer.append(rowKey, dob);
+                writer.append(rowKey.getKey(), dob);
                 dob.reset();
                 cfamily.clear();
             }

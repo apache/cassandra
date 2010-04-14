@@ -35,6 +35,7 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import static org.apache.cassandra.io.sstable.SSTableUtils.tempSSTableFile;
+import static org.apache.cassandra.utils.FBUtilities.bytesToHex;
 import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
 import static org.junit.Assert.assertTrue;
 
@@ -48,6 +49,11 @@ import org.junit.Test;
 
 public class SSTableExportTest extends SchemaLoader
 {
+    public String asHex(String str)
+    {
+        return bytesToHex(str.getBytes());
+    }
+
     @Test
     public void testEnumeratekeys() throws IOException
     {
@@ -84,8 +90,7 @@ public class SSTableExportTest extends SchemaLoader
         String output = new String(buf);
 
         String sep = System.getProperty("line.separator");
-        // FIXME: string keys
-        assert output.equals("rowA" + sep + "rowB" + sep) : output;
+        assert output.equals(asHex("rowA") + sep + asHex("rowB") + sep) : output;
     }
 
     @Test
@@ -121,20 +126,19 @@ public class SSTableExportTest extends SchemaLoader
         
         // Export to JSON and verify
         File tempJson = File.createTempFile("Standard1", ".json");
-        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[]{"rowExclude"});
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[]{asHex("rowExclude")});
         
         JSONObject json = (JSONObject)JSONValue.parse(new FileReader(tempJson));
         
-        // FIXME: string keys
-        JSONArray rowA = (JSONArray)json.get("rowA");
+        JSONArray rowA = (JSONArray)json.get(asHex("rowA"));
         JSONArray colA = (JSONArray)rowA.get(0);
         assert Arrays.equals(hexToBytes((String)colA.get(1)), "valA".getBytes());
         
-        JSONArray rowB = (JSONArray)json.get("rowB");
+        JSONArray rowB = (JSONArray)json.get(asHex("rowB"));
         JSONArray colB = (JSONArray)rowB.get(0);
         assert !(Boolean)colB.get(3);
 
-        JSONArray rowExclude = (JSONArray)json.get("rowExclude");
+        JSONArray rowExclude = (JSONArray)json.get(asHex("rowExclude"));
         assert rowExclude == null;
     }
 
@@ -172,15 +176,15 @@ public class SSTableExportTest extends SchemaLoader
         
         // Export to JSON and verify
         File tempJson = File.createTempFile("Super4", ".json");
-        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[]{"rowExclude"});
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[]{asHex("rowExclude")});
         
         JSONObject json = (JSONObject)JSONValue.parse(new FileReader(tempJson));
         
-        JSONObject rowA = (JSONObject)json.get("rowA");
+        JSONObject rowA = (JSONObject)json.get(asHex("rowA"));
         JSONObject superA = (JSONObject)rowA.get(cfamily.getComparator().getString("superA".getBytes()));
         JSONArray subColumns = (JSONArray)superA.get("subColumns");
         JSONArray colA = (JSONArray)subColumns.get(0);
-        JSONObject rowExclude = (JSONObject)json.get("rowExclude");
+        JSONObject rowExclude = (JSONObject)json.get(asHex("rowExclude"));
         assert Arrays.equals(hexToBytes((String)colA.get(1)), "valA".getBytes());
         assert !(Boolean)colA.get(3);
         assert rowExclude == null;
@@ -213,7 +217,7 @@ public class SSTableExportTest extends SchemaLoader
         
         // Export to JSON and verify
         File tempJson = File.createTempFile("Standard1", ".json");
-        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[]{"rowExclude"});
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[]{asHex("rowExclude")});
         
         // Import JSON to another SSTable file
         File tempSS2 = tempSSTableFile("Keyspace1", "Standard1");

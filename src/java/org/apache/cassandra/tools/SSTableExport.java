@@ -38,7 +38,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.FBUtilities.bytesToHex;
-import static org.apache.cassandra.utils.FBUtilities.UTF8;
+import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
 import org.apache.commons.cli.*;
 
 /**
@@ -82,13 +82,6 @@ public class SSTableExport
         return String.format("%s: ", quote(val));
     }
     
-    @Deprecated
-    private static String asStr(byte[] val)
-    {
-        // FIXME: should not interpret as a string
-        return new String(val, FBUtilities.UTF8);
-    }
-    
     private static String serializeColumns(Collection<IColumn> cols, AbstractType comp)
     {
         StringBuilder json = new StringBuilder("[");
@@ -119,7 +112,7 @@ public class SSTableExport
     {
         ColumnFamily cf = row.getColumnFamily();
         AbstractType comparator = cf.getComparator();
-        StringBuilder json = new StringBuilder(asKey(asStr(row.getKey().key)));
+        StringBuilder json = new StringBuilder(asKey(bytesToHex(row.getKey().key)));
         
         if (cf.isSuper())
         {
@@ -167,7 +160,7 @@ public class SSTableExport
         {
             DecoratedKey decoratedKey = partitioner.convertFromDiskFormat(FBUtilities.readShortByteArray(input));
             long dataPosition = input.readLong();
-            outs.println(asStr(decoratedKey.key));
+            outs.println(bytesToHex(decoratedKey.key));
         }
 
         outs.flush();
@@ -213,8 +206,7 @@ public class SSTableExport
         {
             if (excludeSet.contains(key))
                 continue;
-            // FIXME: assuming string keys
-            DecoratedKey<?> dk = partitioner.decorateKey(key.getBytes(UTF8));
+            DecoratedKey<?> dk = partitioner.decorateKey(hexToBytes(key));
             scanner.seekTo(dk);
             
             i++;
@@ -275,7 +267,7 @@ public class SSTableExport
         while(scanner.hasNext())
         {
             SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
-            if (excludeSet.contains(asStr(row.getKey().key)))
+            if (excludeSet.contains(bytesToHex(row.getKey().key)))
                 continue;
             try
             {
@@ -288,12 +280,12 @@ public class SSTableExport
             }
             catch (IOException ioexcep)
             {
-                System.err.println("WARNING: Corrupt row " + asStr(row.getKey().key) + " (skipping).");
+                System.err.println("WARNING: Corrupt row " + bytesToHex(row.getKey().key) + " (skipping).");
                 continue;
             }
             catch (OutOfMemoryError oom)
             {
-                System.err.println("ERROR: Out of memory deserializing row " + asStr(row.getKey().key));
+                System.err.println("ERROR: Out of memory deserializing row " + bytesToHex(row.getKey().key));
                 continue;
             }
         }
