@@ -51,7 +51,7 @@ public class ClientOnlyExample
         final AbstractType comp = ColumnFamily.getComparatorFor("Keyspace1", "Standard1", null);
         for (int i = 0; i < 100; i++)
         {
-            RowMutation change = new RowMutation("Keyspace1", "key" + i);
+            RowMutation change = new RowMutation("Keyspace1", ("key" + i).getBytes());
             ColumnPath cp = new ColumnPath("Standard1").setColumn(("colb").getBytes());
             change.add(new QueryPath(cp), ("value" + i).getBytes(), 0);
 
@@ -95,7 +95,7 @@ public class ClientOnlyExample
         for (int i = 0; i < 100; i++)
         {
             List<ReadCommand> commands = new ArrayList<ReadCommand>();
-            SliceByNamesReadCommand readCommand = new SliceByNamesReadCommand("Keyspace1", "key" + i, new QueryPath("Standard1", null, null), cols);
+            SliceByNamesReadCommand readCommand = new SliceByNamesReadCommand("Keyspace1", ("key" + i).getBytes(), new QueryPath("Standard1", null, null), cols);
             readCommand.setDigestQuery(false);
             commands.add(readCommand);
             try
