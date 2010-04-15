@@ -50,10 +50,6 @@ public class CassandraDaemon {
     
     private void setup() throws IOException
     {
-        // log4j
-        String file = System.getProperty("storage-config") + File.separator + "log4j.properties";
-        PropertyConfigurator.configure(file);
-
         listenPort = DatabaseDescriptor.getRpcPort();
         listenAddr = DatabaseDescriptor.getRpcAddress();
         

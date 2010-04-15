@@ -60,10 +60,6 @@ public class CassandraDaemon
 
     private void setup() throws IOException, TTransportException
     {
-        // log4j
-        String file = System.getProperty("storage-config") + File.separator + "log4j.properties";
-        PropertyConfigurator.configure(file);
-
         int listenPort = DatabaseDescriptor.getRpcPort();
         InetAddress listenAddr = DatabaseDescriptor.getRpcAddress();
         

@@ -2,12 +2,17 @@ dev
  * sstable versioning (CASSANDRA-389)
  * bitmask matching in SliceRange queries (CASSANDRA-764)
  * switched to slf4j logging (CASSANDRA-625)
- * drain method to flush memtables and purge commit log prior to shutdown. (CASSANDRA-880)
+ * drain method to flush memtables and purge commit log prior to shutdown. 
+   (CASSANDRA-880)
  * access levels for authentication/authorization (CASSANDRA-900)
  * add ReadRepairChance to CF definition (CASSANDRA-930)
  * fix heisenbug in system tests, especially common on OS X (CASSANDRA-944)
  * convert to byte[] keys internally and all public APIs (CASSANDRA-767)
  * ability to alter schema definitions on a live cluster (CASSANDRA-44)
+ * renamed configuration file to cassandra.xml, and log4j.properties to
+   log4j-server.properties, which must now be loaded from
+   the classpath (which is how our scripts in bin/ have always done it)
+   (CASSANDRA-971)
 
 
 0.6.1

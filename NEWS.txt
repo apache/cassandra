@@ -3,6 +3,8 @@
 
 Configuraton
 ------------
+    - Configuration file renamed to cassandra.xml and log4j.properties to
+      log4j-server.properties
     - The ThriftAddress and ThriftPort directives have been renamed to
       RPCAddress and RPCPort respectively.
     - The keyspaces defined in storage-conf.xml are ignored on startup as a

@@ -44,7 +44,7 @@ set JAVA_OPTS=^
 REM ***** CLASSPATH library setting *****
 
 REM Ensure that any user defined CLASSPATH variables are not used on startup
-set CLASSPATH=
+set CLASSPATH=%CASSANDRA_HOME%\conf
 
 REM For each jar in the CASSANDRA_HOME lib directory call append to build the CLASSPATH variable.
 for %%i in (%CASSANDRA_HOME%\lib\*.jar) do call :append %%~fi
@@ -57,7 +57,7 @@ goto :eof
 :okClasspath
 REM Include the build\classes directory so it works in development
 set CASSANDRA_CLASSPATH=%CLASSPATH%;%CASSANDRA_HOME%\build\classes
-set CASSANDRA_PARAMS=-Dcassandra -Dstorage-config="%CASSANDRA_CONF%" -Dcassandra-foreground=yes
+set CASSANDRA_PARAMS=-Dcassandra -Dcassandra-foreground=yes
 goto runDaemon
 
 :runDaemon

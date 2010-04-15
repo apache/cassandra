@@ -33,7 +33,6 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.XMLUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -132,7 +131,7 @@ public class DatabaseDescriptor
 
     private static IAuthenticator authenticator = new AllowAllAuthenticator();
 
-    private final static String STORAGE_CONF_FILE = "storage-conf.xml";
+    private final static String STORAGE_CONF_FILE = "cassandra.xml";
 
     private static final UUID INITIAL_VERSION = new UUID(4096, 0); // has type nibble set to 1, everything else to zero.
     private static UUID defsVersion = INITIAL_VERSION;
@@ -140,17 +139,13 @@ public class DatabaseDescriptor
     /**
      * Try the storage-config system property, and then inspect the classpath.
      */
-    static String getStorageConfigPath()
+    static String getStorageConfigPath() throws ConfigurationException
     {
-        String scp = System.getProperty("storage-config") + File.separator + STORAGE_CONF_FILE;
-        if (new File(scp).exists())
-            return scp;
-        // try the classpath
         ClassLoader loader = DatabaseDescriptor.class.getClassLoader();
         URL scpurl = loader.getResource(STORAGE_CONF_FILE);
         if (scpurl != null)
             return scpurl.getFile();
-        throw new RuntimeException("Cannot locate " + STORAGE_CONF_FILE + " via storage-config system property or classpath lookup.");
+        throw new ConfigurationException("Cannot locate " + STORAGE_CONF_FILE + " on the classpath");
     }
 
     private static int stageQueueSize_ = 4096;
