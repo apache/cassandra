@@ -42,6 +42,7 @@
     <property name="test.data" value="${test.dir}/data"/>
     <property name="test.name" value="*Test"/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
+    <property name="test.long.src" value="${test.dir}/long"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
     <property name="version" value="0.6.0-rc1"/>
     <property name="final.name" value="${ant.project.name}-${version}"/>
@@ -348,10 +349,10 @@
     <javac
      debug="true"
      debuglevel="${debuglevel}"
-     destdir="${test.classes}"
-    >
+     destdir="${test.classes}">
       <classpath refid="cassandra.classpath"/>
       <src path="${test.unit.src}"/>
+      <src path="${test.long.src}"/>
     </javac>
 
     <!-- Non-java resources needed by the test suite -->    
@@ -360,30 +361,42 @@
     </copy>
   </target>
 
-   <target name="test" depends="build-test">
-    <echo message="running tests"/>
-    <mkdir dir="${build.test.dir}/cassandra"/>
-    <mkdir dir="${build.test.dir}/output"/>
-    <junit fork="on" failureproperty="testfailed" maxmemory="1024m">
-      <sysproperty key="net.sourceforge.cobertura.datafile" file="${cobertura.datafile}"/>
-      <formatter type="xml" usefile="true"/>
-      <formatter type="brief" usefile="false"/>
-      <jvmarg value="-Dstorage-config=${test.conf}"/>
-      <jvmarg value="-Dlog4j.configuration=log4j-junit.properties" />
-      <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
-      <jvmarg value="-ea"/>
-      <classpath>
-        <path refid="cassandra.classpath" />
-        <pathelement location="${test.classes}"/>
-        <pathelement location="${cobertura.dir}/cobertura.jar"/>
-        <pathelement location="${test.conf}"/>
-      </classpath>
-      <batchtest todir="${build.test.dir}/output">
-        <fileset dir="${test.classes}" includes="**/${test.name}.class" />
-      </batchtest>
-    </junit>
+  <macrodef name="testmacro">
+    <attribute name="suitename" />
+    <attribute name="inputdir" />
+    <attribute name="timeout" />
+    <sequential>
+      <echo message="running @{suitename} tests"/>
+      <mkdir dir="${build.test.dir}/cassandra"/>
+      <mkdir dir="${build.test.dir}/output"/>
+      <junit fork="on" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}">
+        <sysproperty key="net.sourceforge.cobertura.datafile" file="${cobertura.datafile}"/>
+        <formatter type="xml" usefile="true"/>
+        <formatter type="brief" usefile="false"/>
+        <jvmarg value="-Dstorage-config=${test.conf}"/>
+        <jvmarg value="-Dlog4j.configuration=log4j-junit.properties" />
+        <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
+        <jvmarg value="-ea"/>
+        <classpath>
+          <path refid="cassandra.classpath" />
+          <pathelement location="${test.classes}"/>
+          <pathelement location="${cobertura.dir}/cobertura.jar"/>
+          <pathelement location="${test.conf}"/>
+        </classpath>
+        <batchtest todir="${build.test.dir}/output">
+          <fileset dir="@{inputdir}" includes="**/${test.name}.java" />
+        </batchtest>
+      </junit>
+      <fail if="testfailed" message="Some @{suitename} test(s) failed."/>
+    </sequential>
+  </macrodef>
 
-    <fail if="testfailed" message="Some test(s) failed."/>
+  <target name="test" depends="build-test">
+    <testmacro suitename="unit" inputdir="${test.unit.src}" timeout="30000" />
+  </target>
+
+  <target name="long-test" depends="build-test">
+    <testmacro suitename="long" inputdir="${test.long.src}" timeout="300000" />
   </target>
 	
   <!-- instruments the classes to later create code coverage reports -->

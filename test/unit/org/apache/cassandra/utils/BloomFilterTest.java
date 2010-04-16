@@ -90,37 +90,4 @@ public class BloomFilterTest
     {
         FilterTest.testSerialize(bf);
     }
-
-    /* TODO move these into a nightly suite (they take 5-10 minutes each)
-    @Test
-    // run with -mx1G
-    public void testBigInt() {
-        int size = 100 * 1000 * 1000;
-        bf = new BloomFilter(size, FilterTest.spec.bucketsPerElement);
-        FilterTest.testFalsePositives(bf,
-                                      new KeyGenerator.IntGenerator(size),
-                                      new KeyGenerator.IntGenerator(size, size * 2));
-    }
-
-    @Test
-    public void testBigRandom() {
-        int size = 100 * 1000 * 1000;
-        bf = new BloomFilter(size, FilterTest.spec.bucketsPerElement);
-        FilterTest.testFalsePositives(bf,
-                                      new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size),
-                                      new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size));
-    }
-
-    @Test
-    public void timeit() {
-        int size = 300 * FilterTest.ELEMENTS;
-        bf = new BloomFilter(size, FilterTest.spec.bucketsPerElement);
-        for (int i = 0; i < 10; i++) {
-            FilterTest.testFalsePositives(bf,
-                                          new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size),
-                                          new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size));
-            bf.clear();
-        }
-    }
-    */
 }

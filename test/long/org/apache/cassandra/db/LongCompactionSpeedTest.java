@@ -35,7 +35,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.FBUtilities;
 import static junit.framework.Assert.assertEquals;
 
-public class CompactionSpeedTest extends CleanupHelper
+public class LongCompactionSpeedTest extends CleanupHelper
 {
     public static final String TABLE1 = "Keyspace1";
     public static final InetAddress LOCAL = FBUtilities.getLocalAddress();
