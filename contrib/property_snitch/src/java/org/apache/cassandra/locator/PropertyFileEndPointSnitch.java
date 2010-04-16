@@ -16,21 +16,22 @@
  * limitations under the License.
  */
 
-package src.java.org.apache.cassandra.locator;
+package org.apache.cassandra.locator;
 
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.UnknownHostException;
+import java.net.URL;
 import java.util.Properties;
 import java.util.StringTokenizer;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import org.apache.cassandra.locator.EndPointSnitch;
 import java.net.InetAddress;
+
+import org.apache.cassandra.config.ConfigurationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,8 +40,6 @@ import org.slf4j.LoggerFactory;
  * 
  * PropertyFileEndPointSnitch is used by Digg to determine if two IP's are in the same
  * datacenter or on the same rack.
- * 
- * @author Sammy Yu <syu@sammyyu.net>
  * 
  */
 public class PropertyFileEndPointSnitch extends EndPointSnitch implements PropertyFileEndPointSnitchMBean {
@@ -52,7 +51,7 @@ public class PropertyFileEndPointSnitch extends EndPointSnitch implements Proper
     /**
      * The default rack property file to be read.
      */
-    private static String DEFAULT_RACK_PROPERTY_FILE = "/etc/cassandra/rack.properties"; 
+    private static String RACK_PROPERTY_FILENAME = "cassandra-rack.properties";
 
     /**
      * Whether to use the parent for detection of same node
@@ -62,9 +61,10 @@ public class PropertyFileEndPointSnitch extends EndPointSnitch implements Proper
     /**
      * Reference to the logger.
      */
-    private static Logger logger_ = LoggerFactory.getLogger(PropertyFileEndPointSnitch.class);     
+    private static Logger logger_ = LoggerFactory.getLogger(PropertyFileEndPointSnitch.class);
 
-    public PropertyFileEndPointSnitch() throws IOException {
+    public PropertyFileEndPointSnitch() throws ConfigurationException
+    {
         reloadConfiguration();
         try
         {
@@ -146,35 +146,35 @@ public class PropertyFileEndPointSnitch extends EndPointSnitch implements Proper
         return getRackForEndPoint(host).equals(getRackForEndPoint(host2)); 
     }
 
-    @Override
     public String displayConfiguration() {
         StringBuffer configurationString = new StringBuffer("Current rack configuration\n=================\n");
         for (Object key: hostProperties.keySet()) {
             String endpoint = (String) key;
             String value = hostProperties.getProperty(endpoint);
-            configurationString.append(endpoint + "=" + value + "\n");
+            configurationString.append(endpoint).append("=").append(value).append("\n");
         }
         return configurationString.toString();
     }
     
-    @Override
-    public void reloadConfiguration() throws IOException {        
-        String rackPropertyFilename = System.getProperty("rackFile", DEFAULT_RACK_PROPERTY_FILE);
-        try 
+    public void reloadConfiguration() throws ConfigurationException
+    {
+        ClassLoader loader = PropertyFileEndPointSnitch.class.getClassLoader();
+        URL scpurl = loader.getResource(RACK_PROPERTY_FILENAME);
+        if (scpurl == null)
+            throw new ConfigurationException("unable to locate " + RACK_PROPERTY_FILENAME);
+
+        String rackPropertyFilename = scpurl.getFile();
+
+        try
         {
             Properties localHostProperties = new Properties();
             localHostProperties.load(new FileReader(rackPropertyFilename));
             hostProperties = localHostProperties;
             runInBaseMode = false;
         }
-        catch (FileNotFoundException fnfe) {
-            logger_.error("Could not find " + rackPropertyFilename + ", using default EndPointSnitch", fnfe);
-            runInBaseMode = true;
-        }
-        catch (IOException ioe) {
-            logger_.error("Could not process " + rackPropertyFilename, ioe);
-            throw ioe;
+        catch (IOException ioe) 
+        {
+            throw new ConfigurationException("Could not process " + rackPropertyFilename, ioe);
         }
     }
-
 }

@@ -16,9 +16,11 @@
  * limitations under the License.
  */
 
-package src.java.org.apache.cassandra.locator;
+package org.apache.cassandra.locator;
 
 import java.io.IOException;
+
+import org.apache.cassandra.config.ConfigurationException;
 
 /**
  * PropertyFileEndPointSnitchMBean
@@ -37,7 +39,7 @@ public interface PropertyFileEndPointSnitchMBean {
     /**
      * Reload the rack configuration
      */
-    public void reloadConfiguration() throws IOException;
+    public void reloadConfiguration() throws ConfigurationException;
     
     /**
      * Display the current configuration
