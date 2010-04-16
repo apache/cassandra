@@ -19,7 +19,6 @@
 package org.apache.cassandra.db;
 
 import java.util.Collection;
-import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.io.IOException;
 
@@ -39,19 +38,18 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 
 public class Column implements IColumn
 {
-    private static Logger logger_ = LoggerFactory.getLogger(Column.class);
+    private static Logger logger = LoggerFactory.getLogger(Column.class);
 
-    private static ColumnSerializer serializer_ = new ColumnSerializer();
+    private static ColumnSerializer serializer = new ColumnSerializer();
 
     public static ColumnSerializer serializer()
     {
-        return serializer_;
+        return serializer;
     }
 
-    private final byte[] name;
-    private final byte[] value;
-    private final long timestamp;
-    private final boolean isMarkedForDelete;
+    protected final byte[] name;
+    protected final byte[] value;
+    protected final long timestamp;
 
     Column(byte[] name)
     {
@@ -65,18 +63,12 @@ public class Column implements IColumn
 
     public Column(byte[] name, byte[] value, long timestamp)
     {
-        this(name, value, timestamp, false);
-    }
-
-    public Column(byte[] name, byte[] value, long timestamp, boolean isDeleted)
-    {
         assert name != null;
         assert value != null;
         assert name.length <= IColumn.MAX_NAME_LENGTH;
         this.name = name;
         this.value = value;
         this.timestamp = timestamp;
-        isMarkedForDelete = isDeleted;
     }
 
     public byte[] name()
@@ -111,16 +103,12 @@ public class Column implements IColumn
 
     public boolean isMarkedForDelete()
     {
-        return isMarkedForDelete;
+        return false;
     }
 
     public long getMarkedForDeleteAt()
     {
-        if (!isMarkedForDelete())
-        {
-            throw new IllegalStateException("column is not marked for delete");
-        }
-        return timestamp;
+        throw new IllegalStateException("column is not marked for delete");
     }
 
     public long mostRecentLiveChangeAt()
@@ -172,7 +160,7 @@ public class Column implements IColumn
         try
         {
             buffer.writeLong(timestamp);
-            buffer.writeBoolean(isMarkedForDelete);
+            buffer.writeBoolean(isMarkedForDelete());
         }
         catch (IOException e)
         {
@@ -183,14 +171,13 @@ public class Column implements IColumn
 
     public int getLocalDeletionTime()
     {
-        assert isMarkedForDelete;
-        return ByteBuffer.wrap(value).getInt();
+        throw new IllegalStateException("column is not marked for delete");
     }
 
     // note that we do not call this simply compareTo since it also makes sense to compare Columns by name
     public long comparePriority(Column o)
     {
-        if (isMarkedForDelete)
+        if (isMarkedForDelete())
         {
             // tombstone always wins ties.
             return timestamp < o.timestamp ? -1 : 1;

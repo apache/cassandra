@@ -88,7 +88,11 @@ public class SSTableImport
         {
             JsonColumn col = new JsonColumn(c);
             QueryPath path = new QueryPath(cfamily.name(), null, hexToBytes(col.name));
-            cfamily.addColumn(path, hexToBytes(col.value), col.timestamp, col.isDeleted);
+            if (col.isDeleted) {
+                cfamily.addColumn(path, hexToBytes(col.value), col.timestamp);
+            } else {
+                cfamily.addTombstone(path, hexToBytes(col.value), col.timestamp);
+            }
         }
     }
     
@@ -112,7 +116,11 @@ public class SSTableImport
             {
                 JsonColumn col = new JsonColumn(c);
                 QueryPath path = new QueryPath(cfamily.name(), superName, hexToBytes(col.name));
-                cfamily.addColumn(path, hexToBytes(col.value), col.timestamp, col.isDeleted);
+                if (col.isDeleted) {
+                    cfamily.addColumn(path, hexToBytes(col.value), col.timestamp);
+                } else {
+                    cfamily.addTombstone(path, hexToBytes(col.value), col.timestamp);
+                }
             }
             
             SuperColumn superColumn = (SuperColumn)cfamily.getColumn(superName);

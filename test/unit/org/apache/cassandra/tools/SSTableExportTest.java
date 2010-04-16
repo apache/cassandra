@@ -64,14 +64,14 @@ public class SSTableExportTest extends SchemaLoader
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2, partitioner);
         
         // Add rowA
-        cfamily.addColumn(new QueryPath("Standard1", null, "colA".getBytes()), "valA".getBytes(), 1, false);
+        cfamily.addColumn(new QueryPath("Standard1", null, "colA".getBytes()), "valA".getBytes(), 1);
         ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
         writer.append(Util.dk("rowA"), dob);
         dob.reset();
         cfamily.clear();
         
         // Add rowB
-        cfamily.addColumn(new QueryPath("Standard1", null, "colB".getBytes()), "valB".getBytes(), 1, false);
+        cfamily.addColumn(new QueryPath("Standard1", null, "colB".getBytes()), "valB".getBytes(), 1);
         ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
         writer.append(Util.dk("rowB"), dob);
         dob.reset();
@@ -102,21 +102,21 @@ public class SSTableExportTest extends SchemaLoader
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2, partitioner);
         
         // Add rowA
-        cfamily.addColumn(new QueryPath("Standard1", null, "colA".getBytes()), "valA".getBytes(), 1, false);
+        cfamily.addColumn(new QueryPath("Standard1", null, "colA".getBytes()), "valA".getBytes(), 1);
         ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
         writer.append(Util.dk("rowA"), dob);
         dob.reset();
         cfamily.clear();
         
         // Add rowB
-        cfamily.addColumn(new QueryPath("Standard1", null, "colB".getBytes()), "valB".getBytes(), 1, false);
+        cfamily.addColumn(new QueryPath("Standard1", null, "colB".getBytes()), "valB".getBytes(), 1);
         ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
         writer.append(Util.dk("rowB"), dob);
         dob.reset();
         cfamily.clear();
 
         // Add rowExclude
-        cfamily.addColumn(new QueryPath("Standard1", null, "colX".getBytes()), "valX".getBytes(), 1, false);
+        cfamily.addColumn(new QueryPath("Standard1", null, "colX".getBytes()), "valX".getBytes(), 1);
         ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
         writer.append(Util.dk("rowExclude"), dob);
         dob.reset();
@@ -152,21 +152,21 @@ public class SSTableExportTest extends SchemaLoader
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2, partitioner);
         
         // Add rowA
-        cfamily.addColumn(new QueryPath("Super4", "superA".getBytes(), "colA".getBytes()), "valA".getBytes(), 1, false);
+        cfamily.addColumn(new QueryPath("Super4", "superA".getBytes(), "colA".getBytes()), "valA".getBytes(), 1);
         ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
         writer.append(Util.dk("rowA"), dob);
         dob.reset();
         cfamily.clear();
         
         // Add rowB
-        cfamily.addColumn(new QueryPath("Super4", "superB".getBytes(), "colB".getBytes()), "valB".getBytes(), 1, false);
+        cfamily.addColumn(new QueryPath("Super4", "superB".getBytes(), "colB".getBytes()), "valB".getBytes(), 1);
         ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
         writer.append(Util.dk("rowB"), dob);
         dob.reset();
         cfamily.clear();
 
         // Add rowExclude
-        cfamily.addColumn(new QueryPath("Super4", "superX".getBytes(), "colX".getBytes()), "valX".getBytes(), 1, false);
+        cfamily.addColumn(new QueryPath("Super4", "superX".getBytes(), "colX".getBytes()), "valX".getBytes(), 1);
         ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
         writer.append(Util.dk("rowExclude"), dob);
         dob.reset();
@@ -200,14 +200,14 @@ public class SSTableExportTest extends SchemaLoader
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2, partitioner);
         
         // Add rowA
-        cfamily.addColumn(new QueryPath("Standard1", null, "name".getBytes()), "val".getBytes(), 1, false);
+        cfamily.addColumn(new QueryPath("Standard1", null, "name".getBytes()), "val".getBytes(), 1);
         ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
         writer.append(Util.dk("rowA"), dob);
         dob.reset();
         cfamily.clear();
 
         // Add rowExclude
-        cfamily.addColumn(new QueryPath("Standard1", null, "name".getBytes()), "val".getBytes(), 1, false);
+        cfamily.addColumn(new QueryPath("Standard1", null, "name".getBytes()), "val".getBytes(), 1);
         ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
         writer.append(Util.dk("rowExclude"), dob);
         dob.reset();

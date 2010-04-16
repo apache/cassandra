@@ -58,6 +58,6 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
         {
             dis.readFully(value);
         }
-        return new Column(name, value, ts, delete);
+        return delete ? new DeletedColumn(name, value, ts) : new Column(name, value, ts);
     }
 }

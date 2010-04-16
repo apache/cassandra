@@ -172,25 +172,35 @@ public class ColumnFamily implements IColumnContainer
 
     public void addColumn(QueryPath path, byte[] value, long timestamp)
     {
-        addColumn(path, value, timestamp, false);
+        assert path.columnName != null : path;
+        addColumn(path.superColumnName, new Column(path.columnName, value, timestamp));
     }
 
-    /** In most places the CF must be part of a QueryPath but here it is ignored. */
-    public void addColumn(QueryPath path, byte[] value, long timestamp, boolean deleted)
-	{
+    public void addTombstone(QueryPath path, byte[] localDeletionTime, long timestamp)
+    {
+        addColumn(path.superColumnName, new DeletedColumn(path.columnName, localDeletionTime, timestamp));
+    }
+
+    public void deleteColumn(QueryPath path, int localDeletionTime, long timestamp)
+    {
         assert path.columnName != null : path;
-		IColumn column;
-        if (path.superColumnName == null)
+        addColumn(path.superColumnName, new DeletedColumn(path.columnName, localDeletionTime, timestamp));
+    }
+
+    public void addColumn(byte[] superColumnName, Column column)
+    {
+        IColumn c;
+        if (superColumnName == null)
         {
-            column = new Column(path.columnName, value, timestamp, deleted);
+            c = column;
         }
         else
         {
             assert isSuper();
-            column = new SuperColumn(path.superColumnName, getSubComparator());
-            column.addColumn(new Column(path.columnName, value, timestamp, deleted)); // checks subcolumn name
+            c = new SuperColumn(superColumnName, getSubComparator());
+            c.addColumn(column); // checks subcolumn name
         }
-		addColumn(column);
+		addColumn(c);
     }
 
     public void clear()

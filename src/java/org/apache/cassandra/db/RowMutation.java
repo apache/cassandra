@@ -183,9 +183,7 @@ public class RowMutation
         }
         else
         {
-            ByteBuffer bytes = ByteBuffer.allocate(4);
-            bytes.putInt(localDeleteTime);
-            columnFamily.addColumn(path, bytes.array(), timestamp, true);
+            columnFamily.deleteColumn(path, localDeleteTime, timestamp);
         }
 
         modifications_.put(cfName, columnFamily);
