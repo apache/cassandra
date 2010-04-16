@@ -283,7 +283,7 @@ public class DefsTest extends CleanupHelper
     {
         DecoratedKey dk = Util.dk("key0");
         CFMetaData newCf = new CFMetaData("NewKeyspace1", "AddedStandard1", "Standard", new UTF8Type(), null, "A new cf for a new ks", 0, 0);
-        KSMetaData newKs = new KSMetaData(newCf.tableName, RackAwareStrategy.class, 5, new EndPointSnitch(), newCf);
+        KSMetaData newKs = new KSMetaData(newCf.tableName, RackAwareStrategy.class, 5, newCf);
         
         int segmentCount = CommitLog.instance().getSegmentCount();
         new AddKeyspace(newKs).apply();

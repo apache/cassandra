@@ -106,7 +106,7 @@ public class StorageProxy implements StorageProxyMBean
                     AbstractReplicationStrategy rs = ss.getReplicationStrategy(table);
 
                     List<InetAddress> naturalEndpoints = ss.getNaturalEndpoints(table, rm.key());
-                    Multimap<InetAddress,InetAddress> hintedEndpoints = rs.getHintedEndpoints(table, naturalEndpoints);
+                    Multimap<InetAddress,InetAddress> hintedEndpoints = rs.getHintedEndpoints(naturalEndpoints);
                     Message unhintedMessage = null; // lazy initialize for non-local, unhinted writes
 
                     // 3 cases:
@@ -195,7 +195,7 @@ public class StorageProxy implements StorageProxyMBean
 
                 List<InetAddress> naturalEndpoints = ss.getNaturalEndpoints(table, rm.key());
                 Collection<InetAddress> writeEndpoints = rs.getWriteEndpoints(StorageService.getPartitioner().getToken(rm.key()), table, naturalEndpoints);
-                Multimap<InetAddress, InetAddress> hintedEndpoints = rs.getHintedEndpoints(table, writeEndpoints);
+                Multimap<InetAddress, InetAddress> hintedEndpoints = rs.getHintedEndpoints(writeEndpoints);
                 int blockFor = determineBlockFor(writeEndpoints.size(), consistency_level);
 
                 // avoid starting a write we know can't achieve the required consistency
@@ -675,7 +675,7 @@ public class StorageProxy implements StorageProxyMBean
             if (endpoints.size() < responseCount)
                 throw new UnavailableException();
 
-            DatabaseDescriptor.getEndPointSnitch(keyspace).sortByProximity(FBUtilities.getLocalAddress(), endpoints);
+            DatabaseDescriptor.getEndPointSnitch().sortByProximity(FBUtilities.getLocalAddress(), endpoints);
             List<InetAddress> endpointsForCL = endpoints.subList(0, responseCount);
             Set<AbstractBounds> restrictedRanges = queryRange.restrictTo(nodeRange);
             for (AbstractBounds range : restrictedRanges)

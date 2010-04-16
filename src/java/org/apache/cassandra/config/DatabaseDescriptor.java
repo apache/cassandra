@@ -45,6 +45,7 @@ import javax.xml.transform.TransformerException;
 import javax.xml.xpath.XPathExpressionException;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.net.InetAddress;
@@ -70,6 +71,7 @@ public class DatabaseDescriptor
 
     public static final String random = "RANDOM";
     public static final String ophf = "OPHF";
+    private static IEndPointSnitch snitch;
     private static int storagePort = 7000;
     private static int rpcPort = 9160;
     private static boolean thriftFramed = false;
@@ -374,6 +376,14 @@ public class DatabaseDescriptor
                 }
             }
 
+            /* end point snitch */
+            String endPointSnitchClassName = xmlUtils.getNodeValue("/Storage/EndPointSnitch");
+            if (endPointSnitchClassName == null)
+            {
+                throw new ConfigurationException("Missing endpointsnitch directive");
+            }
+            snitch = createEndpointSnitch(endPointSnitchClassName);
+
             /* snapshot-before-compaction.  defaults to false */
             String sbc = xmlUtils.getNodeValue("/Storage/SnapshotBeforeCompaction");
             if (sbc != null)
@@ -477,7 +487,7 @@ public class DatabaseDescriptor
                                0,
                                0.01)
             };
-            KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE, null, -1, null, systemCfDefs);
+            KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE, null, -1, systemCfDefs);
             tables.put(Table.SYSTEM_TABLE, systemMeta);
                 
             CFMetaData[] definitionCfDefs = new CFMetaData[]
@@ -485,7 +495,7 @@ public class DatabaseDescriptor
                 new CFMetaData(Table.DEFINITIONS, Migration.MIGRATIONS_CF, "Standard", new TimeUUIDType(), null, "individual schema mutations", 0, 0),
                 new CFMetaData(Table.DEFINITIONS, Migration.SCHEMA_CF, "Standard", new UTF8Type(), null, "current state of the schema", 0, 0)
             };
-            tables.put(Table.DEFINITIONS, new KSMetaData(Table.DEFINITIONS, null, -1, null, definitionCfDefs));
+            tables.put(Table.DEFINITIONS, new KSMetaData(Table.DEFINITIONS, null, -1, definitionCfDefs));
             
             // NOTE: make sure that all system CFMs defined by now. calling fixMaxId at this point will set the base id
             // to a value that leaves room for future system cfms.
@@ -513,7 +523,49 @@ public class DatabaseDescriptor
             throw new RuntimeException(e);
         }
     }
-    
+
+    private static IEndPointSnitch createEndpointSnitch(String endPointSnitchClassName) throws ConfigurationException
+    {
+        IEndPointSnitch snitch;
+        Class cls;
+        try
+        {
+            cls = Class.forName(endPointSnitchClassName);
+        }
+        catch (ClassNotFoundException e)
+        {
+            throw new ConfigurationException("Unable to load endpointsnitch class " + endPointSnitchClassName);
+        }
+        Constructor ctor;
+        try
+        {
+            ctor = cls.getConstructor();
+        }
+        catch (NoSuchMethodException e)
+        {
+            throw new ConfigurationException("No default constructor found in " + endPointSnitchClassName);
+        }
+        try
+        {
+            snitch = (IEndPointSnitch)ctor.newInstance();
+        }
+        catch (InstantiationException e)
+        {
+            throw new ConfigurationException("endpointsnitch class " + endPointSnitchClassName + "is abstract");
+        }
+        catch (IllegalAccessException e)
+        {
+            throw new ConfigurationException("Access to " + endPointSnitchClassName + " constructor was rejected");
+        }
+        catch (InvocationTargetException e)
+        {
+            if (e.getCause() instanceof ConfigurationException)
+                throw (ConfigurationException)e.getCause();
+            throw new ConfigurationException("Error instantiating " + endPointSnitchClassName + " " + e.getMessage());
+        }
+        return snitch;
+    }
+
     public static void loadSchemas() throws IOException
     {
         // we can load tables from local storage if a version is set in the system table and that acutally maps to
@@ -624,39 +676,6 @@ public class DatabaseDescriptor
                     replicationFactor = Integer.parseInt(value);
                 }
 
-                /* end point snitch */
-                String endPointSnitchClassName = xmlUtils.getNodeValue("/Storage/Keyspaces/Keyspace[@Name='" + ksName + "']/EndPointSnitch");
-                if (endPointSnitchClassName == null)
-                {
-                    throw new ConfigurationException("Missing endpointsnitch directive for keyspace " + ksName);
-                }
-                IEndPointSnitch snitch = null;
-                try
-                {
-                    Class cls = Class.forName(endPointSnitchClassName);
-                    snitch = (IEndPointSnitch)cls.getConstructor().newInstance();
-                }
-                catch (ClassNotFoundException e)
-                {
-                    throw new ConfigurationException("Invalid endpointsnitch class " + endPointSnitchClassName);
-                }
-                catch (NoSuchMethodException e)
-                {
-                    throw new ConfigurationException("Invalid endpointsnitch class " + endPointSnitchClassName + " " + e.getMessage());
-                }
-                catch (InstantiationException e)
-                {
-                    throw new ConfigurationException("Invalid endpointsnitch class " + endPointSnitchClassName + " " + e.getMessage());
-                }
-                catch (IllegalAccessException e)
-                {
-                    throw new ConfigurationException("Invalid endpointsnitch class " + endPointSnitchClassName + " " + e.getMessage());
-                }
-                catch (InvocationTargetException e)
-                {
-                    throw new ConfigurationException("Invalid endpointsnitch class " + endPointSnitchClassName + " " + e.getMessage());
-                }
-
                 String xqlTable = "/Storage/Keyspaces/Keyspace[@Name='" + ksName + "']/";
                 NodeList columnFamilies = xmlUtils.getRequestedNodeList(xqlTable + "ColumnFamily");
 
@@ -738,7 +757,7 @@ public class DatabaseDescriptor
                     // insert it into the table dictionary.
                     cfDefs[j] = new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize, readRepairChance);
                 }
-                defs.add(new KSMetaData(ksName, strategyClass, replicationFactor, snitch, cfDefs));
+                defs.add(new KSMetaData(ksName, strategyClass, replicationFactor, cfDefs));
             }
         }
         catch (XPathExpressionException e)
@@ -853,9 +872,9 @@ public class DatabaseDescriptor
         return partitioner;
     }
     
-    public static IEndPointSnitch getEndPointSnitch(String table)
+    public static IEndPointSnitch getEndPointSnitch()
     {
-        return tables.get(table).snitch;
+        return snitch;
     }
 
     public static Class<? extends AbstractReplicationStrategy> getReplicaPlacementStrategyClass(String table)

@@ -46,6 +46,15 @@
   <AutoBootstrap>false</AutoBootstrap>
 
   <!--
+   ~ EndPointSnitch: Setting this to the class that implements
+   ~ AbstractEndpointSnitch, which lets Cassandra know enough
+   ~ about your network topology to route requests efficiently.
+   ~ Out of the box, Cassandra provides org.apache.cassandra.locator.EndPointSnitch,
+   ~ and PropertyFileEndPointSnitch is available in contrib/.
+  -->
+  <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
+
+  <!--
    ~ Keyspaces and ColumnFamilies:
    ~ A ColumnFamily is the Cassandra concept closest to a relational
    ~ table.  Keyspaces are separate groups of ColumnFamilies.  Except in
@@ -139,16 +148,6 @@
 
       <!-- Number of replicas of the data -->
       <ReplicationFactor>1</ReplicationFactor>
-
-      <!--
-       ~ EndPointSnitch: Setting this to the class that implements
-       ~ AbstractEndpointSnitch, which lets Cassandra know enough
-       ~ about your network topology to route requests efficiently.
-       ~ Out of the box, Cassandra provides org.apache.cassandra.locator.EndPointSnitch,
-       ~ and PropertyFileEndPointSnitch is available in contrib/.
-      -->
-      <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
-        
     </Keyspace>
   </Keyspaces>
 

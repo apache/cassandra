@@ -758,25 +758,12 @@ public class CassandraServer implements Cassandra.Iface
                     ks_def.name, 
                     (Class<? extends AbstractReplicationStrategy>)Class.forName(ks_def.strategy_class), 
                     ks_def.replication_factor, 
-                    (IEndPointSnitch)Class.forName(ks_def.snitch_class).newInstance(), 
                     cfDefs.toArray(new CFMetaData[cfDefs.size()]));
             AddKeyspace add = new AddKeyspace(ksm);
             add.apply();
             add.announce();
         }
         catch (ClassNotFoundException e)
-        {
-            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
-        catch (InstantiationException e)
-        {
-            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
-        catch (IllegalAccessException e)
         {
             InvalidRequestException ex = new InvalidRequestException(e.getMessage());
             ex.initCause(e);

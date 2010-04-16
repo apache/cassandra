@@ -39,15 +39,13 @@ public final class KSMetaData
     public final String name;
     public final Class<? extends AbstractReplicationStrategy> strategyClass;
     public final int replicationFactor;
-    public final IEndPointSnitch snitch;
     private final Map<String, CFMetaData> cfMetaData;
 
-    public KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, int replicationFactor, IEndPointSnitch snitch, CFMetaData... cfDefs)
+    public KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, int replicationFactor, CFMetaData... cfDefs)
     {
         this.name = name;
         this.strategyClass = strategyClass;
         this.replicationFactor = replicationFactor;
-        this.snitch = snitch;
         Map<String, CFMetaData> cfmap = new HashMap<String, CFMetaData>();
         for (CFMetaData cfm : cfDefs)
             cfmap.put(cfm.cfName, cfm);
@@ -65,7 +63,7 @@ public final class KSMetaData
                 CFMetaData.purge(oldCf);
             newCfs.add(CFMetaData.renameTable(oldCf, newName));
         }
-        return new KSMetaData(newName, ksm.strategyClass, ksm.replicationFactor, ksm.snitch, newCfs.toArray(new CFMetaData[newCfs.size()]));
+        return new KSMetaData(newName, ksm.strategyClass, ksm.replicationFactor, newCfs.toArray(new CFMetaData[newCfs.size()]));
     }
     
     public boolean equals(Object obj)
@@ -78,22 +76,8 @@ public final class KSMetaData
         return other.name.equals(name)
                 && ObjectUtils.equals(other.strategyClass, strategyClass)
                 && other.replicationFactor == replicationFactor
-                && sameEpSnitch(other, this)
                 && other.cfMetaData.size() == cfMetaData.size()
                 && other.cfMetaData.equals(cfMetaData);
-    }
-
-    // epsnitches generally have no state, so comparing class names is sufficient.
-    private static boolean sameEpSnitch(KSMetaData a, KSMetaData b)
-    {
-        if (a.snitch == null && b.snitch == null)
-            return true;
-        else if (a.snitch == null && b.snitch != null)
-            return false;
-        else if (a.snitch != null && b.snitch == null)
-            return false;
-        else
-            return a.snitch.getClass().getName().equals(b.snitch.getClass().getName());
     }
 
     public Map<String, CFMetaData> cfMetaData()
@@ -110,9 +94,6 @@ public final class KSMetaData
         if (ksm.strategyClass != null)
             dout.writeUTF(ksm.strategyClass.getName());
         dout.writeInt(ksm.replicationFactor);
-        dout.writeBoolean(ksm.snitch != null);
-        if (ksm.snitch != null)
-            dout.writeUTF(ksm.snitch.getClass().getName());
         dout.writeInt(ksm.cfMetaData.size());
         for (CFMetaData cfm : ksm.cfMetaData.values())
             dout.write(CFMetaData.serialize(cfm));
@@ -134,15 +115,6 @@ public final class KSMetaData
             throw new IOException(ex);
         }
         int replicationFactor = din.readInt();
-        IEndPointSnitch epSnitch = null;
-        try
-        {
-            epSnitch = din.readBoolean() ? (IEndPointSnitch)Class.forName(din.readUTF()).newInstance() : null;
-        }
-        catch (Exception ex)
-        {
-            throw new IOException(ex);
-        }
         int cfsz = din.readInt();
         CFMetaData[] cfMetaData = new CFMetaData[cfsz];
         for (int i = 0; i < cfsz; i++)
@@ -158,7 +130,6 @@ public final class KSMetaData
             }
         }
 
-        KSMetaData ksm = new KSMetaData(name, repStratClass, replicationFactor, epSnitch, cfMetaData);
-        return ksm;
+        return new KSMetaData(name, repStratClass, replicationFactor, cfMetaData);
     }
 }

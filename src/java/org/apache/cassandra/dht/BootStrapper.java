@@ -156,7 +156,7 @@ public class BootStrapper
             {
                 if (range.contains(myRange))
                 {
-                    List<InetAddress> preferred = DatabaseDescriptor.getEndPointSnitch(table).getSortedListByProximity(address, rangeAddresses.get(range));
+                    List<InetAddress> preferred = DatabaseDescriptor.getEndPointSnitch().getSortedListByProximity(address, rangeAddresses.get(range));
                     myRangeAddresses.putAll(myRange, preferred);
                     break;
                 }

@@ -75,11 +75,11 @@ public abstract class AbstractReplicationStrategy
      * as the destination, it is a "hinted" write, and will need to be sent to
      * the ultimate target when it becomes alive again.
      */
-    public Multimap<InetAddress, InetAddress> getHintedEndpoints(String table, Collection<InetAddress> targets)
+    public Multimap<InetAddress, InetAddress> getHintedEndpoints(Collection<InetAddress> targets)
     {
         Multimap<InetAddress, InetAddress> map = HashMultimap.create(targets.size(), 1);
 
-        IEndPointSnitch endPointSnitch = DatabaseDescriptor.getEndPointSnitch(table);
+        IEndPointSnitch endPointSnitch = DatabaseDescriptor.getEndPointSnitch();
 
         // first, add the live endpoints
         for (InetAddress ep : targets)

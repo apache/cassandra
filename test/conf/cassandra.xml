@@ -37,6 +37,7 @@
    <DiskAccessMode>mmap</DiskAccessMode>
    <MemtableThroughputInMB>1</MemtableThroughputInMB>
    <MemtableOperationsInMillions>0.00002</MemtableOperationsInMillions> <!-- 20 -->
+   <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
    <Keyspaces>
      <Keyspace Name = "Keyspace1">
        <ColumnFamily Name="Standard1" RowsCached="10%" KeysCached="0"/>
@@ -49,7 +50,6 @@
        <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="UTF8Type" Name="Super4"/>
        <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
        <ReplicationFactor>1</ReplicationFactor>
-       <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
      </Keyspace>
      <Keyspace Name = "Keyspace2">
        <ColumnFamily Name="Standard1"/>

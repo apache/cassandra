@@ -274,7 +274,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         try
         {
             Constructor<? extends AbstractReplicationStrategy> constructor = cls.getConstructor(parameterTypes);
-            replicationStrategy = constructor.newInstance(tokenMetadata, DatabaseDescriptor.getEndPointSnitch(table));
+            replicationStrategy = constructor.newInstance(tokenMetadata, DatabaseDescriptor.getEndPointSnitch());
         }
         catch (Exception e)
         {
@@ -801,7 +801,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
                 // find alive sources for our new ranges
                 for (Range myNewRange : myNewRanges)
                 {
-                    List<InetAddress> sources = DatabaseDescriptor.getEndPointSnitch(table).getSortedListByProximity(myAddress, rangeAddresses.get(myNewRange));
+                    List<InetAddress> sources = DatabaseDescriptor.getEndPointSnitch().getSortedListByProximity(myAddress, rangeAddresses.get(myNewRange));
 
                     assert (!sources.contains(myAddress));
 
@@ -1219,7 +1219,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     public InetAddress findSuitableEndPoint(String table, byte[] key) throws IOException, UnavailableException
     {
         List<InetAddress> endpoints = getNaturalEndpoints(table, key);
-        DatabaseDescriptor.getEndPointSnitch(table).sortByProximity(FBUtilities.getLocalAddress(), endpoints);
+        DatabaseDescriptor.getEndPointSnitch().sortByProximity(FBUtilities.getLocalAddress(), endpoints);
         for (InetAddress endpoint : endpoints)
         {
             if (FailureDetector.instance.isAlive(endpoint))
