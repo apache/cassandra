@@ -133,18 +133,15 @@ public class Cassandra {
     public List<KeySlice> get_range_slices(String keyspace, ColumnParent column_parent, SlicePredicate predicate, KeyRange range, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
-     * Insert a Column consisting of (column_path.column, value, timestamp) at the given column_path.column_family and optional
-     * column_path.super_column. Note that column_path.column is here required, since a SuperColumn cannot directly contain binary
-     * values -- it can only contain sub-Columns.
+     * Insert a Column at the given column_parent.column_family and optional column_parent.super_column.
      * 
      * @param keyspace
      * @param key
-     * @param column_path
-     * @param value
-     * @param timestamp
+     * @param column_parent
+     * @param column
      * @param consistency_level
      */
-    public void insert(String keyspace, byte[] key, ColumnPath column_path, byte[] value, long timestamp, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
+    public void insert(String keyspace, byte[] key, ColumnParent column_parent, Column column, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
      * Insert Columns or SuperColumns across different Column Families for the same row key. batch_mutation is a
@@ -638,21 +635,20 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_range_slices failed: unknown result");
     }
 
-    public void insert(String keyspace, byte[] key, ColumnPath column_path, byte[] value, long timestamp, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    public void insert(String keyspace, byte[] key, ColumnParent column_parent, Column column, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
-      send_insert(keyspace, key, column_path, value, timestamp, consistency_level);
+      send_insert(keyspace, key, column_parent, column, consistency_level);
       recv_insert();
     }
 
-    public void send_insert(String keyspace, byte[] key, ColumnPath column_path, byte[] value, long timestamp, ConsistencyLevel consistency_level) throws TException
+    public void send_insert(String keyspace, byte[] key, ColumnParent column_parent, Column column, ConsistencyLevel consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("insert", TMessageType.CALL, seqid_));
       insert_args args = new insert_args();
       args.keyspace = keyspace;
       args.key = key;
-      args.column_path = column_path;
-      args.value = value;
-      args.timestamp = timestamp;
+      args.column_parent = column_parent;
+      args.column = column;
       args.consistency_level = consistency_level;
       args.write(oprot_);
       oprot_.writeMessageEnd();
@@ -1622,7 +1618,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         insert_result result = new insert_result();
         try {
-          iface_.insert(args.keyspace, args.key, args.column_path, args.value, args.timestamp, args.consistency_level);
+          iface_.insert(args.keyspace, args.key, args.column_parent, args.column, args.consistency_level);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (UnavailableException ue) {
@@ -11560,16 +11556,14 @@ public class Cassandra {
 
     private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
-    private static final TField COLUMN_PATH_FIELD_DESC = new TField("column_path", TType.STRUCT, (short)3);
-    private static final TField VALUE_FIELD_DESC = new TField("value", TType.STRING, (short)4);
-    private static final TField TIMESTAMP_FIELD_DESC = new TField("timestamp", TType.I64, (short)5);
-    private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)6);
+    private static final TField COLUMN_PARENT_FIELD_DESC = new TField("column_parent", TType.STRUCT, (short)3);
+    private static final TField COLUMN_FIELD_DESC = new TField("column", TType.STRUCT, (short)4);
+    private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)5);
 
     public String keyspace;
     public byte[] key;
-    public ColumnPath column_path;
-    public byte[] value;
-    public long timestamp;
+    public ColumnParent column_parent;
+    public Column column;
     /**
      * 
      * @see ConsistencyLevel
@@ -11580,14 +11574,13 @@ public class Cassandra {
     public enum _Fields implements TFieldIdEnum {
       KEYSPACE((short)1, "keyspace"),
       KEY((short)2, "key"),
-      COLUMN_PATH((short)3, "column_path"),
-      VALUE((short)4, "value"),
-      TIMESTAMP((short)5, "timestamp"),
+      COLUMN_PARENT((short)3, "column_parent"),
+      COLUMN((short)4, "column"),
       /**
        * 
        * @see ConsistencyLevel
        */
-      CONSISTENCY_LEVEL((short)6, "consistency_level");
+      CONSISTENCY_LEVEL((short)5, "consistency_level");
 
       private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
       private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
@@ -11641,20 +11634,16 @@ public class Cassandra {
     }
 
     // isset id assignments
-    private static final int __TIMESTAMP_ISSET_ID = 0;
-    private BitSet __isset_bit_vector = new BitSet(1);
 
     public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
       put(_Fields.KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
       put(_Fields.KEY, new FieldMetaData("key", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
-      put(_Fields.COLUMN_PATH, new FieldMetaData("column_path", TFieldRequirementType.REQUIRED, 
-          new StructMetaData(TType.STRUCT, ColumnPath.class)));
-      put(_Fields.VALUE, new FieldMetaData("value", TFieldRequirementType.REQUIRED, 
-          new FieldValueMetaData(TType.STRING)));
-      put(_Fields.TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.REQUIRED, 
-          new FieldValueMetaData(TType.I64)));
+      put(_Fields.COLUMN_PARENT, new FieldMetaData("column_parent", TFieldRequirementType.REQUIRED, 
+          new StructMetaData(TType.STRUCT, ColumnParent.class)));
+      put(_Fields.COLUMN, new FieldMetaData("column", TFieldRequirementType.REQUIRED, 
+          new StructMetaData(TType.STRUCT, Column.class)));
       put(_Fields.CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.REQUIRED, 
           new EnumMetaData(TType.ENUM, ConsistencyLevel.class)));
     }});
@@ -11671,18 +11660,15 @@ public class Cassandra {
     public insert_args(
       String keyspace,
       byte[] key,
-      ColumnPath column_path,
-      byte[] value,
-      long timestamp,
+      ColumnParent column_parent,
+      Column column,
       ConsistencyLevel consistency_level)
     {
       this();
       this.keyspace = keyspace;
       this.key = key;
-      this.column_path = column_path;
-      this.value = value;
-      this.timestamp = timestamp;
-      setTimestampIsSet(true);
+      this.column_parent = column_parent;
+      this.column = column;
       this.consistency_level = consistency_level;
     }
 
@@ -11690,8 +11676,6 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public insert_args(insert_args other) {
-      __isset_bit_vector.clear();
-      __isset_bit_vector.or(other.__isset_bit_vector);
       if (other.isSetKeyspace()) {
         this.keyspace = other.keyspace;
       }
@@ -11699,14 +11683,12 @@ public class Cassandra {
         this.key = new byte[other.key.length];
         System.arraycopy(other.key, 0, key, 0, other.key.length);
       }
-      if (other.isSetColumn_path()) {
-        this.column_path = new ColumnPath(other.column_path);
+      if (other.isSetColumn_parent()) {
+        this.column_parent = new ColumnParent(other.column_parent);
       }
-      if (other.isSetValue()) {
-        this.value = new byte[other.value.length];
-        System.arraycopy(other.value, 0, value, 0, other.value.length);
+      if (other.isSetColumn()) {
+        this.column = new Column(other.column);
       }
-      this.timestamp = other.timestamp;
       if (other.isSetConsistency_level()) {
         this.consistency_level = other.consistency_level;
       }
@@ -11769,75 +11751,52 @@ public class Cassandra {
       }
     }
 
-    public ColumnPath getColumn_path() {
-      return this.column_path;
+    public ColumnParent getColumn_parent() {
+      return this.column_parent;
     }
 
-    public insert_args setColumn_path(ColumnPath column_path) {
-      this.column_path = column_path;
+    public insert_args setColumn_parent(ColumnParent column_parent) {
+      this.column_parent = column_parent;
       return this;
     }
 
-    public void unsetColumn_path() {
-      this.column_path = null;
+    public void unsetColumn_parent() {
+      this.column_parent = null;
     }
 
-    /** Returns true if field column_path is set (has been asigned a value) and false otherwise */
-    public boolean isSetColumn_path() {
-      return this.column_path != null;
+    /** Returns true if field column_parent is set (has been asigned a value) and false otherwise */
+    public boolean isSetColumn_parent() {
+      return this.column_parent != null;
     }
 
-    public void setColumn_pathIsSet(boolean value) {
+    public void setColumn_parentIsSet(boolean value) {
       if (!value) {
-        this.column_path = null;
+        this.column_parent = null;
       }
     }
 
-    public byte[] getValue() {
-      return this.value;
+    public Column getColumn() {
+      return this.column;
     }
 
-    public insert_args setValue(byte[] value) {
-      this.value = value;
+    public insert_args setColumn(Column column) {
+      this.column = column;
       return this;
     }
 
-    public void unsetValue() {
-      this.value = null;
+    public void unsetColumn() {
+      this.column = null;
     }
 
-    /** Returns true if field value is set (has been asigned a value) and false otherwise */
-    public boolean isSetValue() {
-      return this.value != null;
+    /** Returns true if field column is set (has been asigned a value) and false otherwise */
+    public boolean isSetColumn() {
+      return this.column != null;
     }
 
-    public void setValueIsSet(boolean value) {
+    public void setColumnIsSet(boolean value) {
       if (!value) {
-        this.value = null;
+        this.column = null;
       }
-    }
-
-    public long getTimestamp() {
-      return this.timestamp;
-    }
-
-    public insert_args setTimestamp(long timestamp) {
-      this.timestamp = timestamp;
-      setTimestampIsSet(true);
-      return this;
-    }
-
-    public void unsetTimestamp() {
-      __isset_bit_vector.clear(__TIMESTAMP_ISSET_ID);
-    }
-
-    /** Returns true if field timestamp is set (has been asigned a value) and false otherwise */
-    public boolean isSetTimestamp() {
-      return __isset_bit_vector.get(__TIMESTAMP_ISSET_ID);
-    }
-
-    public void setTimestampIsSet(boolean value) {
-      __isset_bit_vector.set(__TIMESTAMP_ISSET_ID, value);
     }
 
     /**
@@ -11890,27 +11849,19 @@ public class Cassandra {
         }
         break;
 
-      case COLUMN_PATH:
+      case COLUMN_PARENT:
         if (value == null) {
-          unsetColumn_path();
+          unsetColumn_parent();
         } else {
-          setColumn_path((ColumnPath)value);
+          setColumn_parent((ColumnParent)value);
         }
         break;
 
-      case VALUE:
+      case COLUMN:
         if (value == null) {
-          unsetValue();
+          unsetColumn();
         } else {
-          setValue((byte[])value);
-        }
-        break;
-
-      case TIMESTAMP:
-        if (value == null) {
-          unsetTimestamp();
-        } else {
-          setTimestamp((Long)value);
+          setColumn((Column)value);
         }
         break;
 
@@ -11937,14 +11888,11 @@ public class Cassandra {
       case KEY:
         return getKey();
 
-      case COLUMN_PATH:
-        return getColumn_path();
+      case COLUMN_PARENT:
+        return getColumn_parent();
 
-      case VALUE:
-        return getValue();
-
-      case TIMESTAMP:
-        return new Long(getTimestamp());
+      case COLUMN:
+        return getColumn();
 
       case CONSISTENCY_LEVEL:
         return getConsistency_level();
@@ -11964,12 +11912,10 @@ public class Cassandra {
         return isSetKeyspace();
       case KEY:
         return isSetKey();
-      case COLUMN_PATH:
-        return isSetColumn_path();
-      case VALUE:
-        return isSetValue();
-      case TIMESTAMP:
-        return isSetTimestamp();
+      case COLUMN_PARENT:
+        return isSetColumn_parent();
+      case COLUMN:
+        return isSetColumn();
       case CONSISTENCY_LEVEL:
         return isSetConsistency_level();
       }
@@ -12011,30 +11957,21 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_column_path = true && this.isSetColumn_path();
-      boolean that_present_column_path = true && that.isSetColumn_path();
-      if (this_present_column_path || that_present_column_path) {
-        if (!(this_present_column_path && that_present_column_path))
+      boolean this_present_column_parent = true && this.isSetColumn_parent();
+      boolean that_present_column_parent = true && that.isSetColumn_parent();
+      if (this_present_column_parent || that_present_column_parent) {
+        if (!(this_present_column_parent && that_present_column_parent))
           return false;
-        if (!this.column_path.equals(that.column_path))
-          return false;
-      }
-
-      boolean this_present_value = true && this.isSetValue();
-      boolean that_present_value = true && that.isSetValue();
-      if (this_present_value || that_present_value) {
-        if (!(this_present_value && that_present_value))
-          return false;
-        if (!java.util.Arrays.equals(this.value, that.value))
+        if (!this.column_parent.equals(that.column_parent))
           return false;
       }
 
-      boolean this_present_timestamp = true;
-      boolean that_present_timestamp = true;
-      if (this_present_timestamp || that_present_timestamp) {
-        if (!(this_present_timestamp && that_present_timestamp))
+      boolean this_present_column = true && this.isSetColumn();
+      boolean that_present_column = true && that.isSetColumn();
+      if (this_present_column || that_present_column) {
+        if (!(this_present_column && that_present_column))
           return false;
-        if (this.timestamp != that.timestamp)
+        if (!this.column.equals(that.column))
           return false;
       }
 
@@ -12081,29 +12018,20 @@ public class Cassandra {
           return lastComparison;
         }
       }
-      lastComparison = Boolean.valueOf(isSetColumn_path()).compareTo(typedOther.isSetColumn_path());
+      lastComparison = Boolean.valueOf(isSetColumn_parent()).compareTo(typedOther.isSetColumn_parent());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      if (isSetColumn_path()) {        lastComparison = TBaseHelper.compareTo(column_path, typedOther.column_path);
+      if (isSetColumn_parent()) {        lastComparison = TBaseHelper.compareTo(column_parent, typedOther.column_parent);
         if (lastComparison != 0) {
           return lastComparison;
         }
       }
-      lastComparison = Boolean.valueOf(isSetValue()).compareTo(typedOther.isSetValue());
+      lastComparison = Boolean.valueOf(isSetColumn()).compareTo(typedOther.isSetColumn());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      if (isSetValue()) {        lastComparison = TBaseHelper.compareTo(value, typedOther.value);
-        if (lastComparison != 0) {
-          return lastComparison;
-        }
-      }
-      lastComparison = Boolean.valueOf(isSetTimestamp()).compareTo(typedOther.isSetTimestamp());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      if (isSetTimestamp()) {        lastComparison = TBaseHelper.compareTo(timestamp, typedOther.timestamp);
+      if (isSetColumn()) {        lastComparison = TBaseHelper.compareTo(column, typedOther.column);
         if (lastComparison != 0) {
           return lastComparison;
         }
@@ -12144,30 +12072,23 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case 3: // COLUMN_PATH
+          case 3: // COLUMN_PARENT
             if (field.type == TType.STRUCT) {
-              this.column_path = new ColumnPath();
-              this.column_path.read(iprot);
+              this.column_parent = new ColumnParent();
+              this.column_parent.read(iprot);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case 4: // VALUE
-            if (field.type == TType.STRING) {
-              this.value = iprot.readBinary();
+          case 4: // COLUMN
+            if (field.type == TType.STRUCT) {
+              this.column = new Column();
+              this.column.read(iprot);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case 5: // TIMESTAMP
-            if (field.type == TType.I64) {
-              this.timestamp = iprot.readI64();
-              setTimestampIsSet(true);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case 6: // CONSISTENCY_LEVEL
+          case 5: // CONSISTENCY_LEVEL
             if (field.type == TType.I32) {
               this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
             } else { 
@@ -12182,9 +12103,6 @@ public class Cassandra {
       iprot.readStructEnd();
 
       // check for required fields of primitive type, which can't be checked in the validate method
-      if (!isSetTimestamp()) {
-        throw new TProtocolException("Required field 'timestamp' was not found in serialized data! Struct: " + toString());
-      }
       validate();
     }
 
@@ -12202,19 +12120,16 @@ public class Cassandra {
         oprot.writeBinary(this.key);
         oprot.writeFieldEnd();
       }
-      if (this.column_path != null) {
-        oprot.writeFieldBegin(COLUMN_PATH_FIELD_DESC);
-        this.column_path.write(oprot);
+      if (this.column_parent != null) {
+        oprot.writeFieldBegin(COLUMN_PARENT_FIELD_DESC);
+        this.column_parent.write(oprot);
         oprot.writeFieldEnd();
       }
-      if (this.value != null) {
-        oprot.writeFieldBegin(VALUE_FIELD_DESC);
-        oprot.writeBinary(this.value);
+      if (this.column != null) {
+        oprot.writeFieldBegin(COLUMN_FIELD_DESC);
+        this.column.write(oprot);
         oprot.writeFieldEnd();
       }
-      oprot.writeFieldBegin(TIMESTAMP_FIELD_DESC);
-      oprot.writeI64(this.timestamp);
-      oprot.writeFieldEnd();
       if (this.consistency_level != null) {
         oprot.writeFieldBegin(CONSISTENCY_LEVEL_FIELD_DESC);
         oprot.writeI32(this.consistency_level.getValue());
@@ -12250,29 +12165,20 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("column_path:");
-      if (this.column_path == null) {
+      sb.append("column_parent:");
+      if (this.column_parent == null) {
         sb.append("null");
       } else {
-        sb.append(this.column_path);
+        sb.append(this.column_parent);
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("value:");
-      if (this.value == null) {
+      sb.append("column:");
+      if (this.column == null) {
         sb.append("null");
       } else {
-          int __value_size = Math.min(this.value.length, 128);
-          for (int i = 0; i < __value_size; i++) {
-            if (i != 0) sb.append(" ");
-            sb.append(Integer.toHexString(this.value[i]).length() > 1 ? Integer.toHexString(this.value[i]).substring(Integer.toHexString(this.value[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.value[i]).toUpperCase());
-          }
-          if (this.value.length > 128) sb.append(" ...");
+        sb.append(this.column);
       }
-      first = false;
-      if (!first) sb.append(", ");
-      sb.append("timestamp:");
-      sb.append(this.timestamp);
       first = false;
       if (!first) sb.append(", ");
       sb.append("consistency_level:");
@@ -12294,13 +12200,12 @@ public class Cassandra {
       if (key == null) {
         throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
       }
-      if (column_path == null) {
-        throw new TProtocolException("Required field 'column_path' was not present! Struct: " + toString());
+      if (column_parent == null) {
+        throw new TProtocolException("Required field 'column_parent' was not present! Struct: " + toString());
       }
-      if (value == null) {
-        throw new TProtocolException("Required field 'value' was not present! Struct: " + toString());
+      if (column == null) {
+        throw new TProtocolException("Required field 'column' was not present! Struct: " + toString());
       }
-      // alas, we cannot check 'timestamp' because it's a primitive and you chose the non-beans generator.
       if (consistency_level == null) {
         throw new TProtocolException("Required field 'consistency_level' was not present! Struct: " + toString());
       }

@@ -57,11 +57,15 @@ const string VERSION = "4.0.0"
  *        is used as a key to its value.
  * @param value. Some data
  * @param timestamp. Used to record when data was sent to be written.
+ * @param ttl. A delay (in seconds) after which the column will be automatically deleted. If this parameter is not
+ *             provided or is <= 0, the column will never be deleted automatically (and will have no ttl when queried).
+ *             Note that, if set, the column will be deleted from a node ttl seconds after the column reach the node.
  */
 struct Column {
    1: required binary name,
    2: required binary value,
    3: required i64 timestamp,
+   4: optional i32 ttl,
 }
 
 /** A named list of columns.
@@ -407,16 +411,13 @@ service Cassandra {
   # modification methods
 
   /**
-    Insert a Column consisting of (column_path.column, value, timestamp) at the given column_path.column_family and optional
-    column_path.super_column. Note that column_path.column is here required, since a SuperColumn cannot directly contain binary
-    values -- it can only contain sub-Columns. 
+   * Insert a Column at the given column_parent.column_family and optional column_parent.super_column.
    */
   void insert(1:required string keyspace, 
               2:required binary key, 
-              3:required ColumnPath column_path, 
-              4:required binary value, 
-              5:required i64 timestamp, 
-              6:required ConsistencyLevel consistency_level=ONE)
+              3:required ColumnParent column_parent,
+              4:required Column column,
+              5:required ConsistencyLevel consistency_level=ONE)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**

@@ -160,7 +160,7 @@ public class Column implements IColumn
         try
         {
             buffer.writeLong(timestamp);
-            buffer.writeBoolean(isMarkedForDelete());
+            buffer.writeByte((isMarkedForDelete()) ? ColumnSerializer.DELETION_MASK : 0);
         }
         catch (IOException e)
         {

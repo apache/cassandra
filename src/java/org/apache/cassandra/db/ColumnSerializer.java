@@ -26,14 +26,25 @@ import java.io.*;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.utils.FBUtilities;
 
+import java.nio.ByteBuffer;
+
 public class ColumnSerializer implements ICompactSerializer2<IColumn>
 {
+    public final static int DELETION_MASK = 0x01;
+    public final static int EXPIRATION_MASK = 0x02;
+
     public void serialize(IColumn column, DataOutput dos)
     {
         FBUtilities.writeShortByteArray(column.name(), dos);
         try
         {
-            dos.writeBoolean(column.isMarkedForDelete());
+            if (column instanceof ExpiringColumn) {
+              dos.writeByte(EXPIRATION_MASK);
+              dos.writeInt(((ExpiringColumn) column).getTimeToLive());
+              dos.writeInt(column.getLocalDeletionTime());
+            } else {
+              dos.writeByte((column.isMarkedForDelete()) ? DELETION_MASK : 0);
+            }
             dos.writeLong(column.timestamp());
             FBUtilities.writeByteArray(column.value(), dos);
         }
@@ -46,18 +57,36 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
     public Column deserialize(DataInput dis) throws IOException
     {
         byte[] name = FBUtilities.readShortByteArray(dis);
-        boolean delete = dis.readBoolean();
-        long ts = dis.readLong();
-        int length = dis.readInt();
-        if (length < 0)
+        int b = dis.readUnsignedByte();
+        if (FBUtilities.testBitUsingBitMask(b, EXPIRATION_MASK))
         {
-            throw new IOException("Corrupt (negative) value length encountered");
+            int ttl = dis.readInt();
+            int expiration = dis.readInt();
+            long ts = dis.readLong();
+            byte[] value = FBUtilities.readByteArray(dis);
+            if ((int) (System.currentTimeMillis() / 1000 ) > expiration)
+            {
+                // the column is now expired, we can safely return a simple
+                // tombstone
+                ByteBuffer bytes = ByteBuffer.allocate(4);
+                bytes.putInt(expiration);
+                return new DeletedColumn(name, bytes.array(), ts);
+            }
+            else
+            {
+                return new ExpiringColumn(name, value, ts, ttl, expiration);
+            }
         }
-        byte[] value = new byte[length];
-        if (length > 0)
+        else
         {
-            dis.readFully(value);
+            boolean delete = FBUtilities.testBitUsingBitMask(b, DELETION_MASK);
+            long ts = dis.readLong();
+            byte[] value = FBUtilities.readByteArray(dis);
+            if (FBUtilities.testBitUsingBitMask(b, DELETION_MASK)) {
+                return new DeletedColumn(name, value, ts);
+            } else {
+                return new Column(name, value, ts);
+            }
         }
-        return delete ? new DeletedColumn(name, value, ts) : new Column(name, value, ts);
     }
 }

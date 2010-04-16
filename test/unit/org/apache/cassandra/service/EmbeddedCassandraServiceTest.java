@@ -28,8 +28,12 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.thrift.Cassandra;
+import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.ColumnOrSuperColumn;
+import org.apache.cassandra.thrift.Column;
+import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.ColumnPath;
+import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.NotFoundException;
@@ -93,11 +97,12 @@ public class EmbeddedCassandraServiceTest
 
         long timestamp = System.currentTimeMillis();
         ColumnPath cp = new ColumnPath("Standard1");
+        ColumnParent par = new ColumnParent("Standard1");
         cp.setColumn("name".getBytes("utf-8"));
 
         // insert
-        client.insert("Keyspace1", key_user_id, cp, "Ran".getBytes("UTF-8"),
-                timestamp, ConsistencyLevel.ONE);
+        client.insert("Keyspace1", key_user_id, par, 
+                new Column("name".getBytes("utf-8"), "Ran".getBytes("UTF-8"), timestamp), ConsistencyLevel.ONE);
 
         // read
         ColumnOrSuperColumn got = client.get("Keyspace1", key_user_id, cp,

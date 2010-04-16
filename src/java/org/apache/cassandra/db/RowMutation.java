@@ -148,16 +148,22 @@ public class RowMutation
      * param @ cf - column name as <column family>:<column>
      * param @ value - value associated with the column
      * param @ timestamp - timestamp associated with this data.
+     * param @ timeToLive - ttl for the column, 0 for standard (non expiring) columns
     */
-    public void add(QueryPath path, byte[] value, long timestamp)
+    public void add(QueryPath path, byte[] value, long timestamp, int timeToLive)
     {
         ColumnFamily columnFamily = modifications_.get(path.columnFamilyName);
         if (columnFamily == null)
         {
             columnFamily = ColumnFamily.create(table_, path.columnFamilyName);
         }
-        columnFamily.addColumn(path, value, timestamp);
+        columnFamily.addColumn(path, value, timestamp, timeToLive);
         modifications_.put(path.columnFamilyName, columnFamily);
+    }
+
+    public void add(QueryPath path, byte[] value, long timestamp)
+    {
+        add(path, value, timestamp, 0);
     }
 
     public void delete(QueryPath path, long timestamp)
@@ -254,13 +260,13 @@ public class RowMutation
                     assert cosc.super_column != null;
                     for (org.apache.cassandra.thrift.Column column : cosc.super_column.columns)
                     {
-                        rm.add(new QueryPath(cfName, cosc.super_column.name, column.name), column.value, column.timestamp);
+                        rm.add(new QueryPath(cfName, cosc.super_column.name, column.name), column.value, column.timestamp, column.getTtl());
                     }
                 }
                 else
                 {
                     assert cosc.super_column == null;
-                    rm.add(new QueryPath(cfName, null, cosc.column.name), cosc.column.value, cosc.column.timestamp);
+                    rm.add(new QueryPath(cfName, null, cosc.column.name), cosc.column.value, cosc.column.timestamp, cosc.column.getTtl());
                 }
             }
         }

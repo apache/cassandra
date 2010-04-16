@@ -273,6 +273,11 @@ public class ThriftValidation
             validateColumns(keyspace, cfName, scName, predicate.column_names);
     }
 
+    public static void validateColumn(String keyspace, ColumnParent column_parent, byte[] column_name) throws InvalidRequestException
+    {
+        validateColumns(keyspace, column_parent, Arrays.asList(column_name));
+    }
+
     public static void validatePredicate(String keyspace, ColumnParent column_parent, SlicePredicate predicate)
             throws InvalidRequestException
     {

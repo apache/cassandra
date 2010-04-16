@@ -309,6 +309,21 @@ public class FBUtilities
         out.write(bytes);
     }
 
+    public static byte[] readByteArray(DataInput in) throws IOException
+    {
+        int length = in.readInt();
+        if (length < 0)
+        {
+            throw new IOException("Corrupt (negative) value length encountered");
+        }
+        byte[] value = new byte[length];
+        if (length > 0)
+        {
+            in.readFully(value);
+        }
+        return value;
+    }
+
     public static void writeShortByteArray(byte[] name, DataOutput out)
     {
         int length = name.length;
@@ -484,5 +499,18 @@ public class FBUtilities
                 utflen += 2;
         }
         return utflen;
+    }
+
+    /**
+     * Test if a particular bit is set using a bit mask.
+     *
+     * @param v the value in which a bit must be tested
+     * @param mask the bit mask use to select a bit of <code>v</code>
+     * @return true if the bit of <code>v</code> selected by <code>mask<code>
+     * is set, false otherwise.
+     */
+    public static boolean testBitUsingBitMask(int v, int mask)
+    {
+        return (v & mask) != 0;
     }
 }

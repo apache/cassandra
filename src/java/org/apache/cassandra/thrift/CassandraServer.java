@@ -139,6 +139,10 @@ public class CassandraServer implements Cassandra.Iface
                 continue;
             }
             Column thrift_column = new Column(column.name(), column.value(), column.timestamp());
+            if (column instanceof ExpiringColumn)
+            {
+                thrift_column.setTtl(((ExpiringColumn) column).getTimeToLive());
+            }
             thriftColumns.add(thrift_column);
         }
 
@@ -155,6 +159,10 @@ public class CassandraServer implements Cassandra.Iface
                 continue;
             }
             Column thrift_column = new Column(column.name(), column.value(), column.timestamp());
+            if (column instanceof ExpiringColumn)
+            {
+                thrift_column.setTtl(((ExpiringColumn) column).getTimeToLive());
+            }
             thriftColumns.add(new ColumnOrSuperColumn().setColumn(thrift_column));
         }
 
@@ -346,7 +354,7 @@ public class CassandraServer implements Cassandra.Iface
         return get_slice(table, key, column_parent, predicate, consistency_level).size();
     }
 
-    public void insert(String table, byte[] key, ColumnPath column_path, byte[] value, long timestamp, ConsistencyLevel consistency_level)
+    public void insert(String table, byte[] key, ColumnParent column_parent, Column column, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
@@ -355,12 +363,13 @@ public class CassandraServer implements Cassandra.Iface
         checkLoginAuthorized(AccessLevel.READWRITE);
 
         ThriftValidation.validateKey(key);
-        ThriftValidation.validateColumnPath(table, column_path);
+        ThriftValidation.validateColumnParent(table, column_parent);
+        ThriftValidation.validateColumn(table, column_parent, column.name);
 
         RowMutation rm = new RowMutation(table, key);
         try
         {
-            rm.add(new QueryPath(column_path), value, timestamp);
+            rm.add(new QueryPath(column_parent.column_family, column_parent.super_column, column.name), column.value, column.timestamp, Math.max(column.ttl, 0));
         }
         catch (MarshalException e)
         {
@@ -841,4 +850,3 @@ public class CassandraServer implements Cassandra.Iface
 
     // main method moved to CassandraDaemon
 }
-    

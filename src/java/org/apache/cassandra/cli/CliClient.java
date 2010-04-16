@@ -411,8 +411,8 @@ public class CliClient
         }
         
         // do the insert
-        thriftClient_.insert(tableName, key.getBytes(), new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnName),
-                             value.getBytes(), timestampMicros(), ConsistencyLevel.ONE);
+        thriftClient_.insert(tableName, key.getBytes(), new ColumnParent(columnFamily).setSuper_column(superColumnName),
+                             new Column(columnName, value.getBytes(), timestampMicros()), ConsistencyLevel.ONE);
         
         css_.out.println("Value inserted.");
     }

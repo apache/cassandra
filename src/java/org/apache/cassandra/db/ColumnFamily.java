@@ -181,6 +181,17 @@ public class ColumnFamily implements IColumnContainer
         addColumn(path.superColumnName, new DeletedColumn(path.columnName, localDeletionTime, timestamp));
     }
 
+    public void addColumn(QueryPath path, byte[] value, long timestamp, int timeToLive)
+    {
+        assert path.columnName != null : path;
+        Column column;
+        if (timeToLive > 0)
+            column = new ExpiringColumn(path.columnName, value, timestamp, timeToLive);
+        else
+            column = new Column(path.columnName, value, timestamp);
+        addColumn(path.superColumnName, column);
+    }
+
     public void deleteColumn(QueryPath path, int localDeletionTime, long timestamp)
     {
         assert path.columnName != null : path;
