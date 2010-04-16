@@ -47,7 +47,7 @@ public class WordCountSetup
 
         // text1: 1 row, 1 word
         columnName = "text1".getBytes();
-        rm = new RowMutation(WordCount.KEYSPACE, "Key0");
+        rm = new RowMutation(WordCount.KEYSPACE, "Key0".getBytes());
         cf = ColumnFamily.create(WordCount.KEYSPACE, WordCount.COLUMN_FAMILY);
         cf.addColumn(new Column(columnName, "word1".getBytes(), 0));
         rm.add(cf);
@@ -56,7 +56,7 @@ public class WordCountSetup
 
         // text2: 1 row, 2 words
         columnName = "text2".getBytes();
-        rm = new RowMutation(WordCount.KEYSPACE, "Key0");
+        rm = new RowMutation(WordCount.KEYSPACE, "Key0".getBytes());
         cf = ColumnFamily.create(WordCount.KEYSPACE, WordCount.COLUMN_FAMILY);
         cf.addColumn(new Column(columnName, "word1 word2".getBytes(), 0));
         rm.add(cf);
@@ -67,7 +67,7 @@ public class WordCountSetup
         columnName = "text3".getBytes();
         for (int i = 0; i < 1000; i++)
         {
-            rm = new RowMutation(WordCount.KEYSPACE, "Key" + i);
+            rm = new RowMutation(WordCount.KEYSPACE, ("Key" + i).getBytes());
             cf = ColumnFamily.create(WordCount.KEYSPACE, WordCount.COLUMN_FAMILY);
             cf.addColumn(new Column(columnName, "word1".getBytes(), 0));
             rm.add(cf);
