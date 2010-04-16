@@ -167,11 +167,11 @@
   <!--
    ~ Partitioner: any IPartitioner may be used, including your own as long
    ~ as it is on the classpath.  Out of the box, Cassandra provides
-   ~ org.apache.cassandra.dht.RandomPartitioner,
-   ~ org.apache.cassandra.dht.OrderPreservingPartitioner, and
-   ~ org.apache.cassandra.dht.CollatingOrderPreservingPartitioner.
-   ~ (CollatingOPP colates according to EN,US rules, not naive byte
-   ~ ordering.  Use this as an example if you need locale-aware collation.)
+   ~ * org.apache.cassandra.dht.RandomPartitioner (un-ordered)
+   ~ * org.apache.cassandra.dht.ByteOrderedPartitioner (raw byte ordered)
+   ~ * org.apache.cassandra.dht.OrderPreservingPartitioner (utf8 ordered)
+   ~ * org.apache.cassandra.dht.CollatingOrderPreservingPartitioner 
+   ~   utf8 collation ordered using EN,US rules)
    ~ Range queries require using an order-preserving partitioner.
    ~
    ~ Achtung!  Changing this parameter requires wiping your data

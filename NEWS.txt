@@ -1,6 +1,15 @@
 0.7.0
 =====
 
+Features
+--------
+    - Row keys are now bytes: keys stored by versions prior to 0.7.0 will be
+      returned as UTF-8 encoded bytes. OrderPreservingPartitioner and
+      CollatingOrderPreservingPartitioner continue to expect that keys contain
+      UTF-8 encoded strings, but RandomPartitioner no longer expects strings.
+    - A new ByteOrderedPartitioner supports bytes keys with arbitrary content,
+      and orders keys by their byte value. 
+
 Configuraton
 ------------
     - Configuration file renamed to cassandra.xml and log4j.properties to
@@ -18,6 +27,7 @@ Configuraton
 
 Thrift API
 ----------
+    - Row keys are now 'bytes': see the Features list.
     - The return type for login() is now AccessLevel.
     - The get_string_property() method has been removed.
     - The get_string_list_property() method has been removed.
