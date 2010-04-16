@@ -90,6 +90,9 @@ public abstract class Migration
         this.newVersion = newVersion;
         this.lastVersion = lastVersion;
     }
+
+    /** override this to perform logic before writing the migration or applying it.  defaults to nothing. */
+    public void beforeApplyModels() {}
     
     /** apply changes */
     public final void apply() throws IOException
@@ -100,6 +103,8 @@ public abstract class Migration
         // write to schema
         assert rm != null;
         rm.apply();
+
+        beforeApplyModels();
         
         // write migration.
         long now = System.currentTimeMillis();

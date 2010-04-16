@@ -68,6 +68,12 @@ public class DropKeyspace extends Migration
     }
 
     @Override
+    public void beforeApplyModels()
+    {
+        Table.open(name).snapshot(null);
+    }
+
+    @Override
     public void applyModels() throws IOException
     {
         KSMetaData ksm = DatabaseDescriptor.getTableDefinition(name);

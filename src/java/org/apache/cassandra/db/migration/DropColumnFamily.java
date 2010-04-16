@@ -4,6 +4,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
@@ -18,6 +19,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -71,7 +73,7 @@ public class DropColumnFamily extends Migration
         KSMetaData newKsm = makeNewKeyspaceDefinition(ksm);
         rm = Migration.makeDefinitionMutation(newKsm, null, newVersion);
     }
-    
+
     private KSMetaData makeNewKeyspaceDefinition(KSMetaData ksm)
     {
         // clone ksm but do not include the new def
@@ -80,6 +82,13 @@ public class DropColumnFamily extends Migration
         newCfs.remove(cfm);
         assert newCfs.size() == ksm.cfMetaData().size() - 1;
         return new KSMetaData(ksm.name, ksm.strategyClass, ksm.replicationFactor, ksm.snitch, newCfs.toArray(new CFMetaData[newCfs.size()]));
+    }
+
+    @Override
+    public void beforeApplyModels()
+    {
+        ColumnFamilyStore cfs = Table.open(tableName).getColumnFamilyStore(cfName);
+        cfs.snapshot(Table.getTimestampedSnapshotName(null));
     }
 
     @Override

@@ -152,18 +152,28 @@ public class Table
      * @param clientSuppliedName the tag associated with the name of the snapshot.  This
      *                           value can be null.
      */
-    public void snapshot(String clientSuppliedName) throws IOException
+    public void snapshot(String clientSuppliedName)
+    {
+        String snapshotName = getTimestampedSnapshotName(clientSuppliedName);
+
+        for (ColumnFamilyStore cfStore : columnFamilyStores.values())
+        {
+            cfStore.snapshot(snapshotName);
+        }
+    }
+
+    /**
+     * @param clientSuppliedName; may be null.
+     * @return
+     */
+    public static String getTimestampedSnapshotName(String clientSuppliedName)
     {
         String snapshotName = Long.toString(System.currentTimeMillis());
         if (clientSuppliedName != null && !clientSuppliedName.equals(""))
         {
             snapshotName = snapshotName + "-" + clientSuppliedName;
         }
-
-        for (ColumnFamilyStore cfStore : columnFamilyStores.values())
-        {
-            cfStore.snapshot(snapshotName);
-        }
+        return snapshotName;
     }
 
 
