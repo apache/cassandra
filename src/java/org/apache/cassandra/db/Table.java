@@ -190,7 +190,7 @@ public class Table
             {
                 if (logger.isDebugEnabled())
                     logger.debug("Removing snapshot directory " + snapshotPath);
-                FileUtils.deleteDir(snapshotDir);
+                FileUtils.deleteRecursive(snapshotDir);
             }
         }
     }
@@ -250,7 +250,7 @@ public class Table
                 // remove the deprecated streaming directory.
                 File streamingDir = new File(keyspaceDir, "stream");
                 if (streamingDir.exists())
-                    FileUtils.deleteDir(streamingDir);
+                    FileUtils.deleteRecursive(streamingDir);
             }
             catch (IOException ex)
             {

@@ -54,11 +54,7 @@ public class CleanupHelper extends SchemaLoader
             {
                 throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
             }
-            for (File f : dir.listFiles())
-            {
-                FileUtils.deleteWithConfirm(f);
-            }
-            FileUtils.deleteWithConfirm(dir);
+            FileUtils.deleteRecursive(dir);
         }
 
         // clean up data directory which are stored as data directory/table/data files
@@ -69,19 +65,7 @@ public class CleanupHelper extends SchemaLoader
             {
                 throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
             }
-            for (File tableFile : dir.listFiles())
-            {
-                // table directory
-                if (tableFile.isDirectory())
-                {
-                    for (File dataFile : tableFile.listFiles())
-                    {
-                        FileUtils.deleteWithConfirm(dataFile);
-                    }
-                }
-                FileUtils.deleteWithConfirm(tableFile);
-            }
-            FileUtils.deleteWithConfirm(dir);
+            FileUtils.deleteRecursive(dir);
         }
     }
 

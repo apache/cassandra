@@ -21,9 +21,6 @@ package org.apache.cassandra.io.util;
 import java.io.*;
 import java.text.DecimalFormat;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -184,14 +181,14 @@ public class FileUtils
      * @param dir Directory to be deleted
      * @throws IOException if any part of the tree cannot be deleted
      */
-    public static void deleteDir(File dir) throws IOException
+    public static void deleteRecursive(File dir) throws IOException
     {
         if (dir.isDirectory())
         {
             String[] children = dir.list();
             for (int i = 0; i < children.length; i++)
             {
-                deleteDir(new File(dir, children[i]));
+                deleteRecursive(new File(dir, children[i]));
             }
         }
 
