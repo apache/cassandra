@@ -47,6 +47,10 @@ JMX metrics
       a much better estimate of compactions remaining, and the
       progress of the current compaction has been added.
     - commitlog JMX metrics are moved to org.apache.cassandra.db.Commitlog
+    - progress of data streaming during bootstrap, loadbalance, or other
+      data migration, is available under 
+      org.apache.cassandra.streaming.StreamingService.
+      See http://wiki.apache.org/cassandra/Streaming for details.
 
 Installation/Upgrade
 --------------------
