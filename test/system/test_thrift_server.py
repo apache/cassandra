@@ -552,6 +552,10 @@ class TestMutations(ThriftTester):
                           InvalidRequestException)
         # start > finish, key version
         _expect_exception(lambda: client.get_range_slice('Keyspace1', ColumnParent('Standard1'), SlicePredicate(column_names=['']), 'z', 'a', 1, ConsistencyLevel.ONE), InvalidRequestException)
+        # ttl must be positive
+        column = Column('cttl1', 'value1', 0, 0)
+        _expect_exception(lambda: client.insert('Keyspace1', 'key1', ColumnParent('Standard1'), column, ConsistencyLevel.ONE),
+                          InvalidRequestException)
 
     def test_batch_insert_super(self):
          cfmap = {'Super1': [ColumnOrSuperColumn(super_column=c) for c in _SUPER_COLUMNS],
@@ -994,23 +998,14 @@ class TestMutations(ThriftTester):
         client.insert('Keyspace1', 'key1', ColumnParent('Standard1'), column, ConsistencyLevel.ONE)
         assert client.get('Keyspace1', 'key1', ColumnPath('Standard1', column='cttl1'), ConsistencyLevel.ONE).column == column
 
-    def test_insert_negative_ttl(self):
-        """ Test insertion of a column with negative (invalid) ttl """
-        column = Column('cttl2', 'value1', 0, -10)
-        client.insert('Keyspace1', 'key1', ColumnParent('Standard1'), column, ConsistencyLevel.ONE)
-        time.sleep(0.1)
-        assert client.get('Keyspace1', 'key1', ColumnPath('Standard1', column='cttl2'), ConsistencyLevel.ONE).column == Column('cttl2', 'value1', 0)
-
     def test_simple_expiration(self):
         """ Test that column ttled do expires """
         column = Column('cttl3', 'value1', 0, 2)
         client.insert('Keyspace1', 'key1', ColumnParent('Standard1'), column, ConsistencyLevel.ONE)
         time.sleep(1)
         c = client.get('Keyspace1', 'key1', ColumnPath('Standard1', column='cttl3'), ConsistencyLevel.ONE).column
-        print c
-        print column
         assert c == column
-        #assert client.get('Keyspace1', 'key1', ColumnPath('Standard1', column='cttl3'), ConsistencyLevel.ONE).column == column
+        assert client.get('Keyspace1', 'key1', ColumnPath('Standard1', column='cttl3'), ConsistencyLevel.ONE).column == column
         time.sleep(2)
         _expect_missing(lambda: client.get('Keyspace1', 'key1', ColumnPath('Standard1', column='cttl3'), ConsistencyLevel.ONE))
 

@@ -208,6 +208,7 @@ public class ThriftValidation
     {
         if (cosc.column != null)
         {
+            validateTtl(cosc.column);
             ThriftValidation.validateColumnPath(keyspace, new ColumnPath(cfName).setSuper_column(null).setColumn(cosc.column.name));
         }
 
@@ -215,12 +216,23 @@ public class ThriftValidation
         {
             for (Column c : cosc.super_column.columns)
             {
+                validateTtl(c);
                 ThriftValidation.validateColumnPath(keyspace, new ColumnPath(cfName).setSuper_column(cosc.super_column.name).setColumn(c.name));
             }
         }
 
         if (cosc.column == null && cosc.super_column == null)
             throw new InvalidRequestException("ColumnOrSuperColumn must have one or both of Column or SuperColumn");
+    }
+
+    private static void validateTtl(Column column) throws InvalidRequestException
+    {
+        if (column.isSetTtl() && column.ttl <= 0)
+        {
+            throw new InvalidRequestException("ttl must be positive");
+        }
+        // if it's not set, then it should be zero -- here we are just checking to make sure Thrift doesn't change that contract with us.
+        assert column.isSetTtl() || column.ttl == 0;
     }
 
     public static void validateMutation(String keyspace, String cfName, Mutation mut)
@@ -273,9 +285,10 @@ public class ThriftValidation
             validateColumns(keyspace, cfName, scName, predicate.column_names);
     }
 
-    public static void validateColumn(String keyspace, ColumnParent column_parent, byte[] column_name) throws InvalidRequestException
+    public static void validateColumn(String keyspace, ColumnParent column_parent, Column column) throws InvalidRequestException
     {
-        validateColumns(keyspace, column_parent, Arrays.asList(column_name));
+        validateTtl(column);
+        validateColumns(keyspace, column_parent, Arrays.asList(column.name));
     }
 
     public static void validatePredicate(String keyspace, ColumnParent column_parent, SlicePredicate predicate)

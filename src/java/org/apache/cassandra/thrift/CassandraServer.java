@@ -360,12 +360,12 @@ public class CassandraServer implements Cassandra.Iface
 
         ThriftValidation.validateKey(key);
         ThriftValidation.validateColumnParent(table, column_parent);
-        ThriftValidation.validateColumn(table, column_parent, column.name);
+        ThriftValidation.validateColumn(table, column_parent, column);
 
         RowMutation rm = new RowMutation(table, key);
         try
         {
-            rm.add(new QueryPath(column_parent.column_family, column_parent.super_column, column.name), column.value, column.timestamp, Math.max(column.ttl, 0));
+            rm.add(new QueryPath(column_parent.column_family, column_parent.super_column, column.name), column.value, column.timestamp, column.ttl);
         }
         catch (MarshalException e)
         {
