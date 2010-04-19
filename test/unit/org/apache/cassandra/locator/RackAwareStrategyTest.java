@@ -58,7 +58,7 @@ public class RackAwareStrategyTest
     @Test
     public void testBigIntegerEndpointsA() throws UnknownHostException
     {
-        EndpointSnitch endpointSnitch = new EndpointSnitch();
+        RackInferringSnitch endpointSnitch = new RackInferringSnitch();
 
         AbstractReplicationStrategy strategy = new RackAwareStrategy(tmd, endpointSnitch);
         addEndpoint("0", "5", "254.0.0.1");
@@ -83,7 +83,7 @@ public class RackAwareStrategyTest
     @Test
     public void testBigIntegerEndpointsB() throws UnknownHostException
     {
-        EndpointSnitch endpointSnitch = new EndpointSnitch();
+        RackInferringSnitch endpointSnitch = new RackInferringSnitch();
 
         AbstractReplicationStrategy strategy = new RackAwareStrategy(tmd, endpointSnitch);
         addEndpoint("0", "5", "254.0.0.1");
@@ -109,7 +109,7 @@ public class RackAwareStrategyTest
     @Test
     public void testBigIntegerEndpointsC() throws UnknownHostException
     {
-        EndpointSnitch endpointSnitch = new EndpointSnitch();
+        RackInferringSnitch endpointSnitch = new RackInferringSnitch();
 
         AbstractReplicationStrategy strategy = new RackAwareStrategy(tmd, endpointSnitch);
         addEndpoint("0", "5", "254.0.0.1");

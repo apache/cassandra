@@ -39,8 +39,8 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
     public RackAwareStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch)
     {
         super(tokenMetadata, snitch);
-        if (!(snitch instanceof EndpointSnitch))
-            throw new IllegalArgumentException(("RackAwareStrategy requires EndpointSnitch."));
+        if (!(snitch instanceof AbstractRackAwareSnitch))
+            throw new IllegalArgumentException(("RackAwareStrategy requires AbstractRackAwareSnitch."));
     }
 
     public ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata, String table)
@@ -64,7 +64,7 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
             {
                 // First try to find one in a different data center
                 Token t = iter.next();
-                if (!((EndpointSnitch)snitch_).isInSameDataCenter(metadata.getEndpoint(primaryToken), metadata.getEndpoint(t)))
+                if (!((AbstractRackAwareSnitch)snitch_).isInSameDataCenter(metadata.getEndpoint(primaryToken), metadata.getEndpoint(t)))
                 {
                     // If we have already found something in a diff datacenter no need to find another
                     if (!bDataCenter)
@@ -75,8 +75,8 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
                     continue;
                 }
                 // Now  try to find one on a different rack
-                if (!((EndpointSnitch)snitch_).isOnSameRack(metadata.getEndpoint(primaryToken), metadata.getEndpoint(t)) &&
-                    ((EndpointSnitch)snitch_).isInSameDataCenter(metadata.getEndpoint(primaryToken), metadata.getEndpoint(t)))
+                if (!((AbstractRackAwareSnitch)snitch_).isOnSameRack(metadata.getEndpoint(primaryToken), metadata.getEndpoint(t)) &&
+                    ((AbstractRackAwareSnitch)snitch_).isInSameDataCenter(metadata.getEndpoint(primaryToken), metadata.getEndpoint(t)))
                 {
                     // If we have already found something in a diff rack no need to find another
                     if (!bOtherRack)

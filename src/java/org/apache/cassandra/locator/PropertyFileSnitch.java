@@ -36,13 +36,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * PropertyFileEndpointSnitch
+ * PropertyFileSnitch
  *
- * PropertyFileEndpointSnitch is used by Digg to determine if two IP's are in the same
+ * PropertyFileSnitch is used by Digg to determine if two IP's are in the same
  * datacenter or on the same rack.
  *
  */
-public class PropertyFileEndpointSnitch extends EndpointSnitch implements PropertyFileEndpointSnitchMBean {
+public class PropertyFileSnitch extends RackInferringSnitch implements PropertyFileSnitchMBean {
     /**
      * A list of properties with keys being host:port and values being datacenter:rack
      */
@@ -61,9 +61,9 @@ public class PropertyFileEndpointSnitch extends EndpointSnitch implements Proper
     /**
      * Reference to the logger.
      */
-    private static Logger logger_ = LoggerFactory.getLogger(PropertyFileEndpointSnitch.class);
+    private static Logger logger_ = LoggerFactory.getLogger(PropertyFileSnitch.class);
 
-    public PropertyFileEndpointSnitch() throws ConfigurationException
+    public PropertyFileSnitch() throws ConfigurationException
     {
         reloadConfiguration();
         try
@@ -158,7 +158,7 @@ public class PropertyFileEndpointSnitch extends EndpointSnitch implements Proper
 
     public void reloadConfiguration() throws ConfigurationException
     {
-        ClassLoader loader = PropertyFileEndpointSnitch.class.getClassLoader();
+        ClassLoader loader = PropertyFileSnitch.class.getClassLoader();
         URL scpurl = loader.getResource(RACK_PROPERTY_FILENAME);
         if (scpurl == null)
             throw new ConfigurationException("unable to locate " + RACK_PROPERTY_FILENAME);

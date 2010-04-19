@@ -41,7 +41,7 @@ import org.xml.sax.SAXException;
  * Endpoints and also get details from the same.
  */
 
-public class DatacenterEndpointSnitch extends AbstractEndpointSnitch
+public class DatacenterEndpointSnitch extends AbstractRackAwareSnitch
 {
     /**
      * This Map will contain the information of the Endpoints and its Location
