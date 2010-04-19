@@ -345,14 +345,14 @@ public class StorageProxy implements StorageProxyMBean
 
         for (ReadCommand command: commands)
         {
-            InetAddress endPoint = StorageService.instance.findSuitableEndPoint(command.table, command.key);
+            InetAddress endpoint = StorageService.instance.findSuitableEndpoint(command.table, command.key);
             Message message = command.makeReadMessage();
 
             if (logger.isDebugEnabled())
-                logger.debug("weakreadremote reading " + command + " from " + message.getMessageId() + "@" + endPoint);
+                logger.debug("weakreadremote reading " + command + " from " + message.getMessageId() + "@" + endpoint);
             if (randomlyReadRepair(command))
                 message.setHeader(ReadCommand.DO_REPAIR, ReadCommand.DO_REPAIR.getBytes());
-            iars.add(MessagingService.instance.sendRR(message, endPoint));
+            iars.add(MessagingService.instance.sendRR(message, endpoint));
         }
 
         for (IAsyncResult iar: iars)
@@ -429,7 +429,7 @@ public class StorageProxy implements StorageProxyMBean
     private static List<Row> strongRead(List<ReadCommand> commands, ConsistencyLevel consistency_level) throws IOException, UnavailableException, TimeoutException
     {
         List<QuorumResponseHandler<Row>> quorumResponseHandlers = new ArrayList<QuorumResponseHandler<Row>>();
-        List<InetAddress[]> commandEndPoints = new ArrayList<InetAddress[]>();
+        List<InetAddress[]> commandEndpoints = new ArrayList<InetAddress[]>();
         List<Row> rows = new ArrayList<Row>();
 
         int commandIndex = 0;
@@ -442,14 +442,14 @@ public class StorageProxy implements StorageProxyMBean
             Message message = command.makeReadMessage();
             Message messageDigestOnly = readMessageDigestOnly.makeReadMessage();
 
-            InetAddress dataPoint = StorageService.instance.findSuitableEndPoint(command.table, command.key);
+            InetAddress dataPoint = StorageService.instance.findSuitableEndpoint(command.table, command.key);
             List<InetAddress> endpointList = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
             final String table = command.table;
             int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(table), consistency_level);
             if (endpointList.size() < responseCount)
                 throw new UnavailableException();
 
-            InetAddress[] endPoints = new InetAddress[endpointList.size()];
+            InetAddress[] endpoints = new InetAddress[endpointList.size()];
             Message messages[] = new Message[endpointList.size()];
             // data-request message is sent to dataPoint, the node that will actually get
             // the data for us. The other replicas are only sent a digest query.
@@ -457,15 +457,15 @@ public class StorageProxy implements StorageProxyMBean
             for (InetAddress endpoint : endpointList)
             {
                 Message m = endpoint.equals(dataPoint) ? message : messageDigestOnly;
-                endPoints[n] = endpoint;
+                endpoints[n] = endpoint;
                 messages[n++] = m;
                 if (logger.isDebugEnabled())
                     logger.debug("strongread reading " + (m == message ? "data" : "digest") + " for " + command + " from " + m.getMessageId() + "@" + endpoint);
             }
             QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(DatabaseDescriptor.getQuorum(command.table), new ReadResponseResolver(command.table, responseCount));
-            MessagingService.instance.sendRR(messages, endPoints, quorumResponseHandler);
+            MessagingService.instance.sendRR(messages, endpoints, quorumResponseHandler);
             quorumResponseHandlers.add(quorumResponseHandler);
-            commandEndPoints.add(endPoints);
+            commandEndpoints.add(endpoints);
         }
 
         for (QuorumResponseHandler<Row> quorumResponseHandler: quorumResponseHandlers)
@@ -492,7 +492,7 @@ public class StorageProxy implements StorageProxyMBean
                             readResponseResolverRepair);
                     logger.info("DigestMismatchException: " + ex.getMessage());
                     Message messageRepair = command.makeReadMessage();
-                    MessagingService.instance.sendRR(messageRepair, commandEndPoints.get(commandIndex), quorumResponseHandlerRepair);
+                    MessagingService.instance.sendRR(messageRepair, commandEndpoints.get(commandIndex), quorumResponseHandlerRepair);
                     try
                     {
                         row = quorumResponseHandlerRepair.get();
@@ -675,7 +675,7 @@ public class StorageProxy implements StorageProxyMBean
             if (endpoints.size() < responseCount)
                 throw new UnavailableException();
 
-            DatabaseDescriptor.getEndPointSnitch().sortByProximity(FBUtilities.getLocalAddress(), endpoints);
+            DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), endpoints);
             List<InetAddress> endpointsForCL = endpoints.subList(0, responseCount);
             Set<AbstractBounds> restrictedRanges = queryRange.restrictTo(nodeRange);
             for (AbstractBounds range : restrictedRanges)

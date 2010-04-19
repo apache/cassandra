@@ -101,7 +101,7 @@ public class RingModel
                     "Invalid ObjectName? Please report this as a bug.", e);
         }
 
-        Map<Range, List<String>> rangeMap = ssProxy.getRangeToEndPointMap(null);
+        Map<Range, List<String>> rangeMap = ssProxy.getRangeToEndpointMap(null);
         List<Range> ranges = new ArrayList<Range>(rangeMap.keySet());
         Collections.sort(ranges);
         

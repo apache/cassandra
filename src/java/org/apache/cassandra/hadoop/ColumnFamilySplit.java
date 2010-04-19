@@ -84,9 +84,9 @@ public class ColumnFamilySplit extends InputSplit implements Writable
         out.writeUTF(endToken);
 
         out.writeInt(dataNodes.length);
-        for (String endPoint : dataNodes)
+        for (String endpoint : dataNodes)
         {
-            out.writeUTF(endPoint);
+            out.writeUTF(endpoint);
         }
     }
 
@@ -95,9 +95,9 @@ public class ColumnFamilySplit extends InputSplit implements Writable
         startToken = in.readUTF();
         endToken = in.readUTF();
 
-        int numOfEndPoints = in.readInt();
-        dataNodes = new String[numOfEndPoints];
-        for(int i = 0; i < numOfEndPoints; i++)
+        int numOfEndpoints = in.readInt();
+        dataNodes = new String[numOfEndpoints];
+        for(int i = 0; i < numOfEndpoints; i++)
         {
             dataNodes[i] = in.readUTF();
         }

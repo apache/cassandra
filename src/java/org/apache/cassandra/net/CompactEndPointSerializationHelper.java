@@ -23,9 +23,9 @@ import java.net.InetAddress;
 
 public class CompactEndPointSerializationHelper
 {
-    public static void serialize(InetAddress endPoint, DataOutputStream dos) throws IOException
+    public static void serialize(InetAddress endpoint, DataOutputStream dos) throws IOException
     {
-        byte[] buf = endPoint.getAddress();
+        byte[] buf = endpoint.getAddress();
         dos.writeByte(buf.length);
         dos.write(buf);
     }

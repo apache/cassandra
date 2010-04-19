@@ -65,10 +65,10 @@ public class RingCache
         this.keyspace = keyspace;
         
         DatabaseDescriptor.loadSchemas();
-        refreshEndPointMap();
+        refreshEndpointMap();
     }
 
-    public void refreshEndPointMap()
+    public void refreshEndpointMap()
     {
         for (String seed : seeds_)
         {
@@ -109,7 +109,7 @@ public class RingCache
         }
     }
 
-    public List<InetAddress> getEndPoint(byte[] key)
+    public List<InetAddress> getEndpoint(byte[] key)
     {
         if (tokenMetadata == null)
             throw new RuntimeException("Must refresh endpoints before looking up a key.");

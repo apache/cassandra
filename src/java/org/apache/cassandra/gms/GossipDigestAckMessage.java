@@ -60,7 +60,7 @@ class GossipDigestAckMessage
         return gDigestList_;
     }
     
-    Map<InetAddress, EndPointState> getEndPointStateMap()
+    Map<InetAddress, EndPointState> getEndpointStateMap()
     {
         return epStateMap_;
     }

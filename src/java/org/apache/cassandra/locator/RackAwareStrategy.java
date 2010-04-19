@@ -56,7 +56,7 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
 
         Iterator<Token> iter = TokenMetadata.ringIterator(tokens, token);
         Token primaryToken = iter.next();
-        endpoints.add(metadata.getEndPoint(primaryToken));
+        endpoints.add(metadata.getEndpoint(primaryToken));
 
         boolean bDataCenter = false;
         boolean bOtherRack = false;
@@ -66,24 +66,24 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
             {
                 // First try to find one in a different data center
                 Token t = iter.next();
-                if (!((EndPointSnitch)snitch_).isInSameDataCenter(metadata.getEndPoint(primaryToken), metadata.getEndPoint(t)))
+                if (!((EndPointSnitch)snitch_).isInSameDataCenter(metadata.getEndpoint(primaryToken), metadata.getEndpoint(t)))
                 {
                     // If we have already found something in a diff datacenter no need to find another
                     if (!bDataCenter)
                     {
-                        endpoints.add(metadata.getEndPoint(t));
+                        endpoints.add(metadata.getEndpoint(t));
                         bDataCenter = true;
                     }
                     continue;
                 }
                 // Now  try to find one on a different rack
-                if (!((EndPointSnitch)snitch_).isOnSameRack(metadata.getEndPoint(primaryToken), metadata.getEndPoint(t)) &&
-                    ((EndPointSnitch)snitch_).isInSameDataCenter(metadata.getEndPoint(primaryToken), metadata.getEndPoint(t)))
+                if (!((EndPointSnitch)snitch_).isOnSameRack(metadata.getEndpoint(primaryToken), metadata.getEndpoint(t)) &&
+                    ((EndPointSnitch)snitch_).isInSameDataCenter(metadata.getEndpoint(primaryToken), metadata.getEndpoint(t)))
                 {
                     // If we have already found something in a diff rack no need to find another
                     if (!bOtherRack)
                     {
-                        endpoints.add(metadata.getEndPoint(t));
+                        endpoints.add(metadata.getEndpoint(t));
                         bOtherRack = true;
                     }
                 }
@@ -103,8 +103,8 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
             while (endpoints.size() < replicas && iter.hasNext())
             {
                 Token t = iter.next();
-                if (!endpoints.contains(metadata.getEndPoint(t)))
-                    endpoints.add(metadata.getEndPoint(t));
+                if (!endpoints.contains(metadata.getEndpoint(t)))
+                    endpoints.add(metadata.getEndpoint(t));
             }
         }
 

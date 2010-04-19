@@ -40,7 +40,7 @@ public class GossipDigest implements Comparable<GossipDigest>
         serializer_ = new GossipDigestSerializer();
     }
     
-    InetAddress endPoint_;
+    InetAddress endpoint_;
     int generation_;
     int maxVersion_;
 
@@ -49,16 +49,16 @@ public class GossipDigest implements Comparable<GossipDigest>
         return serializer_;
     }
     
-    GossipDigest(InetAddress endPoint, int generation, int maxVersion)
+    GossipDigest(InetAddress endpoint, int generation, int maxVersion)
     {
-        endPoint_ = endPoint;
+        endpoint_ = endpoint;
         generation_ = generation; 
         maxVersion_ = maxVersion;
     }
     
-    InetAddress getEndPoint()
+    InetAddress getEndpoint()
     {
-        return endPoint_;
+        return endpoint_;
     }
     
     int getGeneration()
@@ -81,7 +81,7 @@ public class GossipDigest implements Comparable<GossipDigest>
     public String toString()
     {
         StringBuilder sb = new StringBuilder();
-        sb.append(endPoint_);
+        sb.append(endpoint_);
         sb.append(":");
         sb.append(generation_);
         sb.append(":");
@@ -94,16 +94,16 @@ class GossipDigestSerializer implements ICompactSerializer<GossipDigest>
 {       
     public void serialize(GossipDigest gDigest, DataOutputStream dos) throws IOException
     {        
-        CompactEndPointSerializationHelper.serialize(gDigest.endPoint_, dos);
+        CompactEndPointSerializationHelper.serialize(gDigest.endpoint_, dos);
         dos.writeInt(gDigest.generation_);
         dos.writeInt(gDigest.maxVersion_);
     }
 
     public GossipDigest deserialize(DataInputStream dis) throws IOException
     {
-        InetAddress endPoint = CompactEndPointSerializationHelper.deserialize(dis);
+        InetAddress endpoint = CompactEndPointSerializationHelper.deserialize(dis);
         int generation = dis.readInt();
         int version = dis.readInt();
-        return new GossipDigest(endPoint, generation, version);
+        return new GossipDigest(endpoint, generation, version);
     }
 }

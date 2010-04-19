@@ -607,7 +607,7 @@ public class CassandraServer implements Cassandra.Iface
     public List<TokenRange> describe_ring(String keyspace)
     {
         List<TokenRange> ranges = new ArrayList<TokenRange>();
-        for (Map.Entry<Range, List<String>> entry : StorageService.instance.getRangeToEndPointMap(keyspace).entrySet())
+        for (Map.Entry<Range, List<String>> entry : StorageService.instance.getRangeToEndpointMap(keyspace).entrySet())
         {
             Range range = entry.getKey();
             List<String> endpoints = entry.getValue();

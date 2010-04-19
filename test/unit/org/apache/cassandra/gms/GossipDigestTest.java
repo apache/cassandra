@@ -37,12 +37,12 @@ public class GossipDigestTest
     @Test
     public void test() throws IOException
     {
-        InetAddress endPoint = InetAddress.getByName("127.0.0.1");
+        InetAddress endpoint = InetAddress.getByName("127.0.0.1");
         int generation = 0;
         int maxVersion = 123;
-        GossipDigest expected = new GossipDigest(endPoint, generation, maxVersion);
+        GossipDigest expected = new GossipDigest(endpoint, generation, maxVersion);
         //make sure we get the same values out
-        assertEquals(endPoint, expected.getEndPoint());
+        assertEquals(endpoint, expected.getEndpoint());
         assertEquals(generation, expected.getGeneration());
         assertEquals(maxVersion, expected.getMaxVersion());
         

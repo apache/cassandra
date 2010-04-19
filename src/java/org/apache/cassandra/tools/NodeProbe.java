@@ -152,9 +152,9 @@ public class NodeProbe
         ssProxy.drain();	
     }
     
-    public Map<Range, List<String>> getRangeToEndPointMap(String tableName)
+    public Map<Range, List<String>> getRangeToEndpointMap(String tableName)
     {
-        return ssProxy.getRangeToEndPointMap(tableName);
+        return ssProxy.getRangeToEndpointMap(tableName);
     }
     
     public Set<String> getLiveNodes()
@@ -169,7 +169,7 @@ public class NodeProbe
      */
     public void printRing(PrintStream outs)
     {
-        Map<Range, List<String>> rangeMap = ssProxy.getRangeToEndPointMap(null);
+        Map<Range, List<String>> rangeMap = ssProxy.getRangeToEndpointMap(null);
         List<Range> ranges = new ArrayList<Range>(rangeMap.keySet());
         Collections.sort(ranges);
         Set<String> liveNodes = ssProxy.getLiveNodes();
@@ -407,7 +407,7 @@ public class NodeProbe
         }
     }
 
-    public List<InetAddress> getEndPoints(String keyspace, String key)
+    public List<InetAddress> getEndpoints(String keyspace, String key)
     {
         // FIXME: string key
         return ssProxy.getNaturalEndpoints(keyspace, key.getBytes(UTF8));

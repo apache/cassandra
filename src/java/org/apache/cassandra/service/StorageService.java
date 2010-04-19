@@ -125,12 +125,12 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
 
     public Collection<Range> getLocalRanges(String table)
     {
-        return getRangesForEndPoint(table, FBUtilities.getLocalAddress());
+        return getRangesForEndpoint(table, FBUtilities.getLocalAddress());
     }
 
     public Range getLocalPrimaryRange()
     {
-        return getPrimaryRangeForEndPoint(FBUtilities.getLocalAddress());
+        return getPrimaryRangeForEndpoint(FBUtilities.getLocalAddress());
     }
 
     /* This abstraction maintains the token/endpoint metadata information */
@@ -274,7 +274,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         try
         {
             Constructor<? extends AbstractReplicationStrategy> constructor = cls.getConstructor(parameterTypes);
-            replicationStrategy = constructor.newInstance(tokenMetadata, DatabaseDescriptor.getEndPointSnitch());
+            replicationStrategy = constructor.newInstance(tokenMetadata, DatabaseDescriptor.getEndpointSnitch());
         }
         catch (Exception e)
         {
@@ -451,7 +451,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
      * @param keyspace
      * @return
      */
-    public Map<Range, List<String>> getRangeToEndPointMap(String keyspace)
+    public Map<Range, List<String>> getRangeToEndpointMap(String keyspace)
     {
         // some people just want to get a visual representation of things. Allow null and set it to the first
         // non-system table.
@@ -470,7 +470,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     public Map<Range, List<InetAddress>> getRangeToAddressMap(String keyspace)
     {
         List<Range> ranges = getAllRanges(tokenMetadata_.sortedTokens());
-        return constructRangeToEndPointMap(keyspace, ranges);
+        return constructRangeToEndpointMap(keyspace, ranges);
     }
 
     /**
@@ -479,14 +479,14 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
      * @param ranges
      * @return mapping of ranges to the replicas responsible for them.
     */
-    private Map<Range, List<InetAddress>> constructRangeToEndPointMap(String keyspace, List<Range> ranges)
+    private Map<Range, List<InetAddress>> constructRangeToEndpointMap(String keyspace, List<Range> ranges)
     {
-        Map<Range, List<InetAddress>> rangeToEndPointMap = new HashMap<Range, List<InetAddress>>();
+        Map<Range, List<InetAddress>> rangeToEndpointMap = new HashMap<Range, List<InetAddress>>();
         for (Range range : ranges)
         {
-            rangeToEndPointMap.put(range, getReplicationStrategy(keyspace).getNaturalEndpoints(range.right, keyspace));
+            rangeToEndpointMap.put(range, getReplicationStrategy(keyspace).getNaturalEndpoints(range.right, keyspace));
         }
-        return rangeToEndPointMap;
+        return rangeToEndpointMap;
     }
 
     /*
@@ -521,32 +521,32 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     /**
      * Handle node bootstrap
      *
-     * @param endPoint bootstrapping node
+     * @param endpoint bootstrapping node
      * @param moveValue bootstrap token as string
      */
-    private void handleStateBootstrap(InetAddress endPoint, String moveValue)
+    private void handleStateBootstrap(InetAddress endpoint, String moveValue)
     {
         Token token = getPartitioner().getTokenFactory().fromString(moveValue);
 
         if (logger_.isDebugEnabled())
-            logger_.debug("Node " + endPoint + " state bootstrapping, token " + token);
+            logger_.debug("Node " + endpoint + " state bootstrapping, token " + token);
 
         // if this node is present in token metadata, either we have missed intermediate states
         // or the node had crashed. Print warning if needed, clear obsolete stuff and
         // continue.
-        if (tokenMetadata_.isMember(endPoint))
+        if (tokenMetadata_.isMember(endpoint))
         {
             // If isLeaving is false, we have missed both LEAVING and LEFT. However, if
             // isLeaving is true, we have only missed LEFT. Waiting time between completing
             // leave operation and rebootstrapping is relatively short, so the latter is quite
             // common (not enough time for gossip to spread). Therefore we report only the
             // former in the log.
-            if (!tokenMetadata_.isLeaving(endPoint))
-                logger_.info("Node " + endPoint + " state jump to bootstrap");
-            tokenMetadata_.removeEndpoint(endPoint);
+            if (!tokenMetadata_.isLeaving(endpoint))
+                logger_.info("Node " + endpoint + " state jump to bootstrap");
+            tokenMetadata_.removeEndpoint(endpoint);
         }
 
-        tokenMetadata_.addBootstrapToken(token, endPoint);
+        tokenMetadata_.addBootstrapToken(token, endpoint);
         calculatePendingRanges();
     }
 
@@ -554,55 +554,55 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
      * Handle node move to normal state. That is, node is entering token ring and participating
      * in reads.
      *
-     * @param endPoint node
+     * @param endpoint node
      * @param moveValue token as string
      */
-    private void handleStateNormal(InetAddress endPoint, String moveValue)
+    private void handleStateNormal(InetAddress endpoint, String moveValue)
     {
         Token token = getPartitioner().getTokenFactory().fromString(moveValue);
 
         if (logger_.isDebugEnabled())
-            logger_.debug("Node " + endPoint + " state normal, token " + token);
+            logger_.debug("Node " + endpoint + " state normal, token " + token);
 
-        if (tokenMetadata_.isMember(endPoint))
-            logger_.info("Node " + endPoint + " state jump to normal");
+        if (tokenMetadata_.isMember(endpoint))
+            logger_.info("Node " + endpoint + " state jump to normal");
 
-        tokenMetadata_.updateNormalToken(token, endPoint);
+        tokenMetadata_.updateNormalToken(token, endpoint);
         calculatePendingRanges();
         if (!isClientMode)
-            SystemTable.updateToken(endPoint, token);
+            SystemTable.updateToken(endpoint, token);
     }
 
     /**
      * Handle node preparing to leave the ring
      *
-     * @param endPoint node
+     * @param endpoint node
      * @param moveValue token as string
      */
-    private void handleStateLeaving(InetAddress endPoint, String moveValue)
+    private void handleStateLeaving(InetAddress endpoint, String moveValue)
     {
         Token token = getPartitioner().getTokenFactory().fromString(moveValue);
 
         if (logger_.isDebugEnabled())
-            logger_.debug("Node " + endPoint + " state leaving, token " + token);
+            logger_.debug("Node " + endpoint + " state leaving, token " + token);
 
         // If the node is previously unknown or tokens do not match, update tokenmetadata to
         // have this node as 'normal' (it must have been using this token before the
         // leave). This way we'll get pending ranges right.
-        if (!tokenMetadata_.isMember(endPoint))
+        if (!tokenMetadata_.isMember(endpoint))
         {
-            logger_.info("Node " + endPoint + " state jump to leaving");
-            tokenMetadata_.updateNormalToken(token, endPoint);
+            logger_.info("Node " + endpoint + " state jump to leaving");
+            tokenMetadata_.updateNormalToken(token, endpoint);
         }
-        else if (!tokenMetadata_.getToken(endPoint).equals(token))
+        else if (!tokenMetadata_.getToken(endpoint).equals(token))
         {
-            logger_.warn("Node " + endPoint + " 'leaving' token mismatch. Long network partition?");
-            tokenMetadata_.updateNormalToken(token, endPoint);
+            logger_.warn("Node " + endpoint + " 'leaving' token mismatch. Long network partition?");
+            tokenMetadata_.updateNormalToken(token, endpoint);
         }
 
         // at this point the endpoint is certainly a member with this token, so let's proceed
         // normally
-        tokenMetadata_.addLeavingEndPoint(endPoint);
+        tokenMetadata_.addLeavingEndpoint(endpoint);
         calculatePendingRanges();
     }
 
@@ -610,51 +610,51 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
      * Handle node leaving the ring. This can be either because the node was removed manually by
      * removetoken command or because of decommission or loadbalance
      *
-     * @param endPoint If reason for leaving is decommission or loadbalance (LEFT_NORMALLY),
-     * endPoint is the leaving node. If reason manual removetoken (REMOVE_TOKEN), endPoint
+     * @param endpoint If reason for leaving is decommission or loadbalance (LEFT_NORMALLY),
+     * endpoint is the leaving node. If reason manual removetoken (REMOVE_TOKEN), endpoint
      * parameter is ignored and the operation is based on the token inside moveValue.
      * @param moveValue (REMOVE_TOKEN|LEFT_NORMALLY)<Delimiter><token>
      */
-    private void handleStateLeft(InetAddress endPoint, String moveValue)
+    private void handleStateLeft(InetAddress endpoint, String moveValue)
     {
         int index = moveValue.indexOf(Delimiter);
         assert (index != -1);
         String typeOfState = moveValue.substring(0, index);
         Token token = getPartitioner().getTokenFactory().fromString(moveValue.substring(index + 1));
 
-        // endPoint itself is leaving
+        // endpoint itself is leaving
         if (typeOfState.equals(LEFT_NORMALLY))
         {
             if (logger_.isDebugEnabled())
-                logger_.debug("Node " + endPoint + " state left, token " + token);
+                logger_.debug("Node " + endpoint + " state left, token " + token);
 
             // If the node is member, remove all references to it. If not, call
             // removeBootstrapToken just in case it is there (very unlikely chain of events)
-            if (tokenMetadata_.isMember(endPoint))
+            if (tokenMetadata_.isMember(endpoint))
             {
-                if (!tokenMetadata_.getToken(endPoint).equals(token))
-                    logger_.warn("Node " + endPoint + " 'left' token mismatch. Long network partition?");
-                tokenMetadata_.removeEndpoint(endPoint);
+                if (!tokenMetadata_.getToken(endpoint).equals(token))
+                    logger_.warn("Node " + endpoint + " 'left' token mismatch. Long network partition?");
+                tokenMetadata_.removeEndpoint(endpoint);
             }
         }
         else
         {
-            // if we're here, endPoint is not leaving but broadcasting remove token command
+            // if we're here, endpoint is not leaving but broadcasting remove token command
             assert (typeOfState.equals(REMOVE_TOKEN));
-            InetAddress endPointThatLeft = tokenMetadata_.getEndPoint(token);
+            InetAddress endpointThatLeft = tokenMetadata_.getEndpoint(token);
             // let's make sure that we're not removing ourselves. This can happen when a node
             // enters ring as a replacement for a removed node. removeToken for the old node is
             // still in gossip, so we will see it.
-            if (FBUtilities.getLocalAddress().equals(endPointThatLeft))
+            if (FBUtilities.getLocalAddress().equals(endpointThatLeft))
             {
                 logger_.info("Received removeToken gossip about myself. Is this node a replacement for a removed one?");
                 return;
             }
             if (logger_.isDebugEnabled())
-                logger_.debug("Token " + token + " removed manually (endpoint was " + ((endPointThatLeft == null) ? "unknown" : endPointThatLeft) + ")");
-            if (endPointThatLeft != null)
+                logger_.debug("Token " + token + " removed manually (endpoint was " + ((endpointThatLeft == null) ? "unknown" : endpointThatLeft) + ")");
+            if (endpointThatLeft != null)
             {
-                removeEndPointLocally(endPointThatLeft);
+                removeEndpointLocally(endpointThatLeft);
             }
         }
 
@@ -664,14 +664,14 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     }
 
     /**
-     * endPoint was completely removed from ring (as a result of removetoken command). Remove it
+     * endpoint was completely removed from ring (as a result of removetoken command). Remove it
      * from token metadata and gossip and restore replica count.
      */
-    private void removeEndPointLocally(InetAddress endPoint)
+    private void removeEndpointLocally(InetAddress endpoint)
     {
-        restoreReplicaCount(endPoint);
-        Gossiper.instance.removeEndPoint(endPoint);
-        tokenMetadata_.removeEndpoint(endPoint);
+        restoreReplicaCount(endpoint);
+        Gossiper.instance.removeEndpoint(endpoint);
+        tokenMetadata_.removeEndpoint(endpoint);
     }
 
     /**
@@ -709,9 +709,9 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         TokenMetadata tm = StorageService.instance.getTokenMetadata();
         Multimap<Range, InetAddress> pendingRanges = HashMultimap.create();
         Map<Token, InetAddress> bootstrapTokens = tm.getBootstrapTokens();
-        Set<InetAddress> leavingEndPoints = tm.getLeavingEndPoints();
+        Set<InetAddress> leavingEndpoints = tm.getLeavingEndpoints();
 
-        if (bootstrapTokens.isEmpty() && leavingEndPoints.isEmpty())
+        if (bootstrapTokens.isEmpty() && leavingEndpoints.isEmpty())
         {
             if (logger_.isDebugEnabled())
                 logger_.debug("No bootstrapping or leaving nodes -> empty pending ranges for {}", table);
@@ -726,17 +726,17 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
 
         // get all ranges that will be affected by leaving nodes
         Set<Range> affectedRanges = new HashSet<Range>();
-        for (InetAddress endPoint : leavingEndPoints)
-            affectedRanges.addAll(addressRanges.get(endPoint));
+        for (InetAddress endpoint : leavingEndpoints)
+            affectedRanges.addAll(addressRanges.get(endpoint));
 
         // for each of those ranges, find what new nodes will be responsible for the range when
         // all leaving nodes are gone.
         for (Range range : affectedRanges)
         {
-            List<InetAddress> currentEndPoints = strategy.getNaturalEndpoints(range.right, tm, table);
-            List<InetAddress> newEndPoints = strategy.getNaturalEndpoints(range.right, allLeftMetadata, table);
-            newEndPoints.removeAll(currentEndPoints);
-            pendingRanges.putAll(range, newEndPoints);
+            List<InetAddress> currentEndpoints = strategy.getNaturalEndpoints(range.right, tm, table);
+            List<InetAddress> newEndpoints = strategy.getNaturalEndpoints(range.right, allLeftMetadata, table);
+            newEndpoints.removeAll(currentEndpoints);
+            pendingRanges.putAll(range, newEndpoints);
         }
 
         // At this stage pendingRanges has been updated according to leave operations. We can
@@ -746,12 +746,12 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         // allLeftMetadata and check in between what their ranges would be.
         for (Map.Entry<Token, InetAddress> entry : bootstrapTokens.entrySet())
         {
-            InetAddress endPoint = entry.getValue();
+            InetAddress endpoint = entry.getValue();
 
-            allLeftMetadata.updateNormalToken(entry.getKey(), endPoint);
-            for (Range range : strategy.getAddressRanges(allLeftMetadata, table).get(endPoint))
-                pendingRanges.put(range, endPoint);
-            allLeftMetadata.removeEndpoint(endPoint);
+            allLeftMetadata.updateNormalToken(entry.getKey(), endpoint);
+            for (Range range : strategy.getAddressRanges(allLeftMetadata, table).get(endpoint))
+                pendingRanges.put(range, endpoint);
+            allLeftMetadata.removeEndpoint(endpoint);
         }
 
         tm.setPendingRanges(table, pendingRanges);
@@ -761,7 +761,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     }
 
     /**
-     * Called when an endPoint is removed from the ring without proper
+     * Called when an endpoint is removed from the ring without proper
      * STATE_LEAVING -> STATE_LEFT sequence. This function checks
      * whether this node becomes responsible for new ranges as a
      * consequence and streams data if needed.
@@ -769,9 +769,9 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
      * This is rather ineffective, but it does not matter so much
      * since this is called very seldom
      *
-     * @param endPoint node that has left
+     * @param endpoint node that has left
      */
-    private void restoreReplicaCount(InetAddress endPoint)
+    private void restoreReplicaCount(InetAddress endpoint)
     {
         InetAddress myAddress = FBUtilities.getLocalAddress();
 
@@ -779,7 +779,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         {
             // get all ranges that change ownership (that is, a node needs
             // to take responsibility for new range)
-            Multimap<Range, InetAddress> changedRanges = getChangedRangesForLeaving(table, endPoint);
+            Multimap<Range, InetAddress> changedRanges = getChangedRangesForLeaving(table, endpoint);
 
             // check if any of these ranges are coming our way
             Set<Range> myNewRanges = new HashSet<Range>();
@@ -792,7 +792,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
             if (!myNewRanges.isEmpty())
             {
                 if (logger_.isDebugEnabled())
-                    logger_.debug(endPoint + " was removed, my added ranges: " + StringUtils.join(myNewRanges, ", "));
+                    logger_.debug(endpoint + " was removed, my added ranges: " + StringUtils.join(myNewRanges, ", "));
 
                 Multimap<Range, InetAddress> rangeAddresses = getReplicationStrategy(table).getRangeAddresses(tokenMetadata_, table);
                 Multimap<InetAddress, Range> sourceRanges = HashMultimap.create();
@@ -801,13 +801,13 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
                 // find alive sources for our new ranges
                 for (Range myNewRange : myNewRanges)
                 {
-                    List<InetAddress> sources = DatabaseDescriptor.getEndPointSnitch().getSortedListByProximity(myAddress, rangeAddresses.get(myNewRange));
+                    List<InetAddress> sources = DatabaseDescriptor.getEndpointSnitch().getSortedListByProximity(myAddress, rangeAddresses.get(myNewRange));
 
                     assert (!sources.contains(myAddress));
 
                     for (InetAddress source : sources)
                     {
-                        if (source.equals(endPoint))
+                        if (source.equals(endpoint))
                             continue;
 
                         if (failureDetector.isAlive(source))
@@ -834,7 +834,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     private Multimap<Range, InetAddress> getChangedRangesForLeaving(String table, InetAddress endpoint)
     {
         // First get all ranges the leaving endpoint is responsible for
-        Collection<Range> ranges = getRangesForEndPoint(table, endpoint);
+        Collection<Range> ranges = getRangesForEndpoint(table, endpoint);
 
         if (logger_.isDebugEnabled())
             logger_.debug("Node " + endpoint + " ranges [" + StringUtils.join(ranges, ", ") + "]");
@@ -954,24 +954,24 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         return stringify(Gossiper.instance.getUnreachableMembers());
     }
 
-    private Set<String> stringify(Set<InetAddress> endPoints)
+    private Set<String> stringify(Set<InetAddress> endpoints)
     {
-        Set<String> stringEndPoints = new HashSet<String>();
-        for (InetAddress ep : endPoints)
+        Set<String> stringEndpoints = new HashSet<String>();
+        for (InetAddress ep : endpoints)
         {
-            stringEndPoints.add(ep.getHostAddress());
+            stringEndpoints.add(ep.getHostAddress());
         }
-        return stringEndPoints;
+        return stringEndpoints;
     }
 
-    private List<String> stringify(List<InetAddress> endPoints)
+    private List<String> stringify(List<InetAddress> endpoints)
     {
-        List<String> stringEndPoints = new ArrayList<String>();
-        for (InetAddress ep : endPoints)
+        List<String> stringEndpoints = new ArrayList<String>();
+        for (InetAddress ep : endpoints)
         {
-            stringEndPoints.add(ep.getHostAddress());
+            stringEndpoints.add(ep.getHostAddress());
         }
-        return stringEndPoints;
+        return stringEndpoints;
     }
 
     public int getCurrentGenerationNumber()
@@ -1104,7 +1104,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     InetAddress getPredecessor(InetAddress ep)
     {
         Token token = tokenMetadata_.getToken(ep);
-        return tokenMetadata_.getEndPoint(tokenMetadata_.getPredecessor(token));
+        return tokenMetadata_.getEndpoint(tokenMetadata_.getPredecessor(token));
     }
 
     /*
@@ -1114,7 +1114,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     public InetAddress getSuccessor(InetAddress ep)
     {
         Token token = tokenMetadata_.getToken(ep);
-        return tokenMetadata_.getEndPoint(tokenMetadata_.getSuccessor(token));
+        return tokenMetadata_.getEndpoint(tokenMetadata_.getSuccessor(token));
     }
 
     /**
@@ -1122,7 +1122,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
      * @param ep endpoint we are interested in.
      * @return range for the specified endpoint.
      */
-    public Range getPrimaryRangeForEndPoint(InetAddress ep)
+    public Range getPrimaryRangeForEndpoint(InetAddress ep)
     {
         return tokenMetadata_.getPrimaryRangeFor(tokenMetadata_.getToken(ep));
     }
@@ -1132,7 +1132,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
      * @param ep endpoint we are interested in.
      * @return ranges for the specified endpoint.
      */
-    Collection<Range> getRangesForEndPoint(String table, InetAddress ep)
+    Collection<Range> getRangesForEndpoint(String table, InetAddress ep)
     {
         return getReplicationStrategy(table).getAddressRanges(table).get(ep);
     }
@@ -1216,10 +1216,10 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     /**
      * This function finds the closest live endpoint that contains a given key.
      */
-    public InetAddress findSuitableEndPoint(String table, byte[] key) throws IOException, UnavailableException
+    public InetAddress findSuitableEndpoint(String table, byte[] key) throws IOException, UnavailableException
     {
         List<InetAddress> endpoints = getNaturalEndpoints(table, key);
-        DatabaseDescriptor.getEndPointSnitch().sortByProximity(FBUtilities.getLocalAddress(), endpoints);
+        DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), endpoints);
         for (InetAddress endpoint : endpoints)
         {
             if (FailureDetector.instance.isAlive(endpoint))
@@ -1233,7 +1233,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         HashMap<String, String> map = new HashMap<String, String>();
         for (Token t : tokenMetadata_.sortedTokens())
         {
-            map.put(t.toString(), tokenMetadata_.getEndPoint(t).getHostAddress());
+            map.put(t.toString(), tokenMetadata_.getEndpoint(t).getHostAddress());
         }
         return map;
     }
@@ -1306,7 +1306,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     private void startLeaving()
     {
         Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_LEAVING + Delimiter + getLocalToken().toString()));
-        tokenMetadata_.addLeavingEndPoint(FBUtilities.getLocalAddress());
+        tokenMetadata_.addLeavingEndpoint(FBUtilities.getLocalAddress());
         calculatePendingRanges();
     }
 
@@ -1470,18 +1470,18 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         // cannot find the endpoint for this token from metadata, but
         // that would prevent this command from being issued by a node
         // that has never seen the failed node.
-        InetAddress endPoint = tokenMetadata_.getEndPoint(token);
-        if (endPoint != null)
+        InetAddress endpoint = tokenMetadata_.getEndpoint(token);
+        if (endpoint != null)
         {
-            if (endPoint.equals(FBUtilities.getLocalAddress()))
+            if (endpoint.equals(FBUtilities.getLocalAddress()))
                 throw new UnsupportedOperationException("Cannot remove node's own token");
 
             // Let's make sure however that we're not removing a live
             // token (member)
-            if (Gossiper.instance.getLiveMembers().contains(endPoint))
-                throw new UnsupportedOperationException("Node " + endPoint + " is alive and owns this token. Use decommission command to remove it from the ring");
+            if (Gossiper.instance.getLiveMembers().contains(endpoint))
+                throw new UnsupportedOperationException("Node " + endpoint + " is alive and owns this token. Use decommission command to remove it from the ring");
 
-            removeEndPointLocally(endPoint);
+            removeEndpointLocally(endpoint);
             calculatePendingRanges();
         }
 

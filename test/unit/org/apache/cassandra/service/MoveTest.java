@@ -60,7 +60,7 @@ public class MoveTest
      * StorageService.onChange and does not manipulate token metadata directly.
      */
     @Test
-    public void testWriteEndPointsDuringLeave() throws UnknownHostException
+    public void testWriteEndpointsDuringLeave() throws UnknownHostException
     {
         StorageService ss = StorageService.instance;
         final int RING_SIZE = 5;
@@ -74,11 +74,11 @@ public class MoveTest
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
         Map<String, AbstractReplicationStrategy> oldStrategies = ss.setReplicationStrategyUnsafe(createReplacements(testStrategy));
 
-        ArrayList<Token> endPointTokens = new ArrayList<Token>();
+        ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
         List<InetAddress> hosts = new ArrayList<InetAddress>();
 
-        createInitialRing(ss, partitioner, endPointTokens, keyTokens, hosts, RING_SIZE);
+        createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, RING_SIZE);
 
         final Map<String, List<Range>> deadNodesRanges = new HashMap<String, List<Range>>();
         for (String table : DatabaseDescriptor.getNonSystemTables())
@@ -90,7 +90,7 @@ public class MoveTest
         }
         
         // Third node leaves
-        ss.onChange(hosts.get(LEAVING_NODE), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(endPointTokens.get(LEAVING_NODE))));
+        ss.onChange(hosts.get(LEAVING_NODE), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(LEAVING_NODE))));
 
         // check that it is correctly marked as leaving in tmd
         assertTrue(tmd.isLeaving(hosts.get(LEAVING_NODE)));
@@ -117,14 +117,14 @@ public class MoveTest
             final int replicaStart = (LEAVING_NODE-replicationFactor+RING_SIZE)%RING_SIZE;
             for (int i=0; i<keyTokens.size(); ++i)
             {
-                Collection<InetAddress> endPoints = testStrategy.getWriteEndpoints(keyTokens.get(i), table, testStrategy.getNaturalEndpoints(keyTokens.get(i), table));
+                Collection<InetAddress> endpoints = testStrategy.getWriteEndpoints(keyTokens.get(i), table, testStrategy.getNaturalEndpoints(keyTokens.get(i), table));
                 // figure out if this node is one of the nodes previous to the failed node (2).
                 boolean isReplica = (i - replicaStart + RING_SIZE) % RING_SIZE < replicationFactor;
                 // the preceeding leaving_node-replication_factor nodes should have and additional ep (replication_factor+1);
                 if (isReplica)
-                    assertTrue(endPoints.size() == replicationFactor + 1);
+                    assertTrue(endpoints.size() == replicationFactor + 1);
                 else
-                    assertTrue(endPoints.size() == replicationFactor);
+                    assertTrue(endpoints.size() == replicationFactor);
 
             }
         }
@@ -150,17 +150,17 @@ public class MoveTest
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
         Map<String, AbstractReplicationStrategy> oldStrategy = ss.setReplicationStrategyUnsafe(createReplacements(testStrategy));
 
-        ArrayList<Token> endPointTokens = new ArrayList<Token>();
+        ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
         List<InetAddress> hosts = new ArrayList<InetAddress>();
 
         // create a ring or 10 nodes
-        createInitialRing(ss, partitioner, endPointTokens, keyTokens, hosts, RING_SIZE);
+        createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, RING_SIZE);
 
         // nodes 6, 8 and 9 leave
         final int[] LEAVING = new int[] { 6, 8, 9};
         for (int leaving : LEAVING)
-            ss.onChange(hosts.get(leaving), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(endPointTokens.get(leaving))));
+            ss.onChange(hosts.get(leaving), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(leaving))));
         
         // boot two new nodes with keyTokens.get(5) and keyTokens.get(7)
         InetAddress boot1 = InetAddress.getByName("127.0.1.1");
@@ -168,7 +168,7 @@ public class MoveTest
         InetAddress boot2 = InetAddress.getByName("127.0.1.2");
         ss.onChange(boot2, StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_BOOTSTRAPPING + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(7))));
 
-        Collection<InetAddress> endPoints = null;
+        Collection<InetAddress> endpoints = null;
 
         // pre-calculate the results.
         Map<String, Multimap<Token, InetAddress>> expectedEndpoints = new HashMap<String, Multimap<Token, InetAddress>>();
@@ -221,9 +221,9 @@ public class MoveTest
         {
             for (int i = 0; i < keyTokens.size(); i++)
             {
-                endPoints = testStrategy.getWriteEndpoints(keyTokens.get(i), table, testStrategy.getNaturalEndpoints(keyTokens.get(i), table));
-                assertTrue(expectedEndpoints.get(table).get(keyTokens.get(i)).size() == endPoints.size());
-                assertTrue(expectedEndpoints.get(table).get(keyTokens.get(i)).containsAll(endPoints));
+                endpoints = testStrategy.getWriteEndpoints(keyTokens.get(i), table, testStrategy.getNaturalEndpoints(keyTokens.get(i), table));
+                assertTrue(expectedEndpoints.get(table).get(keyTokens.get(i)).size() == endpoints.size());
+                assertTrue(expectedEndpoints.get(table).get(keyTokens.get(i)).containsAll(endpoints));
             }
 
             // just to be sure that things still work according to the old tests, run them:
@@ -232,84 +232,84 @@ public class MoveTest
             // tokens 5, 15 and 25 should go three nodes
             for (int i=0; i<3; ++i)
             {
-                endPoints = testStrategy.getWriteEndpoints(keyTokens.get(i), table, testStrategy.getNaturalEndpoints(keyTokens.get(i), table));
-                assertTrue(endPoints.size() == 3);
-                assertTrue(endPoints.contains(hosts.get(i+1)));
-                assertTrue(endPoints.contains(hosts.get(i+2)));
-                assertTrue(endPoints.contains(hosts.get(i+3)));
+                endpoints = testStrategy.getWriteEndpoints(keyTokens.get(i), table, testStrategy.getNaturalEndpoints(keyTokens.get(i), table));
+                assertTrue(endpoints.size() == 3);
+                assertTrue(endpoints.contains(hosts.get(i+1)));
+                assertTrue(endpoints.contains(hosts.get(i+2)));
+                assertTrue(endpoints.contains(hosts.get(i+3)));
             }
 
             // token 35 should go to nodes 4, 5, 6, 7 and boot1
-            endPoints = testStrategy.getWriteEndpoints(keyTokens.get(3), table, testStrategy.getNaturalEndpoints(keyTokens.get(3), table));
-            assertTrue(endPoints.size() == 5);
-            assertTrue(endPoints.contains(hosts.get(4)));
-            assertTrue(endPoints.contains(hosts.get(5)));
-            assertTrue(endPoints.contains(hosts.get(6)));
-            assertTrue(endPoints.contains(hosts.get(7)));
-            assertTrue(endPoints.contains(boot1));
+            endpoints = testStrategy.getWriteEndpoints(keyTokens.get(3), table, testStrategy.getNaturalEndpoints(keyTokens.get(3), table));
+            assertTrue(endpoints.size() == 5);
+            assertTrue(endpoints.contains(hosts.get(4)));
+            assertTrue(endpoints.contains(hosts.get(5)));
+            assertTrue(endpoints.contains(hosts.get(6)));
+            assertTrue(endpoints.contains(hosts.get(7)));
+            assertTrue(endpoints.contains(boot1));
 
             // token 45 should go to nodes 5, 6, 7, 0, boot1 and boot2
-            endPoints = testStrategy.getWriteEndpoints(keyTokens.get(4), table, testStrategy.getNaturalEndpoints(keyTokens.get(4), table));
-            assertTrue(endPoints.size() == 6);
-            assertTrue(endPoints.contains(hosts.get(5)));
-            assertTrue(endPoints.contains(hosts.get(6)));
-            assertTrue(endPoints.contains(hosts.get(7)));
-            assertTrue(endPoints.contains(hosts.get(0)));
-            assertTrue(endPoints.contains(boot1));
-            assertTrue(endPoints.contains(boot2));
+            endpoints = testStrategy.getWriteEndpoints(keyTokens.get(4), table, testStrategy.getNaturalEndpoints(keyTokens.get(4), table));
+            assertTrue(endpoints.size() == 6);
+            assertTrue(endpoints.contains(hosts.get(5)));
+            assertTrue(endpoints.contains(hosts.get(6)));
+            assertTrue(endpoints.contains(hosts.get(7)));
+            assertTrue(endpoints.contains(hosts.get(0)));
+            assertTrue(endpoints.contains(boot1));
+            assertTrue(endpoints.contains(boot2));
 
             // token 55 should go to nodes 6, 7, 8, 0, 1, boot1 and boot2
-            endPoints = testStrategy.getWriteEndpoints(keyTokens.get(5), table, testStrategy.getNaturalEndpoints(keyTokens.get(5), table));
-            assertTrue(endPoints.size() == 7);
-            assertTrue(endPoints.contains(hosts.get(6)));
-            assertTrue(endPoints.contains(hosts.get(7)));
-            assertTrue(endPoints.contains(hosts.get(8)));
-            assertTrue(endPoints.contains(hosts.get(0)));
-            assertTrue(endPoints.contains(hosts.get(1)));
-            assertTrue(endPoints.contains(boot1));
-            assertTrue(endPoints.contains(boot2));
+            endpoints = testStrategy.getWriteEndpoints(keyTokens.get(5), table, testStrategy.getNaturalEndpoints(keyTokens.get(5), table));
+            assertTrue(endpoints.size() == 7);
+            assertTrue(endpoints.contains(hosts.get(6)));
+            assertTrue(endpoints.contains(hosts.get(7)));
+            assertTrue(endpoints.contains(hosts.get(8)));
+            assertTrue(endpoints.contains(hosts.get(0)));
+            assertTrue(endpoints.contains(hosts.get(1)));
+            assertTrue(endpoints.contains(boot1));
+            assertTrue(endpoints.contains(boot2));
 
             // token 65 should go to nodes 7, 8, 9, 0, 1 and boot2
-            endPoints = testStrategy.getWriteEndpoints(keyTokens.get(6), table, testStrategy.getNaturalEndpoints(keyTokens.get(6), table));
-            assertTrue(endPoints.size() == 6);
-            assertTrue(endPoints.contains(hosts.get(7)));
-            assertTrue(endPoints.contains(hosts.get(8)));
-            assertTrue(endPoints.contains(hosts.get(9)));
-            assertTrue(endPoints.contains(hosts.get(0)));
-            assertTrue(endPoints.contains(hosts.get(1)));
-            assertTrue(endPoints.contains(boot2));
+            endpoints = testStrategy.getWriteEndpoints(keyTokens.get(6), table, testStrategy.getNaturalEndpoints(keyTokens.get(6), table));
+            assertTrue(endpoints.size() == 6);
+            assertTrue(endpoints.contains(hosts.get(7)));
+            assertTrue(endpoints.contains(hosts.get(8)));
+            assertTrue(endpoints.contains(hosts.get(9)));
+            assertTrue(endpoints.contains(hosts.get(0)));
+            assertTrue(endpoints.contains(hosts.get(1)));
+            assertTrue(endpoints.contains(boot2));
 
             // token 75 should to go nodes 8, 9, 0, 1, 2 and boot2
-            endPoints = testStrategy.getWriteEndpoints(keyTokens.get(7), table, testStrategy.getNaturalEndpoints(keyTokens.get(7), table));
-            assertTrue(endPoints.size() == 6);
-            assertTrue(endPoints.contains(hosts.get(8)));
-            assertTrue(endPoints.contains(hosts.get(9)));
-            assertTrue(endPoints.contains(hosts.get(0)));
-            assertTrue(endPoints.contains(hosts.get(1)));
-            assertTrue(endPoints.contains(hosts.get(2)));
-            assertTrue(endPoints.contains(boot2));
+            endpoints = testStrategy.getWriteEndpoints(keyTokens.get(7), table, testStrategy.getNaturalEndpoints(keyTokens.get(7), table));
+            assertTrue(endpoints.size() == 6);
+            assertTrue(endpoints.contains(hosts.get(8)));
+            assertTrue(endpoints.contains(hosts.get(9)));
+            assertTrue(endpoints.contains(hosts.get(0)));
+            assertTrue(endpoints.contains(hosts.get(1)));
+            assertTrue(endpoints.contains(hosts.get(2)));
+            assertTrue(endpoints.contains(boot2));
 
             // token 85 should go to nodes 9, 0, 1 and 2
-            endPoints = testStrategy.getWriteEndpoints(keyTokens.get(8), table, testStrategy.getNaturalEndpoints(keyTokens.get(8), table));
-            assertTrue(endPoints.size() == 4);
-            assertTrue(endPoints.contains(hosts.get(9)));
-            assertTrue(endPoints.contains(hosts.get(0)));
-            assertTrue(endPoints.contains(hosts.get(1)));
-            assertTrue(endPoints.contains(hosts.get(2)));
+            endpoints = testStrategy.getWriteEndpoints(keyTokens.get(8), table, testStrategy.getNaturalEndpoints(keyTokens.get(8), table));
+            assertTrue(endpoints.size() == 4);
+            assertTrue(endpoints.contains(hosts.get(9)));
+            assertTrue(endpoints.contains(hosts.get(0)));
+            assertTrue(endpoints.contains(hosts.get(1)));
+            assertTrue(endpoints.contains(hosts.get(2)));
 
             // token 95 should go to nodes 0, 1 and 2
-            endPoints = testStrategy.getWriteEndpoints(keyTokens.get(9), table, testStrategy.getNaturalEndpoints(keyTokens.get(9), table));
-            assertTrue(endPoints.size() == 3);
-            assertTrue(endPoints.contains(hosts.get(0)));
-            assertTrue(endPoints.contains(hosts.get(1)));
-            assertTrue(endPoints.contains(hosts.get(2)));
+            endpoints = testStrategy.getWriteEndpoints(keyTokens.get(9), table, testStrategy.getNaturalEndpoints(keyTokens.get(9), table));
+            assertTrue(endpoints.size() == 3);
+            assertTrue(endpoints.contains(hosts.get(0)));
+            assertTrue(endpoints.contains(hosts.get(1)));
+            assertTrue(endpoints.contains(hosts.get(2)));
 
         }
 
         // Now finish node 6 and node 9 leaving, as well as boot1 (after this node 8 is still
         // leaving and boot2 in progress
-        ss.onChange(hosts.get(LEAVING[0]), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEFT + StorageService.Delimiter + StorageService.LEFT_NORMALLY + StorageService.Delimiter + partitioner.getTokenFactory().toString(endPointTokens.get(LEAVING[0]))));
-        ss.onChange(hosts.get(LEAVING[2]), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEFT + StorageService.Delimiter + StorageService.LEFT_NORMALLY + StorageService.Delimiter + partitioner.getTokenFactory().toString(endPointTokens.get(LEAVING[2]))));
+        ss.onChange(hosts.get(LEAVING[0]), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEFT + StorageService.Delimiter + StorageService.LEFT_NORMALLY + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(LEAVING[0]))));
+        ss.onChange(hosts.get(LEAVING[2]), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEFT + StorageService.Delimiter + StorageService.LEFT_NORMALLY + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(LEAVING[2]))));
         ss.onChange(boot1, StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_NORMAL + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(5))));
 
         // adjust precalcuated results.  this changes what the epected endpoints are.
@@ -336,9 +336,9 @@ public class MoveTest
         {
             for (int i = 0; i < keyTokens.size(); i++)
             {
-                endPoints = testStrategy.getWriteEndpoints(keyTokens.get(i), table, testStrategy.getNaturalEndpoints(keyTokens.get(i), table));
-                assertTrue(expectedEndpoints.get(table).get(keyTokens.get(i)).size() == endPoints.size());
-                assertTrue(expectedEndpoints.get(table).get(keyTokens.get(i)).containsAll(endPoints));
+                endpoints = testStrategy.getWriteEndpoints(keyTokens.get(i), table, testStrategy.getNaturalEndpoints(keyTokens.get(i), table));
+                assertTrue(expectedEndpoints.get(table).get(keyTokens.get(i)).size() == endpoints.size());
+                assertTrue(expectedEndpoints.get(table).get(keyTokens.get(i)).containsAll(endpoints));
             }
 
             if (DatabaseDescriptor.getReplicationFactor(table) != 3)
@@ -347,67 +347,67 @@ public class MoveTest
             // tokens 5, 15 and 25 should go three nodes
             for (int i=0; i<3; ++i)
             {
-                endPoints = testStrategy.getWriteEndpoints(keyTokens.get(i), table, testStrategy.getNaturalEndpoints(keyTokens.get(i), table));
-                assertTrue(endPoints.size() == 3);
-                assertTrue(endPoints.contains(hosts.get(i+1)));
-                assertTrue(endPoints.contains(hosts.get(i+2)));
-                assertTrue(endPoints.contains(hosts.get(i+3)));
+                endpoints = testStrategy.getWriteEndpoints(keyTokens.get(i), table, testStrategy.getNaturalEndpoints(keyTokens.get(i), table));
+                assertTrue(endpoints.size() == 3);
+                assertTrue(endpoints.contains(hosts.get(i+1)));
+                assertTrue(endpoints.contains(hosts.get(i+2)));
+                assertTrue(endpoints.contains(hosts.get(i+3)));
             }
 
             // token 35 goes to nodes 4, 5 and boot1
-            endPoints = testStrategy.getWriteEndpoints(keyTokens.get(3), table, testStrategy.getNaturalEndpoints(keyTokens.get(3), table));
-            assertTrue(endPoints.size() == 3);
-            assertTrue(endPoints.contains(hosts.get(4)));
-            assertTrue(endPoints.contains(hosts.get(5)));
-            assertTrue(endPoints.contains(boot1));
+            endpoints = testStrategy.getWriteEndpoints(keyTokens.get(3), table, testStrategy.getNaturalEndpoints(keyTokens.get(3), table));
+            assertTrue(endpoints.size() == 3);
+            assertTrue(endpoints.contains(hosts.get(4)));
+            assertTrue(endpoints.contains(hosts.get(5)));
+            assertTrue(endpoints.contains(boot1));
 
             // token 45 goes to nodes 5, boot1 and node7
-            endPoints = testStrategy.getWriteEndpoints(keyTokens.get(4), table, testStrategy.getNaturalEndpoints(keyTokens.get(4), table));
-            assertTrue(endPoints.size() == 3);
-            assertTrue(endPoints.contains(hosts.get(5)));
-            assertTrue(endPoints.contains(boot1));
-            assertTrue(endPoints.contains(hosts.get(7)));
+            endpoints = testStrategy.getWriteEndpoints(keyTokens.get(4), table, testStrategy.getNaturalEndpoints(keyTokens.get(4), table));
+            assertTrue(endpoints.size() == 3);
+            assertTrue(endpoints.contains(hosts.get(5)));
+            assertTrue(endpoints.contains(boot1));
+            assertTrue(endpoints.contains(hosts.get(7)));
 
             // token 55 goes to boot1, 7, boot2, 8 and 0
-            endPoints = testStrategy.getWriteEndpoints(keyTokens.get(5), table, testStrategy.getNaturalEndpoints(keyTokens.get(5), table));
-            assertTrue(endPoints.size() == 5);
-            assertTrue(endPoints.contains(boot1));
-            assertTrue(endPoints.contains(hosts.get(7)));
-            assertTrue(endPoints.contains(boot2));
-            assertTrue(endPoints.contains(hosts.get(8)));
-            assertTrue(endPoints.contains(hosts.get(0)));
+            endpoints = testStrategy.getWriteEndpoints(keyTokens.get(5), table, testStrategy.getNaturalEndpoints(keyTokens.get(5), table));
+            assertTrue(endpoints.size() == 5);
+            assertTrue(endpoints.contains(boot1));
+            assertTrue(endpoints.contains(hosts.get(7)));
+            assertTrue(endpoints.contains(boot2));
+            assertTrue(endpoints.contains(hosts.get(8)));
+            assertTrue(endpoints.contains(hosts.get(0)));
 
             // token 65 goes to nodes 7, boot2, 8, 0 and 1
-            endPoints = testStrategy.getWriteEndpoints(keyTokens.get(6), table, testStrategy.getNaturalEndpoints(keyTokens.get(6), table));
-            assertTrue(endPoints.size() == 5);
-            assertTrue(endPoints.contains(hosts.get(7)));
-            assertTrue(endPoints.contains(boot2));
-            assertTrue(endPoints.contains(hosts.get(8)));
-            assertTrue(endPoints.contains(hosts.get(0)));
-            assertTrue(endPoints.contains(hosts.get(1)));
+            endpoints = testStrategy.getWriteEndpoints(keyTokens.get(6), table, testStrategy.getNaturalEndpoints(keyTokens.get(6), table));
+            assertTrue(endpoints.size() == 5);
+            assertTrue(endpoints.contains(hosts.get(7)));
+            assertTrue(endpoints.contains(boot2));
+            assertTrue(endpoints.contains(hosts.get(8)));
+            assertTrue(endpoints.contains(hosts.get(0)));
+            assertTrue(endpoints.contains(hosts.get(1)));
 
             // token 75 goes to nodes boot2, 8, 0, 1 and 2
-            endPoints = testStrategy.getWriteEndpoints(keyTokens.get(7), table, testStrategy.getNaturalEndpoints(keyTokens.get(7), table));
-            assertTrue(endPoints.size() == 5);
-            assertTrue(endPoints.contains(boot2));
-            assertTrue(endPoints.contains(hosts.get(8)));
-            assertTrue(endPoints.contains(hosts.get(0)));
-            assertTrue(endPoints.contains(hosts.get(1)));
-            assertTrue(endPoints.contains(hosts.get(2)));
+            endpoints = testStrategy.getWriteEndpoints(keyTokens.get(7), table, testStrategy.getNaturalEndpoints(keyTokens.get(7), table));
+            assertTrue(endpoints.size() == 5);
+            assertTrue(endpoints.contains(boot2));
+            assertTrue(endpoints.contains(hosts.get(8)));
+            assertTrue(endpoints.contains(hosts.get(0)));
+            assertTrue(endpoints.contains(hosts.get(1)));
+            assertTrue(endpoints.contains(hosts.get(2)));
 
             // token 85 goes to nodes 0, 1 and 2
-            endPoints = testStrategy.getWriteEndpoints(keyTokens.get(8), table, testStrategy.getNaturalEndpoints(keyTokens.get(8), table));
-            assertTrue(endPoints.size() == 3);
-            assertTrue(endPoints.contains(hosts.get(0)));
-            assertTrue(endPoints.contains(hosts.get(1)));
-            assertTrue(endPoints.contains(hosts.get(2)));
+            endpoints = testStrategy.getWriteEndpoints(keyTokens.get(8), table, testStrategy.getNaturalEndpoints(keyTokens.get(8), table));
+            assertTrue(endpoints.size() == 3);
+            assertTrue(endpoints.contains(hosts.get(0)));
+            assertTrue(endpoints.contains(hosts.get(1)));
+            assertTrue(endpoints.contains(hosts.get(2)));
 
             // token 95 goes to nodes 0, 1 and 2
-            endPoints = testStrategy.getWriteEndpoints(keyTokens.get(9), table, testStrategy.getNaturalEndpoints(keyTokens.get(9), table));
-            assertTrue(endPoints.size() == 3);
-            assertTrue(endPoints.contains(hosts.get(0)));
-            assertTrue(endPoints.contains(hosts.get(1)));
-            assertTrue(endPoints.contains(hosts.get(2)));
+            endpoints = testStrategy.getWriteEndpoints(keyTokens.get(9), table, testStrategy.getNaturalEndpoints(keyTokens.get(9), table));
+            assertTrue(endpoints.size() == 3);
+            assertTrue(endpoints.contains(hosts.get(0)));
+            assertTrue(endpoints.contains(hosts.get(1)));
+            assertTrue(endpoints.contains(hosts.get(2)));
         }
 
         ss.setPartitionerUnsafe(oldPartitioner);
@@ -426,15 +426,15 @@ public class MoveTest
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
         Map<String, AbstractReplicationStrategy> oldStrategy = ss.setReplicationStrategyUnsafe(createReplacements(testStrategy));
 
-        ArrayList<Token> endPointTokens = new ArrayList<Token>();
+        ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
         List<InetAddress> hosts = new ArrayList<InetAddress>();
 
         // create a ring or 5 nodes
-        createInitialRing(ss, partitioner, endPointTokens, keyTokens, hosts, 5);
+        createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 5);
 
         // node 2 leaves
-        ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(endPointTokens.get(2))));
+        ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(2))));
 
         // don't bother to test pending ranges here, that is extensively tested by other
         // tests. Just check that the node is in appropriate lists.
@@ -495,23 +495,23 @@ public class MoveTest
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
         Map<String, AbstractReplicationStrategy> oldStrategy = ss.setReplicationStrategyUnsafe(createReplacements(testStrategy));
 
-        ArrayList<Token> endPointTokens = new ArrayList<Token>();
+        ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
         List<InetAddress> hosts = new ArrayList<InetAddress>();
 
         // create a ring or 5 nodes
-        createInitialRing(ss, partitioner, endPointTokens, keyTokens, hosts, 5);
+        createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 5);
 
         // node 2 leaves
-        ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(endPointTokens.get(2))));
+        ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(2))));
 
         assertTrue(tmd.isLeaving(hosts.get(2)));
-        assertTrue(tmd.getToken(hosts.get(2)).equals(endPointTokens.get(2)));
+        assertTrue(tmd.getToken(hosts.get(2)).equals(endpointTokens.get(2)));
 
         // back to normal
         ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_NORMAL + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(2))));
 
-        assertTrue(tmd.getLeavingEndPoints().isEmpty());
+        assertTrue(tmd.getLeavingEndpoints().isEmpty());
         assertTrue(tmd.getToken(hosts.get(2)).equals(keyTokens.get(2)));
 
         // node 3 goes through leave and left and then jumps to normal
@@ -520,7 +520,7 @@ public class MoveTest
         ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_NORMAL + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(4))));
 
         assertTrue(tmd.getBootstrapTokens().isEmpty());
-        assertTrue(tmd.getLeavingEndPoints().isEmpty());
+        assertTrue(tmd.getLeavingEndpoints().isEmpty());
         assertTrue(tmd.getToken(hosts.get(2)).equals(keyTokens.get(4)));
 
         ss.setPartitionerUnsafe(oldPartitioner);
@@ -539,19 +539,19 @@ public class MoveTest
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
         Map<String, AbstractReplicationStrategy> oldStrategy = ss.setReplicationStrategyUnsafe(createReplacements(testStrategy));
 
-        ArrayList<Token> endPointTokens = new ArrayList<Token>();
+        ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
         List<InetAddress> hosts = new ArrayList<InetAddress>();
 
         // create a ring or 5 nodes
-        createInitialRing(ss, partitioner, endPointTokens, keyTokens, hosts, 5);
+        createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 5);
 
         // node 2 leaves with _different_ token
         ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(0))));
 
         assertTrue(tmd.getToken(hosts.get(2)).equals(keyTokens.get(0)));
         assertTrue(tmd.isLeaving(hosts.get(2)));
-        assertTrue(tmd.getEndPoint(endPointTokens.get(2)) == null);
+        assertTrue(tmd.getEndpoint(endpointTokens.get(2)) == null);
 
         // go to boostrap
         ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_BOOTSTRAPPING + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(1))));
@@ -563,7 +563,7 @@ public class MoveTest
         // jump to leaving again
         ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(1))));
 
-        assertTrue(tmd.getEndPoint(keyTokens.get(1)).equals(hosts.get(2)));
+        assertTrue(tmd.getEndpoint(keyTokens.get(1)).equals(hosts.get(2)));
         assertTrue(tmd.isLeaving(hosts.get(2)));
         assertTrue(tmd.getBootstrapTokens().isEmpty());
 
@@ -589,15 +589,15 @@ public class MoveTest
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
         Map<String, AbstractReplicationStrategy> oldStrategy = ss.setReplicationStrategyUnsafe(createReplacements(testStrategy));
 
-        ArrayList<Token> endPointTokens = new ArrayList<Token>();
+        ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
         List<InetAddress> hosts = new ArrayList<InetAddress>();
 
         // create a ring or 5 nodes
-        createInitialRing(ss, partitioner, endPointTokens, keyTokens, hosts, 5);
+        createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 5);
 
         // node hosts.get(2) goes jumps to left
-        ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEFT + StorageService.Delimiter + StorageService.LEFT_NORMALLY + StorageService.Delimiter + partitioner.getTokenFactory().toString(endPointTokens.get(2))));
+        ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEFT + StorageService.Delimiter + StorageService.LEFT_NORMALLY + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(2))));
 
         assertFalse(tmd.isMember(hosts.get(2)));
 
@@ -622,25 +622,25 @@ public class MoveTest
     /**
      * Creates initial set of nodes and tokens. Nodes are added to StorageService as 'normal'
      */
-    private void createInitialRing(StorageService ss, IPartitioner partitioner, List<Token> endPointTokens,
+    private void createInitialRing(StorageService ss, IPartitioner partitioner, List<Token> endpointTokens,
                                    List<Token> keyTokens, List<InetAddress> hosts, int howMany)
         throws UnknownHostException
     {
         for (int i=0; i<howMany; i++)
         {
-            endPointTokens.add(new BigIntegerToken(String.valueOf(10 * i)));
+            endpointTokens.add(new BigIntegerToken(String.valueOf(10 * i)));
             keyTokens.add(new BigIntegerToken(String.valueOf(10 * i + 5)));
         }
 
-        for (int i=0; i<endPointTokens.size(); i++)
+        for (int i=0; i<endpointTokens.size(); i++)
         {
             InetAddress ep = InetAddress.getByName("127.0.0." + String.valueOf(i + 1));
-            ss.onChange(ep, StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_NORMAL + StorageService.Delimiter + partitioner.getTokenFactory().toString(endPointTokens.get(i))));
+            ss.onChange(ep, StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_NORMAL + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(i))));
             hosts.add(ep);
         }
 
         // check that all nodes are in token metadata
-        for (int i=0; i<endPointTokens.size(); ++i)
+        for (int i=0; i<endpointTokens.size(); ++i)
             assertTrue(ss.getTokenMetadata().isMember(hosts.get(i)));
     }
 

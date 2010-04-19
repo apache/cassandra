@@ -62,7 +62,7 @@ public interface StorageServiceMBean
      *
      * @return mapping of ranges to end points
      */
-    public Map<Range, List<String>> getRangeToEndPointMap(String keyspace);
+    public Map<Range, List<String>> getRangeToEndpointMap(String keyspace);
 
     /**
      * Numeric load value.

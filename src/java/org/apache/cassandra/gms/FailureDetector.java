@@ -120,7 +120,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             return true;
 
     	/* Incoming port is assumed to be the Storage port. We need to change it to the control port */
-        EndPointState epState = Gossiper.instance.getEndPointStateForEndPoint(ep);
+        EndPointState epState = Gossiper.instance.getEndpointStateForEndpoint(ep);
         return epState.isAlive();
     }
     

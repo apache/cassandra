@@ -42,14 +42,14 @@ public class DatacenterSyncWriteResponseHandler extends WriteResponseHandler
 {
     private final Map<String, Integer> dcResponses = new HashMap<String, Integer>();
     private final Map<String, Integer> responseCounts;
-    private final DatacenterEndPointSnitch endPointSnitch;
+    private final DatacenterEndPointSnitch endpointSnitch;
 
     public DatacenterSyncWriteResponseHandler(Map<String, Integer> responseCounts, String table)
     {
         // Response is been managed by the map so make it 1 for the superclass.
         super(1, table);
         this.responseCounts = responseCounts;
-        endPointSnitch = (DatacenterEndPointSnitch) DatabaseDescriptor.getEndPointSnitch();
+        endpointSnitch = (DatacenterEndPointSnitch) DatabaseDescriptor.getEndpointSnitch();
     }
 
     @Override
@@ -60,7 +60,7 @@ public class DatacenterSyncWriteResponseHandler extends WriteResponseHandler
     {
         try
         {
-            String dataCenter = endPointSnitch.getLocation(message.getFrom());
+            String dataCenter = endpointSnitch.getLocation(message.getFrom());
             Object blockFor = responseCounts.get(dataCenter);
             // If this DC needs to be blocked then do the below.
             if (blockFor != null)

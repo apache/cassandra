@@ -80,12 +80,12 @@ public class PropertyFileEndPointSnitch extends EndPointSnitch implements Proper
     /**
      * Get the raw information about an end point
      * 
-     * @param endPoint endPoint to process
+     * @param endpoint endpoint to process
      * 
      * @return a array of string with the first index being the data center and the second being the rack
      */
-    public String[] getEndPointInfo(InetAddress endPoint) {
-        String key = endPoint.toString();
+    public String[] getEndpointInfo(InetAddress endpoint) {
+        String key = endpoint.toString();
         String value = hostProperties.getProperty(key);
         if (value == null)
         {
@@ -104,22 +104,22 @@ public class PropertyFileEndPointSnitch extends EndPointSnitch implements Proper
     /**
      * Return the data center for which an endpoint resides in
      *  
-     * @param endPoint the endPoint to process
+     * @param endpoint the endpoint to process
      * @return string of data center
      */
-    public String getDataCenterForEndPoint(InetAddress endPoint) {
-        return getEndPointInfo(endPoint)[0];
+    public String getDataCenterForEndpoint(InetAddress endpoint) {
+        return getEndpointInfo(endpoint)[0];
     }
 
     /**
      * Return the rack for which an endpoint resides in
      *  
-     * @param endPoint the endPoint to process
+     * @param endpoint the endpoint to process
      * 
      * @return string of rack
      */
-    public String getRackForEndPoint(InetAddress endPoint) {
-        return getEndPointInfo(endPoint)[1];
+    public String getRackForEndpoint(InetAddress endpoint) {
+        return getEndpointInfo(endpoint)[1];
     }
 
     @Override
@@ -129,7 +129,7 @@ public class PropertyFileEndPointSnitch extends EndPointSnitch implements Proper
         {
             return super.isInSameDataCenter(host, host2);
         }
-        return getDataCenterForEndPoint(host).equals(getDataCenterForEndPoint(host2));
+        return getDataCenterForEndpoint(host).equals(getDataCenterForEndpoint(host2));
     }
 
     @Override
@@ -143,7 +143,7 @@ public class PropertyFileEndPointSnitch extends EndPointSnitch implements Proper
         {
             return false;
         }
-        return getRackForEndPoint(host).equals(getRackForEndPoint(host2)); 
+        return getRackForEndpoint(host).equals(getRackForEndpoint(host2));
     }
 
     public String displayConfiguration() {

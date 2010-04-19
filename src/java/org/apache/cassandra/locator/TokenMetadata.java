@@ -35,7 +35,7 @@ import org.apache.commons.lang.StringUtils;
 public class TokenMetadata
 {
     /* Maintains token to endpoint map of every node in the cluster. */
-    private BiMap<Token, InetAddress> tokenToEndPointMap;
+    private BiMap<Token, InetAddress> tokenToEndpointMap;
 
     // Suppose that there is a ring of nodes A, C and E, with replication factor 3.
     // Node D bootstraps between C and E, so its pending ranges will be E-A, A-C and C-D.
@@ -51,7 +51,7 @@ public class TokenMetadata
     // An anonymous pending ranges list is not enough, as that does not tell which node is leaving
     // and/or if the ranges are there because of bootstrap or leave operation.
     // (See CASSANDRA-603 for more detail + examples).
-    private Set<InetAddress> leavingEndPoints;
+    private Set<InetAddress> leavingEndpoints;
 
     private ConcurrentMap<String, Multimap<Range, InetAddress>> pendingRanges;
 
@@ -64,20 +64,20 @@ public class TokenMetadata
         this(null);
     }
 
-    public TokenMetadata(BiMap<Token, InetAddress> tokenToEndPointMap)
+    public TokenMetadata(BiMap<Token, InetAddress> tokenToEndpointMap)
     {
-        if (tokenToEndPointMap == null)
-            tokenToEndPointMap = HashBiMap.create();
-        this.tokenToEndPointMap = tokenToEndPointMap;
+        if (tokenToEndpointMap == null)
+            tokenToEndpointMap = HashBiMap.create();
+        this.tokenToEndpointMap = tokenToEndpointMap;
         bootstrapTokens = HashBiMap.create();
-        leavingEndPoints = new HashSet<InetAddress>();
+        leavingEndpoints = new HashSet<InetAddress>();
         pendingRanges = new ConcurrentHashMap<String, Multimap<Range, InetAddress>>();
         sortedTokens = sortTokens();
     }
 
     private List<Token> sortTokens()
     {
-        List<Token> tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
+        List<Token> tokens = new ArrayList<Token>(tokenToEndpointMap.keySet());
         Collections.sort(tokens);
         return Collections.unmodifiableList(tokens);
     }
@@ -102,12 +102,12 @@ public class TokenMetadata
         try
         {
             bootstrapTokens.inverse().remove(endpoint);
-            tokenToEndPointMap.inverse().remove(endpoint);
-            if (!endpoint.equals(tokenToEndPointMap.put(token, endpoint)))
+            tokenToEndpointMap.inverse().remove(endpoint);
+            if (!endpoint.equals(tokenToEndpointMap.put(token, endpoint)))
             {
                 sortedTokens = sortTokens();
             }
-            leavingEndPoints.remove(endpoint);
+            leavingEndpoints.remove(endpoint);
         }
         finally
         {
@@ -123,15 +123,15 @@ public class TokenMetadata
         lock.writeLock().lock();
         try
         {
-            InetAddress oldEndPoint = null;
+            InetAddress oldEndpoint = null;
 
-            oldEndPoint = bootstrapTokens.get(token);
-            if (oldEndPoint != null && !oldEndPoint.equals(endpoint))
-                throw new RuntimeException("Bootstrap Token collision between " + oldEndPoint + " and " + endpoint + " (token " + token);
+            oldEndpoint = bootstrapTokens.get(token);
+            if (oldEndpoint != null && !oldEndpoint.equals(endpoint))
+                throw new RuntimeException("Bootstrap Token collision between " + oldEndpoint + " and " + endpoint + " (token " + token);
 
-            oldEndPoint = tokenToEndPointMap.get(token);
-            if (oldEndPoint != null && !oldEndPoint.equals(endpoint))
-                throw new RuntimeException("Bootstrap Token collision between " + oldEndPoint + " and " + endpoint + " (token " + token);
+            oldEndpoint = tokenToEndpointMap.get(token);
+            if (oldEndpoint != null && !oldEndpoint.equals(endpoint))
+                throw new RuntimeException("Bootstrap Token collision between " + oldEndpoint + " and " + endpoint + " (token " + token);
 
             bootstrapTokens.inverse().remove(endpoint);
             bootstrapTokens.put(token, endpoint);
@@ -157,14 +157,14 @@ public class TokenMetadata
         }
     }
 
-    public void addLeavingEndPoint(InetAddress endpoint)
+    public void addLeavingEndpoint(InetAddress endpoint)
     {
         assert endpoint != null;
 
         lock.writeLock().lock();
         try
         {
-            leavingEndPoints.add(endpoint);
+            leavingEndpoints.add(endpoint);
         }
         finally
         {
@@ -172,14 +172,14 @@ public class TokenMetadata
         }
     }
 
-    public void removeLeavingEndPoint(InetAddress endpoint)
+    public void removeLeavingEndpoint(InetAddress endpoint)
     {
         assert endpoint != null;
 
         lock.writeLock().lock();
         try
         {
-            leavingEndPoints.remove(endpoint);
+            leavingEndpoints.remove(endpoint);
         }
         finally
         {
@@ -189,13 +189,13 @@ public class TokenMetadata
 
     public void removeEndpoint(InetAddress endpoint)
     {
-        assert tokenToEndPointMap.containsValue(endpoint);
+        assert tokenToEndpointMap.containsValue(endpoint);
         lock.writeLock().lock();
         try
         {
             bootstrapTokens.inverse().remove(endpoint);
-            tokenToEndPointMap.inverse().remove(endpoint);
-            leavingEndPoints.remove(endpoint);
+            tokenToEndpointMap.inverse().remove(endpoint);
+            leavingEndpoints.remove(endpoint);
             sortedTokens = sortTokens();
         }
         finally
@@ -212,7 +212,7 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {
-            return tokenToEndPointMap.inverse().get(endpoint);
+            return tokenToEndpointMap.inverse().get(endpoint);
         }
         finally
         {
@@ -227,7 +227,7 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {
-            return tokenToEndPointMap.inverse().containsKey(endpoint);
+            return tokenToEndpointMap.inverse().containsKey(endpoint);
         }
         finally
         {
@@ -242,7 +242,7 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {
-            return leavingEndPoints.contains(endpoint);
+            return leavingEndpoints.contains(endpoint);
         }
         finally
         {
@@ -252,12 +252,12 @@ public class TokenMetadata
 
     public InetAddress getFirstEndpoint()
     {
-        assert tokenToEndPointMap.size() > 0;
+        assert tokenToEndpointMap.size() > 0;
 
         lock.readLock().lock();
         try
         {
-            return tokenToEndPointMap.get(sortedTokens.get(0));
+            return tokenToEndpointMap.get(sortedTokens.get(0));
         }
         finally
         {
@@ -266,7 +266,7 @@ public class TokenMetadata
     }
 
     /**
-     * Create a copy of TokenMetadata with only tokenToEndPointMap. That is, pending ranges,
+     * Create a copy of TokenMetadata with only tokenToEndpointMap. That is, pending ranges,
      * bootstrap tokens and leaving endpoints are not included in the copy.
      */
     public TokenMetadata cloneOnlyTokenMap()
@@ -274,7 +274,7 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {
-            return new TokenMetadata(HashBiMap.create(tokenToEndPointMap));
+            return new TokenMetadata(HashBiMap.create(tokenToEndpointMap));
         }
         finally
         {
@@ -283,7 +283,7 @@ public class TokenMetadata
     }
 
     /**
-     * Create a copy of TokenMetadata with tokenToEndPointMap reflecting situation after all
+     * Create a copy of TokenMetadata with tokenToEndpointMap reflecting situation after all
      * current leave operations have finished.
      */
     public TokenMetadata cloneAfterAllLeft()
@@ -292,8 +292,8 @@ public class TokenMetadata
         try
         {
             TokenMetadata allLeftMetadata = cloneOnlyTokenMap();
-            for (InetAddress endPoint : leavingEndPoints)
-                allLeftMetadata.removeEndpoint(endPoint);
+            for (InetAddress endpoint : leavingEndpoints)
+                allLeftMetadata.removeEndpoint(endpoint);
             return allLeftMetadata;
         }
         finally
@@ -302,12 +302,12 @@ public class TokenMetadata
         }
     }
 
-    public InetAddress getEndPoint(Token token)
+    public InetAddress getEndpoint(Token token)
     {
         lock.readLock().lock();
         try
         {
-            return tokenToEndPointMap.get(token);
+            return tokenToEndpointMap.get(token);
         }
         finally
         {
@@ -372,7 +372,7 @@ public class TokenMetadata
     {
         List tokens = sortedTokens();
         int index = Collections.binarySearch(tokens, token);
-        assert index >= 0 : token + " not found in " + StringUtils.join(tokenToEndPointMap.keySet(), ", ");
+        assert index >= 0 : token + " not found in " + StringUtils.join(tokenToEndpointMap.keySet(), ", ");
         return (Token) (index == 0 ? tokens.get(tokens.size() - 1) : tokens.get(index - 1));
     }
 
@@ -380,13 +380,13 @@ public class TokenMetadata
     {
         List tokens = sortedTokens();
         int index = Collections.binarySearch(tokens, token);
-        assert index >= 0 : token + " not found in " + StringUtils.join(tokenToEndPointMap.keySet(), ", ");
+        assert index >= 0 : token + " not found in " + StringUtils.join(tokenToEndpointMap.keySet(), ", ");
         return (Token) ((index == (tokens.size() - 1)) ? tokens.get(0) : tokens.get(index + 1));
     }
 
-    public InetAddress getSuccessor(InetAddress endPoint)
+    public InetAddress getSuccessor(InetAddress endpoint)
     {
-        return getEndPoint(getSuccessor(getToken(endPoint)));
+        return getEndpoint(getSuccessor(getToken(endpoint)));
     }
 
     /** caller should not modify bootstrapTokens */
@@ -395,10 +395,10 @@ public class TokenMetadata
         return bootstrapTokens;
     }
 
-    /** caller should not modify leavigEndPoints */
-    public Set<InetAddress> getLeavingEndPoints()
+    /** caller should not modify leavigEndpoints */
+    public Set<InetAddress> getLeavingEndpoints()
     {
-        return leavingEndPoints;
+        return leavingEndpoints;
     }
 
     /**
@@ -443,8 +443,8 @@ public class TokenMetadata
     public void clearUnsafe()
     {
         bootstrapTokens.clear();
-        tokenToEndPointMap.clear();
-        leavingEndPoints.clear();
+        tokenToEndpointMap.clear();
+        leavingEndpoints.clear();
         pendingRanges.clear();
     }
 
@@ -454,7 +454,7 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {
-            Set<InetAddress> eps = tokenToEndPointMap.inverse().keySet();
+            Set<InetAddress> eps = tokenToEndpointMap.inverse().keySet();
 
             if (!eps.isEmpty())
             {
@@ -464,7 +464,7 @@ public class TokenMetadata
                 {
                     sb.append(ep);
                     sb.append(":");
-                    sb.append(tokenToEndPointMap.inverse().get(ep));
+                    sb.append(tokenToEndpointMap.inverse().get(ep));
                     sb.append(System.getProperty("line.separator"));
                 }
             }
@@ -480,11 +480,11 @@ public class TokenMetadata
                 }
             }
 
-            if (!leavingEndPoints.isEmpty())
+            if (!leavingEndpoints.isEmpty())
             {
-                sb.append("Leaving EndPoints:");
+                sb.append("Leaving Endpoints:");
                 sb.append(System.getProperty("line.separator"));
-                for (InetAddress ep : leavingEndPoints)
+                for (InetAddress ep : leavingEndpoints)
                 {
                     sb.append(ep);
                     sb.append(System.getProperty("line.separator"));

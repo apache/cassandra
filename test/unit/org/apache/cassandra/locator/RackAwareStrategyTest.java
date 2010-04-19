@@ -36,7 +36,7 @@ import org.junit.Test;
 
 public class RackAwareStrategyTest
 {
-    private List<Token> endPointTokens;
+    private List<Token> endpointTokens;
     private List<Token> keyTokens;
     private TokenMetadata tmd;
     private Map<String, ArrayList<InetAddress>> expectedResults;
@@ -44,7 +44,7 @@ public class RackAwareStrategyTest
     @Before
     public void init()
     {
-        endPointTokens = new ArrayList<Token>();
+        endpointTokens = new ArrayList<Token>();
         keyTokens = new ArrayList<Token>();
         tmd = new TokenMetadata();
         expectedResults = new HashMap<String, ArrayList<InetAddress>>();
@@ -58,13 +58,13 @@ public class RackAwareStrategyTest
     @Test
     public void testBigIntegerEndpointsA() throws UnknownHostException
     {
-        EndPointSnitch endPointSnitch = new EndPointSnitch();
+        EndPointSnitch endpointSnitch = new EndPointSnitch();
 
-        AbstractReplicationStrategy strategy = new RackAwareStrategy(tmd, endPointSnitch);
-        addEndPoint("0", "5", "254.0.0.1");
-        addEndPoint("10", "15", "254.0.0.2");
-        addEndPoint("20", "25", "254.0.0.3");
-        addEndPoint("30", "35", "254.0.0.4");
+        AbstractReplicationStrategy strategy = new RackAwareStrategy(tmd, endpointSnitch);
+        addEndpoint("0", "5", "254.0.0.1");
+        addEndpoint("10", "15", "254.0.0.2");
+        addEndpoint("20", "25", "254.0.0.3");
+        addEndpoint("30", "35", "254.0.0.4");
 
         expectedResults.put("5", buildResult("254.0.0.2", "254.0.0.3", "254.0.0.4"));
         expectedResults.put("15", buildResult("254.0.0.3", "254.0.0.4", "254.0.0.1"));
@@ -83,13 +83,13 @@ public class RackAwareStrategyTest
     @Test
     public void testBigIntegerEndpointsB() throws UnknownHostException
     {
-        EndPointSnitch endPointSnitch = new EndPointSnitch();
+        EndPointSnitch endpointSnitch = new EndPointSnitch();
 
-        AbstractReplicationStrategy strategy = new RackAwareStrategy(tmd, endPointSnitch);
-        addEndPoint("0", "5", "254.0.0.1");
-        addEndPoint("10", "15", "254.0.0.2");
-        addEndPoint("20", "25", "254.1.0.3");
-        addEndPoint("30", "35", "254.0.0.4");
+        AbstractReplicationStrategy strategy = new RackAwareStrategy(tmd, endpointSnitch);
+        addEndpoint("0", "5", "254.0.0.1");
+        addEndpoint("10", "15", "254.0.0.2");
+        addEndpoint("20", "25", "254.1.0.3");
+        addEndpoint("30", "35", "254.0.0.4");
 
         expectedResults.put("5", buildResult("254.0.0.2", "254.1.0.3", "254.0.0.4"));
         expectedResults.put("15", buildResult("254.1.0.3", "254.0.0.4", "254.0.0.1"));
@@ -109,13 +109,13 @@ public class RackAwareStrategyTest
     @Test
     public void testBigIntegerEndpointsC() throws UnknownHostException
     {
-        EndPointSnitch endPointSnitch = new EndPointSnitch();
+        EndPointSnitch endpointSnitch = new EndPointSnitch();
 
-        AbstractReplicationStrategy strategy = new RackAwareStrategy(tmd, endPointSnitch);
-        addEndPoint("0", "5", "254.0.0.1");
-        addEndPoint("10", "15", "254.0.0.2");
-        addEndPoint("20", "25", "254.0.1.3");
-        addEndPoint("30", "35", "254.1.0.4");
+        AbstractReplicationStrategy strategy = new RackAwareStrategy(tmd, endpointSnitch);
+        addEndpoint("0", "5", "254.0.0.1");
+        addEndpoint("10", "15", "254.0.0.2");
+        addEndpoint("20", "25", "254.0.1.3");
+        addEndpoint("30", "35", "254.1.0.4");
 
         expectedResults.put("5", buildResult("254.0.0.2", "254.0.1.3", "254.1.0.4"));
         expectedResults.put("15", buildResult("254.0.1.3", "254.1.0.4", "254.0.0.1"));
@@ -144,27 +144,27 @@ public class RackAwareStrategyTest
         return result;
     }
 
-    private void addEndPoint(String endPointTokenID, String keyTokenID, String endPointAddress) throws UnknownHostException
+    private void addEndpoint(String endpointTokenID, String keyTokenID, String endpointAddress) throws UnknownHostException
     {
-        BigIntegerToken endPointToken = new BigIntegerToken(endPointTokenID);
-        endPointTokens.add(endPointToken);
+        BigIntegerToken endpointToken = new BigIntegerToken(endpointTokenID);
+        endpointTokens.add(endpointToken);
 
         BigIntegerToken keyToken = new BigIntegerToken(keyTokenID);
         keyTokens.add(keyToken);
 
-        InetAddress ep = InetAddress.getByName(endPointAddress);
-        tmd.updateNormalToken(endPointToken, ep);
+        InetAddress ep = InetAddress.getByName(endpointAddress);
+        tmd.updateNormalToken(endpointToken, ep);
     }
 
     private void testGetEndpoints(AbstractReplicationStrategy strategy, Token[] keyTokens, String table) throws UnknownHostException
     {
         for (Token keyToken : keyTokens)
         {
-            List<InetAddress> endPoints = strategy.getNaturalEndpoints(keyToken, tmd, table);
-            for (int j = 0; j < endPoints.size(); j++)
+            List<InetAddress> endpoints = strategy.getNaturalEndpoints(keyToken, tmd, table);
+            for (int j = 0; j < endpoints.size(); j++)
             {
                 ArrayList<InetAddress> hostsExpected = expectedResults.get(keyToken.toString());
-                assertEquals(endPoints.get(j), hostsExpected.get(j));
+                assertEquals(endpoints.get(j), hostsExpected.get(j));
             }
         }
     }

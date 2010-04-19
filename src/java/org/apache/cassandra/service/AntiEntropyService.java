@@ -559,8 +559,8 @@ public class AntiEntropyService
                 rtree.partitioner(StorageService.getPartitioner());
 
             // determine the ranges where responsibility overlaps
-            Set<Range> interesting = new HashSet(ss.getRangesForEndPoint(cf.left, local));
-            interesting.retainAll(ss.getRangesForEndPoint(cf.left, remote));
+            Set<Range> interesting = new HashSet(ss.getRangesForEndpoint(cf.left, local));
+            interesting.retainAll(ss.getRangesForEndpoint(cf.left, remote));
 
             // compare trees, and filter out uninteresting differences
             for (MerkleTree.TreeRange diff : MerkleTree.difference(ltree, rtree))

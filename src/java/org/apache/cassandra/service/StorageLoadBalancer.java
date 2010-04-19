@@ -69,14 +69,14 @@ public class StorageLoadBalancer implements IEndPointStateChangeSubscriber
             /*
             int threshold = (int)(StorageLoadBalancer.TOPHEAVY_RATIO * averageSystemLoad());
             int myLoad = localLoad();            
-            InetAddress predecessor = StorageService.instance.getPredecessor(StorageService.getLocalStorageEndPoint());
+            InetAddress predecessor = StorageService.instance.getPredecessor(StorageService.getLocalStorageEndpoint());
             if (logger_.isDebugEnabled())
               logger_.debug("Trying to relocate the predecessor {}", predecessor);
             boolean value = tryThisNode(myLoad, threshold, predecessor);
             if ( !value )
             {
                 loadInfo2_.remove(predecessor);
-                InetAddress successor = StorageService.instance.getSuccessor(StorageService.getLocalStorageEndPoint());
+                InetAddress successor = StorageService.instance.getSuccessor(StorageService.getLocalStorageEndpoint());
                 if (logger_.isDebugEnabled())
                   logger_.debug("Trying to relocate the successor {}", successor);
                 value = tryThisNode(myLoad, threshold, successor);
@@ -136,7 +136,7 @@ public class StorageLoadBalancer implements IEndPointStateChangeSubscriber
                 BigInteger targetToken = BootstrapAndLbHelper.getTokenBasedOnPrimaryCount(keyCount);
                 // Send a MoveMessage and see if this node is relocateable
                 MoveMessage moveMessage = new MoveMessage(targetToken);
-                Message message = new Message(StorageService.getLocalStorageEndPoint(), StorageLoadBalancer.lbStage_, StorageLoadBalancer.moveMessageVerbHandler_, new Object[]{moveMessage});
+                Message message = new Message(StorageService.getLocalStorageEndpoint(), StorageLoadBalancer.lbStage_, StorageLoadBalancer.moveMessageVerbHandler_, new Object[]{moveMessage});
                 if (logger_.isDebugEnabled())
                   logger_.debug("Sending a move message to {}", target);
                 IAsyncResult result = MessagingService.getMessagingInstance().sendRR(message, target);
@@ -205,7 +205,7 @@ public class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         if ( isHeavyNode() )
         {
             if (logger_.isDebugEnabled())
-              logger_.debug(StorageService.getLocalStorageEndPoint() + " is a heavy node with load " + localLoad());
+              logger_.debug(StorageService.getLocalStorageEndpoint() + " is a heavy node with load " + localLoad());
             // lb_.schedule( new LoadBalancer(), StorageLoadBalancer.delay_, TimeUnit.MINUTES );
         }
         */
@@ -230,7 +230,7 @@ public class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         if ( !isMoveable_.get() )
             return false;
         int myload = localLoad();
-        InetAddress successor = StorageService.instance.getSuccessor(StorageService.getLocalStorageEndPoint());
+        InetAddress successor = StorageService.instance.getSuccessor(StorageService.getLocalStorageEndpoint());
         LoadInfo li = loadInfo2_.get(successor);
         // "load" is NULL means that the successor node has not
         // yet gossiped its load information. We should return

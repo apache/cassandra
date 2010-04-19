@@ -53,7 +53,7 @@ public class RackUnawareStrategy extends AbstractReplicationStrategy
         Iterator<Token> iter = TokenMetadata.ringIterator(tokens, token);
         while (endpoints.size() < replicas && iter.hasNext())
         {
-            endpoints.add(metadata.getEndPoint(iter.next()));
+            endpoints.add(metadata.getEndpoint(iter.next()));
         }
 
         return endpoints;

@@ -92,7 +92,7 @@ public class NodeCmd {
      */
     public void printRing(PrintStream outs)
     {
-        Map<Range, List<String>> rangeMap = probe.getRangeToEndPointMap(null);
+        Map<Range, List<String>> rangeMap = probe.getRangeToEndpointMap(null);
         List<Range> ranges = new ArrayList<Range>(rangeMap.keySet());
         Collections.sort(ranges);
         Set<String> liveNodes = probe.getLiveNodes();

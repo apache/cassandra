@@ -37,7 +37,7 @@
    <DiskAccessMode>mmap</DiskAccessMode>
    <MemtableThroughputInMB>1</MemtableThroughputInMB>
    <MemtableOperationsInMillions>0.00002</MemtableOperationsInMillions> <!-- 20 -->
-   <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
+   <EndpointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndpointSnitch>
    <Keyspaces>
      <Keyspace Name = "Keyspace1">
        <ColumnFamily Name="Standard1" RowsCached="10%" KeysCached="0"/>
@@ -58,13 +58,13 @@
        <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="TimeUUIDType" Name="Super4"/>
        <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
        <ReplicationFactor>1</ReplicationFactor>
-       <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
+       <EndpointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndpointSnitch>
      </Keyspace>
      <Keyspace Name = "Keyspace3">
        <ColumnFamily Name="Standard1"/>
        <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
        <ReplicationFactor>5</ReplicationFactor>
-       <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
+       <EndpointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndpointSnitch>
      </Keyspace>
      <Keyspace Name = "Keyspace4">
        <ColumnFamily Name="Standard1"/>
@@ -73,7 +73,7 @@
        <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="TimeUUIDType" Name="Super4"/>
        <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
        <ReplicationFactor>3</ReplicationFactor>
-       <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
+       <EndpointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndpointSnitch>
      </Keyspace>
    </Keyspaces>
    <Seeds>

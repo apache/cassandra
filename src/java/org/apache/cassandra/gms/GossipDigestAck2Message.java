@@ -52,7 +52,7 @@ class GossipDigestAck2Message
         epStateMap_ = epStateMap;
     }
         
-    Map<InetAddress, EndPointState> getEndPointStateMap()
+    Map<InetAddress, EndPointState> getEndpointStateMap()
     {
          return epStateMap_;
     }

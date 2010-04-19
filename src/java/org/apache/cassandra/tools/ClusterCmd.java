@@ -144,9 +144,9 @@ public class ClusterCmd {
         hf.printHelp(usage, "", options, header);
     }
     
-    public void printEndPoints(String keyspace, String key)
+    public void printEndpoints(String keyspace, String key)
     {
-        List<InetAddress> endpoints = probe.getEndPoints(keyspace, key);
+        List<InetAddress> endpoints = probe.getEndpoints(keyspace, key);
         System.out.println(String.format("%-17s: %s", "Key", key));
         System.out.println(String.format("%-17s: %s", "Endpoints", endpoints));
     }
@@ -260,7 +260,7 @@ public class ClusterCmd {
                 ClusterCmd.printUsage();
                 System.exit(1);
             }
-            clusterCmd.printEndPoints(arguments[1], arguments[2]);
+            clusterCmd.printEndpoints(arguments[1], arguments[2]);
         }
         else if (cmdName.equals("global_snapshot"))
         {

@@ -92,14 +92,14 @@ public class TestRingCache
             ColumnPath col = new ColumnPath("Standard1").setSuper_column(null).setColumn("col1".getBytes());
             ColumnParent parent = new ColumnParent("Standard1").setSuper_column(null);
 
-            List<InetAddress> endPoints = tester.ringCache.getEndPoint(row);
+            List<InetAddress> endpoints = tester.ringCache.getEndpoint(row);
             String hosts="";
-            for (int i = 0; i < endPoints.size(); i++)
-                hosts = hosts + ((i > 0) ? "," : "") + endPoints.get(i);
-            System.out.println("hosts with key " + new String(row) + " : " + hosts + "; choose " + endPoints.get(0));
+            for (int i = 0; i < endpoints.size(); i++)
+                hosts = hosts + ((i > 0) ? "," : "") + endpoints.get(i);
+            System.out.println("hosts with key " + new String(row) + " : " + hosts + "; choose " + endpoints.get(0));
 
             // now, read the row back directly from the host owning the row locally
-            tester.setup(endPoints.get(0).getHostAddress(), DatabaseDescriptor.getRpcPort());
+            tester.setup(endpoints.get(0).getHostAddress(), DatabaseDescriptor.getRpcPort());
             tester.thriftClient.insert(keyspace, row, parent, new Column("col1".getBytes(), "val1".getBytes(), 1), ConsistencyLevel.ONE);
             Column column = tester.thriftClient.get(keyspace, row, col, ConsistencyLevel.ONE).column;
             System.out.println("read row " + new String(row) + " " + new String(column.name) + ":" + new String(column.value) + ":" + column.timestamp);

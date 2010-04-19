@@ -62,7 +62,7 @@ public class MigrationManager implements IEndPointStateChangeSubscriber
     }
 
     /** gets called after a this node joins a cluster */
-    public void onAlive(InetAddress endpoint, EndPointState state) 
+    public void onAlive(InetAddress endpoint, EndPointState state)
     { 
         ApplicationState appState = state.getApplicationState(MIGRATION_STATE);
         if (appState != null)

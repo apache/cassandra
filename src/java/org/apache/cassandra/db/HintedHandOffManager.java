@@ -104,14 +104,14 @@ public class HintedHandOffManager
         }, "Hint delivery").start();
     }
 
-    private static boolean sendMessage(InetAddress endPoint, String tableName, byte[] key) throws IOException
+    private static boolean sendMessage(InetAddress endpoint, String tableName, byte[] key) throws IOException
     {
-        if (!Gossiper.instance.isKnownEndpoint(endPoint))
+        if (!Gossiper.instance.isKnownEndpoint(endpoint))
         {
-            logger_.warn("Hints found for endpoint " + endPoint + " which is not part of the gossip network.  discarding.");
+            logger_.warn("Hints found for endpoint " + endpoint + " which is not part of the gossip network.  discarding.");
             return true;
         }
-        if (!FailureDetector.instance.isAlive(endPoint))
+        if (!FailureDetector.instance.isAlive(endpoint))
         {
             return false;
         }
@@ -127,7 +127,7 @@ public class HintedHandOffManager
         }
         Message message = rm.makeRowMutationMessage();
         WriteResponseHandler responseHandler = new WriteResponseHandler(1, tableName);
-        MessagingService.instance.sendRR(message, new InetAddress[] { endPoint }, responseHandler);
+        MessagingService.instance.sendRR(message, new InetAddress[] { endpoint }, responseHandler);
 
         try
         {
@@ -140,7 +140,7 @@ public class HintedHandOffManager
         return true;
     }
 
-    private static void deleteEndPoint(byte[] endpointAddress, String tableName, byte[] key, long timestamp) throws IOException
+    private static void deleteEndpoint(byte[] endpointAddress, String tableName, byte[] key, long timestamp) throws IOException
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, tableName.getBytes(UTF8));
         rm.delete(new QueryPath(HINTS_CF, key, endpointAddress), timestamp);
@@ -189,7 +189,7 @@ public class HintedHandOffManager
                     {
                         if (sendMessage(InetAddress.getByAddress(endpoint.name()), tableName, keyBytes))
                         {
-                            deleteEndPoint(endpoint.name(), tableName, keyColumn.name(), System.currentTimeMillis());
+                            deleteEndpoint(endpoint.name(), tableName, keyColumn.name(), System.currentTimeMillis());
                             deleted++;
                         }
                     }
@@ -223,12 +223,12 @@ public class HintedHandOffManager
                || (hintColumnFamily.getSortedColumns().size() == 1 && hintColumnFamily.getColumn(startColumn) != null);
     }
 
-    private static void deliverHintsToEndpoint(InetAddress endPoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException
+    private static void deliverHintsToEndpoint(InetAddress endpoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException
     {
         if (logger_.isDebugEnabled())
-          logger_.debug("Started hinted handoff for endPoint " + endPoint);
+          logger_.debug("Started hinted handoff for endpoint " + endpoint);
 
-        byte[] targetEPBytes = endPoint.getAddress();
+        byte[] targetEPBytes = endpoint.getAddress();
         // 1. Scan through all the keys that we need to handoff
         // 2. For each key read the list of recipients if the endpoint matches send
         // 3. Delete that recipient from the key if write was successful
@@ -249,14 +249,14 @@ public class HintedHandOffManager
                 {
                     byte[] keyBytes = keyColumn.name();
                     Collection<IColumn> endpoints = keyColumn.getSubColumns();
-                    for (IColumn hintEndPoint : endpoints)
+                    for (IColumn hintEndpoint : endpoints)
                     {
-                        if (Arrays.equals(hintEndPoint.name(), targetEPBytes) && sendMessage(endPoint, tableName, keyBytes))
+                        if (Arrays.equals(hintEndpoint.name(), targetEPBytes) && sendMessage(endpoint, tableName, keyBytes))
                         {
                             if (endpoints.size() == 1)
                                 deleteHintKey(tableName, keyColumn.name());
                             else
-                                deleteEndPoint(hintEndPoint.name(), tableName, keyColumn.name(), System.currentTimeMillis());
+                                deleteEndpoint(hintEndpoint.name(), tableName, keyColumn.name(), System.currentTimeMillis());
                             break;
                         }
                     }
@@ -267,7 +267,7 @@ public class HintedHandOffManager
         }
 
         if (logger_.isDebugEnabled())
-          logger_.debug("Finished hinted handoff for endpoint " + endPoint);
+          logger_.debug("Finished hinted handoff for endpoint " + endpoint);
     }
 
     /** called when a keyspace is dropped or rename. newTable==null in the case of a drop. */

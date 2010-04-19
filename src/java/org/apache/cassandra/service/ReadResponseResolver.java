@@ -65,7 +65,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
     {
         long startTime = System.currentTimeMillis();
 		List<ColumnFamily> versions = new ArrayList<ColumnFamily>();
-		List<InetAddress> endPoints = new ArrayList<InetAddress>();
+		List<InetAddress> endpoints = new ArrayList<InetAddress>();
 		DecoratedKey key = null;
 		byte[] digest = new byte[0];
 		boolean isDigestQuery = false;
@@ -89,7 +89,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             else
             {
                 versions.add(result.row().cf);
-                endPoints.add(response.getFrom());
+                endpoints.add(response.getFrom());
                 key = result.row().key;
             }
         }
@@ -109,7 +109,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         }
 
         ColumnFamily resolved = resolveSuperset(versions);
-        maybeScheduleRepairs(resolved, table, key, versions, endPoints);
+        maybeScheduleRepairs(resolved, table, key, versions, endpoints);
 
         if (logger_.isDebugEnabled())
             logger_.debug("resolve: " + (System.currentTimeMillis() - startTime) + " ms.");
@@ -120,7 +120,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
      * For each row version, compare with resolved (the superset of all row versions);
      * if it is missing anything, send a mutation to the endpoint it come from.
      */
-    public static void maybeScheduleRepairs(ColumnFamily resolved, String table, DecoratedKey key, List<ColumnFamily> versions, List<InetAddress> endPoints)
+    public static void maybeScheduleRepairs(ColumnFamily resolved, String table, DecoratedKey key, List<ColumnFamily> versions, List<InetAddress> endpoints)
     {
         for (int i = 0; i < versions.size(); i++)
         {
@@ -132,7 +132,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             RowMutation rowMutation = new RowMutation(table, key.key);
             rowMutation.add(diffCf);
             RowMutationMessage rowMutationMessage = new RowMutationMessage(rowMutation);
-            ReadRepairManager.instance.schedule(endPoints.get(i), rowMutationMessage);
+            ReadRepairManager.instance.schedule(endpoints.get(i), rowMutationMessage);
         }
     }
 

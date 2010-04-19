@@ -75,10 +75,10 @@ public class DatacenterEndPointSnitch extends AbstractEndpointSnitch
     /**
      * Return the rack for which an endpoint resides in
      */
-    public String getRackForEndPoint(InetAddress endPoint)
+    public String getRackForEndpoint(InetAddress endpoint)
             throws UnknownHostException
     {
-        byte[] ipQuads = getIPAddress(endPoint.getHostAddress());
+        byte[] ipQuads = getIPAddress(endpoint.getHostAddress());
         return ipRAC.get(ipQuads[1]).get(ipQuads[2]);
     }
 
@@ -93,11 +93,11 @@ public class DatacenterEndPointSnitch extends AbstractEndpointSnitch
     {
         try
         {
-            String[] dcNames = xmlUtils.getNodeValues("/EndPoints/DataCenter/name");
+            String[] dcNames = xmlUtils.getNodeValues("/Endpoints/DataCenter/name");
             for (String dcName : dcNames)
             {
                 // Parse the Datacenter Quaderant.
-                String dcXPath = "/EndPoints/DataCenter[name='" + dcName + "']";
+                String dcXPath = "/Endpoints/DataCenter[name='" + dcName + "']";
                 String dcIPQuad = xmlUtils.getNodeValue(dcXPath + "/ip2ndQuad");
                 String replicationFactor = xmlUtils.getNodeValue(dcXPath + "/replicationFactor");
                 byte dcByte = intToByte(Integer.parseInt(dcIPQuad));

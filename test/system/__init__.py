@@ -142,7 +142,7 @@ class ThriftTester(BaseTester):
         self.client.transport.close()
         
     def define_schema(self):
-        keyspace1 = Cassandra.KsDef('Keyspace1', 'org.apache.cassandra.locator.RackUnawareStrategy', 1, 'org.apache.cassandra.locator.EndPointSnitch', 
+        keyspace1 = Cassandra.KsDef('Keyspace1', 'org.apache.cassandra.locator.RackUnawareStrategy', 1, 'org.apache.cassandra.locator.EndPointSnitch',
         [
             Cassandra.CfDef('Keyspace1', 'Standard1'),
             Cassandra.CfDef('Keyspace1', 'Standard2'), 

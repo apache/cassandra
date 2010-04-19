@@ -127,13 +127,13 @@
       <ReplicationFactor>1</ReplicationFactor>
 
       <!--
-       ~ EndPointSnitch: Setting this to the class that implements
+       ~ EndpointSnitch: Setting this to the class that implements
        ~ AbstractEndpointSnitch, which lets Cassandra know enough
        ~ about your network topology to route requests efficiently.
-       ~ Out of the box, Cassandra provides org.apache.cassandra.locator.EndPointSnitch,
-       ~ and PropertyFileEndPointSnitch is available in contrib/.
+       ~ Out of the box, Cassandra provides org.apache.cassandra.locator.EndpointSnitch,
+       ~ and PropertyFileEndpointSnitch is available in contrib/.
       -->
-      <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
+      <EndpointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndpointSnitch>
     </Keyspace>
   </Keyspaces>
 

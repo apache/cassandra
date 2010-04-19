@@ -377,12 +377,12 @@ public class DatabaseDescriptor
             }
 
             /* end point snitch */
-            String endPointSnitchClassName = xmlUtils.getNodeValue("/Storage/EndPointSnitch");
-            if (endPointSnitchClassName == null)
+            String endpointSnitchClassName = xmlUtils.getNodeValue("/Storage/EndpointSnitch");
+            if (endpointSnitchClassName == null)
             {
                 throw new ConfigurationException("Missing endpointsnitch directive");
             }
-            snitch = createEndpointSnitch(endPointSnitchClassName);
+            snitch = createEndpointSnitch(endpointSnitchClassName);
 
             /* snapshot-before-compaction.  defaults to false */
             String sbc = xmlUtils.getNodeValue("/Storage/SnapshotBeforeCompaction");
@@ -524,17 +524,17 @@ public class DatabaseDescriptor
         }
     }
 
-    private static IEndPointSnitch createEndpointSnitch(String endPointSnitchClassName) throws ConfigurationException
+    private static IEndPointSnitch createEndpointSnitch(String endpointSnitchClassName) throws ConfigurationException
     {
         IEndPointSnitch snitch;
         Class cls;
         try
         {
-            cls = Class.forName(endPointSnitchClassName);
+            cls = Class.forName(endpointSnitchClassName);
         }
         catch (ClassNotFoundException e)
         {
-            throw new ConfigurationException("Unable to load endpointsnitch class " + endPointSnitchClassName);
+            throw new ConfigurationException("Unable to load endpointsnitch class " + endpointSnitchClassName);
         }
         Constructor ctor;
         try
@@ -543,7 +543,7 @@ public class DatabaseDescriptor
         }
         catch (NoSuchMethodException e)
         {
-            throw new ConfigurationException("No default constructor found in " + endPointSnitchClassName);
+            throw new ConfigurationException("No default constructor found in " + endpointSnitchClassName);
         }
         try
         {
@@ -551,17 +551,17 @@ public class DatabaseDescriptor
         }
         catch (InstantiationException e)
         {
-            throw new ConfigurationException("endpointsnitch class " + endPointSnitchClassName + "is abstract");
+            throw new ConfigurationException("endpointsnitch class " + endpointSnitchClassName + "is abstract");
         }
         catch (IllegalAccessException e)
         {
-            throw new ConfigurationException("Access to " + endPointSnitchClassName + " constructor was rejected");
+            throw new ConfigurationException("Access to " + endpointSnitchClassName + " constructor was rejected");
         }
         catch (InvocationTargetException e)
         {
             if (e.getCause() instanceof ConfigurationException)
                 throw (ConfigurationException)e.getCause();
-            throw new ConfigurationException("Error instantiating " + endPointSnitchClassName + " " + e.getMessage());
+            throw new ConfigurationException("Error instantiating " + endpointSnitchClassName + " " + e.getMessage());
         }
         return snitch;
     }
@@ -872,7 +872,7 @@ public class DatabaseDescriptor
         return partitioner;
     }
     
-    public static IEndPointSnitch getEndPointSnitch()
+    public static IEndPointSnitch getEndpointSnitch()
     {
         return snitch;
     }
