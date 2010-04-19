@@ -141,7 +141,7 @@ public class BootStrapper
         return maxEndpoint;
     }
 
-    /** get potential sources for each range, ordered by proximity (as determined by EndPointSnitch) */
+    /** get potential sources for each range, ordered by proximity (as determined by EndpointSnitch) */
     Multimap<Range, InetAddress> getRangesWithSources(String table)
     {
         assert tokenMetadata.sortedTokens().size() > 0;

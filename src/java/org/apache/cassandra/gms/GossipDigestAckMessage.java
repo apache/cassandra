@@ -73,10 +73,10 @@ class GossipDigestAckMessageSerializer implements ICompactSerializer<GossipDiges
         /* Use the helper to serialize the GossipDigestList */
         boolean bContinue = GossipDigestSerializationHelper.serialize(gDigestAckMessage.gDigestList_, dos);
         dos.writeBoolean(bContinue);
-        /* Use the EndPointState */
+        /* Use the EndpointState */
         if ( bContinue )
         {
-            EndPointStatesSerializationHelper.serialize(gDigestAckMessage.epStateMap_, dos);            
+            EndpointStatesSerializationHelper.serialize(gDigestAckMessage.epStateMap_, dos);            
         }
     }
 
@@ -88,7 +88,7 @@ class GossipDigestAckMessageSerializer implements ICompactSerializer<GossipDiges
 
         if ( bContinue )
         {
-            epStateMap = EndPointStatesSerializationHelper.deserialize(dis);                                    
+            epStateMap = EndpointStatesSerializationHelper.deserialize(dis);                                    
         }
         return new GossipDigestAckMessage(gDigestList, epStateMap);
     }

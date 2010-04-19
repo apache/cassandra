@@ -112,9 +112,9 @@ class GossipDigestSerializationHelper
     }
 }
 
-class EndPointStatesSerializationHelper
+class EndpointStatesSerializationHelper
 {
-    private static final Logger logger_ = LoggerFactory.getLogger(EndPointStatesSerializationHelper.class);
+    private static final Logger logger_ = LoggerFactory.getLogger(EndpointStatesSerializationHelper.class);
 
     static boolean serialize(Map<InetAddress, EndpointState> epStateMap, DataOutputStream dos) throws IOException
     {
@@ -151,7 +151,7 @@ class EndPointStatesSerializationHelper
         {
             if ( dis.available() == 0 )
             {
-                logger_.info("Remaining bytes zero. Stopping deserialization in EndPointState.");
+                logger_.info("Remaining bytes zero. Stopping deserialization in EndpointState.");
                 break;
             }
             // int length = dis.readInt();            

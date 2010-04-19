@@ -28,7 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * This abstraction represents both the HeartBeatState and the ApplicationState in an EndPointState
+ * This abstraction represents both the HeartBeatState and the ApplicationState in an EndpointState
  * instance. Any state for a given endpoint can be retrieved from this instance.
  */
 
@@ -37,7 +37,7 @@ public class EndpointState
     private static ICompactSerializer<EndpointState> serializer_;
     static
     {
-        serializer_ = new EndPointStateSerializer();
+        serializer_ = new EndpointStateSerializer();
     }
     
     HeartBeatState hbState_;
@@ -154,9 +154,9 @@ public class EndpointState
 
 }
 
-class EndPointStateSerializer implements ICompactSerializer<EndpointState>
+class EndpointStateSerializer implements ICompactSerializer<EndpointState>
 {
-    private static Logger logger_ = LoggerFactory.getLogger(EndPointStateSerializer.class);
+    private static Logger logger_ = LoggerFactory.getLogger(EndpointStateSerializer.class);
     
     public void serialize(EndpointState epState, DataOutputStream dos) throws IOException
     {
@@ -177,7 +177,7 @@ class EndPointStateSerializer implements ICompactSerializer<EndpointState>
             {
                 if ( Gossiper.MAX_GOSSIP_PACKET_SIZE - dos.size() < estimate )
                 {
-                    logger_.info("@@@@ Breaking out to respect the MTU size in EndPointState serializer. Estimate is {} @@@@", estimate);;
+                    logger_.info("@@@@ Breaking out to respect the MTU size in EndpointState serializer. Estimate is {} @@@@", estimate);;
                     break;
                 }
             

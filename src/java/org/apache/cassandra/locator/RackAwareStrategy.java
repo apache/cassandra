@@ -40,7 +40,7 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
     {
         super(tokenMetadata, snitch);
         if (!(snitch instanceof EndpointSnitch))
-            throw new IllegalArgumentException(("RackAwareStrategy requires EndPointSnitch."));
+            throw new IllegalArgumentException(("RackAwareStrategy requires EndpointSnitch."));
     }
 
     public ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata, String table)

@@ -58,13 +58,13 @@
        <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="TimeUUIDType" Name="Super4"/>
        <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
        <ReplicationFactor>1</ReplicationFactor>
-       <EndpointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndpointSnitch>
+       <EndpointSnitch>org.apache.cassandra.locator.EndpointSnitch</EndpointSnitch>
      </Keyspace>
      <Keyspace Name = "Keyspace3">
        <ColumnFamily Name="Standard1"/>
        <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
        <ReplicationFactor>5</ReplicationFactor>
-       <EndpointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndpointSnitch>
+       <EndpointSnitch>org.apache.cassandra.locator.EndpointSnitch</EndpointSnitch>
      </Keyspace>
      <Keyspace Name = "Keyspace4">
        <ColumnFamily Name="Standard1"/>
@@ -73,7 +73,7 @@
        <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="TimeUUIDType" Name="Super4"/>
        <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
        <ReplicationFactor>3</ReplicationFactor>
-       <EndpointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndpointSnitch>
+       <EndpointSnitch>org.apache.cassandra.locator.EndpointSnitch</EndpointSnitch>
      </Keyspace>
    </Keyspaces>
    <Seeds>

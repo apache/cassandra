@@ -21,7 +21,7 @@ package org.apache.cassandra.gms;
 import java.net.InetAddress;
 
 /**
- * This is called by an instance of the IEndPointStateChangePublisher to notify
+ * This is called by an instance of the IEndpointStateChangePublisher to notify
  * interested parties about changes in the the state associated with any endpoint.
  * For instance if node A figures there is a changes in state for an endpoint B
  * it notifies all interested parties of this change. It is upto to the registered

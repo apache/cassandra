@@ -133,7 +133,7 @@
        ~ Out of the box, Cassandra provides org.apache.cassandra.locator.EndpointSnitch,
        ~ and PropertyFileEndpointSnitch is available in contrib/.
       -->
-      <EndpointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndpointSnitch>
+      <EndpointSnitch>org.apache.cassandra.locator.EndpointSnitch</EndpointSnitch>
     </Keyspace>
   </Keyspaces>
 

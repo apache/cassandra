@@ -38,7 +38,7 @@ import org.apache.cassandra.thrift.ConsistencyLevel;
  * other Datacenter.... For example if we have 5 nodes this stategy will make
  * sure to make 2 copies out of 5 in other dataceneter.
  * <p/>
- * This class also caches the EndPoints and invalidates the cache if there is a
+ * This class also caches the Endpoints and invalidates the cache if there is a
  * change in the number of tokens.
  */
 public class DatacenterShardStategy extends AbstractReplicationStrategy
@@ -62,8 +62,8 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
     }
 
     /**
-     * This Method will get the required information of the EndPoint from the
-     * DataCenterEndPointSnitch and poopulates this singleton class.
+     * This Method will get the required information of the Endpoint from the
+     * DataCenterEndpointSnitch and poopulates this singleton class.
      */
     private synchronized void loadEndpoints(TokenMetadata metadata) throws IOException
     {
@@ -111,7 +111,7 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
         super(tokenMetadata, snitch);
         if ((!(snitch instanceof DatacenterEndpointSnitch)))
         {
-            throw new IllegalArgumentException("DatacenterShardStrategy requires DatacenterEndPointSnitch");
+            throw new IllegalArgumentException("DatacenterShardStrategy requires DatacenterEndpointSnitch");
         }
     }
 

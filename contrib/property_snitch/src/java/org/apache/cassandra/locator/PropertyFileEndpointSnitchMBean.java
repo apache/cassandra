@@ -23,18 +23,18 @@ import java.io.IOException;
 import org.apache.cassandra.config.ConfigurationException;
 
 /**
- * PropertyFileEndPointSnitchMBean
+ * PropertyFileEndpointSnitchMBean
  * 
- * PropertyFileEndPointSnitchMBean is the management interface for Digg's EndpointSnitch MBean
+ * PropertyFileEndpointSnitchMBean is the management interface for Digg's EndpointSnitch MBean
  * 
  * @author Sammy Yu <syu@sammyyu.net>
  * 
  */
-public interface PropertyFileEndPointSnitchMBean {
+public interface PropertyFileEndpointSnitchMBean {
     /**
      * The object name of the mbean.
      */
-    public static String MBEAN_OBJECT_NAME = "org.apache.cassandra.locator:type=EndPointSnitch";
+    public static String MBEAN_OBJECT_NAME = "org.apache.cassandra.locator:type=EndpointSnitch";
     
     /**
      * Reload the rack configuration

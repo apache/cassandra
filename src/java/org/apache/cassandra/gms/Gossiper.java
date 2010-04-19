@@ -111,7 +111,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndpointStateC
     private long FatClientTimeout_;
     private Random random_ = new Random();
 
-    /* subscribers for interest in EndPointState change */
+    /* subscribers for interest in EndpointState change */
     private List<IEndpointStateChangeSubscriber> subscribers_ = new ArrayList<IEndpointStateChangeSubscriber>();
 
     /* live member set */
@@ -143,7 +143,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndpointStateC
         FailureDetector.instance.registerFailureDetectionEventListener(this);
     }
 
-    /** Register with the Gossiper for EndPointState notifications */
+    /** Register with the Gossiper for EndpointState notifications */
     public synchronized void register(IEndpointStateChangeSubscriber subscriber)
     {
         subscribers_.add(subscriber);
@@ -577,7 +577,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndpointStateC
      * immediately mark it alive.
      *
      * @param ep endpoint
-     * @param epState EndPointState for the endpoint
+     * @param epState EndpointState for the endpoint
      * @param isKnownNode is this node familiar to us already (present in endpointStateMap)
      */
     private void handleMajorStateChange(InetAddress ep, EndpointState epState, boolean isKnownNode)
@@ -914,7 +914,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndpointStateC
 
             /*
              * These digests have their maxVersion set to the difference of the version
-             * of the local EndPointState and the version found in the GossipDigest.
+             * of the local EndpointState and the version found in the GossipDigest.
             */
             List<GossipDigest> diffDigests = new ArrayList<GossipDigest>();
             for ( GossipDigest gDigest : gDigestList )

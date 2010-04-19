@@ -36,18 +36,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * PropertyFileEndPointSnitch
- * 
- * PropertyFileEndPointSnitch is used by Digg to determine if two IP's are in the same
+ * PropertyFileEndpointSnitch
+ *
+ * PropertyFileEndpointSnitch is used by Digg to determine if two IP's are in the same
  * datacenter or on the same rack.
- * 
+ *
  */
-public class PropertyFileEndPointSnitch extends EndpointSnitch implements PropertyFileEndPointSnitchMBean {
+public class PropertyFileEndpointSnitch extends EndpointSnitch implements PropertyFileEndpointSnitchMBean {
     /**
      * A list of properties with keys being host:port and values being datacenter:rack
      */
     private Properties hostProperties = new Properties();
-    
+
     /**
      * The default rack property file to be read.
      */
@@ -57,13 +57,13 @@ public class PropertyFileEndPointSnitch extends EndpointSnitch implements Proper
      * Whether to use the parent for detection of same node
      */
     private boolean runInBaseMode = false;
-    
+
     /**
      * Reference to the logger.
      */
-    private static Logger logger_ = LoggerFactory.getLogger(PropertyFileEndPointSnitch.class);
+    private static Logger logger_ = LoggerFactory.getLogger(PropertyFileEndpointSnitch.class);
 
-    public PropertyFileEndPointSnitch() throws ConfigurationException
+    public PropertyFileEndpointSnitch() throws ConfigurationException
     {
         reloadConfiguration();
         try
@@ -125,7 +125,7 @@ public class PropertyFileEndPointSnitch extends EndpointSnitch implements Proper
     @Override
     public boolean isInSameDataCenter(InetAddress host, InetAddress host2)
             throws UnknownHostException {
-        if (runInBaseMode) 
+        if (runInBaseMode)
         {
             return super.isInSameDataCenter(host, host2);
         }
@@ -135,11 +135,11 @@ public class PropertyFileEndPointSnitch extends EndpointSnitch implements Proper
     @Override
     public boolean isOnSameRack(InetAddress host, InetAddress host2)
             throws UnknownHostException {
-        if (runInBaseMode) 
+        if (runInBaseMode)
         {
             return super.isOnSameRack(host, host2);
         }
-        if (!isInSameDataCenter(host, host2)) 
+        if (!isInSameDataCenter(host, host2))
         {
             return false;
         }
@@ -155,10 +155,10 @@ public class PropertyFileEndPointSnitch extends EndpointSnitch implements Proper
         }
         return configurationString.toString();
     }
-    
+
     public void reloadConfiguration() throws ConfigurationException
     {
-        ClassLoader loader = PropertyFileEndPointSnitch.class.getClassLoader();
+        ClassLoader loader = PropertyFileEndpointSnitch.class.getClassLoader();
         URL scpurl = loader.getResource(RACK_PROPERTY_FILENAME);
         if (scpurl == null)
             throw new ConfigurationException("unable to locate " + RACK_PROPERTY_FILENAME);
@@ -172,7 +172,7 @@ public class PropertyFileEndPointSnitch extends EndpointSnitch implements Proper
             hostProperties = localHostProperties;
             runInBaseMode = false;
         }
-        catch (IOException ioe) 
+        catch (IOException ioe)
         {
             throw new ConfigurationException("Could not process " + rackPropertyFilename, ioe);
         }

@@ -27,7 +27,7 @@ import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import java.net.InetAddress;
 
 /**
- * Contains information about a specified list of EndPoints and the largest version 
+ * Contains information about a specified list of Endpoints and the largest version 
  * of the state they have generated as known by the local endpoint.
  */
 

@@ -34,17 +34,17 @@ import org.apache.cassandra.utils.XMLUtils;
 import org.xml.sax.SAXException;
 
 /**
- * DataCenterEndPointSnitch
+ * DataCenterEndpointSnitch
  * <p/>
  * This class basically reads the configuration and sets the IP Ranges to a
  * hashMap which can be read later. this class also provides a way to compare 2
- * EndPoints and also get details from the same.
+ * Endpoints and also get details from the same.
  */
 
 public class DatacenterEndpointSnitch extends AbstractEndpointSnitch
 {
     /**
-     * This Map will contain the information of the EndPoints and its Location
+     * This Map will contain the information of the Endpoints and its Location
      * (Datacenter and RAC)
      */
     private Map<Byte, Map<Byte, String>> ipDC = new HashMap<Byte, Map<Byte, String>>();

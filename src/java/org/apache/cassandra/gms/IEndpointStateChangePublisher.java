@@ -27,13 +27,13 @@ public interface IEndpointStateChangePublisher
 {
     /**
      * Register for interesting state changes.
-     * @param subcriber module which implements the IEndPointStateChangeSubscriber
+     * @param subcriber module which implements the IEndpointStateChangeSubscriber
      */
     public void register(IEndpointStateChangeSubscriber subcriber);
     
     /**
      * Unregister interest for state changes.
-     * @param subcriber module which implements the IEndPointStateChangeSubscriber
+     * @param subcriber module which implements the IEndpointStateChangeSubscriber
      */
     public void unregister(IEndpointStateChangeSubscriber subcriber);
 }
