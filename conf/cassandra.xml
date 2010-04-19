@@ -53,7 +53,7 @@
    ~ org.apache.cassandra.locator.RackInferringSnitch and
    ~ org.apache.cassandra.locator.PropertyFileSnitch.
   -->
-  <EndpointSnitch>org.apache.cassandra.locator.RackInferringSnitch</EndpointSnitch>
+  <EndpointSnitch>org.apache.cassandra.locator.SimpleSnitch</EndpointSnitch>
 
   <!--
    ~ Keyspaces and ColumnFamilies:
