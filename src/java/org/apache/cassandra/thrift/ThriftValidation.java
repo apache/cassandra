@@ -234,11 +234,11 @@ public class ThriftValidation
 
         if (cosc != null)
         {
-            ThriftValidation.validateColumnOrSuperColumn(keyspace, cfName, cosc);
+            validateColumnOrSuperColumn(keyspace, cfName, cosc);
         }
         else if (del != null)
         {
-            ThriftValidation.validateDeletion(keyspace, cfName, del);
+            validateDeletion(keyspace, cfName, del);
         }
         else
         {
