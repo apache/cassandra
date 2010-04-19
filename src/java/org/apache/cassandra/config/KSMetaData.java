@@ -19,7 +19,6 @@
 package org.apache.cassandra.config;
 
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.IEndPointSnitch;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;

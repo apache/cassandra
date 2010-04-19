@@ -20,14 +20,12 @@ package org.apache.cassandra.locator;
 
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
 import java.net.InetAddress;
-import org.apache.cassandra.service.StorageService;
 
 /*
  * This class returns the nodes responsible for a given
@@ -38,10 +36,10 @@ import org.apache.cassandra.service.StorageService;
  */
 public class RackAwareStrategy extends AbstractReplicationStrategy
 {
-    public RackAwareStrategy(TokenMetadata tokenMetadata, IEndPointSnitch snitch)
+    public RackAwareStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch)
     {
         super(tokenMetadata, snitch);
-        if (!(snitch instanceof EndPointSnitch))
+        if (!(snitch instanceof EndpointSnitch))
             throw new IllegalArgumentException(("RackAwareStrategy requires EndPointSnitch."));
     }
 
@@ -66,7 +64,7 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
             {
                 // First try to find one in a different data center
                 Token t = iter.next();
-                if (!((EndPointSnitch)snitch_).isInSameDataCenter(metadata.getEndpoint(primaryToken), metadata.getEndpoint(t)))
+                if (!((EndpointSnitch)snitch_).isInSameDataCenter(metadata.getEndpoint(primaryToken), metadata.getEndpoint(t)))
                 {
                     // If we have already found something in a diff datacenter no need to find another
                     if (!bDataCenter)
@@ -77,8 +75,8 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
                     continue;
                 }
                 // Now  try to find one on a different rack
-                if (!((EndPointSnitch)snitch_).isOnSameRack(metadata.getEndpoint(primaryToken), metadata.getEndpoint(t)) &&
-                    ((EndPointSnitch)snitch_).isInSameDataCenter(metadata.getEndpoint(primaryToken), metadata.getEndpoint(t)))
+                if (!((EndpointSnitch)snitch_).isOnSameRack(metadata.getEndpoint(primaryToken), metadata.getEndpoint(t)) &&
+                    ((EndpointSnitch)snitch_).isInSameDataCenter(metadata.getEndpoint(primaryToken), metadata.getEndpoint(t)))
                 {
                     // If we have already found something in a diff rack no need to find another
                     if (!bOtherRack)

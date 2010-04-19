@@ -25,8 +25,9 @@ import java.util.*;
 import java.util.Map.Entry;
 
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.net.CompactEndPointSerializationHelper;
+import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import java.net.InetAddress;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -115,14 +116,14 @@ class EndPointStatesSerializationHelper
 {
     private static final Logger logger_ = LoggerFactory.getLogger(EndPointStatesSerializationHelper.class);
 
-    static boolean serialize(Map<InetAddress, EndPointState> epStateMap, DataOutputStream dos) throws IOException
+    static boolean serialize(Map<InetAddress, EndpointState> epStateMap, DataOutputStream dos) throws IOException
     {
         boolean bVal = true;
         int estimate = 0;                
         int size = epStateMap.size();
         dos.writeInt(size);
 
-        for (Entry<InetAddress, EndPointState> entry : epStateMap.entrySet())
+        for (Entry<InetAddress, EndpointState> entry : epStateMap.entrySet())
         {
             InetAddress ep = entry.getKey();
             if ( Gossiper.MAX_GOSSIP_PACKET_SIZE - dos.size() < estimate )
@@ -133,18 +134,18 @@ class EndPointStatesSerializationHelper
             }
     
             int pre = dos.size();
-            CompactEndPointSerializationHelper.serialize(ep, dos);
-            EndPointState.serializer().serialize(entry.getValue(), dos);
+            CompactEndpointSerializationHelper.serialize(ep, dos);
+            EndpointState.serializer().serialize(entry.getValue(), dos);
             int post = dos.size();
             estimate = post - pre;
         }
         return bVal;
     }
 
-    static Map<InetAddress, EndPointState> deserialize(DataInputStream dis) throws IOException
+    static Map<InetAddress, EndpointState> deserialize(DataInputStream dis) throws IOException
     {
         int size = dis.readInt();            
-        Map<InetAddress, EndPointState> epStateMap = new HashMap<InetAddress, EndPointState>();
+        Map<InetAddress, EndpointState> epStateMap = new HashMap<InetAddress, EndpointState>();
         
         for ( int i = 0; i < size; ++i )
         {
@@ -154,8 +155,8 @@ class EndPointStatesSerializationHelper
                 break;
             }
             // int length = dis.readInt();            
-            InetAddress ep = CompactEndPointSerializationHelper.deserialize(dis);
-            EndPointState epState = EndPointState.serializer().deserialize(dis);            
+            InetAddress ep = CompactEndpointSerializationHelper.deserialize(dis);
+            EndpointState epState = EndpointState.serializer().deserialize(dis);
             epStateMap.put(ep, epState);
         }        
         return epStateMap;

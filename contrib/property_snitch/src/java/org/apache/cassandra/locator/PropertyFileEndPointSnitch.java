@@ -42,7 +42,7 @@ import org.slf4j.LoggerFactory;
  * datacenter or on the same rack.
  * 
  */
-public class PropertyFileEndPointSnitch extends EndPointSnitch implements PropertyFileEndPointSnitchMBean {
+public class PropertyFileEndPointSnitch extends EndpointSnitch implements PropertyFileEndPointSnitchMBean {
     /**
      * A list of properties with keys being host:port and values being datacenter:rack
      */

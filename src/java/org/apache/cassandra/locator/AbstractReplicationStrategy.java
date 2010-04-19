@@ -30,7 +30,6 @@ import com.google.common.collect.Multimap;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
@@ -45,9 +44,9 @@ public abstract class AbstractReplicationStrategy
     protected static final Logger logger_ = LoggerFactory.getLogger(AbstractReplicationStrategy.class);
 
     private TokenMetadata tokenMetadata_;
-    protected final IEndPointSnitch snitch_;
+    protected final IEndpointSnitch snitch_;
 
-    AbstractReplicationStrategy(TokenMetadata tokenMetadata, IEndPointSnitch snitch)
+    AbstractReplicationStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch)
     {
         tokenMetadata_ = tokenMetadata;
         snitch_ = snitch;
@@ -79,7 +78,7 @@ public abstract class AbstractReplicationStrategy
     {
         Multimap<InetAddress, InetAddress> map = HashMultimap.create(targets.size(), 1);
 
-        IEndPointSnitch endpointSnitch = DatabaseDescriptor.getEndpointSnitch();
+        IEndpointSnitch endpointSnitch = DatabaseDescriptor.getEndpointSnitch();
 
         // first, add the live endpoints
         for (InetAddress ep : targets)

@@ -42,14 +42,14 @@ class GossipDigestAckMessage
     }
     
     List<GossipDigest> gDigestList_ = new ArrayList<GossipDigest>();
-    Map<InetAddress, EndPointState> epStateMap_ = new HashMap<InetAddress, EndPointState>();
+    Map<InetAddress, EndpointState> epStateMap_ = new HashMap<InetAddress, EndpointState>();
     
     static ICompactSerializer<GossipDigestAckMessage> serializer()
     {
         return serializer_;
     }
     
-    GossipDigestAckMessage(List<GossipDigest> gDigestList, Map<InetAddress, EndPointState> epStateMap)
+    GossipDigestAckMessage(List<GossipDigest> gDigestList, Map<InetAddress, EndpointState> epStateMap)
     {
         gDigestList_ = gDigestList;
         epStateMap_ = epStateMap;
@@ -60,7 +60,7 @@ class GossipDigestAckMessage
         return gDigestList_;
     }
     
-    Map<InetAddress, EndPointState> getEndpointStateMap()
+    Map<InetAddress, EndpointState> getEndpointStateMap()
     {
         return epStateMap_;
     }
@@ -82,7 +82,7 @@ class GossipDigestAckMessageSerializer implements ICompactSerializer<GossipDiges
 
     public GossipDigestAckMessage deserialize(DataInputStream dis) throws IOException
     {
-        Map<InetAddress, EndPointState> epStateMap = new HashMap<InetAddress, EndPointState>();
+        Map<InetAddress, EndpointState> epStateMap = new HashMap<InetAddress, EndpointState>();
         List<GossipDigest> gDigestList = GossipDigestSerializationHelper.deserialize(dis);                
         boolean bContinue = dis.readBoolean();
 

@@ -27,7 +27,6 @@ import java.net.InetAddress;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.GuidGenerator;
 
 public class Header
 {
@@ -115,7 +114,7 @@ class HeaderSerializer implements ICompactSerializer<Header>
     public void serialize(Header t, DataOutputStream dos) throws IOException
     {           
         dos.writeUTF(t.getMessageId());
-        CompactEndPointSerializationHelper.serialize(t.getFrom(), dos);
+        CompactEndpointSerializationHelper.serialize(t.getFrom(), dos);
         dos.writeUTF(t.getMessageType());
         dos.writeInt(t.getVerb().ordinal());
         
@@ -136,7 +135,7 @@ class HeaderSerializer implements ICompactSerializer<Header>
     public Header deserialize(DataInputStream dis) throws IOException
     {
         String id = dis.readUTF();
-        InetAddress from = CompactEndPointSerializationHelper.deserialize(dis);
+        InetAddress from = CompactEndpointSerializationHelper.deserialize(dis);
         String type = dis.readUTF();
         int verbOrdinal = dis.readInt();
         

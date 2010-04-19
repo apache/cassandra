@@ -37,7 +37,7 @@
    <DiskAccessMode>mmap</DiskAccessMode>
    <MemtableThroughputInMB>1</MemtableThroughputInMB>
    <MemtableOperationsInMillions>0.00002</MemtableOperationsInMillions> <!-- 20 -->
-   <EndpointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndpointSnitch>
+   <EndpointSnitch>org.apache.cassandra.locator.EndpointSnitch</EndpointSnitch>
    <Keyspaces>
      <Keyspace Name = "Keyspace1">
        <ColumnFamily Name="Standard1" RowsCached="10%" KeysCached="0"/>

@@ -44,7 +44,7 @@ import org.slf4j.LoggerFactory;
  * of the three above mentioned messages updates the Failure Detector with the liveness information.
  */
 
-public class Gossiper implements IFailureDetectionEventListener, IEndPointStateChangePublisher
+public class Gossiper implements IFailureDetectionEventListener, IEndpointStateChangePublisher
 {
     private class GossipTimerTask extends TimerTask
     {
@@ -112,7 +112,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     private Random random_ = new Random();
 
     /* subscribers for interest in EndPointState change */
-    private List<IEndPointStateChangeSubscriber> subscribers_ = new ArrayList<IEndPointStateChangeSubscriber>();
+    private List<IEndpointStateChangeSubscriber> subscribers_ = new ArrayList<IEndpointStateChangeSubscriber>();
 
     /* live member set */
     private Set<InetAddress> liveEndpoints_ = new HashSet<InetAddress>();
@@ -124,7 +124,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     private Set<InetAddress> seeds_ = new HashSet<InetAddress>();
 
     /* map where key is the endpoint and value is the state associated with the endpoint */
-    Map<InetAddress, EndPointState> endpointStateMap_ = new Hashtable<InetAddress, EndPointState>();
+    Map<InetAddress, EndpointState> endpointStateMap_ = new Hashtable<InetAddress, EndpointState>();
 
     /* map where key is endpoint and value is timestamp when this endpoint was removed from
      * gossip. We will ignore any gossip regarding these endpoints for Streaming.RING_DELAY time
@@ -144,12 +144,12 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     }
 
     /** Register with the Gossiper for EndPointState notifications */
-    public synchronized void register(IEndPointStateChangeSubscriber subscriber)
+    public synchronized void register(IEndpointStateChangeSubscriber subscriber)
     {
         subscribers_.add(subscriber);
     }
 
-    public synchronized void unregister(IEndPointStateChangeSubscriber subscriber)
+    public synchronized void unregister(IEndpointStateChangeSubscriber subscriber)
     {
         subscribers_.remove(subscriber);
     }
@@ -174,7 +174,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     */
     public void convict(InetAddress endpoint)
     {
-        EndPointState epState = endpointStateMap_.get(endpoint);
+        EndpointState epState = endpointStateMap_.get(endpoint);
         if (epState.isAlive())
         {
             logger_.info("InetAddress {} is now dead.", endpoint);
@@ -182,7 +182,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         }
     }
 
-    int getMaxEndpointStateVersion(EndPointState epState)
+    int getMaxEndpointStateVersion(EndpointState epState)
     {
         List<Integer> versions = new ArrayList<Integer>();
         versions.add( epState.getHeartBeatState().getHeartBeatVersion() );
@@ -233,7 +233,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     void makeRandomGossipDigest(List<GossipDigest> gDigests)
     {
         /* Add the local endpoint state */
-        EndPointState epState = endpointStateMap_.get(localEndpoint_);
+        EndpointState epState = endpointStateMap_.get(localEndpoint_);
         int generation = epState.getHeartBeatState().getGeneration();
         int maxVersion = getMaxEndpointStateVersion(epState);
         gDigests.add( new GossipDigest(localEndpoint_, generation, maxVersion) );
@@ -386,7 +386,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
                 continue;
 
             FailureDetector.instance.interpret(endpoint);
-            EndPointState epState = endpointStateMap_.get(endpoint);
+            EndpointState epState = endpointStateMap_.get(endpoint);
             if ( epState != null )
             {
                 long duration = now - epState.getUpdateTimestamp();
@@ -426,17 +426,17 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         }
     }
 
-    EndPointState getEndpointStateForEndpoint(InetAddress ep)
+    EndpointState getEndpointStateForEndpoint(InetAddress ep)
     {
         return endpointStateMap_.get(ep);
     }
 
-    synchronized EndPointState getStateForVersionBiggerThan(InetAddress forEndpoint, int version)
+    synchronized EndpointState getStateForVersionBiggerThan(InetAddress forEndpoint, int version)
     {
         if (logger_.isTraceEnabled())
             logger_.trace("Scanning for state greater than " + version + " for " + forEndpoint);
-        EndPointState epState = endpointStateMap_.get(forEndpoint);
-        EndPointState reqdEndpointState = null;
+        EndpointState epState = endpointStateMap_.get(forEndpoint);
+        EndpointState reqdEndpointState = null;
 
         if ( epState != null )
         {
@@ -451,7 +451,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
             int localHbVersion = epState.getHeartBeatState().getHeartBeatVersion();
             if ( localHbVersion > version )
             {
-                reqdEndpointState = new EndPointState(epState.getHeartBeatState());
+                reqdEndpointState = new EndpointState(epState.getHeartBeatState());
             }
             Map<String, ApplicationState> appStateMap = epState.getApplicationStateMap();
             /* Accumulate all application states whose versions are greater than "version" variable */
@@ -462,7 +462,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
                 {
                     if ( reqdEndpointState == null )
                     {
-                        reqdEndpointState = new EndPointState(epState.getHeartBeatState());
+                        reqdEndpointState = new EndpointState(epState.getHeartBeatState());
                     }
                     final String key = entry.getKey();
                     if (logger_.isTraceEnabled())
@@ -479,7 +479,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         IFailureDetector fd = FailureDetector.instance;
         for ( GossipDigest gDigest : gDigests )
         {
-            EndPointState localEndpointState = endpointStateMap_.get(gDigest.endpoint_);
+            EndpointState localEndpointState = endpointStateMap_.get(gDigest.endpoint_);
             /*
              * If the local endpoint state exists then report to the FD only
              * if the versions workout.
@@ -508,14 +508,14 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         }
     }
 
-    void notifyFailureDetector(Map<InetAddress, EndPointState> remoteEpStateMap)
+    void notifyFailureDetector(Map<InetAddress, EndpointState> remoteEpStateMap)
     {
         IFailureDetector fd = FailureDetector.instance;
-        for (Entry<InetAddress, EndPointState> entry : remoteEpStateMap.entrySet())
+        for (Entry<InetAddress, EndpointState> entry : remoteEpStateMap.entrySet())
         {
             InetAddress endpoint = entry.getKey();
-            EndPointState remoteEndpointState = entry.getValue();
-            EndPointState localEndpointState = endpointStateMap_.get(endpoint);
+            EndpointState remoteEndpointState = entry.getValue();
+            EndpointState localEndpointState = endpointStateMap_.get(endpoint);
             /*
              * If the local endpoint state exists then report to the FD only
              * if the versions workout.
@@ -544,7 +544,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         }
     }
 
-    void markAlive(InetAddress addr, EndPointState localState)
+    void markAlive(InetAddress addr, EndpointState localState)
     {
         if (logger_.isTraceEnabled())
             logger_.trace("marking as alive {}", addr);
@@ -555,7 +555,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         }
     }
 
-    private void handleNewJoin(InetAddress ep, EndPointState epState)
+    private void handleNewJoin(InetAddress ep, EndpointState epState)
     {
         if (justRemovedEndpoints_.containsKey(ep))
             return;
@@ -563,7 +563,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         handleMajorStateChange(ep, epState, false);
     }
 
-    private void handleGenerationChange(InetAddress ep, EndPointState epState)
+    private void handleGenerationChange(InetAddress ep, EndpointState epState)
     {
         logger_.info("Node {} has restarted, now UP again", ep);
         handleMajorStateChange(ep, epState, true);
@@ -580,24 +580,24 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
      * @param epState EndPointState for the endpoint
      * @param isKnownNode is this node familiar to us already (present in endpointStateMap)
      */
-    private void handleMajorStateChange(InetAddress ep, EndPointState epState, boolean isKnownNode)
+    private void handleMajorStateChange(InetAddress ep, EndpointState epState, boolean isKnownNode)
     {
         endpointStateMap_.put(ep, epState);
         isAlive(ep, epState, isKnownNode);
-        for (IEndPointStateChangeSubscriber subscriber : subscribers_)
+        for (IEndpointStateChangeSubscriber subscriber : subscribers_)
             subscriber.onJoin(ep, epState);
     }
 
-    synchronized void applyStateLocally(Map<InetAddress, EndPointState> epStateMap)
+    synchronized void applyStateLocally(Map<InetAddress, EndpointState> epStateMap)
     {
-        for (Entry<InetAddress, EndPointState> entry : epStateMap.entrySet())
+        for (Entry<InetAddress, EndpointState> entry : epStateMap.entrySet())
         {
             InetAddress ep = entry.getKey();
             if ( ep.equals( localEndpoint_ ) )
                 continue;
 
-            EndPointState localEpStatePtr = endpointStateMap_.get(ep);
-            EndPointState remoteState = entry.getValue();
+            EndpointState localEpStatePtr = endpointStateMap_.get(ep);
+            EndpointState remoteState = entry.getValue();
             /*
                 If state does not exist just add it. If it does then add it only if the version
                 of the remote copy is greater than the local copy.
@@ -632,7 +632,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         }
     }
 
-    void applyHeartBeatStateLocally(InetAddress addr, EndPointState localState, EndPointState remoteState)
+    void applyHeartBeatStateLocally(InetAddress addr, EndpointState localState, EndpointState remoteState)
     {
         HeartBeatState localHbState = localState.getHeartBeatState();
         HeartBeatState remoteHbState = remoteState.getHeartBeatState();
@@ -653,7 +653,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         }
     }
 
-    void applyApplicationStateLocally(InetAddress addr, EndPointState localStatePtr, EndPointState remoteStatePtr)
+    void applyApplicationStateLocally(InetAddress addr, EndpointState localStatePtr, EndpointState remoteStatePtr)
     {
         Map<String, ApplicationState> localAppStateMap = localStatePtr.getApplicationStateMap();
 
@@ -700,27 +700,27 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 
     void doNotifications(InetAddress addr, String stateName, ApplicationState state)
     {
-        for (IEndPointStateChangeSubscriber subscriber : subscribers_)
+        for (IEndpointStateChangeSubscriber subscriber : subscribers_)
         {
             subscriber.onChange(addr, stateName, state);
         }
     }
 
-    synchronized void isAlive(InetAddress addr, EndPointState epState, boolean value)
+    synchronized void isAlive(InetAddress addr, EndpointState epState, boolean value)
     {
         epState.isAlive(value);
         if (value)
         {
             liveEndpoints_.add(addr);
             unreachableEndpoints_.remove(addr);
-            for (IEndPointStateChangeSubscriber subscriber : subscribers_)
+            for (IEndpointStateChangeSubscriber subscriber : subscribers_)
                 subscriber.onAlive(addr, epState);
         }
         else
         {
             liveEndpoints_.remove(addr);
             unreachableEndpoints_.add(addr);
-            for (IEndPointStateChangeSubscriber subscriber : subscribers_)
+            for (IEndpointStateChangeSubscriber subscriber : subscribers_)
                 subscriber.onDead(addr, epState);
         }
         if (epState.isAGossiper())
@@ -736,9 +736,9 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     }
 
     /* Send all the data with version greater than maxRemoteVersion */
-    void sendAll(GossipDigest gDigest, Map<InetAddress, EndPointState> deltaEpStateMap, int maxRemoteVersion)
+    void sendAll(GossipDigest gDigest, Map<InetAddress, EndpointState> deltaEpStateMap, int maxRemoteVersion)
     {
-        EndPointState localEpStatePtr = getStateForVersionBiggerThan(gDigest.getEndpoint(), maxRemoteVersion) ;
+        EndpointState localEpStatePtr = getStateForVersionBiggerThan(gDigest.getEndpoint(), maxRemoteVersion) ;
         if ( localEpStatePtr != null )
             deltaEpStateMap.put(gDigest.getEndpoint(), localEpStatePtr);
     }
@@ -747,14 +747,14 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         This method is used to figure the state that the Gossiper has but Gossipee doesn't. The delta digests
         and the delta state are built up.
     */
-    synchronized void examineGossiper(List<GossipDigest> gDigestList, List<GossipDigest> deltaGossipDigestList, Map<InetAddress, EndPointState> deltaEpStateMap)
+    synchronized void examineGossiper(List<GossipDigest> gDigestList, List<GossipDigest> deltaGossipDigestList, Map<InetAddress, EndpointState> deltaEpStateMap)
     {
         for ( GossipDigest gDigest : gDigestList )
         {
             int remoteGeneration = gDigest.getGeneration();
             int maxRemoteVersion = gDigest.getMaxVersion();
             /* Get state associated with the end point in digest */
-            EndPointState epStatePtr = endpointStateMap_.get(gDigest.getEndpoint());
+            EndpointState epStatePtr = endpointStateMap_.get(gDigest.getEndpoint());
             /*
                 Here we need to fire a GossipDigestAckMessage. If we have some data associated with this endpoint locally
                 then we follow the "if" path of the logic. If we have absolutely nothing for this endpoint we need to
@@ -823,11 +823,11 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         }
 
         /* initialize the heartbeat state for this localEndpoint */
-        EndPointState localState = endpointStateMap_.get(localEndpoint_);
+        EndpointState localState = endpointStateMap_.get(localEndpoint_);
         if ( localState == null )
         {
             HeartBeatState hbState = new HeartBeatState(generationNbr);
-            localState = new EndPointState(hbState);
+            localState = new EndpointState(hbState);
             localState.isAlive(true);
             localState.isAGossiper(true);
             endpointStateMap_.put(localEndpoint_, localState);
@@ -840,7 +840,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     public synchronized void addLocalApplicationState(String key, ApplicationState appState)
     {
         assert !StorageService.instance.isClientMode();
-        EndPointState epState = endpointStateMap_.get(localEndpoint_);
+        EndpointState epState = endpointStateMap_.get(localEndpoint_);
         assert epState != null;
         epState.addApplicationState(key, appState);
     }
@@ -881,7 +881,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
                 doSort(gDigestList);
 
                 List<GossipDigest> deltaGossipDigestList = new ArrayList<GossipDigest>();
-                Map<InetAddress, EndPointState> deltaEpStateMap = new HashMap<InetAddress, EndPointState>();
+                Map<InetAddress, EndpointState> deltaEpStateMap = new HashMap<InetAddress, EndpointState>();
                 Gossiper.instance.examineGossiper(gDigestList, deltaGossipDigestList, deltaEpStateMap);
 
                 GossipDigestAckMessage gDigestAck = new GossipDigestAckMessage(deltaGossipDigestList, deltaEpStateMap);
@@ -920,7 +920,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
             for ( GossipDigest gDigest : gDigestList )
             {
                 InetAddress ep = gDigest.getEndpoint();
-                EndPointState epState = Gossiper.instance.getEndpointStateForEndpoint(ep);
+                EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(ep);
                 int version = (epState != null) ? Gossiper.instance.getMaxEndpointStateVersion( epState ) : 0;
                 int diffVersion = Math.abs(version - gDigest.getMaxVersion() );
                 diffDigests.add( new GossipDigest(ep, gDigest.getGeneration(), diffVersion) );
@@ -957,7 +957,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
             {
                 GossipDigestAckMessage gDigestAckMessage = GossipDigestAckMessage.serializer().deserialize(dis);
                 List<GossipDigest> gDigestList = gDigestAckMessage.getGossipDigestList();
-                Map<InetAddress, EndPointState> epStateMap = gDigestAckMessage.getEndpointStateMap();
+                Map<InetAddress, EndpointState> epStateMap = gDigestAckMessage.getEndpointStateMap();
 
                 if ( epStateMap.size() > 0 )
                 {
@@ -967,11 +967,11 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
                 }
 
                 /* Get the state required to send to this gossipee - construct GossipDigestAck2Message */
-                Map<InetAddress, EndPointState> deltaEpStateMap = new HashMap<InetAddress, EndPointState>();
+                Map<InetAddress, EndpointState> deltaEpStateMap = new HashMap<InetAddress, EndpointState>();
                 for( GossipDigest gDigest : gDigestList )
                 {
                     InetAddress addr = gDigest.getEndpoint();
-                    EndPointState localEpStatePtr = Gossiper.instance.getStateForVersionBiggerThan(addr, gDigest.getMaxVersion());
+                    EndpointState localEpStatePtr = Gossiper.instance.getStateForVersionBiggerThan(addr, gDigest.getMaxVersion());
                     if ( localEpStatePtr != null )
                         deltaEpStateMap.put(addr, localEpStatePtr);
                 }
@@ -1010,7 +1010,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
             {
                 throw new RuntimeException(e);
             }
-            Map<InetAddress, EndPointState> remoteEpStateMap = gDigestAck2Message.getEndpointStateMap();
+            Map<InetAddress, EndpointState> remoteEpStateMap = gDigestAck2Message.getEndpointStateMap();
             /* Notify the Failure Detector */
             Gossiper.instance.notifyFailureDetector(remoteEpStateMap);
             Gossiper.instance.applyStateLocally(remoteEpStateMap);

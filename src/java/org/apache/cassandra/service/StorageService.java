@@ -51,7 +51,6 @@ import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.io.util.FileUtils;
 
@@ -70,7 +69,7 @@ import com.google.common.collect.HashMultimap;
  * This class will also maintain histograms of the load information
  * of other nodes in the cluster.
  */
-public class StorageService implements IEndPointStateChangeSubscriber, StorageServiceMBean
+public class StorageService implements IEndpointStateChangeSubscriber, StorageServiceMBean
 {
     private static Logger logger_ = LoggerFactory.getLogger(StorageService.class);     
 
@@ -270,7 +269,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         Class<? extends AbstractReplicationStrategy> cls = DatabaseDescriptor.getReplicaPlacementStrategyClass(table);
         if (cls == null)
             throw new RuntimeException(String.format("No replica strategy configured for %s", table));
-        Class [] parameterTypes = new Class[] { TokenMetadata.class, IEndPointSnitch.class};
+        Class [] parameterTypes = new Class[] { TokenMetadata.class, IEndpointSnitch.class};
         try
         {
             Constructor<? extends AbstractReplicationStrategy> constructor = cls.getConstructor(parameterTypes);
@@ -874,7 +873,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         return changedRanges;
     }
 
-    public void onJoin(InetAddress endpoint, EndPointState epState)
+    public void onJoin(InetAddress endpoint, EndpointState epState)
     {
         for (Map.Entry<String,ApplicationState> entry : epState.getSortedApplicationStates())
         {
@@ -882,13 +881,13 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         }
     }
 
-    public void onAlive(InetAddress endpoint, EndPointState state)
+    public void onAlive(InetAddress endpoint, EndpointState state)
     {
         if (!isClientMode)
             deliverHints(endpoint);
     }
 
-    public void onDead(InetAddress endpoint, EndPointState state) {}
+    public void onDead(InetAddress endpoint, EndpointState state) {}
 
     /** raw load value */
     public double getLoad()

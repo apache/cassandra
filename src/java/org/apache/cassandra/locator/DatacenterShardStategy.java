@@ -28,7 +28,6 @@ import java.net.UnknownHostException;
 import java.util.*;
 import java.util.Map.Entry;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.ConsistencyLevel;
@@ -69,12 +68,12 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
     private synchronized void loadEndpoints(TokenMetadata metadata) throws IOException
     {
         this.tokens = new ArrayList<Token>(metadata.sortedTokens());
-        String localDC = ((DatacenterEndPointSnitch)snitch_).getLocation(InetAddress.getLocalHost());
+        String localDC = ((DatacenterEndpointSnitch)snitch_).getLocation(InetAddress.getLocalHost());
         dcMap = new HashMap<String, List<Token>>();
         for (Token token : this.tokens)
         {
             InetAddress endpoint = metadata.getEndpoint(token);
-            String dataCenter = ((DatacenterEndPointSnitch)snitch_).getLocation(endpoint);
+            String dataCenter = ((DatacenterEndpointSnitch)snitch_).getLocation(endpoint);
             if (dataCenter.equals(localDC))
             {
                 localEndpoints.add(endpoint);
@@ -93,7 +92,7 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
             Collections.sort(valueList);
             dcMap.put(entry.getKey(), valueList);
         }
-        dcReplicationFactor = ((DatacenterEndPointSnitch)snitch_).getMapReplicationFactor();
+        dcReplicationFactor = ((DatacenterEndpointSnitch)snitch_).getMapReplicationFactor();
         for (Entry<String, Integer> entry : dcReplicationFactor.entrySet())
         {
             String datacenter = entry.getKey();
@@ -106,11 +105,11 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
         }
     }
 
-    public DatacenterShardStategy(TokenMetadata tokenMetadata, IEndPointSnitch snitch)
+    public DatacenterShardStategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch)
     throws UnknownHostException
     {
         super(tokenMetadata, snitch);
-        if ((!(snitch instanceof DatacenterEndPointSnitch)))
+        if ((!(snitch instanceof DatacenterEndpointSnitch)))
         {
             throw new IllegalArgumentException("DatacenterShardStrategy requires DatacenterEndPointSnitch");
         }
@@ -169,7 +168,7 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
                 // Now try to find one on a different rack
                 if (!bOtherRack)
                 {
-                    if (!((DatacenterEndPointSnitch)snitch_).isOnSameRack(primaryHost, endpointOfInterest))
+                    if (!((DatacenterEndpointSnitch)snitch_).isOnSameRack(primaryHost, endpointOfInterest))
                     {
                         forloopReturn.add(metadata.getEndpoint(t));
                         bOtherRack = true;

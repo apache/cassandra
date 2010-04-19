@@ -23,8 +23,6 @@ import java.io.IOException;
 import java.io.IOError;
 import java.lang.management.ManagementFactory;
 import java.util.*;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -120,7 +118,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             return true;
 
     	/* Incoming port is assumed to be the Storage port. We need to change it to the control port */
-        EndPointState epState = Gossiper.instance.getEndpointStateForEndpoint(ep);
+        EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(ep);
         return epState.isAlive();
     }
     

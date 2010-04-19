@@ -30,7 +30,7 @@ import java.util.*;
  * requests more efficiently (with "sortByProximity").  Of the abstract methods, isOnSameRack
  * and isInSameDataCenter are always required; getLocation is only used by DatacenterShardStrategy.
  */
-public abstract class AbstractEndpointSnitch implements IEndPointSnitch
+public abstract class AbstractEndpointSnitch implements IEndpointSnitch
 {
     /**
      * Determines if 2 nodes are in the same rack in the data center.

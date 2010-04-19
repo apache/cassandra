@@ -32,7 +32,7 @@ import java.util.List;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.net.CompactEndPointSerializationHelper;
+import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 
 /**
  * This encapsulates information of the list of ranges that a target
@@ -84,7 +84,7 @@ class StreamRequestMetadataSerializer implements ICompactSerializer<StreamReques
 {
     public void serialize(StreamRequestMetadata srMetadata, DataOutputStream dos) throws IOException
     {
-        CompactEndPointSerializationHelper.serialize(srMetadata.target_, dos);
+        CompactEndpointSerializationHelper.serialize(srMetadata.target_, dos);
         dos.writeUTF(srMetadata.table_);
         dos.writeInt(srMetadata.ranges_.size());
         for (Range range : srMetadata.ranges_)
@@ -95,7 +95,7 @@ class StreamRequestMetadataSerializer implements ICompactSerializer<StreamReques
 
     public StreamRequestMetadata deserialize(DataInputStream dis) throws IOException
     {
-        InetAddress target = CompactEndPointSerializationHelper.deserialize(dis);
+        InetAddress target = CompactEndpointSerializationHelper.deserialize(dis);
         String table = dis.readUTF();
         int size = dis.readInt();
         List<Range> ranges = (size == 0) ? null : new ArrayList<Range>();

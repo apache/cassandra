@@ -29,9 +29,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.locator.DatacenterEndpointSnitch;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.locator.IEndPointSnitch;
-import org.apache.cassandra.locator.DatacenterEndPointSnitch;
 
 /**
  * This class will block for the replication factor which is
@@ -42,14 +41,14 @@ public class DatacenterSyncWriteResponseHandler extends WriteResponseHandler
 {
     private final Map<String, Integer> dcResponses = new HashMap<String, Integer>();
     private final Map<String, Integer> responseCounts;
-    private final DatacenterEndPointSnitch endpointSnitch;
+    private final DatacenterEndpointSnitch endpointSnitch;
 
     public DatacenterSyncWriteResponseHandler(Map<String, Integer> responseCounts, String table)
     {
         // Response is been managed by the map so make it 1 for the superclass.
         super(1, table);
         this.responseCounts = responseCounts;
-        endpointSnitch = (DatacenterEndPointSnitch) DatabaseDescriptor.getEndpointSnitch();
+        endpointSnitch = (DatacenterEndpointSnitch) DatabaseDescriptor.getEndpointSnitch();
     }
 
     @Override

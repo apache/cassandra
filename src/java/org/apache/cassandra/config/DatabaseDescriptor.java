@@ -28,7 +28,7 @@ import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.locator.IEndPointSnitch;
+import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
@@ -71,7 +71,7 @@ public class DatabaseDescriptor
 
     public static final String random = "RANDOM";
     public static final String ophf = "OPHF";
-    private static IEndPointSnitch snitch;
+    private static IEndpointSnitch snitch;
     private static int storagePort = 7000;
     private static int rpcPort = 9160;
     private static boolean thriftFramed = false;
@@ -524,9 +524,9 @@ public class DatabaseDescriptor
         }
     }
 
-    private static IEndPointSnitch createEndpointSnitch(String endpointSnitchClassName) throws ConfigurationException
+    private static IEndpointSnitch createEndpointSnitch(String endpointSnitchClassName) throws ConfigurationException
     {
-        IEndPointSnitch snitch;
+        IEndpointSnitch snitch;
         Class cls;
         try
         {
@@ -547,7 +547,7 @@ public class DatabaseDescriptor
         }
         try
         {
-            snitch = (IEndPointSnitch)ctor.newInstance();
+            snitch = (IEndpointSnitch)ctor.newInstance();
         }
         catch (InstantiationException e)
         {
@@ -872,7 +872,7 @@ public class DatabaseDescriptor
         return partitioner;
     }
     
-    public static IEndPointSnitch getEndpointSnitch()
+    public static IEndpointSnitch getEndpointSnitch()
     {
         return snitch;
     }

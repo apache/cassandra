@@ -23,9 +23,8 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.net.CompactEndPointSerializationHelper;
+import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import java.net.InetAddress;
-import org.apache.cassandra.net.*;
 
 /**
  * Contains information about a specified list of EndPoints and the largest version 
@@ -94,14 +93,14 @@ class GossipDigestSerializer implements ICompactSerializer<GossipDigest>
 {       
     public void serialize(GossipDigest gDigest, DataOutputStream dos) throws IOException
     {        
-        CompactEndPointSerializationHelper.serialize(gDigest.endpoint_, dos);
+        CompactEndpointSerializationHelper.serialize(gDigest.endpoint_, dos);
         dos.writeInt(gDigest.generation_);
         dos.writeInt(gDigest.maxVersion_);
     }
 
     public GossipDigest deserialize(DataInputStream dis) throws IOException
     {
-        InetAddress endpoint = CompactEndPointSerializationHelper.deserialize(dis);
+        InetAddress endpoint = CompactEndpointSerializationHelper.deserialize(dis);
         int generation = dis.readInt();
         int version = dis.readInt();
         return new GossipDigest(endpoint, generation, version);

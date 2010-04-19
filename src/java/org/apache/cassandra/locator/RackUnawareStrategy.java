@@ -19,7 +19,6 @@
 package org.apache.cassandra.locator;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -35,7 +34,7 @@ import java.net.InetAddress;
  */
 public class RackUnawareStrategy extends AbstractReplicationStrategy
 {
-    public RackUnawareStrategy(TokenMetadata tokenMetadata, IEndPointSnitch snitch)
+    public RackUnawareStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch)
     {
         super(tokenMetadata, snitch);
     }

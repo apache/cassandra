@@ -24,8 +24,8 @@ import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndPointState;
-import org.apache.cassandra.gms.IEndPointStateChangeSubscriber;
+import org.apache.cassandra.gms.EndpointState;
+import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -45,13 +45,13 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.UUID;
 
-public class MigrationManager implements IEndPointStateChangeSubscriber
+public class MigrationManager implements IEndpointStateChangeSubscriber
 {
     public static final String MIGRATION_STATE = "MIGRATION";
     private static final Logger logger = LoggerFactory.getLogger(MigrationManager.class);
     
     /** I'm not going to act here. */
-    public void onJoin(InetAddress endpoint, EndPointState epState) { }
+    public void onJoin(InetAddress endpoint, EndpointState epState) { }
 
     public void onChange(InetAddress endpoint, String stateName, ApplicationState state)
     {
@@ -62,7 +62,7 @@ public class MigrationManager implements IEndPointStateChangeSubscriber
     }
 
     /** gets called after a this node joins a cluster */
-    public void onAlive(InetAddress endpoint, EndPointState state)
+    public void onAlive(InetAddress endpoint, EndpointState state)
     { 
         ApplicationState appState = state.getApplicationState(MIGRATION_STATE);
         if (appState != null)
@@ -72,7 +72,7 @@ public class MigrationManager implements IEndPointStateChangeSubscriber
         }
     }
 
-    public void onDead(InetAddress endpoint, EndPointState state) { }
+    public void onDead(InetAddress endpoint, EndpointState state) { }
     
     /** will either push or pull an updating depending on who is behind. */
     public static void rectify(UUID theirVersion, InetAddress endpoint)

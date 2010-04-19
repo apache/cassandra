@@ -22,15 +22,15 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.apache.cassandra.gms.EndpointState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndPointState;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.IEndPointStateChangeSubscriber;
+import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import java.net.InetAddress;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -47,7 +47,7 @@ import org.apache.cassandra.utils.FBUtilities;
  * keys at an Endpoint. Monitor load information for a 5 minute
  * interval and then do load balancing operations if necessary.
  */
-public class StorageLoadBalancer implements IEndPointStateChangeSubscriber
+public class StorageLoadBalancer implements IEndpointStateChangeSubscriber
 {
     class LoadBalancer implements Runnable
     {
@@ -211,7 +211,7 @@ public class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         */
     }
 
-    public void onJoin(InetAddress endpoint, EndPointState epState)
+    public void onJoin(InetAddress endpoint, EndpointState epState)
     {
         ApplicationState loadState = epState.getApplicationState(LoadDisseminator.loadInfo_);
         if (loadState != null)
@@ -220,9 +220,9 @@ public class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         }
     }
 
-    public void onAlive(InetAddress endpoint, EndPointState state) {}
+    public void onAlive(InetAddress endpoint, EndpointState state) {}
 
-    public void onDead(InetAddress endpoint, EndPointState state) {}
+    public void onDead(InetAddress endpoint, EndpointState state) {}
 
 /*
     private boolean isMoveable()
