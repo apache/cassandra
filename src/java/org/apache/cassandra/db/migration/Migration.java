@@ -18,12 +18,14 @@
 
 package org.apache.cassandra.db.migration;
 
+import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
@@ -38,6 +40,8 @@ import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.UUIDGen;
 import static org.apache.cassandra.utils.FBUtilities.UTF8;
+
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -189,6 +193,15 @@ public abstract class Migration
             rm.delete(new QueryPath(SCHEMA_CF, null, remove.name.getBytes()), System.currentTimeMillis());
         if (add != null)
             rm.add(new QueryPath(SCHEMA_CF, null, add.name.getBytes()), KSMetaData.serialize(add), now);
+        
+        // include all other key spaces.
+        for (String tableName : DatabaseDescriptor.getNonSystemTables())
+        {
+            if (add != null && add.name.equals(tableName) || remove != null && remove.name.equals(tableName))
+                continue;
+            KSMetaData ksm = DatabaseDescriptor.getTableDefinition(tableName);
+            rm.add(new QueryPath(SCHEMA_CF, null, ksm.name.getBytes()), KSMetaData.serialize(ksm), now);
+        }
         return rm;
     }
     

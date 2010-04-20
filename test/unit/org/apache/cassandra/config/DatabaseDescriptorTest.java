@@ -19,10 +19,16 @@
 package org.apache.cassandra.config;
 
 import static org.junit.Assert.assertNotNull;
+
+import org.apache.cassandra.db.DefsTable;
+import org.apache.cassandra.db.migration.AddKeyspace;
+import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.locator.RackAwareStrategy;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.UUID;
 
 public class DatabaseDescriptorTest
 {
@@ -59,5 +65,33 @@ public class DatabaseDescriptorTest
             assert ksmDupe != null;
             assert ksmDupe.equals(ksm);
         }
+    }
+    
+    // this came as a result of CASSANDRA-995
+    @Test
+    public void testTransKsMigration() throws IOException, ConfigurationException
+    {
+        DatabaseDescriptor.loadSchemas();
+        assert DatabaseDescriptor.getNonSystemTables().size() == 0;
+        
+        // add a few.
+        AddKeyspace ks0 = new AddKeyspace(new KSMetaData("ks0", RackAwareStrategy.class, 3));
+        ks0.apply();
+        AddKeyspace ks1 = new AddKeyspace(new KSMetaData("ks1", RackAwareStrategy.class, 3));
+        ks1.apply();
+        
+        assert DatabaseDescriptor.getTableDefinition("ks0") != null;
+        assert DatabaseDescriptor.getTableDefinition("ks1") != null;
+        
+        DatabaseDescriptor.clearTableDefinition(DatabaseDescriptor.getTableDefinition("ks0"), new UUID(4096, 0));
+        DatabaseDescriptor.clearTableDefinition(DatabaseDescriptor.getTableDefinition("ks1"), new UUID(4096, 0));
+        
+        assert DatabaseDescriptor.getTableDefinition("ks0") == null;
+        assert DatabaseDescriptor.getTableDefinition("ks1") == null;
+        
+        DatabaseDescriptor.loadSchemas();
+        
+        assert DatabaseDescriptor.getTableDefinition("ks0") != null;
+        assert DatabaseDescriptor.getTableDefinition("ks1") != null;
     }
 }
