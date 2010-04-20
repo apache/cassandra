@@ -165,8 +165,11 @@ public class CliClient
            assert (columnSpecCnt == 1);
            colParent = new ColumnParent(columnFamily).setSuper_column(CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8"));
        }
+
+       SliceRange range = new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, Integer.MAX_VALUE);
+       SlicePredicate predicate = new SlicePredicate().setColumn_names(null).setSlice_range(range);
        
-       int count = thriftClient_.get_count(tableName, key.getBytes(), colParent, ConsistencyLevel.ONE);
+       int count = thriftClient_.get_count(tableName, key.getBytes(), colParent, predicate, ConsistencyLevel.ONE);
        css_.out.printf("%d columns\n", count);
     }
     

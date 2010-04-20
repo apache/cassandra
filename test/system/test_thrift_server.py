@@ -208,10 +208,19 @@ class TestMutations(ThriftTester):
     def test_count(self):
         _insert_simple()
         _insert_super()
-        assert client.get_count('Keyspace1', 'key1', ColumnParent('Standard2'), ConsistencyLevel.ONE) == 0
-        assert client.get_count('Keyspace1', 'key1', ColumnParent('Standard1'), ConsistencyLevel.ONE) == 2
-        assert client.get_count('Keyspace1', 'key1', ColumnParent('Super1', 'sc2'), ConsistencyLevel.ONE) == 2
-        assert client.get_count('Keyspace1', 'key1', ColumnParent('Super1'), ConsistencyLevel.ONE) == 2
+        p = SlicePredicate(slice_range=SliceRange('', '', False, 1000))
+        assert client.get_count('Keyspace1', 'key1', ColumnParent('Standard2'), p, ConsistencyLevel.ONE) == 0
+        assert client.get_count('Keyspace1', 'key1', ColumnParent('Standard1'), p, ConsistencyLevel.ONE) == 2
+        assert client.get_count('Keyspace1', 'key1', ColumnParent('Super1', 'sc2'), p, ConsistencyLevel.ONE) == 2
+        assert client.get_count('Keyspace1', 'key1', ColumnParent('Super1'), p, ConsistencyLevel.ONE) == 2
+
+        # Let's make that a little more interesting
+        client.insert('Keyspace1', 'key1', ColumnParent('Standard1'), Column('c3', 'value3', 0), ConsistencyLevel.ONE)
+        client.insert('Keyspace1', 'key1', ColumnParent('Standard1'), Column('c4', 'value4', 0), ConsistencyLevel.ONE)
+        client.insert('Keyspace1', 'key1', ColumnParent('Standard1'), Column('c5', 'value5', 0), ConsistencyLevel.ONE)
+
+        p = SlicePredicate(slice_range=SliceRange('c2', 'c4', False, 1000)) 
+        assert client.get_count('Keyspace1', 'key1', ColumnParent('Standard1'), p, ConsistencyLevel.ONE) == 3
 
     def test_insert_blocking(self):
         _insert_simple()
@@ -907,6 +916,26 @@ class TestMutations(ThriftTester):
         for key in keys:
             assert rows.has_key(key) == True
             assert columns == rows[key]
+
+    def test_multi_count(self):
+        """Insert multiple keys and count them using the multiget interface"""
+
+        # Generate a list of 10 keys countaining 1 to 10 columns and insert them
+        num_keys = 10
+        for i in range(1, num_keys+1):
+          key = 'key'+str(i)
+          for j in range(1, i+1):
+            client.insert('Keyspace1', key, ColumnParent('Standard1'), Column('c'+str(j), 'value'+str(j), 0), ConsistencyLevel.ONE)
+
+        # Count columns in all 10 keys
+        keys = ['key'+str(i) for i in range(1, num_keys+1)]
+        p = SlicePredicate(slice_range=SliceRange('', '', False, 1000))
+        counts = client.multiget_count('Keyspace1', keys, ColumnParent('Standard1'), p, ConsistencyLevel.ONE)
+
+        # Check the returned counts
+        for i in range(1, num_keys+1):
+          key = 'key'+str(i)
+          assert counts[key] == i
 
     def test_batch_mutate_super_deletion(self):
         _insert_super('test')

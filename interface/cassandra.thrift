@@ -374,12 +374,24 @@ service Cassandra {
                                         throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
-    returns the number of columns for a particular <code>key</code> and <code>ColumnFamily</code> or <code>SuperColumn</code>.
+    returns the number of columns matching <code>predicate</code> for a particular <code>key</code>, 
+    <code>ColumnFamily</code> and optionally <code>SuperColumn</code>.
   */
   i32 get_count(1:required string keyspace, 
                 2:required binary key, 
                 3:required ColumnParent column_parent, 
-                4:required ConsistencyLevel consistency_level=ONE)
+                4:required SlicePredicate predicate,
+                5:required ConsistencyLevel consistency_level=ONE)
+      throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
+
+  /**
+    Perform a get_count in parallel on the given list<binary> keys. The return value maps keys to the count found.
+  */
+  map<binary, i32> multiget_count(1:required string keyspace,
+                2:required list<binary> keys,
+                3:required ColumnParent column_parent,
+                4:required SlicePredicate predicate,
+                5:required ConsistencyLevel consistency_level=ONE)
       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**

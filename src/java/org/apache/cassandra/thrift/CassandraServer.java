@@ -337,7 +337,7 @@ public class CassandraServer implements Cassandra.Iface
         return columnFamiliesMap;
     }
 
-    public int get_count(String table, byte[] key, ColumnParent column_parent, ConsistencyLevel consistency_level)
+    public int get_count(String table, byte[] key, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
@@ -345,9 +345,24 @@ public class CassandraServer implements Cassandra.Iface
 
         checkLoginAuthorized(AccessLevel.READONLY);
 
-        SliceRange range = new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, Integer.MAX_VALUE);
-        SlicePredicate predicate = new SlicePredicate().setSlice_range(range);
         return get_slice(table, key, column_parent, predicate, consistency_level).size();
+    }
+
+    public Map<byte[], Integer> multiget_count(String table, List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
+    throws InvalidRequestException, UnavailableException, TimedOutException
+    {
+        if (logger.isDebugEnabled())
+            logger.debug("multiget_count");
+
+        checkLoginAuthorized(AccessLevel.READONLY);
+
+        Map<byte[], Integer> counts = new HashMap<byte[], Integer>();
+        Map<byte[], List<ColumnOrSuperColumn>> columnFamiliesMap = multigetSliceInternal(table, keys, column_parent, predicate, consistency_level);
+
+        for (Map.Entry<byte[], List<ColumnOrSuperColumn>> cf : columnFamiliesMap.entrySet()) {
+          counts.put(cf.getKey(), cf.getValue().size());
+        }
+        return counts;
     }
 
     public void insert(String table, byte[] key, ColumnParent column_parent, Column column, ConsistencyLevel consistency_level)

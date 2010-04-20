@@ -13,6 +13,8 @@ dev
    log4j-server.properties, which must now be loaded from
    the classpath (which is how our scripts in bin/ have always done it)
    (CASSANDRA-971)
+ * change get_count to require a SlicePredicate. create multi_get_count
+   (CASSANDRA-744)
 
 
 0.6.1

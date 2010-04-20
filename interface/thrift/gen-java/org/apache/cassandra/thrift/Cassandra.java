@@ -98,14 +98,27 @@ public class Cassandra {
     public Map<byte[],List<ColumnOrSuperColumn>> multiget_slice(String keyspace, List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
-     * returns the number of columns for a particular <code>key</code> and <code>ColumnFamily</code> or <code>SuperColumn</code>.
+     * returns the number of columns matching <code>predicate</code> for a particular <code>key</code>,
+     * <code>ColumnFamily</code> and optionally <code>SuperColumn</code>.
      * 
      * @param keyspace
      * @param key
      * @param column_parent
+     * @param predicate
      * @param consistency_level
      */
-    public int get_count(String keyspace, byte[] key, ColumnParent column_parent, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
+    public int get_count(String keyspace, byte[] key, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
+
+    /**
+     * Perform a get_count in parallel on the given list<binary> keys. The return value maps keys to the count found.
+     * 
+     * @param keyspace
+     * @param keys
+     * @param column_parent
+     * @param predicate
+     * @param consistency_level
+     */
+    public Map<byte[],Integer> multiget_count(String keyspace, List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
      * returns a subset of columns for a range of keys.
@@ -496,19 +509,20 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "multiget_slice failed: unknown result");
     }
 
-    public int get_count(String keyspace, byte[] key, ColumnParent column_parent, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    public int get_count(String keyspace, byte[] key, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
-      send_get_count(keyspace, key, column_parent, consistency_level);
+      send_get_count(keyspace, key, column_parent, predicate, consistency_level);
       return recv_get_count();
     }
 
-    public void send_get_count(String keyspace, byte[] key, ColumnParent column_parent, ConsistencyLevel consistency_level) throws TException
+    public void send_get_count(String keyspace, byte[] key, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_count", TMessageType.CALL, seqid_));
       get_count_args args = new get_count_args();
       args.keyspace = keyspace;
       args.key = key;
       args.column_parent = column_parent;
+      args.predicate = predicate;
       args.consistency_level = consistency_level;
       args.write(oprot_);
       oprot_.writeMessageEnd();
@@ -539,6 +553,52 @@ public class Cassandra {
         throw result.te;
       }
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_count failed: unknown result");
+    }
+
+    public Map<byte[],Integer> multiget_count(String keyspace, List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    {
+      send_multiget_count(keyspace, keys, column_parent, predicate, consistency_level);
+      return recv_multiget_count();
+    }
+
+    public void send_multiget_count(String keyspace, List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws TException
+    {
+      oprot_.writeMessageBegin(new TMessage("multiget_count", TMessageType.CALL, seqid_));
+      multiget_count_args args = new multiget_count_args();
+      args.keyspace = keyspace;
+      args.keys = keys;
+      args.column_parent = column_parent;
+      args.predicate = predicate;
+      args.consistency_level = consistency_level;
+      args.write(oprot_);
+      oprot_.writeMessageEnd();
+      oprot_.getTransport().flush();
+    }
+
+    public Map<byte[],Integer> recv_multiget_count() throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    {
+      TMessage msg = iprot_.readMessageBegin();
+      if (msg.type == TMessageType.EXCEPTION) {
+        TApplicationException x = TApplicationException.read(iprot_);
+        iprot_.readMessageEnd();
+        throw x;
+      }
+      multiget_count_result result = new multiget_count_result();
+      result.read(iprot_);
+      iprot_.readMessageEnd();
+      if (result.isSetSuccess()) {
+        return result.success;
+      }
+      if (result.ire != null) {
+        throw result.ire;
+      }
+      if (result.ue != null) {
+        throw result.ue;
+      }
+      if (result.te != null) {
+        throw result.te;
+      }
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "multiget_count failed: unknown result");
     }
 
     public List<KeySlice> get_range_slice(String keyspace, ColumnParent column_parent, SlicePredicate predicate, byte[] start_key, byte[] finish_key, int row_count, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
@@ -1218,6 +1278,7 @@ public class Cassandra {
       processMap_.put("multiget", new multiget());
       processMap_.put("multiget_slice", new multiget_slice());
       processMap_.put("get_count", new get_count());
+      processMap_.put("multiget_count", new multiget_count());
       processMap_.put("get_range_slice", new get_range_slice());
       processMap_.put("get_range_slices", new get_range_slices());
       processMap_.put("insert", new insert());
@@ -1491,7 +1552,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_count_result result = new get_count_result();
         try {
-          result.success = iface_.get_count(args.keyspace, args.key, args.column_parent, args.consistency_level);
+          result.success = iface_.get_count(args.keyspace, args.key, args.column_parent, args.predicate, args.consistency_level);
           result.setSuccessIsSet(true);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
@@ -1509,6 +1570,48 @@ public class Cassandra {
           return;
         }
         oprot.writeMessageBegin(new TMessage("get_count", TMessageType.REPLY, seqid));
+        result.write(oprot);
+        oprot.writeMessageEnd();
+        oprot.getTransport().flush();
+      }
+
+    }
+
+    private class multiget_count implements ProcessFunction {
+      public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
+      {
+        multiget_count_args args = new multiget_count_args();
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("multiget_count", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
+        iprot.readMessageEnd();
+        multiget_count_result result = new multiget_count_result();
+        try {
+          result.success = iface_.multiget_count(args.keyspace, args.keys, args.column_parent, args.predicate, args.consistency_level);
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+        } catch (UnavailableException ue) {
+          result.ue = ue;
+        } catch (TimedOutException te) {
+          result.te = te;
+        } catch (Throwable th) {
+          LOGGER.error("Internal error processing multiget_count", th);
+          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing multiget_count");
+          oprot.writeMessageBegin(new TMessage("multiget_count", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
+        oprot.writeMessageBegin(new TMessage("multiget_count", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
         oprot.getTransport().flush();
@@ -7803,11 +7906,13 @@ public class Cassandra {
     private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
     private static final TField COLUMN_PARENT_FIELD_DESC = new TField("column_parent", TType.STRUCT, (short)3);
-    private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)4);
+    private static final TField PREDICATE_FIELD_DESC = new TField("predicate", TType.STRUCT, (short)4);
+    private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)5);
 
     public String keyspace;
     public byte[] key;
     public ColumnParent column_parent;
+    public SlicePredicate predicate;
     /**
      * 
      * @see ConsistencyLevel
@@ -7819,11 +7924,12 @@ public class Cassandra {
       KEYSPACE((short)1, "keyspace"),
       KEY((short)2, "key"),
       COLUMN_PARENT((short)3, "column_parent"),
+      PREDICATE((short)4, "predicate"),
       /**
        * 
        * @see ConsistencyLevel
        */
-      CONSISTENCY_LEVEL((short)4, "consistency_level");
+      CONSISTENCY_LEVEL((short)5, "consistency_level");
 
       private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
       private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
@@ -7885,6 +7991,8 @@ public class Cassandra {
           new FieldValueMetaData(TType.STRING)));
       put(_Fields.COLUMN_PARENT, new FieldMetaData("column_parent", TFieldRequirementType.REQUIRED, 
           new StructMetaData(TType.STRUCT, ColumnParent.class)));
+      put(_Fields.PREDICATE, new FieldMetaData("predicate", TFieldRequirementType.REQUIRED, 
+          new StructMetaData(TType.STRUCT, SlicePredicate.class)));
       put(_Fields.CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.REQUIRED, 
           new EnumMetaData(TType.ENUM, ConsistencyLevel.class)));
     }});
@@ -7902,12 +8010,14 @@ public class Cassandra {
       String keyspace,
       byte[] key,
       ColumnParent column_parent,
+      SlicePredicate predicate,
       ConsistencyLevel consistency_level)
     {
       this();
       this.keyspace = keyspace;
       this.key = key;
       this.column_parent = column_parent;
+      this.predicate = predicate;
       this.consistency_level = consistency_level;
     }
 
@@ -7924,6 +8034,9 @@ public class Cassandra {
       }
       if (other.isSetColumn_parent()) {
         this.column_parent = new ColumnParent(other.column_parent);
+      }
+      if (other.isSetPredicate()) {
+        this.predicate = new SlicePredicate(other.predicate);
       }
       if (other.isSetConsistency_level()) {
         this.consistency_level = other.consistency_level;
@@ -8011,6 +8124,30 @@ public class Cassandra {
       }
     }
 
+    public SlicePredicate getPredicate() {
+      return this.predicate;
+    }
+
+    public get_count_args setPredicate(SlicePredicate predicate) {
+      this.predicate = predicate;
+      return this;
+    }
+
+    public void unsetPredicate() {
+      this.predicate = null;
+    }
+
+    /** Returns true if field predicate is set (has been asigned a value) and false otherwise */
+    public boolean isSetPredicate() {
+      return this.predicate != null;
+    }
+
+    public void setPredicateIsSet(boolean value) {
+      if (!value) {
+        this.predicate = null;
+      }
+    }
+
     /**
      * 
      * @see ConsistencyLevel
@@ -8069,6 +8206,14 @@ public class Cassandra {
         }
         break;
 
+      case PREDICATE:
+        if (value == null) {
+          unsetPredicate();
+        } else {
+          setPredicate((SlicePredicate)value);
+        }
+        break;
+
       case CONSISTENCY_LEVEL:
         if (value == null) {
           unsetConsistency_level();
@@ -8095,6 +8240,9 @@ public class Cassandra {
       case COLUMN_PARENT:
         return getColumn_parent();
 
+      case PREDICATE:
+        return getPredicate();
+
       case CONSISTENCY_LEVEL:
         return getConsistency_level();
 
@@ -8115,6 +8263,8 @@ public class Cassandra {
         return isSetKey();
       case COLUMN_PARENT:
         return isSetColumn_parent();
+      case PREDICATE:
+        return isSetPredicate();
       case CONSISTENCY_LEVEL:
         return isSetConsistency_level();
       }
@@ -8162,6 +8312,15 @@ public class Cassandra {
         if (!(this_present_column_parent && that_present_column_parent))
           return false;
         if (!this.column_parent.equals(that.column_parent))
+          return false;
+      }
+
+      boolean this_present_predicate = true && this.isSetPredicate();
+      boolean that_present_predicate = true && that.isSetPredicate();
+      if (this_present_predicate || that_present_predicate) {
+        if (!(this_present_predicate && that_present_predicate))
+          return false;
+        if (!this.predicate.equals(that.predicate))
           return false;
       }
 
@@ -8217,6 +8376,15 @@ public class Cassandra {
           return lastComparison;
         }
       }
+      lastComparison = Boolean.valueOf(isSetPredicate()).compareTo(typedOther.isSetPredicate());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetPredicate()) {        lastComparison = TBaseHelper.compareTo(predicate, typedOther.predicate);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
       lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(typedOther.isSetConsistency_level());
       if (lastComparison != 0) {
         return lastComparison;
@@ -8261,7 +8429,15 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case 4: // CONSISTENCY_LEVEL
+          case 4: // PREDICATE
+            if (field.type == TType.STRUCT) {
+              this.predicate = new SlicePredicate();
+              this.predicate.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 5: // CONSISTENCY_LEVEL
             if (field.type == TType.I32) {
               this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
             } else { 
@@ -8296,6 +8472,11 @@ public class Cassandra {
       if (this.column_parent != null) {
         oprot.writeFieldBegin(COLUMN_PARENT_FIELD_DESC);
         this.column_parent.write(oprot);
+        oprot.writeFieldEnd();
+      }
+      if (this.predicate != null) {
+        oprot.writeFieldBegin(PREDICATE_FIELD_DESC);
+        this.predicate.write(oprot);
         oprot.writeFieldEnd();
       }
       if (this.consistency_level != null) {
@@ -8341,6 +8522,14 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
+      sb.append("predicate:");
+      if (this.predicate == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.predicate);
+      }
+      first = false;
+      if (!first) sb.append(", ");
       sb.append("consistency_level:");
       if (this.consistency_level == null) {
         sb.append("null");
@@ -8362,6 +8551,9 @@ public class Cassandra {
       }
       if (column_parent == null) {
         throw new TProtocolException("Required field 'column_parent' was not present! Struct: " + toString());
+      }
+      if (predicate == null) {
+        throw new TProtocolException("Required field 'predicate' was not present! Struct: " + toString());
       }
       if (consistency_level == null) {
         throw new TProtocolException("Required field 'consistency_level' was not present! Struct: " + toString());
@@ -8869,6 +9061,1235 @@ public class Cassandra {
 
       sb.append("success:");
       sb.append(this.success);
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ire:");
+      if (this.ire == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.ire);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ue:");
+      if (this.ue == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.ue);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("te:");
+      if (this.te == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.te);
+      }
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws TException {
+      // check for required fields
+    }
+
+  }
+
+  public static class multiget_count_args implements TBase<multiget_count_args._Fields>, java.io.Serializable, Cloneable, Comparable<multiget_count_args>   {
+    private static final TStruct STRUCT_DESC = new TStruct("multiget_count_args");
+
+    private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
+    private static final TField KEYS_FIELD_DESC = new TField("keys", TType.LIST, (short)2);
+    private static final TField COLUMN_PARENT_FIELD_DESC = new TField("column_parent", TType.STRUCT, (short)3);
+    private static final TField PREDICATE_FIELD_DESC = new TField("predicate", TType.STRUCT, (short)4);
+    private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)5);
+
+    public String keyspace;
+    public List<byte[]> keys;
+    public ColumnParent column_parent;
+    public SlicePredicate predicate;
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
+    public ConsistencyLevel consistency_level;
+
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements TFieldIdEnum {
+      KEYSPACE((short)1, "keyspace"),
+      KEYS((short)2, "keys"),
+      COLUMN_PARENT((short)3, "column_parent"),
+      PREDICATE((short)4, "predicate"),
+      /**
+       * 
+       * @see ConsistencyLevel
+       */
+      CONSISTENCY_LEVEL((short)5, "consistency_level");
+
+      private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
+      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+      static {
+        for (_Fields field : EnumSet.allOf(_Fields.class)) {
+          byId.put((int)field._thriftId, field);
+          byName.put(field.getFieldName(), field);
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, or null if its not found.
+       */
+      public static _Fields findByThriftId(int fieldId) {
+        return byId.get(fieldId);
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, throwing an exception
+       * if it is not found.
+       */
+      public static _Fields findByThriftIdOrThrow(int fieldId) {
+        _Fields fields = findByThriftId(fieldId);
+        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+        return fields;
+      }
+
+      /**
+       * Find the _Fields constant that matches name, or null if its not found.
+       */
+      public static _Fields findByName(String name) {
+        return byName.get(name);
+      }
+
+      private final short _thriftId;
+      private final String _fieldName;
+
+      _Fields(short thriftId, String fieldName) {
+        _thriftId = thriftId;
+        _fieldName = fieldName;
+      }
+
+      public short getThriftFieldId() {
+        return _thriftId;
+      }
+
+      public String getFieldName() {
+        return _fieldName;
+      }
+    }
+
+    // isset id assignments
+
+    public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
+      put(_Fields.KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.REQUIRED, 
+          new FieldValueMetaData(TType.STRING)));
+      put(_Fields.KEYS, new FieldMetaData("keys", TFieldRequirementType.REQUIRED, 
+          new ListMetaData(TType.LIST, 
+              new FieldValueMetaData(TType.STRING))));
+      put(_Fields.COLUMN_PARENT, new FieldMetaData("column_parent", TFieldRequirementType.REQUIRED, 
+          new StructMetaData(TType.STRUCT, ColumnParent.class)));
+      put(_Fields.PREDICATE, new FieldMetaData("predicate", TFieldRequirementType.REQUIRED, 
+          new StructMetaData(TType.STRUCT, SlicePredicate.class)));
+      put(_Fields.CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.REQUIRED, 
+          new EnumMetaData(TType.ENUM, ConsistencyLevel.class)));
+    }});
+
+    static {
+      FieldMetaData.addStructMetaDataMap(multiget_count_args.class, metaDataMap);
+    }
+
+    public multiget_count_args() {
+      this.consistency_level = ConsistencyLevel.ONE;
+
+    }
+
+    public multiget_count_args(
+      String keyspace,
+      List<byte[]> keys,
+      ColumnParent column_parent,
+      SlicePredicate predicate,
+      ConsistencyLevel consistency_level)
+    {
+      this();
+      this.keyspace = keyspace;
+      this.keys = keys;
+      this.column_parent = column_parent;
+      this.predicate = predicate;
+      this.consistency_level = consistency_level;
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public multiget_count_args(multiget_count_args other) {
+      if (other.isSetKeyspace()) {
+        this.keyspace = other.keyspace;
+      }
+      if (other.isSetKeys()) {
+        List<byte[]> __this__keys = new ArrayList<byte[]>();
+        for (byte[] other_element : other.keys) {
+          byte[] temp_binary_element = new byte[other_element.length];
+          System.arraycopy(other_element, 0, temp_binary_element, 0, other_element.length);
+          __this__keys.add(temp_binary_element);
+        }
+        this.keys = __this__keys;
+      }
+      if (other.isSetColumn_parent()) {
+        this.column_parent = new ColumnParent(other.column_parent);
+      }
+      if (other.isSetPredicate()) {
+        this.predicate = new SlicePredicate(other.predicate);
+      }
+      if (other.isSetConsistency_level()) {
+        this.consistency_level = other.consistency_level;
+      }
+    }
+
+    public multiget_count_args deepCopy() {
+      return new multiget_count_args(this);
+    }
+
+    @Deprecated
+    public multiget_count_args clone() {
+      return new multiget_count_args(this);
+    }
+
+    public String getKeyspace() {
+      return this.keyspace;
+    }
+
+    public multiget_count_args setKeyspace(String keyspace) {
+      this.keyspace = keyspace;
+      return this;
+    }
+
+    public void unsetKeyspace() {
+      this.keyspace = null;
+    }
+
+    /** Returns true if field keyspace is set (has been asigned a value) and false otherwise */
+    public boolean isSetKeyspace() {
+      return this.keyspace != null;
+    }
+
+    public void setKeyspaceIsSet(boolean value) {
+      if (!value) {
+        this.keyspace = null;
+      }
+    }
+
+    public int getKeysSize() {
+      return (this.keys == null) ? 0 : this.keys.size();
+    }
+
+    public java.util.Iterator<byte[]> getKeysIterator() {
+      return (this.keys == null) ? null : this.keys.iterator();
+    }
+
+    public void addToKeys(byte[] elem) {
+      if (this.keys == null) {
+        this.keys = new ArrayList<byte[]>();
+      }
+      this.keys.add(elem);
+    }
+
+    public List<byte[]> getKeys() {
+      return this.keys;
+    }
+
+    public multiget_count_args setKeys(List<byte[]> keys) {
+      this.keys = keys;
+      return this;
+    }
+
+    public void unsetKeys() {
+      this.keys = null;
+    }
+
+    /** Returns true if field keys is set (has been asigned a value) and false otherwise */
+    public boolean isSetKeys() {
+      return this.keys != null;
+    }
+
+    public void setKeysIsSet(boolean value) {
+      if (!value) {
+        this.keys = null;
+      }
+    }
+
+    public ColumnParent getColumn_parent() {
+      return this.column_parent;
+    }
+
+    public multiget_count_args setColumn_parent(ColumnParent column_parent) {
+      this.column_parent = column_parent;
+      return this;
+    }
+
+    public void unsetColumn_parent() {
+      this.column_parent = null;
+    }
+
+    /** Returns true if field column_parent is set (has been asigned a value) and false otherwise */
+    public boolean isSetColumn_parent() {
+      return this.column_parent != null;
+    }
+
+    public void setColumn_parentIsSet(boolean value) {
+      if (!value) {
+        this.column_parent = null;
+      }
+    }
+
+    public SlicePredicate getPredicate() {
+      return this.predicate;
+    }
+
+    public multiget_count_args setPredicate(SlicePredicate predicate) {
+      this.predicate = predicate;
+      return this;
+    }
+
+    public void unsetPredicate() {
+      this.predicate = null;
+    }
+
+    /** Returns true if field predicate is set (has been asigned a value) and false otherwise */
+    public boolean isSetPredicate() {
+      return this.predicate != null;
+    }
+
+    public void setPredicateIsSet(boolean value) {
+      if (!value) {
+        this.predicate = null;
+      }
+    }
+
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
+    public ConsistencyLevel getConsistency_level() {
+      return this.consistency_level;
+    }
+
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
+    public multiget_count_args setConsistency_level(ConsistencyLevel consistency_level) {
+      this.consistency_level = consistency_level;
+      return this;
+    }
+
+    public void unsetConsistency_level() {
+      this.consistency_level = null;
+    }
+
+    /** Returns true if field consistency_level is set (has been asigned a value) and false otherwise */
+    public boolean isSetConsistency_level() {
+      return this.consistency_level != null;
+    }
+
+    public void setConsistency_levelIsSet(boolean value) {
+      if (!value) {
+        this.consistency_level = null;
+      }
+    }
+
+    public void setFieldValue(_Fields field, Object value) {
+      switch (field) {
+      case KEYSPACE:
+        if (value == null) {
+          unsetKeyspace();
+        } else {
+          setKeyspace((String)value);
+        }
+        break;
+
+      case KEYS:
+        if (value == null) {
+          unsetKeys();
+        } else {
+          setKeys((List<byte[]>)value);
+        }
+        break;
+
+      case COLUMN_PARENT:
+        if (value == null) {
+          unsetColumn_parent();
+        } else {
+          setColumn_parent((ColumnParent)value);
+        }
+        break;
+
+      case PREDICATE:
+        if (value == null) {
+          unsetPredicate();
+        } else {
+          setPredicate((SlicePredicate)value);
+        }
+        break;
+
+      case CONSISTENCY_LEVEL:
+        if (value == null) {
+          unsetConsistency_level();
+        } else {
+          setConsistency_level((ConsistencyLevel)value);
+        }
+        break;
+
+      }
+    }
+
+    public void setFieldValue(int fieldID, Object value) {
+      setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
+    }
+
+    public Object getFieldValue(_Fields field) {
+      switch (field) {
+      case KEYSPACE:
+        return getKeyspace();
+
+      case KEYS:
+        return getKeys();
+
+      case COLUMN_PARENT:
+        return getColumn_parent();
+
+      case PREDICATE:
+        return getPredicate();
+
+      case CONSISTENCY_LEVEL:
+        return getConsistency_level();
+
+      }
+      throw new IllegalStateException();
+    }
+
+    public Object getFieldValue(int fieldId) {
+      return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+    public boolean isSet(_Fields field) {
+      switch (field) {
+      case KEYSPACE:
+        return isSetKeyspace();
+      case KEYS:
+        return isSetKeys();
+      case COLUMN_PARENT:
+        return isSetColumn_parent();
+      case PREDICATE:
+        return isSetPredicate();
+      case CONSISTENCY_LEVEL:
+        return isSetConsistency_level();
+      }
+      throw new IllegalStateException();
+    }
+
+    public boolean isSet(int fieldID) {
+      return isSet(_Fields.findByThriftIdOrThrow(fieldID));
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof multiget_count_args)
+        return this.equals((multiget_count_args)that);
+      return false;
+    }
+
+    public boolean equals(multiget_count_args that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_keyspace = true && this.isSetKeyspace();
+      boolean that_present_keyspace = true && that.isSetKeyspace();
+      if (this_present_keyspace || that_present_keyspace) {
+        if (!(this_present_keyspace && that_present_keyspace))
+          return false;
+        if (!this.keyspace.equals(that.keyspace))
+          return false;
+      }
+
+      boolean this_present_keys = true && this.isSetKeys();
+      boolean that_present_keys = true && that.isSetKeys();
+      if (this_present_keys || that_present_keys) {
+        if (!(this_present_keys && that_present_keys))
+          return false;
+        if (!this.keys.equals(that.keys))
+          return false;
+      }
+
+      boolean this_present_column_parent = true && this.isSetColumn_parent();
+      boolean that_present_column_parent = true && that.isSetColumn_parent();
+      if (this_present_column_parent || that_present_column_parent) {
+        if (!(this_present_column_parent && that_present_column_parent))
+          return false;
+        if (!this.column_parent.equals(that.column_parent))
+          return false;
+      }
+
+      boolean this_present_predicate = true && this.isSetPredicate();
+      boolean that_present_predicate = true && that.isSetPredicate();
+      if (this_present_predicate || that_present_predicate) {
+        if (!(this_present_predicate && that_present_predicate))
+          return false;
+        if (!this.predicate.equals(that.predicate))
+          return false;
+      }
+
+      boolean this_present_consistency_level = true && this.isSetConsistency_level();
+      boolean that_present_consistency_level = true && that.isSetConsistency_level();
+      if (this_present_consistency_level || that_present_consistency_level) {
+        if (!(this_present_consistency_level && that_present_consistency_level))
+          return false;
+        if (!this.consistency_level.equals(that.consistency_level))
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public int compareTo(multiget_count_args other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      multiget_count_args typedOther = (multiget_count_args)other;
+
+      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(typedOther.isSetKeyspace());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetKeyspace()) {        lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetKeys()).compareTo(typedOther.isSetKeys());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetKeys()) {        lastComparison = TBaseHelper.compareTo(keys, typedOther.keys);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetColumn_parent()).compareTo(typedOther.isSetColumn_parent());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetColumn_parent()) {        lastComparison = TBaseHelper.compareTo(column_parent, typedOther.column_parent);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetPredicate()).compareTo(typedOther.isSetPredicate());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetPredicate()) {        lastComparison = TBaseHelper.compareTo(predicate, typedOther.predicate);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(typedOther.isSetConsistency_level());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetConsistency_level()) {        lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      return 0;
+    }
+
+    public void read(TProtocol iprot) throws TException {
+      TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == TType.STOP) { 
+          break;
+        }
+        switch (field.id) {
+          case 1: // KEYSPACE
+            if (field.type == TType.STRING) {
+              this.keyspace = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // KEYS
+            if (field.type == TType.LIST) {
+              {
+                TList _list55 = iprot.readListBegin();
+                this.keys = new ArrayList<byte[]>(_list55.size);
+                for (int _i56 = 0; _i56 < _list55.size; ++_i56)
+                {
+                  byte[] _elem57;
+                  _elem57 = iprot.readBinary();
+                  this.keys.add(_elem57);
+                }
+                iprot.readListEnd();
+              }
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // COLUMN_PARENT
+            if (field.type == TType.STRUCT) {
+              this.column_parent = new ColumnParent();
+              this.column_parent.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 4: // PREDICATE
+            if (field.type == TType.STRUCT) {
+              this.predicate = new SlicePredicate();
+              this.predicate.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 5: // CONSISTENCY_LEVEL
+            if (field.type == TType.I32) {
+              this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
+        }
+        iprot.readFieldEnd();
+      }
+      iprot.readStructEnd();
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      validate();
+    }
+
+    public void write(TProtocol oprot) throws TException {
+      validate();
+
+      oprot.writeStructBegin(STRUCT_DESC);
+      if (this.keyspace != null) {
+        oprot.writeFieldBegin(KEYSPACE_FIELD_DESC);
+        oprot.writeString(this.keyspace);
+        oprot.writeFieldEnd();
+      }
+      if (this.keys != null) {
+        oprot.writeFieldBegin(KEYS_FIELD_DESC);
+        {
+          oprot.writeListBegin(new TList(TType.STRING, this.keys.size()));
+          for (byte[] _iter58 : this.keys)
+          {
+            oprot.writeBinary(_iter58);
+          }
+          oprot.writeListEnd();
+        }
+        oprot.writeFieldEnd();
+      }
+      if (this.column_parent != null) {
+        oprot.writeFieldBegin(COLUMN_PARENT_FIELD_DESC);
+        this.column_parent.write(oprot);
+        oprot.writeFieldEnd();
+      }
+      if (this.predicate != null) {
+        oprot.writeFieldBegin(PREDICATE_FIELD_DESC);
+        this.predicate.write(oprot);
+        oprot.writeFieldEnd();
+      }
+      if (this.consistency_level != null) {
+        oprot.writeFieldBegin(CONSISTENCY_LEVEL_FIELD_DESC);
+        oprot.writeI32(this.consistency_level.getValue());
+        oprot.writeFieldEnd();
+      }
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("multiget_count_args(");
+      boolean first = true;
+
+      sb.append("keyspace:");
+      if (this.keyspace == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.keyspace);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("keys:");
+      if (this.keys == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.keys);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("column_parent:");
+      if (this.column_parent == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.column_parent);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("predicate:");
+      if (this.predicate == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.predicate);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("consistency_level:");
+      if (this.consistency_level == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.consistency_level);
+      }
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws TException {
+      // check for required fields
+      if (keyspace == null) {
+        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      }
+      if (keys == null) {
+        throw new TProtocolException("Required field 'keys' was not present! Struct: " + toString());
+      }
+      if (column_parent == null) {
+        throw new TProtocolException("Required field 'column_parent' was not present! Struct: " + toString());
+      }
+      if (predicate == null) {
+        throw new TProtocolException("Required field 'predicate' was not present! Struct: " + toString());
+      }
+      if (consistency_level == null) {
+        throw new TProtocolException("Required field 'consistency_level' was not present! Struct: " + toString());
+      }
+    }
+
+  }
+
+  public static class multiget_count_result implements TBase<multiget_count_result._Fields>, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("multiget_count_result");
+
+    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.MAP, (short)0);
+    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
+    private static final TField UE_FIELD_DESC = new TField("ue", TType.STRUCT, (short)2);
+    private static final TField TE_FIELD_DESC = new TField("te", TType.STRUCT, (short)3);
+
+    public Map<byte[],Integer> success;
+    public InvalidRequestException ire;
+    public UnavailableException ue;
+    public TimedOutException te;
+
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements TFieldIdEnum {
+      SUCCESS((short)0, "success"),
+      IRE((short)1, "ire"),
+      UE((short)2, "ue"),
+      TE((short)3, "te");
+
+      private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
+      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+      static {
+        for (_Fields field : EnumSet.allOf(_Fields.class)) {
+          byId.put((int)field._thriftId, field);
+          byName.put(field.getFieldName(), field);
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, or null if its not found.
+       */
+      public static _Fields findByThriftId(int fieldId) {
+        return byId.get(fieldId);
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, throwing an exception
+       * if it is not found.
+       */
+      public static _Fields findByThriftIdOrThrow(int fieldId) {
+        _Fields fields = findByThriftId(fieldId);
+        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+        return fields;
+      }
+
+      /**
+       * Find the _Fields constant that matches name, or null if its not found.
+       */
+      public static _Fields findByName(String name) {
+        return byName.get(name);
+      }
+
+      private final short _thriftId;
+      private final String _fieldName;
+
+      _Fields(short thriftId, String fieldName) {
+        _thriftId = thriftId;
+        _fieldName = fieldName;
+      }
+
+      public short getThriftFieldId() {
+        return _thriftId;
+      }
+
+      public String getFieldName() {
+        return _fieldName;
+      }
+    }
+
+    // isset id assignments
+
+    public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
+      put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
+          new MapMetaData(TType.MAP, 
+              new FieldValueMetaData(TType.STRING), 
+              new FieldValueMetaData(TType.I32))));
+      put(_Fields.IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      put(_Fields.UE, new FieldMetaData("ue", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      put(_Fields.TE, new FieldMetaData("te", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+    }});
+
+    static {
+      FieldMetaData.addStructMetaDataMap(multiget_count_result.class, metaDataMap);
+    }
+
+    public multiget_count_result() {
+    }
+
+    public multiget_count_result(
+      Map<byte[],Integer> success,
+      InvalidRequestException ire,
+      UnavailableException ue,
+      TimedOutException te)
+    {
+      this();
+      this.success = success;
+      this.ire = ire;
+      this.ue = ue;
+      this.te = te;
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public multiget_count_result(multiget_count_result other) {
+      if (other.isSetSuccess()) {
+        Map<byte[],Integer> __this__success = new HashMap<byte[],Integer>();
+        for (Map.Entry<byte[], Integer> other_element : other.success.entrySet()) {
+
+          byte[] other_element_key = other_element.getKey();
+          Integer other_element_value = other_element.getValue();
+
+          byte[] __this__success_copy_key = new byte[other_element_key.length];
+          System.arraycopy(other_element_key, 0, __this__success_copy_key, 0, other_element_key.length);
+
+          Integer __this__success_copy_value = other_element_value;
+
+          __this__success.put(__this__success_copy_key, __this__success_copy_value);
+        }
+        this.success = __this__success;
+      }
+      if (other.isSetIre()) {
+        this.ire = new InvalidRequestException(other.ire);
+      }
+      if (other.isSetUe()) {
+        this.ue = new UnavailableException(other.ue);
+      }
+      if (other.isSetTe()) {
+        this.te = new TimedOutException(other.te);
+      }
+    }
+
+    public multiget_count_result deepCopy() {
+      return new multiget_count_result(this);
+    }
+
+    @Deprecated
+    public multiget_count_result clone() {
+      return new multiget_count_result(this);
+    }
+
+    public int getSuccessSize() {
+      return (this.success == null) ? 0 : this.success.size();
+    }
+
+    public void putToSuccess(byte[] key, int val) {
+      if (this.success == null) {
+        this.success = new HashMap<byte[],Integer>();
+      }
+      this.success.put(key, val);
+    }
+
+    public Map<byte[],Integer> getSuccess() {
+      return this.success;
+    }
+
+    public multiget_count_result setSuccess(Map<byte[],Integer> success) {
+      this.success = success;
+      return this;
+    }
+
+    public void unsetSuccess() {
+      this.success = null;
+    }
+
+    /** Returns true if field success is set (has been asigned a value) and false otherwise */
+    public boolean isSetSuccess() {
+      return this.success != null;
+    }
+
+    public void setSuccessIsSet(boolean value) {
+      if (!value) {
+        this.success = null;
+      }
+    }
+
+    public InvalidRequestException getIre() {
+      return this.ire;
+    }
+
+    public multiget_count_result setIre(InvalidRequestException ire) {
+      this.ire = ire;
+      return this;
+    }
+
+    public void unsetIre() {
+      this.ire = null;
+    }
+
+    /** Returns true if field ire is set (has been asigned a value) and false otherwise */
+    public boolean isSetIre() {
+      return this.ire != null;
+    }
+
+    public void setIreIsSet(boolean value) {
+      if (!value) {
+        this.ire = null;
+      }
+    }
+
+    public UnavailableException getUe() {
+      return this.ue;
+    }
+
+    public multiget_count_result setUe(UnavailableException ue) {
+      this.ue = ue;
+      return this;
+    }
+
+    public void unsetUe() {
+      this.ue = null;
+    }
+
+    /** Returns true if field ue is set (has been asigned a value) and false otherwise */
+    public boolean isSetUe() {
+      return this.ue != null;
+    }
+
+    public void setUeIsSet(boolean value) {
+      if (!value) {
+        this.ue = null;
+      }
+    }
+
+    public TimedOutException getTe() {
+      return this.te;
+    }
+
+    public multiget_count_result setTe(TimedOutException te) {
+      this.te = te;
+      return this;
+    }
+
+    public void unsetTe() {
+      this.te = null;
+    }
+
+    /** Returns true if field te is set (has been asigned a value) and false otherwise */
+    public boolean isSetTe() {
+      return this.te != null;
+    }
+
+    public void setTeIsSet(boolean value) {
+      if (!value) {
+        this.te = null;
+      }
+    }
+
+    public void setFieldValue(_Fields field, Object value) {
+      switch (field) {
+      case SUCCESS:
+        if (value == null) {
+          unsetSuccess();
+        } else {
+          setSuccess((Map<byte[],Integer>)value);
+        }
+        break;
+
+      case IRE:
+        if (value == null) {
+          unsetIre();
+        } else {
+          setIre((InvalidRequestException)value);
+        }
+        break;
+
+      case UE:
+        if (value == null) {
+          unsetUe();
+        } else {
+          setUe((UnavailableException)value);
+        }
+        break;
+
+      case TE:
+        if (value == null) {
+          unsetTe();
+        } else {
+          setTe((TimedOutException)value);
+        }
+        break;
+
+      }
+    }
+
+    public void setFieldValue(int fieldID, Object value) {
+      setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
+    }
+
+    public Object getFieldValue(_Fields field) {
+      switch (field) {
+      case SUCCESS:
+        return getSuccess();
+
+      case IRE:
+        return getIre();
+
+      case UE:
+        return getUe();
+
+      case TE:
+        return getTe();
+
+      }
+      throw new IllegalStateException();
+    }
+
+    public Object getFieldValue(int fieldId) {
+      return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+    public boolean isSet(_Fields field) {
+      switch (field) {
+      case SUCCESS:
+        return isSetSuccess();
+      case IRE:
+        return isSetIre();
+      case UE:
+        return isSetUe();
+      case TE:
+        return isSetTe();
+      }
+      throw new IllegalStateException();
+    }
+
+    public boolean isSet(int fieldID) {
+      return isSet(_Fields.findByThriftIdOrThrow(fieldID));
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof multiget_count_result)
+        return this.equals((multiget_count_result)that);
+      return false;
+    }
+
+    public boolean equals(multiget_count_result that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_success = true && this.isSetSuccess();
+      boolean that_present_success = true && that.isSetSuccess();
+      if (this_present_success || that_present_success) {
+        if (!(this_present_success && that_present_success))
+          return false;
+        if (!this.success.equals(that.success))
+          return false;
+      }
+
+      boolean this_present_ire = true && this.isSetIre();
+      boolean that_present_ire = true && that.isSetIre();
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
+          return false;
+        if (!this.ire.equals(that.ire))
+          return false;
+      }
+
+      boolean this_present_ue = true && this.isSetUe();
+      boolean that_present_ue = true && that.isSetUe();
+      if (this_present_ue || that_present_ue) {
+        if (!(this_present_ue && that_present_ue))
+          return false;
+        if (!this.ue.equals(that.ue))
+          return false;
+      }
+
+      boolean this_present_te = true && this.isSetTe();
+      boolean that_present_te = true && that.isSetTe();
+      if (this_present_te || that_present_te) {
+        if (!(this_present_te && that_present_te))
+          return false;
+        if (!this.te.equals(that.te))
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public void read(TProtocol iprot) throws TException {
+      TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == TType.STOP) { 
+          break;
+        }
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.MAP) {
+              {
+                TMap _map59 = iprot.readMapBegin();
+                this.success = new HashMap<byte[],Integer>(2*_map59.size);
+                for (int _i60 = 0; _i60 < _map59.size; ++_i60)
+                {
+                  byte[] _key61;
+                  int _val62;
+                  _key61 = iprot.readBinary();
+                  _val62 = iprot.readI32();
+                  this.success.put(_key61, _val62);
+                }
+                iprot.readMapEnd();
+              }
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 1: // IRE
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // UE
+            if (field.type == TType.STRUCT) {
+              this.ue = new UnavailableException();
+              this.ue.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // TE
+            if (field.type == TType.STRUCT) {
+              this.te = new TimedOutException();
+              this.te.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
+        }
+        iprot.readFieldEnd();
+      }
+      iprot.readStructEnd();
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      validate();
+    }
+
+    public void write(TProtocol oprot) throws TException {
+      oprot.writeStructBegin(STRUCT_DESC);
+
+      if (this.isSetSuccess()) {
+        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
+        {
+          oprot.writeMapBegin(new TMap(TType.STRING, TType.I32, this.success.size()));
+          for (Map.Entry<byte[], Integer> _iter63 : this.success.entrySet())
+          {
+            oprot.writeBinary(_iter63.getKey());
+            oprot.writeI32(_iter63.getValue());
+          }
+          oprot.writeMapEnd();
+        }
+        oprot.writeFieldEnd();
+      } else if (this.isSetIre()) {
+        oprot.writeFieldBegin(IRE_FIELD_DESC);
+        this.ire.write(oprot);
+        oprot.writeFieldEnd();
+      } else if (this.isSetUe()) {
+        oprot.writeFieldBegin(UE_FIELD_DESC);
+        this.ue.write(oprot);
+        oprot.writeFieldEnd();
+      } else if (this.isSetTe()) {
+        oprot.writeFieldBegin(TE_FIELD_DESC);
+        this.te.write(oprot);
+        oprot.writeFieldEnd();
+      }
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("multiget_count_result(");
+      boolean first = true;
+
+      sb.append("success:");
+      if (this.success == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.success);
+      }
       first = false;
       if (!first) sb.append(", ");
       sb.append("ire:");
@@ -10194,14 +11615,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list55 = iprot.readListBegin();
-                this.success = new ArrayList<KeySlice>(_list55.size);
-                for (int _i56 = 0; _i56 < _list55.size; ++_i56)
+                TList _list64 = iprot.readListBegin();
+                this.success = new ArrayList<KeySlice>(_list64.size);
+                for (int _i65 = 0; _i65 < _list64.size; ++_i65)
                 {
-                  KeySlice _elem57;
-                  _elem57 = new KeySlice();
-                  _elem57.read(iprot);
-                  this.success.add(_elem57);
+                  KeySlice _elem66;
+                  _elem66 = new KeySlice();
+                  _elem66.read(iprot);
+                  this.success.add(_elem66);
                 }
                 iprot.readListEnd();
               }
@@ -10251,9 +11672,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (KeySlice _iter58 : this.success)
+          for (KeySlice _iter67 : this.success)
           {
-            _iter58.write(oprot);
+            _iter67.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -11424,14 +12845,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list59 = iprot.readListBegin();
-                this.success = new ArrayList<KeySlice>(_list59.size);
-                for (int _i60 = 0; _i60 < _list59.size; ++_i60)
+                TList _list68 = iprot.readListBegin();
+                this.success = new ArrayList<KeySlice>(_list68.size);
+                for (int _i69 = 0; _i69 < _list68.size; ++_i69)
                 {
-                  KeySlice _elem61;
-                  _elem61 = new KeySlice();
-                  _elem61.read(iprot);
-                  this.success.add(_elem61);
+                  KeySlice _elem70;
+                  _elem70 = new KeySlice();
+                  _elem70.read(iprot);
+                  this.success.add(_elem70);
                 }
                 iprot.readListEnd();
               }
@@ -11481,9 +12902,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (KeySlice _iter62 : this.success)
+          for (KeySlice _iter71 : this.success)
           {
-            _iter62.write(oprot);
+            _iter71.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -13105,26 +14526,26 @@ public class Cassandra {
           case 3: // CFMAP
             if (field.type == TType.MAP) {
               {
-                TMap _map63 = iprot.readMapBegin();
-                this.cfmap = new HashMap<String,List<ColumnOrSuperColumn>>(2*_map63.size);
-                for (int _i64 = 0; _i64 < _map63.size; ++_i64)
+                TMap _map72 = iprot.readMapBegin();
+                this.cfmap = new HashMap<String,List<ColumnOrSuperColumn>>(2*_map72.size);
+                for (int _i73 = 0; _i73 < _map72.size; ++_i73)
                 {
-                  String _key65;
-                  List<ColumnOrSuperColumn> _val66;
-                  _key65 = iprot.readString();
+                  String _key74;
+                  List<ColumnOrSuperColumn> _val75;
+                  _key74 = iprot.readString();
                   {
-                    TList _list67 = iprot.readListBegin();
-                    _val66 = new ArrayList<ColumnOrSuperColumn>(_list67.size);
-                    for (int _i68 = 0; _i68 < _list67.size; ++_i68)
+                    TList _list76 = iprot.readListBegin();
+                    _val75 = new ArrayList<ColumnOrSuperColumn>(_list76.size);
+                    for (int _i77 = 0; _i77 < _list76.size; ++_i77)
                     {
-                      ColumnOrSuperColumn _elem69;
-                      _elem69 = new ColumnOrSuperColumn();
-                      _elem69.read(iprot);
-                      _val66.add(_elem69);
+                      ColumnOrSuperColumn _elem78;
+                      _elem78 = new ColumnOrSuperColumn();
+                      _elem78.read(iprot);
+                      _val75.add(_elem78);
                     }
                     iprot.readListEnd();
                   }
-                  this.cfmap.put(_key65, _val66);
+                  this.cfmap.put(_key74, _val75);
                 }
                 iprot.readMapEnd();
               }
@@ -13168,14 +14589,14 @@ public class Cassandra {
         oprot.writeFieldBegin(CFMAP_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, this.cfmap.size()));
-          for (Map.Entry<String, List<ColumnOrSuperColumn>> _iter70 : this.cfmap.entrySet())
+          for (Map.Entry<String, List<ColumnOrSuperColumn>> _iter79 : this.cfmap.entrySet())
           {
-            oprot.writeString(_iter70.getKey());
+            oprot.writeString(_iter79.getKey());
             {
-              oprot.writeListBegin(new TList(TType.STRUCT, _iter70.getValue().size()));
-              for (ColumnOrSuperColumn _iter71 : _iter70.getValue())
+              oprot.writeListBegin(new TList(TType.STRUCT, _iter79.getValue().size()));
+              for (ColumnOrSuperColumn _iter80 : _iter79.getValue())
               {
-                _iter71.write(oprot);
+                _iter80.write(oprot);
               }
               oprot.writeListEnd();
             }
@@ -15205,38 +16626,38 @@ public class Cassandra {
           case 2: // MUTATION_MAP
             if (field.type == TType.MAP) {
               {
-                TMap _map72 = iprot.readMapBegin();
-                this.mutation_map = new HashMap<byte[],Map<String,List<Mutation>>>(2*_map72.size);
-                for (int _i73 = 0; _i73 < _map72.size; ++_i73)
+                TMap _map81 = iprot.readMapBegin();
+                this.mutation_map = new HashMap<byte[],Map<String,List<Mutation>>>(2*_map81.size);
+                for (int _i82 = 0; _i82 < _map81.size; ++_i82)
                 {
-                  byte[] _key74;
-                  Map<String,List<Mutation>> _val75;
-                  _key74 = iprot.readBinary();
+                  byte[] _key83;
+                  Map<String,List<Mutation>> _val84;
+                  _key83 = iprot.readBinary();
                   {
-                    TMap _map76 = iprot.readMapBegin();
-                    _val75 = new HashMap<String,List<Mutation>>(2*_map76.size);
-                    for (int _i77 = 0; _i77 < _map76.size; ++_i77)
+                    TMap _map85 = iprot.readMapBegin();
+                    _val84 = new HashMap<String,List<Mutation>>(2*_map85.size);
+                    for (int _i86 = 0; _i86 < _map85.size; ++_i86)
                     {
-                      String _key78;
-                      List<Mutation> _val79;
-                      _key78 = iprot.readString();
+                      String _key87;
+                      List<Mutation> _val88;
+                      _key87 = iprot.readString();
                       {
-                        TList _list80 = iprot.readListBegin();
-                        _val79 = new ArrayList<Mutation>(_list80.size);
-                        for (int _i81 = 0; _i81 < _list80.size; ++_i81)
+                        TList _list89 = iprot.readListBegin();
+                        _val88 = new ArrayList<Mutation>(_list89.size);
+                        for (int _i90 = 0; _i90 < _list89.size; ++_i90)
                         {
-                          Mutation _elem82;
-                          _elem82 = new Mutation();
-                          _elem82.read(iprot);
-                          _val79.add(_elem82);
+                          Mutation _elem91;
+                          _elem91 = new Mutation();
+                          _elem91.read(iprot);
+                          _val88.add(_elem91);
                         }
                         iprot.readListEnd();
                       }
-                      _val75.put(_key78, _val79);
+                      _val84.put(_key87, _val88);
                     }
                     iprot.readMapEnd();
                   }
-                  this.mutation_map.put(_key74, _val75);
+                  this.mutation_map.put(_key83, _val84);
                 }
                 iprot.readMapEnd();
               }
@@ -15275,19 +16696,19 @@ public class Cassandra {
         oprot.writeFieldBegin(MUTATION_MAP_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.MAP, this.mutation_map.size()));
-          for (Map.Entry<byte[], Map<String,List<Mutation>>> _iter83 : this.mutation_map.entrySet())
+          for (Map.Entry<byte[], Map<String,List<Mutation>>> _iter92 : this.mutation_map.entrySet())
           {
-            oprot.writeBinary(_iter83.getKey());
+            oprot.writeBinary(_iter92.getKey());
             {
-              oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, _iter83.getValue().size()));
-              for (Map.Entry<String, List<Mutation>> _iter84 : _iter83.getValue().entrySet())
+              oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, _iter92.getValue().size()));
+              for (Map.Entry<String, List<Mutation>> _iter93 : _iter92.getValue().entrySet())
               {
-                oprot.writeString(_iter84.getKey());
+                oprot.writeString(_iter93.getKey());
                 {
-                  oprot.writeListBegin(new TList(TType.STRUCT, _iter84.getValue().size()));
-                  for (Mutation _iter85 : _iter84.getValue())
+                  oprot.writeListBegin(new TList(TType.STRUCT, _iter93.getValue().size()));
+                  for (Mutation _iter94 : _iter93.getValue())
                   {
-                    _iter85.write(oprot);
+                    _iter94.write(oprot);
                   }
                   oprot.writeListEnd();
                 }
@@ -16227,13 +17648,13 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.SET) {
               {
-                TSet _set86 = iprot.readSetBegin();
-                this.success = new HashSet<String>(2*_set86.size);
-                for (int _i87 = 0; _i87 < _set86.size; ++_i87)
+                TSet _set95 = iprot.readSetBegin();
+                this.success = new HashSet<String>(2*_set95.size);
+                for (int _i96 = 0; _i96 < _set95.size; ++_i96)
                 {
-                  String _elem88;
-                  _elem88 = iprot.readString();
-                  this.success.add(_elem88);
+                  String _elem97;
+                  _elem97 = iprot.readString();
+                  this.success.add(_elem97);
                 }
                 iprot.readSetEnd();
               }
@@ -16259,9 +17680,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeSetBegin(new TSet(TType.STRING, this.success.size()));
-          for (String _iter89 : this.success)
+          for (String _iter98 : this.success)
           {
-            oprot.writeString(_iter89);
+            oprot.writeString(_iter98);
           }
           oprot.writeSetEnd();
         }
@@ -17768,14 +19189,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list90 = iprot.readListBegin();
-                this.success = new ArrayList<TokenRange>(_list90.size);
-                for (int _i91 = 0; _i91 < _list90.size; ++_i91)
+                TList _list99 = iprot.readListBegin();
+                this.success = new ArrayList<TokenRange>(_list99.size);
+                for (int _i100 = 0; _i100 < _list99.size; ++_i100)
                 {
-                  TokenRange _elem92;
-                  _elem92 = new TokenRange();
-                  _elem92.read(iprot);
-                  this.success.add(_elem92);
+                  TokenRange _elem101;
+                  _elem101 = new TokenRange();
+                  _elem101.read(iprot);
+                  this.success.add(_elem101);
                 }
                 iprot.readListEnd();
               }
@@ -17801,9 +19222,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (TokenRange _iter93 : this.success)
+          for (TokenRange _iter102 : this.success)
           {
-            _iter93.write(oprot);
+            _iter102.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -18424,27 +19845,27 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.MAP) {
               {
-                TMap _map94 = iprot.readMapBegin();
-                this.success = new HashMap<String,Map<String,String>>(2*_map94.size);
-                for (int _i95 = 0; _i95 < _map94.size; ++_i95)
+                TMap _map103 = iprot.readMapBegin();
+                this.success = new HashMap<String,Map<String,String>>(2*_map103.size);
+                for (int _i104 = 0; _i104 < _map103.size; ++_i104)
                 {
-                  String _key96;
-                  Map<String,String> _val97;
-                  _key96 = iprot.readString();
+                  String _key105;
+                  Map<String,String> _val106;
+                  _key105 = iprot.readString();
                   {
-                    TMap _map98 = iprot.readMapBegin();
-                    _val97 = new HashMap<String,String>(2*_map98.size);
-                    for (int _i99 = 0; _i99 < _map98.size; ++_i99)
+                    TMap _map107 = iprot.readMapBegin();
+                    _val106 = new HashMap<String,String>(2*_map107.size);
+                    for (int _i108 = 0; _i108 < _map107.size; ++_i108)
                     {
-                      String _key100;
-                      String _val101;
-                      _key100 = iprot.readString();
-                      _val101 = iprot.readString();
-                      _val97.put(_key100, _val101);
+                      String _key109;
+                      String _val110;
+                      _key109 = iprot.readString();
+                      _val110 = iprot.readString();
+                      _val106.put(_key109, _val110);
                     }
                     iprot.readMapEnd();
                   }
-                  this.success.put(_key96, _val97);
+                  this.success.put(_key105, _val106);
                 }
                 iprot.readMapEnd();
               }
@@ -18478,15 +19899,15 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.MAP, this.success.size()));
-          for (Map.Entry<String, Map<String,String>> _iter102 : this.success.entrySet())
+          for (Map.Entry<String, Map<String,String>> _iter111 : this.success.entrySet())
           {
-            oprot.writeString(_iter102.getKey());
+            oprot.writeString(_iter111.getKey());
             {
-              oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, _iter102.getValue().size()));
-              for (Map.Entry<String, String> _iter103 : _iter102.getValue().entrySet())
+              oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, _iter111.getValue().size()));
+              for (Map.Entry<String, String> _iter112 : _iter111.getValue().entrySet())
               {
-                oprot.writeString(_iter103.getKey());
-                oprot.writeString(_iter103.getValue());
+                oprot.writeString(_iter112.getKey());
+                oprot.writeString(_iter112.getValue());
               }
               oprot.writeMapEnd();
             }
@@ -19242,13 +20663,13 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list104 = iprot.readListBegin();
-                this.success = new ArrayList<String>(_list104.size);
-                for (int _i105 = 0; _i105 < _list104.size; ++_i105)
+                TList _list113 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list113.size);
+                for (int _i114 = 0; _i114 < _list113.size; ++_i114)
                 {
-                  String _elem106;
-                  _elem106 = iprot.readString();
-                  this.success.add(_elem106);
+                  String _elem115;
+                  _elem115 = iprot.readString();
+                  this.success.add(_elem115);
                 }
                 iprot.readListEnd();
               }
@@ -19274,9 +20695,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.success.size()));
-          for (String _iter107 : this.success)
+          for (String _iter116 : this.success)
           {
-            oprot.writeString(_iter107);
+            oprot.writeString(_iter116);
           }
           oprot.writeListEnd();
         }
