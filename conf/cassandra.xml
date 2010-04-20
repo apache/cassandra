@@ -50,7 +50,8 @@
    ~ IEndpointSnitch, which lets Cassandra know enough
    ~ about your network topology to route requests efficiently.
    ~ Out of the box, Cassandra provides
-   ~ org.apache.cassandra.locator.RackInferringSnitch and
+   ~ org.apache.cassandra.locator.SimpleSnitch,
+   ~ org.apache.cassandra.locator.RackInferringSnitch, and
    ~ org.apache.cassandra.locator.PropertyFileSnitch.
   -->
   <EndpointSnitch>org.apache.cassandra.locator.SimpleSnitch</EndpointSnitch>
