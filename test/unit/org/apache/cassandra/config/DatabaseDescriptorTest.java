@@ -20,10 +20,9 @@ package org.apache.cassandra.config;
 
 import static org.junit.Assert.assertNotNull;
 
-import org.apache.cassandra.db.DefsTable;
+import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.migration.AddKeyspace;
-import org.apache.cassandra.db.migration.Migration;
-import org.apache.cassandra.locator.RackAwareStrategy;
+import org.apache.cassandra.locator.RackUnawareStrategy;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -71,13 +70,14 @@ public class DatabaseDescriptorTest
     @Test
     public void testTransKsMigration() throws IOException, ConfigurationException
     {
+        CleanupHelper.cleanupAndLeaveDirs();
         DatabaseDescriptor.loadSchemas();
         assert DatabaseDescriptor.getNonSystemTables().size() == 0;
         
         // add a few.
-        AddKeyspace ks0 = new AddKeyspace(new KSMetaData("ks0", RackAwareStrategy.class, 3));
+        AddKeyspace ks0 = new AddKeyspace(new KSMetaData("ks0", RackUnawareStrategy.class, 3));
         ks0.apply();
-        AddKeyspace ks1 = new AddKeyspace(new KSMetaData("ks1", RackAwareStrategy.class, 3));
+        AddKeyspace ks1 = new AddKeyspace(new KSMetaData("ks1", RackUnawareStrategy.class, 3));
         ks1.apply();
         
         assert DatabaseDescriptor.getTableDefinition("ks0") != null;

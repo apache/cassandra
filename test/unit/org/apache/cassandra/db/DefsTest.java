@@ -36,7 +36,7 @@ import org.apache.cassandra.db.migration.DropKeyspace;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.db.migration.RenameColumnFamily;
 import org.apache.cassandra.db.migration.RenameKeyspace;
-import org.apache.cassandra.locator.RackAwareStrategy;
+import org.apache.cassandra.locator.RackUnawareStrategy;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.UUIDGen;
@@ -280,7 +280,7 @@ public class DefsTest extends CleanupHelper
     {
         DecoratedKey dk = Util.dk("key0");
         CFMetaData newCf = new CFMetaData("NewKeyspace1", "AddedStandard1", "Standard", new UTF8Type(), null, "A new cf for a new ks", 0, 0);
-        KSMetaData newKs = new KSMetaData(newCf.tableName, RackAwareStrategy.class, 5, newCf);
+        KSMetaData newKs = new KSMetaData(newCf.tableName, RackUnawareStrategy.class, 5, newCf);
         
         int segmentCount = CommitLog.instance().getSegmentCount();
         new AddKeyspace(newKs).apply();
