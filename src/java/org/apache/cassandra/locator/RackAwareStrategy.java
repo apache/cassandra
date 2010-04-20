@@ -62,9 +62,11 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
         {
             try
             {
+                AbstractRackAwareSnitch snitch = (AbstractRackAwareSnitch)snitch_;
+
                 // First try to find one in a different data center
                 Token t = iter.next();
-                if (!((AbstractRackAwareSnitch)snitch_).isInSameDataCenter(metadata.getEndpoint(primaryToken), metadata.getEndpoint(t)))
+                if (!snitch.getDatacenter(metadata.getEndpoint(primaryToken)).equals(snitch.getDatacenter(metadata.getEndpoint(t))))
                 {
                     // If we have already found something in a diff datacenter no need to find another
                     if (!bDataCenter)
@@ -75,8 +77,8 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
                     continue;
                 }
                 // Now  try to find one on a different rack
-                if (!((AbstractRackAwareSnitch)snitch_).isOnSameRack(metadata.getEndpoint(primaryToken), metadata.getEndpoint(t)) &&
-                    ((AbstractRackAwareSnitch)snitch_).isInSameDataCenter(metadata.getEndpoint(primaryToken), metadata.getEndpoint(t)))
+                if (!snitch.getRack(metadata.getEndpoint(primaryToken)).equals(snitch.getRack(metadata.getEndpoint(t))) &&
+                    snitch.getDatacenter(metadata.getEndpoint(primaryToken)).equals(snitch.getDatacenter(metadata.getEndpoint(t))))
                 {
                     // If we have already found something in a diff rack no need to find another
                     if (!bOtherRack)

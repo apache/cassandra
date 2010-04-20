@@ -24,39 +24,17 @@ import java.util.*;
 
 /**
  * A simple endpoint snitch implementation that assumes rack and dc information is encoded
- * in the ip address.
+ * in the 2nd and 3rd octets of the ip address, respectively.
  */
 public class RackInferringSnitch extends AbstractRackAwareSnitch
 {
-    public boolean isOnSameRack(InetAddress host, InetAddress host2) throws UnknownHostException
+    public String getRack(InetAddress endpoint) throws UnknownHostException
     {
-        /*
-         * Look at the IP Address of the two hosts. Compare
-         * the 3rd octet. If they are the same then the hosts
-         * are in the same rack else different racks.
-        */
-        byte[] ip = host.getAddress();
-        byte[] ip2 = host2.getAddress();
-
-        return ip[2] == ip2[2];
+        return Byte.toString(endpoint.getAddress()[2]);
     }
 
-    public boolean isInSameDataCenter(InetAddress host, InetAddress host2) throws UnknownHostException
+    public String getDatacenter(InetAddress endpoint) throws UnknownHostException
     {
-        /*
-         * Look at the IP Address of the two hosts. Compare
-         * the 2nd octet. If they are the same then the hosts
-         * are in the same datacenter else different datacenter.
-        */
-        byte[] ip = host.getAddress();
-        byte[] ip2 = host2.getAddress();
-
-        return ip[1] == ip2[1];
+        return Byte.toString(endpoint.getAddress()[1]);
     }
-
-    public String getLocation(InetAddress endpoint) throws UnknownHostException
-    {
-        throw new UnknownHostException("Not Supported");
-    }
-
 }

@@ -33,29 +33,20 @@ import java.util.*;
 public abstract class AbstractRackAwareSnitch implements IEndpointSnitch
 {
     /**
-     * Determines if 2 nodes are in the same rack in the data center.
-     * @param host a specified endpoint
-     * @param host2 another specified endpoint
-     * @return true if on the same rack false otherwise
+     * Return the rack for which an endpoint resides in
+     * @param endpoint a specified endpoint
+     * @return string of rack
      * @throws UnknownHostException
      */
-    abstract public boolean isOnSameRack(InetAddress host, InetAddress host2) throws UnknownHostException;
+    abstract public String getRack(InetAddress endpoint) throws UnknownHostException;
 
     /**
-     * Determines if 2 nodes are in the same data center.
-     * @param host a specified endpoint
-     * @param host2 another specified endpoint
-     * @return true if in the same data center false otherwise
+     * Return the data center for which an endpoint resides in
+     * @param endpoint a specified endpoint
+     * @return string of data center
      * @throws UnknownHostException
      */
-    abstract public boolean isInSameDataCenter(InetAddress host, InetAddress host2) throws UnknownHostException;
-
-    /**
-     * Determines the name of the datacenter this endpoint lives in.
-     * @param endpoint
-     * @return the name of the datacenter the endpoint lives in
-     */
-    abstract public String getLocation(InetAddress endpoint) throws UnknownHostException;
+    abstract public String getDatacenter(InetAddress endpoint) throws UnknownHostException;
 
     public List<InetAddress> getSortedListByProximity(final InetAddress address, Collection<InetAddress> unsortedAddress)
     {
@@ -76,14 +67,23 @@ public abstract class AbstractRackAwareSnitch implements IEndpointSnitch
                         return -1;
                     if (address.equals(a2) && !address.equals(a1))
                         return 1;
-                    if (isOnSameRack(address, a1) && !isOnSameRack(address, a2))
+
+                    String addressRack = getRack(address);
+                    String a1Rack = getRack(a1);
+                    String a2Rack = getRack(a2);
+                    if (addressRack.equals(a1Rack) && !addressRack.equals(a2Rack))
                         return -1;
-                    if (isOnSameRack(address, a2) && !isOnSameRack(address, a1))
+                    if (addressRack.equals(a2Rack) && !addressRack.equals(a1Rack))
                         return 1;
-                    if (isInSameDataCenter(address, a1) && !isInSameDataCenter(address, a2))
+
+                    String addressDatacenter = getDatacenter(address);
+                    String a1Datacenter = getDatacenter(a1);
+                    String a2Datacenter = getDatacenter(a2);
+                    if (addressDatacenter.equals(a1Datacenter) && !addressDatacenter.equals(a2Datacenter))
                         return -1;
-                    if (isInSameDataCenter(address, a2) && !isInSameDataCenter(address, a1))
+                    if (addressDatacenter.equals(a2Datacenter) && !addressDatacenter.equals(a1Datacenter))
                         return 1;
+
                     return 0;
                 }
                 catch (UnknownHostException e)

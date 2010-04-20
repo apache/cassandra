@@ -60,7 +60,7 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
         int b = -1;
         try
         {
-            if (endpointsnitch.isInSameDataCenter(localEndpoint, message.getFrom()))
+            if (endpointsnitch.getDatacenter(localEndpoint).equals(endpointsnitch.getDatacenter(message.getFrom())))
             {
                 b = blockFor.decrementAndGet();
             }

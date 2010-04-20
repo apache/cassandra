@@ -54,11 +54,6 @@ public class PropertyFileSnitch extends RackInferringSnitch implements PropertyF
     private static String RACK_PROPERTY_FILENAME = "cassandra-rack.properties";
 
     /**
-     * Whether to use the parent for detection of same node
-     */
-    private boolean runInBaseMode = false;
-
-    /**
      * Reference to the logger.
      */
     private static Logger logger_ = LoggerFactory.getLogger(PropertyFileSnitch.class);
@@ -107,7 +102,7 @@ public class PropertyFileSnitch extends RackInferringSnitch implements PropertyF
      * @param endpoint the endpoint to process
      * @return string of data center
      */
-    public String getDataCenterForEndpoint(InetAddress endpoint) {
+    public String getDatacenter(InetAddress endpoint) {
         return getEndpointInfo(endpoint)[0];
     }
 
@@ -118,32 +113,8 @@ public class PropertyFileSnitch extends RackInferringSnitch implements PropertyF
      * 
      * @return string of rack
      */
-    public String getRackForEndpoint(InetAddress endpoint) {
+    public String getRack(InetAddress endpoint) {
         return getEndpointInfo(endpoint)[1];
-    }
-
-    @Override
-    public boolean isInSameDataCenter(InetAddress host, InetAddress host2)
-            throws UnknownHostException {
-        if (runInBaseMode)
-        {
-            return super.isInSameDataCenter(host, host2);
-        }
-        return getDataCenterForEndpoint(host).equals(getDataCenterForEndpoint(host2));
-    }
-
-    @Override
-    public boolean isOnSameRack(InetAddress host, InetAddress host2)
-            throws UnknownHostException {
-        if (runInBaseMode)
-        {
-            return super.isOnSameRack(host, host2);
-        }
-        if (!isInSameDataCenter(host, host2))
-        {
-            return false;
-        }
-        return getRackForEndpoint(host).equals(getRackForEndpoint(host2));
     }
 
     public String displayConfiguration() {
@@ -170,7 +141,6 @@ public class PropertyFileSnitch extends RackInferringSnitch implements PropertyF
             Properties localHostProperties = new Properties();
             localHostProperties.load(new FileReader(rackPropertyFilename));
             hostProperties = localHostProperties;
-            runInBaseMode = false;
         }
         catch (IOException ioe)
         {

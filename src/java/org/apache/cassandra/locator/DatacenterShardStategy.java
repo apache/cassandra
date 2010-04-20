@@ -68,12 +68,12 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
     private synchronized void loadEndpoints(TokenMetadata metadata) throws IOException
     {
         this.tokens = new ArrayList<Token>(metadata.sortedTokens());
-        String localDC = ((DatacenterEndpointSnitch)snitch_).getLocation(InetAddress.getLocalHost());
+        String localDC = ((DatacenterEndpointSnitch)snitch_).getDatacenter(InetAddress.getLocalHost());
         dcMap = new HashMap<String, List<Token>>();
         for (Token token : this.tokens)
         {
             InetAddress endpoint = metadata.getEndpoint(token);
-            String dataCenter = ((DatacenterEndpointSnitch)snitch_).getLocation(endpoint);
+            String dataCenter = ((DatacenterEndpointSnitch)snitch_).getDatacenter(endpoint);
             if (dataCenter.equals(localDC))
             {
                 localEndpoints.add(endpoint);
@@ -168,7 +168,8 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
                 // Now try to find one on a different rack
                 if (!bOtherRack)
                 {
-                    if (!((DatacenterEndpointSnitch)snitch_).isOnSameRack(primaryHost, endpointOfInterest))
+                    AbstractRackAwareSnitch snitch = (AbstractRackAwareSnitch)snitch_;
+                    if (!snitch.getRack(primaryHost).equals(snitch.getRack(endpointOfInterest)))
                     {
                         forloopReturn.add(metadata.getEndpoint(t));
                         bOtherRack = true;

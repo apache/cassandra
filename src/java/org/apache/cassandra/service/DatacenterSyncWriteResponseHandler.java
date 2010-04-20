@@ -59,7 +59,7 @@ public class DatacenterSyncWriteResponseHandler extends WriteResponseHandler
     {
         try
         {
-            String dataCenter = endpointSnitch.getLocation(message.getFrom());
+            String dataCenter = endpointSnitch.getDatacenter(message.getFrom());
             Object blockFor = responseCounts.get(dataCenter);
             // If this DC needs to be blocked then do the below.
             if (blockFor != null)

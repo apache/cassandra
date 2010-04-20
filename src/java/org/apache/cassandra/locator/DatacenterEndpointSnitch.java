@@ -75,11 +75,19 @@ public class DatacenterEndpointSnitch extends AbstractRackAwareSnitch
     /**
      * Return the rack for which an endpoint resides in
      */
-    public String getRackForEndpoint(InetAddress endpoint)
-            throws UnknownHostException
+    public String getRack(InetAddress endpoint) throws UnknownHostException
     {
-        byte[] ipQuads = getIPAddress(endpoint.getHostAddress());
-        return ipRAC.get(ipQuads[1]).get(ipQuads[2]);
+        byte[] ip = getIPAddress(endpoint.getHostAddress());
+        return ipRAC.get(ip[1]).get(ip[2]);
+    }
+
+    /**
+     * Return the datacenter for which an endpoint resides in
+     */
+    public String getDatacenter(InetAddress endpoint) throws UnknownHostException
+    {
+        byte[] ip = getIPAddress(endpoint.getHostAddress());
+        return ipDC.get(ip[1]).get(ip[2]);
     }
 
     /**
@@ -135,42 +143,6 @@ public class DatacenterEndpointSnitch extends AbstractRackAwareSnitch
     }
 
     /**
-     * This methood will return ture if the hosts are in the same RAC else
-     * false.
-     */
-    public boolean isOnSameRack(InetAddress host, InetAddress host2)
-            throws UnknownHostException
-    {
-        /*
-        * Look at the IP Address of the two hosts. Compare the 2nd and 3rd
-        * octet. If they are the same then the hosts are in the same rack else
-        * different racks.
-        */
-        byte[] ip = getIPAddress(host.getHostAddress());
-        byte[] ip2 = getIPAddress(host2.getHostAddress());
-
-        return ipRAC.get(ip[1]).get(ip[2])
-                .equals(ipRAC.get(ip2[1]).get(ip2[2]));
-    }
-
-    /**
-     * This methood will return ture if the hosts are in the same DC else false.
-     */
-    public boolean isInSameDataCenter(InetAddress host, InetAddress host2)
-            throws UnknownHostException
-    {
-        /*
-        * Look at the IP Address of the two hosts. Compare the 2nd and 3rd
-        * octet and get the DC Name. If they are the same then the hosts are in
-        * the same datacenter else different datacenter.
-        */
-        byte[] ip = getIPAddress(host.getHostAddress());
-        byte[] ip2 = getIPAddress(host2.getHostAddress());
-
-        return ipDC.get(ip[1]).get(ip[2]).equals(ipDC.get(ip2[1]).get(ip2[2]));
-    }
-
-    /**
      * Returns a DC replication map, the key will be the dc name and the value
      * will be the replication factor of that Datacenter.
      */
@@ -197,11 +169,5 @@ public class DatacenterEndpointSnitch extends AbstractRackAwareSnitch
     public static byte intToByte(int n)
     {
         return (byte) (n & 0x000000ff);
-    }
-
-    public String getLocation(InetAddress endpoint) throws UnknownHostException
-    {
-        byte[] ipQuads = getIPAddress(endpoint.getHostAddress());
-        return ipDC.get(ipQuads[1]).get(ipQuads[2]);
     }
 }
