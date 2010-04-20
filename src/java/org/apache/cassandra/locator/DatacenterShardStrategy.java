@@ -41,7 +41,7 @@ import org.apache.cassandra.thrift.ConsistencyLevel;
  * This class also caches the Endpoints and invalidates the cache if there is a
  * change in the number of tokens.
  */
-public class DatacenterShardStategy extends AbstractReplicationStrategy
+public class DatacenterShardStrategy extends AbstractReplicationStrategy
 {
     private static Map<String, List<Token>> dcMap = new HashMap<String, List<Token>>();
     private static Map<String, Integer> dcReplicationFactor = new HashMap<String, Integer>();
@@ -105,7 +105,7 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
         }
     }
 
-    public DatacenterShardStategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch)
+    public DatacenterShardStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch)
     throws UnknownHostException
     {
         super(tokenMetadata, snitch);
