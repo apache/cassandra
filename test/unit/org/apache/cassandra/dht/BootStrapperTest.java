@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.commons.lang.StringUtils;
 import static org.junit.Assert.assertEquals;
@@ -36,9 +37,18 @@ import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
-public class BootStrapperTest
+public class BootStrapperTest extends CleanupHelper
 {
+    @Test
+    public void testTokenRoundtrip() throws Exception
+    {
+        StorageService.instance.initServer();
+        // fetch a bootstrap token from the local node
+        assert BootStrapper.getBootstrapTokenFrom(FBUtilities.getLocalAddress()) != null;
+    }
+
     @Test
     public void testGuessToken() throws IOException
     {

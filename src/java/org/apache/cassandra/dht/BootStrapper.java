@@ -166,7 +166,7 @@ public class BootStrapper
         return myRangeAddresses;
     }
 
-    private static Token<?> getBootstrapTokenFrom(InetAddress maxEndpoint)
+    static Token<?> getBootstrapTokenFrom(InetAddress maxEndpoint)
     {
         Message message = new Message(FBUtilities.getLocalAddress(), "", StorageService.Verb.BOOTSTRAP_TOKEN, ArrayUtils.EMPTY_BYTE_ARRAY);
         BootstrapTokenCallback btc = new BootstrapTokenCallback();
@@ -207,7 +207,7 @@ public class BootStrapper
         public void doVerb(Message message)
         {
             StorageService ss = StorageService.instance;
-            String tokenString = ss.getBootstrapToken().toString();
+            String tokenString = StorageService.getPartitioner().getTokenFactory().toString(ss.getBootstrapToken());
             Message response;
             try
             {
