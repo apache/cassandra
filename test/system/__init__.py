@@ -142,7 +142,7 @@ class ThriftTester(BaseTester):
         self.client.transport.close()
         
     def define_schema(self):
-        keyspace1 = Cassandra.KsDef('Keyspace1', 'org.apache.cassandra.locator.RackUnawareStrategy', 1, 'org.apache.cassandra.locator.EndpointSnitch',
+        keyspace1 = Cassandra.KsDef('Keyspace1', 'org.apache.cassandra.locator.RackUnawareStrategy', 1,
         [
             Cassandra.CfDef('Keyspace1', 'Standard1'),
             Cassandra.CfDef('Keyspace1', 'Standard2'), 
@@ -154,7 +154,7 @@ class ThriftTester(BaseTester):
             Cassandra.CfDef('Keyspace1', 'Super4', column_type='Super', subcomparator_type='UTF8Type')
         ])
 
-        keyspace2 = Cassandra.KsDef('Keyspace2', 'org.apache.cassandra.locator.RackUnawareStrategy', 1, 'org.apache.cassandra.locator.EndpointSnitch',
+        keyspace2 = Cassandra.KsDef('Keyspace2', 'org.apache.cassandra.locator.RackUnawareStrategy', 1,
         [
             Cassandra.CfDef('Keyspace2', 'Standard1'),
             Cassandra.CfDef('Keyspace2', 'Standard3'),
@@ -162,12 +162,12 @@ class ThriftTester(BaseTester):
             Cassandra.CfDef('Keyspace2', 'Super4', column_type='Super', subcomparator_type='TimeUUIDType'),
         ])
 
-        keyspace3 = Cassandra.KsDef('Keyspace3', 'org.apache.cassandra.locator.RackUnawareStrategy', 5, 'org.apache.cassandra.locator.EndpointSnitch',
+        keyspace3 = Cassandra.KsDef('Keyspace3', 'org.apache.cassandra.locator.RackUnawareStrategy', 5,
         [
             Cassandra.CfDef('Keyspace3', 'Standard1'),
         ])
 
-        keyspace4 = Cassandra.KsDef('Keyspace4', 'org.apache.cassandra.locator.RackUnawareStrategy', 3, 'org.apache.cassandra.locator.EndpointSnitch',
+        keyspace4 = Cassandra.KsDef('Keyspace4', 'org.apache.cassandra.locator.RackUnawareStrategy', 3,
         [
             Cassandra.CfDef('Keyspace4', 'Standard1'),
             Cassandra.CfDef('Keyspace4', 'Standard3'),

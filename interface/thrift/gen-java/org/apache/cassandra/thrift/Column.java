@@ -46,13 +46,10 @@ import org.apache.thrift.protocol.*;
 
 /**
  * Basic unit of data within a ColumnFamily.
- * @param name. A column name can act both as structure (a label) or as data (like value). Regardless, the name of the column
- *        is used as a key to its value.
- * @param value. Some data
- * @param timestamp. Used to record when data was sent to be written.
- * @param ttl. A delay (in seconds) after which the column will be automatically deleted. If this parameter is not
- *             provided or is <= 0, the column will never be deleted automatically (and will have no ttl when queried).
- *             Note that, if set, the column will be deleted from a node ttl seconds after the column reach the node.
+ * @param name, the name by which this column is set and retrieved.  Maximum 64KB long.
+ * @param value. The data associated with the name.  Maximum 2GB long, but in practice you should limit it to small numbers of MB (since Thrift must read the full value into memory to operate on it).
+ * @param timestamp. The highest timestamp associated with the given column name is the one whose value the system will converge to.  No other assumptions are made about what the timestamp represents, but using microseconds-since-epoch is customary.
+ * @param ttl. An optional, positive delay (in seconds) after which the column will be automatically deleted.
  */
 public class Column implements TBase<Column._Fields>, java.io.Serializable, Cloneable, Comparable<Column> {
   private static final TStruct STRUCT_DESC = new TStruct("Column");

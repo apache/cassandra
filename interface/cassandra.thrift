@@ -320,7 +320,6 @@ struct KsDef {
     1: required string name,
     2: required string strategy_class,
     3: required i32 replication_factor,
-    4: required string snitch_class,
     5: required list<CfDef> cf_defs,    
 }
 

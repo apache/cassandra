@@ -50,13 +50,11 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
   private static final TField NAME_FIELD_DESC = new TField("name", TType.STRING, (short)1);
   private static final TField STRATEGY_CLASS_FIELD_DESC = new TField("strategy_class", TType.STRING, (short)2);
   private static final TField REPLICATION_FACTOR_FIELD_DESC = new TField("replication_factor", TType.I32, (short)3);
-  private static final TField SNITCH_CLASS_FIELD_DESC = new TField("snitch_class", TType.STRING, (short)4);
   private static final TField CF_DEFS_FIELD_DESC = new TField("cf_defs", TType.LIST, (short)5);
 
   public String name;
   public String strategy_class;
   public int replication_factor;
-  public String snitch_class;
   public List<CfDef> cf_defs;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
@@ -64,7 +62,6 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
     NAME((short)1, "name"),
     STRATEGY_CLASS((short)2, "strategy_class"),
     REPLICATION_FACTOR((short)3, "replication_factor"),
-    SNITCH_CLASS((short)4, "snitch_class"),
     CF_DEFS((short)5, "cf_defs");
 
     private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
@@ -129,8 +126,6 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
         new FieldValueMetaData(TType.STRING)));
     put(_Fields.REPLICATION_FACTOR, new FieldMetaData("replication_factor", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.I32)));
-    put(_Fields.SNITCH_CLASS, new FieldMetaData("snitch_class", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
     put(_Fields.CF_DEFS, new FieldMetaData("cf_defs", TFieldRequirementType.REQUIRED, 
         new ListMetaData(TType.LIST, 
             new StructMetaData(TType.STRUCT, CfDef.class))));
@@ -147,7 +142,6 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
     String name,
     String strategy_class,
     int replication_factor,
-    String snitch_class,
     List<CfDef> cf_defs)
   {
     this();
@@ -155,7 +149,6 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
     this.strategy_class = strategy_class;
     this.replication_factor = replication_factor;
     setReplication_factorIsSet(true);
-    this.snitch_class = snitch_class;
     this.cf_defs = cf_defs;
   }
 
@@ -172,9 +165,6 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
       this.strategy_class = other.strategy_class;
     }
     this.replication_factor = other.replication_factor;
-    if (other.isSetSnitch_class()) {
-      this.snitch_class = other.snitch_class;
-    }
     if (other.isSetCf_defs()) {
       List<CfDef> __this__cf_defs = new ArrayList<CfDef>();
       for (CfDef other_element : other.cf_defs) {
@@ -264,30 +254,6 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
     __isset_bit_vector.set(__REPLICATION_FACTOR_ISSET_ID, value);
   }
 
-  public String getSnitch_class() {
-    return this.snitch_class;
-  }
-
-  public KsDef setSnitch_class(String snitch_class) {
-    this.snitch_class = snitch_class;
-    return this;
-  }
-
-  public void unsetSnitch_class() {
-    this.snitch_class = null;
-  }
-
-  /** Returns true if field snitch_class is set (has been asigned a value) and false otherwise */
-  public boolean isSetSnitch_class() {
-    return this.snitch_class != null;
-  }
-
-  public void setSnitch_classIsSet(boolean value) {
-    if (!value) {
-      this.snitch_class = null;
-    }
-  }
-
   public int getCf_defsSize() {
     return (this.cf_defs == null) ? 0 : this.cf_defs.size();
   }
@@ -353,14 +319,6 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
       }
       break;
 
-    case SNITCH_CLASS:
-      if (value == null) {
-        unsetSnitch_class();
-      } else {
-        setSnitch_class((String)value);
-      }
-      break;
-
     case CF_DEFS:
       if (value == null) {
         unsetCf_defs();
@@ -387,9 +345,6 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
     case REPLICATION_FACTOR:
       return new Integer(getReplication_factor());
 
-    case SNITCH_CLASS:
-      return getSnitch_class();
-
     case CF_DEFS:
       return getCf_defs();
 
@@ -410,8 +365,6 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
       return isSetStrategy_class();
     case REPLICATION_FACTOR:
       return isSetReplication_factor();
-    case SNITCH_CLASS:
-      return isSetSnitch_class();
     case CF_DEFS:
       return isSetCf_defs();
     }
@@ -459,15 +412,6 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
       if (!(this_present_replication_factor && that_present_replication_factor))
         return false;
       if (this.replication_factor != that.replication_factor)
-        return false;
-    }
-
-    boolean this_present_snitch_class = true && this.isSetSnitch_class();
-    boolean that_present_snitch_class = true && that.isSetSnitch_class();
-    if (this_present_snitch_class || that_present_snitch_class) {
-      if (!(this_present_snitch_class && that_present_snitch_class))
-        return false;
-      if (!this.snitch_class.equals(that.snitch_class))
         return false;
     }
 
@@ -523,15 +467,6 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
         return lastComparison;
       }
     }
-    lastComparison = Boolean.valueOf(isSetSnitch_class()).compareTo(typedOther.isSetSnitch_class());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetSnitch_class()) {      lastComparison = TBaseHelper.compareTo(snitch_class, typedOther.snitch_class);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
     lastComparison = Boolean.valueOf(isSetCf_defs()).compareTo(typedOther.isSetCf_defs());
     if (lastComparison != 0) {
       return lastComparison;
@@ -572,13 +507,6 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
           if (field.type == TType.I32) {
             this.replication_factor = iprot.readI32();
             setReplication_factorIsSet(true);
-          } else { 
-            TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
-        case 4: // SNITCH_CLASS
-          if (field.type == TType.STRING) {
-            this.snitch_class = iprot.readString();
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -632,11 +560,6 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
     oprot.writeFieldBegin(REPLICATION_FACTOR_FIELD_DESC);
     oprot.writeI32(this.replication_factor);
     oprot.writeFieldEnd();
-    if (this.snitch_class != null) {
-      oprot.writeFieldBegin(SNITCH_CLASS_FIELD_DESC);
-      oprot.writeString(this.snitch_class);
-      oprot.writeFieldEnd();
-    }
     if (this.cf_defs != null) {
       oprot.writeFieldBegin(CF_DEFS_FIELD_DESC);
       {
@@ -678,14 +601,6 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
     sb.append(this.replication_factor);
     first = false;
     if (!first) sb.append(", ");
-    sb.append("snitch_class:");
-    if (this.snitch_class == null) {
-      sb.append("null");
-    } else {
-      sb.append(this.snitch_class);
-    }
-    first = false;
-    if (!first) sb.append(", ");
     sb.append("cf_defs:");
     if (this.cf_defs == null) {
       sb.append("null");
@@ -706,9 +621,6 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
       throw new TProtocolException("Required field 'strategy_class' was not present! Struct: " + toString());
     }
     // alas, we cannot check 'replication_factor' because it's a primitive and you chose the non-beans generator.
-    if (snitch_class == null) {
-      throw new TProtocolException("Required field 'snitch_class' was not present! Struct: " + toString());
-    }
     if (cf_defs == null) {
       throw new TProtocolException("Required field 'cf_defs' was not present! Struct: " + toString());
     }
