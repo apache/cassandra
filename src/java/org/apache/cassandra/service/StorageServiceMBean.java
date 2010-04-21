@@ -172,8 +172,8 @@ public interface StorageServiceMBean
     public void drain() throws IOException, InterruptedException, ExecutionException;
 
     /**
-     * Introduced in 0.7 to allow nodes to load their existing xml defined schemas.
+     * Introduced in 0.7 to allow nodes to load their existing yaml defined schemas.
      * @todo: deprecate in 0.7+1, remove in 0.7+2.
      */ 
-    public void loadSchemaFromXML() throws ConfigurationException, IOException;
+    public void loadSchemaFromYAML() throws ConfigurationException, IOException;
 }

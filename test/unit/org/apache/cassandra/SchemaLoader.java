@@ -28,11 +28,11 @@ public class SchemaLoader
     // todo: when xml is fully deprecated, this method should be changed to manually load a few table definitions into
     // the definitions keyspace.
     @BeforeClass
-    public static void loadSchemaFromXml()
+    public static void loadSchemaFromYaml()
     {
         try
         {
-            for (KSMetaData ksm : DatabaseDescriptor.readTablesFromXml())
+            for (KSMetaData ksm : DatabaseDescriptor.readTablesFromYaml())
                 DatabaseDescriptor.setTableDefinition(ksm, DatabaseDescriptor.getDefsVersion());
         }
         catch (ConfigurationException e)

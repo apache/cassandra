@@ -37,6 +37,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -74,7 +75,7 @@ class RowIndexedReader extends SSTableReader
     {
         super(desc, partitioner);
 
-        if (DatabaseDescriptor.getIndexAccessMode() == DatabaseDescriptor.DiskAccessMode.mmap)
+        if (DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
         {
             long indexLength = new File(indexFilename()).length();
             int bufferCount = 1 + (int) (indexLength / BUFFER_SIZE);
@@ -88,11 +89,11 @@ class RowIndexedReader extends SSTableReader
         }
         else
         {
-            assert DatabaseDescriptor.getIndexAccessMode() == DatabaseDescriptor.DiskAccessMode.standard;
+            assert DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.standard;
             indexBuffers = null;
         }
 
-        if (DatabaseDescriptor.getDiskAccessMode() == DatabaseDescriptor.DiskAccessMode.mmap)
+        if (DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap)
         {
             int bufferCount = 1 + (int) (new File(getFilename()).length() / BUFFER_SIZE);
             buffers = new MappedByteBuffer[bufferCount];
@@ -105,7 +106,7 @@ class RowIndexedReader extends SSTableReader
         }
         else
         {
-            assert DatabaseDescriptor.getDiskAccessMode() == DatabaseDescriptor.DiskAccessMode.standard;
+            assert DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.standard;
             buffers = null;
         }
 

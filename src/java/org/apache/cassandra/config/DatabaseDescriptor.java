@@ -28,23 +28,23 @@ import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.XMLUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-import org.xml.sax.SAXException;
+import org.apache.cassandra.locator.IEndpointSnitch;
 
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.transform.TransformerException;
-import javax.xml.xpath.XPathExpressionException;
+import org.yaml.snakeyaml.Loader;
+import org.yaml.snakeyaml.TypeDescription;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.error.YAMLException;
+
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
@@ -56,90 +56,38 @@ public class DatabaseDescriptor
 {
     private static Logger logger = LoggerFactory.getLogger(DatabaseDescriptor.class);
 
-    // don't capitalize these; we need them to match what's in the config file for CLS.valueOf to parse
-    public static enum CommitLogSync {
-        periodic,
-        batch
-    }
-
-    public static enum DiskAccessMode {
-        auto,
-        mmap,
-        mmap_index_only,
-        standard,
-    }
-
     public static final String random = "RANDOM";
     public static final String ophf = "OPHF";
     private static IEndpointSnitch snitch;
-    private static int storagePort = 7000;
-    private static int rpcPort = 9160;
-    private static boolean thriftFramed = false;
     private static InetAddress listenAddress; // leave null so we can fall through to getLocalHost
     private static InetAddress rpcAddress;
-    private static String clusterName = "Test";
-    private static long rpcTimeoutInMillis = 2000;
     private static Set<InetAddress> seeds = new HashSet<InetAddress>();
-    /* Keeps the list of data file directories */
-    private static String[] dataFileDirectories;
     /* Current index into the above list of directories */
     private static int currentIndex = 0;
-    private static String logFileDirectory;
     private static int consistencyThreads = 4; // not configurable
-    private static int concurrentReaders = 8;
-    private static int concurrentWriters = 32;
 
-    private static double flushDataBufferSizeInMB = 32;
-    private static double flushIndexBufferSizeInMB = 8;
-    private static int slicedReadBufferSizeInKB = 64;
 
     static Map<String, KSMetaData> tables = new HashMap<String, KSMetaData>();
-    private static int bmtThreshold = 256;
-    /* if this a row exceeds this threshold, we issue warnings during compaction */
-    private static long rowWarningThreshold = 512 * 1024 * 1024;
 
     /* Hashing strategy Random or OPHF */
     private static IPartitioner partitioner;
 
-    /* if the size of columns or super-columns are more than this, indexing will kick in */
-    private static int columnIndexSizeInKB;
-    /* Number of minutes to keep a memtable in memory */
-    private static int memtableLifetimeMs = 60 * 60 * 1000;
-    /* Size of the memtable in memory before it is dumped */
-    private static int memtableThroughput = 64;
-    /* Number of objects in millions in the memtable before it is dumped */
-    private static double memtableOperations = 0.1;
-    /* Job Jar Location */
-    private static String jobJarFileLocation;
-    /* Address where to run the job tracker */
-    private static String jobTrackerHost;    
-    /* time to wait before garbage collecting tombstones (deletion markers) */
-    private static int gcGraceInSeconds = 10 * 24 * 3600; // 10 days
-
-    // the path qualified config file (storage-conf.xml) name
+    // the path qualified config file (cassandra.yaml) name
     private static String configFileName;
-    /* initial token in the ring */
-    private static String initialToken = null;
 
-    private static CommitLogSync commitLogSync;
-    private static double commitLogSyncBatchMS;
-    private static int commitLogSyncPeriodMS;
-
-    private static DiskAccessMode diskAccessMode;
-    private static DiskAccessMode indexAccessMode;
-
-    private static boolean snapshotBeforeCompaction;
-    private static boolean autoBootstrap = false;
+    private static Config.DiskAccessMode indexAccessMode;
+    
+    private static Config conf;
 
     private static IAuthenticator authenticator = new AllowAllAuthenticator();
 
-    private final static String STORAGE_CONF_FILE = "cassandra.xml";
+    private final static String STORAGE_CONF_FILE = "cassandra.yaml";
 
     private static final UUID INITIAL_VERSION = new UUID(4096, 0); // has type nibble set to 1, everything else to zero.
     private static UUID defsVersion = INITIAL_VERSION;
 
     /**
-     * Try the storage-config system property, and then inspect the classpath.
+     * Inspect the classpath to find STORAGE_CONF_FILE.
      */
     static String getStorageConfigPath() throws ConfigurationException
     {
@@ -156,316 +104,176 @@ public class DatabaseDescriptor
     {
         try
         {
+            
             configFileName = getStorageConfigPath();
+            
             if (logger.isDebugEnabled())
                 logger.debug("Loading settings from " + configFileName);
-            XMLUtils xmlUtils = new XMLUtils(configFileName);
-
-            /* Cluster Name */
-            clusterName = xmlUtils.getNodeValue("/Storage/ClusterName");
-
-            String syncRaw = xmlUtils.getNodeValue("/Storage/CommitLogSync");
-            try
-            {
-                commitLogSync = CommitLogSync.valueOf(syncRaw);
-            }
-            catch (IllegalArgumentException e)
-            {
-                throw new ConfigurationException("CommitLogSync must be either 'periodic' or 'batch'");
-            }
-            if (commitLogSync == null)
+            
+            InputStream input = new FileInputStream(new File(configFileName));
+            org.yaml.snakeyaml.constructor.Constructor constructor = new org.yaml.snakeyaml.constructor.Constructor(Config.class);
+            TypeDescription desc = new TypeDescription(Config.class);
+            TypeDescription ksDesc = new TypeDescription(Keyspace.class);
+            ksDesc.putListPropertyType("column_families", ColumnFamily.class);
+            desc.putListPropertyType("keyspaces", Keyspace.class);
+            constructor.addTypeDescription(desc);
+            constructor.addTypeDescription(ksDesc);
+            Yaml yaml = new Yaml(new Loader(constructor));
+            conf = (Config)yaml.load(input);
+            
+            if (conf.commitlog_sync == null)
             {
                 throw new ConfigurationException("Missing required directive CommitLogSync");
             }
-            else if (commitLogSync == CommitLogSync.batch)
-            {
-                try
-                {
-                    commitLogSyncBatchMS = Double.valueOf(xmlUtils.getNodeValue("/Storage/CommitLogSyncBatchWindowInMS"));
-                }
-                catch (Exception e)
-                {
-                    throw new ConfigurationException("Unrecognized value for CommitLogSyncBatchWindowInMS.  Double expected.");
-                }
-                if (xmlUtils.getNodeValue("/Storage/CommitLogSyncPeriodInMS") != null)
-                {
-                    throw new ConfigurationException("Batch sync specified, but CommitLogSyncPeriodInMS found.  Only specify CommitLogSyncBatchWindowInMS when using batch sync.");
-                }
-                logger.debug("Syncing log with a batch window of " + commitLogSyncBatchMS);
-            }
-            else
-            {
-                assert commitLogSync == CommitLogSync.periodic;
-                try
-                {
-                    commitLogSyncPeriodMS = Integer.valueOf(xmlUtils.getNodeValue("/Storage/CommitLogSyncPeriodInMS"));
-                }
-                catch (Exception e)
-                {
-                    throw new ConfigurationException("Unrecognized value for CommitLogSyncPeriodInMS.  Integer expected.");
-                }
-                if (xmlUtils.getNodeValue("/Storage/CommitLogSyncBatchWindowInMS") != null)
-                {
-                    throw new ConfigurationException("Periodic sync specified, but CommitLogSyncBatchWindowInMS found.  Only specify CommitLogSyncPeriodInMS when using periodic sync.");
-                }
-                logger.debug("Syncing log with a period of " + commitLogSyncPeriodMS);
-            }
 
-            String modeRaw = xmlUtils.getNodeValue("/Storage/DiskAccessMode");
-            try
+            if (conf.commitlog_sync == Config.CommitLogSync.batch)
             {
-                diskAccessMode = DiskAccessMode.valueOf(modeRaw);
-            }
-            catch (IllegalArgumentException e)
-            {
-                throw new ConfigurationException("DiskAccessMode must be either 'auto', 'mmap', 'mmap_index_only', or 'standard'");
-            }
-            if (diskAccessMode == DiskAccessMode.auto)
-            {
-                diskAccessMode = System.getProperty("os.arch").contains("64") ? DiskAccessMode.mmap : DiskAccessMode.standard;
-                indexAccessMode = diskAccessMode;
-                logger.info("Auto DiskAccessMode determined to be " + diskAccessMode);
-            }
-            else if (diskAccessMode == DiskAccessMode.mmap_index_only)
-            {
-                diskAccessMode = DiskAccessMode.standard;
-                indexAccessMode = DiskAccessMode.mmap;
+                if (conf.commitlog_sync_batch_window_in_ms == null)
+                {
+                    throw new ConfigurationException("Missing value for commitlog_sync_batch_window_in_ms: Double expected.");
+                } 
+                else if (conf.commitlog_sync_period_in_ms != null)
+                {
+                    throw new ConfigurationException("Batch sync specified, but commitlog_sync_period_in_ms found. Only specify commitlog_sync_batch_window_in_ms when using batch sync");
+                }
+                logger.debug("Syncing log with a batch window of " + conf.commitlog_sync_batch_window_in_ms);
             }
             else
             {
-                indexAccessMode = diskAccessMode;
+                if (conf.commitlog_sync_period_in_ms == null)
+                {
+                    throw new ConfigurationException("Missing value for commitlog_sync_period_in_ms: Integer expected");
+                }
+                else if (conf.commitlog_sync_batch_window_in_ms != null)
+                {
+                    throw new ConfigurationException("commitlog_sync_period_in_ms specified, but commitlog_sync_batch_window_in_ms found.  Only specify commitlog_sync_period_in_ms when using periodic sync.");
+                }
+                logger.debug("Syncing log with a period of " + conf.commitlog_sync_period_in_ms);
+            }
+            
+            if (conf.disk_access_mode == Config.DiskAccessMode.auto)
+            {
+                conf.disk_access_mode = System.getProperty("os.arch").contains("64") ? Config.DiskAccessMode.mmap : Config.DiskAccessMode.standard;
+                indexAccessMode = conf.disk_access_mode;
+                logger.info("Auto DiskAccessMode determined to be " + conf.disk_access_mode);
+            }
+            else if (conf.disk_access_mode == Config.DiskAccessMode.mmap_index_only)
+            {
+                conf.disk_access_mode = Config.DiskAccessMode.standard;
+                indexAccessMode = Config.DiskAccessMode.mmap;
+            }
+            else
+            {
+                indexAccessMode = conf.disk_access_mode;
             }
 
             /* Authentication and authorization backend, implementing IAuthenticator */
-            String authenticatorClassName = xmlUtils.getNodeValue("/Storage/Authenticator");
-            if (authenticatorClassName != null)
+            if (conf.authenticator != null)
             {
                 try
                 {
-                    Class cls = Class.forName(authenticatorClassName);
+                    Class cls = Class.forName(conf.authenticator);
                     authenticator = (IAuthenticator) cls.getConstructor().newInstance();
                 }
                 catch (ClassNotFoundException e)
                 {
-                    throw new ConfigurationException("Invalid authenticator class " + authenticatorClassName);
+                    throw new ConfigurationException("Invalid authenticator class " + conf.authenticator);
                 }
             }
 
             authenticator.validateConfiguration();
             
             /* Hashing strategy */
-            String partitionerClassName = xmlUtils.getNodeValue("/Storage/Partitioner");
-            if (partitionerClassName == null)
+            if (conf.partitioner == null)
             {
-                throw new ConfigurationException("Missing partitioner directive /Storage/Partitioner");
+                throw new ConfigurationException("Missing directive: partitioner");
             }
             try
             {
-                Class cls = Class.forName(partitionerClassName);
+                Class cls = Class.forName(conf.partitioner);
                 partitioner = (IPartitioner) cls.getConstructor().newInstance();
             }
             catch (ClassNotFoundException e)
             {
-                throw new ConfigurationException("Invalid partitioner class " + partitionerClassName);
+                throw new ConfigurationException("Invalid partitioner class " + conf.partitioner);
             }
-
-            /* JobTracker address */
-            jobTrackerHost = xmlUtils.getNodeValue("/Storage/JobTrackerHost");
-
-            /* Job Jar file location */
-            jobJarFileLocation = xmlUtils.getNodeValue("/Storage/JobJarFileLocation");
-
-            String gcGrace = xmlUtils.getNodeValue("/Storage/GCGraceSeconds");
-            if ( gcGrace != null )
-                gcGraceInSeconds = Integer.parseInt(gcGrace);
-
-            initialToken = xmlUtils.getNodeValue("/Storage/InitialToken");
-
-            /* RPC Timeout */
-            String rpcTimeout = xmlUtils.getNodeValue("/Storage/RpcTimeoutInMillis");
-            if ( rpcTimeout != null )
-                rpcTimeoutInMillis = Integer.parseInt(rpcTimeout);
 
             /* Thread per pool */
-            String rawReaders = xmlUtils.getNodeValue("/Storage/ConcurrentReads");
-            if (rawReaders != null)
+            if (conf.concurrent_reads != null && conf.concurrent_reads < 2) 
             {
-                concurrentReaders = Integer.parseInt(rawReaders);
-            }
-            if (concurrentReaders < 2)
-            {
-                throw new ConfigurationException("ConcurrentReads must be at least 2");
+                throw new ConfigurationException("concurrent_reads must be at least 2");
             }
 
-            String rawWriters = xmlUtils.getNodeValue("/Storage/ConcurrentWrites");
-            if (rawWriters != null)
+            if (conf.concurrent_writes != null && conf.concurrent_writes < 2)
             {
-                concurrentWriters = Integer.parseInt(rawWriters);
+                throw new ConfigurationException("concurrent_writes must be at least 2");
             }
-            if (concurrentWriters < 2)
-            {
-                throw new ConfigurationException("ConcurrentWrites must be at least 2");
-            }
-
-            String rawFlushData = xmlUtils.getNodeValue("/Storage/FlushDataBufferSizeInMB");
-            if (rawFlushData != null)
-            {
-                flushDataBufferSizeInMB = Double.parseDouble(rawFlushData);
-            }
-            String rawFlushIndex = xmlUtils.getNodeValue("/Storage/FlushIndexBufferSizeInMB");
-            if (rawFlushIndex != null)
-            {
-                flushIndexBufferSizeInMB = Double.parseDouble(rawFlushIndex);
-            }
-
-            String rawSlicedBuffer = xmlUtils.getNodeValue("/Storage/SlicedBufferSizeInKB");
-            if (rawSlicedBuffer != null)
-            {
-                slicedReadBufferSizeInKB = Integer.parseInt(rawSlicedBuffer);
-            }
-
-            String bmtThresh = xmlUtils.getNodeValue("/Storage/BinaryMemtableThroughputInMB");
-            if (bmtThresh != null)
-            {
-                bmtThreshold = Integer.parseInt(bmtThresh);
-            }
-
-            /* TCP port on which the storage system listens */
-            String port = xmlUtils.getNodeValue("/Storage/StoragePort");
-            if ( port != null )
-                storagePort = Integer.parseInt(port);
-
+            
             /* Local IP or hostname to bind services to */
-            String listenAddr = xmlUtils.getNodeValue("/Storage/ListenAddress");
-            if (listenAddr != null)
+            if (conf.listen_address != null)
             {
-                if (listenAddr.equals("0.0.0.0"))
-                    throw new ConfigurationException("ListenAddress must be a single interface.  See http://wiki.apache.org/cassandra/FAQ#cant_listen_on_ip_any");
+                if (conf.listen_address.equals("0.0.0.0"))
+                {
+                    throw new ConfigurationException("listen_address must be a single interface.  See http://wiki.apache.org/cassandra/FAQ#cant_listen_on_ip_any");
+                }
+                
                 try
                 {
-                    listenAddress = InetAddress.getByName(listenAddr);
+                    listenAddress = InetAddress.getByName(conf.listen_address);
                 }
                 catch (UnknownHostException e)
                 {
-                    throw new ConfigurationException("Unknown ListenAddress '" + listenAddr + "'");
+                    throw new ConfigurationException("Unknown listen_address '" + conf.listen_address + "'");
                 }
             }
-
+            
             /* Local IP or hostname to bind RPC server to */
-            String rpcAddr = xmlUtils.getNodeValue("/Storage/RPCAddress");
-            if ( rpcAddr != null )
-                rpcAddress = InetAddress.getByName(rpcAddr);
-
-
-            /* get the RPC port from conf file */
-            port = xmlUtils.getNodeValue("/Storage/RPCPort");
-            if (port != null)
-                rpcPort = Integer.parseInt(port);
-
-            /* Framed (Thrift) transport (default to "no") */
-            String framedRaw = xmlUtils.getNodeValue("/Storage/ThriftFramedTransport");
-            if (framedRaw != null)
-            {
-                if (framedRaw.equalsIgnoreCase("true") || framedRaw.equalsIgnoreCase("false"))
-                {
-                    thriftFramed = Boolean.valueOf(framedRaw);
-                }
-                else
-                {
-                    throw new ConfigurationException("Unrecognized value for ThriftFramedTransport.  Use 'true' or 'false'.");
-                }
-            }
-
+            if (conf.rpc_address != null)
+                rpcAddress = InetAddress.getByName(conf.rpc_address);
+            
             /* end point snitch */
-            String endpointSnitchClassName = xmlUtils.getNodeValue("/Storage/EndpointSnitch");
-            if (endpointSnitchClassName == null)
+            if (conf.endpoint_snitch == null)
             {
-                throw new ConfigurationException("Missing endpointsnitch directive");
+                throw new ConfigurationException("Missing endpoint_snitch directive");
             }
-            snitch = createEndpointSnitch(endpointSnitchClassName);
-
-            /* snapshot-before-compaction.  defaults to false */
-            String sbc = xmlUtils.getNodeValue("/Storage/SnapshotBeforeCompaction");
-            if (sbc != null)
+            snitch = createEndpointSnitch(conf.endpoint_snitch);
+            
+            if (logger.isDebugEnabled() && conf.auto_bootstrap != null)
             {
-                if (sbc.equalsIgnoreCase("true") || sbc.equalsIgnoreCase("false"))
-                {
-                    if (logger.isDebugEnabled())
-                        logger.debug("setting snapshotBeforeCompaction to " + sbc);
-                    snapshotBeforeCompaction = Boolean.valueOf(sbc);
-                }
-                else
-                {
-                    throw new ConfigurationException("Unrecognized value for SnapshotBeforeCompaction.  Use 'true' or 'false'.");
-                }
+                logger.debug("setting auto_bootstrap to " + conf.auto_bootstrap);
             }
-
-            /* snapshot-before-compaction.  defaults to false */
-            String autoBootstr = xmlUtils.getNodeValue("/Storage/AutoBootstrap");
-            if (autoBootstr != null)
-            {
-                if (autoBootstr.equalsIgnoreCase("true") || autoBootstr.equalsIgnoreCase("false"))
-                {
-                    if (logger.isDebugEnabled())
-                        logger.debug("setting autoBootstrap to " + autoBootstr);
-                    autoBootstrap = Boolean.valueOf(autoBootstr);
-                }
-                else
-                {
-                    throw new ConfigurationException("Unrecognized value for AutoBootstrap.  Use 'true' or 'false'.");
-                }
-            }
-
-            /* Number of days to keep the memtable around w/o flushing */
-            String lifetime = xmlUtils.getNodeValue("/Storage/MemtableFlushAfterMinutes");
-            if (lifetime != null)
-                memtableLifetimeMs = Integer.parseInt(lifetime) * 60 * 1000;
-
-            /* Size of the memtable in memory in MB before it is dumped */
-            String memtableSize = xmlUtils.getNodeValue("/Storage/MemtableThroughputInMB");
-            if ( memtableSize != null )
-                memtableThroughput = Integer.parseInt(memtableSize);
+            
             /* Number of objects in millions in the memtable before it is dumped */
-            String memtableObjectCount = xmlUtils.getNodeValue("/Storage/MemtableOperationsInMillions");
-            if ( memtableObjectCount != null )
-                memtableOperations = Double.parseDouble(memtableObjectCount);
-            if (memtableOperations <= 0)
+            if (conf.memtable_operations_in_millions != null && conf.memtable_operations_in_millions <= 0)
             {
-                throw new ConfigurationException("Memtable object count must be a positive double");
+                throw new ConfigurationException("memtable_operations_in_millions must be a positive double");
             }
-
-            /* read the size at which we should do column indexes */
-            String columnIndexSize = xmlUtils.getNodeValue("/Storage/ColumnIndexSizeInKB");
-            if(columnIndexSize == null)
+            
+            if (conf.row_warning_threshold_in_mb != null && conf.row_warning_threshold_in_mb <= 0)
             {
-                columnIndexSizeInKB = 64;
+                throw new ConfigurationException("row_warning_threshold_in_mb must be a positive integer");
+            }
+            
+            /* data file and commit log directories. they get created later, when they're needed. */
+            if (conf.commitlog_directory != null && conf.data_file_directories != null)
+            {
+                for (String datadir : conf.data_file_directories)
+                {
+                    if (datadir.equals(conf.commitlog_directory))
+                        throw new ConfigurationException("commitlog_directory must not be the same as any data_file_directories");
+                }
             }
             else
             {
-                columnIndexSizeInKB = Integer.parseInt(columnIndexSize);
-            }
-
-            String rowWarning = xmlUtils.getNodeValue("/Storage/RowWarningThresholdInMB");
-            if (rowWarning != null)
-            {
-                rowWarningThreshold = Long.parseLong(rowWarning) * 1024 * 1024;
-                if (rowWarningThreshold <= 0)
-                    throw new ConfigurationException("Row warning threshold must be a positive integer");
-            }
-            /* data file and commit log directories. they get created later, when they're needed. */
-            dataFileDirectories = xmlUtils.getNodeValues("/Storage/DataFileDirectories/DataFileDirectory");
-            logFileDirectory = xmlUtils.getNodeValue("/Storage/CommitLogDirectory");
-
-            for (String datadir : dataFileDirectories)
-            {
-                if (datadir.equals(logFileDirectory))
-                    throw new ConfigurationException("CommitLogDirectory must not be the same as any DataFileDirectory");
+                if (conf.commitlog_directory == null)
+                    throw new ConfigurationException("commitlog_directory missing");
+                if (conf.data_file_directories == null)
+                    throw new ConfigurationException("data_file_directories missing; at least one data directory must be specified");
             }
 
             /* threshold after which commit log should be rotated. */
-            String value = xmlUtils.getNodeValue("/Storage/CommitLogRotationThresholdInMB");
-            if ( value != null)
-                CommitLog.setSegmentSize(Integer.parseInt(value) * 1024 * 1024);
+            if (conf.commitlog_rotation_threshold_in_mb != null)
+                CommitLog.setSegmentSize(conf.commitlog_rotation_threshold_in_mb * 1024 * 1024);
 
             // Hardcoded system tables
             final CFMetaData[] systemCfDefs = new CFMetaData[]
@@ -502,17 +310,22 @@ public class DatabaseDescriptor
             CFMetaData.fixMaxId();
             
             /* Load the seeds for node contact points */
-            String[] seedsxml = xmlUtils.getNodeValues("/Storage/Seeds/Seed");
-            if (seedsxml.length <= 0)
+            if (conf.seeds == null || conf.seeds.length <= 0)
             {
-                throw new ConfigurationException("A minimum of one seed is required.");
+                throw new ConfigurationException("seeds missing; a minimum of one seed is required.");
             }
-            for( int i = 0; i < seedsxml.length; ++i )
+            for( int i = 0; i < conf.seeds.length; ++i )
             {
-                seeds.add(InetAddress.getByName(seedsxml[i]));
+                seeds.add(InetAddress.getByName(conf.seeds[i]));
             }
         }
         catch (ConfigurationException e)
+        {
+            logger.error("Fatal error: " + e.getMessage());
+            System.err.println("Bad configuration; unable to start server");
+            System.exit(1);
+        }
+        catch (YAMLException e)
         {
             logger.error("Fatal error: " + e.getMessage());
             System.err.println("Bad configuration; unable to start server");
@@ -565,7 +378,7 @@ public class DatabaseDescriptor
         }
         return snitch;
     }
-
+    
     public static void loadSchemas() throws IOException
     {
         // we can load tables from local storage if a version is set in the system table and that acutally maps to
@@ -586,192 +399,98 @@ public class DatabaseDescriptor
             }
             
             // since we loaded definitions from local storage, log a warning if definitions exist in xml.
-            try
-            {
-                XMLUtils xmlUtils = new XMLUtils(configFileName);
-                NodeList tablesxml = xmlUtils.getRequestedNodeList("/Storage/Keyspaces/Keyspace");
-                if (tablesxml.getLength() > 0)
-                    logger.warn("Schema definitions were defined both locally and in storage-conf.xml. Definitions in storage-conf.xml were ignored.");
-            }
-            catch (Exception ex)
-            {
-                logger.warn("Problem checking for schema defintions in xml", ex);
-            }
+            
+            if (conf.keyspaces.size() > 0)
+                logger.warn("Schema definitions were defined both locally and in " + STORAGE_CONF_FILE +
+                    ". Definitions in " + STORAGE_CONF_FILE + " were ignored.");
+            
         }
         CFMetaData.fixMaxId();
     }
 
     /** reads xml. doesn't populate any internal structures. */
-    public static Collection<KSMetaData> readTablesFromXml() throws ConfigurationException
+    public static Collection<KSMetaData> readTablesFromYaml() throws ConfigurationException
     {
         List<KSMetaData> defs = new ArrayList<KSMetaData>();
-        XMLUtils xmlUtils = null;
-        try
-        {
-            xmlUtils = new XMLUtils(configFileName);
-        }
-        catch (ParserConfigurationException e)
-        {
-            ConfigurationException ex = new ConfigurationException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
-        catch (SAXException e)
-        {
-            ConfigurationException ex = new ConfigurationException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
-        catch (IOException e)
-        {
-            ConfigurationException ex = new ConfigurationException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
-
+        
+        
         /* Read the table related stuff from config */
-        try
+        for (Keyspace keyspace : conf.keyspaces)
         {
-            NodeList tablesxml = xmlUtils.getRequestedNodeList("/Storage/Keyspaces/Keyspace");
-            int size = tablesxml.getLength();
-            for ( int i = 0; i < size; ++i )
+            /* parsing out the table name */
+            if (keyspace.name == null)
             {
-                String value = null;
-                Node table = tablesxml.item(i);
-
-                /* parsing out the table ksName */
-                String ksName = XMLUtils.getAttributeValue(table, "Name");
-                if (ksName == null)
-                {
-                    throw new ConfigurationException("Table name attribute is required");
-                }
-                if (ksName.equalsIgnoreCase(Table.SYSTEM_TABLE))
-                {
-                    throw new ConfigurationException("'system' is a reserved table name for Cassandra internals");
-                }
-
-                /* See which replica placement strategy to use */
-                value = xmlUtils.getNodeValue("/Storage/Keyspaces/Keyspace[@Name='" + ksName + "']/ReplicaPlacementStrategy");
-                if (value == null)
-                {
-                    throw new ConfigurationException("Missing replicaplacementstrategy directive for " + ksName);
-                }
-                Class<? extends AbstractReplicationStrategy> strategyClass = null;
-                try
-                {
-                    strategyClass = (Class<? extends AbstractReplicationStrategy>) Class.forName(value);
-                }
-                catch (ClassNotFoundException e)
-                {
-                    throw new ConfigurationException("Invalid replicaplacementstrategy class " + value);
-                }
-
-                /* Data replication factor */
-                value = xmlUtils.getNodeValue("/Storage/Keyspaces/Keyspace[@Name='" + ksName + "']/ReplicationFactor");
-                int replicationFactor = -1;
-                if (value == null)
-                    throw new ConfigurationException("Missing replicationfactor directory for keyspace " + ksName);
-                else
-                {
-                    replicationFactor = Integer.parseInt(value);
-                }
-
-                String xqlTable = "/Storage/Keyspaces/Keyspace[@Name='" + ksName + "']/";
-                NodeList columnFamilies = xmlUtils.getRequestedNodeList(xqlTable + "ColumnFamily");
-
-                //NodeList columnFamilies = xmlUtils.getRequestedNodeList(table, "ColumnFamily");
-                int size2 = columnFamilies.getLength();
-                CFMetaData[] cfDefs = new CFMetaData[size2];
-                for ( int j = 0; j < size2; ++j )
-                {
-                    Node columnFamily = columnFamilies.item(j);
-                    String tableName = ksName;
-                    String cfName = XMLUtils.getAttributeValue(columnFamily, "Name");
-                    if (cfName == null)
-                    {
-                        throw new ConfigurationException("ColumnFamily name attribute is required");
-                    }
-                    if (cfName.contains("-"))
-                    {
-                        throw new ConfigurationException("ColumnFamily names cannot contain hyphens");
-                    }
-                    String xqlCF = xqlTable + "ColumnFamily[@Name='" + cfName + "']/";
-
-                    // Parse out the column type
-                    String rawColumnType = XMLUtils.getAttributeValue(columnFamily, "ColumnType");
-                    String columnType = ColumnFamily.getColumnType(rawColumnType);
-                    if (columnType == null)
-                    {
-                        throw new ConfigurationException("ColumnFamily " + cfName + " has invalid type " + rawColumnType);
-                    }
-
-                    if (XMLUtils.getAttributeValue(columnFamily, "ColumnSort") != null)
-                    {
-                        throw new ConfigurationException("ColumnSort is no longer an accepted attribute.  Use CompareWith instead.");
-                    }
-
-                    // Parse out the column comparator
-                    AbstractType comparator = getComparator(XMLUtils.getAttributeValue(columnFamily, "CompareWith"));
-                    AbstractType subcolumnComparator = null;
-                    if (columnType.equals("Super"))
-                    {
-                        subcolumnComparator = getComparator(XMLUtils.getAttributeValue(columnFamily, "CompareSubcolumnsWith"));
-                    }
-                    else if (XMLUtils.getAttributeValue(columnFamily, "CompareSubcolumnsWith") != null)
-                    {
-                        throw new ConfigurationException("CompareSubcolumnsWith is only a valid attribute on super columnfamilies (not regular columnfamily " + cfName + ")");
-                    }
-
-                    double keyCacheSize = CFMetaData.DEFAULT_KEY_CACHE_SIZE;
-                    if ((value = XMLUtils.getAttributeValue(columnFamily, "KeysCachedFraction")) != null)
-                    {
-                        keyCacheSize = Double.valueOf(value);
-                        // TODO: KeysCachedFraction deprecated: remove in 1.0
-                        logger.warn("KeysCachedFraction is deprecated: use KeysCached instead.");
-                    }
-                    if ((value = XMLUtils.getAttributeValue(columnFamily, "KeysCached")) != null)
-                    {
-                        keyCacheSize = FBUtilities.parseDoubleOrPercent(value);
-                    }
-
-                    double rowCacheSize = CFMetaData.DEFAULT_ROW_CACHE_SIZE;
-                    if ((value = XMLUtils.getAttributeValue(columnFamily, "RowsCached")) != null)
-                    {
-                        rowCacheSize = FBUtilities.parseDoubleOrPercent(value);
-                    }
-
-                    double readRepairChance = CFMetaData.DEFAULT_READ_REPAIR_CHANCE;
-                    if ((value = XMLUtils.getAttributeValue(columnFamily, "ReadRepairChance")) != null)
-                    {
-                        readRepairChance = FBUtilities.parseDoubleOrPercent(value);
-                        if (readRepairChance < 0.0 || readRepairChance > 1.0)
-                        {                        
-                            throw new ConfigurationException("ReadRepairChance must be between 0.0 and 1.0");
-                        }
-                    }
-
-                    // Parse out user-specified logical names for the various dimensions
-                    // of a the column family from the config.
-                    String comment = xmlUtils.getNodeValue(xqlCF + "Comment");
-
-                    // insert it into the table dictionary.
-                    cfDefs[j] = new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize, readRepairChance);
-                }
-                defs.add(new KSMetaData(ksName, strategyClass, replicationFactor, cfDefs));
+                throw new ConfigurationException("Keyspace name attribute is required");
             }
+            
+            if (keyspace.name.equalsIgnoreCase(Table.SYSTEM_TABLE))
+            {
+                throw new ConfigurationException("'system' is a reserved table name for Cassandra internals");
+            }
+            
+            /* See which replica placement strategy to use */
+            if (keyspace.replica_placement_strategy == null)
+            {
+                throw new ConfigurationException("Missing replica_placement_strategy directive for " + keyspace.name);
+            }
+            Class<? extends AbstractReplicationStrategy> strategyClass = null;
+            try
+            {
+                strategyClass = (Class<? extends AbstractReplicationStrategy>) Class.forName(keyspace.replica_placement_strategy);
+            }
+            catch (ClassNotFoundException e)
+            {
+                throw new ConfigurationException("Invalid replicaplacementstrategy class " + keyspace.replica_placement_strategy);
+            }
+            
+            /* Data replication factor */
+            if (keyspace.replication_factor == null)
+            {
+                throw new ConfigurationException("Missing replication_factor directory for keyspace " + keyspace.name);
+            }
+            
+            int size2 = keyspace.column_families.length;
+            CFMetaData[] cfDefs = new CFMetaData[size2];
+            int j = 0;
+            for (ColumnFamily cf : keyspace.column_families)
+            {
+                if (cf.name == null)
+                {
+                    throw new ConfigurationException("ColumnFamily name attribute is required");
+                }
+                if (cf.name.contains("-"))
+                {
+                    throw new ConfigurationException("ColumnFamily names cannot contain hyphens");
+                }
+                
+                String columnType = org.apache.cassandra.db.ColumnFamily.getColumnType(cf.column_type);
+                if (columnType == null)
+                {
+                    throw new ConfigurationException("ColumnFamily " + cf.name + " has invalid type " + cf.column_type);
+                }
+                
+                // Parse out the column comparator
+                AbstractType comparator = getComparator(cf.compare_with);
+                AbstractType subcolumnComparator = null;
+                if (columnType.equals("Super"))
+                {
+                    subcolumnComparator = getComparator(cf.compare_subcolumns_with);
+                }
+                else if (cf.compare_subcolumns_with != null)
+                {
+                    throw new ConfigurationException("compare_subcolumns_with is only a valid attribute on super columnfamilies (not regular columnfamily " + cf.name + ")");
+                }
+                
+                if (cf.read_repair_chance < 0.0 || cf.read_repair_chance > 1.0)
+                {                        
+                    throw new ConfigurationException("read_repair_chance must be between 0.0 and 1.0");
+                }
+                cfDefs[j++] = new CFMetaData(keyspace.name, cf.name, columnType, comparator, subcolumnComparator, cf.comment, cf.rows_cached, cf.keys_cached, cf.read_repair_chance);
+            }
+            defs.add(new KSMetaData(keyspace.name, strategyClass, keyspace.replication_factor, cfDefs));
+            
         }
-        catch (XPathExpressionException e)
-        {
-            ConfigurationException ex = new ConfigurationException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
-        catch (TransformerException e)
-        {
-            ConfigurationException ex = new ConfigurationException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
+
         return defs;
     }
 
@@ -782,7 +501,7 @@ public class DatabaseDescriptor
 
     public static boolean isThriftFramed()
     {
-        return thriftFramed;
+        return conf.thrift_framed_transport;
     }
 
     public static AbstractType getComparator(String compareWith) throws ConfigurationException
@@ -843,17 +562,17 @@ public class DatabaseDescriptor
     public static void createAllDirectories() throws IOException
     {
         try {
-            if (dataFileDirectories.length == 0)
+            if (conf.data_file_directories.length == 0)
             {
                 throw new ConfigurationException("At least one DataFileDirectory must be specified");
             }
-            for ( String dataFileDirectory : dataFileDirectories )
+            for ( String dataFileDirectory : conf.data_file_directories )
                 FileUtils.createDirectory(dataFileDirectory);
-            if (logFileDirectory == null)
+            if (conf.commitlog_directory == null)
             {
-                throw new ConfigurationException("CommitLogDirectory must be specified");
+                throw new ConfigurationException("commitlog_directory must be specified");
             }
-            FileUtils.createDirectory(logFileDirectory);
+            FileUtils.createDirectory(conf.commitlog_directory);
         }
         catch (ConfigurationException ex) {
             logger.error("Fatal error: " + ex.getMessage());
@@ -864,7 +583,7 @@ public class DatabaseDescriptor
 
     public static int getGcGraceInSeconds()
     {
-        return gcGraceInSeconds;
+        return conf.gc_grace_seconds;
     }
 
     public static IPartitioner getPartitioner()
@@ -887,37 +606,37 @@ public class DatabaseDescriptor
     
     public static String getJobTrackerAddress()
     {
-        return jobTrackerHost;
+        return conf.job_tracker_host;
     }
     
     public static int getColumnIndexSize()
     {
-    	return columnIndexSizeInKB * 1024;
+    	return conf.column_index_size_in_kb * 1024;
     }
 
     public static int getMemtableLifetimeMS()
     {
-      return memtableLifetimeMs;
+      return conf.memtable_flush_after_mins * 60 * 1000;
     }
 
     public static String getInitialToken()
     {
-      return initialToken;
+      return conf.initial_token;
     }
 
     public static int getMemtableThroughput()
     {
-      return memtableThroughput;
+      return conf.memtable_throughput_in_mb;
     }
 
     public static double getMemtableOperations()
     {
-      return memtableOperations;
+      return conf.memtable_operations_in_millions;
     }
 
     public static String getClusterName()
     {
-        return clusterName;
+        return conf.cluster_name;
     }
 
     public static String getConfigFileName() {
@@ -926,7 +645,7 @@ public class DatabaseDescriptor
 
     public static String getJobJarLocation()
     {
-        return jobJarFileLocation;
+        return conf.job_jar_file_location;
     }
     
     public static Map<String, CFMetaData> getTableMetaData(String tableName)
@@ -976,12 +695,12 @@ public class DatabaseDescriptor
 
     public static int getStoragePort()
     {
-        return storagePort;
+        return conf.storage_port;
     }
 
     public static int getRpcPort()
     {
-        return rpcPort;
+        return conf.rpc_port;
     }
 
     public static int getReplicationFactor(String table)
@@ -996,7 +715,7 @@ public class DatabaseDescriptor
 
     public static long getRpcTimeout()
     {
-        return rpcTimeoutInMillis;
+        return conf.rpc_timeout_in_ms;
     }
 
     public static int getConsistencyThreads()
@@ -1006,22 +725,22 @@ public class DatabaseDescriptor
 
     public static int getConcurrentReaders()
     {
-        return concurrentReaders;
+        return conf.concurrent_reads;
     }
 
     public static int getConcurrentWriters()
     {
-        return concurrentWriters;
+        return conf.concurrent_writes;
     }
 
     public static long getRowWarningThreshold()
     {
-        return rowWarningThreshold;
+        return conf.row_warning_threshold_in_mb * 1024 * 1024;
     }
     
     public static String[] getAllDataFileLocations()
     {
-        return dataFileDirectories;
+        return conf.data_file_directories;
     }
 
     /**
@@ -1033,11 +752,11 @@ public class DatabaseDescriptor
      */
     public static String[] getAllDataFileLocationsForTable(String table)
     {
-        String[] tableLocations = new String[dataFileDirectories.length];
+        String[] tableLocations = new String[conf.data_file_directories.length];
 
-        for (int i = 0; i < dataFileDirectories.length; i++)
+        for (int i = 0; i < conf.data_file_directories.length; i++)
         {
-            tableLocations[i] = dataFileDirectories[i] + File.separator + table;
+            tableLocations[i] = conf.data_file_directories[i] + File.separator + table;
         }
 
         return tableLocations;
@@ -1045,14 +764,14 @@ public class DatabaseDescriptor
 
     public synchronized static String getNextAvailableDataLocation()
     {
-        String dataFileDirectory = dataFileDirectories[currentIndex];
-        currentIndex = (currentIndex + 1) % dataFileDirectories.length;
+        String dataFileDirectory = conf.data_file_directories[currentIndex];
+        currentIndex = (currentIndex + 1) % conf.data_file_directories.length;
         return dataFileDirectory;
     }
 
     public static String getLogFileLocation()
     {
-        return logFileDirectory;
+        return conf.commitlog_directory;
     }
 
     public static Set<InetAddress> getSeeds()
@@ -1183,60 +902,60 @@ public class DatabaseDescriptor
 
     public static double getCommitLogSyncBatchWindow()
     {
-        return commitLogSyncBatchMS;
+        return conf.commitlog_sync_batch_window_in_ms;
     }
 
     public static int getCommitLogSyncPeriod() {
-        return commitLogSyncPeriodMS;
+        return conf.commitlog_sync_period_in_ms;
     }
 
-    public static CommitLogSync getCommitLogSync()
+    public static Config.CommitLogSync getCommitLogSync()
     {
-        return commitLogSync;
+        return conf.commitlog_sync;
     }
 
-    public static DiskAccessMode getDiskAccessMode()
+    public static Config.DiskAccessMode getDiskAccessMode()
     {
-        return diskAccessMode;
+        return conf.disk_access_mode;
     }
 
-    public static DiskAccessMode getIndexAccessMode()
+    public static Config.DiskAccessMode getIndexAccessMode()
     {
         return indexAccessMode;
     }
 
     public static double getFlushDataBufferSizeInMB()
     {
-        return flushDataBufferSizeInMB;
+        return conf.flush_data_buffer_size_in_mb;
     }
 
     public static double getFlushIndexBufferSizeInMB()
     {
-        return flushIndexBufferSizeInMB;
+        return conf.flush_index_buffer_size_in_mb;
     }
 
     public static int getIndexedReadBufferSizeInKB()
     {
-        return columnIndexSizeInKB;
+        return conf.column_index_size_in_kb;
     }
 
     public static int getSlicedReadBufferSizeInKB()
     {
-        return slicedReadBufferSizeInKB;
+        return conf.sliced_buffer_size_in_kb;
     }
 
     public static int getBMTThreshold()
     {
-        return bmtThreshold;
+        return conf.binary_memtable_throughput_in_mb;
     }
 
     public static boolean isSnapshotBeforeCompaction()
     {
-        return snapshotBeforeCompaction;
+        return conf.snapshot_before_compaction;
     }
 
     public static boolean isAutoBootstrap()
     {
-        return autoBootstrap;
+        return conf.auto_bootstrap;
     }
 }

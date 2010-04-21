@@ -1576,16 +1576,16 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     }
 
     /**
-     * load schema from xml. This can only be done on a fresh system.
+     * load schema from yaml. This can only be done on a fresh system.
      * @throws ConfigurationException
      * @throws IOException
      */
-    public void loadSchemaFromXML() throws ConfigurationException, IOException
+    public void loadSchemaFromYAML() throws ConfigurationException, IOException
     { 
         // blow up if there is a schema saved.
         if (DatabaseDescriptor.getDefsVersion().timestamp() > 0 || Migration.getLastMigrationId() != null)
             throw new ConfigurationException("Cannot load from XML on top of pre-existing schemas.");
-        for (KSMetaData table : DatabaseDescriptor.readTablesFromXml())
+        for (KSMetaData table : DatabaseDescriptor.readTablesFromYaml())
             new AddKeyspace(table).apply();
         
         assert DatabaseDescriptor.getDefsVersion().timestamp() > 0;

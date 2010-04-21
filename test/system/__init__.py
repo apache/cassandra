@@ -80,7 +80,7 @@ class BaseTester(object):
 
             # clean out old stuff
             import shutil
-            # todo get directories from conf/storage-conf.xml
+            # todo get directories from conf/cassandra.yaml
             for dirname in ['system', 'data', 'commitlog']:
                 try:
                     shutil.rmtree('build/test/cassandra/' + dirname)

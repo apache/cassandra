@@ -59,7 +59,7 @@ public class TestRingCache
     }
 
     /**
-     * usage: java -Dstorage-config="confpath" org.apache.cassandra.client.TestRingCache [keyspace row-id-prefix row-id-int]
+     * usage: java -cp <configpath> org.apache.cassandra.client.TestRingCache [keyspace row-id-prefix row-id-int]
      * to test a single keyspace/row, use the parameters. row-id-prefix and row-id-int are appended together to form a
      * single row id.  If you supply now parameters, 'Keyspace1' is assumed and will check 9 rows ('row1' through 'row9').
      * @param args

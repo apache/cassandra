@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.DecoratedKey;
 
 public class IndexSummary
@@ -42,7 +43,7 @@ public class IndexSummary
 
     public void maybeAddEntry(DecoratedKey decoratedKey, long dataPosition, long dataSize, long indexPosition, long nextIndexPosition)
     {
-        boolean spannedIndexEntry = DatabaseDescriptor.getIndexAccessMode() == DatabaseDescriptor.DiskAccessMode.mmap
+        boolean spannedIndexEntry = DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap
                                     && RowIndexedReader.bufferIndex(indexPosition) != RowIndexedReader.bufferIndex(nextIndexPosition);
         if (keysWritten++ % INDEX_INTERVAL == 0 || spannedIndexEntry)
         {

@@ -22,6 +22,7 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.RowMutation;
@@ -117,7 +118,7 @@ public class CommitLog
         // All we need to do is create a new one.
         segments.add(new CommitLogSegment());
         
-        if (DatabaseDescriptor.getCommitLogSync() == DatabaseDescriptor.CommitLogSync.periodic)
+        if (DatabaseDescriptor.getCommitLogSync() == Config.CommitLogSync.periodic)
         {
             final Runnable syncer = new WrappedRunnable()
             {

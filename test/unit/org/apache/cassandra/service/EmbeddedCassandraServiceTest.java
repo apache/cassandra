@@ -72,10 +72,8 @@ public class EmbeddedCassandraServiceTest
     public static void setup() throws TTransportException, IOException, InterruptedException, ConfigurationException
     {
 
-        // Tell cassandra where the configuration files are.
-        // Use the test configuration file.
-        System.setProperty("storage-config", "test/conf");
-        for (KSMetaData table : DatabaseDescriptor.readTablesFromXml())
+        // Manually load tables from the test configuration file.
+        for (KSMetaData table : DatabaseDescriptor.readTablesFromYaml())
             DatabaseDescriptor.setTableDefinition(table, DatabaseDescriptor.getDefsVersion());
 
         cassandra = new EmbeddedCassandraService();

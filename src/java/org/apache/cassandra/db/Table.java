@@ -30,6 +30,7 @@ import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.dht.Range;
@@ -238,7 +239,7 @@ public class Table
     private Table(String table)
     {
         name = table;
-        waitForCommitLog = DatabaseDescriptor.getCommitLogSync() == DatabaseDescriptor.CommitLogSync.batch;
+        waitForCommitLog = DatabaseDescriptor.getCommitLogSync() == Config.CommitLogSync.batch;
         // create data directories.
         for (String dataDir : DatabaseDescriptor.getAllDataFileLocations())
         {

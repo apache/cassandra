@@ -36,7 +36,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * An embedded, in-memory cassandra storage service that listens
- * on the thrift interface as configured in storage-conf.xml
+ * on the thrift interface as configured in cassandra.yaml
  * This kind of service is useful when running unit tests of
  * services using cassandra for example.
  *
@@ -48,8 +48,6 @@ import org.slf4j.LoggerFactory;
  * In the client code create a new thread and spawn it with its {@link Thread#start()} method.
  * Example:
  * <pre>
- *      // Tell cassandra where the configuration files are.
-        System.setProperty("storage-config", "conf");
 
         cassandra = new EmbeddedCassandraService();
         cassandra.init();

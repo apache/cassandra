@@ -85,11 +85,4 @@ public class XMLUtils
 		}
 		return value;
 	}
-
-    public static void main(String[] args) throws Throwable
-    {
-        XMLUtils xmlUtils = new XMLUtils("C:\\Engagements\\Cassandra-Golden\\storage-conf.xml");
-        String[] value = xmlUtils.getNodeValues("/Storage/Seeds/Seed");
-        System.out.println(value);
-    }
 }
