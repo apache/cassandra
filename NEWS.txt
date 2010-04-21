@@ -14,6 +14,10 @@ Configuraton
 ------------
     - Configuration file renamed to cassandra.yaml and log4j.properties to
       log4j-server.properties
+    - Added 'bin/config-converter' to convert existing storage-conf.xml or
+      cassandra.xml files to a cassandra.yaml file. When executed, it will
+      create a cassandra.yaml file in any directory containing a matching
+      xml file.
     - The ThriftAddress and ThriftPort directives have been renamed to
       RPCAddress and RPCPort respectively.
     - The keyspaces defined in cassandra.yaml are ignored on startup as a
