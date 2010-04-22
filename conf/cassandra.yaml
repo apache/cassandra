@@ -99,13 +99,22 @@ rpc_timeout_in_ms: 5000
 # time to wait before garbage collecting tombstones (deletion markers)
 gc_grace_seconds: 864000
 
+# endpoint_snitch -- Set this to a class that implements
+# IEndpointSnitch, which will let Cassandra know enough
+# about your network topology to route requests efficiently.
+# Out of the box, Cassandra provides
+# org.apache.cassandra.locator.SimpleSnitch,
+# org.apache.cassandra.locator.RackInferringSnitch, and
+# org.apache.cassandra.locator.PropertyFileSnitch.
+endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
+
 # A ColumnFamily is the Cassandra concept closest to a relational table. 
 # Keyspaces are separate groups of ColumnFamilies. 
 # Except in very unusual circumstances you will have one Keyspace per application. 
 #
-# keyspace required parameters: name, replica_replacement_strategy, replication_factor, and endpoint_snitch
+# keyspace required parameters: name, replica_replacement_strategy, and replication_factor
 #
-# name -- name of the keyspace; "system" is reserved for Cassandra Internals.
+# name -- name of the keyspace; "system" and "definitions" are reserved for Cassandra Internals.
 #
 # replica_placement_strategy -- Strategy: Setting this to the class that implements
 # IReplicaPlacementStrategy will change the way the node picker works.
@@ -117,13 +126,6 @@ gc_grace_seconds: 864000
 #
 # replication_factor -- Number of replicas of the data
 #
-# endpoint_snitch -- Setting this to the class that implements
-# AbstractEndpointSnitch, which lets Cassandra know enough
-# about your network topology to route requests efficiently.
-# Out of the box, Cassandra provides org.apache.cassandra.locator.EndPointSnitch,
-# and PropertyFileEndPointSnitch is available in contrib/.
-#
-# 
 # column_families -- column families associated with this keyspace
 #
 # compare_with -- tells Cassandra how to sort the columns for slicing operations. The default is BytesType, 
@@ -154,7 +156,6 @@ keyspaces:
     - name: Keyspace1
       replica_placement_strategy: org.apache.cassandra.locator.RackUnawareStrategy
       replication_factor: 1
-      endpoint_snitch: org.apache.cassandra.locator.EndPointSnitch
       column_families:
         - name: Standard1
           compare_with: BytesType
