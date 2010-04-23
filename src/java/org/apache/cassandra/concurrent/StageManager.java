@@ -49,6 +49,8 @@ public class StageManager
     private static final String LOADBALANCE_STAGE = "LOAD-BALANCER-STAGE";
     public static final String MIGRATION_STAGE = "MIGRATION-STAGE";
 
+    public static final long KEEPALIVE = 60; // seconds to keep "extra" threads alive for when idle
+
     static
     {
         stages.put(MUTATION_STAGE, multiThreadedStage(MUTATION_STAGE, getConcurrentWriters()));
@@ -70,7 +72,7 @@ public class StageManager
 
         return new JMXEnabledThreadPoolExecutor(numThreads,
                                                 numThreads,
-                                                Integer.MAX_VALUE,
+                                                KEEPALIVE,
                                                 TimeUnit.SECONDS,
                                                 new LinkedBlockingQueue<Runnable>(DatabaseDescriptor.getStageQueueSize()),
                                                 new NamedThreadFactory(name));

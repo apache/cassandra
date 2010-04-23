@@ -139,7 +139,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     /* This thread pool does consistency checks when the client doesn't care about consistency */
     private ExecutorService consistencyManager_ = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getConsistencyThreads(),
                                                                                    DatabaseDescriptor.getConsistencyThreads(),
-                                                                                   Integer.MAX_VALUE,
+                                                                                   StageManager.KEEPALIVE,
                                                                                    TimeUnit.SECONDS,
                                                                                    new LinkedBlockingQueue<Runnable>(),
                                                                                    new NamedThreadFactory("CONSISTENCY-MANAGER"));

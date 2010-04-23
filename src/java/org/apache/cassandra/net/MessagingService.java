@@ -97,7 +97,7 @@ public class MessagingService implements IFailureDetectionEventListener
         // read executor puts messages to deserialize on this.
         messageDeserializerExecutor_ = new JMXEnabledThreadPoolExecutor(1,
                                                                         Runtime.getRuntime().availableProcessors(),
-                                                                        Integer.MAX_VALUE,
+                                                                        StageManager.KEEPALIVE,
                                                                         TimeUnit.SECONDS,
                                                                         new LinkedBlockingQueue<Runnable>(),
                                                                         new NamedThreadFactory("MESSAGE-DESERIALIZER-POOL"));
