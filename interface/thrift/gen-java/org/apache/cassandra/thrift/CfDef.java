@@ -54,7 +54,8 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
   private static final TField SUBCOMPARATOR_TYPE_FIELD_DESC = new TField("subcomparator_type", TType.STRING, (short)5);
   private static final TField COMMENT_FIELD_DESC = new TField("comment", TType.STRING, (short)6);
   private static final TField ROW_CACHE_SIZE_FIELD_DESC = new TField("row_cache_size", TType.DOUBLE, (short)7);
-  private static final TField KEY_CACHE_SIZE_FIELD_DESC = new TField("key_cache_size", TType.DOUBLE, (short)8);
+  private static final TField PRELOAD_ROW_CACHE_FIELD_DESC = new TField("preload_row_cache", TType.BOOL, (short)8);
+  private static final TField KEY_CACHE_SIZE_FIELD_DESC = new TField("key_cache_size", TType.DOUBLE, (short)9);
 
   public String table;
   public String name;
@@ -63,6 +64,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
   public String subcomparator_type;
   public String comment;
   public double row_cache_size;
+  public boolean preload_row_cache;
   public double key_cache_size;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
@@ -74,7 +76,8 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     SUBCOMPARATOR_TYPE((short)5, "subcomparator_type"),
     COMMENT((short)6, "comment"),
     ROW_CACHE_SIZE((short)7, "row_cache_size"),
-    KEY_CACHE_SIZE((short)8, "key_cache_size");
+    PRELOAD_ROW_CACHE((short)8, "preload_row_cache"),
+    KEY_CACHE_SIZE((short)9, "key_cache_size");
 
     private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
@@ -129,8 +132,9 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
 
   // isset id assignments
   private static final int __ROW_CACHE_SIZE_ISSET_ID = 0;
-  private static final int __KEY_CACHE_SIZE_ISSET_ID = 1;
-  private BitSet __isset_bit_vector = new BitSet(2);
+  private static final int __PRELOAD_ROW_CACHE_ISSET_ID = 1;
+  private static final int __KEY_CACHE_SIZE_ISSET_ID = 2;
+  private BitSet __isset_bit_vector = new BitSet(3);
 
   public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
     put(_Fields.TABLE, new FieldMetaData("table", TFieldRequirementType.REQUIRED, 
@@ -147,6 +151,8 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
         new FieldValueMetaData(TType.STRING)));
     put(_Fields.ROW_CACHE_SIZE, new FieldMetaData("row_cache_size", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.DOUBLE)));
+    put(_Fields.PRELOAD_ROW_CACHE, new FieldMetaData("preload_row_cache", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.BOOL)));
     put(_Fields.KEY_CACHE_SIZE, new FieldMetaData("key_cache_size", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.DOUBLE)));
   }});
@@ -165,6 +171,8 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     this.comment = "";
 
     this.row_cache_size = (double)0;
+
+    this.preload_row_cache = false;
 
     this.key_cache_size = (double)200000;
 
@@ -204,6 +212,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
       this.comment = other.comment;
     }
     this.row_cache_size = other.row_cache_size;
+    this.preload_row_cache = other.preload_row_cache;
     this.key_cache_size = other.key_cache_size;
   }
 
@@ -383,6 +392,29 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     __isset_bit_vector.set(__ROW_CACHE_SIZE_ISSET_ID, value);
   }
 
+  public boolean isPreload_row_cache() {
+    return this.preload_row_cache;
+  }
+
+  public CfDef setPreload_row_cache(boolean preload_row_cache) {
+    this.preload_row_cache = preload_row_cache;
+    setPreload_row_cacheIsSet(true);
+    return this;
+  }
+
+  public void unsetPreload_row_cache() {
+    __isset_bit_vector.clear(__PRELOAD_ROW_CACHE_ISSET_ID);
+  }
+
+  /** Returns true if field preload_row_cache is set (has been asigned a value) and false otherwise */
+  public boolean isSetPreload_row_cache() {
+    return __isset_bit_vector.get(__PRELOAD_ROW_CACHE_ISSET_ID);
+  }
+
+  public void setPreload_row_cacheIsSet(boolean value) {
+    __isset_bit_vector.set(__PRELOAD_ROW_CACHE_ISSET_ID, value);
+  }
+
   public double getKey_cache_size() {
     return this.key_cache_size;
   }
@@ -464,6 +496,14 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
       }
       break;
 
+    case PRELOAD_ROW_CACHE:
+      if (value == null) {
+        unsetPreload_row_cache();
+      } else {
+        setPreload_row_cache((Boolean)value);
+      }
+      break;
+
     case KEY_CACHE_SIZE:
       if (value == null) {
         unsetKey_cache_size();
@@ -502,6 +542,9 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     case ROW_CACHE_SIZE:
       return new Double(getRow_cache_size());
 
+    case PRELOAD_ROW_CACHE:
+      return new Boolean(isPreload_row_cache());
+
     case KEY_CACHE_SIZE:
       return new Double(getKey_cache_size());
 
@@ -530,6 +573,8 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
       return isSetComment();
     case ROW_CACHE_SIZE:
       return isSetRow_cache_size();
+    case PRELOAD_ROW_CACHE:
+      return isSetPreload_row_cache();
     case KEY_CACHE_SIZE:
       return isSetKey_cache_size();
     }
@@ -613,6 +658,15 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
       if (!(this_present_row_cache_size && that_present_row_cache_size))
         return false;
       if (this.row_cache_size != that.row_cache_size)
+        return false;
+    }
+
+    boolean this_present_preload_row_cache = true && this.isSetPreload_row_cache();
+    boolean that_present_preload_row_cache = true && that.isSetPreload_row_cache();
+    if (this_present_preload_row_cache || that_present_preload_row_cache) {
+      if (!(this_present_preload_row_cache && that_present_preload_row_cache))
+        return false;
+      if (this.preload_row_cache != that.preload_row_cache)
         return false;
     }
 
@@ -704,6 +758,15 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetPreload_row_cache()).compareTo(typedOther.isSetPreload_row_cache());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetPreload_row_cache()) {      lastComparison = TBaseHelper.compareTo(preload_row_cache, typedOther.preload_row_cache);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     lastComparison = Boolean.valueOf(isSetKey_cache_size()).compareTo(typedOther.isSetKey_cache_size());
     if (lastComparison != 0) {
       return lastComparison;
@@ -776,7 +839,15 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 8: // KEY_CACHE_SIZE
+        case 8: // PRELOAD_ROW_CACHE
+          if (field.type == TType.BOOL) {
+            this.preload_row_cache = iprot.readBool();
+            setPreload_row_cacheIsSet(true);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 9: // KEY_CACHE_SIZE
           if (field.type == TType.DOUBLE) {
             this.key_cache_size = iprot.readDouble();
             setKey_cache_sizeIsSet(true);
@@ -840,6 +911,11 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     if (isSetRow_cache_size()) {
       oprot.writeFieldBegin(ROW_CACHE_SIZE_FIELD_DESC);
       oprot.writeDouble(this.row_cache_size);
+      oprot.writeFieldEnd();
+    }
+    if (isSetPreload_row_cache()) {
+      oprot.writeFieldBegin(PRELOAD_ROW_CACHE_FIELD_DESC);
+      oprot.writeBool(this.preload_row_cache);
       oprot.writeFieldEnd();
     }
     if (isSetKey_cache_size()) {
@@ -915,6 +991,12 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
       if (!first) sb.append(", ");
       sb.append("row_cache_size:");
       sb.append(this.row_cache_size);
+      first = false;
+    }
+    if (isSetPreload_row_cache()) {
+      if (!first) sb.append(", ");
+      sb.append("preload_row_cache:");
+      sb.append(this.preload_row_cache);
       first = false;
     }
     if (isSetKey_cache_size()) {

@@ -285,6 +285,7 @@ public class DatabaseDescriptor
                                null,
                                "persistent metadata for the local node",
                                0,
+                               false,
                                0.01),
                 new CFMetaData(Table.SYSTEM_TABLE,
                                HintedHandOffManager.HINTS_CF,
@@ -293,6 +294,7 @@ public class DatabaseDescriptor
                                new BytesType(),
                                "hinted handoff data",
                                0,
+                               false,
                                0.01)
             };
             KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE, null, -1, systemCfDefs);
@@ -300,8 +302,8 @@ public class DatabaseDescriptor
                 
             CFMetaData[] definitionCfDefs = new CFMetaData[]
             {
-                new CFMetaData(Table.DEFINITIONS, Migration.MIGRATIONS_CF, "Standard", new TimeUUIDType(), null, "individual schema mutations", 0, 0),
-                new CFMetaData(Table.DEFINITIONS, Migration.SCHEMA_CF, "Standard", new UTF8Type(), null, "current state of the schema", 0, 0)
+                new CFMetaData(Table.DEFINITIONS, Migration.MIGRATIONS_CF, "Standard", new TimeUUIDType(), null, "individual schema mutations", 0, false, 0),
+                new CFMetaData(Table.DEFINITIONS, Migration.SCHEMA_CF, "Standard", new UTF8Type(), null, "current state of the schema", 0, false, 0)
             };
             tables.put(Table.DEFINITIONS, new KSMetaData(Table.DEFINITIONS, null, -1, definitionCfDefs));
             
@@ -485,7 +487,7 @@ public class DatabaseDescriptor
                 {                        
                     throw new ConfigurationException("read_repair_chance must be between 0.0 and 1.0");
                 }
-                cfDefs[j++] = new CFMetaData(keyspace.name, cf.name, columnType, comparator, subcolumnComparator, cf.comment, cf.rows_cached, cf.keys_cached, cf.read_repair_chance);
+                cfDefs[j++] = new CFMetaData(keyspace.name, cf.name, columnType, comparator, subcolumnComparator, cf.comment, cf.rows_cached, cf.preloadRowCache, cf.keys_cached, cf.read_repair_chance);
             }
             defs.add(new KSMetaData(keyspace.name, strategyClass, keyspace.replication_factor, cfDefs));
             

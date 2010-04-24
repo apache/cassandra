@@ -312,7 +312,8 @@ struct CfDef {
     5: optional string subcomparator_type="",
     6: optional string comment="",
     7: optional double row_cache_size=0,
-    8: optional double key_cache_size=200000,
+    8: optional bool preload_row_cache=0,
+    9: optional double key_cache_size=200000,
 }
 
 /* describes a keyspace. */

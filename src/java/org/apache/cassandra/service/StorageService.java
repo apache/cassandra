@@ -395,8 +395,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             tokenMetadata_.updateNormalToken(token, FBUtilities.getLocalAddress());
             Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_NORMAL + Delimiter + partitioner_.getTokenFactory().toString(token)));
             setMode("Normal", false);
-        }
-
+        } 
+        
+        for (ColumnFamilyStore cfs: ColumnFamilyStore.all())
+        	cfs.loadRowCache();
+        
         assert tokenMetadata_.sortedTokens().size() > 0;
     }
 

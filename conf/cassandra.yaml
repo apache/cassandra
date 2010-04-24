@@ -148,9 +148,10 @@ endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
 # comment -- optional. used to attach additional human-readable information about the column family to its definition.
 #
 # 
-# reqad_repair_chance -- optional. must be between 0 and 1. defaults to 1.0 (always read repair).
+# read_repair_chance -- optional. must be between 0 and 1. defaults to 1.0 (always read repair).
 # specifies the probability with which read repairs should be invoked on non-quorum reads.
-#
+# 
+# preloadRowCache -- Optional.  If true, will populate row cache on startup.
 #
 keyspaces:
     - name: Keyspace1
@@ -176,6 +177,7 @@ keyspaces:
         - name: Super2
           column_type: Super
           compare_subcolumns_with: UTF8Type
+          preloadRowCache: true
           rows_cached: 10000
           keys_cached: 50
           comment: 'A column family with supercolumns, whose column and subcolumn names are UTF8 strings'

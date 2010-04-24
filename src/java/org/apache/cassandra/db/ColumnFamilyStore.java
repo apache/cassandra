@@ -33,11 +33,13 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import org.apache.commons.collections.IteratorUtils;
+import org.apache.commons.lang.ArrayUtils;
 
 import com.google.common.collect.Iterables;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
@@ -986,6 +988,43 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         }
     }
+
+    public void loadRowCache()
+    {
+        CFMetaData metadata = DatabaseDescriptor.getTableMetaData(table_).get(columnFamily_);
+        assert metadata != null;
+        if (metadata.preloadRowCache)
+        {
+            logger_.debug(String.format("Loading cache for keyspace/columnfamily %s/%s", table_, columnFamily_));
+            int ROWS = 4096;
+            Token min = StorageService.getPartitioner().getMinimumToken();
+            Token start = min;
+            long i = 0;
+            while (i < ssTables_.getRowCache().getCapacity())
+            {
+                RangeSliceReply result;
+                try
+                {
+                    SliceRange range = new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, ROWS);
+                    result = getRangeSlice(null, new Bounds(start, min), ROWS, range, null);
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException(e);
+                }
+
+                for (Row row : result.rows)
+                    ssTables_.getRowCache().put(row.key, row.cf);
+                i += result.rows.size();
+                if (result.rows.size() < ROWS)
+                    break;
+
+                start = DatabaseDescriptor.getPartitioner().getToken(result.rows.get(ROWS - 1).key.key);
+            }
+            logger_.info(String.format("Loaded %s rows into the %s cache", i, columnFamily_));
+        }
+    }
+
 
     public boolean hasUnreclaimedSpace()
     {

@@ -674,6 +674,7 @@ public class CassandraServer implements Cassandra.Iface
                         cf_def.subcomparator_type.length() == 0 ? null : DatabaseDescriptor.getComparator(cf_def.subcomparator_type),
                         cf_def.comment,
                         cf_def.row_cache_size,
+                        cf_def.preload_row_cache,
                         cf_def.key_cache_size);
             AddColumnFamily add = new AddColumnFamily(cfm);
             add.apply();
@@ -770,6 +771,7 @@ public class CassandraServer implements Cassandra.Iface
                         cfDef.subcomparator_type.length() == 0 ? null : DatabaseDescriptor.getComparator(cfDef.subcomparator_type),
                         cfDef.comment,
                         cfDef.row_cache_size,
+                        cfDef.preload_row_cache,
                         cfDef.key_cache_size);
                 cfDefs.add(cfm);
             }
