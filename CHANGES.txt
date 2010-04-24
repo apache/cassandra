@@ -17,6 +17,7 @@ dev
    (CASSANDRA-744)
  * re-organized endpointsnitch implementations and added SimpleSnitch
    (CASSANDRA-994)
+ * Added preload_row_cache option (CASSANDRA-946)
 
 
 0.6.1
