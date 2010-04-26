@@ -18,6 +18,7 @@ dev
  * re-organized endpointsnitch implementations and added SimpleSnitch
    (CASSANDRA-994)
  * Added preload_row_cache option (CASSANDRA-946)
+ * add CRC to commitlog header (CASSANDRA-999)
 
 
 0.6.1
