@@ -40,7 +40,6 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.SuperColumn;
-import static org.apache.cassandra.utils.FBUtilities.UTF8;
 import org.apache.cassandra.utils.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputSplit;
@@ -60,8 +59,7 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
     private int batchRowCount; // fetch this many per batch
     private String cfName;
     private String keyspace;
-    private String username;
-    private String passwd;
+    private AuthenticationRequest authRequest;
 
     public void close() {}
     
@@ -90,8 +88,12 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
         batchRowCount = ConfigHelper.getRangeBatchSize(conf);
         cfName = ConfigHelper.getColumnFamily(conf);
         keyspace = ConfigHelper.getKeyspace(conf);
-        username = ConfigHelper.getKeyspaceUserName(conf);
-        passwd   = ConfigHelper.getKeyspacePassword(conf);
+        
+        Map<String, String> creds = new HashMap<String, String>();
+        creds.put(SimpleAuthenticator.USERNAME_KEY, ConfigHelper.getKeyspaceUserName(conf));
+        creds.put(SimpleAuthenticator.PASSWORD_KEY, ConfigHelper.getKeyspacePassword(conf));
+        authRequest = new AuthenticationRequest(creds);
+        
         iter = new RowIterator();
         iter.login();
     }
@@ -113,14 +115,8 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
         private int i = 0;
         private AbstractType comparator = DatabaseDescriptor.getComparator(keyspace, cfName);
         
-        private void login() {
-        	
-        	Map<String, String> credentials = new HashMap<String, String>();
-            credentials.put(SimpleAuthenticator.USERNAME_KEY, username);
-            credentials.put(SimpleAuthenticator.PASSWORD_KEY, passwd);
-            AuthenticationRequest authRequest = new AuthenticationRequest(credentials);
-        
-        
+        private void login()
+        {
             TSocket socket = new TSocket(getLocation(),DatabaseDescriptor.getRpcPort());
             TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket, false, false);
             Cassandra.Client client = new Cassandra.Client(binaryProtocol);
@@ -170,6 +166,7 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
                                 .setEnd_token(split.getEndToken());
             try
             {
+            	client.login(keyspace, authRequest);
                 rows = client.get_range_slices(new ColumnParent(cfName),
                                                predicate,
                                                keyRange,
