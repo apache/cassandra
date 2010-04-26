@@ -18,21 +18,17 @@
 
 package org.apache.cassandra.db.migration;
 
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.ICompactSerializer;
@@ -41,7 +37,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.UUIDGen;
 import static org.apache.cassandra.utils.FBUtilities.UTF8;
 
-import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,8 +45,6 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.UUID;
@@ -89,10 +82,14 @@ public abstract class Migration
     protected final UUID newVersion;
     protected UUID lastVersion;
     
+    // this doesn't follow the serialized migration around.
+    protected final transient boolean clientMode;
+    
     Migration(UUID newVersion, UUID lastVersion)
     {
         this.newVersion = newVersion;
         this.lastVersion = lastVersion;
+        clientMode = StorageService.instance.isClientMode();
     }
 
     /** override this to perform logic before writing the migration or applying it.  defaults to nothing. */
@@ -106,37 +103,41 @@ public abstract class Migration
             throw new IOException("Previous version mismatch. cannot apply.");
         // write to schema
         assert rm != null;
-        rm.apply();
+        if (!clientMode)
+            rm.apply();
 
         beforeApplyModels();
         
         // write migration.
-        long now = System.currentTimeMillis();
-        byte[] buf = getBytes();
-        RowMutation migration = new RowMutation(Table.DEFINITIONS, MIGRATIONS_KEY);
-        migration.add(new QueryPath(MIGRATIONS_CF, null, UUIDGen.decompose(newVersion)), buf, now);
-        migration.apply();
-        
-        // note that we storing this in the system table, which is not replicated, instead of the definitions table, which is.
-        logger.debug("Applying migration " + newVersion.toString());
-        migration = new RowMutation(Table.DEFINITIONS, LAST_MIGRATION_KEY);
-        migration.add(new QueryPath(SCHEMA_CF, null, LAST_MIGRATION_KEY), UUIDGen.decompose(newVersion), now);
-        migration.apply();
-        
-        // flush changes out of memtables so we don't need to rely on the commit log.
-        for (Future f : Table.open(Table.DEFINITIONS).flush())
+        if (!clientMode)
         {
-            try
+            long now = System.currentTimeMillis();
+            byte[] buf = getBytes();
+            RowMutation migration = new RowMutation(Table.DEFINITIONS, MIGRATIONS_KEY);
+            migration.add(new QueryPath(MIGRATIONS_CF, null, UUIDGen.decompose(newVersion)), buf, now);
+            migration.apply();
+            
+            // note that we storing this in the system table, which is not replicated, instead of the definitions table, which is.
+            logger.debug("Applying migration " + newVersion.toString());
+            migration = new RowMutation(Table.DEFINITIONS, LAST_MIGRATION_KEY);
+            migration.add(new QueryPath(SCHEMA_CF, null, LAST_MIGRATION_KEY), UUIDGen.decompose(newVersion), now);
+            migration.apply();
+        
+            // flush changes out of memtables so we don't need to rely on the commit log.
+            for (Future f : Table.open(Table.DEFINITIONS).flush())
             {
-                f.get();
-            }
-            catch (InterruptedException e)
-            {
-                throw new IOException(e);
-            }
-            catch (ExecutionException e)
-            {
-                throw new IOException(e);
+                try
+                {
+                    f.get();
+                }
+                catch (InterruptedException e)
+                {
+                    throw new IOException(e);
+                }
+                catch (ExecutionException e)
+                {
+                    throw new IOException(e);
+                }
             }
         }
         
@@ -145,6 +146,9 @@ public abstract class Migration
     
     public final void announce()
     {
+        if (StorageService.instance.isClientMode())
+            return;
+        
         // immediate notification for esiting nodes.
         MigrationManager.announce(newVersion, Gossiper.instance.getLiveMembers());
         // this is for notifying nodes as they arrive in the cluster.

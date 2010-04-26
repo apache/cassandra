@@ -69,8 +69,11 @@ public class AddKeyspace extends Migration
         DatabaseDescriptor.setTableDefinition(ksm, newVersion);
         // these definitions could have come from somewhere else.
         CFMetaData.fixMaxId();
-        Table.open(ksm.name);
-        CommitLog.instance().forceNewSegment();
+        if (!clientMode)
+        {
+            Table.open(ksm.name);
+            CommitLog.instance().forceNewSegment();
+        }
     }
     
     private static final class Serializer implements ICompactSerializer<AddKeyspace>

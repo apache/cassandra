@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service;
 
+import java.io.IOError;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Constructor;
@@ -306,6 +307,17 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.register(this);
         Gossiper.instance.start(FBUtilities.getLocalAddress(), (int)(System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
         setMode("Client", false);
+        
+        // sleep a while to allow gossip to warm up (the other nodes need to know about this one before they can reply).
+        try
+        {
+            Thread.sleep(5000L);
+        }
+        catch (Exception ex)
+        {
+            throw new IOError(ex);
+        }
+        MigrationManager.announce(DatabaseDescriptor.getDefsVersion(), DatabaseDescriptor.getSeeds());
     }
 
     public synchronized void initServer() throws IOException

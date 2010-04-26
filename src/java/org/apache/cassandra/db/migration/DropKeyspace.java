@@ -70,7 +70,8 @@ public class DropKeyspace extends Migration
     @Override
     public void beforeApplyModels()
     {
-        Table.open(name).snapshot(null);
+        if (!clientMode)
+            Table.open(name).snapshot(null);
     }
 
     @Override
@@ -86,17 +87,24 @@ public class DropKeyspace extends Migration
         for (CFMetaData cfm : ksm.cfMetaData().values())
         {
             CFMetaData.purge(cfm);
-            table.dropCf(cfm.cfId);
-            SystemTable.markForRemoval(cfm);
+            if (!clientMode)
+            {
+                table.dropCf(cfm.cfId);
+                SystemTable.markForRemoval(cfm);
+            }
         }
                         
         // reset defs.
         DatabaseDescriptor.clearTableDefinition(ksm, newVersion);
-        CommitLog.instance().forceNewSegment();
-        Migration.cleanupDeadFiles(blockOnFileDeletion);
         
-        // clear up any local hinted data for this keyspace.
-        HintedHandOffManager.renameHints(name, null);
+        if (!clientMode)
+        {
+            CommitLog.instance().forceNewSegment();
+            Migration.cleanupDeadFiles(blockOnFileDeletion);
+            
+            // clear up any local hinted data for this keyspace.
+            HintedHandOffManager.renameHints(name, null);
+        }
     }
     
     private static final class Serializer implements ICompactSerializer<DropKeyspace>

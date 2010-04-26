@@ -105,14 +105,18 @@ public class RenameColumnFamily extends Migration
     {
         // leave it up to operators to ensure there are no writes going on durng the file rename. Just know that
         // attempting row mutations on oldcfName right now would be really bad.
-        renameCfStorageFiles(tableName, oldName, newName);
+        if (!clientMode)
+            renameCfStorageFiles(tableName, oldName, newName);
         
         // reset defs.
         KSMetaData ksm = makeNewKeyspaceDefinition(DatabaseDescriptor.getTableDefinition(tableName));
         DatabaseDescriptor.setTableDefinition(ksm, newVersion);
-        Table.open(ksm.name).renameCf(cfId, newName);
         
-        CommitLog.instance().forceNewSegment();
+        if (!clientMode)
+        {
+            Table.open(ksm.name).renameCf(cfId, newName);
+            CommitLog.instance().forceNewSegment();
+        }
     }
     
     // if this errors out, we are in a world of hurt.

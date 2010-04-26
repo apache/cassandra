@@ -80,7 +80,8 @@ public class RenameKeyspace extends Migration
     @Override
     public void applyModels() throws IOException
     {
-        renameKsStorageFiles(oldName, newName);
+        if (!clientMode)
+            renameKsStorageFiles(oldName, newName);
         
         KSMetaData oldKsm = DatabaseDescriptor.getTableDefinition(oldName);
         KSMetaData newKsm = KSMetaData.rename(oldKsm, newName, true);
@@ -88,12 +89,16 @@ public class RenameKeyspace extends Migration
         // it helps if the node is reasonably quiescent with respect to this ks.
         DatabaseDescriptor.clearTableDefinition(oldKsm, newVersion);
         DatabaseDescriptor.setTableDefinition(newKsm, newVersion);
-        Table.clear(oldKsm.name);
-        Table.open(newName);
-        // this isn't strictly necessary since the set of all cfs was not modified.
-        CommitLog.instance().forceNewSegment();
-
-        HintedHandOffManager.renameHints(oldName, newName);
+        
+        if (!clientMode)
+        {
+            Table.clear(oldKsm.name);
+            Table.open(newName);
+            // this isn't strictly necessary since the set of all cfs was not modified.
+            CommitLog.instance().forceNewSegment();
+    
+            HintedHandOffManager.renameHints(oldName, newName);
+        }
     }
     
     private static void renameKsStorageFiles(String oldKs, String newKs) throws IOException

@@ -87,6 +87,8 @@ public class DropColumnFamily extends Migration
     @Override
     public void beforeApplyModels()
     {
+        if (clientMode)
+            return;
         ColumnFamilyStore cfs = Table.open(tableName).getColumnFamilyStore(cfName);
         cfs.snapshot(Table.getTimestampedSnapshotName(null));
     }
@@ -106,15 +108,19 @@ public class DropColumnFamily extends Migration
         KSMetaData ksm = makeNewKeyspaceDefinition(existing);
         CFMetaData.purge(cfm);
         DatabaseDescriptor.setTableDefinition(ksm, newVersion);
-        Table.open(ksm.name).dropCf(cfm.cfId);
         
-        // indicate that some files need to be deleted (eventually)
-        SystemTable.markForRemoval(cfm);
-        
-        // we don't really need a new segment, but let's force it to be consistent with other operations.
-        CommitLog.instance().forceNewSegment();
-
-        Migration.cleanupDeadFiles(blockOnFileDeletion);   
+        if (!clientMode)
+        {
+            Table.open(ksm.name).dropCf(cfm.cfId);
+            
+            // indicate that some files need to be deleted (eventually)
+            SystemTable.markForRemoval(cfm);
+            
+            // we don't really need a new segment, but let's force it to be consistent with other operations.
+            CommitLog.instance().forceNewSegment();
+    
+            Migration.cleanupDeadFiles(blockOnFileDeletion);
+        }
     }
     
     private static final class Serializer implements ICompactSerializer<DropColumnFamily>
