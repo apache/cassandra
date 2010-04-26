@@ -63,6 +63,11 @@ public class CommitLogSegment
         }
     }
 
+    public static boolean possibleCommitLogFile(String filename)
+    {
+        return filename.matches("CommitLog-\\d+.log");
+    }
+
     public void writeHeader() throws IOException
     {
         seekAndWriteCommitLogHeader(header.toByteArray());

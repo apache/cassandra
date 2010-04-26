@@ -161,8 +161,7 @@ public class CommitLog
         {
             public boolean accept(File dir, String name)
             {
-                // throw out anything that starts with dot.
-                return !name.matches("\\..*");
+                return CommitLogSegment.possibleCommitLogFile(name);
             }
         });
         if (files.length == 0)
