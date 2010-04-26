@@ -487,7 +487,7 @@ public class DatabaseDescriptor
                 {                        
                     throw new ConfigurationException("read_repair_chance must be between 0.0 and 1.0");
                 }
-                cfDefs[j++] = new CFMetaData(keyspace.name, cf.name, columnType, comparator, subcolumnComparator, cf.comment, cf.rows_cached, cf.preloadRowCache, cf.keys_cached, cf.read_repair_chance);
+                cfDefs[j++] = new CFMetaData(keyspace.name, cf.name, columnType, comparator, subcolumnComparator, cf.comment, cf.rows_cached, cf.preload_row_cache, cf.keys_cached, cf.read_repair_chance);
             }
             defs.add(new KSMetaData(keyspace.name, strategyClass, keyspace.replication_factor, cfDefs));
             
