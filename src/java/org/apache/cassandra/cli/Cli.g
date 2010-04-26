@@ -36,6 +36,7 @@ tokens {
     //
     NODE_CONNECT;
     NODE_DESCRIBE_TABLE;
+    NODE_USE_TABLE;
     NODE_EXIT;
     NODE_HELP;
     NODE_NO_OP;
@@ -72,6 +73,7 @@ stmt
     | exitStmt
     | countStmt
     | describeTable
+    | useTable
     | delStmt
     | getStmt
     | helpStmt
@@ -131,16 +133,23 @@ showTables
 
 describeTable
     : K_DESCRIBE K_TABLE table -> ^(NODE_DESCRIBE_TABLE table);
+    
+useTable
+    : K_USE table ( username )? ( password )? -> ^(NODE_USE_TABLE table ( username )? ( password )?);
 
 columnFamilyExpr
-    : table DOT columnFamily '[' rowKey ']' 
+    : columnFamily '[' rowKey ']' 
         ( '[' a+=columnOrSuperColumn ']' 
             ('[' a+=columnOrSuperColumn ']')? 
         )?
-      -> ^(NODE_COLUMN_ACCESS table columnFamily rowKey ($a+)?)
+      -> ^(NODE_COLUMN_ACCESS columnFamily rowKey ($a+)?)
     ;
 
 table: Identifier;
+
+username: Identifier;
+
+password: StringLiteral;
 
 columnFamily: Identifier;
 
@@ -172,6 +181,7 @@ K_COUNT:      'COUNT';
 K_CLUSTER:    'CLUSTER';
 K_DEL:        'DEL';
 K_DESCRIBE:   'DESCRIBE';
+K_USE:        'USE';
 K_GET:        'GET';
 K_HELP:       'HELP';
 K_EXIT:       'EXIT';
@@ -224,7 +234,7 @@ IntegerLiteral
 DOT
     : '.'
     ;
-
+	
 SLASH
     : '/'
     ;

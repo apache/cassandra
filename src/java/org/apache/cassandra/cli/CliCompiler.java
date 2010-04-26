@@ -85,38 +85,32 @@ public class CliCompiler
     /*
      * NODE_COLUMN_ACCESS related functions.
      */
-    public static String getTableName(CommonTree astNode)
+
+    public static String getColumnFamily(CommonTree astNode)
     {
         assert(astNode.getType() == CliParser.NODE_COLUMN_ACCESS);
 
         return astNode.getChild(0).getText();
     }
 
-    public static String getColumnFamily(CommonTree astNode)
-    {
-        assert(astNode.getType() == CliParser.NODE_COLUMN_ACCESS);
-
-        return astNode.getChild(1).getText();
-    }
-
     public static String getKey(CommonTree astNode)
     {
         assert(astNode.getType() == CliParser.NODE_COLUMN_ACCESS);
 
-        return CliUtils.unescapeSQLString(astNode.getChild(2).getText());
+        return CliUtils.unescapeSQLString(astNode.getChild(1).getText());
     }
 
     public static int numColumnSpecifiers(CommonTree astNode)
     {
         // Skip over table, column family and rowKey
-        return astNode.getChildCount() - 3;
+        return astNode.getChildCount() - 2;
     }
 
     // Returns the pos'th (0-based index) column specifier in the astNode
     public static String getColumn(CommonTree astNode, int pos)
     {
         // Skip over table, column family and rowKey
-        return CliUtils.unescapeSQLString(astNode.getChild(pos + 3).getText()); 
+        return CliUtils.unescapeSQLString(astNode.getChild(pos + 2).getText()); 
     }
  
 }

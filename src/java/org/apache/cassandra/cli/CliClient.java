@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cli;
 
+import org.apache.cassandra.auth.SimpleAuthenticator;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.thrift.*;
@@ -34,6 +35,8 @@ public class CliClient
 {
     private Cassandra.Client thriftClient_ = null;
     private CliSessionState css_ = null;
+    private String keySpace = null;
+    private String username = null;
     private Map<String, Map<String, Map<String, String>>> keyspacesMap = new HashMap<String, Map<String,Map<String,String>>>();
 
     public CliClient(CliSessionState css, Cassandra.Client thriftClient)
@@ -82,6 +85,9 @@ public class CliClient
                 case CliParser.NODE_DESCRIBE_TABLE:
                     executeDescribeTable(ast);
                     break;
+                case CliParser.NODE_USE_TABLE:
+                	executeUseTable(ast);
+                	break;
                 case CliParser.NODE_CONNECT:
                     executeConnect(ast);
                     break;
@@ -105,23 +111,25 @@ public class CliClient
        css_.out.println("?                                                                  Same as help.");
        css_.out.println("help                                                          Display this help.");
        css_.out.println("connect <hostname>/<port>                             Connect to thrift service.");
+       css_.out.println("use <keyspace>                                    Switch to a specific keyspace.");
+       css_.out.println("use <keyspace> <username> 'password'              Switch to privileged keyspace.");
        css_.out.println("describe keyspace <keyspacename>                              Describe keyspace.");
        css_.out.println("exit                                                                   Exit CLI.");
        css_.out.println("quit                                                                   Exit CLI.");
        css_.out.println("show cluster name                                          Display cluster name.");
        css_.out.println("show keyspaces                                           Show list of keyspaces.");
        css_.out.println("show api version                                        Show server API version.");
-       css_.out.println("get <ksp>.<cf>['<key>']                                  Get a slice of columns.");
-       css_.out.println("get <ksp>.<cf>['<key>']['<super>']                   Get a slice of sub columns.");
-       css_.out.println("get <ksp>.<cf>['<key>']['<col>']                             Get a column value.");
-       css_.out.println("get <ksp>.<cf>['<key>']['<super>']['<col>']              Get a sub column value.");
-       css_.out.println("set <ksp>.<cf>['<key>']['<col>'] = '<value>'                       Set a column.");
-       css_.out.println("set <ksp>.<cf>['<key>']['<super>']['<col>'] = '<value>'        Set a sub column.");
-       css_.out.println("del <ksp>.<cf>['<key>']                                           Delete record.");
-       css_.out.println("del <ksp>.<cf>['<key>']['<col>']                                  Delete column.");
-       css_.out.println("del <ksp>.<cf>['<key>']['<super>']['<col>']                   Delete sub column.");
-       css_.out.println("count <ksp>.<cf>['<key>']                               Count columns in record.");
-       css_.out.println("count <ksp>.<cf>['<key>']['<super>']            Count columns in a super column.");
+       css_.out.println("get <cf>['<key>']                                        Get a slice of columns.");
+       css_.out.println("get <cf>['<key>']['<super>']                         Get a slice of sub columns.");
+       css_.out.println("get <cf>['<key>']['<col>']                                   Get a column value.");
+       css_.out.println("get <cf>['<key>']['<super>']['<col>']                    Get a sub column value.");
+       css_.out.println("set <cf>['<key>']['<col>'] = '<value>'                             Set a column.");
+       css_.out.println("set <cf>['<key>']['<super>']['<col>'] = '<value>'              Set a sub column.");
+       css_.out.println("del <cf>['<key>']                                                 Delete record.");
+       css_.out.println("del <cf>['<key>']['<col>']                                        Delete column.");
+       css_.out.println("del <cf>['<key>']['<super>']['<col>']                         Delete sub column.");
+       css_.out.println("count <cf>['<key>']                                     Count columns in record.");
+       css_.out.println("count <cf>['<key>']['<super>']                  Count columns in a super column.");
     }
 
     private void cleanupAndExit()
@@ -140,7 +148,7 @@ public class CliClient
     
     private void executeCount(CommonTree ast) throws TException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException
     {
-       if (!CliMain.isConnected())
+       if (!CliMain.isConnected() || !hasKeySpace())
            return;
 
        int childCount = ast.getChildCount();
@@ -149,7 +157,6 @@ public class CliClient
        CommonTree columnFamilySpec = (CommonTree)ast.getChild(0);
        assert(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS);
 
-       String tableName = CliCompiler.getTableName(columnFamilySpec);
        String key = CliCompiler.getKey(columnFamilySpec);
        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
        int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
@@ -169,13 +176,13 @@ public class CliClient
        SliceRange range = new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, Integer.MAX_VALUE);
        SlicePredicate predicate = new SlicePredicate().setColumn_names(null).setSlice_range(range);
        
-       int count = thriftClient_.get_count(tableName, key.getBytes(), colParent, predicate, ConsistencyLevel.ONE);
+       int count = thriftClient_.get_count(key.getBytes(), colParent, predicate, ConsistencyLevel.ONE);
        css_.out.printf("%d columns\n", count);
     }
     
     private void executeDelete(CommonTree ast) throws TException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException
     {
-        if (!CliMain.isConnected())
+        if (!CliMain.isConnected() || !hasKeySpace())
             return;
 
         int childCount = ast.getChildCount();
@@ -184,7 +191,6 @@ public class CliClient
         CommonTree columnFamilySpec = (CommonTree)ast.getChild(0);
         assert(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS);
 
-        String tableName = CliCompiler.getTableName(columnFamilySpec);
         String key = CliCompiler.getKey(columnFamilySpec);
         String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
@@ -193,21 +199,13 @@ public class CliClient
         byte[] columnName = null;
         boolean isSuper;
         
-        try
+        if (!(keyspacesMap.get(keySpace).containsKey(columnFamily)))
         {
-            if (!(getCFMetaData(tableName).containsKey(columnFamily)))
-            {
-                css_.out.println("No such column family: " + columnFamily);
-                return;
-            }
-            
-            isSuper = getCFMetaData(tableName).get(columnFamily).get("Type").equals("Super") ? true : false;
-        }
-        catch (NotFoundException nfe)
-        {
-            css_.out.printf("No such keyspace: %s\n", tableName);
+            css_.out.println("No such column family: " + columnFamily);
             return;
         }
+            
+        isSuper = keyspacesMap.get(keySpace).get(columnFamily).get("Type").equals("Super") ? true : false;
      
         if ((columnSpecCnt < 0) || (columnSpecCnt > 2))
         {
@@ -230,7 +228,7 @@ public class CliClient
             columnName = CliCompiler.getColumn(columnFamilySpec, 1).getBytes("UTF-8");
         }
 
-        thriftClient_.remove(tableName, key.getBytes(), new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnName),
+        thriftClient_.remove(key.getBytes(), new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnName),
                              timestampMicros(), ConsistencyLevel.ONE);
         css_.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "column"));
     }
@@ -246,7 +244,7 @@ public class CliClient
             throws InvalidRequestException, UnavailableException, TimedOutException, TException, UnsupportedEncodingException, IllegalAccessException, NotFoundException, InstantiationException, ClassNotFoundException
     {
         SliceRange range = new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 1000000);
-        List<ColumnOrSuperColumn> columns = thriftClient_.get_slice(keyspace, key.getBytes(),
+        List<ColumnOrSuperColumn> columns = thriftClient_.get_slice(key.getBytes(),
                                                                     new ColumnParent(columnFamily).setSuper_column(superColumnName),
                                                                     new SlicePredicate().setColumn_names(null).setSlice_range(range), ConsistencyLevel.ONE);
         int size = columns.size();
@@ -278,17 +276,17 @@ public class CliClient
  
     private String formatSuperColumnName(String keyspace, String columnFamily, SuperColumn column) throws NotFoundException, TException, ClassNotFoundException, IllegalAccessException, InstantiationException
     {
-        return getFormatTypeForColumn(getCFMetaData(keyspace).get(columnFamily).get("CompareWith")).getString(column.name);
+        return getFormatTypeForColumn(keyspacesMap.get(keyspace).get(columnFamily).get("CompareWith")).getString(column.name);
     }
 
     private String formatSubcolumnName(String keyspace, String columnFamily, Column subcolumn) throws NotFoundException, TException, ClassNotFoundException, IllegalAccessException, InstantiationException
     {
-        return getFormatTypeForColumn(getCFMetaData(keyspace).get(columnFamily).get("CompareSubcolumnsWith")).getString(subcolumn.name);
+        return getFormatTypeForColumn(keyspacesMap.get(keyspace).get(columnFamily).get("CompareSubcolumnsWith")).getString(subcolumn.name);
     }
 
     private String formatColumnName(String keyspace, String columnFamily, Column column) throws ClassNotFoundException, NotFoundException, TException, IllegalAccessException, InstantiationException
     {
-        return getFormatTypeForColumn(getCFMetaData(keyspace).get(columnFamily).get("CompareWith")).getString(column.name);
+        return getFormatTypeForColumn(keyspacesMap.get(keyspace).get(columnFamily).get("CompareWith")).getString(column.name);
     }
 
     private AbstractType getFormatTypeForColumn(String compareWith) throws ClassNotFoundException, IllegalAccessException, InstantiationException
@@ -305,7 +303,7 @@ public class CliClient
     // Execute GET statement
     private void executeGet(CommonTree ast) throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException, IllegalAccessException, InstantiationException, ClassNotFoundException
     {
-        if (!CliMain.isConnected())
+        if (!CliMain.isConnected() || !hasKeySpace())
             return;
 
         // This will never happen unless the grammar is broken
@@ -314,18 +312,17 @@ public class CliClient
         CommonTree columnFamilySpec = (CommonTree)ast.getChild(0);
         assert(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS);
 
-        String tableName = CliCompiler.getTableName(columnFamilySpec);
         String key = CliCompiler.getKey(columnFamilySpec);
         String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec); 
         
-        if (!(getCFMetaData(tableName).containsKey(columnFamily)))
+        if (!(keyspacesMap.get(keySpace).containsKey(columnFamily)))
         {
             css_.out.println("No such column family: " + columnFamily);
             return;
         }
         
-        boolean isSuper = getCFMetaData(tableName).get(columnFamily).get("Type").equals("Super") ? true : false;
+        boolean isSuper = keyspacesMap.get(keySpace).get(columnFamily).get("Type").equals("Super") ? true : false;
         
         byte[] superColumnName = null;
         byte[] columnName = null;
@@ -333,7 +330,7 @@ public class CliClient
         // table.cf['key'] -- row slice
         if (columnSpecCnt == 0)
         {
-            doSlice(tableName, key, columnFamily, superColumnName);
+            doSlice(keySpace, key, columnFamily, superColumnName);
             return;
         }
         
@@ -343,7 +340,7 @@ public class CliClient
             if (isSuper)
             {
                 superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
-                doSlice(tableName, key, columnFamily, superColumnName);
+                doSlice(keySpace, key, columnFamily, superColumnName);
                 return;
             }
             else
@@ -366,15 +363,15 @@ public class CliClient
         
         // Perform a get(), print out the results.
         ColumnPath path = new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnName);
-        Column column = thriftClient_.get(tableName, key.getBytes(), path, ConsistencyLevel.ONE).column;
-        css_.out.printf("=> (column=%s, value=%s, timestamp=%d)\n", formatColumnName(tableName, columnFamily, column),
+        Column column = thriftClient_.get(key.getBytes(), path, ConsistencyLevel.ONE).column;
+        css_.out.printf("=> (column=%s, value=%s, timestamp=%d)\n", formatColumnName(keySpace, columnFamily, column),
                         new String(column.value, "UTF-8"), column.timestamp);
     }
 
     // Execute SET statement
     private void executeSet(CommonTree ast) throws TException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException
     { 
-        if (!CliMain.isConnected())
+        if (!CliMain.isConnected() || !hasKeySpace())
             return;
 
         assert (ast.getChildCount() == 2) : "serious parsing error (this is a bug).";
@@ -382,7 +379,6 @@ public class CliClient
         CommonTree columnFamilySpec = (CommonTree)ast.getChild(0);
         assert(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS);
 
-        String tableName = CliCompiler.getTableName(columnFamilySpec);
         String key = CliCompiler.getKey(columnFamilySpec);
         String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
@@ -414,7 +410,7 @@ public class CliClient
         }
         
         // do the insert
-        thriftClient_.insert(tableName, key.getBytes(), new ColumnParent(columnFamily).setSuper_column(superColumnName),
+        thriftClient_.insert(key.getBytes(), new ColumnParent(columnFamily).setSuper_column(superColumnName),
                              new Column(columnName, value.getBytes(), timestampMicros()), ConsistencyLevel.ONE);
         
         css_.out.println("Value inserted.");
@@ -445,6 +441,111 @@ public class CliClient
         {
             css_.out.println(table);
         }
+    }
+    
+    private boolean hasKeySpace() 
+    {
+    	if (keySpace == null)
+        {
+            css_.out.println("Not authenticated to a working keyspace.");
+            return false;
+        }
+        return true;
+    }
+    
+    public String getKeySpace() 
+    {
+        return keySpace == null ? "unknown" : keySpace;
+    }
+    
+    public void setKeyspace(String keySpace) throws NotFoundException, TException 
+    {
+        this.keySpace = keySpace;
+        getCFMetaData(keySpace);
+    }
+    
+    public String getUsername() 
+    {
+        return username == null ? "default" : username;
+    }
+    
+    public void setUsername(String username)
+    {
+        this.username = username;
+    }
+    
+    private void executeUseTable(CommonTree ast) throws TException
+    {
+        if (!CliMain.isConnected())
+            return;
+    	
+        int childCount = ast.getChildCount();
+        String tableName, username = null, password = null;
+        assert(childCount > 0);
+
+        // Get table name
+        tableName = ast.getChild(0).getText();
+        
+        if (childCount == 3) {
+            username  = ast.getChild(1).getText();
+            password  = ast.getChild(2).getText();
+        }
+        
+        if( tableName == null ) 
+        {
+            css_.out.println("Keyspace argument required");
+            return;
+        }
+        
+        try 
+        {
+        	AuthenticationRequest authRequest;
+        	Map<String, String> credentials = new HashMap<String, String>();
+        	
+        	if (username != null && password != null) 
+        	{
+        	    /* remove quotes */
+        	    password = password.replace("\'", "");
+        	    credentials.put(SimpleAuthenticator.USERNAME_KEY, username);
+                credentials.put(SimpleAuthenticator.PASSWORD_KEY, password);
+        	}
+        	
+        	authRequest = new AuthenticationRequest(credentials);
+            thriftClient_.login(tableName, authRequest);
+            keySpace = tableName;
+            this.username = username != null ? username : "default";
+            
+            if (!(keyspacesMap.containsKey(keySpace))) 
+            {
+                keyspacesMap.put(keySpace, thriftClient_.describe_keyspace(keySpace));
+            }
+            CliMain.updateCompletor(keyspacesMap.get(keySpace).keySet());
+            css_.out.println("Authenticated to keyspace: " + keySpace);
+        } 
+        catch (AuthenticationException e) 
+        {
+            css_.err.println("Exception during authentication to the cassandra node: " +
+            		"verify keyspace exists, and you are using correct credentials.");
+            return;
+        } 
+        catch (AuthorizationException e) 
+        {
+            css_.err.println("You are not authorized to use keyspace: " + tableName);
+            return;
+        }
+        catch (NotFoundException e)
+        {
+            css_.err.println("This keyspace does not exist: " + tableName);
+            return;
+        }
+        catch (TException e) 
+        {
+            if (css_.debug)
+                e.printStackTrace();
+            
+            css_.err.println("Login failure. Did you specify 'keyspace', 'username' and 'password'?");
+            return;
+        } 
     }
 
     // process a statement of the form: describe table <tablename> 

@@ -26,6 +26,7 @@ import org.apache.cassandra.thrift.AuthenticationRequest;
 import org.apache.cassandra.thrift.AuthorizationException;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.thrift.NotFoundException;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TFramedTransport;
@@ -34,8 +35,11 @@ import org.apache.thrift.transport.TTransport;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.apache.cassandra.db.Table.SYSTEM_TABLE;
 
@@ -107,26 +111,30 @@ public class CliMain
             try 
             {
                 thriftClient_.login(css_.keyspace, authRequest);
+                updateCompletor(cliClient_.getCFMetaData(css_.keyspace).keySet());
+                cliClient_.setKeyspace(css_.keyspace);
+                cliClient_.setUsername(css_.username);
             } 
             catch (AuthenticationException e) 
             {
                 css_.err.println("Exception during authentication to the cassandra node, " +
-                		"verify you are using correct credentials.");
+                		"Verify the keyspace exists, and that you are using the correct credentials.");
                 return;
             } 
             catch (AuthorizationException e) 
             {
                 css_.err.println("You are not authorized to use keyspace: " + css_.keyspace);
                 return;
-            } 
+            }
             catch (TException e) 
             {
-                if (css_.debug)
-                    e.printStackTrace();
-                
                 css_.err.println("Login failure. Did you specify 'keyspace', 'username' and 'password'?");
                 return;
+            } catch (NotFoundException e) {
+                css_.err.println("Keyspace not found.");
+                return;
             }
+            
         }
         
         // Lookup the cluster name, this is to make it clear which cluster the user is connected to
@@ -141,31 +149,6 @@ public class CliMain
 
             css_.err.println("Exception retrieving information about the cassandra node, check you have connected to the thrift port.");
 
-            if (css_.debug)
-                e.printStackTrace();
-
-            return;
-        }
-
-        // Extend the completer with keyspace and column family data.
-        try
-        {
-            for (String keyspace : thriftClient_.describe_keyspaces())
-            {
-                // Ignore system column family
-                if (keyspace.equals(SYSTEM_TABLE))
-                    continue;
-
-                for (String cf : cliClient_.getCFMetaData(keyspace).keySet())
-                {
-                    for (String cmd : completer_.getKeyspaceCommands())
-                        completer_.addCandidateString(String.format("%s %s.%s", cmd, keyspace, cf));
-                }
-            }
-        }
-        catch (Exception e)
-        {
-            // Yes, we really do want to ignore any exceptions encountered here.
             if (css_.debug)
                 e.printStackTrace();
 
@@ -204,6 +187,20 @@ public class CliMain
             return false;
         }
         return true;
+    }
+    
+    public static void updateCompletor(Set<String> candidates)
+    {
+        Set<String> actions = new HashSet<String>();
+        for (String cf : candidates)
+        {
+            for (String cmd : completer_.getKeyspaceCommands())
+                actions.add(String.format("%s %s", cmd, cf));
+        }
+        
+        String[] strs = Arrays.copyOf(actions.toArray(), actions.toArray().length, String[].class);
+        
+        completer_.setCandidateStrings(strs);
     }
 
     private static void processCLIStmt(String query)
@@ -265,7 +262,7 @@ public class CliMain
         printBanner();
 
         String line;
-        while ((line = reader.readLine(PROMPT + "> ")) != null)
+        while ((line = reader.readLine("[" + cliClient_.getUsername() + "@" + cliClient_.getKeySpace() + "] ")) != null)
         {
             processCLIStmt(line);
         }
