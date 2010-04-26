@@ -23,6 +23,7 @@ import static org.junit.Assert.assertNotNull;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.util.HashMap;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -47,6 +48,10 @@ import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
+import org.apache.cassandra.thrift.AuthenticationRequest;
+import org.apache.cassandra.thrift.AuthorizationException;
+import org.apache.cassandra.thrift.AuthenticationException;
 
 /**
  * Example how to use an embedded cassandra service.
@@ -86,10 +91,12 @@ public class EmbeddedCassandraServiceTest
     }
 
     @Test
-    public void testEmbeddedCassandraService() throws UnsupportedEncodingException, InvalidRequestException,
+    public void testEmbeddedCassandraService() throws AuthenticationException, AuthorizationException,
+    UnsupportedEncodingException, InvalidRequestException,
             UnavailableException, TimedOutException, TException, NotFoundException
     {
         Cassandra.Client client = getClient();
+        client.login("Keyspace1", new AuthenticationRequest(new HashMap<String, String>()));
 
         byte[] key_user_id = "1".getBytes();
 
@@ -99,11 +106,11 @@ public class EmbeddedCassandraServiceTest
         cp.setColumn("name".getBytes("utf-8"));
 
         // insert
-        client.insert("Keyspace1", key_user_id, par, 
-                new Column("name".getBytes("utf-8"), "Ran".getBytes("UTF-8"), timestamp), ConsistencyLevel.ONE);
+        client.insert(key_user_id, par, new Column("name".getBytes("utf-8"),
+                "Ran".getBytes("UTF-8"), timestamp), ConsistencyLevel.ONE);
 
         // read
-        ColumnOrSuperColumn got = client.get("Keyspace1", key_user_id, cp,
+        ColumnOrSuperColumn got = client.get(key_user_id, cp,
                 ConsistencyLevel.ONE);
 
         // assert

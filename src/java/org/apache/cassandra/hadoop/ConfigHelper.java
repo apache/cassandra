@@ -33,6 +33,8 @@ import org.apache.thrift.protocol.TJSONProtocol;
 public class ConfigHelper
 {
     private static final String KEYSPACE_CONFIG = "cassandra.input.keyspace";
+    private static final String KEYSPACE_USERNAME_CONFIG = "cassandra.input.keyspace.username";
+    private static final String KEYSPACE_PASSWD_CONFIG = "cassandra.input.keyspace.passwd";
     private static final String COLUMNFAMILY_CONFIG = "cassandra.input.columnfamily";
     private static final String PREDICATE_CONFIG = "cassandra.input.predicate";
     private static final String INPUT_SPLIT_SIZE_CONFIG = "cassandra.input.split.size";
@@ -165,6 +167,16 @@ public class ConfigHelper
     public static String getKeyspace(Configuration conf)
     {
         return conf.get(KEYSPACE_CONFIG);
+    }
+    
+    public static String getKeyspaceUserName(Configuration conf)
+    {
+    	return conf.get(KEYSPACE_USERNAME_CONFIG);
+    }
+    
+    public static String getKeyspacePassword(Configuration conf)
+    {
+    	return conf.get(KEYSPACE_PASSWD_CONFIG);
     }
 
     public static String getColumnFamily(Configuration conf)

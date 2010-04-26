@@ -24,11 +24,15 @@ package org.apache.cassandra.hadoop;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
 import com.google.common.collect.AbstractIterator;
+
+import org.apache.cassandra.auth.SimpleAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -56,6 +60,8 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
     private int batchRowCount; // fetch this many per batch
     private String cfName;
     private String keyspace;
+    private String username;
+    private String passwd;
 
     public void close() {}
     
@@ -84,7 +90,10 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
         batchRowCount = ConfigHelper.getRangeBatchSize(conf);
         cfName = ConfigHelper.getColumnFamily(conf);
         keyspace = ConfigHelper.getKeyspace(conf);
+        username = ConfigHelper.getKeyspaceUserName(conf);
+        passwd   = ConfigHelper.getKeyspacePassword(conf);
         iter = new RowIterator();
+        iter.login();
     }
     
     public boolean nextKeyValue() throws IOException
@@ -103,7 +112,28 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
         private int totalRead = 0;
         private int i = 0;
         private AbstractType comparator = DatabaseDescriptor.getComparator(keyspace, cfName);
-
+        
+        private void login() {
+        	
+        	Map<String, String> credentials = new HashMap<String, String>();
+            credentials.put(SimpleAuthenticator.USERNAME_KEY, username);
+            credentials.put(SimpleAuthenticator.PASSWORD_KEY, passwd);
+            AuthenticationRequest authRequest = new AuthenticationRequest(credentials);
+        
+        
+            TSocket socket = new TSocket(getLocation(),DatabaseDescriptor.getRpcPort());
+            TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket, false, false);
+            Cassandra.Client client = new Cassandra.Client(binaryProtocol);
+            
+            try
+            {
+                socket.open();
+                client.login(keyspace, authRequest);
+            } catch (Exception e) {
+            	throw new RuntimeException(e);
+            }
+        }
+        
         private void maybeInit()
         {
             // check if we need another batch 
@@ -140,12 +170,11 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
                                 .setEnd_token(split.getEndToken());
             try
             {
-                rows = client.get_range_slices(keyspace,
-                                               new ColumnParent(cfName),
+                rows = client.get_range_slices(new ColumnParent(cfName),
                                                predicate,
                                                keyRange,
                                                ConsistencyLevel.ONE);
-                    
+                  
                 // nothing new? reached the end
                 if (rows.isEmpty())
                 {

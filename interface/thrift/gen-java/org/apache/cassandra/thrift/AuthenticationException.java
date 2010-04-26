@@ -45,7 +45,7 @@ import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
 /**
- * invalid authentication request (user does not exist or credentials invalid)
+ * invalid authentication request (invalid keyspace, user does not exist, or credentials invalid)
  */
 public class AuthenticationException extends Exception implements TBase<AuthenticationException._Fields>, java.io.Serializable, Cloneable, Comparable<AuthenticationException> {
   private static final TStruct STRUCT_DESC = new TStruct("AuthenticationException");

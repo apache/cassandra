@@ -68,6 +68,10 @@ public class CassandraServer implements Cassandra.Iface
             return AccessLevel.NONE;
         }
     };
+    /*
+     * Keyspace associated with session
+     */
+    private ThreadLocal<String> keySpace = new ThreadLocal<String>();
 
     /*
       * Handle to the storage service to interact with the other machines in the
@@ -225,17 +229,17 @@ public class CassandraServer implements Cassandra.Iface
             return thriftifyColumns(cf.getSortedColumns(), reverseOrder);
     }
 
-    public List<ColumnOrSuperColumn> get_slice(String keyspace, byte[] key, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
+    public List<ColumnOrSuperColumn> get_slice(byte[] key, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
             logger.debug("get_slice");
         
         checkLoginAuthorized(AccessLevel.READONLY);
-        return multigetSliceInternal(keyspace, Arrays.asList(key), column_parent, predicate, consistency_level).get(key);
+        return multigetSliceInternal(keySpace.get(), Arrays.asList(key), column_parent, predicate, consistency_level).get(key);
     }
     
-    public Map<byte[], List<ColumnOrSuperColumn>> multiget_slice(String keyspace, List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
+    public Map<byte[], List<ColumnOrSuperColumn>> multiget_slice(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
@@ -243,7 +247,7 @@ public class CassandraServer implements Cassandra.Iface
 
         checkLoginAuthorized(AccessLevel.READONLY);
 
-        return multigetSliceInternal(keyspace, keys, column_parent, predicate, consistency_level);
+        return multigetSliceInternal(keySpace.get(), keys, column_parent, predicate, consistency_level);
     }
 
     private Map<byte[], List<ColumnOrSuperColumn>> multigetSliceInternal(String keyspace, List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
@@ -274,7 +278,7 @@ public class CassandraServer implements Cassandra.Iface
         return getSlice(commands, consistency_level);
     }
 
-    public ColumnOrSuperColumn get(String table, byte[] key, ColumnPath column_path, ConsistencyLevel consistency_level)
+    public ColumnOrSuperColumn get(byte[] key, ColumnPath column_path, ConsistencyLevel consistency_level)
     throws InvalidRequestException, NotFoundException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
@@ -282,7 +286,7 @@ public class CassandraServer implements Cassandra.Iface
 
         checkLoginAuthorized(AccessLevel.READONLY);
 
-        ColumnOrSuperColumn column = multigetInternal(table, Arrays.asList(key), column_path, consistency_level).get(key);
+        ColumnOrSuperColumn column = multigetInternal(keySpace.get(), Arrays.asList(key), column_path, consistency_level).get(key);
         if (!column.isSetColumn() && !column.isSetSuper_column())
         {
             throw new NotFoundException();
@@ -291,7 +295,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     /** always returns a ColumnOrSuperColumn for each key, even if there is no data for it */
-    public Map<byte[], ColumnOrSuperColumn> multiget(String table, List<byte[]> keys, ColumnPath column_path, ConsistencyLevel consistency_level)
+    public Map<byte[], ColumnOrSuperColumn> multiget(List<byte[]> keys, ColumnPath column_path, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
@@ -299,7 +303,7 @@ public class CassandraServer implements Cassandra.Iface
 
         checkLoginAuthorized(AccessLevel.READONLY);
 
-        return multigetInternal(table, keys, column_path, consistency_level);
+        return multigetInternal(keySpace.get(), keys, column_path, consistency_level);
     }
 
     private Map<byte[], ColumnOrSuperColumn> multigetInternal(String table, List<byte[]> keys, ColumnPath column_path, ConsistencyLevel consistency_level)
@@ -337,7 +341,7 @@ public class CassandraServer implements Cassandra.Iface
         return columnFamiliesMap;
     }
 
-    public int get_count(String table, byte[] key, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
+    public int get_count(byte[] key, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
@@ -345,7 +349,7 @@ public class CassandraServer implements Cassandra.Iface
 
         checkLoginAuthorized(AccessLevel.READONLY);
 
-        return get_slice(table, key, column_parent, predicate, consistency_level).size();
+        return get_slice(key, column_parent, predicate, consistency_level).size();
     }
 
     public Map<byte[], Integer> multiget_count(String table, List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
@@ -365,7 +369,7 @@ public class CassandraServer implements Cassandra.Iface
         return counts;
     }
 
-    public void insert(String table, byte[] key, ColumnParent column_parent, Column column, ConsistencyLevel consistency_level)
+    public void insert(byte[] key, ColumnParent column_parent, Column column, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
@@ -374,10 +378,10 @@ public class CassandraServer implements Cassandra.Iface
         checkLoginAuthorized(AccessLevel.READWRITE);
 
         ThriftValidation.validateKey(key);
-        ThriftValidation.validateColumnParent(table, column_parent);
-        ThriftValidation.validateColumn(table, column_parent, column);
+        ThriftValidation.validateColumnParent(keySpace.get(), column_parent);
+        ThriftValidation.validateColumn(keySpace.get(), column_parent, column);
 
-        RowMutation rm = new RowMutation(table, key);
+        RowMutation rm = new RowMutation(keySpace.get(), key);
         try
         {
             rm.add(new QueryPath(column_parent.column_family, column_parent.super_column, column.name), column.value, column.timestamp, column.ttl);
@@ -389,7 +393,7 @@ public class CassandraServer implements Cassandra.Iface
         doInsert(consistency_level, rm);
     }
     
-    public void batch_insert(String keyspace, byte[] key, Map<String, List<ColumnOrSuperColumn>> cfmap, ConsistencyLevel consistency_level)
+    public void batch_insert(byte[] key, Map<String, List<ColumnOrSuperColumn>> cfmap, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
@@ -403,14 +407,14 @@ public class CassandraServer implements Cassandra.Iface
         {
             for (ColumnOrSuperColumn cosc : cfmap.get(cfName))
             {
-                ThriftValidation.validateColumnOrSuperColumn(keyspace, cfName, cosc);
+                ThriftValidation.validateColumnOrSuperColumn(keySpace.get(), cfName, cosc);
             }
         }
 
-        doInsert(consistency_level, RowMutation.getRowMutation(keyspace, key, cfmap));
+        doInsert(consistency_level, RowMutation.getRowMutation(keySpace.get(), key, cfmap));
     }
 
-    public void batch_mutate(String keyspace, Map<byte[],Map<String,List<Mutation>>> mutation_map, ConsistencyLevel consistency_level)
+    public void batch_mutate(Map<byte[],Map<String,List<Mutation>>> mutation_map, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
@@ -449,10 +453,10 @@ public class CassandraServer implements Cassandra.Iface
 
                 for (Mutation mutation : columnFamilyMutations.getValue())
                 {
-                    ThriftValidation.validateMutation(keyspace, cfName, mutation);
+                    ThriftValidation.validateMutation(keySpace.get(), cfName, mutation);
                 }
             }
-            rowMutations.add(RowMutation.getRowMutationFromMutations(keyspace, key, columnFamilyToMutations));
+            rowMutations.add(RowMutation.getRowMutationFromMutations(keySpace.get(), key, columnFamilyToMutations));
         }
         if (consistency_level == ConsistencyLevel.ZERO)
         {
@@ -471,7 +475,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public void remove(String table, byte[] key, ColumnPath column_path, long timestamp, ConsistencyLevel consistency_level)
+    public void remove(byte[] key, ColumnPath column_path, long timestamp, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
@@ -480,9 +484,9 @@ public class CassandraServer implements Cassandra.Iface
         checkLoginAuthorized(AccessLevel.FULL);
 
         ThriftValidation.validateKey(key);
-        ThriftValidation.validateColumnPathOrParent(table, column_path);
+        ThriftValidation.validateColumnPathOrParent(keySpace.get(), column_path);
         
-        RowMutation rm = new RowMutation(table, key);
+        RowMutation rm = new RowMutation(keySpace.get(), key);
         rm.delete(new QueryPath(column_path), timestamp);
 
         doInsert(consistency_level, rm);
@@ -533,23 +537,23 @@ public class CassandraServer implements Cassandra.Iface
         return columnFamiliesMap;
     }
 
-    public List<KeySlice> get_range_slice(String keyspace, ColumnParent column_parent, SlicePredicate predicate, byte[] start_key, byte[] finish_key, int maxRows, ConsistencyLevel consistency_level)
+    public List<KeySlice> get_range_slice(ColumnParent column_parent, SlicePredicate predicate, byte[] start_key, byte[] finish_key, int maxRows, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TException, TimedOutException
     {
         if (logger.isDebugEnabled())
             logger.debug("get_range_slice " + start_key + " to " + finish_key);
 
         KeyRange range = new KeyRange().setStart_key(start_key).setEnd_key(finish_key).setCount(maxRows);
-        return getRangeSlicesInternal(keyspace, column_parent, predicate, range, consistency_level);
+        return getRangeSlicesInternal(keySpace.get(), column_parent, predicate, range, consistency_level);
     }
 
-    public List<KeySlice> get_range_slices(String keyspace, ColumnParent column_parent, SlicePredicate predicate, KeyRange range, ConsistencyLevel consistency_level)
+    public List<KeySlice> get_range_slices(ColumnParent column_parent, SlicePredicate predicate, KeyRange range, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TException, TimedOutException
     {
         if (logger.isDebugEnabled())
             logger.debug("range_slice");
 
-        return getRangeSlicesInternal(keyspace, column_parent, predicate, range, consistency_level);
+        return getRangeSlicesInternal(keySpace.get(), column_parent, predicate, range, consistency_level);
     }
 
     private List<KeySlice> getRangeSlicesInternal(String keyspace, ColumnParent column_parent, SlicePredicate predicate, KeyRange range, ConsistencyLevel consistency_level)
@@ -641,19 +645,27 @@ public class CassandraServer implements Cassandra.Iface
 
     public AccessLevel login(String keyspace, AuthenticationRequest auth_request) throws AuthenticationException, AuthorizationException, TException
     {
-        AccessLevel level = DatabaseDescriptor.getAuthenticator().login(keyspace, auth_request);
+        AccessLevel level;
+        if (DatabaseDescriptor.getTableDefinition(keyspace) == null)
+        {
+            throw new AuthenticationException("Keyspace does not exist");
+        }
+        
+        level = DatabaseDescriptor.getAuthenticator().login(keyspace, auth_request);
+        
+        if (logger.isDebugEnabled())
+            logger.debug("login confirmed; access level is " + level);
+        
         loginDone.set(level);
+        keySpace.set(keyspace);
         return level;
     }
 
     protected void checkLoginAuthorized(AccessLevel level) throws InvalidRequestException
     {
-        // FIXME: This disables access level checks when the configured
-        // authenticator is AllowAllAuthenticator. This is a temporary measure until CASSANDRA-714 is complete.
-        if (DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator)
-            return;
+        if (keySpace.get() == null) throw new InvalidRequestException("You have not logged in to a specific keyspace");
         if (loginDone.get() == AccessLevel.NONE) throw new InvalidRequestException("Your login access level was not sufficient to do " + level + " operations");
-        if (loginDone.get().getValue() >= level.getValue()) throw new InvalidRequestException("Your login access level was not sufficient to do " + level + " operations");
+        if (loginDone.get().getValue() < level.getValue()) throw new InvalidRequestException("Your login access level was not sufficient to do " + level + " operations");
     }
 
     public void system_add_column_family(CfDef cf_def) throws InvalidRequestException, TException
@@ -752,7 +764,6 @@ public class CassandraServer implements Cassandra.Iface
 
     public void system_add_keyspace(KsDef ks_def) throws InvalidRequestException, TException
     {
-        checkLoginAuthorized(AccessLevel.FULL);
         
         // if there is anything going on in the migration stage, fail.
         if (StageManager.getStage(StageManager.MIGRATION_STAGE).getQueue().size() > 0)

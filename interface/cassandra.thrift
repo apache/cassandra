@@ -115,7 +115,7 @@ exception UnavailableException {
 exception TimedOutException {
 }
 
-/** invalid authentication request (user does not exist or credentials invalid) */
+/** invalid authentication request (invalid keyspace, user does not exist, or credentials invalid) */
 exception AuthenticationException {
     1: required string why
 }
@@ -300,7 +300,7 @@ enum AccessLevel {
     Authentication requests can contain any data, dependent on the AuthenticationBackend used
 */
 struct AuthenticationRequest {
-    1: required map<string, string> credentials,
+    1: required map<string, string> credentials
 }
 
 /* describes a column family. */
@@ -334,21 +334,19 @@ service Cassandra {
     Get the Column or SuperColumn at the given column_path. If no value is present, NotFoundException is thrown. (This is
     the only method that can throw an exception under non-failure conditions.)
    */
-  ColumnOrSuperColumn get(1:required string keyspace,
-                          2:required binary key,
-                          3:required ColumnPath column_path,
-                          4:required ConsistencyLevel consistency_level=ONE)
+  ColumnOrSuperColumn get(1:required binary key,
+                          2:required ColumnPath column_path,
+                          3:required ConsistencyLevel consistency_level=ONE)
                       throws (1:InvalidRequestException ire, 2:NotFoundException nfe, 3:UnavailableException ue, 4:TimedOutException te),
 
   /**
     Get the group of columns contained by column_parent (either a ColumnFamily name or a ColumnFamily/SuperColumn name
     pair) specified by the given SlicePredicate. If no matching values are found, an empty list is returned.
    */
-  list<ColumnOrSuperColumn> get_slice(1:required string keyspace, 
-                                      2:required binary key, 
-                                      3:required ColumnParent column_parent, 
-                                      4:required SlicePredicate predicate, 
-                                      5:required ConsistencyLevel consistency_level=ONE)
+  list<ColumnOrSuperColumn> get_slice(1:required binary key, 
+                                      2:required ColumnParent column_parent, 
+                                      3:required SlicePredicate predicate, 
+                                      4:required ConsistencyLevel consistency_level=ONE)
                             throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
@@ -357,31 +355,28 @@ service Cassandra {
     the column and super_column references of the ColumnOrSuperColumn object it maps to will be null.  
     @deprecated; use multiget_slice
   */
-  map<binary,ColumnOrSuperColumn> multiget(1:required string keyspace, 
-                                           2:required list<binary> keys, 
-                                           3:required ColumnPath column_path, 
-                                           4:required ConsistencyLevel consistency_level=ONE)
+  map<binary,ColumnOrSuperColumn> multiget(1:required list<binary> keys, 
+                                           2:required ColumnPath column_path, 
+                                           3:required ConsistencyLevel consistency_level=ONE)
                                   throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
     Performs a get_slice for column_parent and predicate for the given keys in parallel.
   */
-  map<binary,list<ColumnOrSuperColumn>> multiget_slice(1:required string keyspace, 
-                                                       2:required list<binary> keys, 
-                                                       3:required ColumnParent column_parent, 
-                                                       4:required SlicePredicate predicate, 
-                                                       5:required ConsistencyLevel consistency_level=ONE)
+  map<binary,list<ColumnOrSuperColumn>> multiget_slice(1:required list<binary> keys, 
+                                                       2:required ColumnParent column_parent, 
+                                                       3:required SlicePredicate predicate, 
+                                                       4:required ConsistencyLevel consistency_level=ONE)
                                         throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
     returns the number of columns matching <code>predicate</code> for a particular <code>key</code>, 
     <code>ColumnFamily</code> and optionally <code>SuperColumn</code>.
   */
-  i32 get_count(1:required string keyspace, 
-                2:required binary key, 
-                3:required ColumnParent column_parent, 
-                4:required SlicePredicate predicate,
-                5:required ConsistencyLevel consistency_level=ONE)
+  i32 get_count(1:required binary key, 
+                2:required ColumnParent column_parent, 
+                3:required SlicePredicate predicate,
+                4:required ConsistencyLevel consistency_level=ONE)
       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
@@ -398,23 +393,21 @@ service Cassandra {
    returns a subset of columns for a range of keys.
    @Deprecated.  Use get_range_slices instead
   */
-  list<KeySlice> get_range_slice(1:required string keyspace, 
-                                 2:required ColumnParent column_parent, 
-                                 3:required SlicePredicate predicate,
-                                 4:required binary start_key, 
-                                 5:required binary finish_key, 
-                                 6:required i32 row_count=100, 
-                                 7:required ConsistencyLevel consistency_level=ONE)
+  list<KeySlice> get_range_slice(1:required ColumnParent column_parent, 
+                                 2:required SlicePredicate predicate,
+                                 3:required binary start_key, 
+                                 4:required binary finish_key, 
+                                 5:required i32 row_count=100, 
+                                 6:required ConsistencyLevel consistency_level=ONE)
                  throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
    returns a subset of columns for a range of keys.
   */
-  list<KeySlice> get_range_slices(1:required string keyspace, 
-                                  2:required ColumnParent column_parent, 
-                                  3:required SlicePredicate predicate,
-                                  4:required KeyRange range,
-                                  5:required ConsistencyLevel consistency_level=ONE)
+  list<KeySlice> get_range_slices(1:required ColumnParent column_parent, 
+                                  2:required SlicePredicate predicate,
+                                  3:required KeyRange range,
+                                  4:required ConsistencyLevel consistency_level=ONE)
                  throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   # modification methods
@@ -422,11 +415,10 @@ service Cassandra {
   /**
    * Insert a Column at the given column_parent.column_family and optional column_parent.super_column.
    */
-  void insert(1:required string keyspace, 
-              2:required binary key, 
-              3:required ColumnParent column_parent,
-              4:required Column column,
-              5:required ConsistencyLevel consistency_level=ONE)
+  void insert(1:required binary key, 
+              2:required ColumnParent column_parent,
+              3:required Column column,
+              4:required ConsistencyLevel consistency_level=ONE)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
@@ -435,10 +427,9 @@ service Cassandra {
     objects to insert.
     @deprecated; use batch_mutate instead
    */
-  void batch_insert(1:required string keyspace, 
-                    2:required binary key, 
-                    3:required map<string, list<ColumnOrSuperColumn>> cfmap,
-                    4:required ConsistencyLevel consistency_level=ONE)
+  void batch_insert(1:required binary key, 
+                    2:required map<string, list<ColumnOrSuperColumn>> cfmap,
+                    3:required ConsistencyLevel consistency_level=ONE)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
@@ -446,11 +437,10 @@ service Cassandra {
     that all the values in column_path besides column_path.column_family are truly optional: you can remove the entire
     row by just specifying the ColumnFamily, or you can remove a SuperColumn or a single Column by specifying those levels too.
    */
-  void remove(1:required string keyspace,
-              2:required binary key,
-              3:required ColumnPath column_path,
-              4:required i64 timestamp,
-              5:ConsistencyLevel consistency_level=ONE)
+  void remove(1:required binary key,
+              2:required ColumnPath column_path,
+              3:required i64 timestamp,
+              4:ConsistencyLevel consistency_level=ONE)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
@@ -458,9 +448,8 @@ service Cassandra {
 
     mutation_map maps key to column family to a list of Mutation objects to take place at that scope.
   **/
-  void batch_mutate(1:required string keyspace,
-                    2:required map<binary, map<string, list<Mutation>>> mutation_map,
-                    3:required ConsistencyLevel consistency_level=ONE)
+  void batch_mutate(1:required map<binary, map<string, list<Mutation>>> mutation_map,
+                    2:required ConsistencyLevel consistency_level=ONE)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
        
   // Meta-APIs -- APIs to get information about the node or cluster,

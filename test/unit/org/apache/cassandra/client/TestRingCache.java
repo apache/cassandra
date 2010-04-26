@@ -19,6 +19,7 @@ package org.apache.cassandra.client;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.HashMap;
 import java.util.List;
 
 import org.apache.cassandra.thrift.Cassandra;
@@ -31,6 +32,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
+
+import org.apache.cassandra.thrift.AuthenticationRequest;
 
 /**
  *  Sample code that uses RingCache in the client.
@@ -70,6 +73,7 @@ public class TestRingCache
         int minRow;
         int maxRow;
         String rowPrefix, keyspace = "Keyspace1";
+        
         if (args.length > 0)
         {
             keyspace = args[0];
@@ -100,8 +104,9 @@ public class TestRingCache
 
             // now, read the row back directly from the host owning the row locally
             tester.setup(endpoints.get(0).getHostAddress(), DatabaseDescriptor.getRpcPort());
-            tester.thriftClient.insert(keyspace, row, parent, new Column("col1".getBytes(), "val1".getBytes(), 1), ConsistencyLevel.ONE);
-            Column column = tester.thriftClient.get(keyspace, row, col, ConsistencyLevel.ONE).column;
+            tester.thriftClient.login(keyspace, new AuthenticationRequest(new HashMap<String,String>()));
+            tester.thriftClient.insert(row, parent, new Column("col1".getBytes(), "val1".getBytes(), 1), ConsistencyLevel.ONE);
+            Column column = tester.thriftClient.get(row, col, ConsistencyLevel.ONE).column;
             System.out.println("read row " + new String(row) + " " + new String(column.name) + ":" + new String(column.value) + ":" + column.timestamp);
         }
 
