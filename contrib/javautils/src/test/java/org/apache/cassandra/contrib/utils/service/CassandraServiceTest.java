@@ -26,8 +26,12 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 
 import org.apache.cassandra.service.EmbeddedCassandraService;
+import org.apache.cassandra.thrift.AuthenticationException;
+import org.apache.cassandra.thrift.AuthorizationException;
 import org.apache.cassandra.thrift.Cassandra;
+import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.ColumnOrSuperColumn;
+import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.ColumnPath;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.InvalidRequestException;
@@ -81,21 +85,25 @@ public class CassandraServiceTest {
     public void testInProcessCassandraServer()
             throws UnsupportedEncodingException, InvalidRequestException,
             UnavailableException, TimedOutException, TException,
-            NotFoundException {
+            NotFoundException, AuthenticationException, AuthorizationException {
         Cassandra.Client client = getClient();
 
-        String key_user_id = "1";
+        client.login("Keyspace1", null);
 
-        long timestamp = System.currentTimeMillis();
+        String key_user_id = "1";
+        long timestamp = System.currentTimeMillis();   
+
+        // insert
+        ColumnParent colParent = new ColumnParent("Standard1");
+        Column column = new Column("name".getBytes("utf-8"), "Ran".getBytes("UTF-8"), timestamp);
+        
+        client.insert(key_user_id.getBytes(), colParent, column, ConsistencyLevel.ONE);
+
+        // read
         ColumnPath cp = new ColumnPath("Standard1");
         cp.setColumn("name".getBytes("utf-8"));
 
-        // insert
-        client.insert("Keyspace1", key_user_id, cp, "Ran".getBytes("UTF-8"),
-                timestamp, ConsistencyLevel.ONE);
-
-        // read
-        ColumnOrSuperColumn got = client.get("Keyspace1", key_user_id, cp,
+        ColumnOrSuperColumn got = client.get(key_user_id.getBytes(), cp,
                 ConsistencyLevel.ONE);
 
         // assert
