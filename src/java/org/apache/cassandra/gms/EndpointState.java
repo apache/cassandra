@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.*;
 import org.apache.cassandra.io.ICompactSerializer;
 
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,25 +35,21 @@ import org.slf4j.LoggerFactory;
 
 public class EndpointState
 {
-    private static ICompactSerializer<EndpointState> serializer_;
-    static
-    {
-        serializer_ = new EndpointStateSerializer();
-    }
-    
-    HeartBeatState hbState_;
-    Map<String, ApplicationState> applicationState_ = new Hashtable<String, ApplicationState>();
+    private final static ICompactSerializer<EndpointState> serializer_ = new EndpointStateSerializer();
+
+    volatile HeartBeatState hbState_;
+    final Map<String, ApplicationState> applicationState_ = new NonBlockingHashMap<String, ApplicationState>();
     
     /* fields below do not get serialized */
-    long updateTimestamp_;
-    boolean isAlive_;
-    boolean isAGossiper_;
+    volatile long updateTimestamp_;
+    volatile boolean isAlive_;
+    volatile boolean isAGossiper_;
 
     // whether this endpoint has token associated with it or not. Initially set false for all
     // endpoints. After certain time of inactivity, gossiper will examine if this node has a
     // token or not and will set this true if token is found. If there is no token, this is a
     // fat client and will be removed automatically from gossip.
-    boolean hasToken_;
+    volatile boolean hasToken_;
 
     public static ICompactSerializer<EndpointState> serializer()
     {
@@ -73,17 +70,21 @@ public class EndpointState
         return hbState_;
     }
     
-    synchronized void setHeartBeatState(HeartBeatState hbState)
+    void setHeartBeatState(HeartBeatState hbState)
     {
         updateTimestamp();
         hbState_ = hbState;
     }
-    
+
     public ApplicationState getApplicationState(String key)
     {
         return applicationState_.get(key);
     }
-    
+
+    /**
+     * TODO replace this with operations that don't expose private state
+     */
+    @Deprecated
     public Map<String, ApplicationState> getApplicationStateMap()
     {
         return applicationState_;
@@ -100,7 +101,7 @@ public class EndpointState
         return updateTimestamp_;
     }
     
-    synchronized void updateTimestamp()
+    void updateTimestamp()
     {
         updateTimestamp_ = System.currentTimeMillis();
     }
@@ -110,7 +111,7 @@ public class EndpointState
         return isAlive_;
     }
 
-    synchronized void isAlive(boolean value)
+    void isAlive(boolean value)
     {        
         isAlive_ = value;        
     }
@@ -121,13 +122,13 @@ public class EndpointState
         return isAGossiper_;
     }
 
-    synchronized void isAGossiper(boolean value)
+    void isAGossiper(boolean value)
     {                
         //isAlive_ = false;
         isAGossiper_ = value;        
     }
 
-    public synchronized void setHasToken(boolean value)
+    public void setHasToken(boolean value)
     {
         hasToken_ = value;
     }
@@ -136,22 +137,6 @@ public class EndpointState
     {
         return hasToken_;
     }
-
-    public List<Map.Entry<String,ApplicationState>> getSortedApplicationStates()
-    {
-        ArrayList<Map.Entry<String, ApplicationState>> entries = new ArrayList<Map.Entry<String, ApplicationState>>();
-        entries.addAll(applicationState_.entrySet());
-        Collections.sort(entries, new Comparator<Map.Entry<String, ApplicationState>>()
-        {
-            public int compare(Map.Entry<String, ApplicationState> lhs, Map.Entry<String, ApplicationState> rhs)
-            {
-                return lhs.getValue().compareTo(rhs.getValue());
-            }
-        });
-
-        return entries;
-    }
-
 }
 
 class EndpointStateSerializer implements ICompactSerializer<EndpointState>

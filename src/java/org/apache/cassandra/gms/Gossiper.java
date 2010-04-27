@@ -21,6 +21,9 @@ package org.apache.cassandra.gms;
 import java.io.*;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.net.InetAddress;
 
 import org.apache.cassandra.concurrent.StageManager;
@@ -52,45 +55,42 @@ public class Gossiper implements IFailureDetectionEventListener, IEndpointStateC
         {
             try
             {
-                synchronized( Gossiper.instance )
+                /* Update the local heartbeat counter. */
+                endpointStateMap_.get(localEndpoint_).getHeartBeatState().updateHeartBeat();
+                List<GossipDigest> gDigests = new ArrayList<GossipDigest>();
+                Gossiper.instance.makeRandomGossipDigest(gDigests);
+
+                if ( gDigests.size() > 0 )
                 {
-                	/* Update the local heartbeat counter. */
-                    endpointStateMap_.get(localEndpoint_).getHeartBeatState().updateHeartBeat();
-                    List<GossipDigest> gDigests = new ArrayList<GossipDigest>();
-                    Gossiper.instance.makeRandomGossipDigest(gDigests);
+                    Message message = makeGossipDigestSynMessage(gDigests);
+                    /* Gossip to some random live member */
+                    boolean gossipedToSeed = doGossipToLiveMember(message);
 
-                    if ( gDigests.size() > 0 )
-                    {
-                        Message message = makeGossipDigestSynMessage(gDigests);
-                        /* Gossip to some random live member */
-                        boolean gossipedToSeed = doGossipToLiveMember(message);
+                    /* Gossip to some unreachable member with some probability to check if he is back up */
+                    doGossipToUnreachableMember(message);
 
-                        /* Gossip to some unreachable member with some probability to check if he is back up */
-                        doGossipToUnreachableMember(message);
+                    /* Gossip to a seed if we did not do so above, or we have seen less nodes
+                       than there are seeds.  This prevents partitions where each group of nodes
+                       is only gossiping to a subset of the seeds.
 
-                        /* Gossip to a seed if we did not do so above, or we have seen less nodes
-                           than there are seeds.  This prevents partitions where each group of nodes
-                           is only gossiping to a subset of the seeds.
+                       The most straightforward check would be to check that all the seeds have been
+                       verified either as live or unreachable.  To avoid that computation each round,
+                       we reason that:
 
-                           The most straightforward check would be to check that all the seeds have been
-                           verified either as live or unreachable.  To avoid that computation each round,
-                           we reason that:
+                       either all the live nodes are seeds, in which case non-seeds that come online
+                       will introduce themselves to a member of the ring by definition,
 
-                           either all the live nodes are seeds, in which case non-seeds that come online
-                           will introduce themselves to a member of the ring by definition,
+                       or there is at least one non-seed node in the list, in which case eventually
+                       someone will gossip to it, and then do a gossip to a random seed from the
+                       gossipedToSeed check.
 
-                           or there is at least one non-seed node in the list, in which case eventually
-                           someone will gossip to it, and then do a gossip to a random seed from the
-                           gossipedToSeed check.
+                       See CASSANDRA-150 for more exposition. */
+                    if (!gossipedToSeed || liveEndpoints_.size() < seeds_.size())
+                        doGossipToSeed(message);
 
-                           See CASSANDRA-150 for more exposition. */
-                        if (!gossipedToSeed || liveEndpoints_.size() < seeds_.size())
-                            doGossipToSeed(message);
-
-                        if (logger_.isTraceEnabled())
-                            logger_.trace("Performing status check ...");
-                        doStatusCheck();
-                    }
+                    if (logger_.isTraceEnabled())
+                        logger_.trace("Performing status check ...");
+                    doStatusCheck();
                 }
             }
             catch (Exception e)
@@ -110,27 +110,34 @@ public class Gossiper implements IFailureDetectionEventListener, IEndpointStateC
     private long aVeryLongTime_;
     private long FatClientTimeout_;
     private Random random_ = new Random();
+    private Comparator<InetAddress> inetcomparator = new Comparator<InetAddress>()
+    {
+        public int compare(InetAddress addr1,  InetAddress addr2)
+        {
+            return addr1.getHostAddress().compareTo(addr2.getHostAddress());
+        }
+    };
 
     /* subscribers for interest in EndpointState change */
-    private List<IEndpointStateChangeSubscriber> subscribers_ = new ArrayList<IEndpointStateChangeSubscriber>();
+    private List<IEndpointStateChangeSubscriber> subscribers_ = new CopyOnWriteArrayList<IEndpointStateChangeSubscriber>();
 
     /* live member set */
-    private Set<InetAddress> liveEndpoints_ = new HashSet<InetAddress>();
+    private Set<InetAddress> liveEndpoints_ = new ConcurrentSkipListSet<InetAddress>(inetcomparator);
 
     /* unreachable member set */
-    private Set<InetAddress> unreachableEndpoints_ = new HashSet<InetAddress>();
+    private Set<InetAddress> unreachableEndpoints_ = new ConcurrentSkipListSet<InetAddress>(inetcomparator);
 
     /* initial seeds for joining the cluster */
-    private Set<InetAddress> seeds_ = new HashSet<InetAddress>();
+    private Set<InetAddress> seeds_ = new ConcurrentSkipListSet<InetAddress>(inetcomparator);
 
     /* map where key is the endpoint and value is the state associated with the endpoint */
-    Map<InetAddress, EndpointState> endpointStateMap_ = new Hashtable<InetAddress, EndpointState>();
+    Map<InetAddress, EndpointState> endpointStateMap_ = new ConcurrentHashMap<InetAddress, EndpointState>();
 
     /* map where key is endpoint and value is timestamp when this endpoint was removed from
      * gossip. We will ignore any gossip regarding these endpoints for Streaming.RING_DELAY time
      * after removal to prevent nodes from falsely reincarnating during the time when removal
      * gossip gets propagated to all nodes */
-    Map<InetAddress, Long> justRemovedEndpoints_ = new Hashtable<InetAddress, Long>();
+    Map<InetAddress, Long> justRemovedEndpoints_ = new ConcurrentHashMap<InetAddress, Long>();
 
     private Gossiper()
     {
@@ -144,12 +151,12 @@ public class Gossiper implements IFailureDetectionEventListener, IEndpointStateC
     }
 
     /** Register with the Gossiper for EndpointState notifications */
-    public synchronized void register(IEndpointStateChangeSubscriber subscriber)
+    public void register(IEndpointStateChangeSubscriber subscriber)
     {
         subscribers_.add(subscriber);
     }
 
-    public synchronized void unregister(IEndpointStateChangeSubscriber subscriber)
+    public void unregister(IEndpointStateChangeSubscriber subscriber)
     {
         subscribers_.remove(subscriber);
     }
@@ -224,8 +231,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndpointStateC
     }
 
     /**
-     * No locking required since it is called from a method that already
-     * has acquired a lock. The gossip digest is built based on randomization
+     * The gossip digest is built based on randomization
      * rather than just looping through the collection of live endpoints.
      *
      * @param gDigests list of Gossip Digests.
@@ -431,7 +437,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndpointStateC
         return endpointStateMap_.get(ep);
     }
 
-    synchronized EndpointState getStateForVersionBiggerThan(InetAddress forEndpoint, int version)
+    EndpointState getStateForVersionBiggerThan(InetAddress forEndpoint, int version)
     {
         if (logger_.isTraceEnabled())
             logger_.trace("Scanning for state greater than " + version + " for " + forEndpoint);
@@ -588,7 +594,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndpointStateC
             subscriber.onJoin(ep, epState);
     }
 
-    synchronized void applyStateLocally(Map<InetAddress, EndpointState> epStateMap)
+    void applyStateLocally(Map<InetAddress, EndpointState> epStateMap)
     {
         for (Entry<InetAddress, EndpointState> entry : epStateMap.entrySet())
         {
@@ -657,7 +663,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndpointStateC
     {
         Map<String, ApplicationState> localAppStateMap = localStatePtr.getApplicationStateMap();
 
-        for (Map.Entry<String,ApplicationState> remoteEntry : remoteStatePtr.getSortedApplicationStates())
+        for (Map.Entry<String,ApplicationState> remoteEntry : remoteStatePtr.getApplicationStateMap().entrySet())
         {
             String remoteKey = remoteEntry.getKey();
             ApplicationState remoteAppState = remoteEntry.getValue();
@@ -706,7 +712,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndpointStateC
         }
     }
 
-    synchronized void isAlive(InetAddress addr, EndpointState epState, boolean value)
+    void isAlive(InetAddress addr, EndpointState epState, boolean value)
     {
         epState.isAlive(value);
         if (value)
@@ -747,7 +753,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndpointStateC
         This method is used to figure the state that the Gossiper has but Gossipee doesn't. The delta digests
         and the delta state are built up.
     */
-    synchronized void examineGossiper(List<GossipDigest> gDigestList, List<GossipDigest> deltaGossipDigestList, Map<InetAddress, EndpointState> deltaEpStateMap)
+    void examineGossiper(List<GossipDigest> gDigestList, List<GossipDigest> deltaGossipDigestList, Map<InetAddress, EndpointState> deltaEpStateMap)
     {
         for ( GossipDigest gDigest : gDigestList )
         {
@@ -837,7 +843,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndpointStateC
         gossipTimer_.schedule( new GossipTimerTask(), Gossiper.intervalInMillis_, Gossiper.intervalInMillis_);
     }
 
-    public synchronized void addLocalApplicationState(String key, ApplicationState appState)
+    public void addLocalApplicationState(String key, ApplicationState appState)
     {
         assert !StorageService.instance.isClientMode();
         EndpointState epState = endpointStateMap_.get(localEndpoint_);

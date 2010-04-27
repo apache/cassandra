@@ -890,7 +890,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public void onJoin(InetAddress endpoint, EndpointState epState)
     {
-        for (Map.Entry<String,ApplicationState> entry : epState.getSortedApplicationStates())
+        for (Map.Entry<String,ApplicationState> entry : epState.getApplicationStateMap().entrySet())
         {
             onChange(endpoint, entry.getKey(), entry.getValue());
         }
