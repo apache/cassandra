@@ -123,7 +123,7 @@ public class StorageProxy implements StorageProxyMBean
                             if (destination.equals(FBUtilities.getLocalAddress()))
                             {
                                 if (logger.isDebugEnabled())
-                                    logger.debug("insert writing local key " + rm.key());
+                                    logger.debug("insert writing local key " + FBUtilities.bytesToHex(rm.key()) + " (keyspace: " + rm.getTable() + ", CFs:" + rm.columnFamilyNames() + ")");
                                 Runnable runnable = new WrappedRunnable()
                                 {
                                     public void runMayThrow() throws IOException
@@ -138,7 +138,7 @@ public class StorageProxy implements StorageProxyMBean
                                 if (unhintedMessage == null)
                                     unhintedMessage = rm.makeRowMutationMessage();
                                 if (logger.isDebugEnabled())
-                                    logger.debug("insert writing key " + rm.key() + " to " + unhintedMessage.getMessageId() + "@" + destination);
+                                    logger.debug("insert writing key " + FBUtilities.bytesToHex(rm.key()) + " to " + unhintedMessage.getMessageId() + "@" + destination);
                                 MessagingService.instance.sendOneWay(unhintedMessage, destination);
                             }
                         }
@@ -152,7 +152,7 @@ public class StorageProxy implements StorageProxyMBean
                                 {
                                     addHintHeader(hintedMessage, target);
                                     if (logger.isDebugEnabled())
-                                        logger.debug("insert writing key " + rm.key() + " to " + hintedMessage.getMessageId() + "@" + destination + " for " + target);
+                                        logger.debug("insert writing key " + FBUtilities.bytesToHex(rm.key()) + " to " + hintedMessage.getMessageId() + "@" + destination + " for " + target);
                                 }
                             }
                             MessagingService.instance.sendOneWay(hintedMessage, destination);
@@ -161,7 +161,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
                 catch (IOException e)
                 {
-                    throw new RuntimeException("error inserting key " + rm.key(), e);
+                    throw new RuntimeException("error inserting key " + FBUtilities.bytesToHex(rm.key()), e);
                 }
             }
         }
@@ -226,7 +226,7 @@ public class StorageProxy implements StorageProxyMBean
                                 MessagingService.instance.addCallback(responseHandler, unhintedMessage.getMessageId());
                             }
                             if (logger.isDebugEnabled())
-                                logger.debug("insert writing key " + rm.key() + " to " + unhintedMessage.getMessageId() + "@" + destination);
+                                logger.debug("insert writing key " + FBUtilities.bytesToHex(rm.key()) + " to " + unhintedMessage.getMessageId() + "@" + destination);
                             MessagingService.instance.sendOneWay(unhintedMessage, destination);
                         }
                     }
@@ -240,7 +240,7 @@ public class StorageProxy implements StorageProxyMBean
                             {
                                 addHintHeader(hintedMessage, target);
                                 if (logger.isDebugEnabled())
-                                    logger.debug("insert writing key " + rm.key() + " to " + hintedMessage.getMessageId() + "@" + destination + " for " + target);
+                                    logger.debug("insert writing key " + FBUtilities.bytesToHex(rm.key()) + " to " + hintedMessage.getMessageId() + "@" + destination + " for " + target);
                             }
                         }
                         // (non-destination hints are part of the callback and count towards consistency only under CL.ANY)
@@ -261,7 +261,7 @@ public class StorageProxy implements StorageProxyMBean
             if (mostRecentRowMutation == null)
                 throw new RuntimeException("no mutations were seen but found an error during write anyway", e);
             else
-                throw new RuntimeException("error writing key " + mostRecentRowMutation.key(), e);
+                throw new RuntimeException("error writing key " + FBUtilities.bytesToHex(mostRecentRowMutation.key()), e);
         }
         finally
         {
@@ -296,7 +296,7 @@ public class StorageProxy implements StorageProxyMBean
     private static void insertLocalMessage(final RowMutation rm, final WriteResponseHandler responseHandler)
     {
         if (logger.isDebugEnabled())
-            logger.debug("insert writing local key " + rm.key());
+            logger.debug("insert writing local key " + FBUtilities.bytesToHex(rm.key()) + " (keyspace: " + rm.getTable() + ", CFs:" + rm.columnFamilyNames() + ")");
         Runnable runnable = new WrappedRunnable()
         {
             public void runMayThrow() throws IOException
@@ -502,7 +502,7 @@ public class StorageProxy implements StorageProxyMBean
                     catch (DigestMismatchException e)
                     {
                         // TODO should this be a thrift exception?
-                        throw new RuntimeException("digest mismatch reading key " + command.key, e);
+                        throw new RuntimeException("digest mismatch reading key " + FBUtilities.bytesToHex(command.key), e);
                     }
                 }
             }
