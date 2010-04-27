@@ -17,39 +17,58 @@
  ~ specific language governing permissions and limitations
  ~ under the License.
  -->
-<project basedir="." default="jar" name="word_count">
+<project default="jar" name="word_count" xmlns:ivy="antlib:org.apache.ivy.ant">
     <property name="cassandra.dir" value="../.." />
-    <property name="cassandra.lib" value="" />
+    <property name="cassandra.dir.lib" value="${cassandra.dir}/lib" />
     <property name="cassandra.classes" value="${cassandra.dir}/build/classes" />
     <property name="build.src" value="${basedir}/src" />
-    <property name="build.out" value="${basedir}/build" />
-    <property name="build.classes" value="${build.out}/classes" />
+    <property name="build.dir" value="${basedir}/build" />
+    <property name="ivy.lib.dir" value="${build.dir}/lib" />
+    <property name="build.classes" value="${build.dir}/classes" />
     <property name="final.name" value="word_count" />
+    <property name="ivy.version" value="2.1.0" />
+    <property name="ivy.url"
+              value="http://repo2.maven.org/maven2/org/apache/ivy/ivy" />
+
+    <condition property="ivy.jar.exists">
+        <available file="${build.dir}/ivy-${ivy.version}.jar" />
+    </condition>
+
+    <path id="autoivy.classpath">
+        <fileset dir="${ivy.lib.dir}">
+            <include name="**/*.jar" />
+        </fileset>
+        <pathelement location="${build.dir}/ivy-${ivy.version}.jar"/>
+    </path>
+
+    <path id="wordcount.build.classpath">
+        <fileset dir="${ivy.lib.dir}">
+            <include name="**/*.jar" />
+        </fileset>
+        <!-- cassandra dependencies -->
+        <fileset dir="${cassandra.dir.lib}">
+            <include name="**/*.jar" />
+        </fileset>
+        <fileset dir="${cassandra.dir}/build/lib/jars">
+            <include name="**/*.jar" />
+        </fileset>
+        <pathelement location="${cassandra.classes}" />
+    </path>
 
     <target name="init">
         <mkdir dir="${build.classes}" />
     </target>
 
-    <target depends="init" name="build">
+    <target depends="init,ivy-retrieve-build" name="build">
         <javac destdir="${build.classes}">
             <src path="${build.src}" />
-            <classpath>
-                <path>
-                    <fileset dir="${cassandra.dir}/lib">
-                        <include name="**/*.jar" />
-                    </fileset>
-                    <fileset dir="${cassandra.dir}/build/lib/jars">
-                        <include name="**/*.jar" />
-                    </fileset>
-                    <pathelement location="${cassandra.classes}" />
-                </path>
-            </classpath>
+            <classpath refid="wordcount.build.classpath" />
         </javac>
     </target>
 
     <target name="jar" depends="build">
         <mkdir dir="${build.classes}/META-INF" />
-        <jar jarfile="${build.out}/${final.name}.jar">
+        <jar jarfile="${build.dir}/${final.name}.jar">
            <fileset dir="${build.classes}" />
            <fileset dir="${cassandra.classes}" />
            <fileset dir="${cassandra.dir}">
@@ -63,6 +82,30 @@
     </target>
 
     <target name="clean">
-        <delete dir="${build.out}" />
+        <delete dir="${build.dir}" />
+    </target>
+
+    <!--
+        Ivy Specific targets
+            to fetch Ivy and this project's dependencies
+    -->
+	<target name="ivy-download" unless="ivy.jar.exists">
+      <echo>Downloading Ivy...</echo>
+      <mkdir dir="${build.dir}" />
+      <get src="${ivy.url}/${ivy.version}/ivy-${ivy.version}.jar"
+           dest="${build.dir}/ivy-${ivy.version}.jar" usetimestamp="true" />
+    </target>
+
+    <target name="ivy-init" depends="ivy-download" unless="ivy.initialized">
+      <mkdir dir="${ivy.lib.dir}"/>
+      <taskdef resource="org/apache/ivy/ant/antlib.xml"
+               uri="antlib:org.apache.ivy.ant"
+               classpathref="autoivy.classpath"/>
+      <property name="ivy.initialized" value="true"/>
+    </target>
+
+    <target name="ivy-retrieve-build" depends="ivy-init">
+      <ivy:retrieve type="jar,source" sync="true"
+             pattern="${ivy.lib.dir}/[type]s/[artifact]-[revision].[ext]" />
     </target>
 </project>

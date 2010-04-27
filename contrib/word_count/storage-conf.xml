@@ -83,33 +83,38 @@
        ~ An optional `Comment` attribute may be used to attach additional
        ~ human-readable information about the column family to its definition.
        ~ 
-       ~ The optional KeysCachedFraction attribute specifies
-       ~ The fraction of keys per sstable whose locations we keep in
+       ~ The optional KeysCached attribute specifies
+       ~ the number of keys per sstable whose locations we keep in
        ~ memory in "mostly LRU" order.  (JUST the key locations, NOT any
-       ~ column values.) The amount of memory used by the default setting of 
-       ~ 0.01 is comparable to the amount used by the internal per-sstable key
-       ~ index. Consider increasing this if you have fewer, wider rows.
-       ~ Set to 0 to disable entirely.
+       ~ column values.) Specify a fraction (value less than 1), a percentage
+       ~ (ending in a % sign) or an absolute number of keys to cache.
+       ~ KeysCached defaults to 200000 keys.
        ~
        ~ The optional RowsCached attribute specifies the number of rows
-       ~ whose entire contents we cache in memory, either as a fixed number
-       ~ of rows or as a percent of rows in the ColumnFamily.  
-       ~ Do not use this on ColumnFamilies with large rows, or
-       ~ ColumnFamilies with high write:read ratios.  As with key caching,
-       ~ valid values are from 0 to 1.  The default 0 disables it entirely.
+       ~ whose entire contents we cache in memory. Do not use this on
+       ~ ColumnFamilies with large rows, or ColumnFamilies with high write:read
+       ~ ratios. Specify a fraction (value less than 1), a percentage (ending in
+       ~ a % sign) or an absolute number of rows to cache. 
+       ~ RowsCached defaults to 0, i.e., row cache is off by default.
+       ~
+       ~ Remember, when using caches as a percentage, they WILL grow with
+       ~ your data set!
       -->
-      <ColumnFamily CompareWith="BytesType" 
-                    Name="Standard1" 
-                    RowsCached="10%"
-                    KeysCachedFraction="0"/>
-      <ColumnFamily CompareWith="UTF8Type" Name="Standard2"/>
-      <ColumnFamily CompareWith="TimeUUIDType" Name="StandardByUUID1"/>
-      <ColumnFamily ColumnType="Super"
+      <ColumnFamily Name="Standard1" CompareWith="BytesType"/>
+      <ColumnFamily Name="Standard2" 
+                    CompareWith="UTF8Type"
+                    KeysCached="100%"/>
+      <ColumnFamily Name="StandardByUUID1" CompareWith="TimeUUIDType" />
+      <ColumnFamily Name="Super1"
+                    ColumnType="Super"
+                    CompareWith="BytesType"
+                    CompareSubcolumnsWith="BytesType" />
+      <ColumnFamily Name="Super2"
+                    ColumnType="Super"
                     CompareWith="UTF8Type"
                     CompareSubcolumnsWith="UTF8Type"
-                    Name="Super1"
-                    RowsCached="1000"
-                    KeysCachedFraction="0"
+                    RowsCached="10000"
+                    KeysCached="50%"
                     Comment="A column family with supercolumns, whose column and subcolumn names are UTF8 strings"/>
 
       <!--
@@ -134,6 +139,7 @@
        ~ and PropertyFileEndPointSnitch is available in contrib/.
       -->
       <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
+        
     </Keyspace>
   </Keyspaces>
 
@@ -188,8 +194,6 @@
   <DataFileDirectories>
       <DataFileDirectory>/var/lib/cassandra/data</DataFileDirectory>
   </DataFileDirectories>
-  <CalloutLocation>/var/lib/cassandra/callouts</CalloutLocation>
-  <StagingFileDirectory>/var/lib/cassandra/staging</StagingFileDirectory>
 
 
   <!--
@@ -205,7 +209,7 @@
   <!-- Miscellaneous -->
 
   <!-- Time to wait for a reply from other nodes before failing the command -->
-  <RpcTimeoutInMillis>5000</RpcTimeoutInMillis>
+  <RpcTimeoutInMillis>10000</RpcTimeoutInMillis>
   <!-- Size to allow commitlog to grow to before creating a new segment -->
   <CommitLogRotationThresholdInMB>128</CommitLogRotationThresholdInMB>
 
@@ -221,6 +225,7 @@
    ~ (hostname, name resolution, etc), and the Right Thing is to use the
    ~ address associated with the hostname (it might not be).
   -->
+  <!--<ListenAddress>localhost</ListenAddress>-->
   <ListenAddress>127.0.0.2</ListenAddress>
   <!-- internal communications port -->
   <StoragePort>7000</StoragePort>
@@ -259,6 +264,14 @@
    ~ non-mmapped i/o.)
    -->
   <DiskAccessMode>auto</DiskAccessMode>
+
+  <!--
+   ~ Size of compacted row above which to log a warning.  (If compacted
+   ~ rows do not fit in memory, Cassandra will crash.  This is explained
+   ~ in http://wiki.apache.org/cassandra/CassandraLimitations and is
+   ~ scheduled to be fixed in 0.7.)
+  -->
+  <RowWarningThresholdInMB>512</RowWarningThresholdInMB>
 
   <!--
    ~ Buffer size to use when performing contiguous column slices. Increase
@@ -307,7 +320,7 @@
    ~ ColumnFamily before flushing to disk.  This is also a per-memtable
    ~ setting.  Use with MemtableThroughputInMB to tune memory usage.
   -->
-  <MemtableOperationsInMillions>0.1</MemtableOperationsInMillions>
+  <MemtableOperationsInMillions>0.3</MemtableOperationsInMillions>
   <!--
    ~ The maximum time to leave a dirty memtable unflushed.
    ~ (While any affected columnfamilies have unflushed data from a
@@ -337,7 +350,7 @@
    ~ This is less necessary in Cassandra than in traditional databases
    ~ since replication reduces the odds of losing data from a failure
    ~ after writing the log entry but before it actually reaches the disk.
-   ~ So the other option is "timed," where writes may be acked immediately
+   ~ So the other option is "periodic," where writes may be acked immediately
    ~ and the CommitLog is simply synced every CommitLogSyncPeriodInMS
    ~ milliseconds.
   -->

@@ -25,13 +25,16 @@ if [ ! -d $cwd/../../../build/classes ]; then
 fi
 
 # word_count Jar.
-if [ ! -e $cwd/../build/*.jar ]; then
+if [ ! -e $cwd/../build/word_count.jar ]; then
     echo "Unable to locate word_count jar" >&2
     exit 1
 fi
 
-CLASSPATH=$CLASSPATH:`ls -1 $cwd/../build/*.jar`
+CLASSPATH=$CLASSPATH:$cwd/../build/word_count.jar
 CLASSPATH=$CLASSPATH:.:$cwd/../../../build/classes
+for jar in $cwd/../build/lib/jars/*.jar; do
+    CLASSPATH=$CLASSPATH:$jar
+done
 for jar in $cwd/../../../lib/*.jar; do
     CLASSPATH=$CLASSPATH:$jar
 done
@@ -50,4 +53,5 @@ if [ "x$JAVA" = "x" ]; then
     exit 1
 fi
 
+#echo $CLASSPATH
 $JAVA -Xmx1G -ea -cp $CLASSPATH WordCount
