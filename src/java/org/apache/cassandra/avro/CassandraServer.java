@@ -36,16 +36,14 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.avro.util.Utf8;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.ReadCommand;
-import org.apache.cassandra.db.Row;
-import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.SliceByNamesReadCommand;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.service.StorageProxy;
 import static org.apache.cassandra.utils.FBUtilities.UTF8;
+
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.Bytes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import static org.apache.cassandra.avro.AvroRecordFactory.*;
@@ -132,12 +130,12 @@ public class CassandraServer implements Cassandra {
     private Map<String, Collection<IColumn>> multigetColumns(List<ReadCommand> commands, ConsistencyLevel level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        Map<byte[], ColumnFamily> cfamilies = readColumnFamily(commands, level);
+        Map<DecoratedKey, ColumnFamily> cfamilies = readColumnFamily(commands, level);
         Map<String, Collection<IColumn>> columnFamiliesMap = new HashMap<String, Collection<IColumn>>();
         
         for (ReadCommand command : commands)
         {
-            ColumnFamily cfamily = cfamilies.get(command.key);
+            ColumnFamily cfamily = cfamilies.get(StorageService.getPartitioner().decorateKey(command.key));
             if (cfamily == null)
                 continue;
 
@@ -165,11 +163,11 @@ public class CassandraServer implements Cassandra {
         return columnFamiliesMap;
     }
     
-    protected Map<byte[], ColumnFamily> readColumnFamily(List<ReadCommand> commands, ConsistencyLevel consistency)
+    protected Map<DecoratedKey, ColumnFamily> readColumnFamily(List<ReadCommand> commands, ConsistencyLevel consistency)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         // TODO - Support multiple column families per row, right now row only contains 1 column family
-        Map<byte[], ColumnFamily> columnFamilyKeyMap = new HashMap<byte[],ColumnFamily>();
+        Map<DecoratedKey, ColumnFamily> columnFamilyKeyMap = new HashMap<DecoratedKey, ColumnFamily>();
         
         if (consistency == ConsistencyLevel.ZERO)
             throw newInvalidRequestException("Consistency level zero may not be applied to read operations");
@@ -199,7 +197,7 @@ public class CassandraServer implements Cassandra {
 
         for (Row row: rows)
         {
-            columnFamilyKeyMap.put(row.key.key, row.cf);
+            columnFamilyKeyMap.put(row.key, row.cf);
         }
         
         return columnFamilyKeyMap;

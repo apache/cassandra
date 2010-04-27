@@ -84,11 +84,11 @@ public class CassandraServer implements Cassandra.Iface
         storageService = StorageService.instance;
     }
     
-    protected Map<byte[], ColumnFamily> readColumnFamily(List<ReadCommand> commands, ConsistencyLevel consistency_level)
+    protected Map<DecoratedKey, ColumnFamily> readColumnFamily(List<ReadCommand> commands, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         // TODO - Support multiple column families per row, right now row only contains 1 column family
-        Map<byte[], ColumnFamily> columnFamilyKeyMap = new HashMap<byte[],ColumnFamily>();
+        Map<DecoratedKey, ColumnFamily> columnFamilyKeyMap = new HashMap<DecoratedKey, ColumnFamily>();
 
         if (consistency_level == ConsistencyLevel.ZERO)
         {
@@ -119,7 +119,7 @@ public class CassandraServer implements Cassandra.Iface
 
         for (Row row: rows)
         {
-            columnFamilyKeyMap.put(row.key.key, row.cf);
+            columnFamilyKeyMap.put(row.key, row.cf);
         }
         return columnFamilyKeyMap;
     }
@@ -197,11 +197,11 @@ public class CassandraServer implements Cassandra.Iface
     private Map<byte[], List<ColumnOrSuperColumn>> getSlice(List<ReadCommand> commands, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        Map<byte[], ColumnFamily> columnFamilies = readColumnFamily(commands, consistency_level);
+        Map<DecoratedKey, ColumnFamily> columnFamilies = readColumnFamily(commands, consistency_level);
         Map<byte[], List<ColumnOrSuperColumn>> columnFamiliesMap = new HashMap<byte[], List<ColumnOrSuperColumn>>();
         for (ReadCommand command: commands)
         {
-            ColumnFamily cf = columnFamilies.get(command.key);
+            ColumnFamily cf = columnFamilies.get(StorageService.getPartitioner().decorateKey(command.key));
             boolean reverseOrder = command instanceof SliceFromReadCommand && ((SliceFromReadCommand)command).reversed;
             List<ColumnOrSuperColumn> thriftifiedColumns = thriftifyColumnFamily(cf, command.queryPath.superColumnName != null, reverseOrder);
             columnFamiliesMap.put(command.key, thriftifiedColumns);
@@ -321,12 +321,12 @@ public class CassandraServer implements Cassandra.Iface
         }
 
         Map<byte[], ColumnOrSuperColumn> columnFamiliesMap = new HashMap<byte[], ColumnOrSuperColumn>();
-        Map<byte[], ColumnFamily> cfamilies = readColumnFamily(commands, consistency_level);
+        Map<DecoratedKey, ColumnFamily> cfamilies = readColumnFamily(commands, consistency_level);
 
 
         for (ReadCommand command: commands)
         {
-            ColumnFamily cf = cfamilies.get(command.key);
+            ColumnFamily cf = cfamilies.get(StorageService.getPartitioner().decorateKey(command.key));
             if (cf == null)
             {
                 columnFamiliesMap.put(command.key, new ColumnOrSuperColumn());
