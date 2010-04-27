@@ -29,7 +29,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.locator.DatacenterEndpointSnitch;
+import org.apache.cassandra.locator.AbstractRackAwareSnitch;
 import org.apache.cassandra.net.Message;
 
 /**
@@ -41,14 +41,14 @@ public class DatacenterSyncWriteResponseHandler extends WriteResponseHandler
 {
     private final Map<String, Integer> dcResponses = new HashMap<String, Integer>();
     private final Map<String, Integer> responseCounts;
-    private final DatacenterEndpointSnitch endpointSnitch;
+    private final AbstractRackAwareSnitch endpointSnitch;
 
     public DatacenterSyncWriteResponseHandler(Map<String, Integer> responseCounts, String table)
     {
         // Response is been managed by the map so make it 1 for the superclass.
         super(1, table);
         this.responseCounts = responseCounts;
-        endpointSnitch = (DatacenterEndpointSnitch) DatabaseDescriptor.getEndpointSnitch();
+        endpointSnitch = (AbstractRackAwareSnitch) DatabaseDescriptor.getEndpointSnitch();
     }
 
     @Override

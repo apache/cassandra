@@ -21,13 +21,16 @@ package org.apache.cassandra.locator;
  */
 
 
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.IOError;
 import java.net.InetAddress;
+import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.Map.Entry;
 
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.ConsistencyLevel;
@@ -50,6 +53,7 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
     ArrayList<Token> tokens;
 
     private List<InetAddress> localEndpoints = new ArrayList<InetAddress>();
+    private static final String DATACENTER_PROPERTIES_FILENAME = "datacenters.properties";
 
     private List<InetAddress> getLocalEndpoints()
     {
@@ -65,15 +69,15 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
      * This Method will get the required information of the Endpoint from the
      * DataCenterEndpointSnitch and poopulates this singleton class.
      */
-    private synchronized void loadEndpoints(TokenMetadata metadata) throws IOException
+    private synchronized void loadEndpoints(TokenMetadata metadata) throws UnknownHostException
     {
         this.tokens = new ArrayList<Token>(metadata.sortedTokens());
-        String localDC = ((DatacenterEndpointSnitch)snitch_).getDatacenter(InetAddress.getLocalHost());
+        String localDC = ((AbstractRackAwareSnitch)snitch_).getDatacenter(InetAddress.getLocalHost());
         dcMap = new HashMap<String, List<Token>>();
         for (Token token : this.tokens)
         {
             InetAddress endpoint = metadata.getEndpoint(token);
-            String dataCenter = ((DatacenterEndpointSnitch)snitch_).getDatacenter(endpoint);
+            String dataCenter = ((AbstractRackAwareSnitch)snitch_).getDatacenter(endpoint);
             if (dataCenter.equals(localDC))
             {
                 localEndpoints.add(endpoint);
@@ -92,7 +96,6 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
             Collections.sort(valueList);
             dcMap.put(entry.getKey(), valueList);
         }
-        dcReplicationFactor = ((DatacenterEndpointSnitch)snitch_).getMapReplicationFactor();
         for (Entry<String, Integer> entry : dcReplicationFactor.entrySet())
         {
             String datacenter = entry.getKey();
@@ -105,13 +108,33 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
         }
     }
 
-    public DatacenterShardStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch)
-    throws UnknownHostException
+    public DatacenterShardStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch) throws ConfigurationException
     {
         super(tokenMetadata, snitch);
-        if ((!(snitch instanceof DatacenterEndpointSnitch)))
+        if (!(snitch instanceof AbstractRackAwareSnitch))
         {
-            throw new IllegalArgumentException("DatacenterShardStrategy requires DatacenterEndpointSnitch");
+            throw new IllegalArgumentException("DatacenterShardStrategy requires a rack-aware endpointsnitch");
+        }
+
+        // load replication factors for each DC
+        ClassLoader loader = PropertyFileSnitch.class.getClassLoader();
+        URL scpurl = loader.getResource(DATACENTER_PROPERTIES_FILENAME);
+        if (scpurl == null)
+            throw new ConfigurationException("unable to locate " + DATACENTER_PROPERTIES_FILENAME);
+
+        String rackPropertyFilename = scpurl.getFile();
+        try
+        {
+            Properties p = new Properties();
+            p.load(new FileReader(rackPropertyFilename));
+            for (Entry<Object, Object> entry : p.entrySet())
+            {
+                dcReplicationFactor.put((String)entry.getKey(), Integer.valueOf((String)entry.getValue()));
+            }
+        }
+        catch (IOException ioe)
+        {
+            throw new ConfigurationException("Could not process " + rackPropertyFilename, ioe);
         }
     }
 
@@ -223,5 +246,10 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
             return new DatacenterSyncWriteResponseHandler(getQuorumRepFactor(), table);
         }
         return super.getWriteResponseHandler(blockFor, consistency_level, table);
+    }
+
+    int getReplicationFactor(String datacenter)
+    {
+        return dcReplicationFactor.get(datacenter);
     }
 }
