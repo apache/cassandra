@@ -40,8 +40,6 @@ public abstract class ReadCommand
     public static final byte CMD_TYPE_GET_SLICE_BY_NAMES = 1;
     public static final byte CMD_TYPE_GET_SLICE = 2;
 
-    public static final String EMPTY_CF = "";
-    
     private static ReadCommandSerializer serializer = new ReadCommandSerializer();
 
     public static ReadCommandSerializer serializer()

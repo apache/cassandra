@@ -45,7 +45,6 @@ public interface IPartitioner<T extends Token>
      * @param key the raw, client-facing key
      * @return decorated version of key
      */
-    @Deprecated
     public DecoratedKey<T> decorateKey(byte[] key);
 
     /**

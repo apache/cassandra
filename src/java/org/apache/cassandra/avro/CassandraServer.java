@@ -43,7 +43,6 @@ import org.apache.cassandra.service.StorageProxy;
 import static org.apache.cassandra.utils.FBUtilities.UTF8;
 
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.Bytes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import static org.apache.cassandra.avro.AvroRecordFactory.*;
@@ -55,7 +54,6 @@ public class CassandraServer implements Cassandra {
     private final static GenericArray<Column> EMPTY_SUBCOLUMNS = new GenericData.Array<Column>(0, Schema.parse("{\"type\":\"array\",\"items\":" + Column.SCHEMA$ + "}"));
     private final static Utf8 API_VERSION = new Utf8("0.0.0");
 
-    @Override
     public ColumnOrSuperColumn get(Utf8 keyspace, Utf8 key, ColumnPath columnPath, ConsistencyLevel consistencyLevel)
     throws AvroRemoteException, InvalidRequestException, NotFoundException, UnavailableException, TimedOutException {
         if (logger.isDebugEnabled())
@@ -223,7 +221,6 @@ public class CassandraServer implements Cassandra {
         return avroColumns;
     }
 
-    @Override
     public Void insert(Utf8 keyspace, Utf8 key, ColumnPath cp, ByteBuffer value, long timestamp, ConsistencyLevel consistencyLevel)
     throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -277,7 +274,6 @@ public class CassandraServer implements Cassandra {
         }
     }
 
-    @Override
     public Void batch_insert(Utf8 keyspace, Utf8 key, Map<Utf8, GenericArray<ColumnOrSuperColumn>> cfmap, ConsistencyLevel consistency)
     throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -328,9 +324,8 @@ public class CassandraServer implements Cassandra {
         return rm;
     }
 
-    @Override
     public Void batch_mutate(Utf8 keyspace, Map<Utf8, Map<Utf8, GenericArray<Mutation>>> mutationMap, ConsistencyLevel consistencyLevel)
-    throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
+    throws AvroRemoteException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
             logger.debug("batch_mutate");
@@ -447,7 +442,6 @@ public class CassandraServer implements Cassandra {
         return null;
     }
 
-    @Override
     public Utf8 get_api_version() throws AvroRemoteException
     {
         return API_VERSION;
