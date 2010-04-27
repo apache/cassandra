@@ -395,6 +395,24 @@ class TestMutations(ThriftTester):
                 for key in keys:
                     _assert_no_columnpath(key, ColumnPath(column_family, column=c.name))
 
+    def test_batch_mutate_remove_standard_row(self):
+        _empty_login('Keyspace1')
+        column_families = ['Standard1', 'Standard2']
+        keys = ['key_%d' % i for i in range(11,21)]
+        _insert_multi(keys)
+
+        mutations = [Mutation(deletion=Deletion(20))]
+        mutation_map = dict((column_family, mutations) for column_family in column_families)
+
+        keyed_mutations = dict((key, mutation_map) for key in keys)
+
+        client.batch_mutate(keyed_mutations, ConsistencyLevel.ONE)
+
+        for column_family in column_families:
+            for c in _SIMPLE_COLUMNS:
+                for key in keys:
+                    _assert_no_columnpath(key, ColumnPath(column_family, column=c.name))
+
     def test_batch_mutate_remove_super_columns_with_standard_under(self):
         _empty_login('Keyspace1')
         column_families = ['Super1', 'Super2']
@@ -448,6 +466,33 @@ class TestMutations(ThriftTester):
             for c in sc.columns:
                 for key in keys:
                     waitfor(ZERO_WAIT, _assert_no_columnpath, key, ColumnPath('Super1', super_column=sc.name))
+    
+    def test_batch_mutate_remove_super_columns_entire_row(self):
+        _empty_login('Keyspace1')
+        
+        keys = ['key_%d' % i for i in range(17,21)]
+
+        for key in keys:
+            _insert_super(key)
+
+        mutations = []
+
+        mutations.append(Mutation(deletion=Deletion(20)))
+
+        mutation_map = {'Super1': mutations}
+
+        keyed_mutations = dict((key, mutation_map) for key in keys)
+
+        # Sanity check
+        for sc in _SUPER_COLUMNS:
+            for key in keys:
+                _assert_columnpath_exists(key, ColumnPath('Super1', super_column=sc.name))
+
+        client.batch_mutate(keyed_mutations, ConsistencyLevel.ZERO)
+
+        for sc in _SUPER_COLUMNS:
+          for key in keys:
+            waitfor(ZERO_WAIT, _assert_no_columnpath, key, ColumnPath('Super1', super_column=sc.name))
 
     def test_batch_mutate_insertions_and_deletions(self):
         _empty_login('Keyspace1')
@@ -502,13 +547,6 @@ class TestMutations(ThriftTester):
                                           ColumnPath('Super2',
                                                      super_column='sc1',
                                                      column=c))
-
-    def test_batch_mutate_validates_deletions(self):
-        _empty_login('Keyspace1')
-        def empty_deletion():
-            client.batch_mutate({'key_33': {'Standard1': [Mutation(deletion=Deletion(2))]}},
-                                ConsistencyLevel.ONE)
-        _expect_exception(empty_deletion, InvalidRequestException)
 
     def test_batch_mutate_does_not_accept_cosc_and_deletion_in_same_mutation(self):
         def too_full():
@@ -996,6 +1034,7 @@ class TestMutations(ThriftTester):
         _expect_missing(lambda: client.get('key1', ColumnPath('Super1', 'sc1'), ConsistencyLevel.ONE))
 
     def test_super_reinsert(self):
+        _empty_login('Keyspace1')
         for x in xrange(3):
             client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(x), 'value', 1), ConsistencyLevel.ONE)
 
@@ -1081,6 +1120,7 @@ class TestMutations(ThriftTester):
 
     def test_simple_expiration(self):
         """ Test that column ttled do expires """
+        _empty_login('Keyspace1')
         column = Column('cttl3', 'value1', 0, 2)
         client.insert('key1', ColumnParent('Standard1'), column, ConsistencyLevel.ONE)
         time.sleep(1)
@@ -1092,6 +1132,7 @@ class TestMutations(ThriftTester):
 
     def test_update_expiring(self):
         """ Test that updating a column with ttl override the ttl """
+        _empty_login('Keyspace1')
         column1 = Column('cttl4', 'value1', 0, 1)
         client.insert('key1', ColumnParent('Standard1'), column1, ConsistencyLevel.ONE)
         column2 = Column('cttl4', 'value1', 1)
@@ -1101,6 +1142,7 @@ class TestMutations(ThriftTester):
 
     def test_remove_expiring(self):
         """ Test removing a column with ttl """
+        _empty_login('Keyspace1')
         column = Column('cttl5', 'value1', 0, 10)
         client.insert('key1', ColumnParent('Standard1'), column, ConsistencyLevel.ONE)
         client.remove('key1', ColumnPath('Standard1', column='cttl5'), 1, ConsistencyLevel.ONE)

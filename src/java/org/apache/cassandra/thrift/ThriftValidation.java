@@ -260,11 +260,6 @@ public class ThriftValidation
 
     public static void validateDeletion(String keyspace, String cfName, Deletion del) throws InvalidRequestException
     {
-        if (del.super_column == null && del.predicate == null)
-        {
-            throw new InvalidRequestException("A Deletion must have a SuperColumn, a SlicePredicate or both.");
-        }
-
         if (del.predicate != null)
         {
             validateSlicePredicate(keyspace, cfName, del.super_column, del.predicate);
