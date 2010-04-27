@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "4.0.0"
+const string VERSION = "5.0.0"
 
 #
 # data structures
@@ -348,17 +348,6 @@ service Cassandra {
                                       3:required SlicePredicate predicate, 
                                       4:required ConsistencyLevel consistency_level=ONE)
                             throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
-
-  /**
-    Perform a get for column_path in parallel on the given list<binary> keys. The return value maps keys to the
-    ColumnOrSuperColumn found. If no value corresponding to a key is present, the key will still be in the map, but both
-    the column and super_column references of the ColumnOrSuperColumn object it maps to will be null.  
-    @deprecated; use multiget_slice
-  */
-  map<binary,ColumnOrSuperColumn> multiget(1:required list<binary> keys, 
-                                           2:required ColumnPath column_path, 
-                                           3:required ConsistencyLevel consistency_level=ONE)
-                                  throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
     Performs a get_slice for column_parent and predicate for the given keys in parallel.

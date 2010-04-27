@@ -965,24 +965,6 @@ class TestMutations(ThriftTester):
         assert len(result) == 1
         assert result[0].column.name == _i64(4)
 
-    def test_multiget(self):
-        """Insert multiple keys and retrieve them using the multiget interface"""
-        _empty_login('Keyspace1')
-        # Generate a list of 10 keys and insert them
-        num_keys = 10
-        keys = ['key'+str(i) for i in range(1, num_keys+1)]
-        _insert_multi(keys)
-
-        # Retrieve all 10 keys
-        rows = client.multiget(keys, ColumnPath('Standard1', column='c1'), ConsistencyLevel.ONE)
-        keys1 = rows.keys().sort()
-        keys2 = keys.sort()
-
-        # Validate if the returned rows have the keys requested and if the ColumnOrSuperColumn is what was inserted
-        for key in keys:
-            assert rows.has_key(key) == True
-            assert rows[key] == ColumnOrSuperColumn(column=Column(timestamp=0, name='c1', value='value1'))
-
     def test_multiget_slice(self):
         """Insert multiple keys and retrieve them using the multiget_slice interface"""
 

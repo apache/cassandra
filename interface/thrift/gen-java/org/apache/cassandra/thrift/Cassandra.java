@@ -72,18 +72,6 @@ public class Cassandra {
     public List<ColumnOrSuperColumn> get_slice(byte[] key, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
-     * Perform a get for column_path in parallel on the given list<binary> keys. The return value maps keys to the
-     * ColumnOrSuperColumn found. If no value corresponding to a key is present, the key will still be in the map, but both
-     * the column and super_column references of the ColumnOrSuperColumn object it maps to will be null.
-     * @deprecated; use multiget_slice
-     * 
-     * @param keys
-     * @param column_path
-     * @param consistency_level
-     */
-    public Map<byte[],ColumnOrSuperColumn> multiget(List<byte[]> keys, ColumnPath column_path, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
-
-    /**
      * Performs a get_slice for column_parent and predicate for the given keys in parallel.
      * 
      * @param keys
@@ -403,50 +391,6 @@ public class Cassandra {
         throw result.te;
       }
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_slice failed: unknown result");
-    }
-
-    public Map<byte[],ColumnOrSuperColumn> multiget(List<byte[]> keys, ColumnPath column_path, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
-    {
-      send_multiget(keys, column_path, consistency_level);
-      return recv_multiget();
-    }
-
-    public void send_multiget(List<byte[]> keys, ColumnPath column_path, ConsistencyLevel consistency_level) throws TException
-    {
-      oprot_.writeMessageBegin(new TMessage("multiget", TMessageType.CALL, seqid_));
-      multiget_args args = new multiget_args();
-      args.keys = keys;
-      args.column_path = column_path;
-      args.consistency_level = consistency_level;
-      args.write(oprot_);
-      oprot_.writeMessageEnd();
-      oprot_.getTransport().flush();
-    }
-
-    public Map<byte[],ColumnOrSuperColumn> recv_multiget() throws InvalidRequestException, UnavailableException, TimedOutException, TException
-    {
-      TMessage msg = iprot_.readMessageBegin();
-      if (msg.type == TMessageType.EXCEPTION) {
-        TApplicationException x = TApplicationException.read(iprot_);
-        iprot_.readMessageEnd();
-        throw x;
-      }
-      multiget_result result = new multiget_result();
-      result.read(iprot_);
-      iprot_.readMessageEnd();
-      if (result.isSetSuccess()) {
-        return result.success;
-      }
-      if (result.ire != null) {
-        throw result.ire;
-      }
-      if (result.ue != null) {
-        throw result.ue;
-      }
-      if (result.te != null) {
-        throw result.te;
-      }
-      throw new TApplicationException(TApplicationException.MISSING_RESULT, "multiget failed: unknown result");
     }
 
     public Map<byte[],List<ColumnOrSuperColumn>> multiget_slice(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
@@ -1253,7 +1197,6 @@ public class Cassandra {
       processMap_.put("login", new login());
       processMap_.put("get", new get());
       processMap_.put("get_slice", new get_slice());
-      processMap_.put("multiget", new multiget());
       processMap_.put("multiget_slice", new multiget_slice());
       processMap_.put("get_count", new get_count());
       processMap_.put("multiget_count", new multiget_count());
@@ -1421,48 +1364,6 @@ public class Cassandra {
           return;
         }
         oprot.writeMessageBegin(new TMessage("get_slice", TMessageType.REPLY, seqid));
-        result.write(oprot);
-        oprot.writeMessageEnd();
-        oprot.getTransport().flush();
-      }
-
-    }
-
-    private class multiget implements ProcessFunction {
-      public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
-      {
-        multiget_args args = new multiget_args();
-        try {
-          args.read(iprot);
-        } catch (TProtocolException e) {
-          iprot.readMessageEnd();
-          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
-          oprot.writeMessageBegin(new TMessage("multiget", TMessageType.EXCEPTION, seqid));
-          x.write(oprot);
-          oprot.writeMessageEnd();
-          oprot.getTransport().flush();
-          return;
-        }
-        iprot.readMessageEnd();
-        multiget_result result = new multiget_result();
-        try {
-          result.success = iface_.multiget(args.keys, args.column_path, args.consistency_level);
-        } catch (InvalidRequestException ire) {
-          result.ire = ire;
-        } catch (UnavailableException ue) {
-          result.ue = ue;
-        } catch (TimedOutException te) {
-          result.te = te;
-        } catch (Throwable th) {
-          LOGGER.error("Internal error processing multiget", th);
-          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing multiget");
-          oprot.writeMessageBegin(new TMessage("multiget", TMessageType.EXCEPTION, seqid));
-          x.write(oprot);
-          oprot.writeMessageEnd();
-          oprot.getTransport().flush();
-          return;
-        }
-        oprot.writeMessageBegin(new TMessage("multiget", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
         oprot.getTransport().flush();
@@ -5310,1059 +5211,6 @@ public class Cassandra {
 
   }
 
-  public static class multiget_args implements TBase<multiget_args._Fields>, java.io.Serializable, Cloneable, Comparable<multiget_args>   {
-    private static final TStruct STRUCT_DESC = new TStruct("multiget_args");
-
-    private static final TField KEYS_FIELD_DESC = new TField("keys", TType.LIST, (short)1);
-    private static final TField COLUMN_PATH_FIELD_DESC = new TField("column_path", TType.STRUCT, (short)2);
-    private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)3);
-
-    public List<byte[]> keys;
-    public ColumnPath column_path;
-    /**
-     * 
-     * @see ConsistencyLevel
-     */
-    public ConsistencyLevel consistency_level;
-
-    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-    public enum _Fields implements TFieldIdEnum {
-      KEYS((short)1, "keys"),
-      COLUMN_PATH((short)2, "column_path"),
-      /**
-       * 
-       * @see ConsistencyLevel
-       */
-      CONSISTENCY_LEVEL((short)3, "consistency_level");
-
-      private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
-      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
-
-      static {
-        for (_Fields field : EnumSet.allOf(_Fields.class)) {
-          byId.put((int)field._thriftId, field);
-          byName.put(field.getFieldName(), field);
-        }
-      }
-
-      /**
-       * Find the _Fields constant that matches fieldId, or null if its not found.
-       */
-      public static _Fields findByThriftId(int fieldId) {
-        return byId.get(fieldId);
-      }
-
-      /**
-       * Find the _Fields constant that matches fieldId, throwing an exception
-       * if it is not found.
-       */
-      public static _Fields findByThriftIdOrThrow(int fieldId) {
-        _Fields fields = findByThriftId(fieldId);
-        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
-        return fields;
-      }
-
-      /**
-       * Find the _Fields constant that matches name, or null if its not found.
-       */
-      public static _Fields findByName(String name) {
-        return byName.get(name);
-      }
-
-      private final short _thriftId;
-      private final String _fieldName;
-
-      _Fields(short thriftId, String fieldName) {
-        _thriftId = thriftId;
-        _fieldName = fieldName;
-      }
-
-      public short getThriftFieldId() {
-        return _thriftId;
-      }
-
-      public String getFieldName() {
-        return _fieldName;
-      }
-    }
-
-    // isset id assignments
-
-    public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
-      put(_Fields.KEYS, new FieldMetaData("keys", TFieldRequirementType.REQUIRED, 
-          new ListMetaData(TType.LIST, 
-              new FieldValueMetaData(TType.STRING))));
-      put(_Fields.COLUMN_PATH, new FieldMetaData("column_path", TFieldRequirementType.REQUIRED, 
-          new StructMetaData(TType.STRUCT, ColumnPath.class)));
-      put(_Fields.CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.REQUIRED, 
-          new EnumMetaData(TType.ENUM, ConsistencyLevel.class)));
-    }});
-
-    static {
-      FieldMetaData.addStructMetaDataMap(multiget_args.class, metaDataMap);
-    }
-
-    public multiget_args() {
-      this.consistency_level = ConsistencyLevel.ONE;
-
-    }
-
-    public multiget_args(
-      List<byte[]> keys,
-      ColumnPath column_path,
-      ConsistencyLevel consistency_level)
-    {
-      this();
-      this.keys = keys;
-      this.column_path = column_path;
-      this.consistency_level = consistency_level;
-    }
-
-    /**
-     * Performs a deep copy on <i>other</i>.
-     */
-    public multiget_args(multiget_args other) {
-      if (other.isSetKeys()) {
-        List<byte[]> __this__keys = new ArrayList<byte[]>();
-        for (byte[] other_element : other.keys) {
-          byte[] temp_binary_element = new byte[other_element.length];
-          System.arraycopy(other_element, 0, temp_binary_element, 0, other_element.length);
-          __this__keys.add(temp_binary_element);
-        }
-        this.keys = __this__keys;
-      }
-      if (other.isSetColumn_path()) {
-        this.column_path = new ColumnPath(other.column_path);
-      }
-      if (other.isSetConsistency_level()) {
-        this.consistency_level = other.consistency_level;
-      }
-    }
-
-    public multiget_args deepCopy() {
-      return new multiget_args(this);
-    }
-
-    @Deprecated
-    public multiget_args clone() {
-      return new multiget_args(this);
-    }
-
-    public int getKeysSize() {
-      return (this.keys == null) ? 0 : this.keys.size();
-    }
-
-    public java.util.Iterator<byte[]> getKeysIterator() {
-      return (this.keys == null) ? null : this.keys.iterator();
-    }
-
-    public void addToKeys(byte[] elem) {
-      if (this.keys == null) {
-        this.keys = new ArrayList<byte[]>();
-      }
-      this.keys.add(elem);
-    }
-
-    public List<byte[]> getKeys() {
-      return this.keys;
-    }
-
-    public multiget_args setKeys(List<byte[]> keys) {
-      this.keys = keys;
-      return this;
-    }
-
-    public void unsetKeys() {
-      this.keys = null;
-    }
-
-    /** Returns true if field keys is set (has been asigned a value) and false otherwise */
-    public boolean isSetKeys() {
-      return this.keys != null;
-    }
-
-    public void setKeysIsSet(boolean value) {
-      if (!value) {
-        this.keys = null;
-      }
-    }
-
-    public ColumnPath getColumn_path() {
-      return this.column_path;
-    }
-
-    public multiget_args setColumn_path(ColumnPath column_path) {
-      this.column_path = column_path;
-      return this;
-    }
-
-    public void unsetColumn_path() {
-      this.column_path = null;
-    }
-
-    /** Returns true if field column_path is set (has been asigned a value) and false otherwise */
-    public boolean isSetColumn_path() {
-      return this.column_path != null;
-    }
-
-    public void setColumn_pathIsSet(boolean value) {
-      if (!value) {
-        this.column_path = null;
-      }
-    }
-
-    /**
-     * 
-     * @see ConsistencyLevel
-     */
-    public ConsistencyLevel getConsistency_level() {
-      return this.consistency_level;
-    }
-
-    /**
-     * 
-     * @see ConsistencyLevel
-     */
-    public multiget_args setConsistency_level(ConsistencyLevel consistency_level) {
-      this.consistency_level = consistency_level;
-      return this;
-    }
-
-    public void unsetConsistency_level() {
-      this.consistency_level = null;
-    }
-
-    /** Returns true if field consistency_level is set (has been asigned a value) and false otherwise */
-    public boolean isSetConsistency_level() {
-      return this.consistency_level != null;
-    }
-
-    public void setConsistency_levelIsSet(boolean value) {
-      if (!value) {
-        this.consistency_level = null;
-      }
-    }
-
-    public void setFieldValue(_Fields field, Object value) {
-      switch (field) {
-      case KEYS:
-        if (value == null) {
-          unsetKeys();
-        } else {
-          setKeys((List<byte[]>)value);
-        }
-        break;
-
-      case COLUMN_PATH:
-        if (value == null) {
-          unsetColumn_path();
-        } else {
-          setColumn_path((ColumnPath)value);
-        }
-        break;
-
-      case CONSISTENCY_LEVEL:
-        if (value == null) {
-          unsetConsistency_level();
-        } else {
-          setConsistency_level((ConsistencyLevel)value);
-        }
-        break;
-
-      }
-    }
-
-    public void setFieldValue(int fieldID, Object value) {
-      setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
-    }
-
-    public Object getFieldValue(_Fields field) {
-      switch (field) {
-      case KEYS:
-        return getKeys();
-
-      case COLUMN_PATH:
-        return getColumn_path();
-
-      case CONSISTENCY_LEVEL:
-        return getConsistency_level();
-
-      }
-      throw new IllegalStateException();
-    }
-
-    public Object getFieldValue(int fieldId) {
-      return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-    }
-
-    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
-    public boolean isSet(_Fields field) {
-      switch (field) {
-      case KEYS:
-        return isSetKeys();
-      case COLUMN_PATH:
-        return isSetColumn_path();
-      case CONSISTENCY_LEVEL:
-        return isSetConsistency_level();
-      }
-      throw new IllegalStateException();
-    }
-
-    public boolean isSet(int fieldID) {
-      return isSet(_Fields.findByThriftIdOrThrow(fieldID));
-    }
-
-    @Override
-    public boolean equals(Object that) {
-      if (that == null)
-        return false;
-      if (that instanceof multiget_args)
-        return this.equals((multiget_args)that);
-      return false;
-    }
-
-    public boolean equals(multiget_args that) {
-      if (that == null)
-        return false;
-
-      boolean this_present_keys = true && this.isSetKeys();
-      boolean that_present_keys = true && that.isSetKeys();
-      if (this_present_keys || that_present_keys) {
-        if (!(this_present_keys && that_present_keys))
-          return false;
-        if (!this.keys.equals(that.keys))
-          return false;
-      }
-
-      boolean this_present_column_path = true && this.isSetColumn_path();
-      boolean that_present_column_path = true && that.isSetColumn_path();
-      if (this_present_column_path || that_present_column_path) {
-        if (!(this_present_column_path && that_present_column_path))
-          return false;
-        if (!this.column_path.equals(that.column_path))
-          return false;
-      }
-
-      boolean this_present_consistency_level = true && this.isSetConsistency_level();
-      boolean that_present_consistency_level = true && that.isSetConsistency_level();
-      if (this_present_consistency_level || that_present_consistency_level) {
-        if (!(this_present_consistency_level && that_present_consistency_level))
-          return false;
-        if (!this.consistency_level.equals(that.consistency_level))
-          return false;
-      }
-
-      return true;
-    }
-
-    @Override
-    public int hashCode() {
-      return 0;
-    }
-
-    public int compareTo(multiget_args other) {
-      if (!getClass().equals(other.getClass())) {
-        return getClass().getName().compareTo(other.getClass().getName());
-      }
-
-      int lastComparison = 0;
-      multiget_args typedOther = (multiget_args)other;
-
-      lastComparison = Boolean.valueOf(isSetKeys()).compareTo(typedOther.isSetKeys());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      if (isSetKeys()) {        lastComparison = TBaseHelper.compareTo(keys, typedOther.keys);
-        if (lastComparison != 0) {
-          return lastComparison;
-        }
-      }
-      lastComparison = Boolean.valueOf(isSetColumn_path()).compareTo(typedOther.isSetColumn_path());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      if (isSetColumn_path()) {        lastComparison = TBaseHelper.compareTo(column_path, typedOther.column_path);
-        if (lastComparison != 0) {
-          return lastComparison;
-        }
-      }
-      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(typedOther.isSetConsistency_level());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      if (isSetConsistency_level()) {        lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
-        if (lastComparison != 0) {
-          return lastComparison;
-        }
-      }
-      return 0;
-    }
-
-    public void read(TProtocol iprot) throws TException {
-      TField field;
-      iprot.readStructBegin();
-      while (true)
-      {
-        field = iprot.readFieldBegin();
-        if (field.type == TType.STOP) { 
-          break;
-        }
-        switch (field.id) {
-          case 1: // KEYS
-            if (field.type == TType.LIST) {
-              {
-                TList _list33 = iprot.readListBegin();
-                this.keys = new ArrayList<byte[]>(_list33.size);
-                for (int _i34 = 0; _i34 < _list33.size; ++_i34)
-                {
-                  byte[] _elem35;
-                  _elem35 = iprot.readBinary();
-                  this.keys.add(_elem35);
-                }
-                iprot.readListEnd();
-              }
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case 2: // COLUMN_PATH
-            if (field.type == TType.STRUCT) {
-              this.column_path = new ColumnPath();
-              this.column_path.read(iprot);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case 3: // CONSISTENCY_LEVEL
-            if (field.type == TType.I32) {
-              this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          default:
-            TProtocolUtil.skip(iprot, field.type);
-        }
-        iprot.readFieldEnd();
-      }
-      iprot.readStructEnd();
-
-      // check for required fields of primitive type, which can't be checked in the validate method
-      validate();
-    }
-
-    public void write(TProtocol oprot) throws TException {
-      validate();
-
-      oprot.writeStructBegin(STRUCT_DESC);
-      if (this.keys != null) {
-        oprot.writeFieldBegin(KEYS_FIELD_DESC);
-        {
-          oprot.writeListBegin(new TList(TType.STRING, this.keys.size()));
-          for (byte[] _iter36 : this.keys)
-          {
-            oprot.writeBinary(_iter36);
-          }
-          oprot.writeListEnd();
-        }
-        oprot.writeFieldEnd();
-      }
-      if (this.column_path != null) {
-        oprot.writeFieldBegin(COLUMN_PATH_FIELD_DESC);
-        this.column_path.write(oprot);
-        oprot.writeFieldEnd();
-      }
-      if (this.consistency_level != null) {
-        oprot.writeFieldBegin(CONSISTENCY_LEVEL_FIELD_DESC);
-        oprot.writeI32(this.consistency_level.getValue());
-        oprot.writeFieldEnd();
-      }
-      oprot.writeFieldStop();
-      oprot.writeStructEnd();
-    }
-
-    @Override
-    public String toString() {
-      StringBuilder sb = new StringBuilder("multiget_args(");
-      boolean first = true;
-
-      sb.append("keys:");
-      if (this.keys == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.keys);
-      }
-      first = false;
-      if (!first) sb.append(", ");
-      sb.append("column_path:");
-      if (this.column_path == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.column_path);
-      }
-      first = false;
-      if (!first) sb.append(", ");
-      sb.append("consistency_level:");
-      if (this.consistency_level == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.consistency_level);
-      }
-      first = false;
-      sb.append(")");
-      return sb.toString();
-    }
-
-    public void validate() throws TException {
-      // check for required fields
-      if (keys == null) {
-        throw new TProtocolException("Required field 'keys' was not present! Struct: " + toString());
-      }
-      if (column_path == null) {
-        throw new TProtocolException("Required field 'column_path' was not present! Struct: " + toString());
-      }
-      if (consistency_level == null) {
-        throw new TProtocolException("Required field 'consistency_level' was not present! Struct: " + toString());
-      }
-    }
-
-  }
-
-  public static class multiget_result implements TBase<multiget_result._Fields>, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("multiget_result");
-
-    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.MAP, (short)0);
-    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
-    private static final TField UE_FIELD_DESC = new TField("ue", TType.STRUCT, (short)2);
-    private static final TField TE_FIELD_DESC = new TField("te", TType.STRUCT, (short)3);
-
-    public Map<byte[],ColumnOrSuperColumn> success;
-    public InvalidRequestException ire;
-    public UnavailableException ue;
-    public TimedOutException te;
-
-    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-    public enum _Fields implements TFieldIdEnum {
-      SUCCESS((short)0, "success"),
-      IRE((short)1, "ire"),
-      UE((short)2, "ue"),
-      TE((short)3, "te");
-
-      private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
-      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
-
-      static {
-        for (_Fields field : EnumSet.allOf(_Fields.class)) {
-          byId.put((int)field._thriftId, field);
-          byName.put(field.getFieldName(), field);
-        }
-      }
-
-      /**
-       * Find the _Fields constant that matches fieldId, or null if its not found.
-       */
-      public static _Fields findByThriftId(int fieldId) {
-        return byId.get(fieldId);
-      }
-
-      /**
-       * Find the _Fields constant that matches fieldId, throwing an exception
-       * if it is not found.
-       */
-      public static _Fields findByThriftIdOrThrow(int fieldId) {
-        _Fields fields = findByThriftId(fieldId);
-        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
-        return fields;
-      }
-
-      /**
-       * Find the _Fields constant that matches name, or null if its not found.
-       */
-      public static _Fields findByName(String name) {
-        return byName.get(name);
-      }
-
-      private final short _thriftId;
-      private final String _fieldName;
-
-      _Fields(short thriftId, String fieldName) {
-        _thriftId = thriftId;
-        _fieldName = fieldName;
-      }
-
-      public short getThriftFieldId() {
-        return _thriftId;
-      }
-
-      public String getFieldName() {
-        return _fieldName;
-      }
-    }
-
-    // isset id assignments
-
-    public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
-      put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
-          new MapMetaData(TType.MAP, 
-              new FieldValueMetaData(TType.STRING), 
-              new StructMetaData(TType.STRUCT, ColumnOrSuperColumn.class))));
-      put(_Fields.IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.STRUCT)));
-      put(_Fields.UE, new FieldMetaData("ue", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.STRUCT)));
-      put(_Fields.TE, new FieldMetaData("te", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.STRUCT)));
-    }});
-
-    static {
-      FieldMetaData.addStructMetaDataMap(multiget_result.class, metaDataMap);
-    }
-
-    public multiget_result() {
-    }
-
-    public multiget_result(
-      Map<byte[],ColumnOrSuperColumn> success,
-      InvalidRequestException ire,
-      UnavailableException ue,
-      TimedOutException te)
-    {
-      this();
-      this.success = success;
-      this.ire = ire;
-      this.ue = ue;
-      this.te = te;
-    }
-
-    /**
-     * Performs a deep copy on <i>other</i>.
-     */
-    public multiget_result(multiget_result other) {
-      if (other.isSetSuccess()) {
-        Map<byte[],ColumnOrSuperColumn> __this__success = new HashMap<byte[],ColumnOrSuperColumn>();
-        for (Map.Entry<byte[], ColumnOrSuperColumn> other_element : other.success.entrySet()) {
-
-          byte[] other_element_key = other_element.getKey();
-          ColumnOrSuperColumn other_element_value = other_element.getValue();
-
-          byte[] __this__success_copy_key = new byte[other_element_key.length];
-          System.arraycopy(other_element_key, 0, __this__success_copy_key, 0, other_element_key.length);
-
-          ColumnOrSuperColumn __this__success_copy_value = new ColumnOrSuperColumn(other_element_value);
-
-          __this__success.put(__this__success_copy_key, __this__success_copy_value);
-        }
-        this.success = __this__success;
-      }
-      if (other.isSetIre()) {
-        this.ire = new InvalidRequestException(other.ire);
-      }
-      if (other.isSetUe()) {
-        this.ue = new UnavailableException(other.ue);
-      }
-      if (other.isSetTe()) {
-        this.te = new TimedOutException(other.te);
-      }
-    }
-
-    public multiget_result deepCopy() {
-      return new multiget_result(this);
-    }
-
-    @Deprecated
-    public multiget_result clone() {
-      return new multiget_result(this);
-    }
-
-    public int getSuccessSize() {
-      return (this.success == null) ? 0 : this.success.size();
-    }
-
-    public void putToSuccess(byte[] key, ColumnOrSuperColumn val) {
-      if (this.success == null) {
-        this.success = new HashMap<byte[],ColumnOrSuperColumn>();
-      }
-      this.success.put(key, val);
-    }
-
-    public Map<byte[],ColumnOrSuperColumn> getSuccess() {
-      return this.success;
-    }
-
-    public multiget_result setSuccess(Map<byte[],ColumnOrSuperColumn> success) {
-      this.success = success;
-      return this;
-    }
-
-    public void unsetSuccess() {
-      this.success = null;
-    }
-
-    /** Returns true if field success is set (has been asigned a value) and false otherwise */
-    public boolean isSetSuccess() {
-      return this.success != null;
-    }
-
-    public void setSuccessIsSet(boolean value) {
-      if (!value) {
-        this.success = null;
-      }
-    }
-
-    public InvalidRequestException getIre() {
-      return this.ire;
-    }
-
-    public multiget_result setIre(InvalidRequestException ire) {
-      this.ire = ire;
-      return this;
-    }
-
-    public void unsetIre() {
-      this.ire = null;
-    }
-
-    /** Returns true if field ire is set (has been asigned a value) and false otherwise */
-    public boolean isSetIre() {
-      return this.ire != null;
-    }
-
-    public void setIreIsSet(boolean value) {
-      if (!value) {
-        this.ire = null;
-      }
-    }
-
-    public UnavailableException getUe() {
-      return this.ue;
-    }
-
-    public multiget_result setUe(UnavailableException ue) {
-      this.ue = ue;
-      return this;
-    }
-
-    public void unsetUe() {
-      this.ue = null;
-    }
-
-    /** Returns true if field ue is set (has been asigned a value) and false otherwise */
-    public boolean isSetUe() {
-      return this.ue != null;
-    }
-
-    public void setUeIsSet(boolean value) {
-      if (!value) {
-        this.ue = null;
-      }
-    }
-
-    public TimedOutException getTe() {
-      return this.te;
-    }
-
-    public multiget_result setTe(TimedOutException te) {
-      this.te = te;
-      return this;
-    }
-
-    public void unsetTe() {
-      this.te = null;
-    }
-
-    /** Returns true if field te is set (has been asigned a value) and false otherwise */
-    public boolean isSetTe() {
-      return this.te != null;
-    }
-
-    public void setTeIsSet(boolean value) {
-      if (!value) {
-        this.te = null;
-      }
-    }
-
-    public void setFieldValue(_Fields field, Object value) {
-      switch (field) {
-      case SUCCESS:
-        if (value == null) {
-          unsetSuccess();
-        } else {
-          setSuccess((Map<byte[],ColumnOrSuperColumn>)value);
-        }
-        break;
-
-      case IRE:
-        if (value == null) {
-          unsetIre();
-        } else {
-          setIre((InvalidRequestException)value);
-        }
-        break;
-
-      case UE:
-        if (value == null) {
-          unsetUe();
-        } else {
-          setUe((UnavailableException)value);
-        }
-        break;
-
-      case TE:
-        if (value == null) {
-          unsetTe();
-        } else {
-          setTe((TimedOutException)value);
-        }
-        break;
-
-      }
-    }
-
-    public void setFieldValue(int fieldID, Object value) {
-      setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
-    }
-
-    public Object getFieldValue(_Fields field) {
-      switch (field) {
-      case SUCCESS:
-        return getSuccess();
-
-      case IRE:
-        return getIre();
-
-      case UE:
-        return getUe();
-
-      case TE:
-        return getTe();
-
-      }
-      throw new IllegalStateException();
-    }
-
-    public Object getFieldValue(int fieldId) {
-      return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-    }
-
-    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
-    public boolean isSet(_Fields field) {
-      switch (field) {
-      case SUCCESS:
-        return isSetSuccess();
-      case IRE:
-        return isSetIre();
-      case UE:
-        return isSetUe();
-      case TE:
-        return isSetTe();
-      }
-      throw new IllegalStateException();
-    }
-
-    public boolean isSet(int fieldID) {
-      return isSet(_Fields.findByThriftIdOrThrow(fieldID));
-    }
-
-    @Override
-    public boolean equals(Object that) {
-      if (that == null)
-        return false;
-      if (that instanceof multiget_result)
-        return this.equals((multiget_result)that);
-      return false;
-    }
-
-    public boolean equals(multiget_result that) {
-      if (that == null)
-        return false;
-
-      boolean this_present_success = true && this.isSetSuccess();
-      boolean that_present_success = true && that.isSetSuccess();
-      if (this_present_success || that_present_success) {
-        if (!(this_present_success && that_present_success))
-          return false;
-        if (!this.success.equals(that.success))
-          return false;
-      }
-
-      boolean this_present_ire = true && this.isSetIre();
-      boolean that_present_ire = true && that.isSetIre();
-      if (this_present_ire || that_present_ire) {
-        if (!(this_present_ire && that_present_ire))
-          return false;
-        if (!this.ire.equals(that.ire))
-          return false;
-      }
-
-      boolean this_present_ue = true && this.isSetUe();
-      boolean that_present_ue = true && that.isSetUe();
-      if (this_present_ue || that_present_ue) {
-        if (!(this_present_ue && that_present_ue))
-          return false;
-        if (!this.ue.equals(that.ue))
-          return false;
-      }
-
-      boolean this_present_te = true && this.isSetTe();
-      boolean that_present_te = true && that.isSetTe();
-      if (this_present_te || that_present_te) {
-        if (!(this_present_te && that_present_te))
-          return false;
-        if (!this.te.equals(that.te))
-          return false;
-      }
-
-      return true;
-    }
-
-    @Override
-    public int hashCode() {
-      return 0;
-    }
-
-    public void read(TProtocol iprot) throws TException {
-      TField field;
-      iprot.readStructBegin();
-      while (true)
-      {
-        field = iprot.readFieldBegin();
-        if (field.type == TType.STOP) { 
-          break;
-        }
-        switch (field.id) {
-          case 0: // SUCCESS
-            if (field.type == TType.MAP) {
-              {
-                TMap _map37 = iprot.readMapBegin();
-                this.success = new HashMap<byte[],ColumnOrSuperColumn>(2*_map37.size);
-                for (int _i38 = 0; _i38 < _map37.size; ++_i38)
-                {
-                  byte[] _key39;
-                  ColumnOrSuperColumn _val40;
-                  _key39 = iprot.readBinary();
-                  _val40 = new ColumnOrSuperColumn();
-                  _val40.read(iprot);
-                  this.success.put(_key39, _val40);
-                }
-                iprot.readMapEnd();
-              }
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case 1: // IRE
-            if (field.type == TType.STRUCT) {
-              this.ire = new InvalidRequestException();
-              this.ire.read(iprot);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case 2: // UE
-            if (field.type == TType.STRUCT) {
-              this.ue = new UnavailableException();
-              this.ue.read(iprot);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case 3: // TE
-            if (field.type == TType.STRUCT) {
-              this.te = new TimedOutException();
-              this.te.read(iprot);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          default:
-            TProtocolUtil.skip(iprot, field.type);
-        }
-        iprot.readFieldEnd();
-      }
-      iprot.readStructEnd();
-
-      // check for required fields of primitive type, which can't be checked in the validate method
-      validate();
-    }
-
-    public void write(TProtocol oprot) throws TException {
-      oprot.writeStructBegin(STRUCT_DESC);
-
-      if (this.isSetSuccess()) {
-        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
-        {
-          oprot.writeMapBegin(new TMap(TType.STRING, TType.STRUCT, this.success.size()));
-          for (Map.Entry<byte[], ColumnOrSuperColumn> _iter41 : this.success.entrySet())
-          {
-            oprot.writeBinary(_iter41.getKey());
-            _iter41.getValue().write(oprot);
-          }
-          oprot.writeMapEnd();
-        }
-        oprot.writeFieldEnd();
-      } else if (this.isSetIre()) {
-        oprot.writeFieldBegin(IRE_FIELD_DESC);
-        this.ire.write(oprot);
-        oprot.writeFieldEnd();
-      } else if (this.isSetUe()) {
-        oprot.writeFieldBegin(UE_FIELD_DESC);
-        this.ue.write(oprot);
-        oprot.writeFieldEnd();
-      } else if (this.isSetTe()) {
-        oprot.writeFieldBegin(TE_FIELD_DESC);
-        this.te.write(oprot);
-        oprot.writeFieldEnd();
-      }
-      oprot.writeFieldStop();
-      oprot.writeStructEnd();
-    }
-
-    @Override
-    public String toString() {
-      StringBuilder sb = new StringBuilder("multiget_result(");
-      boolean first = true;
-
-      sb.append("success:");
-      if (this.success == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.success);
-      }
-      first = false;
-      if (!first) sb.append(", ");
-      sb.append("ire:");
-      if (this.ire == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.ire);
-      }
-      first = false;
-      if (!first) sb.append(", ");
-      sb.append("ue:");
-      if (this.ue == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.ue);
-      }
-      first = false;
-      if (!first) sb.append(", ");
-      sb.append("te:");
-      if (this.te == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.te);
-      }
-      first = false;
-      sb.append(")");
-      return sb.toString();
-    }
-
-    public void validate() throws TException {
-      // check for required fields
-    }
-
-  }
-
   public static class multiget_slice_args implements TBase<multiget_slice_args._Fields>, java.io.Serializable, Cloneable, Comparable<multiget_slice_args>   {
     private static final TStruct STRUCT_DESC = new TStruct("multiget_slice_args");
 
@@ -6829,13 +5677,13 @@ public class Cassandra {
           case 1: // KEYS
             if (field.type == TType.LIST) {
               {
-                TList _list42 = iprot.readListBegin();
-                this.keys = new ArrayList<byte[]>(_list42.size);
-                for (int _i43 = 0; _i43 < _list42.size; ++_i43)
+                TList _list33 = iprot.readListBegin();
+                this.keys = new ArrayList<byte[]>(_list33.size);
+                for (int _i34 = 0; _i34 < _list33.size; ++_i34)
                 {
-                  byte[] _elem44;
-                  _elem44 = iprot.readBinary();
-                  this.keys.add(_elem44);
+                  byte[] _elem35;
+                  _elem35 = iprot.readBinary();
+                  this.keys.add(_elem35);
                 }
                 iprot.readListEnd();
               }
@@ -6885,9 +5733,9 @@ public class Cassandra {
         oprot.writeFieldBegin(KEYS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.keys.size()));
-          for (byte[] _iter45 : this.keys)
+          for (byte[] _iter36 : this.keys)
           {
-            oprot.writeBinary(_iter45);
+            oprot.writeBinary(_iter36);
           }
           oprot.writeListEnd();
         }
@@ -7379,26 +6227,26 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.MAP) {
               {
-                TMap _map46 = iprot.readMapBegin();
-                this.success = new HashMap<byte[],List<ColumnOrSuperColumn>>(2*_map46.size);
-                for (int _i47 = 0; _i47 < _map46.size; ++_i47)
+                TMap _map37 = iprot.readMapBegin();
+                this.success = new HashMap<byte[],List<ColumnOrSuperColumn>>(2*_map37.size);
+                for (int _i38 = 0; _i38 < _map37.size; ++_i38)
                 {
-                  byte[] _key48;
-                  List<ColumnOrSuperColumn> _val49;
-                  _key48 = iprot.readBinary();
+                  byte[] _key39;
+                  List<ColumnOrSuperColumn> _val40;
+                  _key39 = iprot.readBinary();
                   {
-                    TList _list50 = iprot.readListBegin();
-                    _val49 = new ArrayList<ColumnOrSuperColumn>(_list50.size);
-                    for (int _i51 = 0; _i51 < _list50.size; ++_i51)
+                    TList _list41 = iprot.readListBegin();
+                    _val40 = new ArrayList<ColumnOrSuperColumn>(_list41.size);
+                    for (int _i42 = 0; _i42 < _list41.size; ++_i42)
                     {
-                      ColumnOrSuperColumn _elem52;
-                      _elem52 = new ColumnOrSuperColumn();
-                      _elem52.read(iprot);
-                      _val49.add(_elem52);
+                      ColumnOrSuperColumn _elem43;
+                      _elem43 = new ColumnOrSuperColumn();
+                      _elem43.read(iprot);
+                      _val40.add(_elem43);
                     }
                     iprot.readListEnd();
                   }
-                  this.success.put(_key48, _val49);
+                  this.success.put(_key39, _val40);
                 }
                 iprot.readMapEnd();
               }
@@ -7448,14 +6296,14 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, this.success.size()));
-          for (Map.Entry<byte[], List<ColumnOrSuperColumn>> _iter53 : this.success.entrySet())
+          for (Map.Entry<byte[], List<ColumnOrSuperColumn>> _iter44 : this.success.entrySet())
           {
-            oprot.writeBinary(_iter53.getKey());
+            oprot.writeBinary(_iter44.getKey());
             {
-              oprot.writeListBegin(new TList(TType.STRUCT, _iter53.getValue().size()));
-              for (ColumnOrSuperColumn _iter54 : _iter53.getValue())
+              oprot.writeListBegin(new TList(TType.STRUCT, _iter44.getValue().size()));
+              for (ColumnOrSuperColumn _iter45 : _iter44.getValue())
               {
-                _iter54.write(oprot);
+                _iter45.write(oprot);
               }
               oprot.writeListEnd();
             }
@@ -9172,13 +8020,13 @@ public class Cassandra {
           case 2: // KEYS
             if (field.type == TType.LIST) {
               {
-                TList _list55 = iprot.readListBegin();
-                this.keys = new ArrayList<byte[]>(_list55.size);
-                for (int _i56 = 0; _i56 < _list55.size; ++_i56)
+                TList _list46 = iprot.readListBegin();
+                this.keys = new ArrayList<byte[]>(_list46.size);
+                for (int _i47 = 0; _i47 < _list46.size; ++_i47)
                 {
-                  byte[] _elem57;
-                  _elem57 = iprot.readBinary();
-                  this.keys.add(_elem57);
+                  byte[] _elem48;
+                  _elem48 = iprot.readBinary();
+                  this.keys.add(_elem48);
                 }
                 iprot.readListEnd();
               }
@@ -9233,9 +8081,9 @@ public class Cassandra {
         oprot.writeFieldBegin(KEYS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.keys.size()));
-          for (byte[] _iter58 : this.keys)
+          for (byte[] _iter49 : this.keys)
           {
-            oprot.writeBinary(_iter58);
+            oprot.writeBinary(_iter49);
           }
           oprot.writeListEnd();
         }
@@ -9734,15 +8582,15 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.MAP) {
               {
-                TMap _map59 = iprot.readMapBegin();
-                this.success = new HashMap<byte[],Integer>(2*_map59.size);
-                for (int _i60 = 0; _i60 < _map59.size; ++_i60)
+                TMap _map50 = iprot.readMapBegin();
+                this.success = new HashMap<byte[],Integer>(2*_map50.size);
+                for (int _i51 = 0; _i51 < _map50.size; ++_i51)
                 {
-                  byte[] _key61;
-                  int _val62;
-                  _key61 = iprot.readBinary();
-                  _val62 = iprot.readI32();
-                  this.success.put(_key61, _val62);
+                  byte[] _key52;
+                  int _val53;
+                  _key52 = iprot.readBinary();
+                  _val53 = iprot.readI32();
+                  this.success.put(_key52, _val53);
                 }
                 iprot.readMapEnd();
               }
@@ -9792,10 +8640,10 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.I32, this.success.size()));
-          for (Map.Entry<byte[], Integer> _iter63 : this.success.entrySet())
+          for (Map.Entry<byte[], Integer> _iter54 : this.success.entrySet())
           {
-            oprot.writeBinary(_iter63.getKey());
-            oprot.writeI32(_iter63.getValue());
+            oprot.writeBinary(_iter54.getKey());
+            oprot.writeI32(_iter54.getValue());
           }
           oprot.writeMapEnd();
         }
@@ -11065,14 +9913,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list64 = iprot.readListBegin();
-                this.success = new ArrayList<KeySlice>(_list64.size);
-                for (int _i65 = 0; _i65 < _list64.size; ++_i65)
+                TList _list55 = iprot.readListBegin();
+                this.success = new ArrayList<KeySlice>(_list55.size);
+                for (int _i56 = 0; _i56 < _list55.size; ++_i56)
                 {
-                  KeySlice _elem66;
-                  _elem66 = new KeySlice();
-                  _elem66.read(iprot);
-                  this.success.add(_elem66);
+                  KeySlice _elem57;
+                  _elem57 = new KeySlice();
+                  _elem57.read(iprot);
+                  this.success.add(_elem57);
                 }
                 iprot.readListEnd();
               }
@@ -11122,9 +9970,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (KeySlice _iter67 : this.success)
+          for (KeySlice _iter58 : this.success)
           {
-            _iter67.write(oprot);
+            _iter58.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -12207,14 +11055,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list68 = iprot.readListBegin();
-                this.success = new ArrayList<KeySlice>(_list68.size);
-                for (int _i69 = 0; _i69 < _list68.size; ++_i69)
+                TList _list59 = iprot.readListBegin();
+                this.success = new ArrayList<KeySlice>(_list59.size);
+                for (int _i60 = 0; _i60 < _list59.size; ++_i60)
                 {
-                  KeySlice _elem70;
-                  _elem70 = new KeySlice();
-                  _elem70.read(iprot);
-                  this.success.add(_elem70);
+                  KeySlice _elem61;
+                  _elem61 = new KeySlice();
+                  _elem61.read(iprot);
+                  this.success.add(_elem61);
                 }
                 iprot.readListEnd();
               }
@@ -12264,9 +11112,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (KeySlice _iter71 : this.success)
+          for (KeySlice _iter62 : this.success)
           {
-            _iter71.write(oprot);
+            _iter62.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -13737,26 +12585,26 @@ public class Cassandra {
           case 2: // CFMAP
             if (field.type == TType.MAP) {
               {
-                TMap _map72 = iprot.readMapBegin();
-                this.cfmap = new HashMap<String,List<ColumnOrSuperColumn>>(2*_map72.size);
-                for (int _i73 = 0; _i73 < _map72.size; ++_i73)
+                TMap _map63 = iprot.readMapBegin();
+                this.cfmap = new HashMap<String,List<ColumnOrSuperColumn>>(2*_map63.size);
+                for (int _i64 = 0; _i64 < _map63.size; ++_i64)
                 {
-                  String _key74;
-                  List<ColumnOrSuperColumn> _val75;
-                  _key74 = iprot.readString();
+                  String _key65;
+                  List<ColumnOrSuperColumn> _val66;
+                  _key65 = iprot.readString();
                   {
-                    TList _list76 = iprot.readListBegin();
-                    _val75 = new ArrayList<ColumnOrSuperColumn>(_list76.size);
-                    for (int _i77 = 0; _i77 < _list76.size; ++_i77)
+                    TList _list67 = iprot.readListBegin();
+                    _val66 = new ArrayList<ColumnOrSuperColumn>(_list67.size);
+                    for (int _i68 = 0; _i68 < _list67.size; ++_i68)
                     {
-                      ColumnOrSuperColumn _elem78;
-                      _elem78 = new ColumnOrSuperColumn();
-                      _elem78.read(iprot);
-                      _val75.add(_elem78);
+                      ColumnOrSuperColumn _elem69;
+                      _elem69 = new ColumnOrSuperColumn();
+                      _elem69.read(iprot);
+                      _val66.add(_elem69);
                     }
                     iprot.readListEnd();
                   }
-                  this.cfmap.put(_key74, _val75);
+                  this.cfmap.put(_key65, _val66);
                 }
                 iprot.readMapEnd();
               }
@@ -13795,14 +12643,14 @@ public class Cassandra {
         oprot.writeFieldBegin(CFMAP_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, this.cfmap.size()));
-          for (Map.Entry<String, List<ColumnOrSuperColumn>> _iter79 : this.cfmap.entrySet())
+          for (Map.Entry<String, List<ColumnOrSuperColumn>> _iter70 : this.cfmap.entrySet())
           {
-            oprot.writeString(_iter79.getKey());
+            oprot.writeString(_iter70.getKey());
             {
-              oprot.writeListBegin(new TList(TType.STRUCT, _iter79.getValue().size()));
-              for (ColumnOrSuperColumn _iter80 : _iter79.getValue())
+              oprot.writeListBegin(new TList(TType.STRUCT, _iter70.getValue().size()));
+              for (ColumnOrSuperColumn _iter71 : _iter70.getValue())
               {
-                _iter80.write(oprot);
+                _iter71.write(oprot);
               }
               oprot.writeListEnd();
             }
@@ -15670,38 +14518,38 @@ public class Cassandra {
           case 1: // MUTATION_MAP
             if (field.type == TType.MAP) {
               {
-                TMap _map81 = iprot.readMapBegin();
-                this.mutation_map = new HashMap<byte[],Map<String,List<Mutation>>>(2*_map81.size);
-                for (int _i82 = 0; _i82 < _map81.size; ++_i82)
+                TMap _map72 = iprot.readMapBegin();
+                this.mutation_map = new HashMap<byte[],Map<String,List<Mutation>>>(2*_map72.size);
+                for (int _i73 = 0; _i73 < _map72.size; ++_i73)
                 {
-                  byte[] _key83;
-                  Map<String,List<Mutation>> _val84;
-                  _key83 = iprot.readBinary();
+                  byte[] _key74;
+                  Map<String,List<Mutation>> _val75;
+                  _key74 = iprot.readBinary();
                   {
-                    TMap _map85 = iprot.readMapBegin();
-                    _val84 = new HashMap<String,List<Mutation>>(2*_map85.size);
-                    for (int _i86 = 0; _i86 < _map85.size; ++_i86)
+                    TMap _map76 = iprot.readMapBegin();
+                    _val75 = new HashMap<String,List<Mutation>>(2*_map76.size);
+                    for (int _i77 = 0; _i77 < _map76.size; ++_i77)
                     {
-                      String _key87;
-                      List<Mutation> _val88;
-                      _key87 = iprot.readString();
+                      String _key78;
+                      List<Mutation> _val79;
+                      _key78 = iprot.readString();
                       {
-                        TList _list89 = iprot.readListBegin();
-                        _val88 = new ArrayList<Mutation>(_list89.size);
-                        for (int _i90 = 0; _i90 < _list89.size; ++_i90)
+                        TList _list80 = iprot.readListBegin();
+                        _val79 = new ArrayList<Mutation>(_list80.size);
+                        for (int _i81 = 0; _i81 < _list80.size; ++_i81)
                         {
-                          Mutation _elem91;
-                          _elem91 = new Mutation();
-                          _elem91.read(iprot);
-                          _val88.add(_elem91);
+                          Mutation _elem82;
+                          _elem82 = new Mutation();
+                          _elem82.read(iprot);
+                          _val79.add(_elem82);
                         }
                         iprot.readListEnd();
                       }
-                      _val84.put(_key87, _val88);
+                      _val75.put(_key78, _val79);
                     }
                     iprot.readMapEnd();
                   }
-                  this.mutation_map.put(_key83, _val84);
+                  this.mutation_map.put(_key74, _val75);
                 }
                 iprot.readMapEnd();
               }
@@ -15735,19 +14583,19 @@ public class Cassandra {
         oprot.writeFieldBegin(MUTATION_MAP_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.MAP, this.mutation_map.size()));
-          for (Map.Entry<byte[], Map<String,List<Mutation>>> _iter92 : this.mutation_map.entrySet())
+          for (Map.Entry<byte[], Map<String,List<Mutation>>> _iter83 : this.mutation_map.entrySet())
           {
-            oprot.writeBinary(_iter92.getKey());
+            oprot.writeBinary(_iter83.getKey());
             {
-              oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, _iter92.getValue().size()));
-              for (Map.Entry<String, List<Mutation>> _iter93 : _iter92.getValue().entrySet())
+              oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, _iter83.getValue().size()));
+              for (Map.Entry<String, List<Mutation>> _iter84 : _iter83.getValue().entrySet())
               {
-                oprot.writeString(_iter93.getKey());
+                oprot.writeString(_iter84.getKey());
                 {
-                  oprot.writeListBegin(new TList(TType.STRUCT, _iter93.getValue().size()));
-                  for (Mutation _iter94 : _iter93.getValue())
+                  oprot.writeListBegin(new TList(TType.STRUCT, _iter84.getValue().size()));
+                  for (Mutation _iter85 : _iter84.getValue())
                   {
-                    _iter94.write(oprot);
+                    _iter85.write(oprot);
                   }
                   oprot.writeListEnd();
                 }
@@ -16676,13 +15524,13 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.SET) {
               {
-                TSet _set95 = iprot.readSetBegin();
-                this.success = new HashSet<String>(2*_set95.size);
-                for (int _i96 = 0; _i96 < _set95.size; ++_i96)
+                TSet _set86 = iprot.readSetBegin();
+                this.success = new HashSet<String>(2*_set86.size);
+                for (int _i87 = 0; _i87 < _set86.size; ++_i87)
                 {
-                  String _elem97;
-                  _elem97 = iprot.readString();
-                  this.success.add(_elem97);
+                  String _elem88;
+                  _elem88 = iprot.readString();
+                  this.success.add(_elem88);
                 }
                 iprot.readSetEnd();
               }
@@ -16708,9 +15556,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeSetBegin(new TSet(TType.STRING, this.success.size()));
-          for (String _iter98 : this.success)
+          for (String _iter89 : this.success)
           {
-            oprot.writeString(_iter98);
+            oprot.writeString(_iter89);
           }
           oprot.writeSetEnd();
         }
@@ -18217,14 +17065,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list99 = iprot.readListBegin();
-                this.success = new ArrayList<TokenRange>(_list99.size);
-                for (int _i100 = 0; _i100 < _list99.size; ++_i100)
+                TList _list90 = iprot.readListBegin();
+                this.success = new ArrayList<TokenRange>(_list90.size);
+                for (int _i91 = 0; _i91 < _list90.size; ++_i91)
                 {
-                  TokenRange _elem101;
-                  _elem101 = new TokenRange();
-                  _elem101.read(iprot);
-                  this.success.add(_elem101);
+                  TokenRange _elem92;
+                  _elem92 = new TokenRange();
+                  _elem92.read(iprot);
+                  this.success.add(_elem92);
                 }
                 iprot.readListEnd();
               }
@@ -18250,9 +17098,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (TokenRange _iter102 : this.success)
+          for (TokenRange _iter93 : this.success)
           {
-            _iter102.write(oprot);
+            _iter93.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -18873,27 +17721,27 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.MAP) {
               {
-                TMap _map103 = iprot.readMapBegin();
-                this.success = new HashMap<String,Map<String,String>>(2*_map103.size);
-                for (int _i104 = 0; _i104 < _map103.size; ++_i104)
+                TMap _map94 = iprot.readMapBegin();
+                this.success = new HashMap<String,Map<String,String>>(2*_map94.size);
+                for (int _i95 = 0; _i95 < _map94.size; ++_i95)
                 {
-                  String _key105;
-                  Map<String,String> _val106;
-                  _key105 = iprot.readString();
+                  String _key96;
+                  Map<String,String> _val97;
+                  _key96 = iprot.readString();
                   {
-                    TMap _map107 = iprot.readMapBegin();
-                    _val106 = new HashMap<String,String>(2*_map107.size);
-                    for (int _i108 = 0; _i108 < _map107.size; ++_i108)
+                    TMap _map98 = iprot.readMapBegin();
+                    _val97 = new HashMap<String,String>(2*_map98.size);
+                    for (int _i99 = 0; _i99 < _map98.size; ++_i99)
                     {
-                      String _key109;
-                      String _val110;
-                      _key109 = iprot.readString();
-                      _val110 = iprot.readString();
-                      _val106.put(_key109, _val110);
+                      String _key100;
+                      String _val101;
+                      _key100 = iprot.readString();
+                      _val101 = iprot.readString();
+                      _val97.put(_key100, _val101);
                     }
                     iprot.readMapEnd();
                   }
-                  this.success.put(_key105, _val106);
+                  this.success.put(_key96, _val97);
                 }
                 iprot.readMapEnd();
               }
@@ -18927,15 +17775,15 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.MAP, this.success.size()));
-          for (Map.Entry<String, Map<String,String>> _iter111 : this.success.entrySet())
+          for (Map.Entry<String, Map<String,String>> _iter102 : this.success.entrySet())
           {
-            oprot.writeString(_iter111.getKey());
+            oprot.writeString(_iter102.getKey());
             {
-              oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, _iter111.getValue().size()));
-              for (Map.Entry<String, String> _iter112 : _iter111.getValue().entrySet())
+              oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, _iter102.getValue().size()));
+              for (Map.Entry<String, String> _iter103 : _iter102.getValue().entrySet())
               {
-                oprot.writeString(_iter112.getKey());
-                oprot.writeString(_iter112.getValue());
+                oprot.writeString(_iter103.getKey());
+                oprot.writeString(_iter103.getValue());
               }
               oprot.writeMapEnd();
             }
@@ -19691,13 +18539,13 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list113 = iprot.readListBegin();
-                this.success = new ArrayList<String>(_list113.size);
-                for (int _i114 = 0; _i114 < _list113.size; ++_i114)
+                TList _list104 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list104.size);
+                for (int _i105 = 0; _i105 < _list104.size; ++_i105)
                 {
-                  String _elem115;
-                  _elem115 = iprot.readString();
-                  this.success.add(_elem115);
+                  String _elem106;
+                  _elem106 = iprot.readString();
+                  this.success.add(_elem106);
                 }
                 iprot.readListEnd();
               }
@@ -19723,9 +18571,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.success.size()));
-          for (String _iter116 : this.success)
+          for (String _iter107 : this.success)
           {
-            oprot.writeString(_iter116);
+            oprot.writeString(_iter107);
           }
           oprot.writeListEnd();
         }

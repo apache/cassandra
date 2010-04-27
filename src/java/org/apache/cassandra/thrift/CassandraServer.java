@@ -34,9 +34,7 @@ import org.apache.cassandra.db.migration.RenameKeyspace;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.commons.lang.ArrayUtils;
 
-import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
@@ -285,60 +283,25 @@ public class CassandraServer implements Cassandra.Iface
             logger.debug("get");
 
         checkLoginAuthorized(AccessLevel.READONLY);
+        String keyspace = keySpace.get();
 
-        ColumnOrSuperColumn column = multigetInternal(keySpace.get(), Arrays.asList(key), column_path, consistency_level).get(key);
-        if (!column.isSetColumn() && !column.isSetSuper_column())
-        {
-            throw new NotFoundException();
-        }
-        return column;
-    }
-
-    /** always returns a ColumnOrSuperColumn for each key, even if there is no data for it */
-    public Map<byte[], ColumnOrSuperColumn> multiget(List<byte[]> keys, ColumnPath column_path, ConsistencyLevel consistency_level)
-    throws InvalidRequestException, UnavailableException, TimedOutException
-    {
-        if (logger.isDebugEnabled())
-            logger.debug("multiget");
-
-        checkLoginAuthorized(AccessLevel.READONLY);
-
-        return multigetInternal(keySpace.get(), keys, column_path, consistency_level);
-    }
-
-    private Map<byte[], ColumnOrSuperColumn> multigetInternal(String table, List<byte[]> keys, ColumnPath column_path, ConsistencyLevel consistency_level)
-    throws InvalidRequestException, UnavailableException, TimedOutException
-    {
-        ThriftValidation.validateColumnPath(table, column_path);
+        ThriftValidation.validateColumnPath(keyspace, column_path);
 
         QueryPath path = new QueryPath(column_path.column_family, column_path.column == null ? null : column_path.super_column);
         List<byte[]> nameAsList = Arrays.asList(column_path.column == null ? column_path.super_column : column_path.column);
-        List<ReadCommand> commands = new ArrayList<ReadCommand>();
-        for (byte[] key: keys)
-        {
-            ThriftValidation.validateKey(key);
-            commands.add(new SliceByNamesReadCommand(table, key, path, nameAsList));
-        }
+        ThriftValidation.validateKey(key);
+        ReadCommand command = new SliceByNamesReadCommand(keyspace, key, path, nameAsList);
 
-        Map<byte[], ColumnOrSuperColumn> columnFamiliesMap = new HashMap<byte[], ColumnOrSuperColumn>();
-        Map<DecoratedKey, ColumnFamily> cfamilies = readColumnFamily(commands, consistency_level);
+        Map<DecoratedKey, ColumnFamily> cfamilies = readColumnFamily(Arrays.asList(command), consistency_level);
 
-
-        for (ReadCommand command: commands)
-        {
-            ColumnFamily cf = cfamilies.get(StorageService.getPartitioner().decorateKey(command.key));
-            if (cf == null)
-            {
-                columnFamiliesMap.put(command.key, new ColumnOrSuperColumn());
-            }
-            else
-            {
-                List<ColumnOrSuperColumn> tcolumns = thriftifyColumnFamily(cf, command.queryPath.superColumnName != null, false);
-                columnFamiliesMap.put(command.key, tcolumns.size() > 0 ? tcolumns.iterator().next() : new ColumnOrSuperColumn());
-            }
-        }
-
-        return columnFamiliesMap;
+        ColumnFamily cf = cfamilies.get(StorageService.getPartitioner().decorateKey(command.key));
+        if (cf == null)
+            throw new NotFoundException();
+        List<ColumnOrSuperColumn> tcolumns = thriftifyColumnFamily(cf, command.queryPath.superColumnName != null, false);
+        if (tcolumns.isEmpty())
+            throw new NotFoundException();
+        assert tcolumns.size() == 1;
+        return tcolumns.get(0);
     }
 
     public int get_count(byte[] key, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
