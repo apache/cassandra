@@ -1,5 +1,7 @@
 0.6.2
  * fix contrib/word_count build. (CASSANDRA-992)
+ * split CommitLogExecutorService into BatchCommitLogExecutorService and 
+   PeriodicCommitLogExecutorService (CASSANDRA-1014)
 
 
 0.6.1

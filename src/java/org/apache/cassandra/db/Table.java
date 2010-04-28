@@ -397,18 +397,7 @@ public class Table
         {
             if (writeCommitLog)
             {
-                Future<CommitLogSegment.CommitLogContext> future = CommitLog.instance().add(mutation, serializedMutation);
-                if (waitForCommitLog)
-                {
-                    try
-                    {
-                        future.get();
-                    }
-                    catch (Exception e)
-                    {
-                        throw new RuntimeException(e);
-                    }
-                }
+                CommitLog.instance().add(mutation, serializedMutation);
             }
         
             for (ColumnFamily columnFamily : mutation.getColumnFamilies())
