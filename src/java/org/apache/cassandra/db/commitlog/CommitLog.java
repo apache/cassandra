@@ -104,7 +104,7 @@ public class CommitLog
         return segments.size();
     }
 
-    private final ExecutorService executor = new CommitLogExecutorService();
+    private final ICommitLogExecutorService executor;
 
     /**
      * param @ table - name of table for which we are maintaining
@@ -120,11 +120,13 @@ public class CommitLog
         
         if (DatabaseDescriptor.getCommitLogSync() == Config.CommitLogSync.periodic)
         {
-            final Runnable syncer = new WrappedRunnable()
+            executor = new PeriodicCommitLogExecutorService();
+            final Callable syncer = new Callable()
             {
-                public void runMayThrow() throws IOException
+                public Object call() throws Exception
                 {
                     sync();
+                    return null;
                 }
             };
 
@@ -150,6 +152,10 @@ public class CommitLog
                     }
                 }
             }, "PERIODIC-COMMIT-LOG-SYNCER").start();
+        }
+        else
+        {
+            executor = new BatchCommitLogExecutorService();
         }
     }
 
@@ -335,10 +341,9 @@ public class CommitLog
      * of any problems. This way we can assume that the subsequent commit log
      * entry will override the garbage left over by the previous write.
     */
-    public Future<CommitLogSegment.CommitLogContext> add(RowMutation rowMutation, Object serializedRow) throws IOException
+    public void add(RowMutation rowMutation, Object serializedRow) throws IOException
     {
-        Callable<CommitLogSegment.CommitLogContext> task = new LogRecordAdder(rowMutation, serializedRow);
-        return executor.submit(task);
+        executor.add(new LogRecordAdder(rowMutation, serializedRow));
     }
 
     /*
@@ -462,7 +467,9 @@ public class CommitLog
         currentSegment().sync();
     }
 
-    class LogRecordAdder implements Callable<CommitLogSegment.CommitLogContext>
+    // TODO this should be a Runnable since it doesn't actually return anything, but it's difficult to do that
+    // without breaking the fragile CheaterFutureTask in BatchCLES.
+    class LogRecordAdder implements Callable, Runnable
     {
         final RowMutation rowMutation;
         final Object serializedRow;
@@ -473,18 +480,28 @@ public class CommitLog
             this.serializedRow = serializedRow;
         }
 
-        public CommitLogSegment.CommitLogContext call() throws Exception
+        public void run()
         {
-            CommitLogSegment.CommitLogContext context = currentSegment().write(rowMutation, serializedRow);
-
-            // roll log if necessary
-            if (currentSegment().length() >= SEGMENT_SIZE)
+            try
             {
-                sync();
-                segments.add(new CommitLogSegment());
+                currentSegment().write(rowMutation, serializedRow);
+                // roll log if necessary
+                if (currentSegment().length() >= SEGMENT_SIZE)
+                {
+                    sync();
+                    segments.add(new CommitLogSegment());
+                }
             }
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
+        }
 
-            return context;
+        public Object call() throws Exception
+        {
+            run();
+            return null;
         }
     }
 }

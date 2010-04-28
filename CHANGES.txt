@@ -22,6 +22,12 @@ dev
  * removed multiget thrift method (CASSANDRA-739)
 
 
+0.6.2
+ * fix contrib/word_count build. (CASSANDRA-992)
+ * split CommitLogExecutorService into BatchCommitLogExecutorService and 
+   PeriodicCommitLogExecutorService (CASSANDRA-1014)
+
+
 0.6.1
  * fix NPE in sstable2json when no excluded keys are given (CASSANDRA-934)
  * keep the replica set constant throughout the read repair process

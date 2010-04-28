@@ -16,3 +16,8 @@ Read the code in src/ for more details.
 
 *If you want to point wordcount at a real cluster, modify the seed
 and listenaddress settings in storage-conf.xml accordingly.
+
+*For Mac users, the storage-conf.xml uses 127.0.0.2 for the 
+word_count_setup. Mac OS X doesn't have that address available.
+To add it, run this before running bin/word_count_setup:
+sudo ifconfig lo0 alias 127.0.0.2 up

@@ -22,96 +22,43 @@ package org.apache.cassandra.db.commitlog;
 
 
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.*;
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.utils.WrappedRunnable;
 
-class CommitLogExecutorService extends AbstractExecutorService implements CommitLogExecutorServiceMBean
+class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService implements ICommitLogExecutorService, BatchCommitLogExecutorServiceMBean
 {
     private final BlockingQueue<CheaterFutureTask> queue;
 
-    private volatile long completedTaskCount = 0;
-
-    public CommitLogExecutorService()
+    public BatchCommitLogExecutorService()
     {
-        this(DatabaseDescriptor.getCommitLogSync() == Config.CommitLogSync.batch
-             ? DatabaseDescriptor.getConcurrentWriters()
-             : 1024 * Runtime.getRuntime().availableProcessors());
+        this(DatabaseDescriptor.getConcurrentWriters());
     }
 
-    public CommitLogExecutorService(int queueSize)
+    public BatchCommitLogExecutorService(int queueSize)
     {
         queue = new LinkedBlockingQueue<CheaterFutureTask>(queueSize);
         Runnable runnable = new WrappedRunnable()
         {
             public void runMayThrow() throws Exception
             {
-                if (DatabaseDescriptor.getCommitLogSync() == Config.CommitLogSync.batch)
+                while (true)
                 {
-                    while (true)
-                    {
-                        processWithSyncBatch();
-                        completedTaskCount++;
-                    }
-                }
-                else
-                {
-                    while (true)
-                    {
-                        process();
-                        completedTaskCount++;
-                    }
+                    processWithSyncBatch();
+                    completedTaskCount++;
                 }
             }
         };
         new Thread(runnable, "COMMIT-LOG-WRITER").start();
 
-        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-        try
-        {
-            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.db:type=Commitlog"));
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
+        registerMBean(this);
     }
 
-
-    /**
-     * Get the current number of running tasks
-     */
-    public int getActiveCount()
-    {
-        return 1;
-    }
-
-    /**
-     * Get the number of completed tasks
-     */
-    public long getCompletedTasks()
-    {
-        return completedTaskCount;
-    }
-
-    /**
-     * Get the number of tasks waiting to be executed
-     */
     public long getPendingTasks()
     {
         return queue.size();
-    }
-
-    private void process() throws InterruptedException
-    {
-        queue.take().run();
     }
 
     private final ArrayList<CheaterFutureTask> incompleteTasks = new ArrayList<CheaterFutureTask>();
@@ -185,30 +132,20 @@ class CommitLogExecutorService extends AbstractExecutorService implements Commit
         }
     }
 
-    public boolean isShutdown()
+    public void add(CommitLog.LogRecordAdder adder)
     {
-        return false;
-    }
-
-    public boolean isTerminated()
-    {
-        return false;
-    }
-
-    // cassandra is crash-only so there's no need to implement the shutdown methods
-    public void shutdown()
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    public List<Runnable> shutdownNow()
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException
-    {
-        throw new UnsupportedOperationException();
+        try
+        {
+            submit((Callable)adder).get();
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     private static class CheaterFutureTask<V> extends FutureTask<V>

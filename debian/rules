@@ -13,7 +13,7 @@ test:
 clean:
 	dh_testdir
 	dh_testroot
-	$(ANT) clean
+	$(ANT) realclean
 	rm -f build-stamp build.properties
 	rm -rf bin/java
 	find -name "*.pyc" -exec rm '{}' ';'
