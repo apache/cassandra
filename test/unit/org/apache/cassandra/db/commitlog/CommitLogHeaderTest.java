@@ -80,6 +80,16 @@ public class CommitLogHeaderTest extends SchemaLoader
         
         assert one.length == two.length;
     }
+
+    @Test
+    public void byteArray() throws IOException
+    {
+        SchemaLoader.loadSchemaFromYaml();
+        CommitLogHeader clh = new CommitLogHeader();
+        assert clh.getCfIdMap().size() > 0;
+        CommitLogHeader clh2 = CommitLogHeader.serializer.deserialize(new DataInputStream(new ByteArrayInputStream(clh.toByteArray())));
+        assert clh.getCfIdMap().equals(clh2.getCfIdMap());
+    }
     
     @Test
     public void cfMapSerialization() throws IOException
