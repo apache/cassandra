@@ -203,7 +203,7 @@ public class CommitLog
                 byte[] bytes;
                 try
                 {
-                    bytes = new byte[(int) reader.readLong()]; // readlong can throw EOFException too
+                    bytes = new byte[reader.readInt()]; // readInt can throw EOFException too
                     reader.readFully(bytes);
                     claimedCRC32 = reader.readLong();
                 }

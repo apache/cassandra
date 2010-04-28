@@ -132,7 +132,7 @@ public class CommitLogSegment
             if (serializedRow instanceof DataOutputBuffer)
             {
                 DataOutputBuffer buffer = (DataOutputBuffer) serializedRow;
-                logWriter.writeLong(buffer.getLength());
+                logWriter.writeInt(buffer.getLength());
                 logWriter.write(buffer.getData(), 0, buffer.getLength());
                 checkum.update(buffer.getData(), 0, buffer.getLength());
             }
@@ -140,7 +140,7 @@ public class CommitLogSegment
             {
                 assert serializedRow instanceof byte[];
                 byte[] bytes = (byte[]) serializedRow;
-                logWriter.writeLong(bytes.length);
+                logWriter.writeInt(bytes.length);
                 logWriter.write(bytes);
                 checkum.update(bytes, 0, bytes.length);
             }
