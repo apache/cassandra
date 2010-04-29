@@ -39,7 +39,7 @@ public class EstimatedHistogram
 
     private static final int numBuckets = bucketOffsets.length + 1;
 
-    public AtomicLongArray buckets;
+    final AtomicLongArray buckets;
 
     public EstimatedHistogram()
     {
