@@ -22,6 +22,7 @@ package org.apache.cassandra.utils;
 
 
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicLongArray;
 
 public class LatencyTracker
 {
@@ -29,6 +30,8 @@ public class LatencyTracker
     private final AtomicLong totalLatency = new AtomicLong(0);
     private long lastLatency = 0;
     private long lastOpCount = 0;
+    private EstimatedHistogram totalHistogram = new EstimatedHistogram();
+    private EstimatedHistogram recentHistogram = new EstimatedHistogram();
 
     /** takes nanoseconds **/
     public void addNano(long nanos)
@@ -41,6 +44,8 @@ public class LatencyTracker
     {
         opCount.incrementAndGet();
         totalLatency.addAndGet(micros);
+        totalHistogram.add(micros);
+        recentHistogram.add(micros);
     }
 
     public long getOpCount()
@@ -68,5 +73,15 @@ public class LatencyTracker
             lastLatency = n;
             lastOpCount = ops;
         }
+    }
+
+    public long[] getTotalLatencyHistogramMicros()
+    {
+        return totalHistogram.get(false);
+    }
+
+    public long[] getRecentLatencyHistogramMicros()
+    {
+        return recentHistogram.get(true);
     }
 }

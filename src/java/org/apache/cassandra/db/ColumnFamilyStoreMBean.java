@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import java.util.concurrent.Future;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicLongArray;
 
 /**
  * The MBean interface for ColumnFamilyStore
@@ -70,6 +71,16 @@ public interface ColumnFamilyStoreMBean
     public long getTotalReadLatencyMicros();
 
     /**
+     * @return an array representing the latency histogram
+     */
+    public long[] getLifetimeReadLatencyHistogramMicros();
+
+    /**
+     * @return an array representing the latency histogram
+     */
+    public long[] getRecentReadLatencyHistogramMicros();
+
+    /**
      * @return average latency per read operation since the last call
      */
     public double getRecentReadLatencyMicros();
@@ -83,6 +94,16 @@ public interface ColumnFamilyStoreMBean
      * @return total write latency (divide by getReadCount() for average)
      */
     public long getTotalWriteLatencyMicros();
+
+    /**
+     * @return an array representing the latency histogram
+     */
+    public long[] getLifetimeWriteLatencyHistogramMicros();
+
+    /**
+     * @return an array representing the latency histogram
+     */
+    public long[] getRecentWriteLatencyHistogramMicros();
 
     /**
      * @return average latency per write operation since the last call

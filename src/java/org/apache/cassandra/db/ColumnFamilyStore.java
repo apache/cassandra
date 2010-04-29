@@ -683,6 +683,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return readStats_.getRecentLatencyMicros();
     }
 
+    public long[] getLifetimeReadLatencyHistogramMicros()
+    {
+        return readStats_.getTotalLatencyHistogramMicros();
+    }
+
+    public long[] getRecentReadLatencyHistogramMicros()
+    {
+        return readStats_.getRecentLatencyHistogramMicros();
+    }
+
     public long getTotalReadLatencyMicros()
     {
         return readStats_.getTotalLatencyMicros();
@@ -707,6 +717,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public double getRecentWriteLatencyMicros()
     {
         return writeStats_.getRecentLatencyMicros();
+    }
+
+    public long[] getLifetimeWriteLatencyHistogramMicros()
+    {
+        return writeStats_.getTotalLatencyHistogramMicros();
+    }
+
+    public long[] getRecentWriteLatencyHistogramMicros()
+    {
+        return writeStats_.getRecentLatencyHistogramMicros();
     }
 
     public ColumnFamily getColumnFamily(String key, QueryPath path, byte[] start, byte[] finish, boolean reversed, int limit) throws IOException

@@ -2,6 +2,7 @@
  * fix contrib/word_count build. (CASSANDRA-992)
  * split CommitLogExecutorService into BatchCommitLogExecutorService and 
    PeriodicCommitLogExecutorService (CASSANDRA-1014)
+ * add latency histograms to CFSMBean (CASSANDRA-1024)
 
 
 0.6.1
