@@ -101,10 +101,10 @@ commitlog_sync: periodic
 # the other option is "timed," where writes may be acked immediately
 # and the CommitLog is simply synced every commitlog_sync_period_in_ms
 # milliseconds.
-commitlog_sync_period_in_ms: 1000
+commitlog_sync_period_in_ms: 10000
 
 # Time to wait for a reply from other nodes before failing the command 
-rpc_timeout_in_ms: 5000
+rpc_timeout_in_ms: 10000
 
 # time to wait before garbage collecting tombstones (deletion markers)
 gc_grace_seconds: 864000
