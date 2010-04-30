@@ -27,6 +27,8 @@ dev
  * split CommitLogExecutorService into BatchCommitLogExecutorService and 
    PeriodicCommitLogExecutorService (CASSANDRA-1014)
  * add latency histograms to CFSMBean (CASSANDRA-1024)
+ * make resolving timestamp ties deterministic by using value bytes
+   as a tiebreaker (CASSANDRA-1039)
 
 
 0.6.1

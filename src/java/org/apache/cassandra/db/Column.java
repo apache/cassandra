@@ -28,6 +28,7 @@ import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.utils.FBUtilities;
 
 
 /**
@@ -177,11 +178,17 @@ public class Column implements IColumn
     // note that we do not call this simply compareTo since it also makes sense to compare Columns by name
     public long comparePriority(Column o)
     {
+        // tombstone always wins ties.
         if (isMarkedForDelete())
-        {
-            // tombstone always wins ties.
             return timestamp < o.timestamp ? -1 : 1;
-        }
+        if (o.isMarkedForDelete())
+            return timestamp > o.timestamp ? 1 : -1;
+        
+        // compare value as tie-breaker for equal timestamps
+        if (timestamp == o.timestamp)
+            return FBUtilities.compareByteArrays(value, o.value);
+
+        // neither is tombstoned and timestamps are different
         return timestamp - o.timestamp;
     }
 
