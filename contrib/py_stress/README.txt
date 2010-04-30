@@ -22,7 +22,8 @@ accurate.  A warning to this effect will be issued each time you run the program
 Additionally, you will need to generate the thrift bindings for python: run
 'ant gen-thrift-py' in the top-level Cassandra directory.
 
-stress.py expects to use the default ColumnFamily definitions in storage-conf.xml
+stress.py will create the keyspace and column families it needs if they do not
+exist during the insert operation.
 
 Usage
 -----

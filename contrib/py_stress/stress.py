@@ -136,6 +136,19 @@ def get_client(host='127.0.0.1', port=9160, framed=False):
     client.transport = transport
     return client
 
+def make_keyspaces():
+    cfams = [CfDef('Keyspace1', 'Standard1'),
+             CfDef('Keyspace1', 'Super1', 'Super', 'BytesType', 'BytesType')]
+    keyspace = KsDef('Keyspace1', 'org.apache.cassandra.locator.RackUnawareStrategy', 1, cfams)
+    client = get_client(nodes[0], options.port, options.framed)
+    client.transport.open()
+    try:
+        client.system_add_keyspace(keyspace)
+        print "Created keyspaces.  Sleeping %ss for propagation." % len(nodes)
+        time.sleep(len(nodes))
+    except InvalidRequestException, e:
+        print e
+    client.transport.close()
 
 class Operation(Thread):
     def __init__(self, i, opcounts, keycounts, latencies):
@@ -155,7 +168,7 @@ class Operation(Thread):
         # open client
         self.cclient = get_client(hostname, options.port, options.framed)
         self.cclient.transport.open()
-
+        self.cclient.login('Keyspace1', AuthenticationRequest({}))
 
 class Inserter(Operation):
     def run(self):
@@ -172,7 +185,7 @@ class Inserter(Operation):
                 cfmap = {'Standard1': [ColumnOrSuperColumn(column=c) for c in columns]}
             start = time.time()
             try:
-                self.cclient.batch_insert('Keyspace1', key, cfmap, ConsistencyLevel.ONE)
+                self.cclient.batch_insert(key, cfmap, ConsistencyLevel.ONE)
             except KeyboardInterrupt:
                 raise
             except Exception, e:
@@ -195,7 +208,7 @@ class Reader(Operation):
                     parent = ColumnParent('Super1', 'S' + str(j))
                     start = time.time()
                     try:
-                        r = self.cclient.get_slice('Keyspace1', key, parent, p, ConsistencyLevel.ONE)
+                        r = self.cclient.get_slice(key, parent, p, ConsistencyLevel.ONE)
                         if not r: raise RuntimeError("Key %s not found" % key)
                     except KeyboardInterrupt:
                         raise
@@ -213,7 +226,7 @@ class Reader(Operation):
                 key = key_generator()
                 start = time.time()
                 try:
-                    r = self.cclient.get_slice('Keyspace1', key, parent, p, ConsistencyLevel.ONE)
+                    r = self.cclient.get_slice(key, parent, p, ConsistencyLevel.ONE)
                     if not r: raise RuntimeError("Key %s not found" % key)
                 except KeyboardInterrupt:
                     raise
@@ -243,7 +256,7 @@ class RangeSlicer(Operation):
                     parent = ColumnParent('Super1', chr(ord('A') + j)) 
                     begin = time.time()
                     try:
-                        res = self.cclient.get_range_slice('Keyspace1', parent, p, start,finish, options.rangecount, ConsistencyLevel.ONE)
+                        res = self.cclient.get_range_slice(parent, p, start,finish, options.rangecount, ConsistencyLevel.ONE)
                         if not res: raise RuntimeError("Key %s not found" % key)
                     except KeyboardInterrupt:
                         raise
@@ -264,7 +277,7 @@ class RangeSlicer(Operation):
                 finish = fmt % last
                 begin = time.time()
                 try:
-                    r = self.cclient.get_range_slice('Keyspace1', parent, p, start, finish, options.rangecount, ConsistencyLevel.ONE)
+                    r = self.cclient.get_range_slice(parent, p, start, finish, options.rangecount, ConsistencyLevel.ONE)
                     if not r: raise RuntimeError("Range not found:", start, finish)
                 except KeyboardInterrupt:
                     raise
@@ -356,4 +369,6 @@ benchmark = getattr(stresser, options.operation, None)
 if not have_multiproc:
     print """WARNING: multiprocessing not present, threading will be used.
         Benchmark may not be accurate!"""
+if options.operation == 'insert':
+    make_keyspaces()
 benchmark()
