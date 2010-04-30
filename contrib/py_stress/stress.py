@@ -147,7 +147,7 @@ def make_keyspaces():
         print "Created keyspaces.  Sleeping %ss for propagation." % len(nodes)
         time.sleep(len(nodes))
     except InvalidRequestException, e:
-        print e
+        print e.why
     client.transport.close()
 
 class Operation(Thread):
