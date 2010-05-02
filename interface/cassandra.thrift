@@ -326,8 +326,11 @@ struct KsDef {
 
 service Cassandra {
   # auth methods
-  AccessLevel login(1: required string keyspace, 2:required AuthenticationRequest auth_request) throws (1:AuthenticationException authnx, 2:AuthorizationException authzx),
+  AccessLevel login(1: required AuthenticationRequest auth_request) throws (1:AuthenticationException authnx, 2:AuthorizationException authzx),
  
+  # set keyspace
+  void set_keyspace(1: required string keyspace) throws (1:InvalidRequestException ire),
+  
   # retrieval methods
 
   /**

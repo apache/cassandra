@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
 
+import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.KSMetaData;
@@ -233,7 +234,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("get_slice");
         
-        checkLoginAuthorized(AccessLevel.READONLY);
+        checkKeyspaceAndLoginAuthorized(AccessLevel.READONLY);
         return multigetSliceInternal(keySpace.get(), Arrays.asList(key), column_parent, predicate, consistency_level).get(key);
     }
     
@@ -243,7 +244,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("multiget_slice");
 
-        checkLoginAuthorized(AccessLevel.READONLY);
+        checkKeyspaceAndLoginAuthorized(AccessLevel.READONLY);
 
         return multigetSliceInternal(keySpace.get(), keys, column_parent, predicate, consistency_level);
     }
@@ -282,7 +283,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("get");
 
-        checkLoginAuthorized(AccessLevel.READONLY);
+        checkKeyspaceAndLoginAuthorized(AccessLevel.READONLY);
         String keyspace = keySpace.get();
 
         ThriftValidation.validateColumnPath(keyspace, column_path);
@@ -310,7 +311,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("get_count");
 
-        checkLoginAuthorized(AccessLevel.READONLY);
+        checkKeyspaceAndLoginAuthorized(AccessLevel.READONLY);
 
         return get_slice(key, column_parent, predicate, consistency_level).size();
     }
@@ -321,7 +322,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("multiget_count");
 
-        checkLoginAuthorized(AccessLevel.READONLY);
+        checkKeyspaceAndLoginAuthorized(AccessLevel.READONLY);
 
         Map<byte[], Integer> counts = new HashMap<byte[], Integer>();
         Map<byte[], List<ColumnOrSuperColumn>> columnFamiliesMap = multigetSliceInternal(table, keys, column_parent, predicate, consistency_level);
@@ -338,7 +339,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("insert");
 
-        checkLoginAuthorized(AccessLevel.READWRITE);
+        checkKeyspaceAndLoginAuthorized(AccessLevel.READWRITE);
 
         ThriftValidation.validateKey(key);
         ThriftValidation.validateColumnParent(keySpace.get(), column_parent);
@@ -362,7 +363,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("batch_insert");
 
-        checkLoginAuthorized(AccessLevel.READWRITE);
+        checkKeyspaceAndLoginAuthorized(AccessLevel.READWRITE);
 
         ThriftValidation.validateKey(key);
 
@@ -401,7 +402,7 @@ public class CassandraServer implements Cassandra.Iface
             }
         }
         
-        checkLoginAuthorized(needed);
+        checkKeyspaceAndLoginAuthorized(needed);
 
         List<RowMutation> rowMutations = new ArrayList<RowMutation>();
         for (Map.Entry<byte[], Map<String, List<Mutation>>> mutationEntry: mutation_map.entrySet())
@@ -444,7 +445,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("remove");
 
-        checkLoginAuthorized(AccessLevel.FULL);
+        checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
 
         ThriftValidation.validateKey(key);
         ThriftValidation.validateColumnPathOrParent(keySpace.get(), column_path);
@@ -522,7 +523,7 @@ public class CassandraServer implements Cassandra.Iface
     private List<KeySlice> getRangeSlicesInternal(String keyspace, ColumnParent column_parent, SlicePredicate predicate, KeyRange range, ConsistencyLevel consistency_level)
             throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        checkLoginAuthorized(AccessLevel.READONLY);
+        checkKeyspaceAndLoginAuthorized(AccessLevel.READONLY);
 
         ThriftValidation.validateColumnParent(keyspace, column_parent);
         ThriftValidation.validatePredicate(keyspace, column_parent, predicate);
@@ -606,34 +607,43 @@ public class CassandraServer implements Cassandra.Iface
         return splits;
     }
 
-    public AccessLevel login(String keyspace, AuthenticationRequest auth_request) throws AuthenticationException, AuthorizationException, TException
+    public AccessLevel login(AuthenticationRequest auth_request) throws AuthenticationException, AuthorizationException, TException
     {
         AccessLevel level;
-        if (DatabaseDescriptor.getTableDefinition(keyspace) == null)
+        
+        if (keySpace.get() == null)
         {
-            throw new AuthenticationException("Keyspace does not exist");
+            throw new AuthenticationException("You have not set a specific keyspace; please call set_keyspace first");
         }
         
-        level = DatabaseDescriptor.getAuthenticator().login(keyspace, auth_request);
+        level = DatabaseDescriptor.getAuthenticator().login(keySpace.get(), auth_request);
         
         if (logger.isDebugEnabled())
-            logger.debug("login confirmed; access level is " + level);
+            logger.debug("login confirmed; new access level is " + level);
         
         loginDone.set(level);
-        keySpace.set(keyspace);
         return level;
     }
 
-    protected void checkLoginAuthorized(AccessLevel level) throws InvalidRequestException
+    protected void checkKeyspaceAndLoginAuthorized(AccessLevel level) throws InvalidRequestException
     {
-        if (keySpace.get() == null) throw new InvalidRequestException("You have not logged in to a specific keyspace");
-        if (loginDone.get() == AccessLevel.NONE) throw new InvalidRequestException("Your login access level was not sufficient to do " + level + " operations");
-        if (loginDone.get().getValue() < level.getValue()) throw new InvalidRequestException("Your login access level was not sufficient to do " + level + " operations");
+        if (keySpace.get() == null)
+        {
+            throw new InvalidRequestException("You have not assigned a keyspace; please use set_keyspace (and login if necessary)");
+        }
+        
+        if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
+        {
+            if (loginDone.get() == null)
+                throw new InvalidRequestException("You have not logged into keyspace " + keySpace.get());
+            if (loginDone.get().getValue() < level.getValue())
+                throw new InvalidRequestException("Your credentials are not sufficient to perform " + level + " operations");
+        }
     }
 
     public void system_add_column_family(CfDef cf_def) throws InvalidRequestException, TException
     {
-        checkLoginAuthorized(AccessLevel.FULL);
+        checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
 
         // if there is anything going on in the migration stage, fail.
         if (StageManager.getStage(StageManager.MIGRATION_STAGE).getQueue().size() > 0)
@@ -671,7 +681,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public void system_drop_column_family(String keyspace, String column_family) throws InvalidRequestException, TException
     {
-        checkLoginAuthorized(AccessLevel.FULL);
+        checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
         
         // if there is anything going on in the migration stage, fail.
         if (StageManager.getStage(StageManager.MIGRATION_STAGE).getQueue().size() > 0)
@@ -699,7 +709,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public void system_rename_column_family(String keyspace, String old_name, String new_name) throws InvalidRequestException, TException
     {
-        checkLoginAuthorized(AccessLevel.FULL);
+        checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
         
         // if there is anything going on in the migration stage, fail.
         if (StageManager.getStage(StageManager.MIGRATION_STAGE).getQueue().size() > 0)
@@ -727,7 +737,12 @@ public class CassandraServer implements Cassandra.Iface
 
     public void system_add_keyspace(KsDef ks_def) throws InvalidRequestException, TException
     {
-        
+        // IAuthenticator was devised prior to, and without thought for, dynamic keyspace creation. As
+        // a result, we must choose between letting anyone/everyone create keyspaces (which they likely
+        // won't even be able to use), or be honest and disallow it entirely if configured for auth.
+        if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
+            throw new InvalidRequestException("Unable to create new keyspace while authentication is enabled.");
+
         // if there is anything going on in the migration stage, fail.
         if (StageManager.getStage(StageManager.MIGRATION_STAGE).getQueue().size() > 0)
             throw new InvalidRequestException("This node appears to be handling gossiped migrations.");
@@ -781,7 +796,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public void system_drop_keyspace(String keyspace) throws InvalidRequestException, TException
     {
-        checkLoginAuthorized(AccessLevel.FULL);
+        checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
         
         // if there is anything going on in the migration stage, fail.
         if (StageManager.getStage(StageManager.MIGRATION_STAGE).getQueue().size() > 0)
@@ -809,7 +824,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public void system_rename_keyspace(String old_name, String new_name) throws InvalidRequestException, TException
     {
-        checkLoginAuthorized(AccessLevel.FULL);
+        checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
         
         // if there is anything going on in the migration stage, fail.
         if (StageManager.getStage(StageManager.MIGRATION_STAGE).getQueue().size() > 0)
@@ -833,6 +848,19 @@ public class CassandraServer implements Cassandra.Iface
             ex.initCause(e);
             throw ex;
         }
+    }
+
+    public void set_keyspace(String keyspace) throws InvalidRequestException, TException {
+        if (DatabaseDescriptor.getTableDefinition(keyspace) == null)
+        {
+            throw new InvalidRequestException("Keyspace does not exist");
+        }
+        
+        // If switching, invalidate previous access level; force a new login.
+        if (keySpace.get() != null && !keySpace.get().equals(keyspace));
+            loginDone.set(AccessLevel.NONE);
+        
+        keySpace.set(keyspace); 
     }
 
     // main method moved to CassandraDaemon

@@ -96,7 +96,7 @@ public class EmbeddedCassandraServiceTest
             UnavailableException, TimedOutException, TException, NotFoundException
     {
         Cassandra.Client client = getClient();
-        client.login("Keyspace1", new AuthenticationRequest(new HashMap<String, String>()));
+        client.set_keyspace("Keyspace1");
 
         byte[] key_user_id = "1".getBytes();
 

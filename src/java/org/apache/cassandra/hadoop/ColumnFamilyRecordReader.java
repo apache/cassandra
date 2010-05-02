@@ -95,7 +95,6 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
         authRequest = new AuthenticationRequest(creds);
         
         iter = new RowIterator();
-        iter.login();
     }
     
     public boolean nextKeyValue() throws IOException
@@ -114,21 +113,6 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
         private int totalRead = 0;
         private int i = 0;
         private AbstractType comparator = DatabaseDescriptor.getComparator(keyspace, cfName);
-        
-        private void login()
-        {
-            TSocket socket = new TSocket(getLocation(),DatabaseDescriptor.getRpcPort());
-            TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket, false, false);
-            Cassandra.Client client = new Cassandra.Client(binaryProtocol);
-            
-            try
-            {
-                socket.open();
-                client.login(keyspace, authRequest);
-            } catch (Exception e) {
-            	throw new RuntimeException(e);
-            }
-        }
         
         private void maybeInit()
         {
@@ -166,7 +150,8 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
                                 .setEnd_token(split.getEndToken());
             try
             {
-            	client.login(keyspace, authRequest);
+                client.set_keyspace(keyspace);
+            	client.login(authRequest);
                 rows = client.get_range_slices(new ColumnParent(cfName),
                                                predicate,
                                                keyRange,

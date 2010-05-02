@@ -88,7 +88,7 @@ public class CassandraServiceTest {
             NotFoundException, AuthenticationException, AuthorizationException {
         Cassandra.Client client = getClient();
 
-        client.login("Keyspace1", null);
+        client.login(null);
 
         String key_user_id = "1";
         long timestamp = System.currentTimeMillis();   

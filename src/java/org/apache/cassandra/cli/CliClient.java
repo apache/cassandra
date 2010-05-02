@@ -502,16 +502,19 @@ public class CliClient
         	AuthenticationRequest authRequest;
         	Map<String, String> credentials = new HashMap<String, String>();
         	
+        	
+        	thriftClient_.set_keyspace(tableName);
+   
         	if (username != null && password != null) 
         	{
         	    /* remove quotes */
         	    password = password.replace("\'", "");
         	    credentials.put(SimpleAuthenticator.USERNAME_KEY, username);
                 credentials.put(SimpleAuthenticator.PASSWORD_KEY, password);
+                authRequest = new AuthenticationRequest(credentials);
+                thriftClient_.login(authRequest);
         	}
         	
-        	authRequest = new AuthenticationRequest(credentials);
-            thriftClient_.login(tableName, authRequest);
             keySpace = tableName;
             this.username = username != null ? username : "default";
             
@@ -533,11 +536,16 @@ public class CliClient
             css_.err.println("You are not authorized to use keyspace: " + tableName);
             return;
         }
-        catch (NotFoundException e)
+        catch (InvalidRequestException e)
         {
-            css_.err.println("This keyspace does not exist: " + tableName);
+            css_.err.println(tableName + " does not exist.");
             return;
         }
+        catch (NotFoundException e)
+        {
+            css_.err.println(tableName + " does not exist.");
+            return;
+        } 
         catch (TException e) 
         {
             if (css_.debug)
@@ -545,7 +553,7 @@ public class CliClient
             
             css_.err.println("Login failure. Did you specify 'keyspace', 'username' and 'password'?");
             return;
-        } 
+        }
     }
 
     // process a statement of the form: describe table <tablename> 

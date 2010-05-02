@@ -135,11 +135,8 @@ def _verify_range():
     result = client.get_slice('key1', ColumnParent('Standard1'), p, ConsistencyLevel.ONE)
     assert len(result) == 2, result
 
-def _login(keyspace, auth_request):
-    client.login(keyspace, auth_request)
-
-def _empty_login(keyspace):
-    client.login(keyspace, AuthenticationRequest({}))    
+def _set_keyspace(keyspace):
+    client.set_keyspace(keyspace)
 
 def _insert_super_range():
     client.insert('key1', ColumnParent('Super1', 'sc1'), Column(_i64(4), 'value4', 0), False)
@@ -198,24 +195,24 @@ ZERO_WAIT = 5
 
 class TestMutations(ThriftTester):
     def test_insert(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         _insert_simple(False)
         time.sleep(0.1)
         _verify_simple()
 
     def test_empty_slice(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         assert _big_slice('key1', ColumnParent('Standard2')) == []
         assert _big_slice('key1', ColumnParent('Super1')) == []
 
     def test_missing_super(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         _expect_missing(lambda: client.get('key1', ColumnPath('Super1', 'sc1', _i64(1)), ConsistencyLevel.ONE))
         _insert_super()
         _expect_missing(lambda: client.get('key1', ColumnPath('Super1', 'sc1', _i64(1)), ConsistencyLevel.ONE))
 
     def test_count(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         _insert_simple()
         _insert_super()
         p = SlicePredicate(slice_range=SliceRange('', '', False, 1000))
@@ -233,23 +230,23 @@ class TestMutations(ThriftTester):
         assert client.get_count('key1', ColumnParent('Standard1'), p, ConsistencyLevel.ONE) == 3
 
     def test_insert_blocking(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         _insert_simple()
         _verify_simple()
 
     def test_super_insert(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         _insert_super()
         _verify_super()
 
     def test_super_get(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         _insert_super()
         result = client.get('key1', ColumnPath('Super1', 'sc2'), ConsistencyLevel.ONE).super_column
         assert result == _SUPER_COLUMNS[1], result
 
     def test_super_subcolumn_limit(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         _insert_super()
         p = SlicePredicate(slice_range=SliceRange('', '', False, 1))
         column_parent = ColumnParent('Super1', 'sc2')
@@ -262,7 +259,7 @@ class TestMutations(ThriftTester):
         assert slice == [Column(_i64(6), 'value6', 0)], slice
         
     def test_long_order(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         def long_xrange(start, stop, step):
             i = start
             while i < stop:
@@ -279,7 +276,7 @@ class TestMutations(ThriftTester):
     def test_time_uuid(self):
         import uuid
         L = []
-        _empty_login('Keyspace2')
+        _set_keyspace('Keyspace2')
         # 100 isn't enough to fail reliably if the comparator is borked
         for i in xrange(500):
             L.append(uuid.uuid1())
@@ -322,7 +319,7 @@ class TestMutations(ThriftTester):
     def test_long_remove(self):
         column_parent = ColumnParent('StandardLong1')
         sp = SlicePredicate(slice_range=SliceRange('', '', False, 1))
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         for i in xrange(10):
             parent = ColumnParent('StandardLong1')
 
@@ -337,18 +334,18 @@ class TestMutations(ThriftTester):
             assert slice == [Column(_i64(i), 'value2', 10 * i + 2)], (slice, i)
         
     def test_batch_insert(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         _insert_batch(False)
         time.sleep(0.1)
         _verify_batch()
 
     def test_batch_insert_blocking(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         _insert_batch(True)
         _verify_batch()
         
     def test_batch_mutate_standard_columns(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         column_families = ['Standard1', 'Standard2']
         keys = ['key_%d' % i for i in  range(27,32)] 
         mutations = [Mutation(ColumnOrSuperColumn(c)) for c in _SIMPLE_COLUMNS]
@@ -362,7 +359,7 @@ class TestMutations(ThriftTester):
                waitfor(ZERO_WAIT, _assert_column, column_family, key, 'c1', 'value1')
 
     def test_batch_mutate_standard_columns_blocking(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         
         column_families = ['Standard1', 'Standard2']
         keys = ['key_%d' % i for i in  range(38,46)]
@@ -378,7 +375,7 @@ class TestMutations(ThriftTester):
                 _assert_column(column_family, key, 'c1', 'value1')
 
     def test_batch_mutate_remove_standard_columns(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         column_families = ['Standard1', 'Standard2']
         keys = ['key_%d' % i for i in range(11,21)]
         _insert_multi(keys)
@@ -396,7 +393,7 @@ class TestMutations(ThriftTester):
                     _assert_no_columnpath(key, ColumnPath(column_family, column=c.name))
 
     def test_batch_mutate_remove_standard_row(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         column_families = ['Standard1', 'Standard2']
         keys = ['key_%d' % i for i in range(11,21)]
         _insert_multi(keys)
@@ -414,7 +411,7 @@ class TestMutations(ThriftTester):
                     _assert_no_columnpath(key, ColumnPath(column_family, column=c.name))
 
     def test_batch_mutate_remove_super_columns_with_standard_under(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         column_families = ['Super1', 'Super2']
         keys = ['key_%d' % i for i in range(11,21)]
         _insert_super()
@@ -438,7 +435,7 @@ class TestMutations(ThriftTester):
                         waitfor(ZERO_WAIT, _assert_no_columnpath, key, ColumnPath(column_family, super_column=sc.name, column=c.name))
 
     def test_batch_mutate_remove_super_columns_with_none_given_underneath(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         
         keys = ['key_%d' % i for i in range(17,21)]
 
@@ -468,7 +465,7 @@ class TestMutations(ThriftTester):
                     waitfor(ZERO_WAIT, _assert_no_columnpath, key, ColumnPath('Super1', super_column=sc.name))
     
     def test_batch_mutate_remove_super_columns_entire_row(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         
         keys = ['key_%d' % i for i in range(17,21)]
 
@@ -495,7 +492,7 @@ class TestMutations(ThriftTester):
             waitfor(ZERO_WAIT, _assert_no_columnpath, key, ColumnPath('Super1', super_column=sc.name))
 
     def test_batch_mutate_insertions_and_deletions(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         
         first_insert = SuperColumn("sc1",
                                    columns=[Column(_i64(20), 'value20', 3),
@@ -550,7 +547,7 @@ class TestMutations(ThriftTester):
 
     def test_batch_mutate_does_not_accept_cosc_and_deletion_in_same_mutation(self):
         def too_full():
-            _empty_login('Keyspace1')
+            _set_keyspace('Keyspace1')
             col = ColumnOrSuperColumn(column=Column("foo", 'bar', 0))
             dele = Deletion(2, predicate=SlicePredicate(column_names=['baz']))
             client.batch_mutate({'key_34': {'Standard1': [Mutation(col, dele)]}},
@@ -559,7 +556,7 @@ class TestMutations(ThriftTester):
 
     def test_batch_mutate_does_not_yet_accept_slice_ranges(self):
         def send_range():
-            _empty_login('Keyspace1')
+            _set_keyspace('Keyspace1')
             sp = SlicePredicate(slice_range=SliceRange(start='0', finish="", count=10))
             d = Deletion(2, predicate=sp)
             client.batch_mutate({'key_35': {'Standard1':[Mutation(deletion=d)]}},
@@ -567,7 +564,7 @@ class TestMutations(ThriftTester):
         _expect_exception(send_range, InvalidRequestException)
 
     def test_column_name_lengths(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         _expect_exception(lambda: client.insert('key1', ColumnParent('Standard1'), Column('', 'value', 0), ConsistencyLevel.ONE), InvalidRequestException)
         client.insert('key1', ColumnParent('Standard1'), Column('x'*1, 'value', 0), ConsistencyLevel.ONE)
         client.insert('key1', ColumnParent('Standard1'), Column('x'*127, 'value', 0), ConsistencyLevel.ONE)
@@ -580,7 +577,7 @@ class TestMutations(ThriftTester):
         _expect_exception(lambda: client.insert('key1', ColumnParent('Standard1'), Column('x'*(2**16), 'value', 0), ConsistencyLevel.ONE), InvalidRequestException)
 
     def test_bad_calls(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         # missing arguments
         _expect_exception(lambda: client.insert(None, None, None, None), TApplicationException)
         # supercolumn in a non-super CF
@@ -632,7 +629,7 @@ class TestMutations(ThriftTester):
                           InvalidRequestException)
 
     def test_batch_insert_super(self):
-         _empty_login('Keyspace1')
+         _set_keyspace('Keyspace1')
          cfmap = {'Super1': [ColumnOrSuperColumn(super_column=c) for c in _SUPER_COLUMNS],
                   'Super2': [ColumnOrSuperColumn(super_column=c) for c in _SUPER_COLUMNS]}
          client.batch_insert('key1', cfmap, ConsistencyLevel.ZERO)
@@ -640,7 +637,7 @@ class TestMutations(ThriftTester):
          waitfor(ZERO_WAIT, _verify_super, 'Super2')
 
     def test_batch_insert_super_blocking(self):
-         _empty_login('Keyspace1')
+         _set_keyspace('Keyspace1')
          cfmap = {'Super1': [ColumnOrSuperColumn(super_column=c) for c in _SUPER_COLUMNS],
                   'Super2': [ColumnOrSuperColumn(super_column=c) for c in _SUPER_COLUMNS]}
          client.batch_insert('key1', cfmap, ConsistencyLevel.ONE)
@@ -648,7 +645,7 @@ class TestMutations(ThriftTester):
          _verify_super('Super2')
 
     def test_cf_remove_column(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         _insert_simple()
         client.remove('key1', ColumnPath('Standard1', column='c1'), 1, ConsistencyLevel.ONE)
         _expect_missing(lambda: client.get('key1', ColumnPath('Standard1', column='c1'), ConsistencyLevel.ONE))
@@ -677,7 +674,7 @@ class TestMutations(ThriftTester):
 
 
     def test_cf_remove(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         
         _insert_simple()
         _insert_super()
@@ -703,7 +700,7 @@ class TestMutations(ThriftTester):
 
 
     def test_super_cf_remove_column(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         _insert_simple()
         _insert_super()
 
@@ -742,7 +739,7 @@ class TestMutations(ThriftTester):
         assert super_columns == super_columns_expected, super_columns
 
     def test_super_cf_remove_supercolumn(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         
         _insert_simple()
         _insert_super()
@@ -781,7 +778,7 @@ class TestMutations(ThriftTester):
 
 
     def test_super_cf_resurrect_subcolumn(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         key = 'vijay'
         client.insert(key, ColumnParent('Super1', 'sc1'), Column(_i64(4), 'value4', 0), ConsistencyLevel.ONE)
 
@@ -794,13 +791,13 @@ class TestMutations(ThriftTester):
 
 
     def test_empty_range(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         assert client.get_range_slice(ColumnParent('Standard1'), SlicePredicate(column_names=['c1', 'c1']), '', '', 1000, ConsistencyLevel.ONE) == []
         _insert_simple()
         assert client.get_range_slice(ColumnParent('Super1'), SlicePredicate(column_names=['c1', 'c1']), '', '', 1000, ConsistencyLevel.ONE) == []
 
     def test_range_with_remove(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         _insert_simple()
         assert client.get_range_slice(ColumnParent('Standard1'), SlicePredicate(column_names=['c1', 'c1']), 'key1', '', 1000, ConsistencyLevel.ONE)[0].key == 'key1'
 
@@ -810,7 +807,7 @@ class TestMutations(ThriftTester):
         assert actual == [KeySlice(columns=[], key='key1')], actual
 
     def test_range_with_remove_cf(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         _insert_simple()
         assert client.get_range_slice(ColumnParent('Standard1'), SlicePredicate(column_names=['c1', 'c1']), 'key1', '', 1000, ConsistencyLevel.ONE)[0].key == 'key1'
 
@@ -819,7 +816,7 @@ class TestMutations(ThriftTester):
         assert actual == [KeySlice(columns=[], key='key1')], actual
 
     def test_range_collation(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         for key in ['-a', '-b', 'a', 'b'] + [str(i) for i in xrange(100)]:
             client.insert(key, ColumnParent('Standard1'), Column(key, 'v', 0), ConsistencyLevel.ONE)
 
@@ -831,7 +828,7 @@ class TestMutations(ThriftTester):
             assert key == ks.key
 
     def test_range_partial(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         
         for key in ['-a', '-b', 'a', 'b'] + [str(i) for i in xrange(100)]:
             client.insert(key, ColumnParent('Standard1'), Column(key, 'v', 0), ConsistencyLevel.ONE)
@@ -854,17 +851,17 @@ class TestMutations(ThriftTester):
         check_slices_against_keys(['1', '10', '11', '12', '13', '14', '15', '16', '17', '18'], slices)
 
     def test_get_slice_range(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         _insert_range()
         _verify_range()
         
     def test_get_slice_super_range(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         _insert_super_range()
         _verify_super_range()
 
     def test_get_range_slices_tokens(self):
-        _empty_login('Keyspace2')
+        _set_keyspace('Keyspace2')
         for key in ['key1', 'key2', 'key3', 'key4', 'key5']:
             for cname in ['col1', 'col2', 'col3', 'col4', 'col5']:
                 client.insert(key, ColumnParent('Super3', 'sc1'), Column(cname, 'v-' + cname, 0), ConsistencyLevel.ONE)
@@ -878,7 +875,7 @@ class TestMutations(ThriftTester):
         assert result[0].columns[1].column.name == 'col3'
 
     def test_get_range_slice_super(self):
-        _empty_login('Keyspace2')
+        _set_keyspace('Keyspace2')
         for key in ['key1', 'key2', 'key3', 'key4', 'key5']:
             for cname in ['col1', 'col2', 'col3', 'col4', 'col5']:
                 client.insert(key, ColumnParent('Super3', 'sc1'), Column(cname, 'v-' + cname, 0), ConsistencyLevel.ONE)
@@ -895,7 +892,7 @@ class TestMutations(ThriftTester):
         assert list(set(row.columns[0].super_column.name for row in result))[0] == 'sc1'
         
     def test_get_range_slice(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         for key in ['key1', 'key2', 'key3', 'key4', 'key5']:
             for cname in ['col1', 'col2', 'col3', 'col4', 'col5']:
                 client.insert(key, ColumnParent('Standard1'), Column(cname, 'v-' + cname, 0), ConsistencyLevel.ONE)
@@ -951,7 +948,7 @@ class TestMutations(ThriftTester):
         
     
     def test_get_slice_by_names(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         _insert_range()
         p = SlicePredicate(column_names=['c1', 'c2'])
         result = client.get_slice('key1', ColumnParent('Standard1'), p, ConsistencyLevel.ONE) 
@@ -968,7 +965,7 @@ class TestMutations(ThriftTester):
     def test_multiget_slice(self):
         """Insert multiple keys and retrieve them using the multiget_slice interface"""
 
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         # Generate a list of 10 keys and insert them
         num_keys = 10
         keys = ['key'+str(i) for i in range(1, num_keys+1)]
@@ -987,7 +984,7 @@ class TestMutations(ThriftTester):
 
     def test_multi_count(self):
         """Insert multiple keys and count them using the multiget interface"""
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
 
         # Generate a list of 10 keys countaining 1 to 10 columns and insert them
         num_keys = 10
@@ -1007,7 +1004,7 @@ class TestMutations(ThriftTester):
           assert counts[key] == i
 
     def test_batch_mutate_super_deletion(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         _insert_super('test')
         d = Deletion(1, predicate=SlicePredicate(column_names=['sc1']))
         cfmap = {'Super1': [Mutation(deletion=d)]}
@@ -1016,7 +1013,7 @@ class TestMutations(ThriftTester):
         _expect_missing(lambda: client.get('key1', ColumnPath('Super1', 'sc1'), ConsistencyLevel.ONE))
 
     def test_super_reinsert(self):
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         for x in xrange(3):
             client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(x), 'value', 1), ConsistencyLevel.ONE)
 
@@ -1055,7 +1052,7 @@ class TestMutations(ThriftTester):
         newks = client.describe_keyspace('CreateKeyspace')
         assert 'CreateKsCf' in newks
         
-        _empty_login('CreateKeyspace')
+        _set_keyspace('CreateKeyspace')
         
         # rename
         client.system_rename_keyspace('CreateKeyspace', 'RenameKeyspace')
@@ -1073,7 +1070,7 @@ class TestMutations(ThriftTester):
 
     def test_system_column_family_operations(self):
         """ Test cf (add, drop, rename) operations """
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         # create
         newcf = CfDef('Keyspace1', 'NewColumnFamily')
         client.system_add_column_family(newcf)
@@ -1095,14 +1092,14 @@ class TestMutations(ThriftTester):
 
     def test_insert_ttl(self):
         """ Test simple insertion of a column with ttl """
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         column = Column('cttl1', 'value1', 0, 5)
         client.insert('key1', ColumnParent('Standard1'), column, ConsistencyLevel.ONE)
         assert client.get('key1', ColumnPath('Standard1', column='cttl1'), ConsistencyLevel.ONE).column == column
 
     def test_simple_expiration(self):
         """ Test that column ttled do expires """
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         column = Column('cttl3', 'value1', 0, 2)
         client.insert('key1', ColumnParent('Standard1'), column, ConsistencyLevel.ONE)
         time.sleep(1)
@@ -1114,7 +1111,7 @@ class TestMutations(ThriftTester):
 
     def test_update_expiring(self):
         """ Test that updating a column with ttl override the ttl """
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         column1 = Column('cttl4', 'value1', 0, 1)
         client.insert('key1', ColumnParent('Standard1'), column1, ConsistencyLevel.ONE)
         column2 = Column('cttl4', 'value1', 1)
@@ -1124,7 +1121,7 @@ class TestMutations(ThriftTester):
 
     def test_remove_expiring(self):
         """ Test removing a column with ttl """
-        _empty_login('Keyspace1')
+        _set_keyspace('Keyspace1')
         column = Column('cttl5', 'value1', 0, 10)
         client.insert('key1', ColumnParent('Standard1'), column, ConsistencyLevel.ONE)
         client.remove('key1', ColumnPath('Standard1', column='cttl5'), 1, ConsistencyLevel.ONE)

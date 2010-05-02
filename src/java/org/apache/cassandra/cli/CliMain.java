@@ -101,7 +101,32 @@ public class CliMain
         thriftClient_ = cassandraClient;
         cliClient_ = new CliClient(css_, thriftClient_);
         
-        if ((css_.username != null) && (css_.password != null) && (css_.keyspace != null))
+        if (css_.keyspace != null)
+        {
+            try {
+                thriftClient_.set_keyspace(css_.keyspace);
+                cliClient_.setKeyspace(css_.keyspace);
+                updateCompletor(cliClient_.getCFMetaData(css_.keyspace).keySet());
+                
+            }
+            catch (InvalidRequestException e)
+            {
+                css_.err.println("Keyspace " + css_.keyspace + " not found");
+                return;
+            }
+            catch (TException e)
+            {
+                css_.err.println("Did you specify 'keyspace'?");
+                return;
+            }
+            catch (NotFoundException e)
+            {
+                css_.err.println("Keyspace " + css_.keyspace + " not found");
+                return;
+            }
+        }
+        
+        if ((css_.username != null) && (css_.password != null))
         {
             // Authenticate 
             Map<String, String> credentials = new HashMap<String, String>();
@@ -110,9 +135,7 @@ public class CliMain
             AuthenticationRequest authRequest = new AuthenticationRequest(credentials);
             try 
             {
-                thriftClient_.login(css_.keyspace, authRequest);
-                updateCompletor(cliClient_.getCFMetaData(css_.keyspace).keySet());
-                cliClient_.setKeyspace(css_.keyspace);
+                thriftClient_.login(authRequest);
                 cliClient_.setUsername(css_.username);
             } 
             catch (AuthenticationException e) 
@@ -130,11 +153,7 @@ public class CliMain
             {
                 css_.err.println("Login failure. Did you specify 'keyspace', 'username' and 'password'?");
                 return;
-            } catch (NotFoundException e) {
-                css_.err.println("Keyspace not found.");
-                return;
-            }
-            
+            } 
         }
         
         // Lookup the cluster name, this is to make it clear which cluster the user is connected to
