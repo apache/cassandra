@@ -168,7 +168,7 @@ class Operation(Thread):
         # open client
         self.cclient = get_client(hostname, options.port, options.framed)
         self.cclient.transport.open()
-        self.cclient.login('Keyspace1', AuthenticationRequest({}))
+        self.cclient.set_keyspace('Keyspace1')
 
 class Inserter(Operation):
     def run(self):
