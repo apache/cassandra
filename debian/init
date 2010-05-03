@@ -87,6 +87,7 @@ do_start()
         -Dcom.sun.management.jmxremote.port=8080 \
         -Dcom.sun.management.jmxremote.ssl=false \
         -Dcom.sun.management.jmxremote.authenticate=false \
+        $JVM_EXTRA_OPTS \
         org.apache.cassandra.thrift.CassandraDaemon
 
     if ! is_running; then return 2; fi
