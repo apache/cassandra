@@ -13,4 +13,4 @@ JVM_MAX_MEM="1G"
 JVM_START_MEM="128M"
 
 # Specifies any additional arguments to the JVM.
-JVM_EXTRA_OPTS="-Xdebug -Xrunjdwp:transport=dt_socket,server=y,address=8888,suspend=n -XX:SurvivorRatio=128 -XX:TargetSurvivorRatio=90 -XX:+AggressiveOpts -XX:+UseParNewGC -XX:+UseConcMarkSweepGC -XX:+CMSParallelRemarkEnabled -XX:+HeapDumpOnOutOfMemoryError -XX:MaxTenuringThreshold=0"
+JVM_EXTRA_OPTS="-XX:SurvivorRatio=128 -XX:TargetSurvivorRatio=90 -XX:+AggressiveOpts -XX:+UseParNewGC -XX:+UseConcMarkSweepGC -XX:+CMSParallelRemarkEnabled -XX:+HeapDumpOnOutOfMemoryError -XX:MaxTenuringThreshold=0"
