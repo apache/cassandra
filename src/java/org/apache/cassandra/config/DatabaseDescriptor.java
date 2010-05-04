@@ -132,6 +132,8 @@ public class DatabaseDescriptor
     private static boolean snapshotBeforeCompaction;
     private static boolean autoBootstrap = false;
 
+    private static Map<String,Boolean> hintedHandOffByKS = new HashMap<String,Boolean>();
+
     private static IAuthenticator authenticator = new AllowAllAuthenticator();
 
     private final static String STORAGE_CONF_FILE = "storage-conf.xml";
@@ -618,6 +620,17 @@ public class DatabaseDescriptor
                 {
                     throw new ConfigurationException("Invalid endpointsnitch class " + endPointSnitchClassName + " " + e.getMessage());
                 }
+
+                /* should Hinted Handoff be on? */
+                String hintedHandOffStr = xmlUtils.getNodeValue("/Storage/Keyspaces/Keyspace[@Name='" + ksName + "']/HintedHandoff");
+                if (hintedHandOffStr == null || hintedHandOffStr.equalsIgnoreCase("true"))
+                    hintedHandOffByKS.put(ksName, true);
+                else if (hintedHandOffStr.equalsIgnoreCase("false"))
+                    hintedHandOffByKS.put(ksName, false);
+                else
+                    throw new ConfigurationException("Unrecognized value for HintedHandoff.  Use 'true' or 'false'.");
+                if (logger.isDebugEnabled())
+                    logger.debug("setting hintedHandOff to " + hintedHandOffByKS.get(ksName).toString() + " for " + ksName);
 
                 String xqlTable = "/Storage/Keyspaces/Keyspace[@Name='" + ksName + "']/";
                 NodeList columnFamilies = xmlUtils.getRequestedNodeList(xqlTable + "ColumnFamily");
@@ -1208,4 +1221,9 @@ public class DatabaseDescriptor
     {
         return autoBootstrap;
     }
+
+    public static boolean isHintedHandOff(String table)
+    {
+        return hintedHandOffByKS.get(table);
     }
+}
