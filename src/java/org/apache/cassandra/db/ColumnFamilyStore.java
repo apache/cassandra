@@ -96,7 +96,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private final String table_;
     public final String columnFamily_;
-    private final boolean isSuper_;
 
     private volatile Integer memtableSwitchCount = 0;
 
@@ -120,11 +119,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private long rowsCompactedTotalSize = 0L;
     private long rowsCompactedCount = 0L;
     
-    ColumnFamilyStore(String table, String columnFamilyName, boolean isSuper, int indexValue)
+    ColumnFamilyStore(String table, String columnFamilyName, int indexValue)
     {
         table_ = table;
         columnFamily_ = columnFamilyName;
-        isSuper_ = isSuper;
         fileIndexGenerator_.set(indexValue);
         memtable_ = new Memtable(this);
         binaryMemtable_ = new AtomicReference<BinaryMemtable>(new BinaryMemtable(this));
@@ -259,7 +257,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Collections.sort(generations);
         int value = (generations.size() > 0) ? (generations.get(generations.size() - 1)) : 0;
 
-        ColumnFamilyStore cfs = new ColumnFamilyStore(table, columnFamily, "Super".equals(DatabaseDescriptor.getColumnType(table, columnFamily)), value);
+        ColumnFamilyStore cfs = new ColumnFamilyStore(table, columnFamily, value);
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
@@ -602,11 +600,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         final Condition condition = new SimpleCondition();
         flushable.flushAndSignal(condition, flushSorter_, flushWriter_);
         return condition;
-    }
-
-    public boolean isSuper()
-    {
-        return isSuper_;
     }
 
     public int getMemtableColumnsCount()
