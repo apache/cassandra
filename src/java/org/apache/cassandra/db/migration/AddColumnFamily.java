@@ -72,11 +72,19 @@ public class AddColumnFamily extends Migration
         return new KSMetaData(ksm.name, ksm.strategyClass, ksm.replicationFactor, newCfs.toArray(new CFMetaData[newCfs.size()]));
     }
     
-    public void applyModels()
+    public void applyModels() throws IOException
     {
         // reinitialize the table.
         KSMetaData ksm = DatabaseDescriptor.getTableDefinition(cfm.tableName);
         ksm = makeNewKeyspaceDefinition(ksm);
+        try
+        {
+            CFMetaData.map(cfm);
+        }
+        catch (ConfigurationException ex)
+        {
+            throw new IOException(ex);
+        }
         if (!clientMode)
             Table.open(ksm.name).initCf(cfm.cfId, cfm.cfName);
         DatabaseDescriptor.setTableDefinition(ksm, newVersion);

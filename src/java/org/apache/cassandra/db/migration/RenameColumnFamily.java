@@ -109,7 +109,19 @@ public class RenameColumnFamily extends Migration
             renameCfStorageFiles(tableName, oldName, newName);
         
         // reset defs.
+        KSMetaData oldKsm = DatabaseDescriptor.getTableDefinition(tableName);
+        CFMetaData.purge(oldKsm.cfMetaData().get(oldName));
         KSMetaData ksm = makeNewKeyspaceDefinition(DatabaseDescriptor.getTableDefinition(tableName));
+        try 
+        {
+            CFMetaData.map(ksm.cfMetaData().get(newName));
+        }
+        catch (ConfigurationException ex)
+        {
+            // throwing RTE since this this means that the table,cf already maps to a different ID, which has already
+            // been checked in the constructor and shouldn't happen.
+            throw new RuntimeException(ex);
+        }
         DatabaseDescriptor.setTableDefinition(ksm, newVersion);
         
         if (!clientMode)

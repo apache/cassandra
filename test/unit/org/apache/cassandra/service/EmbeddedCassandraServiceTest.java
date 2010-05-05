@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
@@ -79,7 +80,11 @@ public class EmbeddedCassandraServiceTest
 
         // Manually load tables from the test configuration file.
         for (KSMetaData table : DatabaseDescriptor.readTablesFromYaml())
+        {
+            for (CFMetaData cfm : table.cfMetaData().values())
+                CFMetaData.map(cfm);
             DatabaseDescriptor.setTableDefinition(table, DatabaseDescriptor.getDefsVersion());
+        }
 
         cassandra = new EmbeddedCassandraService();
         cassandra.init();

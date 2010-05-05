@@ -65,7 +65,7 @@ public final class CFMetaData
     public static final void fixMaxId()
     {
         // never set it to less than 1000. this ensures that we have enough system CFids for future use.
-        idGen.set(Math.max(Collections.max(cfIdMap.values()) + 1, 1000));
+        idGen.set(cfIdMap.size() == 0 ? 1000 : Math.max(Collections.max(cfIdMap.values()) + 1, 1000));
     }
     
     public final String tableName;            // name of table which has this column family
@@ -94,8 +94,19 @@ public final class CFMetaData
         this.keyCacheSize = keyCacheSize;
         this.readRepairChance = readRepairChance;
         this.cfId = cfId;
-        currentCfNames.put(cfId, cfName);
-        cfIdMap.put(new Pair<String, String>(tableName, cfName), cfId);
+    }
+    
+    /** adds this cfm to the map. */
+    public static void map(CFMetaData cfm) throws ConfigurationException
+    {
+        Pair<String, String> key = new Pair<String, String>(cfm.tableName, cfm.cfName);
+        if (cfIdMap.containsKey(key))
+            throw new ConfigurationException("Attempt to assign id to existing column family.");
+        else
+        {
+            cfIdMap.put(key, cfm.cfId);
+            currentCfNames.put(cfm.cfId, cfm.cfName);
+        }
     }
     
     public CFMetaData(String tableName, String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator, String comment, double rowCacheSize, boolean preloadRowCache, double keyCacheSize)
@@ -111,8 +122,8 @@ public final class CFMetaData
     /** clones an existing CFMetaData using the same id. */
     public static CFMetaData rename(CFMetaData cfm, String newName)
     {
-        purge(cfm);
-        return new CFMetaData(cfm.tableName, newName, cfm.columnType, cfm.comparator, cfm.subcolumnComparator, cfm.comment, cfm.rowCacheSize, cfm.preloadRowCache, cfm.keyCacheSize, cfm.readRepairChance, cfm.cfId);
+        CFMetaData newCfm = new CFMetaData(cfm.tableName, newName, cfm.columnType, cfm.comparator, cfm.subcolumnComparator, cfm.comment, cfm.rowCacheSize, cfm.preloadRowCache, cfm.keyCacheSize, cfm.readRepairChance, cfm.cfId);
+        return newCfm;
     }
     
     /** clones existing CFMetaData. keeps the id but changes the table name.*/

@@ -18,6 +18,7 @@
 
 package org.apache.cassandra;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
@@ -33,7 +34,11 @@ public class SchemaLoader
         try
         {
             for (KSMetaData ksm : DatabaseDescriptor.readTablesFromYaml())
+            {
+                for (CFMetaData cfm : ksm.cfMetaData().values())
+                    CFMetaData.map(cfm);
                 DatabaseDescriptor.setTableDefinition(ksm, DatabaseDescriptor.getDefsVersion());
+            }
         }
         catch (ConfigurationException e)
         {

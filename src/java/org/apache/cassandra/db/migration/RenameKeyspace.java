@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.migration;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
@@ -36,6 +37,8 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 public class RenameKeyspace extends Migration
@@ -66,9 +69,23 @@ public class RenameKeyspace extends Migration
             throw new ConfigurationException("Keyspace already exists.");
         
         // clone the ksm, replacing thename.
-        KSMetaData newKsm = KSMetaData.rename(oldKsm, newName, false); 
+        KSMetaData newKsm = rename(oldKsm, newName, false); 
         
         rm = makeDefinitionMutation(newKsm, oldKsm, newVersion);
+    }
+    
+    private static KSMetaData rename(KSMetaData ksm, String newName, boolean purgeOldCfs)
+    {
+        // cfs will need to have their tablenames reset. CFMetaData are immutable, so new ones get created with the
+        // same ids.
+        List<CFMetaData> newCfs = new ArrayList<CFMetaData>(ksm.cfMetaData().size());
+        for (CFMetaData oldCf : ksm.cfMetaData().values())
+        {
+            if (purgeOldCfs)
+                CFMetaData.purge(oldCf);
+            newCfs.add(CFMetaData.renameTable(oldCf, newName));
+        }
+        return new KSMetaData(newName, ksm.strategyClass, ksm.replicationFactor, newCfs.toArray(new CFMetaData[newCfs.size()]));
     }
 
     @Override
@@ -84,7 +101,22 @@ public class RenameKeyspace extends Migration
             renameKsStorageFiles(oldName, newName);
         
         KSMetaData oldKsm = DatabaseDescriptor.getTableDefinition(oldName);
-        KSMetaData newKsm = KSMetaData.rename(oldKsm, newName, true);
+        for (CFMetaData cfm : oldKsm.cfMetaData().values())
+            CFMetaData.purge(cfm);
+        KSMetaData newKsm = rename(oldKsm, newName, true);
+        for (CFMetaData cfm : newKsm.cfMetaData().values())
+        {
+            try
+            {
+                CFMetaData.map(cfm);
+            }
+            catch (ConfigurationException ex)
+            {
+                // throwing RTE since this this means that the table,cf already maps to a different ID, which it can't
+                // since we've already checked for an existing table with the same name.
+                throw new RuntimeException(ex);
+            }
+        }
         // ^^ at this point, the static methods in CFMetaData will start returning references to the new table, so
         // it helps if the node is reasonably quiescent with respect to this ks.
         DatabaseDescriptor.clearTableDefinition(oldKsm, newVersion);

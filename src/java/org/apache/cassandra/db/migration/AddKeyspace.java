@@ -66,6 +66,19 @@ public class AddKeyspace extends Migration
     @Override
     public void applyModels() throws IOException
     {
+        for (CFMetaData cfm : ksm.cfMetaData().values())
+        {
+            try
+            {
+                CFMetaData.map(cfm);
+            }
+            catch (ConfigurationException ex)
+            {
+                // throw RTE since this indicates a table,cf maps to an existing ID. It shouldn't if this is really a
+                // new keyspace.
+                throw new RuntimeException(ex);
+            }
+        }
         DatabaseDescriptor.setTableDefinition(ksm, newVersion);
         // these definitions could have come from somewhere else.
         CFMetaData.fixMaxId();

@@ -51,20 +51,6 @@ public final class KSMetaData
         this.cfMetaData = Collections.<String, CFMetaData>unmodifiableMap(cfmap);
     }
     
-    public static KSMetaData rename(KSMetaData ksm, String newName, boolean purgeOldCfs)
-    {
-        // cfs will need to have their tablenames reset. CFMetaData are immutable, so new ones get created with the
-        // same ids.
-        List<CFMetaData> newCfs = new ArrayList<CFMetaData>(ksm.cfMetaData().size());
-        for (CFMetaData oldCf : ksm.cfMetaData().values())
-        {
-            if (purgeOldCfs)
-                CFMetaData.purge(oldCf);
-            newCfs.add(CFMetaData.renameTable(oldCf, newName));
-        }
-        return new KSMetaData(newName, ksm.strategyClass, ksm.replicationFactor, newCfs.toArray(new CFMetaData[newCfs.size()]));
-    }
-    
     public boolean equals(Object obj)
     {
         if (obj == null)

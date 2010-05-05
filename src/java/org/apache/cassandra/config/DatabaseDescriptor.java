@@ -43,6 +43,7 @@ import org.yaml.snakeyaml.error.YAMLException;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Constructor;
@@ -298,6 +299,8 @@ public class DatabaseDescriptor
                                0.01)
             };
             KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE, null, -1, systemCfDefs);
+            CFMetaData.map(systemCfDefs[0]);
+            CFMetaData.map(systemCfDefs[1]);
             tables.put(Table.SYSTEM_TABLE, systemMeta);
                 
             CFMetaData[] definitionCfDefs = new CFMetaData[]
@@ -305,10 +308,15 @@ public class DatabaseDescriptor
                 new CFMetaData(Table.DEFINITIONS, Migration.MIGRATIONS_CF, "Standard", new TimeUUIDType(), null, "individual schema mutations", 0, false, 0),
                 new CFMetaData(Table.DEFINITIONS, Migration.SCHEMA_CF, "Standard", new UTF8Type(), null, "current state of the schema", 0, false, 0)
             };
+            CFMetaData.map(definitionCfDefs[0]);
+            CFMetaData.map(definitionCfDefs[1]);
             tables.put(Table.DEFINITIONS, new KSMetaData(Table.DEFINITIONS, null, -1, definitionCfDefs));
             
             // NOTE: make sure that all system CFMs defined by now. calling fixMaxId at this point will set the base id
             // to a value that leaves room for future system cfms.
+            // TODO: I've left quite a bit of space for more system CFMs to be defined (up to 1000). However, there is no
+            // way to guarantee the assignment of the right IDS to the system CFMs other than rigidly controlling the order
+            // they ar map()ed in.  It might be a good idea to explicitly set the ids in a static initializer somewhere.
             CFMetaData.fixMaxId();
             
             /* Load the seeds for node contact points */
@@ -395,6 +403,17 @@ public class DatabaseDescriptor
             Collection<KSMetaData> tableDefs = DefsTable.loadFromStorage(uuid);   
             for (KSMetaData def : tableDefs)
             {
+                for (CFMetaData cfm : def.cfMetaData().values())
+                {
+                    try
+                    {
+                        CFMetaData.map(cfm);
+                    }
+                    catch (ConfigurationException ex)
+                    {
+                        throw new IOError(ex);
+                    }
+                }
                 DatabaseDescriptor.setTableDefinition(def, uuid);
                 // this part creates storage and jmx objects.
                 Table.open(def.name);
