@@ -87,8 +87,9 @@ public abstract class AbstractReplicationStrategy
                 map.put(ep, ep);
         }
 
-        if (map.size() == targets.size())
-            return map; // everything was alive
+        // if everything was alive or we're not doing HH on this keyspace, stop with just the live nodes
+        if (map.size() == targets.size() || !DatabaseDescriptor.hintedHandoffEnabled())
+            return map;
 
         // assign dead endpoints to be hinted to the closest live one, or to the local node
         // (since it is trivially the closest) if none are alive.  This way, the cost of doing

@@ -29,6 +29,7 @@ dev
  * add latency histograms to CFSMBean (CASSANDRA-1024)
  * make resolving timestamp ties deterministic by using value bytes
    as a tiebreaker (CASSANDRA-1039)
+ * Add option to turn off Hinted Handoff (CASSANDRA-894)
 
 
 0.6.1

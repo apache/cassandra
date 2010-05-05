@@ -9,6 +9,9 @@ cluster_name: 'Test Cluster'
 # right data to themselves.
 auto_bootstrap: false
 
+# See http://wiki.apache.org/cassandra/HintedHandoff
+hinted_handoff_enabled: true
+
 # authentication backend, implementing IAuthenticator; used to limit keyspace access
 authenticator: org.apache.cassandra.auth.AllowAllAuthenticator
 

@@ -979,4 +979,9 @@ public class DatabaseDescriptor
     {
         return conf.auto_bootstrap;
     }
+
+    public static boolean hintedHandoffEnabled()
+    {
+        return conf.hinted_handoff_enabled;
+    }
 }

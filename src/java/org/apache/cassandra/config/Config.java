@@ -10,6 +10,8 @@ public class Config {
     public String partitioner;
     
     public Boolean auto_bootstrap = false;
+    public Boolean hinted_handoff_enabled = true;
+    
     public String[] seeds;
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
     
