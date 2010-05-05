@@ -46,6 +46,11 @@
   <AutoBootstrap>false</AutoBootstrap>
 
   <!--
+   ~ See http://wiki.apache.org/cassandra/HintedHandoff
+  -->
+  <HintedHandoffEnabled>true</HintedHandoffEnabled>
+
+  <!--
    ~ Keyspaces and ColumnFamilies:
    ~ A ColumnFamily is the Cassandra concept closest to a relational
    ~ table.  Keyspaces are separate groups of ColumnFamilies.  Except in
