@@ -30,6 +30,7 @@ dev
  * make resolving timestamp ties deterministic by using value bytes
    as a tiebreaker (CASSANDRA-1039)
  * Add option to turn off Hinted Handoff (CASSANDRA-894)
+ * fix windows startup (CASSANDRA-948)
 
 
 0.6.1
