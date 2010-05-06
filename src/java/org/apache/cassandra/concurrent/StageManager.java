@@ -53,8 +53,8 @@ public class StageManager
 
     static
     {
-        stages.put(MUTATION_STAGE, multiThreadedStage(MUTATION_STAGE, getConcurrentWriters()));
-        stages.put(READ_STAGE, multiThreadedStage(READ_STAGE, getConcurrentReaders()));
+        stages.put(MUTATION_STAGE, multiThreadedConfigurableStage(MUTATION_STAGE, getConcurrentWriters()));
+        stages.put(READ_STAGE, multiThreadedConfigurableStage(READ_STAGE, getConcurrentReaders()));        
         stages.put(RESPONSE_STAGE, multiThreadedStage(RESPONSE_STAGE, Math.max(2, Runtime.getRuntime().availableProcessors())));
         // the rest are all single-threaded
         stages.put(STREAM_STAGE, new JMXEnabledThreadPoolExecutor(STREAM_STAGE));
@@ -76,6 +76,18 @@ public class StageManager
                                                 TimeUnit.SECONDS,
                                                 new LinkedBlockingQueue<Runnable>(DatabaseDescriptor.getStageQueueSize()),
                                                 new NamedThreadFactory(name));
+    }
+    
+    private static ThreadPoolExecutor multiThreadedConfigurableStage(String name, int numThreads)
+    {
+        assert numThreads > 1 : "multi-threaded stages must have at least 2 threads";
+        
+        return new JMXConfigurableThreadPoolExecutor(numThreads,
+                                                     numThreads,
+                                                     KEEPALIVE,
+                                                     TimeUnit.SECONDS,
+                                                     new LinkedBlockingQueue<Runnable>(DatabaseDescriptor.getStageQueueSize()),
+                                                     new NamedThreadFactory(name));
     }
 
     /**
