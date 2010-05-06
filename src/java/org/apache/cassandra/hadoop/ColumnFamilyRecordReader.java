@@ -24,14 +24,11 @@ package org.apache.cassandra.hadoop;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.*;
 
 import com.google.common.collect.AbstractIterator;
 
+import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.auth.SimpleAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
@@ -112,8 +109,8 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
         private String startToken;
         private int totalRead = 0;
         private int i = 0;
-        private AbstractType comparator = DatabaseDescriptor.getComparator(keyspace, cfName);
-        
+        private AbstractType comparator = null;
+
         private void maybeInit()
         {
             // check if we need another batch 
@@ -151,7 +148,17 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
             try
             {
                 client.set_keyspace(keyspace);
-            	client.login(authRequest);
+                if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
+                {
+                    client.login(authRequest);
+                }
+
+                // Get the keyspace information to get the comparator
+                Map<String, Map<String,String>> desc = client.describe_keyspace(keyspace);
+                Map<String,String> ksProps = desc.get(cfName);
+                String compClass = ksProps.get("CompareWith");
+                comparator = (AbstractType) Class.forName(compClass).newInstance();
+
                 rows = client.get_range_slices(new ColumnParent(cfName),
                                                predicate,
                                                keyRange,

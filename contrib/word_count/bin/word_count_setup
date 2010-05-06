@@ -53,4 +53,8 @@ if [ "x$JAVA" = "x" ]; then
     exit 1
 fi
 
-$JAVA -Xmx1G -ea -cp $CLASSPATH WordCountSetup
+HOST=localhost
+PORT=9160
+FRAMED=false
+
+$JAVA -Xmx1G -ea -Dcassandra.host=$HOST -Dcassandra.port=$PORT -Dcassandra.framed=$FRAMED -cp $CLASSPATH WordCountSetup

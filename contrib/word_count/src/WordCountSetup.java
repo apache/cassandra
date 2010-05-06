@@ -16,15 +16,18 @@
  * limitations under the License.
  */
 
-import java.util.Arrays;
+import java.util.*;
 
+import org.apache.cassandra.thrift.*;
+import org.apache.thrift.TException;
+import org.apache.thrift.protocol.TBinaryProtocol;
+import org.apache.thrift.protocol.TProtocol;
+import org.apache.thrift.transport.TFramedTransport;
+import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
+import org.apache.thrift.transport.TTransportException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.ConsistencyLevel;
 
 public class WordCountSetup
 {
@@ -34,47 +37,93 @@ public class WordCountSetup
 
     public static void main(String[] args) throws Exception
     {
-        StorageService.instance.initClient();
-        logger.info("Sleeping " + WordCount.RING_DELAY);
-        Thread.sleep(WordCount.RING_DELAY);
-        assert !StorageService.instance.getLiveNodes().isEmpty();
+        Cassandra.Iface client = createConnection();
 
-        RowMutation rm;
-        ColumnFamily cf;
-        byte[] columnName;
+        setupKeyspace(client);
 
-        // text0: no rows
+        client.set_keyspace(WordCount.KEYSPACE);
+
+        Map<byte[], Map<String,List<Mutation>>> mutationMap;
+        Column c;
 
         // text1: 1 row, 1 word
-        columnName = "text1".getBytes();
-        rm = new RowMutation(WordCount.KEYSPACE, "Key0".getBytes());
-        cf = ColumnFamily.create(WordCount.KEYSPACE, WordCount.COLUMN_FAMILY);
-        cf.addColumn(new Column(columnName, "word1".getBytes(), 0));
-        rm.add(cf);
-        StorageProxy.mutateBlocking(Arrays.asList(rm), ConsistencyLevel.ONE);
+        c = new Column("text1".getBytes(), "word1".getBytes(), System.currentTimeMillis());
+        mutationMap = getMutationMap("key0".getBytes(), WordCount.COLUMN_FAMILY, c);
+        client.batch_mutate(mutationMap, ConsistencyLevel.ONE);
         logger.info("added text1");
 
-        // text2: 1 row, 2 words
-        columnName = "text2".getBytes();
-        rm = new RowMutation(WordCount.KEYSPACE, "Key0".getBytes());
-        cf = ColumnFamily.create(WordCount.KEYSPACE, WordCount.COLUMN_FAMILY);
-        cf.addColumn(new Column(columnName, "word1 word2".getBytes(), 0));
-        rm.add(cf);
-        StorageProxy.mutateBlocking(Arrays.asList(rm), ConsistencyLevel.ONE);
+        // text1: 1 row, 2 word
+        c = new Column("text2".getBytes(), "word1 word2".getBytes(), System.currentTimeMillis());
+        mutationMap = getMutationMap("key0".getBytes(), WordCount.COLUMN_FAMILY, c);
+        client.batch_mutate(mutationMap, ConsistencyLevel.ONE);
         logger.info("added text2");
 
         // text3: 1000 rows, 1 word
-        columnName = "text3".getBytes();
-        for (int i = 0; i < 1000; i++)
+        mutationMap = new HashMap<byte[],Map<String,List<Mutation>>>();
+        for (int i=0; i<1000; i++)
         {
-            rm = new RowMutation(WordCount.KEYSPACE, ("Key" + i).getBytes());
-            cf = ColumnFamily.create(WordCount.KEYSPACE, WordCount.COLUMN_FAMILY);
-            cf.addColumn(new Column(columnName, "word1".getBytes(), 0));
-            rm.add(cf);
-            StorageProxy.mutateBlocking(Arrays.asList(rm), ConsistencyLevel.ONE);
+            c = new Column("text3".getBytes(), "word1".getBytes(), System.currentTimeMillis());
+            addToMutationMap(mutationMap, ("key" + i).getBytes(), WordCount.COLUMN_FAMILY, c);
         }
+        client.batch_mutate(mutationMap, ConsistencyLevel.ONE);
         logger.info("added text3");
 
         System.exit(0);
+    }
+
+    private static Map<byte[],Map<String,List<Mutation>>> getMutationMap(byte[] key, String cf, Column c) {
+        Map<byte[],Map<String,List<Mutation>>> mutationMap = new HashMap<byte[],Map<String,List<Mutation>>>();
+        addToMutationMap(mutationMap, key, cf, c);
+        return mutationMap;
+    }
+
+    private static void addToMutationMap(Map<byte[],Map<String,List<Mutation>>> mutationMap, byte[] key, String cf, Column c)
+    {
+        Map<String,List<Mutation>> cfMutation = new HashMap<String,List<Mutation>>();
+        List<Mutation> mList = new ArrayList<Mutation>();
+        ColumnOrSuperColumn cc = new ColumnOrSuperColumn();
+        Mutation m = new Mutation();
+
+        cc.setColumn(c);
+        m.setColumn_or_supercolumn(cc);
+        mList.add(m);
+        cfMutation.put(cf, mList);
+        mutationMap.put(key, cfMutation);
+    }
+
+    private static void setupKeyspace(Cassandra.Iface client) throws TException, InvalidRequestException
+    {
+        List<CfDef> cfDefList = new ArrayList<CfDef>();
+        CfDef cfDef = new CfDef(WordCount.KEYSPACE, WordCount.COLUMN_FAMILY);
+        cfDefList.add(cfDef);
+
+        client.system_add_keyspace(new KsDef(WordCount.KEYSPACE, "org.apache.cassandra.locator.RackUnawareStrategy", 1, cfDefList));
+    }
+
+    private static Cassandra.Iface createConnection() throws TTransportException
+    {
+        if(System.getProperty("cassandra.host") == null || System.getProperty("cassandra.port") == null)
+        {
+           logger.warn("cassandra.host or cassandra.port is not defined, using default");
+        }
+        return createConnection( System.getProperty("cassandra.host","localhost"),
+                                 Integer.valueOf(System.getProperty("cassandra.port","9160")),
+                                 Boolean.valueOf(System.getProperty("cassandra.framed", "false")) );
+    }
+
+    private static Cassandra.Client createConnection(String host, Integer port, boolean framed) throws TTransportException
+    {
+        TSocket socket = new TSocket(host, port);
+        TTransport trans;
+
+        if(framed)
+            trans = new TFramedTransport(socket);
+        else
+            trans = socket;
+
+        trans.open();
+        TProtocol protocol = new TBinaryProtocol(trans);
+
+        return new Cassandra.Client(protocol);
     }
 }

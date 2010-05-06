@@ -23,7 +23,6 @@ package org.apache.cassandra.hadoop;
 
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.SlicePredicate;
-import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
@@ -59,14 +58,7 @@ public class ConfigHelper
         {
             throw new UnsupportedOperationException("columnfamily may not be null");
         }
-        try
-        {
-            ThriftValidation.validateColumnFamily(keyspace, columnFamily);
-        }
-        catch (InvalidRequestException e)
-        {
-            throw new RuntimeException(e);
-        }
+
         conf.set(KEYSPACE_CONFIG, keyspace);
         conf.set(COLUMNFAMILY_CONFIG, columnFamily);
     }

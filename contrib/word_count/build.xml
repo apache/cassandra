@@ -77,7 +77,7 @@
            <zipfileset dir="${cassandra.dir}/build/lib/jars/" prefix="lib">
                <include name="**/*.jar" />
            </zipfileset>
-           <fileset file="${basedir}/storage-conf.xml" />
+           <fileset file="${basedir}/cassandra.yaml" />
         </jar>
     </target>
 
