@@ -341,7 +341,16 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
 
         DatabaseDescriptor.createAllDirectories();
-        GCInspector.instance.start();
+
+        try
+        {
+            GCInspector.instance.start();
+        }
+        catch (Throwable t)
+        {
+            logger_.warn("Unable to start GCInspector (currently only supported on the Sun JVM)");
+        }
+
         logger_.info("Starting up server gossip");
 
         MessagingService.instance.listen(FBUtilities.getLocalAddress());
