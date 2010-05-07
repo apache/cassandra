@@ -360,7 +360,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         doInsert(consistency_level, rm);
     }
-    
+
     public void batch_insert(String keyspace, String key, Map<String, List<ColumnOrSuperColumn>> cfmap, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {

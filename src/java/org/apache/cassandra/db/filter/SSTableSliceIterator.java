@@ -79,7 +79,7 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
 
     public ColumnFamily getColumnFamily()
     {
-        return reader.getEmptyColumnFamily();
+        return reader == null ? null : reader.getEmptyColumnFamily();
     }
 
     protected IColumn computeNext()

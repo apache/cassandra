@@ -57,8 +57,14 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
                    : String.format("%s != %s in %s", keyInDisk, decoratedKey, file.getPath());
             file.readInt(); // data size
 
-            /* Read the bloom filter summarizing the columns */
+            /* Read the bloom filter and index summarizing the columns */
             BloomFilter bf = IndexHelper.defreezeBloomFilter(file);
+            List<IndexHelper.IndexInfo> indexList = IndexHelper.deserializeIndex(file);
+
+            cf = ColumnFamily.serializer().deserializeFromSSTableNoColumns(ssTable.makeColumnFamily(), file);
+
+            // we can stop early if bloom filter says none of the columns actually exist -- but,
+            // we can't stop before initializing the cf above, in case there's a relevant tombstone
             List<byte[]> filteredColumnNames = new ArrayList<byte[]>(columnNames.size());
             for (byte[] name : columnNames)
             {
@@ -68,13 +74,8 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
                 }
             }
             if (filteredColumnNames.isEmpty())
-            {
                 return;
-            }
 
-            List<IndexHelper.IndexInfo> indexList = IndexHelper.deserializeIndex(file);
-
-            cf = ColumnFamily.serializer().deserializeFromSSTableNoColumns(ssTable.makeColumnFamily(), file);
             file.readInt(); // column count
 
             /* get the various column ranges we have to read */
