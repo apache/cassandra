@@ -277,42 +277,16 @@ public class DatabaseDescriptor
                 CommitLog.setSegmentSize(conf.commitlog_rotation_threshold_in_mb * 1024 * 1024);
 
             // Hardcoded system tables
-            final CFMetaData[] systemCfDefs = new CFMetaData[]
-            {
-                new CFMetaData(Table.SYSTEM_TABLE,
-                               SystemTable.STATUS_CF,
-                               ColumnFamilyType.Standard,
-                               new UTF8Type(),
-                               null,
-                               "persistent metadata for the local node",
-                               0,
-                               false,
-                               0.01),
-                new CFMetaData(Table.SYSTEM_TABLE,
-                               HintedHandOffManager.HINTS_CF,
-                               ColumnFamilyType.Super,
-                               new UTF8Type(),
-                               new BytesType(),
-                               "hinted handoff data",
-                               0,
-                               false,
-                               0.01),
-               new CFMetaData(Table.SYSTEM_TABLE, Migration.MIGRATIONS_CF, ColumnFamilyType.Standard, new TimeUUIDType(), null, "individual schema mutations", 0, false, 0),
-                new CFMetaData(Table.SYSTEM_TABLE, Migration.SCHEMA_CF, ColumnFamilyType.Standard, new UTF8Type(), null, "current state of the schema", 0, false, 0)
-            };
-            KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE, null, -1, systemCfDefs);
-            CFMetaData.map(systemCfDefs[0]);
-            CFMetaData.map(systemCfDefs[1]);
-            CFMetaData.map(systemCfDefs[2]);
-            CFMetaData.map(systemCfDefs[3]);
+            KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE, null, -1, new CFMetaData[]{CFMetaData.StatusCf,
+                                                                                                  CFMetaData.HintsCf,
+                                                                                                  CFMetaData.MigrationsCf,
+                                                                                                  CFMetaData.SchemaCf
+            });
+            CFMetaData.map(CFMetaData.StatusCf);
+            CFMetaData.map(CFMetaData.HintsCf);
+            CFMetaData.map(CFMetaData.MigrationsCf);
+            CFMetaData.map(CFMetaData.SchemaCf);
             tables.put(Table.SYSTEM_TABLE, systemMeta);
-                
-            // NOTE: make sure that all system CFMs defined by now. calling fixMaxId at this point will set the base id
-            // to a value that leaves room for future system cfms.
-            // TODO: I've left quite a bit of space for more system CFMs to be defined (up to 1000). However, there is no
-            // way to guarantee the assignment of the right IDS to the system CFMs other than rigidly controlling the order
-            // they ar map()ed in.  It might be a good idea to explicitly set the ids in a static initializer somewhere.
-            CFMetaData.fixMaxId();
             
             /* Load the seeds for node contact points */
             if (conf.seeds == null || conf.seeds.length <= 0)

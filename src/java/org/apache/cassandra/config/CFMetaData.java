@@ -24,6 +24,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.cassandra.db.HintedHandOffManager;
+import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.migration.Migration;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
@@ -37,12 +44,18 @@ public final class CFMetaData
     public final static double DEFAULT_KEY_CACHE_SIZE = 200000;
     public final static double DEFAULT_ROW_CACHE_SIZE = 0.0;
     public final static boolean DEFAULT_PRELOAD_ROW_CACHE = false;
+    private static final int MIN_CF_ID = 1000;
 
-    private static final AtomicInteger idGen = new AtomicInteger(0);
+    private static final AtomicInteger idGen = new AtomicInteger(MIN_CF_ID);
     
     private static final Map<Integer, String> currentCfNames = new HashMap<Integer, String>();
     
     private static final Map<Pair<String, String>, Integer> cfIdMap = new HashMap<Pair<String, String>, Integer>();
+    
+    public static final CFMetaData StatusCf = new CFMetaData(Table.SYSTEM_TABLE, SystemTable.STATUS_CF, ColumnFamilyType.Standard, new UTF8Type(), null, "persistent metadata for the local node", 0, false, 0.01, 0);
+    public static final CFMetaData HintsCf = new CFMetaData(Table.SYSTEM_TABLE, HintedHandOffManager.HINTS_CF, ColumnFamilyType.Super, new UTF8Type(), new BytesType(), "hinted handoff data", 0, false, 0.01, 1);
+    public static final CFMetaData MigrationsCf = new CFMetaData(Table.SYSTEM_TABLE, Migration.MIGRATIONS_CF, ColumnFamilyType.Standard, new TimeUUIDType(), null, "individual schema mutations", 0, false, 2);
+    public static final CFMetaData SchemaCf = new CFMetaData(Table.SYSTEM_TABLE, Migration.SCHEMA_CF, ColumnFamilyType.Standard, new UTF8Type(), null, "current state of the schema", 0, false, 3);
 
     public static final Map<Pair<String, String>, Integer> getCfIdMap()
     {
@@ -66,7 +79,7 @@ public final class CFMetaData
     public static final void fixMaxId()
     {
         // never set it to less than 1000. this ensures that we have enough system CFids for future use.
-        idGen.set(cfIdMap.size() == 0 ? 1000 : Math.max(Collections.max(cfIdMap.values()) + 1, 1000));
+        idGen.set(cfIdMap.size() == 0 ? MIN_CF_ID : Math.max(Collections.max(cfIdMap.values()) + 1, MIN_CF_ID));
     }
     
     public final String tableName;            // name of table which has this column family
