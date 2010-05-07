@@ -356,27 +356,6 @@ public class CassandraServer implements Cassandra.Iface
         }
         doInsert(consistency_level, rm);
     }
-    
-    public void batch_insert(byte[] key, Map<String, List<ColumnOrSuperColumn>> cfmap, ConsistencyLevel consistency_level)
-    throws InvalidRequestException, UnavailableException, TimedOutException
-    {
-        if (logger.isDebugEnabled())
-            logger.debug("batch_insert");
-
-        checkKeyspaceAndLoginAuthorized(AccessLevel.READWRITE);
-
-        ThriftValidation.validateKey(key);
-
-        for (String cfName : cfmap.keySet())
-        {
-            for (ColumnOrSuperColumn cosc : cfmap.get(cfName))
-            {
-                ThriftValidation.validateColumnOrSuperColumn(keySpace.get(), cfName, cosc);
-            }
-        }
-
-        doInsert(consistency_level, RowMutation.getRowMutation(keySpace.get(), key, cfmap));
-    }
 
     public void batch_mutate(Map<byte[],Map<String,List<Mutation>>> mutation_map, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
@@ -501,28 +480,13 @@ public class CassandraServer implements Cassandra.Iface
         return columnFamiliesMap;
     }
 
-    public List<KeySlice> get_range_slice(ColumnParent column_parent, SlicePredicate predicate, byte[] start_key, byte[] finish_key, int maxRows, ConsistencyLevel consistency_level)
-    throws InvalidRequestException, UnavailableException, TException, TimedOutException
-    {
-        if (logger.isDebugEnabled())
-            logger.debug("get_range_slice " + start_key + " to " + finish_key);
-
-        KeyRange range = new KeyRange().setStart_key(start_key).setEnd_key(finish_key).setCount(maxRows);
-        return getRangeSlicesInternal(keySpace.get(), column_parent, predicate, range, consistency_level);
-    }
-
     public List<KeySlice> get_range_slices(ColumnParent column_parent, SlicePredicate predicate, KeyRange range, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TException, TimedOutException
     {
         if (logger.isDebugEnabled())
             logger.debug("range_slice");
 
-        return getRangeSlicesInternal(keySpace.get(), column_parent, predicate, range, consistency_level);
-    }
-
-    private List<KeySlice> getRangeSlicesInternal(String keyspace, ColumnParent column_parent, SlicePredicate predicate, KeyRange range, ConsistencyLevel consistency_level)
-            throws InvalidRequestException, UnavailableException, TimedOutException
-    {
+        String keyspace = keySpace.get();
         checkKeyspaceAndLoginAuthorized(AccessLevel.READONLY);
 
         ThriftValidation.validateColumnParent(keyspace, column_parent);

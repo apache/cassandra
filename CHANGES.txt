@@ -20,6 +20,7 @@ dev
  * Added preload_row_cache option (CASSANDRA-946)
  * add CRC to commitlog header (CASSANDRA-999)
  * removed multiget thrift method (CASSANDRA-739)
+ * removed deprecated batch_insert and get_range_slice methods (CASSANDRA-1065)
 
 
 0.6.2

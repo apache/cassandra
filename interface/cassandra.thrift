@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "5.0.0"
+const string VERSION = "6.0.0"
 
 #
 # data structures
@@ -383,18 +383,6 @@ service Cassandra {
 
   /**
    returns a subset of columns for a range of keys.
-   @Deprecated.  Use get_range_slices instead
-  */
-  list<KeySlice> get_range_slice(1:required ColumnParent column_parent, 
-                                 2:required SlicePredicate predicate,
-                                 3:required binary start_key, 
-                                 4:required binary finish_key, 
-                                 5:required i32 row_count=100, 
-                                 6:required ConsistencyLevel consistency_level=ONE)
-                 throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
-
-  /**
-   returns a subset of columns for a range of keys.
   */
   list<KeySlice> get_range_slices(1:required ColumnParent column_parent, 
                                   2:required SlicePredicate predicate,
@@ -411,17 +399,6 @@ service Cassandra {
               2:required ColumnParent column_parent,
               3:required Column column,
               4:required ConsistencyLevel consistency_level=ONE)
-       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
-
-  /**
-    Insert Columns or SuperColumns across different Column Families for the same row key. batch_mutation is a
-    map<string, list<ColumnOrSuperColumn>> -- a map which pairs column family names with the relevant ColumnOrSuperColumn
-    objects to insert.
-    @deprecated; use batch_mutate instead
-   */
-  void batch_insert(1:required binary key, 
-                    2:required map<string, list<ColumnOrSuperColumn>> cfmap,
-                    3:required ConsistencyLevel consistency_level=ONE)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
