@@ -245,6 +245,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             
             for (File file : files)
             {
+                if (file.isDirectory())
+                    continue;
                 String filename = file.getAbsolutePath();
                 String cfName = getColumnFamilyFromFileName(filename);
 
@@ -283,6 +285,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             File[] files = new File(directory).listFiles();
             for (File file : files)
             {
+                if (file.isDirectory())
+                    continue;
                 String cfName = getColumnFamilyFromFileName(file.getAbsolutePath());
                 if (cfName.equals(columnFamily_))
                     fileSet.add(file);
