@@ -42,9 +42,9 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
-import org.apache.thrift.transport.TTransportException;
 
 public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byte[], IColumn>>
 {
@@ -57,8 +57,18 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
     private String cfName;
     private String keyspace;
     private AuthenticationRequest authRequest;
+    private TSocket socket;
+    private Cassandra.Client client;
 
-    public void close() {}
+    public void close() 
+    {
+        if (socket != null && socket.isOpen())
+        {
+            socket.close();
+            socket = null;
+            client = null;
+        }
+    }
     
     public byte[] getCurrentKey()
     {
@@ -119,18 +129,15 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
             
             if (rows != null)
                 return;
-            TSocket socket = new TSocket(getLocation(),
-                                         DatabaseDescriptor.getRpcPort());
-            TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket, false, false);
-            Cassandra.Client client = new Cassandra.Client(binaryProtocol);
+            
             try
             {
-                socket.open();
-            }
-            catch (TTransportException e)
+                maybeConnect();
+            } 
+            catch (Exception e)
             {
                 throw new RuntimeException(e);
-            }
+            } 
             
             if (startToken == null)
             {
@@ -147,18 +154,6 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
                                 .setEnd_token(split.getEndToken());
             try
             {
-                client.set_keyspace(keyspace);
-                if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
-                {
-                    client.login(authRequest);
-                }
-
-                // Get the keyspace information to get the comparator
-                Map<String, Map<String,String>> desc = client.describe_keyspace(keyspace);
-                Map<String,String> ksProps = desc.get(cfName);
-                String compClass = ksProps.get("CompareWith");
-                comparator = (AbstractType) Class.forName(compClass).newInstance();
-
                 rows = client.get_range_slices(new ColumnParent(cfName),
                                                predicate,
                                                keyRange,
@@ -185,6 +180,42 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
                 throw new RuntimeException(e);
             }
         }
+        
+        /**
+         * Connect, log in and set up the correct comparator.
+         */
+        private void maybeConnect() throws InvalidRequestException, TException, AuthenticationException, 
+            AuthorizationException, NotFoundException, InstantiationException, IllegalAccessException, 
+            ClassNotFoundException
+        {
+            // only need to connect once
+            if (socket != null && socket.isOpen())
+                return;
+
+            // create connection using thrift
+            String location = getLocation();
+            socket = new TSocket(location, DatabaseDescriptor.getRpcPort());
+            TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket, false, false);
+            client = new Cassandra.Client(binaryProtocol);
+            socket.open();
+            
+            // log in
+            client.set_keyspace(keyspace);
+            if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
+            {
+                client.login(authRequest);
+            }
+            
+            // Get the keyspace information to get the comparator
+            if (comparator == null)
+            {
+                Map<String, Map<String,String>> desc = client.describe_keyspace(keyspace);
+                Map<String,String> ksProps = desc.get(cfName);
+                String compClass = ksProps.get("CompareWith");
+                comparator = (AbstractType) Class.forName(compClass).newInstance();
+            }
+        }
+
 
         // we don't use endpointsnitch since we are trying to support hadoop nodes that are
         // not necessarily on Cassandra machines, too.  This should be adequate for single-DC clusters, at least.
