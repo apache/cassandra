@@ -10,7 +10,7 @@ and the data model from Google's BigTable. Like Dynamo, Cassandra is
 eventually consistent. Like BigTable, Cassandra provides a ColumnFamily-based
 data model richer than typical key/value systems.
 
-For more information see http://incubator.apache.org/cassandra
+For more information see http://cassandra.apache.org/
 
 Requirements
 ------------
@@ -22,8 +22,8 @@ Getting started
 This short guide will walk you through getting a basic one node cluster up
 and running, and demonstrate some simple reads and writes.
 
-  * tar -zxvf cassandra-$VERSION.tgz
-  * cd cassandra-$VERSION
+  * tar -zxvf apache-cassandra-$VERSION.tar.gz
+  * cd apache-cassandra-$VERSION
   * sudo mkdir -p /var/log/cassandra
   * sudo chown -R `whoami` /var/log/cassandra
   * sudo mkdir -p /var/lib/cassandra
@@ -94,7 +94,7 @@ Wondering where to go from here?
     best source for additional information.
   * Join us in #cassandra on irc.freenode.net and ask questions.
   * Subscribe to the Users mailing list by sending a mail to
-    cassandra-user-subscribe@incubator.apache.org
+    user-subscribe@cassandra.apache.org
 
 
 

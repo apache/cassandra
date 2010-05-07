@@ -808,18 +808,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             for (SSTableReader sstable : ssTables_)
             {
                 iter = filter.getSSTableColumnIterator(sstable);
-                if (iter.hasNext()) // initializes iter.CF
+                if (iter.getColumnFamily() != null)
                 {
                     returnCF.delete(iter.getColumnFamily());
+                    iterators.add(iter);
                 }
-                iterators.add(iter);
             }
 
             Comparator<IColumn> comparator = QueryFilter.getColumnComparator(getComparator());
             Iterator collated = IteratorUtils.collatedIterator(comparator, iterators);
-            if (!collated.hasNext())
-                return null;
-
             filter.collectCollatedColumns(returnCF, collated, gcBefore);
             return returnCF; // caller is responsible for final removeDeleted
         }

@@ -87,9 +87,14 @@ public class ColumnFamilyStoreTest extends CleanupHelper
             public void runMayThrow() throws IOException
             {
                 QueryFilter sliceFilter = QueryFilter.getSliceFilter(Util.dk("key1"), new QueryPath("Standard2", null, null), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, 1);
-                assertNull(store.getColumnFamily(sliceFilter));
+                ColumnFamily cf = store.getColumnFamily(sliceFilter);
+                assert cf.isMarkedForDelete();
+                assert cf.getColumnsMap().isEmpty();
+
                 QueryFilter namesFilter = QueryFilter.getNamesFilter(Util.dk("key1"), new QueryPath("Standard2", null, null), "a".getBytes());
-                assertNull(store.getColumnFamily(namesFilter));
+                cf = store.getColumnFamily(namesFilter);
+                assert cf.isMarkedForDelete();
+                assert cf.getColumnsMap().isEmpty();
             }
         };
 
