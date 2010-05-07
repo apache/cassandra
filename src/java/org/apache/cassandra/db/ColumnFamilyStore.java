@@ -860,12 +860,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         final QueryFilter filter = sliceRange == null ? QueryFilter.getNamesFilter(null, queryPath, columnNameSet)
                                                       : QueryFilter.getSliceFilter(null, queryPath, sliceRange.start, sliceRange.finish, sliceRange.bitmasks, sliceRange.reversed, sliceRange.count);
 
-        Collection<Memtable> memtables = new ArrayList<Memtable>(memtablesPendingFlush);
+        Collection<Memtable> memtables = new ArrayList<Memtable>();
+        memtables.add(getMemtableThreadSafe());
+        memtables.addAll(memtablesPendingFlush);
 
         Collection<SSTableReader> sstables = new ArrayList<SSTableReader>();
         Iterables.addAll(sstables, ssTables_);
 
-        RowIterator iterator = RowIteratorFactory.getIterator(memtable_, memtables, sstables, startWith, stopAt, filter, getComparator(), gcBefore);
+        RowIterator iterator = RowIteratorFactory.getIterator(memtables, sstables, startWith, stopAt, filter, getComparator(), gcBefore);
 
         try
         {

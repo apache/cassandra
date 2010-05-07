@@ -56,7 +56,6 @@ public class RowIteratorFactory
     /**
      * Get a row iterator over the provided memtables and sstables, between the provided keys
      * and filtered by the queryfilter.
-     * @param current Current memtable, must be accessed with locks.
      * @param memtables Memtables pending flush.
      * @param sstables SStables to scan through.
      * @param startWith Start at this key
@@ -66,8 +65,7 @@ public class RowIteratorFactory
      * @param gcBefore 
      * @return A row iterator following all the given restrictions
      */
-    public static RowIterator getIterator(final Memtable current,
-                                          final Collection<Memtable> memtables,
+    public static RowIterator getIterator(final Collection<Memtable> memtables,
                                           final Collection<SSTableReader> sstables,
                                           final DecoratedKey startWith,
                                           final DecoratedKey stopAt,
@@ -88,11 +86,7 @@ public class RowIteratorFactory
             }
         };
 
-        // current memtable rows. have to do locking.
-        iterators.add(Iterators.filter(Iterators.transform(memtableEntryIterator(current, startWith),
-                                                           new ConvertToColumnIterator(filter, comparator)), p));
-
-        // historical memtables
+        // memtables
         for (Memtable memtable : memtables)
         {
             iterators.add(Iterators.filter(Iterators.transform(memtable.getEntryIterator(startWith),
@@ -109,6 +103,7 @@ public class RowIteratorFactory
         }
 
         Iterator<IColumnIterator> collated = IteratorUtils.collatedIterator(COMPARE_BY_KEY, iterators);
+        final Memtable firstMemtable = memtables.iterator().next();
 
         // reduce rows from all sources into a single row
         ReducingIterator<IColumnIterator, Row> reduced = new ReducingIterator<IColumnIterator, Row>(collated)
@@ -133,11 +128,11 @@ public class RowIteratorFactory
                 Comparator<IColumn> colComparator = QueryFilter.getColumnComparator(comparator);
                 Iterator<IColumn> colCollated = IteratorUtils.collatedIterator(colComparator, colIters);
 
-                ColumnFamily returnCF = current.getColumnFamily(key);
+                ColumnFamily returnCF = firstMemtable.getColumnFamily(key);
                 // TODO this is a little subtle: the Memtable ColumnIterator has to be a shallow clone of the source CF,
                 // with deletion times set correctly, so we can use it as the "base" CF to add query results to.
                 // (for sstable ColumnIterators we do not care if it is a shallow clone or not.)
-                returnCF = returnCF == null ? ColumnFamily.create(current.getTableName(), filter.getColumnFamilyName())
+                returnCF = returnCF == null ? ColumnFamily.create(firstMemtable.getTableName(), filter.getColumnFamilyName())
                                             : returnCF.cloneMeShallow();
 
                 if (colCollated.hasNext())
