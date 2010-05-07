@@ -416,7 +416,7 @@ public class CassandraServer implements Cassandra {
         {
             for (ByteBuffer col : del.predicate.column_names)
             {
-                if (del.super_column == null && DatabaseDescriptor.getColumnFamilyType(rm.getTable(), cfName).equals("Super"))
+                if (del.super_column == null && DatabaseDescriptor.getColumnFamilyType(rm.getTable(), cfName) == ColumnFamilyType.Super)
                     rm.delete(new QueryPath(cfName, col.array()), del.timestamp);
                 else
                     rm.delete(new QueryPath(cfName, del.super_column.array(), col.array()), del.timestamp);

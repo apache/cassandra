@@ -310,7 +310,7 @@ public class RowMutation
         {
             for(byte[] c : del.predicate.column_names)
             {
-                if (del.super_column == null && DatabaseDescriptor.getColumnFamilyType(rm.table_, cfName).equals("Super"))
+                if (del.super_column == null && DatabaseDescriptor.getColumnFamilyType(rm.table_, cfName) == ColumnFamilyType.Super)
                     rm.delete(new QueryPath(cfName, c), del.timestamp);
                 else
                     rm.delete(new QueryPath(cfName, del.super_column, c), del.timestamp);

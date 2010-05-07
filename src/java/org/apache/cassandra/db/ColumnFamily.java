@@ -46,35 +46,20 @@ public class ColumnFamily implements IColumnContainer
     private static ColumnFamilySerializer serializer_ = new ColumnFamilySerializer();
 
     private static Logger logger_ = LoggerFactory.getLogger( ColumnFamily.class );
-    private static Map<String, String> columnTypes_ = new HashMap<String, String>();
-    String type_;
-
-    static
-    {
-        /* TODO: These are the various column types. Hard coded for now. */
-        columnTypes_.put("Standard", "Standard");
-        columnTypes_.put("Super", "Super");
-    }
+    ColumnFamilyType type_;
 
     public static ColumnFamilySerializer serializer()
     {
         return serializer_;
     }
 
-    public static String getColumnType(String key)
-    {
-    	if ( key == null )
-    		return columnTypes_.get("Standard");
-    	return columnTypes_.get(key);
-    }
-
     public static ColumnFamily create(String tableName, String cfName)
     {
-        String columnType = DatabaseDescriptor.getColumnFamilyType(tableName, cfName);
+        ColumnFamilyType cfType = DatabaseDescriptor.getColumnFamilyType(tableName, cfName);
         AbstractType comparator = DatabaseDescriptor.getComparator(tableName, cfName);
         AbstractType subcolumnComparator = DatabaseDescriptor.getSubComparator(tableName, cfName);
         int id = CFMetaData.getId(tableName, cfName);
-        return new ColumnFamily(cfName, columnType, comparator, subcolumnComparator, id);
+        return new ColumnFamily(cfName, cfType, comparator, subcolumnComparator, id);
     }
 
     private String name_;
@@ -85,11 +70,11 @@ public class ColumnFamily implements IColumnContainer
     AtomicInteger localDeletionTime = new AtomicInteger(Integer.MIN_VALUE);
     private ConcurrentSkipListMap<byte[], IColumn> columns_;
 
-    public ColumnFamily(String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator, int id)
+    public ColumnFamily(String cfName, ColumnFamilyType cfType, AbstractType comparator, AbstractType subcolumnComparator, int id)
     {
         name_ = cfName;
-        type_ = columnType;
-        columnSerializer_ = columnType.equals("Standard") ? Column.serializer() : SuperColumn.serializer(subcolumnComparator);
+        type_ = cfType;
+        columnSerializer_ = cfType == ColumnFamilyType.Standard ? Column.serializer() : SuperColumn.serializer(subcolumnComparator);
         columns_ = new ConcurrentSkipListMap<byte[], IColumn>(comparator);
         id_ = id;
     }
@@ -111,6 +96,11 @@ public class ColumnFamily implements IColumnContainer
     private AbstractType getSubComparator()
     {
         return (columnSerializer_ instanceof SuperColumnSerializer) ? ((SuperColumnSerializer)columnSerializer_).getComparator() : null;
+    }
+
+    public ColumnFamilyType getColumnFamilyType()
+    {
+        return type_;
     }
 
     public ColumnFamily cloneMe()
@@ -151,7 +141,7 @@ public class ColumnFamily implements IColumnContainer
     int getColumnCount()
     {
     	int count = 0;
-        if(!isSuper())
+        if(type_ == ColumnFamilyType.Standard)
         {
             count = columns_.size();
         }
@@ -167,7 +157,7 @@ public class ColumnFamily implements IColumnContainer
 
     public boolean isSuper()
     {
-        return type_.equals("Super");
+        return type_ == ColumnFamilyType.Super;
     }
 
     public void addColumn(QueryPath path, byte[] value, long timestamp)
@@ -413,11 +403,6 @@ public class ColumnFamily implements IColumnContainer
     public int getLocalDeletionTime()
     {
         return localDeletionTime.get();
-    }
-
-    public String type()
-    {
-        return type_;
     }
 
     String getComparatorName()

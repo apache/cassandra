@@ -205,7 +205,7 @@ public class CliClient
             return;
         }
             
-        isSuper = keyspacesMap.get(keySpace).get(columnFamily).get("Type").equals("Super") ? true : false;
+        isSuper = keyspacesMap.get(keySpace).get(columnFamily).get("Type").equals("Super");
      
         if ((columnSpecCnt < 0) || (columnSpecCnt > 2))
         {
@@ -322,7 +322,7 @@ public class CliClient
             return;
         }
         
-        boolean isSuper = keyspacesMap.get(keySpace).get(columnFamily).get("Type").equals("Super") ? true : false;
+        boolean isSuper = keyspacesMap.get(keySpace).get(columnFamily).get("Type").equals("Super");
         
         byte[] superColumnName = null;
         byte[] columnName = null;

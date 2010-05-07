@@ -63,7 +63,7 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
 
             dos.writeUTF(columnFamily.name());
             dos.writeInt(columnFamily.id());
-            dos.writeUTF(columnFamily.type_);
+            dos.writeUTF(columnFamily.type_.name());
             dos.writeUTF(columnFamily.getComparatorName());
             dos.writeUTF(columnFamily.getSubComparatorName());
         }
@@ -106,7 +106,8 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
         if (cfName.isEmpty())
             return null;
         int id = dis.readInt();
-        ColumnFamily cf = deserializeFromSSTableNoColumns(cfName, dis.readUTF(), readComparator(dis), readComparator(dis), id, dis);
+        ColumnFamilyType cfType = ColumnFamilyType.create(dis.readUTF());
+        ColumnFamily cf = deserializeFromSSTableNoColumns(cfName, cfType, readComparator(dis), readComparator(dis), id, dis);
         deserializeColumns(dis, cf);
         return cf;
     }
@@ -143,7 +144,7 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
         }
     }
 
-    private ColumnFamily deserializeFromSSTableNoColumns(String name, String type, AbstractType comparator, AbstractType subComparator, int id, DataInput input) throws IOException
+    private ColumnFamily deserializeFromSSTableNoColumns(String name, ColumnFamilyType type, AbstractType comparator, AbstractType subComparator, int id, DataInput input) throws IOException
     {
         ColumnFamily cf = new ColumnFamily(name, type, comparator, subComparator, id);
         return deserializeFromSSTableNoColumns(cf, input);

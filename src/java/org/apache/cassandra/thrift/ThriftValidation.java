@@ -26,6 +26,7 @@ import java.util.Arrays;
 import org.apache.cassandra.db.KeyspaceNotDefinedException;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 
@@ -60,13 +61,13 @@ public class ThriftValidation
         }
     }
 
-    public static String validateColumnFamily(String tablename, String cfName) throws InvalidRequestException
+    public static ColumnFamilyType validateColumnFamily(String tablename, String cfName) throws InvalidRequestException
     {
         if (cfName.isEmpty())
         {
             throw new InvalidRequestException("non-empty columnfamily is required");
         }
-        String cfType = DatabaseDescriptor.getColumnType(tablename, cfName);
+        ColumnFamilyType cfType = DatabaseDescriptor.getColumnFamilyType(tablename, cfName);
         if (cfType == null)
         {
             throw new InvalidRequestException("unconfigured columnfamily " + cfName);
@@ -77,8 +78,8 @@ public class ThriftValidation
     static void validateColumnPath(String tablename, ColumnPath column_path) throws InvalidRequestException
     {
         validateTable(tablename);
-        String cfType = validateColumnFamily(tablename, column_path.column_family);
-        if (cfType.equals("Standard"))
+        ColumnFamilyType cfType = validateColumnFamily(tablename, column_path.column_family);
+        if (cfType == ColumnFamilyType.Standard)
         {
             if (column_path.super_column != null)
             {
@@ -107,8 +108,8 @@ public class ThriftValidation
     static void validateColumnParent(String tablename, ColumnParent column_parent) throws InvalidRequestException
     {
         validateTable(tablename);
-        String cfType = validateColumnFamily(tablename, column_parent.column_family);
-        if (cfType.equals("Standard"))
+        ColumnFamilyType cfType = validateColumnFamily(tablename, column_parent.column_family);
+        if (cfType == ColumnFamilyType.Standard)
         {
             if (column_parent.super_column != null)
             {
@@ -125,8 +126,8 @@ public class ThriftValidation
     static void validateColumnPathOrParent(String tablename, ColumnPath column_path_or_parent) throws InvalidRequestException
     {
         validateTable(tablename);
-        String cfType = validateColumnFamily(tablename, column_path_or_parent.column_family);
-        if (cfType.equals("Standard"))
+        ColumnFamilyType cfType = validateColumnFamily(tablename, column_path_or_parent.column_family);
+        if (cfType == ColumnFamilyType.Standard)
         {
             if (column_path_or_parent.super_column != null)
             {
@@ -152,7 +153,7 @@ public class ThriftValidation
                 throw new InvalidRequestException("supercolumn name length must not be greater than " + IColumn.MAX_NAME_LENGTH);
             if (superColumnName.length == 0)
                 throw new InvalidRequestException("supercolumn name must not be empty");
-            if (!DatabaseDescriptor.getColumnFamilyType(keyspace, columnFamilyName).equals("Super"))
+            if (DatabaseDescriptor.getColumnFamilyType(keyspace, columnFamilyName) == ColumnFamilyType.Standard)
                 throw new InvalidRequestException("supercolumn specified to ColumnFamily " + columnFamilyName + " containing normal columns");
         }
         AbstractType comparator = ColumnFamily.getComparatorFor(keyspace, columnFamilyName, superColumnName);

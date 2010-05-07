@@ -489,10 +489,10 @@ public class CassandraServer implements Cassandra.Iface
             CFMetaData columnFamilyMetaData = stringCFMetaDataEntry.getValue();
 
             Map<String, String> columnMap = new HashMap<String, String>();
-            columnMap.put("Type", columnFamilyMetaData.columnType);
+            columnMap.put("Type", columnFamilyMetaData.cfType.name());
             columnMap.put("Desc", columnFamilyMetaData.comment == null ? columnFamilyMetaData.pretty() : columnFamilyMetaData.comment);
             columnMap.put("CompareWith", columnFamilyMetaData.comparator.getClass().getName());
-            if (columnFamilyMetaData.columnType.equals("Super"))
+            if (columnFamilyMetaData.cfType == ColumnFamilyType.Super)
             {
                 columnMap.put("CompareSubcolumnsWith", columnFamilyMetaData.subcolumnComparator.getClass().getName());
             }
@@ -651,10 +651,15 @@ public class CassandraServer implements Cassandra.Iface
         
         try
         {
+            ColumnFamilyType cfType = ColumnFamilyType.create(cf_def.column_type);
+            if (cfType == null)
+            {
+              throw new InvalidRequestException("Invalid column type " + cf_def.column_type);
+            }
             CFMetaData cfm = new CFMetaData(
                         cf_def.table,
                         cf_def.name,
-                        ColumnFamily.getColumnType(cf_def.column_type),
+                        cfType,
                         DatabaseDescriptor.getComparator(cf_def.comparator_type),
                         cf_def.subcomparator_type.length() == 0 ? null : DatabaseDescriptor.getComparator(cf_def.subcomparator_type),
                         cf_def.comment,
@@ -752,10 +757,15 @@ public class CassandraServer implements Cassandra.Iface
             Collection<CFMetaData> cfDefs = new ArrayList<CFMetaData>(ks_def.cf_defs.size());
             for (CfDef cfDef : ks_def.cf_defs)
             {
+                ColumnFamilyType cfType = ColumnFamilyType.create(cfDef.column_type);
+                if (cfType == null)
+                {
+                    throw new InvalidRequestException("Invalid column type " + cfDef.column_type);
+                }
                 CFMetaData cfm = new CFMetaData(
                         cfDef.table,
                         cfDef.name,
-                        ColumnFamily.getColumnType(cfDef.column_type),
+                        cfType,
                         DatabaseDescriptor.getComparator(cfDef.comparator_type),
                         cfDef.subcomparator_type.length() == 0 ? null : DatabaseDescriptor.getComparator(cfDef.subcomparator_type),
                         cfDef.comment,

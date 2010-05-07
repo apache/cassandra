@@ -25,6 +25,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SuperColumn;
+import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -142,7 +143,7 @@ public class SSTableImport
     throws IOException, ParseException
     {
         ColumnFamily cfamily = ColumnFamily.create(keyspace, cf);
-        String cfType = cfamily.type();    // Super or Standard
+        ColumnFamilyType cfType = cfamily.getColumnFamilyType();    // Super or Standard
         IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();
         DataOutputBuffer dob = new DataOutputBuffer();
         
@@ -159,7 +160,7 @@ public class SSTableImport
 
             for (Map.Entry<DecoratedKey, String> rowKey : decoratedKeys.entrySet())
             {
-                if (cfType.equals("Super"))
+                if (cfType == ColumnFamilyType.Super)
                     addToSuperCF((JSONObject)json.get(rowKey.getValue()), cfamily);
                 else
                     addToStandardCF((JSONArray)json.get(rowKey.getValue()), cfamily);

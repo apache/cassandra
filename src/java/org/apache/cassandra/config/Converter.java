@@ -13,6 +13,7 @@ import javax.xml.xpath.XPathExpressionException;
 
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.XMLUtils;
+import org.apache.cassandra.db.ColumnFamilyType;
 import org.w3c.dom.NodeList;
 import org.w3c.dom.Node;
 import org.xml.sax.SAXException;
@@ -67,10 +68,10 @@ public class Converter {
                     ks.column_families[j] = new ColumnFamily();
                     ks.column_families[j].name = XMLUtils.getAttributeValue(columnFamily, "Name");
                     String xqlCF = xqlTable + "ColumnFamily[@Name='" + ks.column_families[j].name + "']/";
-                    ks.column_families[j].column_type = XMLUtils.getAttributeValue(columnFamily, "ColumnType");
+                    ks.column_families[j].column_type = ColumnFamilyType.create(XMLUtils.getAttributeValue(columnFamily, "ColumnType"));
                     ks.column_families[j].compare_with = XMLUtils.getAttributeValue(columnFamily, "CompareWith");
                     
-                    if (ks.column_families[j].column_type != null && ks.column_families[j].column_type.equals("Super"))
+                    if (ks.column_families[j].column_type != null && ks.column_families[j].column_type == ColumnFamilyType.Super)
                         ks.column_families[j].compare_subcolumns_with = XMLUtils.getAttributeValue(columnFamily, "CompareSubcolumnsWith");
                     
                     if ((value = XMLUtils.getAttributeValue(columnFamily, "KeysCached")) != null)

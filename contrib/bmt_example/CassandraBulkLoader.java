@@ -54,6 +54,7 @@ import java.util.List;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.BigIntegerToken;
@@ -230,7 +231,10 @@ public class CassandraBulkLoader {
         Column column;
 
         /* Get the first column family from list, this is just to get past validation */
-        baseColumnFamily = new ColumnFamily(CFName, "Standard",DatabaseDescriptor.getComparator(Keyspace, CFName), DatabaseDescriptor.getSubComparator(Keyspace, CFName));
+        baseColumnFamily = new ColumnFamily(CFName,
+                                            ColumnFamilyType.Standard,
+                                            DatabaseDescriptor.getComparator(Keyspace, CFName),
+                                            DatabaseDescriptor.getSubComparator(Keyspace, CFName));
         
         for(ColumnFamily cf : ColumnFamiles) {
             bufOut.reset();

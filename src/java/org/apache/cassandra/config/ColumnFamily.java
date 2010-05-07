@@ -1,8 +1,10 @@
 package org.apache.cassandra.config;
 
+import org.apache.cassandra.db.ColumnFamilyType;
+
 public class ColumnFamily {
     public String name;            
-    public String column_type;
+    public ColumnFamilyType column_type;
     public String compare_with;
     public String compare_subcolumns_with;
     public String comment;

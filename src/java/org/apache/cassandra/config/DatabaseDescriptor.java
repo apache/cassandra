@@ -281,7 +281,7 @@ public class DatabaseDescriptor
             {
                 new CFMetaData(Table.SYSTEM_TABLE,
                                SystemTable.STATUS_CF,
-                               "Standard",
+                               ColumnFamilyType.Standard,
                                new UTF8Type(),
                                null,
                                "persistent metadata for the local node",
@@ -290,7 +290,7 @@ public class DatabaseDescriptor
                                0.01),
                 new CFMetaData(Table.SYSTEM_TABLE,
                                HintedHandOffManager.HINTS_CF,
-                               "Super",
+                               ColumnFamilyType.Super,
                                new UTF8Type(),
                                new BytesType(),
                                "hinted handoff data",
@@ -305,8 +305,8 @@ public class DatabaseDescriptor
                 
             CFMetaData[] definitionCfDefs = new CFMetaData[]
             {
-                new CFMetaData(Table.DEFINITIONS, Migration.MIGRATIONS_CF, "Standard", new TimeUUIDType(), null, "individual schema mutations", 0, false, 0),
-                new CFMetaData(Table.DEFINITIONS, Migration.SCHEMA_CF, "Standard", new UTF8Type(), null, "current state of the schema", 0, false, 0)
+                new CFMetaData(Table.DEFINITIONS, Migration.MIGRATIONS_CF, ColumnFamilyType.Standard, new TimeUUIDType(), null, "individual schema mutations", 0, false, 0),
+                new CFMetaData(Table.DEFINITIONS, Migration.SCHEMA_CF, ColumnFamilyType.Standard, new UTF8Type(), null, "current state of the schema", 0, false, 0)
             };
             CFMetaData.map(definitionCfDefs[0]);
             CFMetaData.map(definitionCfDefs[1]);
@@ -484,16 +484,11 @@ public class DatabaseDescriptor
                     throw new ConfigurationException("ColumnFamily names cannot contain hyphens");
                 }
                 
-                String columnType = org.apache.cassandra.db.ColumnFamily.getColumnType(cf.column_type);
-                if (columnType == null)
-                {
-                    throw new ConfigurationException("ColumnFamily " + cf.name + " has invalid type " + cf.column_type);
-                }
-                
                 // Parse out the column comparator
                 AbstractType comparator = getComparator(cf.compare_with);
                 AbstractType subcolumnComparator = null;
-                if (columnType.equals("Super"))
+                ColumnFamilyType cfType = cf.column_type == null ? ColumnFamilyType.Standard : cf.column_type;
+                if (cfType == ColumnFamilyType.Super)
                 {
                     subcolumnComparator = getComparator(cf.compare_subcolumns_with);
                 }
@@ -506,7 +501,7 @@ public class DatabaseDescriptor
                 {                        
                     throw new ConfigurationException("read_repair_chance must be between 0.0 and 1.0");
                 }
-                cfDefs[j++] = new CFMetaData(keyspace.name, cf.name, columnType, comparator, subcolumnComparator, cf.comment, cf.rows_cached, cf.preload_row_cache, cf.keys_cached, cf.read_repair_chance);
+                cfDefs[j++] = new CFMetaData(keyspace.name, cf.name, cfType, comparator, subcolumnComparator, cf.comment, cf.rows_cached, cf.preload_row_cache, cf.keys_cached, cf.read_repair_chance);
             }
             defs.add(new KSMetaData(keyspace.name, strategyClass, keyspace.replication_factor, cfDefs));
             
@@ -691,14 +686,14 @@ public class DatabaseDescriptor
         return ksm.cfMetaData().get(cfName);
     }
     
-    public static String getColumnType(String tableName, String cfName)
+    public static ColumnFamilyType getColumnFamilyType(String tableName, String cfName)
     {
-        assert tableName != null;
+        assert tableName != null && cfName != null;
         CFMetaData cfMetaData = getCFMetaData(tableName, cfName);
         
         if (cfMetaData == null)
             return null;
-        return cfMetaData.columnType;
+        return cfMetaData.cfType;
     }
 
     public static Set<String> getTables()
@@ -798,15 +793,6 @@ public class DatabaseDescriptor
     public static Set<InetAddress> getSeeds()
     {
         return seeds;
-    }
-
-    public static String getColumnFamilyType(String tableName, String cfName)
-    {
-        assert tableName != null;
-        String cfType = getColumnType(tableName, cfName);
-        if ( cfType == null )
-            cfType = "Standard";
-    	return cfType;
     }
 
     /*

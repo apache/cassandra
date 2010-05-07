@@ -275,7 +275,8 @@ public abstract class SSTableReader extends SSTable implements Comparable<SSTabl
 
     public ICompactSerializer2<IColumn> getColumnSerializer()
     {
-        return DatabaseDescriptor.getColumnFamilyType(getTableName(), getColumnFamilyName()).equals("Standard")
+        ColumnFamilyType cfType = DatabaseDescriptor.getColumnFamilyType(getTableName(), getColumnFamilyName());
+        return cfType == ColumnFamilyType.Standard
                ? Column.serializer()
                : SuperColumn.serializer(getColumnComparator());
     }
