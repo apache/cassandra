@@ -47,7 +47,7 @@ public class DefsTable
     {
         byte[] versionKey = Migration.toBytes(version);
         long now = System.currentTimeMillis();
-        RowMutation rm = new RowMutation(Table.DEFINITIONS, versionKey);
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, versionKey);
         for (String tableName : DatabaseDescriptor.getNonSystemTables())
         {
             KSMetaData ks = DatabaseDescriptor.getTableDefinition(tableName);
@@ -55,7 +55,7 @@ public class DefsTable
         }
         rm.apply();
         
-        rm = new RowMutation(Table.DEFINITIONS, Migration.LAST_MIGRATION_KEY);
+        rm = new RowMutation(Table.SYSTEM_TABLE, Migration.LAST_MIGRATION_KEY);
         rm.add(new QueryPath(Migration.SCHEMA_CF, null, Migration.LAST_MIGRATION_KEY), UUIDGen.decompose(version), now);
         rm.apply();
     }
@@ -64,7 +64,7 @@ public class DefsTable
     public static synchronized Collection<KSMetaData> loadFromStorage(UUID version) throws IOException
     {
         DecoratedKey vkey = StorageService.getPartitioner().decorateKey(Migration.toBytes(version));
-        Table defs = Table.open(Table.DEFINITIONS);
+        Table defs = Table.open(Table.SYSTEM_TABLE);
         ColumnFamilyStore cfStore = defs.getColumnFamilyStore(Migration.SCHEMA_CF);
         QueryFilter filter = QueryFilter.getSliceFilter(vkey, new QueryPath(Migration.SCHEMA_CF), "".getBytes(), "".getBytes(), null, false, 1024);
         ColumnFamily cf = cfStore.getColumnFamily(filter);

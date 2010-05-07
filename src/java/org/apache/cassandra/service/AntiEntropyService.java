@@ -293,7 +293,7 @@ public class AntiEntropyService
      */
     public IValidator getValidator(String table, String cf, InetAddress initiator, boolean major)
     {
-        if (!major || table.equals(Table.SYSTEM_TABLE) || table.equals(Table.DEFINITIONS))
+        if (!major || table.equals(Table.SYSTEM_TABLE))
             return new NoopValidator();
         if (StorageService.instance.getTokenMetadata().sortedTokens().size()  < 1)
             // gossiper isn't started

@@ -26,6 +26,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -41,6 +42,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.UUIDGen;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -57,8 +59,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
 public class DefsTest extends CleanupHelper
-{
-
+{   
     @Test
     public void saveAndRestore() throws IOException
     {

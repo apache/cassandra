@@ -1617,7 +1617,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // flush system and definition tables.
         Collection<Future> flushers = new ArrayList<Future>();
         flushers.addAll(Table.open(Table.SYSTEM_TABLE).flush());
-        flushers.addAll(Table.open(Table.DEFINITIONS).flush());
         for (Future f : flushers)
         {
             try

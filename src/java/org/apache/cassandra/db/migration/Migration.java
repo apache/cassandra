@@ -46,7 +46,9 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -113,28 +115,35 @@ public abstract class Migration
         {
             long now = System.currentTimeMillis();
             byte[] buf = getBytes();
-            RowMutation migration = new RowMutation(Table.DEFINITIONS, MIGRATIONS_KEY);
+            RowMutation migration = new RowMutation(Table.SYSTEM_TABLE, MIGRATIONS_KEY);
             migration.add(new QueryPath(MIGRATIONS_CF, null, UUIDGen.decompose(newVersion)), buf, now);
             migration.apply();
             
             // note that we storing this in the system table, which is not replicated, instead of the definitions table, which is.
             logger.debug("Applying migration " + newVersion.toString());
-            migration = new RowMutation(Table.DEFINITIONS, LAST_MIGRATION_KEY);
+            migration = new RowMutation(Table.SYSTEM_TABLE, LAST_MIGRATION_KEY);
             migration.add(new QueryPath(SCHEMA_CF, null, LAST_MIGRATION_KEY), UUIDGen.decompose(newVersion), now);
             migration.apply();
         
             // flush changes out of memtables so we don't need to rely on the commit log.
-            for (Future f : Table.open(Table.DEFINITIONS).flush())
+            ColumnFamilyStore[] schemaStores = new ColumnFamilyStore[] {
+                Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(Migration.MIGRATIONS_CF),
+                Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(Migration.SCHEMA_CF)
+            };
+            List<Future> flushes = new ArrayList<Future>();
+            for (ColumnFamilyStore cfs : schemaStores)
+                flushes.add(cfs.forceFlush());
+            for (Future f : flushes)
             {
                 try
                 {
                     f.get();
                 }
-                catch (InterruptedException e)
+                catch (ExecutionException e)
                 {
                     throw new IOException(e);
                 }
-                catch (ExecutionException e)
+                catch (InterruptedException e)
                 {
                     throw new IOException(e);
                 }
@@ -158,7 +167,7 @@ public abstract class Migration
     public static UUID getLastMigrationId()
     {
         DecoratedKey dkey = StorageService.getPartitioner().decorateKey(LAST_MIGRATION_KEY);
-        Table defs = Table.open(Table.DEFINITIONS);
+        Table defs = Table.open(Table.SYSTEM_TABLE);
         ColumnFamilyStore cfStore = defs.getColumnFamilyStore(SCHEMA_CF);
         QueryFilter filter = QueryFilter.getNamesFilter(dkey, new QueryPath(SCHEMA_CF), LAST_MIGRATION_KEY);
         ColumnFamily cf = cfStore.getColumnFamily(filter);
@@ -192,7 +201,7 @@ public abstract class Migration
     static RowMutation makeDefinitionMutation(KSMetaData add, KSMetaData remove, UUID versionId) throws IOException
     {
         final long now = System.currentTimeMillis();
-        RowMutation rm = new RowMutation(Table.DEFINITIONS, toBytes(versionId));
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, toBytes(versionId));
         if (remove != null)
             rm.delete(new QueryPath(SCHEMA_CF, null, remove.name.getBytes()), System.currentTimeMillis());
         if (add != null)
@@ -253,7 +262,7 @@ public abstract class Migration
     public static Collection<IColumn> getLocalMigrations(UUID start, UUID end)
     {
         DecoratedKey dkey = StorageService.getPartitioner().decorateKey(MIGRATIONS_KEY);
-        Table defs = Table.open(Table.DEFINITIONS);
+        Table defs = Table.open(Table.SYSTEM_TABLE);
         ColumnFamilyStore cfStore = defs.getColumnFamilyStore(Migration.MIGRATIONS_CF);
         QueryFilter filter = QueryFilter.getSliceFilter(dkey, new QueryPath(MIGRATIONS_CF), UUIDGen.decompose(start), UUIDGen.decompose(end), null, false, 1000);
         ColumnFamily cf = cfStore.getColumnFamily(filter);

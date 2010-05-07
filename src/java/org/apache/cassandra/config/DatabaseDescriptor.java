@@ -296,22 +296,17 @@ public class DatabaseDescriptor
                                "hinted handoff data",
                                0,
                                false,
-                               0.01)
+                               0.01),
+               new CFMetaData(Table.SYSTEM_TABLE, Migration.MIGRATIONS_CF, ColumnFamilyType.Standard, new TimeUUIDType(), null, "individual schema mutations", 0, false, 0),
+                new CFMetaData(Table.SYSTEM_TABLE, Migration.SCHEMA_CF, ColumnFamilyType.Standard, new UTF8Type(), null, "current state of the schema", 0, false, 0)
             };
             KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE, null, -1, systemCfDefs);
             CFMetaData.map(systemCfDefs[0]);
             CFMetaData.map(systemCfDefs[1]);
+            CFMetaData.map(systemCfDefs[2]);
+            CFMetaData.map(systemCfDefs[3]);
             tables.put(Table.SYSTEM_TABLE, systemMeta);
                 
-            CFMetaData[] definitionCfDefs = new CFMetaData[]
-            {
-                new CFMetaData(Table.DEFINITIONS, Migration.MIGRATIONS_CF, ColumnFamilyType.Standard, new TimeUUIDType(), null, "individual schema mutations", 0, false, 0),
-                new CFMetaData(Table.DEFINITIONS, Migration.SCHEMA_CF, ColumnFamilyType.Standard, new UTF8Type(), null, "current state of the schema", 0, false, 0)
-            };
-            CFMetaData.map(definitionCfDefs[0]);
-            CFMetaData.map(definitionCfDefs[1]);
-            tables.put(Table.DEFINITIONS, new KSMetaData(Table.DEFINITIONS, null, -1, definitionCfDefs));
-            
             // NOTE: make sure that all system CFMs defined by now. calling fixMaxId at this point will set the base id
             // to a value that leaves room for future system cfms.
             // TODO: I've left quite a bit of space for more system CFMs to be defined (up to 1000). However, there is no
@@ -705,7 +700,6 @@ public class DatabaseDescriptor
     {
         List<String> tableslist = new ArrayList<String>(tables.keySet());
         tableslist.remove(Table.SYSTEM_TABLE);
-        tableslist.remove(Table.DEFINITIONS);
         return Collections.unmodifiableList(tableslist);
     }
 
