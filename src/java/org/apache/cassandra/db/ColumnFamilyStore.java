@@ -778,15 +778,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             IColumnIterator iter;
 
             /* add the current memtable */
-            Table.flusherLock.readLock().lock();
-            try
-            {
-                iter = filter.getMemtableColumnIterator(memtable_, getComparator());
-            }
-            finally
-            {
-                Table.flusherLock.readLock().unlock();
-            }
+            iter = filter.getMemtableColumnIterator(getMemtableThreadSafe(), getComparator());
             if (iter != null)
             {
                 returnCF.delete(iter.getColumnFamily());
@@ -794,7 +786,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
 
             /* add the memtables being flushed */
-            for (Memtable memtable : getMemtablesPendingFlush())
+            for (Memtable memtable : memtablesPendingFlush)
             {
                 iter = filter.getMemtableColumnIterator(memtable, getComparator());
                 if (iter != null)
