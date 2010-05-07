@@ -260,6 +260,7 @@ public class ThriftValidation
 
     public static void validateDeletion(String keyspace, String cfName, Deletion del) throws InvalidRequestException
     {
+        validateColumnFamily(keyspace, cfName);
         if (del.predicate != null)
         {
             validateSlicePredicate(keyspace, cfName, del.super_column, del.predicate);

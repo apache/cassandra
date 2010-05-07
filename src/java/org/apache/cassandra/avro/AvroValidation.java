@@ -185,6 +185,7 @@ public class AvroValidation {
 
     static void validateDeletion(String keyspace, String  cfName, Deletion del) throws InvalidRequestException
     {
+        validateColumnFamily(keyspace, cfName);
         if (del.super_column == null && del.predicate == null)
             throw newInvalidRequestException("A Deletion must have a SuperColumn, a SlicePredicate, or both.");
 

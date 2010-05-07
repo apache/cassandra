@@ -563,6 +563,22 @@ class TestMutations(ThriftTester):
                                  ConsistencyLevel.ONE)
         _expect_exception(send_range, InvalidRequestException)
 
+    def test_batch_mutate_does_not_accept_cosc_on_undefined_cf(self):
+        def bad_cf():
+            _set_keyspace('Keyspace1')
+            col = ColumnOrSuperColumn(column=Column("foo", 'bar', 0))
+            client.batch_mutate({'key_36': {'Undefined': [Mutation(col)]}},
+                                 ConsistencyLevel.ONE)
+        _expect_exception(bad_cf, InvalidRequestException)
+
+    def test_batch_mutate_does_not_accept_deletion_on_undefined_cf(self):
+        def bad_cf():
+            _set_keyspace('Keyspace1')
+            d = Deletion(2, predicate=SlicePredicate(column_names=['baz']))
+            client.batch_mutate({'key_37': {'Undefined':[Mutation(deletion=d)]}},
+                                 ConsistencyLevel.ONE)
+        _expect_exception(bad_cf, InvalidRequestException)
+
     def test_column_name_lengths(self):
         _set_keyspace('Keyspace1')
         _expect_exception(lambda: client.insert('key1', ColumnParent('Standard1'), Column('', 'value', 0), ConsistencyLevel.ONE), InvalidRequestException)
