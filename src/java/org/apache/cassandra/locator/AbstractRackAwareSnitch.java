@@ -27,8 +27,7 @@ import java.util.*;
 
 /**
  * An endpoint snitch tells Cassandra information about network topology that it can use to route
- * requests more efficiently (with "sortByProximity").  Of the abstract methods, isOnSameRack
- * and isInSameDataCenter are always required; getLocation is only used by DatacenterShardStrategy.
+ * requests more efficiently.
  */
 public abstract class AbstractRackAwareSnitch implements IEndpointSnitch
 {
@@ -48,13 +47,25 @@ public abstract class AbstractRackAwareSnitch implements IEndpointSnitch
      */
     abstract public String getDatacenter(InetAddress endpoint) throws UnknownHostException;
 
-    public List<InetAddress> getSortedListByProximity(final InetAddress address, Collection<InetAddress> unsortedAddress)
+    /**
+     * Sorts the <tt>Collection</tt> of node addresses by proximity to the given address
+     * @param address the address to sort by proximity to
+     * @param addresses the nodes to sort
+     * @return a new sorted <tt>List</tt>
+     */
+    public List<InetAddress> getSortedListByProximity(final InetAddress address, Collection<InetAddress> addresses)
     {
-        List<InetAddress> preferred = new ArrayList<InetAddress>(unsortedAddress);
+        List<InetAddress> preferred = new ArrayList<InetAddress>(addresses);
         sortByProximity(address, preferred);
         return preferred;
     }
 
+    /**
+     * Sorts the <tt>List</tt> of node addresses by proximity to the given address
+     * @param address the address to sort the proximity by
+     * @param addresses the nodes to sort
+     * @return the sorted <tt>List</tt>
+     */
     public List<InetAddress> sortByProximity(final InetAddress address, List<InetAddress> addresses)
     {
         Collections.sort(addresses, new Comparator<InetAddress>()

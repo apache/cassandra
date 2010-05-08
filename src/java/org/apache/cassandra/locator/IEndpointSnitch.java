@@ -30,19 +30,17 @@ import java.util.Collection;
  * This interface helps determine location of node in the data center relative to another node.
  * Give a node A and another node B it can tell if A and B are on the same rack or in the same
  * data center.
- *
- * Not all methods will be germate to all implementations.  Throw UnsupportedOperation as necessary.
  */
 
 public interface IEndpointSnitch
 {
     /**
-     * returns a new List<InetAddress> sorted by proximity to the given endpoint
+     * returns a new <tt>List</tt> sorted by proximity to the given endpoint
      */
     public List<InetAddress> getSortedListByProximity(InetAddress address, Collection<InetAddress> unsortedAddress);
 
     /**
-     * This method will sort the List<InetAddress> according to the proximity of the given address.
+     * This method will sort the <tt>List</tt> by proximity to the given address.
      */
     public List<InetAddress> sortByProximity(InetAddress address, List<InetAddress> addresses);
 }

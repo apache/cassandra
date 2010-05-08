@@ -36,13 +36,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * PropertyFileSnitch
- *
- * PropertyFileSnitch is used by Digg to determine if two IP's are in the same
- * datacenter or on the same rack.
- *
+ * Used to determine if two IP's are in the same datacenter or on the same rack.
+ * <p/>
+ * Based on a properties file configuration.
  */
-public class PropertyFileSnitch extends RackInferringSnitch implements PropertyFileSnitchMBean {
+public class PropertyFileSnitch extends AbstractRackAwareSnitch implements PropertyFileSnitchMBean {
     /**
      * A list of properties with keys being host:port and values being datacenter:rack
      */
@@ -117,6 +115,9 @@ public class PropertyFileSnitch extends RackInferringSnitch implements PropertyF
         return getEndpointInfo(endpoint)[1];
     }
 
+    /**
+     * @return the <tt>String</tt> representation of the configuration
+     */
     public String displayConfiguration() {
         StringBuffer configurationString = new StringBuffer("Current rack configuration\n=================\n");
         for (Object key: hostProperties.keySet()) {
@@ -127,6 +128,9 @@ public class PropertyFileSnitch extends RackInferringSnitch implements PropertyF
         return configurationString.toString();
     }
 
+    /**
+     * Reloads the configuration from the file
+     */
     public void reloadConfiguration() throws ConfigurationException
     {
         ClassLoader loader = PropertyFileSnitch.class.getClassLoader();

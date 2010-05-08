@@ -35,9 +35,7 @@ import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
- * This class contains a helper method that will be used by
- * all abstraction that implement the IReplicaPlacementStrategy
- * interface.
+ * A abstract parent for all replication strategies.
 */
 public abstract class AbstractReplicationStrategy
 {
@@ -58,19 +56,19 @@ public abstract class AbstractReplicationStrategy
      * we return a List to avoid an extra allocation when sorting by proximity later.
      */
     public abstract ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata, String table);
-    
-    public WriteResponseHandler getWriteResponseHandler(int blockFor, ConsistencyLevel consistency_level, String table)
-    {
-        return new WriteResponseHandler(blockFor, table);
-    }
 
     public ArrayList<InetAddress> getNaturalEndpoints(Token token, String table)
     {
         return getNaturalEndpoints(token, tokenMetadata_, table);
     }
+
+    public WriteResponseHandler getWriteResponseHandler(int blockFor, ConsistencyLevel consistency_level, String table)
+    {
+        return new WriteResponseHandler(blockFor, table);
+    }
     
     /**
-     * returns multimap of {live destination: ultimate targets}, where if target is not the same
+     * returns <tt>Multimap</tt> of {live destination: ultimate targets}, where if target is not the same
      * as the destination, it is a "hinted" write, and will need to be sent to
      * the ultimate target when it becomes alive again.
      */
@@ -143,9 +141,10 @@ public abstract class AbstractReplicationStrategy
     }
 
     /*
-     NOTE: this is pretty inefficient. also the inverse (getRangeAddresses) below.
-     this is fine as long as we don't use this on any critical path.
-     (fixing this would probably require merging tokenmetadata into replicationstrategy, so we could cache/invalidate cleanly.)
+     * NOTE: this is pretty inefficient. also the inverse (getRangeAddresses) below.
+     * this is fine as long as we don't use this on any critical path.
+     * (fixing this would probably require merging tokenmetadata into replicationstrategy,
+     * so we could cache/invalidate cleanly.)
      */
     public Multimap<InetAddress, Range> getAddressRanges(TokenMetadata metadata, String table)
     {

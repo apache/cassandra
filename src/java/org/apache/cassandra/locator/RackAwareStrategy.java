@@ -28,11 +28,11 @@ import org.apache.cassandra.dht.Token;
 import java.net.InetAddress;
 
 /*
- * This class returns the nodes responsible for a given
- * key but does respects rack awareness. It makes a best
- * effort to get a node from a different data center and
- * a node in a different rack in the same datacenter as
- * the primary.
+ * This Replication Strategy returns the nodes responsible for a given
+ * key but respects rack awareness. It places one replica in a
+ * different data center from the first (if there is any such data center),
+ * and remaining replicas in different racks in the same datacenter as
+ * the first.
  */
 public class RackAwareStrategy extends AbstractReplicationStrategy
 {

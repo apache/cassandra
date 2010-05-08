@@ -42,7 +42,7 @@ public class TokenMetadata
     // Now suppose node B bootstraps between A and C at the same time. Its pending ranges would be C-E, E-A and A-B.
     // Now both nodes have pending range E-A in their list, which will cause pending range collision
     // even though we're only talking about replica range, not even primary range. The same thing happens
-    // for any nodes that boot simultaneously between same two nodes. For this we cannot simply make pending ranges a multimap,
+    // for any nodes that boot simultaneously between same two nodes. For this we cannot simply make pending ranges a <tt>Multimap</tt>,
     // since that would make us unable to notice the real problem of two nodes trying to boot using the same token.
     // In order to do this properly, we need to know what tokens are booting at any time.
     private BiMap<Token, InetAddress> bootstrapTokens;
@@ -395,15 +395,15 @@ public class TokenMetadata
         return bootstrapTokens;
     }
 
-    /** caller should not modify leavigEndpoints */
+    /** caller should not modify leavingEndpoints */
     public Set<InetAddress> getLeavingEndpoints()
     {
         return leavingEndpoints;
     }
 
     /**
-     * iterator over the Tokens in the given ring, starting with the token for the node owning start
-     * (which does not have to be a Token in the ring)
+     * <tt>Iterator</tt> over the <tt>Token</tt>s in the given ring, starting with the token for the node owning start
+     * (which does not have to be a <tt>Token</tt> in the ring)
      */
     public static Iterator<Token> ringIterator(final List ring, Token start)
     {
