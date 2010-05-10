@@ -31,19 +31,13 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.InstrumentedCache;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.utils.BloomFilter;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.ICompactSerializer2;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.io.util.MappedFileDataInput;
-
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
  * SSTableReaders are open()ed by Table.onStart; after that they are created by SSTableWriter.renameAndOpen.
@@ -64,7 +58,7 @@ public abstract class SSTableReader extends SSTable implements Comparable<SSTabl
             {
                 while (true)
                 {
-                    SSTableDeletingReference r = null;
+                    SSTableDeletingReference r;
                     try
                     {
                         r = (SSTableDeletingReference) finalizerQueue.remove();
@@ -172,20 +166,12 @@ public abstract class SSTableReader extends SSTable implements Comparable<SSTabl
         }
     }
 
-    /*************************************************************************/
-
     protected SSTableReader(Descriptor desc, IPartitioner partitioner)
     {
         super(desc, partitioner);
     }
 
     private volatile SSTableDeletingReference phantomReference;
-
-    void addFinalizingReference(SSTableTracker tracker)
-    {
-        phantomReference = new SSTableDeletingReference(tracker, this, finalizerQueue);
-        finalizers.add(phantomReference);
-    }
 
     /**
      * For testing purposes only.
