@@ -50,6 +50,7 @@ import org.apache.cassandra.locator.*;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
 import org.apache.cassandra.streaming.*;
+import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -1518,6 +1519,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // between ``removetoken command and normal state left, so it is
         // not so bad.
         Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_LEFT + Delimiter + REMOVE_TOKEN + Delimiter + token.toString()));
+    }
+
+    public WriteResponseHandler getWriteResponseHandler(int blockFor, ConsistencyLevel consistency_level, String table)
+    {
+        return getReplicationStrategy(table).getWriteResponseHandler(blockFor, consistency_level, table);
     }
 
     public boolean isClientMode()

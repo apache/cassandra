@@ -27,15 +27,11 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.service.IResponseResolver;
-import org.apache.cassandra.service.QuorumResponseHandler;
 import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -45,7 +41,7 @@ public abstract class AbstractReplicationStrategy
 {
     protected static final Logger logger_ = LoggerFactory.getLogger(AbstractReplicationStrategy.class);
 
-    protected TokenMetadata tokenMetadata_;
+    private TokenMetadata tokenMetadata_;
     protected final IEndpointSnitch snitch_;
 
     AbstractReplicationStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch)
@@ -194,8 +190,4 @@ public abstract class AbstractReplicationStrategy
         return getAddressRanges(temp, table).get(pendingAddress);
     }
 
-    public QuorumResponseHandler getQuorumResponseHandler(IResponseResolver responseResolver, ConsistencyLevel consistencyLevel, String table)
-    {
-        return new QuorumResponseHandler(responseResolver, consistencyLevel, table);
-    }
 }

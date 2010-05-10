@@ -150,36 +150,37 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
         }
     }
 
-    private ArrayList<InetAddress> getNaturalEndpointsInternal(Token searchToken, TokenMetadata metadata, String table) throws UnknownHostException
+    private ArrayList<InetAddress> getNaturalEndpointsInternal(Token searchToken, TokenMetadata metadata) throws IOException
     {
         ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>();
 
         if (metadata.sortedTokens().size() == 0)
             return endpoints;
 
-        if (tokensize != metadata.sortedTokens().size())
+        if (null == tokens || tokens.size() != metadata.sortedTokens().size())
         {
-            loadEndPoints(metadata);
+            loadEndpoints(metadata);
         }
 
-        for (String dc : dcTokens.keySet())
+        for (String dc : dcMap.keySet())
         {
-            int replicas_ = getReplicationFactor(dc, table);
-            List<Token> tokens = dcTokens.get(dc);
+            int replicas_ = dcReplicationFactor.get(dc);
+            ArrayList<InetAddress> forloopReturn = new ArrayList<InetAddress>(replicas_);
+            List<Token> tokens = dcMap.get(dc);
             boolean bOtherRack = false;
             boolean doneDataCenterItr;
             // Add the node at the index by default
             Iterator<Token> iter = TokenMetadata.ringIterator(tokens, searchToken);
             InetAddress primaryHost = metadata.getEndpoint(iter.next());
-            endpoints.add(primaryHost);
+            forloopReturn.add(primaryHost);
 
-            while (endpoints.size() < replicas_ && iter.hasNext())
+            while (forloopReturn.size() < replicas_ && iter.hasNext())
             {
                 Token t = iter.next();
-                InetAddress endPointOfInterest = metadata.getEndpoint(t);
-                if (endpoints.size() < replicas_ - 1)
+                InetAddress endpointOfInterest = metadata.getEndpoint(t);
+                if (forloopReturn.size() < replicas_ - 1)
                 {
-                	endpoints.add(endPointOfInterest);
+                    forloopReturn.add(endpointOfInterest);
                     continue;
                 }
                 else
@@ -190,9 +191,10 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
                 // Now try to find one on a different rack
                 if (!bOtherRack)
                 {
-                    if (!snitch.getRack(primaryHost).equals(snitch.getRack(endPointOfInterest)))
+                    AbstractRackAwareSnitch snitch = (AbstractRackAwareSnitch)snitch_;
+                    if (!snitch.getRack(primaryHost).equals(snitch.getRack(endpointOfInterest)))
                     {
-                    	endpoints.add(metadata.getEndpoint(t));
+                        forloopReturn.add(metadata.getEndpoint(t));
                         bOtherRack = true;
                     }
                 }

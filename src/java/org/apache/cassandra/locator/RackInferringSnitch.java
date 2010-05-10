@@ -19,6 +19,8 @@
 package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.*;
 
 /**
  * A simple endpoint snitch implementation that assumes datacenter and rack information is encoded
@@ -26,12 +28,12 @@ import java.net.InetAddress;
  */
 public class RackInferringSnitch extends AbstractRackAwareSnitch
 {
-    public String getRack(InetAddress endpoint)
+    public String getRack(InetAddress endpoint) throws UnknownHostException
     {
         return Byte.toString(endpoint.getAddress()[2]);
     }
 
-    public String getDatacenter(InetAddress endpoint)
+    public String getDatacenter(InetAddress endpoint) throws UnknownHostException
     {
         return Byte.toString(endpoint.getAddress()[1]);
     }

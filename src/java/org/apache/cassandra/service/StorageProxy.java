@@ -213,9 +213,13 @@ public class StorageProxy implements StorageProxyMBean
                 List<InetAddress> naturalEndpoints = ss.getNaturalEndpoints(table, rm.key());
                 Collection<InetAddress> writeEndpoints = rs.getWriteEndpoints(StorageService.getPartitioner().getToken(rm.key()), table, naturalEndpoints);
                 Multimap<InetAddress, InetAddress> hintedEndpoints = rs.getHintedEndpoints(writeEndpoints);
+                int blockFor = determineBlockFor(writeEndpoints.size(), consistency_level);
+
+                // avoid starting a write we know can't achieve the required consistency
+                assureSufficientLiveNodes(blockFor, writeEndpoints, hintedEndpoints, consistency_level);
                 
                 // send out the writes, as in mutate() above, but this time with a callback that tracks responses
-                final WriteResponseHandler responseHandler = rs.getWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level, table);
+                final WriteResponseHandler responseHandler = ss.getWriteResponseHandler(blockFor, consistency_level, table);
                 responseHandlers.add(responseHandler);
                 Message unhintedMessage = null;
                 for (Map.Entry<InetAddress, Collection<InetAddress>> entry : hintedEndpoints.asMap().entrySet())
@@ -283,6 +287,29 @@ public class StorageProxy implements StorageProxyMBean
 
     }
 
+    private static void assureSufficientLiveNodes(int blockFor, Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel)
+            throws UnavailableException
+    {
+        if (consistencyLevel == ConsistencyLevel.ANY)
+        {
+            // ensure there are blockFor distinct living nodes (hints are ok).
+            if (hintedEndpoints.keySet().size() < blockFor)
+                throw new UnavailableException();
+        }
+
+        // count destinations that are part of the desired target set
+        int liveNodes = 0;
+        for (InetAddress destination : hintedEndpoints.keySet())
+        {
+            if (writeEndpoints.contains(destination))
+                liveNodes++;
+        }
+        if (liveNodes < blockFor)
+        {
+            throw new UnavailableException();
+        }
+    }
+
     private static void insertLocalMessage(final RowMutation rm, final WriteResponseHandler responseHandler)
     {
         if (logger.isDebugEnabled())
@@ -296,6 +323,26 @@ public class StorageProxy implements StorageProxyMBean
             }
         };
         StageManager.getStage(StageManager.MUTATION_STAGE).execute(runnable);
+    }
+
+    private static int determineBlockFor(int expandedTargets, ConsistencyLevel consistency_level)
+    {
+        switch (consistency_level)
+        {
+            case ONE:
+            case ANY:
+                return 1;
+            case QUORUM:
+                return (expandedTargets / 2) + 1;
+            case DCQUORUM:
+            case DCQUORUMSYNC:
+                // TODO this is broken
+                return expandedTargets;
+            case ALL:
+                return expandedTargets;
+            default:
+                throw new UnsupportedOperationException("invalid consistency level " + consistency_level);
+        }
     }
 
     /**
@@ -414,6 +461,10 @@ public class StorageProxy implements StorageProxyMBean
 
             InetAddress dataPoint = StorageService.instance.findSuitableEndpoint(command.table, command.key);
             List<InetAddress> endpointList = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
+            final String table = command.table;
+            int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(table), consistency_level);
+            if (endpointList.size() < responseCount)
+                throw new UnavailableException();
 
             InetAddress[] endpoints = new InetAddress[endpointList.size()];
             Message messages[] = new Message[endpointList.size()];
@@ -428,9 +479,7 @@ public class StorageProxy implements StorageProxyMBean
                 if (logger.isDebugEnabled())
                     logger.debug("strongread reading " + (m == message ? "data" : "digest") + " for " + command + " from " + m.getMessageId() + "@" + endpoint);
             }
-            AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(command.table);
-            QuorumResponseHandler<Row> quorumResponseHandler = rs.getQuorumResponseHandler(new ReadResponseResolver(command.table), 
-                                                                                               consistency_level, command.table);
+            QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(DatabaseDescriptor.getQuorum(command.table), new ReadResponseResolver(command.table, responseCount));
             MessagingService.instance.sendRR(messages, endpoints, quorumResponseHandler);
             quorumResponseHandlers.add(quorumResponseHandler);
             commandEndpoints.add(endpoints);
@@ -454,10 +503,10 @@ public class StorageProxy implements StorageProxyMBean
             {
                 if (randomlyReadRepair(command))
                 {
-                    IResponseResolver<Row> readResponseResolverRepair = new ReadResponseResolver(command.table);
-                    AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(command.table);
-                    QuorumResponseHandler<Row> quorumResponseHandlerRepair = rs.getQuorumResponseHandler(readResponseResolverRepair, ConsistencyLevel.QUORUM, 
-                                                                                                         command.table);
+                    IResponseResolver<Row> readResponseResolverRepair = new ReadResponseResolver(command.table, DatabaseDescriptor.getQuorum(command.table));
+                    QuorumResponseHandler<Row> quorumResponseHandlerRepair = new QuorumResponseHandler<Row>(
+                            DatabaseDescriptor.getQuorum(command.table),
+                            readResponseResolverRepair);
                     logger.info("DigestMismatchException: " + ex.getMessage());
                     Message messageRepair = command.makeReadMessage();
                     MessagingService.instance.sendRR(messageRepair, commandEndpoints.get(commandIndex), quorumResponseHandlerRepair);
@@ -517,7 +566,9 @@ public class StorageProxy implements StorageProxyMBean
         long startTime = System.nanoTime();
 
         final String table = command.keyspace;
-        List<Pair<AbstractBounds, List<InetAddress>>> ranges = getRestrictedRanges(command.range, command.keyspace);
+        int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(table), consistency_level);
+
+        List<Pair<AbstractBounds, List<InetAddress>>> ranges = getRestrictedRanges(command.range, command.keyspace, responseCount);
 
         // now scan until we have enough results
         List<Row> rows = new ArrayList<Row>(command.max_keys);
@@ -530,8 +581,8 @@ public class StorageProxy implements StorageProxyMBean
 
             // collect replies and resolve according to consistency level
             RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, endpoints);
-            AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(table);
-            QuorumResponseHandler<List<Row>> handler = rs.getQuorumResponseHandler(resolver, consistency_level, table);
+            QuorumResponseHandler<List<Row>> handler = new QuorumResponseHandler<List<Row>>(responseCount, resolver);
+
             for (InetAddress endpoint : endpoints)
             {
                 MessagingService.instance.sendRR(message, endpoint, handler);
@@ -627,7 +678,7 @@ public class StorageProxy implements StorageProxyMBean
      *     D, but we don't want any other results from it until after the (D, T] range.  Unwrapping so that
      *     the ranges we consider are (D, T], (T, MIN], (MIN, D] fixes this.
      */
-    private static List<Pair<AbstractBounds, List<InetAddress>>> getRestrictedRanges(AbstractBounds queryRange, String keyspace)
+    private static List<Pair<AbstractBounds, List<InetAddress>>> getRestrictedRanges(AbstractBounds queryRange, String keyspace, int responseCount)
     throws UnavailableException
     {
         TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
@@ -638,8 +689,11 @@ public class StorageProxy implements StorageProxyMBean
             Token nodeToken = iter.next();
             Range nodeRange = new Range(tokenMetadata.getPredecessor(nodeToken), nodeToken);
             List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(keyspace, nodeToken);
+            if (endpoints.size() < responseCount)
+                throw new UnavailableException();
 
             DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), endpoints);
+            List<InetAddress> endpointsForCL = endpoints.subList(0, responseCount);
             Set<AbstractBounds> restrictedRanges = queryRange.restrictTo(nodeRange);
             for (AbstractBounds range : restrictedRanges)
             {
@@ -647,7 +701,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     if (logger.isDebugEnabled())
                         logger.debug("Adding to restricted ranges " + unwrapped + " for " + nodeRange);
-                    ranges.add(new Pair<AbstractBounds, List<InetAddress>>(unwrapped, endpoints));
+                    ranges.add(new Pair<AbstractBounds, List<InetAddress>>(unwrapped, endpointsForCL));
                 }
             }
         }

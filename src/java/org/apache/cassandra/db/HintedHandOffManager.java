@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 
 import java.util.Collection;
 import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.ExecutorService;
 import java.io.IOException;
@@ -38,19 +37,14 @@ import java.net.InetAddress;
 
 import org.apache.commons.lang.ArrayUtils;
 
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.*;
-import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.utils.FBUtilities.UTF8;
 import org.apache.cassandra.utils.WrappedRunnable;
-
-import com.google.common.collect.Multimap;
 
 
 /**
@@ -110,7 +104,7 @@ public class HintedHandOffManager
         }, "Hint delivery").start();
     }
 
-    private static boolean sendMessage(InetAddress endpoint, String tableName, byte[] key) throws IOException, UnavailableException
+    private static boolean sendMessage(InetAddress endpoint, String tableName, byte[] key) throws IOException
     {
         if (!Gossiper.instance.isKnownEndpoint(endpoint))
         {
@@ -132,12 +126,8 @@ public class HintedHandOffManager
                 rm.add(cf);
         }
         Message message = rm.makeRowMutationMessage();
-        InetAddress [] endpoints = new InetAddress[] { endpoint };
-        AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(tableName);
-        List<InetAddress> endpointlist = Arrays.asList(endpoints);
-        Multimap<InetAddress, InetAddress> hintedEndpoints = rs.getHintedEndpoints(endpointlist);
-        WriteResponseHandler responseHandler = new WriteResponseHandler(endpointlist, hintedEndpoints, ConsistencyLevel.ALL, tableName);
-        MessagingService.instance.sendRR(message, endpoints, responseHandler);
+        WriteResponseHandler responseHandler = new WriteResponseHandler(1, tableName);
+        MessagingService.instance.sendRR(message, new InetAddress[] { endpoint }, responseHandler);
 
         try
         {
@@ -164,9 +154,8 @@ public class HintedHandOffManager
         rm.apply();
     }
 
-    /** hintStore must be the hints columnfamily from the system table 
-     * @throws UnavailableException */
-    private static void deliverAllHints() throws DigestMismatchException, IOException, InvalidRequestException, TimeoutException, UnavailableException
+    /** hintStore must be the hints columnfamily from the system table */
+    private static void deliverAllHints() throws DigestMismatchException, IOException, InvalidRequestException, TimeoutException
     {
         if (logger_.isDebugEnabled())
           logger_.debug("Started deliverAllHints");
@@ -234,7 +223,7 @@ public class HintedHandOffManager
                || (hintColumnFamily.getSortedColumns().size() == 1 && hintColumnFamily.getColumn(startColumn) != null);
     }
 
-    private static void deliverHintsToEndpoint(InetAddress endpoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException, UnavailableException
+    private static void deliverHintsToEndpoint(InetAddress endpoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException
     {
         if (logger_.isDebugEnabled())
           logger_.debug("Started hinted handoff for endpoint " + endpoint);

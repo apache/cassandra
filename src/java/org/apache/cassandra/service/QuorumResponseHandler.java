@@ -19,6 +19,9 @@
 package org.apache.cassandra.service;
 
 import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -28,7 +31,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.utils.SimpleCondition;
 
 import org.slf4j.Logger;
@@ -38,19 +40,15 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
 {
     protected static final Logger logger = LoggerFactory.getLogger( QuorumResponseHandler.class );
     protected final SimpleCondition condition = new SimpleCondition();
-    protected final Collection<Message> responses = new LinkedBlockingQueue<Message>();;
-    protected IResponseResolver<T> responseResolver;
+    protected final Collection<Message> responses;
+    private IResponseResolver<T> responseResolver;
     private final long startTime;
-    protected int blockfor;
-    
-    /**
-     * Constructor when response count has to be calculated and blocked for.
-     */
-    public QuorumResponseHandler(IResponseResolver<T> responseResolver, ConsistencyLevel consistencyLevel, String table)
+
+    public QuorumResponseHandler(int responseCount, IResponseResolver<T> responseResolver)
     {
-        this.blockfor = determineBlockFor(consistencyLevel, table);
+        responses = new LinkedBlockingQueue<Message>();
         this.responseResolver = responseResolver;
-        this.startTime = System.currentTimeMillis();
+        startTime = System.currentTimeMillis();
     }
     
     public T get() throws TimeoutException, DigestMismatchException, IOException
@@ -92,28 +90,9 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
     public void response(Message message)
     {
         responses.add(message);
-        if (responses.size() < blockfor) {
-            return;
-        }
         if (responseResolver.isDataPresent(responses))
         {
             condition.signal();
-        }
-    }
-    
-    public int determineBlockFor(ConsistencyLevel consistencyLevel, String table)
-    {
-        switch (consistencyLevel)
-        {
-            case ONE:
-            case ANY:
-                return 1;
-            case QUORUM:
-                return (DatabaseDescriptor.getQuorum(table)/ 2) + 1;
-            case ALL:
-                return DatabaseDescriptor.getReplicationFactor(table);
-            default:
-                throw new UnsupportedOperationException("invalid consistency level: " + table.toString());
         }
     }
 }
