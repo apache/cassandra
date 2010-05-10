@@ -824,6 +824,25 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
+    @Override
+    public void truncate(String keyspace, String cfname) throws InvalidRequestException, UnavailableException, TException
+    {
+        logger.debug("truncating {} in {}", cfname, keyspace);
+        checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
+        try
+        {
+            StorageProxy.truncateBlocking(keyspace, cfname);
+        }
+        catch (TimeoutException e)
+        {
+            throw (UnavailableException) new UnavailableException().initCause(e);
+        }
+        catch (IOException e)
+        {
+            throw (UnavailableException) new UnavailableException().initCause(e);
+        }
+    }
+
     public void set_keyspace(String keyspace) throws InvalidRequestException, TException {
         if (DatabaseDescriptor.getTableDefinition(keyspace) == null)
         {

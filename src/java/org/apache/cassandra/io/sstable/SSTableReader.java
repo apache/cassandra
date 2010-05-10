@@ -82,6 +82,20 @@ public abstract class SSTableReader extends SSTable implements Comparable<SSTabl
         new Thread(runnable, "SSTABLE-DELETER").start();
     }};
 
+    /**
+     * maxDataAge is a timestamp in local server time (e.g. System.currentTimeMilli) which represents an uppper bound
+     * to the newest piece of data stored in the sstable. In other words, this sstable does not contain items created
+     * later than maxDataAge.
+     * 
+     * The field is not serialized to disk, so relying on it for more than what truncate does is not advised.
+     *
+     * When a new sstable is flushed, maxDataAge is set to the time of creation.
+     * When a sstable is created from compaction, maxDataAge is set to max of all merged tables.
+     *
+     * The age is in milliseconds since epoc and is local to this host.
+     */
+    public final long maxDataAge;
+
     public static int indexInterval()
     {
         return IndexSummary.INDEX_INTERVAL;
@@ -166,9 +180,10 @@ public abstract class SSTableReader extends SSTable implements Comparable<SSTabl
         }
     }
 
-    protected SSTableReader(Descriptor desc, IPartitioner partitioner)
+    protected SSTableReader(Descriptor desc, IPartitioner partitioner, long maxDataAge)
     {
         super(desc, partitioner);
+        this.maxDataAge = maxDataAge;
     }
 
     private volatile SSTableDeletingReference phantomReference;
@@ -265,5 +280,16 @@ public abstract class SSTableReader extends SSTable implements Comparable<SSTabl
         return cfType == ColumnFamilyType.Standard
                ? Column.serializer()
                : SuperColumn.serializer(getColumnComparator());
+    }
+
+    /**
+     * Tests if the sstable contains data newer than the given age param (in localhost currentMilli time).
+     * This works in conjunction with maxDataAge which is an upper bound on the create of data in this sstable.
+     * @param age The age to compare the maxDataAre of this sstable. Measured in millisec since epoc on this host
+     * @return True iff this sstable contains data that's newer than the given age parameter.
+     */
+    public boolean newSince(long age)
+    {
+        return maxDataAge > age;
     }
 }

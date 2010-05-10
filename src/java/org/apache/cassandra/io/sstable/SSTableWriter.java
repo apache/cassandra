@@ -130,6 +130,11 @@ public class SSTableWriter extends SSTable
 
     public SSTableReader closeAndOpenReader() throws IOException
     {
+        return closeAndOpenReader(System.currentTimeMillis());
+    }
+
+    public SSTableReader closeAndOpenReader(long maxDataAge) throws IOException
+    {
         // bloom filter
         FileOutputStream fos = new FileOutputStream(filterFilename());
         DataOutputStream stream = new DataOutputStream(fos);
@@ -151,7 +156,7 @@ public class SSTableWriter extends SSTable
         rename(getFilename());
 
         indexSummary.complete();
-        return new RowIndexedReader(newdesc, partitioner, indexSummary, bf);
+        return new RowIndexedReader(newdesc, partitioner, indexSummary, bf, maxDataAge);
     }
 
     static String rename(String tmpFilename)
@@ -180,5 +185,4 @@ public class SSTableWriter extends SSTable
         dataFileName = SSTableWriter.rename(dataFileName);
         return SSTableReader.open(dataFileName);
     }
-
 }

@@ -365,7 +365,7 @@ public class CompactionManager implements CompactionManagerMBean
             ci.close();
         }
 
-        SSTableReader ssTable = writer.closeAndOpenReader();
+        SSTableReader ssTable = writer.closeAndOpenReader(getMaxDataAge(sstables));
         cfs.replaceCompactedSSTables(sstables, Arrays.asList(ssTable));
         submitMinorIfNeeded(cfs);
 
@@ -373,6 +373,17 @@ public class CompactionManager implements CompactionManagerMBean
         long dTime = System.currentTimeMillis() - startTime;
         logger.info(String.format(format, writer.getFilename(), SSTable.getTotalBytes(sstables), ssTable.length(), totalkeysWritten, dTime));
         return sstables.size();
+    }
+
+    private static long getMaxDataAge(Collection<SSTableReader> sstables)
+    {
+        long max = 0;
+        for (SSTableReader sstable : sstables)
+        {
+            if (sstable.maxDataAge > max)
+                max = sstable.maxDataAge;
+        }
+        return max;
     }
 
     /**
@@ -439,7 +450,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         if (writer != null)
         {
-            results.add(writer.closeAndOpenReader());
+            results.add(writer.closeAndOpenReader(getMaxDataAge(sstables)));
             String format = "AntiCompacted to %s.  %d/%d bytes for %d keys.  Time: %dms.";
             long dTime = System.currentTimeMillis() - startTime;
             logger.info(String.format(format, writer.getFilename(), SSTable.getTotalBytes(sstables), results.get(0).length(), totalkeysWritten, dTime));

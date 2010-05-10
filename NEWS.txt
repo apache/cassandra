@@ -9,6 +9,7 @@ Features
       UTF-8 encoded strings, but RandomPartitioner no longer expects strings.
     - A new ByteOrderedPartitioner supports bytes keys with arbitrary content,
       and orders keys by their byte value. 
+    - Truncate thrift method allows clearing an entire ColumnFamily at once
 
 Configuraton
 ------------

@@ -19,15 +19,16 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
-import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.thrift.UnavailableException;
+
 import java.net.InetAddress;
 
 
@@ -176,4 +177,18 @@ public interface StorageServiceMBean
      * @todo: deprecate in 0.7+1, remove in 0.7+2.
      */ 
     public void loadSchemaFromYAML() throws ConfigurationException, IOException;
+
+    /**
+     * Truncates (deletes) the given columnFamily from the provided keyspace.
+     * Calling truncate results in actual deletion of all data in the cluster
+     * under the given columnFamily and it will fail unless all hosts are up.
+     * All data in the given column family will be deleted, but its definition
+     * will not be affected.
+     *
+     * @param keyspace The keyspace to delete from
+     * @param columnFamily The column family to delete data from.
+     *
+     * @throws UnavailableException if some of the hosts in the ring are down.
+     */
+    public void truncate(String keyspace, String columnFamily) throws UnavailableException, TimeoutException, IOException;
 }

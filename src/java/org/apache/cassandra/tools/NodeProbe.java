@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 
 import javax.management.*;
 import javax.management.remote.JMXConnector;
@@ -49,6 +50,8 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamingService;
 import org.apache.cassandra.streaming.StreamingServiceMBean;
+import org.apache.cassandra.thrift.UnavailableException;
+
 import static org.apache.cassandra.utils.FBUtilities.UTF8;
 
 /**
@@ -436,6 +439,26 @@ public class NodeProbe
     public String getOperationMode()
     {
         return ssProxy.getOperationMode();
+    }
+
+    public void truncate(String tableName, String cfName)
+    {
+        try
+        {
+            ssProxy.truncate(tableName, cfName);
+        }
+        catch (UnavailableException e)
+        {
+            throw new RuntimeException("Error while executing truncate", e);
+        }
+        catch (TimeoutException e)
+        {
+            throw new RuntimeException("Error while executing truncate", e);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Error while executing truncate", e);
+        }
     }
 }
 

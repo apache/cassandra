@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "6.0.0"
+const string VERSION = "6.1.0"
 
 #
 # data structures
@@ -421,6 +421,18 @@ service Cassandra {
                     2:required ConsistencyLevel consistency_level=ONE)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
        
+  /**
+   Truncate will mark and entire column family as deleted.
+   From the user's perspective a successful call to truncate will result complete data deletion from cfname.
+   Internally, however, disk space will not be immediatily released, as with all deletes in cassandra, this one
+   only marks the data as deleted.
+   The operation succeeds only if all hosts in the cluster at available and will throw an UnavailableException if 
+   some hosts are down.
+  */
+  void truncate(1:required string keyspace,
+                2:required string cfname)
+       throws (1: InvalidRequestException ire, 2: UnavailableException ue),
+    
   // Meta-APIs -- APIs to get information about the node or cluster,
   // rather than user data.  The nodeprobe program provides usage examples.
 
@@ -473,4 +485,5 @@ service Cassandra {
     
   void system_rename_keyspace(1:required string old_name, 2:required string new_name)
     throws (1:InvalidRequestException ire),
+  
 }

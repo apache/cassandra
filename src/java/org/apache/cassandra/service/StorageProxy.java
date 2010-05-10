@@ -22,29 +22,39 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.apache.commons.lang.ArrayUtils;
-import org.apache.commons.lang.StringUtils;
-
-import com.google.common.collect.AbstractIterator;
-import com.google.common.collect.Multimap;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.RangeSliceCommand;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadResponse;
+import org.apache.cassandra.db.Row;
+import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Truncation;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.IAsyncResult;
@@ -56,6 +66,13 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LatencyTracker;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.Multimap;
 
 
 public class StorageProxy implements StorageProxyMBean
@@ -769,5 +786,77 @@ public class StorageProxy implements StorageProxyMBean
 
             return row;
         }
+    }
+
+    /**
+     * Performs the truncate operatoin, which effectively deletes all data from
+     * the column family cfname
+     * @param keyspace
+     * @param cfname
+     * @throws UnavailableException If some of the hosts in the ring are down.
+     * @throws TimeoutException
+     * @throws IOException
+     */
+    public static void truncateBlocking(String keyspace, String cfname) throws UnavailableException, TimeoutException, IOException
+    {
+        logger.debug("Starting a blocking truncate operation on keyspace {}, CF ", keyspace, cfname);
+        if (isAnyHostDown())
+        {
+            logger.info("Cannot perform truncate, some hosts are down");
+            // Since the truncate operation is so aggressive and is typically only
+            // invoked by an admin, for simplicity we require that all nodes are up
+            // to perform the operation.
+            throw new UnavailableException();
+        }
+
+        Set<InetAddress> allEndpoints = Gossiper.instance.getLiveMembers();
+        int blockFor = allEndpoints.size();
+        allEndpoints.remove(FBUtilities.getLocalAddress());
+        final TruncateResponseHandler responseHandler = new TruncateResponseHandler(blockFor, keyspace);
+
+        // Send out the truncate calls and track the responses with the callbacks.
+        logger.debug("Starting to send truncate messages to hosts {}", allEndpoints);
+        truncateLocal(keyspace, cfname, responseHandler);
+        truncateRemotes(keyspace, cfname, allEndpoints, responseHandler);
+
+        // Wait for all
+        logger.debug("Sent all truncate messages, now waiting for {} responses", blockFor);
+        responseHandler.get();
+        logger.debug("truncate done");
+    }
+
+    private static void truncateRemotes(String keyspace, String cfname, Set<InetAddress> hosts,
+                                        TruncateResponseHandler responseHandler) throws IOException
+    {
+        Truncation truncation = new Truncation(keyspace, cfname);
+        Message message = truncation.makeTruncationMessage();
+        MessagingService.instance.sendRR(message, hosts.toArray(new InetAddress[]{}), responseHandler);
+    }
+
+    /**
+     * Asks the gossiper if there are any nodes that are currently down.
+     * @return true if the gossiper thinks all nodes are up.
+     */
+    private static boolean isAnyHostDown()
+    {
+        return !Gossiper.instance.getUnreachableMembers().isEmpty();
+    }
+
+    private static void truncateLocal(final String keyspace, final String cfname,
+                                      final TruncateResponseHandler responseHandler)
+    {
+        logger.debug("truncating locally (keyspace: {}, CF: {})", keyspace, cfname);
+        Runnable runnable = new WrappedRunnable()
+        {
+            public void runMayThrow() throws IOException, InterruptedException, ExecutionException
+            {
+                // truncate, blocking
+                Table.open(keyspace).truncate(cfname);
+                responseHandler.localResponse();
+                logger.debug("Finished truncating local (keyspace: {}, CF: {})", keyspace, cfname);
+            }
+        };
+        // TODO(ran): Is this correct? Should the truncate operation operate on the row mutation stage?
+        StageManager.getStage(StageManager.MUTATION_STAGE).execute(runnable);
     }
 }

@@ -79,7 +79,7 @@ public class NodeCmd {
                 "%nAvailable commands: ring, info, cleanup, compact, cfstats, snapshot [snapshotname], clearsnapshot, " +
                 "tpstats, flush, drain, repair, decommission, move, loadbalance, removetoken, " +
                 "setcachecapacity <keyspace> <cfname> <keycachecapacity> <rowcachecapacity>, " +
-                "getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold])" +
+                "getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold]), " +
                 "streams [host]");
         String usage = String.format("java %s --host <arg> <command>%n", NodeCmd.class.getName());
         hf.printHelp(usage, "", options, header);

@@ -1143,3 +1143,18 @@ class TestMutations(ThriftTester):
         client.remove('key1', ColumnPath('Standard1', column='cttl5'), 1, ConsistencyLevel.ONE)
         _expect_missing(lambda: client.get('key1', ColumnPath('Standard1', column='ctt5'), ConsistencyLevel.ONE))
         
+class TestTruncate(ThriftTester):
+    def test_truncate(self):
+        _set_keyspace('Keyspace1')
+        
+        _insert_simple()
+        _insert_super()
+
+        # truncate Standard1
+        client.truncate('Keyspace1', 'Standard1')
+        assert _big_slice('key1', ColumnParent('Standard1')) == []
+
+        # truncate Super1
+        client.truncate('Keyspace1', 'Super1')
+        assert _big_slice('key1', ColumnParent('Super1')) == []
+        assert _big_slice('key1', ColumnParent('Super1', 'sc1')) == []

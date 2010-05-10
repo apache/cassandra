@@ -18,9 +18,10 @@
 package org.apache.cassandra.tools;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.List;
 import java.util.Set;
-import java.net.InetAddress;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
@@ -139,7 +140,8 @@ public class ClusterCmd {
     {
         HelpFormatter hf = new HelpFormatter();
         String header = String.format(
-                "%nAvailable commands: get_endpoints [keyspace] [key], global_snapshot [name], clear_global_snapshot");
+                "%nAvailable commands: get_endpoints [keyspace] [key], global_snapshot [name], clear_global_snapshot," +
+                "truncate <keyspace> <cfname>");
         String usage = String.format("java %s -host <arg> <command>%n", ClusterCmd.class.getName());
         hf.printHelp(usage, "", options, header);
     }
@@ -219,6 +221,11 @@ public class ClusterCmd {
         }
     }
 
+    public void truncate(String tableName, String cfName)
+    {
+        probe.truncate(tableName, cfName);
+    }
+
     /**
      * @param args
      */
@@ -274,6 +281,16 @@ public class ClusterCmd {
         else if (cmdName.equals("clear_global_snapshot"))
         {
             clusterCmd.clearGlobalSnapshot();
+        }
+        else if (cmdName.equals("truncate"))
+        {
+            if (arguments.length != 3)
+            {
+                System.err.println("truncate requires <keyspace> and <columnfamily> arguments");
+            }
+            String tableName = arguments[1];
+            String cfName = arguments[2];
+            clusterCmd.truncate(tableName, cfName);
         }
         else
         {

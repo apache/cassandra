@@ -70,10 +70,11 @@ class RowIndexedReader extends SSTableReader
     RowIndexedReader(Descriptor desc,
                      IPartitioner partitioner,
                      IndexSummary indexSummary,
-                     BloomFilter bloomFilter)
+                     BloomFilter bloomFilter,
+                     long maxDataAge)
             throws IOException
     {
-        super(desc, partitioner);
+        super(desc, partitioner, maxDataAge);
 
         if (DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
         {
@@ -116,7 +117,7 @@ class RowIndexedReader extends SSTableReader
 
     RowIndexedReader(Descriptor desc, IPartitioner partitioner) throws IOException
     {
-        this(desc, partitioner, null, null);
+        this(desc, partitioner, null, null, System.currentTimeMillis());
     }
 
     public static RowIndexedReader open(Descriptor desc, IPartitioner partitioner) throws IOException

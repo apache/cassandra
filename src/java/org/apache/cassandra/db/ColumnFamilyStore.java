@@ -1113,4 +1113,48 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         return memtablesPendingFlush;
     }
+
+    /**
+     * Truncate practically deletes the entire column family's data
+     * @return a Future to the delete operation. Call the future's get() to make
+     * sure the column family has been deleted
+     */
+    public Future<?> truncate() throws IOException
+    {
+        // snapshot will also flush, but we want to truncate the most possible, and anything in a flush written
+        // after truncateAt won't be truncated.
+        try
+        {
+            forceBlockingFlush();
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        final long truncatedAt = System.currentTimeMillis();
+        snapshot(Table.getTimestampedSnapshotName("before-truncate"));
+
+        Runnable runnable = new WrappedRunnable()
+        {
+            public void runMayThrow() throws InterruptedException, IOException
+            {
+                // putting markCompacted on the commitlogUpdater thread ensures it will run
+                // after any compactions that were in progress when truncate was called, are finished
+                List<SSTableReader> truncatedSSTables = new ArrayList<SSTableReader>();
+                for (SSTableReader sstable : ssTables_.getSSTables())
+                {
+                    if (!sstable.newSince(truncatedAt))
+                        truncatedSSTables.add(sstable);
+                }
+                markCompacted(truncatedSSTables);
+
+                // Invalidate row cache
+                invalidateRowCache();
+            }
+        };
+
+        return commitLogUpdater_.submit(runnable);
+     }
+
 }

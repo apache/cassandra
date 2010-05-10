@@ -20,7 +20,6 @@
 package org.apache.cassandra.io.sstable;
 
 import java.util.*;
-import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.cassandra.cache.JMXInstrumentedCache;
@@ -69,11 +68,13 @@ public class SSTableTracker implements Iterable<SSTableReader>
             sstable.setTrackedBy(this);
         }
 
+        long maxDataAge = -1;
         for (SSTableReader sstable : oldSSTables)
         {
             boolean removed = sstablesNew.remove(sstable);
             assert removed;
             sstable.markCompacted();
+            maxDataAge = Math.max(maxDataAge, sstable.maxDataAge);
             liveSize.addAndGet(-sstable.bytesOnDisk());
         }
 
