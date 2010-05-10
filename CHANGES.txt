@@ -11,6 +11,7 @@
    (CASSANDRA-1060)
  * disable GCInspector on non-Sun JVMs (CASSANDRA-1061)
  * fix tombstone handling in sstable rows with no other data (CASSANDRA-1063)
+ * fix size of row in spanned index entries (CASSANDRA-1056)
 
 
 0.6.1

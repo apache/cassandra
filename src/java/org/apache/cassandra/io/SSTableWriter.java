@@ -42,7 +42,6 @@ public class SSTableWriter extends SSTable
 {
     private static Logger logger = Logger.getLogger(SSTableWriter.class);
 
-    private long keysWritten;
     private BufferedRandomAccessFile dataFile;
     private BufferedRandomAccessFile indexFile;
     private DecoratedKey lastWrittenKey;
@@ -73,7 +72,7 @@ public class SSTableWriter extends SSTable
         return (lastWrittenKey == null) ? 0 : dataFile.getFilePointer();
     }
 
-    private void afterAppend(DecoratedKey decoratedKey, long dataPosition, int dataSize) throws IOException
+    private void afterAppend(DecoratedKey decoratedKey, long dataPosition) throws IOException
     {
         String diskKey = partitioner.convertToDiskFormat(decoratedKey);
         bf.add(diskKey);
@@ -86,7 +85,8 @@ public class SSTableWriter extends SSTable
         if (logger.isTraceEnabled())
             logger.trace("wrote index of " + decoratedKey + " at " + indexPosition);
 
-        indexSummary.maybeAddEntry(decoratedKey, dataPosition, dataSize, indexPosition, indexFile.getFilePointer());
+        int rowSize = (int)(dataFile.getFilePointer() - dataPosition);
+        indexSummary.maybeAddEntry(decoratedKey, dataPosition, rowSize, indexPosition, indexFile.getFilePointer());
     }
 
     // TODO make this take a DataOutputStream and wrap the byte[] version to combine them
@@ -98,7 +98,7 @@ public class SSTableWriter extends SSTable
         assert length > 0;
         dataFile.writeInt(length);
         dataFile.write(buffer.getData(), 0, length);
-        afterAppend(decoratedKey, currentPosition, length);
+        afterAppend(decoratedKey, currentPosition);
     }
 
     public void append(DecoratedKey decoratedKey, byte[] value) throws IOException
@@ -108,7 +108,7 @@ public class SSTableWriter extends SSTable
         assert value.length > 0;
         dataFile.writeInt(value.length);
         dataFile.write(value);
-        afterAppend(decoratedKey, currentPosition, value.length);
+        afterAppend(decoratedKey, currentPosition);
     }
 
     /**
