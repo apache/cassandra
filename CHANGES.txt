@@ -22,6 +22,7 @@ dev
  * removed multiget thrift method (CASSANDRA-739)
  * removed deprecated batch_insert and get_range_slice methods (CASSANDRA-1065)
  * add truncate thrift method (CASSANDRA-531)
+ * http mini-interface using mx4j (CASSANDRA-1068)
 
 
 0.6.2

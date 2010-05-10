@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.log4j.PropertyConfigurator;
 
+import org.apache.cassandra.utils.Mx4jTool;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocolFactory;
@@ -155,6 +156,7 @@ public class CassandraDaemon
     public void start()
     {
         logger.info("Cassandra starting up...");
+        Mx4jTool.maybeLoad();
         serverEngine.serve();
     }
 

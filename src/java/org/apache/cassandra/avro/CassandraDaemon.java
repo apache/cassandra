@@ -32,6 +32,7 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Mx4jTool;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -113,6 +114,7 @@ public class CassandraDaemon {
         SpecificResponder responder = new SpecificResponder(Cassandra.class, new CassandraServer());
         
         logger.info("Cassandra starting up...");
+        Mx4jTool.maybeLoad();
         // FIXME: This isn't actually binding to listenAddr (it should).
         server = new HttpServer(responder, listenPort);
     }
