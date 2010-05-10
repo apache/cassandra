@@ -41,11 +41,11 @@ public class IndexSummary
     private int keysWritten = 0;
     private long lastIndexPosition;
 
-    public void maybeAddEntry(DecoratedKey decoratedKey, long dataPosition, long dataSize, long indexPosition, long nextIndexPosition)
+    public void maybeAddEntry(DecoratedKey decoratedKey, long dataPosition, long rowSize, long indexPosition, long nextIndexPosition)
     {
         boolean spannedIndexEntry = DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap
                                     && RowIndexedReader.bufferIndex(indexPosition) != RowIndexedReader.bufferIndex(nextIndexPosition);
-        if (keysWritten++ % INDEX_INTERVAL == 0 || spannedIndexEntry)
+        if ((keysWritten++ % INDEX_INTERVAL == 0) || spannedIndexEntry)
         {
             if (indexPositions == null)
             {
@@ -61,11 +61,16 @@ public class IndexSummary
                     spannedIndexDataPositions = new HashMap<KeyPosition, SSTable.PositionSize>();
                     spannedIndexPositions = new HashMap<Long, KeyPosition>();
                 }
-                spannedIndexDataPositions.put(info, new SSTable.PositionSize(dataPosition, dataSize));
+                spannedIndexDataPositions.put(info, new SSTable.PositionSize(dataPosition, rowSize));
                 spannedIndexPositions.put(info.indexPosition, info);
             }
         }
         lastIndexPosition = indexPosition;
+    }
+
+    public Map<KeyPosition, SSTable.PositionSize> getSpannedIndexDataPositions()
+    {
+        return spannedIndexDataPositions;
     }
 
     public List<KeyPosition> getIndexPositions()
