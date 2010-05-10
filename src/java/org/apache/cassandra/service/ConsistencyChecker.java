@@ -112,7 +112,7 @@ class ConsistencyChecker implements Runnable
 
                 if (!Arrays.equals(ColumnFamily.digest(row_.cf), digest))
                 {
-                    IResponseResolver<Row> readResponseResolver = new ReadResponseResolver(table_, replicas_.size());
+                    IResponseResolver<Row> readResponseResolver = new ReadResponseResolver(table_);
                     IAsyncCallback responseHandler;
                     if (replicas_.contains(FBUtilities.getLocalAddress()))
                         responseHandler = new DataRepairHandler(row_, replicas_.size(), readResponseResolver);
