@@ -180,12 +180,12 @@ class Inserter(Operation):
         for i in self.range:
             key = fmt % i
             if 'super' == options.cftype:
-                cfmap= {'Super1': [ColumnOrSuperColumn(super_column=s) for s in supers]}
+                cfmap= {key: {'Super1' : [Mutation(ColumnOrSuperColumn(super_column=s)) for s in supers]}}
             else:
-                cfmap = {'Standard1': [ColumnOrSuperColumn(column=c) for c in columns]}
+                cfmap = {key: {'Standard1': [Mutation(ColumnOrSuperColumn(column=c)) for c in columns]}}
             start = time.time()
             try:
-                self.cclient.batch_insert(key, cfmap, ConsistencyLevel.ONE)
+                self.cclient.batch_mutate(cfmap, ConsistencyLevel.ONE)
             except KeyboardInterrupt:
                 raise
             except Exception, e:
