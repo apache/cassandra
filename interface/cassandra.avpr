@@ -45,8 +45,8 @@
           "fields": [
             {"name": "start", "type": "bytes"},
             {"name": "finish", "type": "bytes"},
-            {"name": "reversed", "type": "boolean", "default": false},
-            {"name": "count", "type": "int", "default": 100},
+            {"name": "reversed", "type": "boolean"},
+            {"name": "count", "type": "int"},
             {"name": "bitmasks", "type": {"type": "array", "items": "bytes"}}
           ]
       },
