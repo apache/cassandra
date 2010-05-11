@@ -47,7 +47,6 @@ class TestRpcOperations(AvroTester):
         params['column']['name'] = 'c1'
         params['column']['value'] = 'v1'
         params['column']['timestamp'] = 0
-        params['column']['ttl'] = 0
         params['consistency_level'] = 'ONE'
         self.client.request('insert', params)
 
@@ -76,7 +75,6 @@ class TestRpcOperations(AvroTester):
         params['column']['name'] = i64(1)
         params['column']['value'] = 'v1'
         params['column']['timestamp'] = 0
-        params['column']['ttl'] = 0
         params['consistency_level'] = 'ONE'
         self.client.request('insert', params)
 

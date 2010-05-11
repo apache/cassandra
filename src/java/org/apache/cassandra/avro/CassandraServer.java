@@ -257,7 +257,7 @@ public class CassandraServer implements Cassandra {
                    column.name.array()),
                    column.value.array(),
                    column.timestamp,
-                   column.ttl);
+                   column.ttl == null ? 0 : column.ttl);
         }
         catch (MarshalException e)
         {
