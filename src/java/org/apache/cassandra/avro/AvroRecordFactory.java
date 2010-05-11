@@ -120,6 +120,11 @@ class ErrorFactory
         return newNotFoundException(new Utf8(why));
     }
     
+    static NotFoundException newNotFoundException()
+    {
+        return newNotFoundException(new Utf8());
+    }
+    
     static TimedOutException newTimedOutException(Utf8 why)
     {
         TimedOutException exception = new TimedOutException();

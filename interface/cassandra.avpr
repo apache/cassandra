@@ -25,7 +25,8 @@
           "fields": [
             {"name": "name", "type": "bytes"},
             {"name": "value", "type": "bytes"},
-            {"name": "timestamp", "type": "long"}
+            {"name": "timestamp", "type": "long"},
+            {"name": "ttl", "type": "int"}
         ]
       },
       {"name": "SuperColumn", "type": "record",
@@ -100,8 +101,7 @@
   "messages": {
     "get": {
         "request": [
-            {"name": "keyspace", "type": "string"},
-            {"name": "key", "type": "string"},
+            {"name": "key", "type": "bytes"},
             {"name": "column_path", "type": "ColumnPath"},
             {"name": "consistency_level", "type": "ConsistencyLevel"}
         ],

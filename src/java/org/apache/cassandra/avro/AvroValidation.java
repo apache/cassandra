@@ -32,6 +32,7 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.avro.ErrorFactory.newInvalidRequestException;
 import static org.apache.cassandra.avro.AvroRecordFactory.newColumnPath;
@@ -41,10 +42,22 @@ import static org.apache.cassandra.avro.AvroRecordFactory.newColumnPath;
  */
 public class AvroValidation {
     // FIXME: could use method in ThriftValidation
+    // FIXME: remove me
     static void validateKey(String key) throws InvalidRequestException
     {
         if (key.isEmpty())
             throw newInvalidRequestException("Key may not be empty");
+    }
+    
+    static void validateKey(byte[] key) throws InvalidRequestException
+    {
+        if (key == null || key.length == 0)
+            throw newInvalidRequestException("Key may not be empty");
+        
+        // check that key can be handled by FBUtilities.writeShortByteArray
+        if (key.length > FBUtilities.MAX_UNSIGNED_SHORT)
+            throw newInvalidRequestException("Key length of " + key.length +
+                    " is longer than maximum of " + FBUtilities.MAX_UNSIGNED_SHORT);
     }
     
     // FIXME: could use method in ThriftValidation

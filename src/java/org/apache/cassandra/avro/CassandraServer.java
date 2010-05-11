@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,7 +53,8 @@ import static org.apache.cassandra.avro.ErrorFactory.*;
 public class CassandraServer implements Cassandra {
     private static Logger logger = LoggerFactory.getLogger(CassandraServer.class);
 
-    private final static GenericArray<Column> EMPTY_SUBCOLUMNS = new GenericData.Array<Column>(0, Schema.parse("{\"type\":\"array\",\"items\":" + Column.SCHEMA$ + "}"));
+    private final static GenericArray<Column> EMPTY_SUBCOLUMNS = new GenericData.Array<Column>(0, Schema.createArray(Column.SCHEMA$));
+    private final static GenericArray<ColumnOrSuperColumn> EMPTY_COLUMNS = new GenericData.Array<ColumnOrSuperColumn>(0, Schema.createArray(ColumnOrSuperColumn.SCHEMA$));
     private final static Utf8 API_VERSION = new Utf8("0.0.0");
     
     private ThreadLocal<AccessLevel> loginDone = new ThreadLocal<AccessLevel>()
@@ -67,118 +69,44 @@ public class CassandraServer implements Cassandra {
     // Session keyspace.
     private ThreadLocal<String> curKeyspace = new ThreadLocal<String>();
 
-    public ColumnOrSuperColumn get(Utf8 keyspace, Utf8 key, ColumnPath columnPath, ConsistencyLevel consistencyLevel)
+    @Override
+    public ColumnOrSuperColumn get(ByteBuffer key, ColumnPath columnPath, ConsistencyLevel consistencyLevel)
     throws AvroRemoteException, InvalidRequestException, NotFoundException, UnavailableException, TimedOutException {
         if (logger.isDebugEnabled())
             logger.debug("get");
         
-        ColumnOrSuperColumn column = multigetInternal(keyspace.toString(), Arrays.asList(key.toString()), columnPath, consistencyLevel).get(key.toString());
-        
-        if ((column.column == null) && (column.super_column == null))
-        {
-            throw newNotFoundException("Path not found");
-        }
-        return column;
-    }
-
-    private Map<String, ColumnOrSuperColumn> multigetInternal(String keyspace, List<String> keys, ColumnPath cp, ConsistencyLevel level)
-    throws InvalidRequestException, UnavailableException, TimedOutException
-    {
-        AvroValidation.validateColumnPath(keyspace, cp);
+        AvroValidation.validateColumnPath(curKeyspace.get(), columnPath);
         
         // FIXME: This is repetitive.
         byte[] column, super_column;
-        column = cp.column == null ? null : cp.column.array();
-        super_column = cp.super_column == null ? null : cp.super_column.array();
+        column = columnPath.column == null ? null : columnPath.column.array();
+        super_column = columnPath.super_column == null ? null : columnPath.super_column.array();
         
-        QueryPath path = new QueryPath(cp.column_family.toString(), column == null ? null : super_column);
+        QueryPath path = new QueryPath(columnPath.column_family.toString(), column == null ? null : super_column);
         List<byte[]> nameAsList = Arrays.asList(column == null ? super_column : column);
-        List<ReadCommand> commands = new ArrayList<ReadCommand>();
-        for (String key: keys)
-        {
-            AvroValidation.validateKey(key);
-            // FIXME: string key
-            commands.add(new SliceByNamesReadCommand(keyspace, key.getBytes(UTF8), path, nameAsList));
-        }
+        AvroValidation.validateKey(key.array());
+        ReadCommand command = new SliceByNamesReadCommand(curKeyspace.get(), key.array(), path, nameAsList);
         
-        Map<String, ColumnOrSuperColumn> columnFamiliesMap = new HashMap<String, ColumnOrSuperColumn>();
-        Map<String, Collection<IColumn>> columnsMap = multigetColumns(commands, level);
+        Map<DecoratedKey<?>, ColumnFamily> cfamilies = readColumnFamily(Arrays.asList(command), consistencyLevel);
+        ColumnFamily cf = cfamilies.get(StorageService.getPartitioner().decorateKey(command.key));
         
-        for (ReadCommand command: commands)
-        {
-            ColumnOrSuperColumn columnorsupercolumn;
-
-            Collection<IColumn> columns = columnsMap.get(command.key);
-            if (columns == null)
-            {
-               columnorsupercolumn = new ColumnOrSuperColumn();
-            }
-            else
-            {
-                assert columns.size() == 1;
-                IColumn col = columns.iterator().next();
-
-
-                if (col.isMarkedForDelete())
-                {
-                    columnorsupercolumn = new ColumnOrSuperColumn();
-                }
-                else
-                {
-                    columnorsupercolumn = col instanceof org.apache.cassandra.db.Column
-                                          ? newColumnOrSuperColumn(newColumn(col.name(), col.value(), col.timestamp()))
-                                          : newColumnOrSuperColumn(newSuperColumn(col.name(), avronateSubColumns(col.getSubColumns())));
-                }
-
-            }
-            // FIXME: assuming string keys
-            columnFamiliesMap.put(new String(command.key, UTF8), columnorsupercolumn);
-        }
-
-        return columnFamiliesMap;
+        if (cf == null)
+            throw newNotFoundException();
+        
+        GenericArray<ColumnOrSuperColumn> avroColumns = avronateColumnFamily(cf, command.queryPath.superColumnName != null, false);
+        
+        if (avroColumns.size() == 0)
+            throw newNotFoundException();
+        
+        assert avroColumns.size() == 1;
+        return avroColumns.iterator().next();
     }
     
-    private Map<String, Collection<IColumn>> multigetColumns(List<ReadCommand> commands, ConsistencyLevel level)
-    throws InvalidRequestException, UnavailableException, TimedOutException
-    {
-        Map<DecoratedKey, ColumnFamily> cfamilies = readColumnFamily(commands, level);
-        Map<String, Collection<IColumn>> columnFamiliesMap = new HashMap<String, Collection<IColumn>>();
-        
-        for (ReadCommand command : commands)
-        {
-            ColumnFamily cfamily = cfamilies.get(StorageService.getPartitioner().decorateKey(command.key));
-            if (cfamily == null)
-                continue;
-
-            Collection<IColumn> columns = null;
-            if (command.queryPath.superColumnName != null)
-            {
-                IColumn column = cfamily.getColumn(command.queryPath.superColumnName);
-                if (column != null)
-                {
-                    columns = column.getSubColumns();
-                }
-            }
-            else
-            {
-                columns = cfamily.getSortedColumns();
-            }
-
-            if (columns != null && columns.size() != 0)
-            {
-                // FIXME: assuming string keys
-                columnFamiliesMap.put(new String(command.key, UTF8), columns);
-            }
-        }
-        
-        return columnFamiliesMap;
-    }
-    
-    protected Map<DecoratedKey, ColumnFamily> readColumnFamily(List<ReadCommand> commands, ConsistencyLevel consistency)
+    protected Map<DecoratedKey<?>, ColumnFamily> readColumnFamily(List<ReadCommand> commands, ConsistencyLevel consistency)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         // TODO - Support multiple column families per row, right now row only contains 1 column family
-        Map<DecoratedKey, ColumnFamily> columnFamilyKeyMap = new HashMap<DecoratedKey, ColumnFamily>();
+        Map<DecoratedKey<?>, ColumnFamily> columnFamilyKeyMap = new HashMap<DecoratedKey<?>, ColumnFamily>();
         
         if (consistency == ConsistencyLevel.ZERO)
             throw newInvalidRequestException("Consistency level zero may not be applied to read operations");
@@ -215,7 +143,7 @@ public class CassandraServer implements Cassandra {
     }
     
     // Don't playa hate, avronate.
-    public GenericArray<Column> avronateSubColumns(Collection<IColumn> columns)
+    private GenericArray<Column> avronateSubColumns(Collection<IColumn> columns)
     {
         if (columns == null || columns.isEmpty())
             return EMPTY_SUBCOLUMNS;
@@ -232,6 +160,77 @@ public class CassandraServer implements Cassandra {
         }
         
         return avroColumns;
+    }
+    
+    private GenericArray<ColumnOrSuperColumn> avronateColumns(Collection<IColumn> columns, boolean reverseOrder)
+    {
+        ArrayList<ColumnOrSuperColumn> avroColumns = new ArrayList<ColumnOrSuperColumn>(columns.size());
+        for (IColumn column : columns)
+        {
+            if (column.isMarkedForDelete())
+                continue;
+            
+            Column avroColumn = newColumn(column.name(), column.value(), column.timestamp());
+            
+            if (column instanceof ExpiringColumn)
+                avroColumn.ttl = ((ExpiringColumn)column).getTimeToLive();
+            
+            avroColumns.add(newColumnOrSuperColumn(avroColumn));
+        }
+        
+        if (reverseOrder)
+            Collections.reverse(avroColumns);
+        
+        // FIXME: Teach GenericData.Array how to reverse so that this iteration isn't necessary.
+        GenericArray<ColumnOrSuperColumn> avroArray = new GenericData.Array<ColumnOrSuperColumn>(avroColumns.size(), Schema.createArray(ColumnOrSuperColumn.SCHEMA$));
+        for (ColumnOrSuperColumn cosc : avroColumns)
+            avroArray.add(cosc);
+        
+        return avroArray;
+    }
+    
+    private GenericArray<ColumnOrSuperColumn> avronateSuperColumns(Collection<IColumn> columns, boolean reverseOrder)
+    {
+        ArrayList<ColumnOrSuperColumn> avroSuperColumns = new ArrayList<ColumnOrSuperColumn>(columns.size());
+        for (IColumn column: columns)
+        {
+            GenericArray<Column> subColumns = avronateSubColumns(column.getSubColumns());
+            if (subColumns.size() == 0)
+                continue;
+            SuperColumn superColumn = newSuperColumn(column.name(), subColumns);
+            avroSuperColumns.add(newColumnOrSuperColumn(superColumn));
+        }
+        
+        if (reverseOrder)
+            Collections.reverse(avroSuperColumns);
+        
+        // FIXME: Teach GenericData.Array how to reverse so that this iteration isn't necessary.
+        GenericArray<ColumnOrSuperColumn> avroArray = new GenericData.Array<ColumnOrSuperColumn>(avroSuperColumns.size(), Schema.createArray(ColumnOrSuperColumn.SCHEMA$));
+        for (ColumnOrSuperColumn cosc : avroSuperColumns)
+            avroArray.add(cosc);
+        
+        return avroArray;
+    }
+    
+    private GenericArray<ColumnOrSuperColumn> avronateColumnFamily(ColumnFamily cf, boolean subColumnsOnly, boolean reverseOrder)
+    {
+        if (cf == null || cf.getColumnsMap().size() == 0)
+            return EMPTY_COLUMNS;
+        
+        if (subColumnsOnly)
+        {
+            IColumn column = cf.getColumnsMap().values().iterator().next();
+            Collection<IColumn> subColumns = column.getSubColumns();
+            if (subColumns == null || subColumns.isEmpty())
+                return EMPTY_COLUMNS;
+            else
+                return avronateColumns(subColumns, reverseOrder);
+        }
+        
+        if (cf.isSuper())
+            return avronateSuperColumns(cf.getSortedColumns(), reverseOrder);
+        else
+            return avronateColumns(cf.getSortedColumns(), reverseOrder);
     }
 
     public Void insert(Utf8 keyspace, Utf8 key, ColumnPath cp, ByteBuffer value, long timestamp, ConsistencyLevel consistencyLevel)
