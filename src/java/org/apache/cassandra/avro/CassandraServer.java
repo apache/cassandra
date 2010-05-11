@@ -62,6 +62,15 @@ public class CassandraServer implements Cassandra {
     private final static GenericArray<ColumnOrSuperColumn> EMPTY_COLUMNS = new GenericData.Array<ColumnOrSuperColumn>(0, Schema.createArray(ColumnOrSuperColumn.SCHEMA$));
     private final static Utf8 API_VERSION = new Utf8("0.0.0");
     
+    // CfDef default values
+    private final static String D_CF_CFTYPE = "Standard";
+    private final static String D_CF_COMPTYPE = "BytesType";
+    private final static String D_CF_SUBCOMPTYPE = "";
+    private final static String D_CF_COMMENT = "";
+    private final static double D_CF_ROWCACHE = 0;
+    private final static boolean D_CF_PRELOAD_ROWCACHE = false;
+    private final static double D_CF_KEYCACHE = 200000;
+    
     private ThreadLocal<AccessLevel> loginDone = new ThreadLocal<AccessLevel>()
     {
         @Override
@@ -494,18 +503,21 @@ public class CassandraServer implements Cassandra {
             Collection<CFMetaData> cfDefs = new ArrayList<CFMetaData>((int)ksDef.cf_defs.size());
             for (CfDef cfDef : ksDef.cf_defs)
             {
-                String subComparator = cfDef.subcomparator_type.toString();
+                String cfType, compare, subCompare;
+                cfType = cfDef.column_type == null ? D_CF_CFTYPE : cfDef.column_type.toString();
+                compare = cfDef.comparator_type == null ? D_CF_COMPTYPE : cfDef.comparator_type.toString();
+                subCompare = cfDef.subcomparator_type == null ? D_CF_SUBCOMPTYPE : cfDef.subcomparator_type.toString();
                 
                 CFMetaData cfmeta = new CFMetaData(
                         cfDef.keyspace.toString(),
                         cfDef.name.toString(),
-                        ColumnFamilyType.create(cfDef.column_type.toString()),
-                        DatabaseDescriptor.getComparator(cfDef.comparator_type.toString()),
-                        subComparator.length() == 0 ? null : DatabaseDescriptor.getComparator(subComparator),
-                        cfDef.comment.toString(), 
-                        cfDef.row_cache_size,
-                        cfDef.preload_row_cache,
-                        cfDef.key_cache_size);
+                        ColumnFamilyType.create(cfType),
+                        DatabaseDescriptor.getComparator(compare),
+                        subCompare.length() == 0 ? null : DatabaseDescriptor.getComparator(subCompare),
+                        cfDef.comment == null ? D_CF_COMMENT : cfDef.comment.toString(), 
+                        cfDef.row_cache_size == null ? D_CF_ROWCACHE : cfDef.row_cache_size,
+                        cfDef.preload_row_cache == null ? D_CF_PRELOAD_ROWCACHE : cfDef.preload_row_cache,
+                        cfDef.key_cache_size == null ? D_CF_KEYCACHE : cfDef.key_cache_size);
                 cfDefs.add(cfmeta);
             }
             
