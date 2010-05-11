@@ -233,26 +233,26 @@ public class CassandraServer implements Cassandra {
             return avronateColumns(cf.getSortedColumns(), reverseOrder);
     }
 
-    public Void insert(Utf8 keyspace, Utf8 key, ColumnPath cp, ByteBuffer value, long timestamp, ConsistencyLevel consistencyLevel)
+    @Override
+    public Void insert(ByteBuffer key, ColumnParent parent, Column column, ConsistencyLevel consistencyLevel)
     throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
             logger.debug("insert");
 
-        // FIXME: This is repetitive.
-        byte[] column, super_column;
-        column = cp.column == null ? null : cp.column.array();
-        super_column = cp.super_column == null ? null : cp.super_column.array();
-        String column_family = cp.column_family.toString();
-        String keyspace_string = keyspace.toString();
+        AvroValidation.validateKey(key.array());
+        AvroValidation.validateColumnParent(curKeyspace.get(), parent);
+        AvroValidation.validateColumn(curKeyspace.get(), parent, column);
 
-        AvroValidation.validateKey(keyspace_string);
-        AvroValidation.validateColumnPath(keyspace_string, cp);
-
-        RowMutation rm = new RowMutation(keyspace_string, key.getBytes());
+        RowMutation rm = new RowMutation(curKeyspace.get(), key.array());
         try
         {
-            rm.add(new QueryPath(column_family, super_column, column), value.array(), timestamp);
+            rm.add(new QueryPath(parent.column_family.toString(),
+                   parent.super_column == null ? null : parent.super_column.array(),
+                   column.name.array()),
+                   column.value.array(),
+                   column.timestamp,
+                   column.ttl);
         }
         catch (MarshalException e)
         {

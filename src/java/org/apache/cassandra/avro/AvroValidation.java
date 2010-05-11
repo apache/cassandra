@@ -110,6 +110,19 @@ public class AvroValidation {
             validateColumns(keyspace, column_family, null, Arrays.asList(cp.super_column));
     }
     
+    static void validateColumnParent(String keyspace, ColumnParent parent) throws InvalidRequestException
+    {
+        validateKeyspace(keyspace);
+        String cfName = parent.column_family.toString();
+        String cfType = validateColumnFamily(keyspace, cfName);
+        
+        if (cfType.equals("Standard"))
+            if (parent.super_column != null)
+                throw newInvalidRequestException("super column specified for standard column family");
+        if (parent.super_column != null)
+            validateColumns(keyspace, cfName, null, Arrays.asList(parent.super_column));
+    }
+    
     // FIXME: could use method in ThriftValidation
     static void validateColumns(String keyspace, String cfName, byte[] superColumnName, Iterable<ByteBuffer> columnNames)
     throws InvalidRequestException
@@ -143,6 +156,22 @@ public class AvroValidation {
                 throw newInvalidRequestException(e.getMessage());
             }
         }
+    }
+    
+    static void validateColumns(String keyspace, ColumnParent parent, Iterable<ByteBuffer> columnNames)
+    throws InvalidRequestException
+    {
+        validateColumns(keyspace,
+                        parent.column_family.toString(),
+                        parent.super_column == null ? null : parent.super_column.array(),
+                        columnNames);
+    }
+    
+    static void validateColumn(String keyspace, ColumnParent parent, Column column)
+    throws InvalidRequestException
+    {
+        validateTtl(column);
+        validateColumns(keyspace, parent, Arrays.asList(column.name));
     }
 
     static void validateColumnOrSuperColumn(String keyspace, String cfName, ColumnOrSuperColumn cosc)
@@ -231,5 +260,11 @@ public class AvroValidation {
         {
             throw newInvalidRequestException("Mutation must have one ColumnOrSuperColumn, or one Deletion");
         }
+    }
+    
+    static void validateTtl(Column column) throws InvalidRequestException
+    {
+        if (column.ttl != null && column.ttl < 0)
+            throw newInvalidRequestException("ttl must be a positive value");
     }
 }

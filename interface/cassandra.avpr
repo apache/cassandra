@@ -26,7 +26,7 @@
             {"name": "name", "type": "bytes"},
             {"name": "value", "type": "bytes"},
             {"name": "timestamp", "type": "long"},
-            {"name": "ttl", "type": "int"}
+            {"name": "ttl", "type": ["int", "null"]}
         ]
       },
       {"name": "SuperColumn", "type": "record",
@@ -111,11 +111,9 @@
     },
     "insert": {
         "request": [
-            {"name": "keyspace", "type": "string"},
-            {"name": "key", "type": "string"},
-            {"name": "column_path", "type": "ColumnPath"},
-            {"name": "value", "type": "bytes"},
-            {"name": "timestamp", "type": "long"},
+            {"name": "key", "type": "bytes"},
+            {"name": "column_parent", "type": "ColumnParent"},
+            {"name": "column", "type": "Column"},
             {"name": "consistency_level", "type": "ConsistencyLevel"}
         ],
         "response": "null",
