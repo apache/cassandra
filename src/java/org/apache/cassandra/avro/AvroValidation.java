@@ -114,9 +114,9 @@ public class AvroValidation {
     {
         validateKeyspace(keyspace);
         String cfName = parent.column_family.toString();
-        String cfType = validateColumnFamily(keyspace, cfName);
+        ColumnFamilyType cfType = validateColumnFamily(keyspace, cfName);
         
-        if (cfType.equals("Standard"))
+        if (cfType == ColumnFamilyType.Standard)
             if (parent.super_column != null)
                 throw newInvalidRequestException("super column specified for standard column family");
         if (parent.super_column != null)

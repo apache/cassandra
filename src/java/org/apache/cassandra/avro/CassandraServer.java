@@ -499,7 +499,7 @@ public class CassandraServer implements Cassandra {
                 CFMetaData cfmeta = new CFMetaData(
                         cfDef.keyspace.toString(),
                         cfDef.name.toString(),
-                        ColumnFamily.getColumnType(cfDef.column_type.toString()),
+                        ColumnFamilyType.create(cfDef.column_type.toString()),
                         DatabaseDescriptor.getComparator(cfDef.comparator_type.toString()),
                         subComparator.length() == 0 ? null : DatabaseDescriptor.getComparator(subComparator),
                         cfDef.comment.toString(), 
