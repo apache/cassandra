@@ -71,6 +71,27 @@
             {"name": "deletion", "type": ["Deletion", "null"]}
           ]
       },
+      {"name": "CfDef", "type": "record",
+          "fields": [
+            {"name": "keyspace", "type": "string"},
+            {"name": "name", "type": "string"},
+            {"name": "column_type", "type": ["string", "null"]},
+            {"name": "comparator_type", "type": ["string", "null"]},
+            {"name": "subcomparator_type", "type": ["string", "null"]},
+            {"name": "comment", "type": ["string", "null"]},
+            {"name": "row_cache_size", "type": ["double", "null"]},
+            {"name": "preload_row_cache", "type": ["boolean", "null"]},
+            {"name": "key_cache_size", "type": ["double", "null"]}
+          ]
+      },
+      {"name": "KsDef", "type": "record",
+          "fields": [
+            {"name": "name", "type": "string"},
+            {"name": "strategy_class", "type": "string"},
+            {"name": "replication_factor", "type": "int"},
+            {"name": "cf_defs", "type": {"type": "array", "items": "CfDef"}}
+          ]
+      },
       {"name": "ConsistencyLevel", "type": "enum",
           "symbols": [
             "ZERO", "ONE", "QUORUM", "DCQUORUM", "DCQUORUMSYNC", "ALL"
@@ -151,6 +172,11 @@
     "get_api_version": {
         "request": [],
         "response": "string"
+    },
+    "system_add_keyspace": {
+        "request": [{"name": "ks_def", "type": "KsDef"}],
+        "response": "null",
+        "errors": ["InvalidRequestException"]
     },
     "set_keyspace": {
         "request": [{"name": "keyspace", "type": "string"}],

@@ -36,15 +36,20 @@ import org.apache.avro.generic.GenericArray;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.avro.util.Utf8;
+import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.db.migration.AddKeyspace;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.StorageProxy;
 import static org.apache.cassandra.utils.FBUtilities.UTF8;
 
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.AccessLevel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import static org.apache.cassandra.avro.AvroRecordFactory.*;
@@ -474,6 +479,63 @@ public class CassandraServer implements Cassandra {
             loginDone.set(AccessLevel.NONE);
         
         this.curKeyspace.set(keyspaceStr);
+        
+        return null;
+    }
+
+    @Override
+    public Void system_add_keyspace(KsDef ksDef) throws AvroRemoteException, InvalidRequestException
+    {
+        if (StageManager.getStage(StageManager.MIGRATION_STAGE).getQueue().size() > 0)
+            throw newInvalidRequestException("This node appears to be handling gossiped migrations.");
+        
+        try
+        {
+            Collection<CFMetaData> cfDefs = new ArrayList<CFMetaData>((int)ksDef.cf_defs.size());
+            for (CfDef cfDef : ksDef.cf_defs)
+            {
+                String subComparator = cfDef.subcomparator_type.toString();
+                
+                CFMetaData cfmeta = new CFMetaData(
+                        cfDef.keyspace.toString(),
+                        cfDef.name.toString(),
+                        ColumnFamily.getColumnType(cfDef.column_type.toString()),
+                        DatabaseDescriptor.getComparator(cfDef.comparator_type.toString()),
+                        subComparator.length() == 0 ? null : DatabaseDescriptor.getComparator(subComparator),
+                        cfDef.comment.toString(), 
+                        cfDef.row_cache_size,
+                        cfDef.preload_row_cache,
+                        cfDef.key_cache_size);
+                cfDefs.add(cfmeta);
+            }
+            
+            KSMetaData ksmeta = new KSMetaData(
+                    ksDef.name.toString(),
+                    (Class<? extends AbstractReplicationStrategy>)Class.forName(ksDef.strategy_class.toString()),
+                    (int)ksDef.replication_factor,
+                    cfDefs.toArray(new CFMetaData[cfDefs.size()]));
+            AddKeyspace add = new AddKeyspace(ksmeta);
+            add.apply();
+            add.announce();
+        }
+        catch (ClassNotFoundException e)
+        {
+            InvalidRequestException ire = newInvalidRequestException(e.getMessage());
+            ire.initCause(e);
+            throw ire;
+        }
+        catch (ConfigurationException e)
+        {
+            InvalidRequestException ire = newInvalidRequestException(e.getMessage());
+            ire.initCause(e);
+            throw ire;
+        }
+        catch (IOException e)
+        {
+            InvalidRequestException ire = newInvalidRequestException(e.getMessage());
+            ire.initCause(e);
+            throw ire;
+        }
         
         return null;
     }
