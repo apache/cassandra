@@ -167,6 +167,9 @@ endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
 # - preload_row_cache: If true, will populate row cache on startup.
 #   Defaults to false.
 #
+# NOTE: this keyspace definition is for demonstration purposes only.
+#       Cassandra will not load these definitions during startup. See
+#       http://wiki.apache.org/cassandra/FAQ#no_keyspaces for an explanation.
 keyspaces:
     - name: Keyspace1
       replica_placement_strategy: org.apache.cassandra.locator.RackUnawareStrategy
