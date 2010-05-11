@@ -43,6 +43,7 @@ import org.apache.cassandra.service.StorageProxy;
 import static org.apache.cassandra.utils.FBUtilities.UTF8;
 
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.thrift.AccessLevel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import static org.apache.cassandra.avro.AvroRecordFactory.*;
@@ -53,6 +54,18 @@ public class CassandraServer implements Cassandra {
 
     private final static GenericArray<Column> EMPTY_SUBCOLUMNS = new GenericData.Array<Column>(0, Schema.parse("{\"type\":\"array\",\"items\":" + Column.SCHEMA$ + "}"));
     private final static Utf8 API_VERSION = new Utf8("0.0.0");
+    
+    private ThreadLocal<AccessLevel> loginDone = new ThreadLocal<AccessLevel>()
+    {
+        @Override
+        protected AccessLevel initialValue()
+        {
+            return AccessLevel.NONE;
+        }
+    };
+    
+    // Session keyspace.
+    private ThreadLocal<String> curKeyspace = new ThreadLocal<String>();
 
     public ColumnOrSuperColumn get(Utf8 keyspace, Utf8 key, ColumnPath columnPath, ConsistencyLevel consistencyLevel)
     throws AvroRemoteException, InvalidRequestException, NotFoundException, UnavailableException, TimedOutException {
@@ -445,5 +458,24 @@ public class CassandraServer implements Cassandra {
     public Utf8 get_api_version() throws AvroRemoteException
     {
         return API_VERSION;
+    }
+
+    @Override
+    public Void set_keyspace(Utf8 keyspace) throws InvalidRequestException
+    {
+        String keyspaceStr = keyspace.toString();
+        
+        if (DatabaseDescriptor.getTableDefinition(keyspaceStr) == null)
+        {
+            throw newInvalidRequestException("Keyspace does not exist");
+        }
+        
+        // If switching, invalidate previous access level; force a new login.
+        if (this.curKeyspace.get() != null && !this.curKeyspace.get().equals(keyspaceStr))
+            loginDone.set(AccessLevel.NONE);
+        
+        this.curKeyspace.set(keyspaceStr);
+        
+        return null;
     }
 }

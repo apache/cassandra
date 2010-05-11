@@ -3,6 +3,11 @@
   "protocol":   "Cassandra",
 
   "types": [
+      {"name": "AccessLevel", "type": "enum",
+          "symbols": [
+            "NONE", "READONLY", "READWRITE", "FULL"
+          ]
+      },
       {"name": "ColumnPath", "type": "record",
           "fields": [
             {"name": "column_family", "type": "string"},
@@ -148,6 +153,11 @@
     "get_api_version": {
         "request": [],
         "response": "string"
+    },
+    "set_keyspace": {
+        "request": [{"name": "keyspace", "type": "string"}],
+        "response": "null",
+        "errors": ["InvalidRequestException"]
     }
   }
 }
