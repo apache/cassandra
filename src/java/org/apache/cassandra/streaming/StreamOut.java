@@ -71,6 +71,10 @@ public class StreamOut
     public static void transferRanges(InetAddress target, String tableName, Collection<Range> ranges, Runnable callback)
     {
         assert ranges.size() > 0;
+        
+        // this is a sneaking way of indicating target as a destination node. it is a lame way of doing it and will 
+        // change as part of fixing CASSANDRA-1076.
+        StreamOutManager.get(target);
 
         logger.debug("Beginning transfer process to " + target + " for ranges " + StringUtils.join(ranges, ", "));
 

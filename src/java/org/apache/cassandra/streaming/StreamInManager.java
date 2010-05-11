@@ -41,6 +41,9 @@ class StreamInManager
     public static final Map<InetAddress, IStreamComplete> streamNotificationHandlers_ = new HashMap<InetAddress, IStreamComplete>();
 
     public static final Multimap<InetAddress, PendingFile> activeStreams = Multimaps.synchronizedMultimap(HashMultimap.<InetAddress, PendingFile>create());
+    
+    /** keep track of which hosts this node has sent requests for ranges to. */
+    public static final Multimap<InetAddress, String> waitingForAnticompaction = Multimaps.synchronizedMultimap(HashMultimap.<InetAddress, String>create());
 
     public synchronized static PendingFile getStreamContext(InetAddress key)
     {        
@@ -70,6 +73,7 @@ class StreamInManager
         HashSet<InetAddress> set = new HashSet<InetAddress>();
         set.addAll(ctxBag_.keySet());
         set.addAll(activeStreams.keySet());
+        set.addAll(waitingForAnticompaction.keySet());
         return set;
     }
 
