@@ -91,8 +91,8 @@ public class MessagingService implements IFailureDetectionEventListener
          * which is the sum of the threads in the pool that adds shit into the table and the 
          * pool that retrives the callback from here.
         */
-        callbackMap_ = new ExpiringMap<String, IAsyncCallback>( 2 * DatabaseDescriptor.getRpcTimeout() );
-        taskCompletionMap_ = new ExpiringMap<String, IAsyncResult>( 2 * DatabaseDescriptor.getRpcTimeout() );
+        callbackMap_ = new ExpiringMap<String, IAsyncCallback>((long) (1.1 * DatabaseDescriptor.getRpcTimeout()));
+        taskCompletionMap_ = new ExpiringMap<String, IAsyncResult>((long) (1.1 * DatabaseDescriptor.getRpcTimeout()));
 
         // read executor puts messages to deserialize on this.
         messageDeserializerExecutor_ = new JMXEnabledThreadPoolExecutor(1,
