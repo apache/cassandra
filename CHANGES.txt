@@ -13,6 +13,7 @@
  * fix tombstone handling in sstable rows with no other data (CASSANDRA-1063)
  * fix size of row in spanned index entries (CASSANDRA-1056)
  * indicate stream sources/destinations prior to anticompaction (CASSANDRA-956)
+ * install json2sstable, sstable2json, and sstablekeys to Debian package
 
 
 0.6.1
