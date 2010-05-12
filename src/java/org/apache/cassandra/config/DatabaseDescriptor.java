@@ -388,9 +388,9 @@ public class DatabaseDescriptor
                 Table.open(def.name);
             }
             
-            // since we loaded definitions from local storage, log a warning if definitions exist in xml.
+            // since we loaded definitions from local storage, log a warning if definitions exist in yaml.
             
-            if (conf.keyspaces.size() > 0)
+            if (conf.keyspaces != null && conf.keyspaces.size() > 0)
                 logger.warn("Schema definitions were defined both locally and in " + STORAGE_CONF_FILE +
                     ". Definitions in " + STORAGE_CONF_FILE + " were ignored.");
             
