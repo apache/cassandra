@@ -19,15 +19,14 @@
 package org.apache.cassandra.utils;
 
 import java.util.*;
-import java.util.Map.Entry;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cache.ICacheExpungeHook;
-
 public class ExpiringMap<K, V>
 {
+    private static final Logger logger = LoggerFactory.getLogger(ExpiringMap.class);
+
     private class CacheableObject
     {
         private V value_;
@@ -74,7 +73,6 @@ public class ExpiringMap<K, V>
         @Override
         public void run()
         {
-            Map<K, V> expungedValues = new HashMap<K, V>();
             synchronized (cache_)
             {
                 Enumeration<K> e = cache_.keys();
@@ -84,37 +82,16 @@ public class ExpiringMap<K, V>
                     CacheableObject co = cache_.get(key);
                     if (co != null && co.isReadyToDie(expiration_))
                     {
-                        V v = co.getValue();
-                        if (null != v)
-                        {
-                            expungedValues.put(key, v);
-                        }
                         cache_.remove(key);
                     }
                 }
             }
-
-            /* Calling the hooks on the keys that have been expunged */
-            for (Entry<K, V> entry : expungedValues.entrySet())
-            {
-                K key = entry.getKey();
-                V value = entry.getValue();
-                
-                ICacheExpungeHook<K, V> hook = hooks_.remove(key);
-                if (hook != null)
-                {
-                    hook.callMe(key, value);
-                }
-            }
-            expungedValues.clear();
         }
     }
 
     private Hashtable<K, CacheableObject> cache_;
-    private Map<K, ICacheExpungeHook<K, V>> hooks_;
     private Timer timer_;
     private static int counter_ = 0;
-    private static final Logger LOGGER = LoggerFactory.getLogger(ExpiringMap.class);
 
     private void init(long expiration)
     {
@@ -124,7 +101,6 @@ public class ExpiringMap<K, V>
         }
 
         cache_ = new Hashtable<K, CacheableObject>();
-        hooks_ = new Hashtable<K, ICacheExpungeHook<K, V>>();
         timer_ = new Timer("CACHETABLE-TIMER-" + (++counter_), true);
         timer_.schedule(new CacheMonitor(expiration), expiration, expiration);
     }
@@ -146,12 +122,6 @@ public class ExpiringMap<K, V>
     public void put(K key, V value)
     {
         cache_.put(key, new CacheableObject(value));
-    }
-
-    public void put(K key, V value, ICacheExpungeHook<K, V> hook)
-    {
-        put(key, value);
-        hooks_.put(key, hook);
     }
 
     public V get(K key)

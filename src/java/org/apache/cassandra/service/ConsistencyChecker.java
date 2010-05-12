@@ -26,10 +26,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang.StringUtils;
 
-import org.apache.cassandra.cache.ICacheExpungeHook;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
@@ -40,9 +42,9 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.ExpiringMap;
 import org.apache.cassandra.utils.FBUtilities;
 
+import org.apache.cassandra.utils.WrappedRunnable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,7 +52,8 @@ import org.slf4j.LoggerFactory;
 class ConsistencyChecker implements Runnable
 {
     private static Logger logger_ = LoggerFactory.getLogger(ConsistencyChecker.class);
-    private static ExpiringMap<String, String> readRepairTable_ = new ExpiringMap<String, String>(DatabaseDescriptor.getRpcTimeout());
+
+    private static ScheduledExecutorService executor_ = new ScheduledThreadPoolExecutor(1); // TODO add JMX
 
     private final String table_;
     private final Row row_;
@@ -140,7 +143,7 @@ class ConsistencyChecker implements Runnable
         }
     }
 
-	static class DataRepairHandler implements IAsyncCallback, ICacheExpungeHook<String, String>
+	static class DataRepairHandler implements IAsyncCallback
 	{
 		private final Collection<Message> responses_ = new LinkedBlockingQueue<Message>();
 		private final IResponseResolver<Row> readResponseResolver_;
@@ -172,20 +175,15 @@ class ConsistencyChecker implements Runnable
 			responses_.add(message);
             if (responses_.size() == majority_)
             {
-                String messageId = message.getMessageId();
-                readRepairTable_.put(messageId, messageId, this);
-            }
-        }
-
-		public void callMe(String key, String value)
-		{
-            try
-			{
-				readResponseResolver_.resolve(responses_);
-            }
-            catch (Exception ex)
-            {
-                throw new RuntimeException(ex);
+                Runnable runnable = new WrappedRunnable()
+                {
+                    public void runMayThrow() throws IOException, DigestMismatchException
+                    {
+                        readResponseResolver_.resolve(responses_);
+                    }
+                };
+                // give remaining replicas until timeout to reply and get added to responses_
+                executor_.schedule(runnable, DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
             }
         }
     }
