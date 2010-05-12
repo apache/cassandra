@@ -189,7 +189,6 @@ public class CommitLog
             int bufferSize = (int)Math.min(file.length(), 32 * 1024 * 1024);
             BufferedRandomAccessFile reader = new BufferedRandomAccessFile(file.getAbsolutePath(), "r", bufferSize);
             final CommitLogHeader clHeader = CommitLogHeader.readCommitLogHeader(reader);
-            final Map<Pair<String, String>, Integer> cfIdMap = clHeader.getCfIdMap();
             /* seek to the lowest position where any CF has non-flushed data */
             int lowPos = CommitLogHeader.getLowestPosition(clHeader);
             if (lowPos == 0)
