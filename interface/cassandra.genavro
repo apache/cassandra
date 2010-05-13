@@ -127,4 +127,6 @@ protocol Cassandra {
     void system_add_keyspace(KsDef ks_def) throws InvalidRequestException;
 
     void set_keyspace(string keyspace) throws InvalidRequestException;
+
+    array<string> describe_keyspaces();
 }

@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericArray;
@@ -550,5 +551,18 @@ public class CassandraServer implements Cassandra {
         }
         
         return null;
+    }
+
+    @Override
+    public GenericArray<Utf8> describe_keyspaces() throws AvroRemoteException
+    {
+        Set<String> keyspaces = DatabaseDescriptor.getTables();
+        Schema schema = Schema.createArray(Schema.create(Schema.Type.STRING));
+        GenericArray<Utf8> avroResults = new GenericData.Array<Utf8>(keyspaces.size(), schema);
+        
+        for (String ksp : keyspaces)
+            avroResults.add(new Utf8(ksp));
+        
+        return avroResults;
     }
 }

@@ -182,6 +182,11 @@
         "request": [{"name": "keyspace", "type": "string"}],
         "response": "null",
         "errors": ["InvalidRequestException"]
+    },
+    "describe_keyspaces": {
+        "request": [],
+        "response": {"type": "array", "items": "string"},
+        "errors": []
     }
   }
 }

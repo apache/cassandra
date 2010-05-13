@@ -91,6 +91,11 @@ class TestRpcOperations(AvroTester):
         assert_cosc(cosc)
         assert_columns_match(cosc['column'], params['column'])
 
+    def test_describe_keyspaces(self):
+        "retrieving a list of all keyspaces"
+        keyspaces = self.client.request('describe_keyspaces', {})
+        assert 'Keyspace1' in keyspaces, "Keyspace1 not in " + keyspaces
+
     def test_get_api_version(self):
         "getting the remote api version string"
         vers = self.client.request('get_api_version', {})
