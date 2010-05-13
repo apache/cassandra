@@ -195,7 +195,7 @@ public class CassandraServer implements Cassandra {
         if (reverseOrder)
             Collections.reverse(avroColumns);
         
-        // FIXME: Teach GenericData.Array how to reverse so that this iteration isn't necessary.
+        // FIXME: update for AVRO-540 when upgrading to Avro 1.4.0
         GenericArray<ColumnOrSuperColumn> avroArray = new GenericData.Array<ColumnOrSuperColumn>(avroColumns.size(), Schema.createArray(ColumnOrSuperColumn.SCHEMA$));
         for (ColumnOrSuperColumn cosc : avroColumns)
             avroArray.add(cosc);
@@ -217,8 +217,8 @@ public class CassandraServer implements Cassandra {
         
         if (reverseOrder)
             Collections.reverse(avroSuperColumns);
-        
-        // FIXME: Teach GenericData.Array how to reverse so that this iteration isn't necessary.
+
+        // FIXME: update for AVRO-540 when upgrading to Avro 1.4.0
         GenericArray<ColumnOrSuperColumn> avroArray = new GenericData.Array<ColumnOrSuperColumn>(avroSuperColumns.size(), Schema.createArray(ColumnOrSuperColumn.SCHEMA$));
         for (ColumnOrSuperColumn cosc : avroSuperColumns)
             avroArray.add(cosc);
