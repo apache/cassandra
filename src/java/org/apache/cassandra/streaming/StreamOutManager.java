@@ -89,7 +89,7 @@ public class StreamOutManager
         if (manager != null)
             list.addAll(manager.getFiles());
         return list;
-    }
+    }    
 
     // we need sequential and random access to the files. hence, the map and the list.
     private final List<PendingFile> files = new ArrayList<PendingFile>();

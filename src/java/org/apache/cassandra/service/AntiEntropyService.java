@@ -623,7 +623,7 @@ public class AntiEntropyService
             {
                 throw new IOException("Streaming repair failed.", e);
             }
-            logger.debug("Finished streaming repair to " + remote + " for " + cf);
+            logger.info("Finished streaming repair to " + remote + " for " + cf);
         }
 
         public String toString()
