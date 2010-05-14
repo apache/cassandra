@@ -72,9 +72,8 @@ public class StreamOut
     {
         assert ranges.size() > 0;
         
-        // this is a sneaking way of indicating target as a destination node. it is a lame way of doing it and will 
-        // change as part of fixing CASSANDRA-1076.
-        StreamOutManager.get(target);
+        // this is so that this target shows up as a destination while anticompaction is happening.
+        StreamOutManager.pendingDestinations.add(target);
 
         logger.debug("Beginning transfer process to " + target + " for ranges " + StringUtils.join(ranges, ", "));
 
@@ -113,6 +112,7 @@ public class StreamOut
         finally
         {
             StreamingService.instance.setStatus(StreamingService.NOTHING);
+            StreamOutManager.remove(target);
         }
         if (callback != null)
             callback.run();

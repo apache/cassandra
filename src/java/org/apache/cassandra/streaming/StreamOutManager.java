@@ -48,6 +48,7 @@ public class StreamOutManager
     private static Logger logger = LoggerFactory.getLogger( StreamOutManager.class );
         
     private static ConcurrentMap<InetAddress, StreamOutManager> streamManagers = new ConcurrentHashMap<InetAddress, StreamOutManager>();
+    public static final Set<InetAddress> pendingDestinations = Collections.synchronizedSet(new HashSet<InetAddress>());
 
     public static StreamOutManager get(InetAddress to)
     {
@@ -60,11 +61,21 @@ public class StreamOutManager
         }
         return manager;
     }
+    
+    public static void remove(InetAddress to)
+    {
+        if (streamManagers.containsKey(to) && streamManagers.get(to).files.size() == 0)
+            streamManagers.remove(to);
+        pendingDestinations.remove(to);
+    }
 
     public static Set<InetAddress> getDestinations()
     {
         // the results of streamManagers.keySet() isn't serializable, so create a new set.
-        return new HashSet(streamManagers.keySet());
+        Set<InetAddress> hosts = new HashSet<InetAddress>();
+        hosts.addAll(streamManagers.keySet());
+        hosts.addAll(pendingDestinations);
+        return hosts;
     }
 
     // we need sequential and random access to the files. hence, the map and the list.
