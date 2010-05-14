@@ -171,24 +171,4 @@ public class StreamOutManager
     {
         return Collections.unmodifiableList(files);
     }
-
-    public class StreamFile extends File
-    {
-        private long ptr = 0;
-        public StreamFile(String path)
-        {
-            super(path);
-            ptr = 0;
-        }
-
-        private void update(long ptr)
-        {
-            this.ptr = ptr;
-        }
-
-        public long getPtr()
-        {
-            return ptr;
-        }
-    }
 }
