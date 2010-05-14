@@ -47,6 +47,7 @@ public class StreamOutManager
     private static Logger logger = Logger.getLogger( StreamOutManager.class );
         
     private static ConcurrentMap<InetAddress, StreamOutManager> streamManagers = new ConcurrentHashMap<InetAddress, StreamOutManager>();
+    public static final Set<InetAddress> pendingDestinations = Collections.synchronizedSet(new HashSet<InetAddress>());
 
     public static StreamOutManager get(InetAddress to)
     {
@@ -59,12 +60,36 @@ public class StreamOutManager
         }
         return manager;
     }
+       
+    public static void remove(InetAddress to)
+    {
+        if (streamManagers.containsKey(to) && streamManagers.get(to).files.size() == 0)
+            streamManagers.remove(to);
+        pendingDestinations.remove(to);
+    }
+    
 
     public static Set<InetAddress> getDestinations()
     {
         // the results of streamManagers.keySet() isn't serializable, so create a new set.
-        return new HashSet(streamManagers.keySet());
+        Set<InetAddress> hosts = new HashSet<InetAddress>();
+        hosts.addAll(streamManagers.keySet());
+        hosts.addAll(pendingDestinations);
+        return hosts;        
     }
+    
+    /** 
+     * this method exists so that we don't have to call StreamOutManager.get() which has a nasty side-effect of 
+     * indicating that we are streaming to a particular host.
+     **/     
+    public static List<PendingFile> getPendingFiles(InetAddress host)
+    {
+        List<PendingFile> list = new ArrayList<PendingFile>();
+        StreamOutManager manager = streamManagers.get(host);
+        if (manager != null)
+            list.addAll(manager.getFiles());
+        return list;
+    }    
 
     // we need sequential and random access to the files. hence, the map and the list.
     private final List<PendingFile> files = new ArrayList<PendingFile>();
@@ -145,25 +170,5 @@ public class StreamOutManager
     List<PendingFile> getFiles()
     {
         return Collections.unmodifiableList(files);
-    }
-
-    public class StreamFile extends File
-    {
-        private long ptr = 0;
-        public StreamFile(String path)
-        {
-            super(path);
-            ptr = 0;
-        }
-
-        private void update(long ptr)
-        {
-            this.ptr = ptr;
-        }
-
-        public long getPtr()
-        {
-            return ptr;
-        }
     }
 }
