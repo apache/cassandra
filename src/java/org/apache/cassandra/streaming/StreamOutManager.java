@@ -77,6 +77,19 @@ public class StreamOutManager
         hosts.addAll(pendingDestinations);
         return hosts;
     }
+    
+    /** 
+     * this method exists so that we don't have to call StreamOutManager.get() which has a nasty side-effect of 
+     * indicating that we are streaming to a particular host.
+     **/     
+    public static List<PendingFile> getPendingFiles(InetAddress host)
+    {
+        List<PendingFile> list = new ArrayList<PendingFile>();
+        StreamOutManager manager = streamManagers.get(host);
+        if (manager != null)
+            list.addAll(manager.getFiles());
+        return list;
+    }
 
     // we need sequential and random access to the files. hence, the map and the list.
     private final List<PendingFile> files = new ArrayList<PendingFile>();

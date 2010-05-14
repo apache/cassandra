@@ -57,13 +57,6 @@ public class StreamOut
     private static Logger logger = LoggerFactory.getLogger(StreamOut.class);
 
     static String TABLE_NAME = "STREAMING-TABLE-NAME";
-    
-    private static void updateStatus(String msg)
-    {
-        StreamingService.instance.setStatus(msg);
-        if (logger.isInfoEnabled() && !StreamingService.NOTHING.equals(msg))
-            logger.info(msg);
-    }
 
     /**
      * Split out files for all tables on disk locally for each range and then stream them to the target endpoint.
@@ -75,7 +68,7 @@ public class StreamOut
         // this is so that this target shows up as a destination while anticompaction is happening.
         StreamOutManager.pendingDestinations.add(target);
 
-        logger.debug("Beginning transfer process to " + target + " for ranges " + StringUtils.join(ranges, ", "));
+        logger.info("Beginning transfer process to " + target + " for ranges " + StringUtils.join(ranges, ", "));
 
         /*
          * (1) dump all the memtables to disk.
@@ -85,7 +78,7 @@ public class StreamOut
         try
         {
             Table table = Table.open(tableName);
-            updateStatus("Flushing memtables for " + tableName + "...");
+            logger.info("Flushing memtables for " + tableName + "...");
             for (Future f : table.flush())
             {
                 try
@@ -101,7 +94,7 @@ public class StreamOut
                     throw new RuntimeException(e);
                 }
             }
-            updateStatus("Performing anticompaction ...");
+            logger.info("Performing anticompaction ...");
             /* Get the list of files that need to be streamed */
             transferSSTables(target, table.forceAntiCompaction(ranges, target), tableName); // SSTR GC deletes the file when done
         }
@@ -111,7 +104,6 @@ public class StreamOut
         }
         finally
         {
-            StreamingService.instance.setStatus(StreamingService.NOTHING);
             StreamOutManager.remove(target);
         }
         if (callback != null)
@@ -135,22 +127,21 @@ public class StreamOut
                 pendingFiles[i++] = new PendingFile(desc, component, filelen);
             }
         }
-        if (logger.isDebugEnabled())
-            logger.debug("Stream context metadata " + StringUtils.join(pendingFiles, ", " + " " + sstables.size() + " sstables."));
+        logger.info("Stream context metadata " + StringUtils.join(pendingFiles, ", " + " " + sstables.size() + " sstables."));
         StreamOutManager.get(target).addFilesToStream(pendingFiles);
         StreamInitiateMessage biMessage = new StreamInitiateMessage(pendingFiles);
         Message message = StreamInitiateMessage.makeStreamInitiateMessage(biMessage);
         message.setHeader(StreamOut.TABLE_NAME, table.getBytes());
-        updateStatus("Sending a stream initiate message to " + target + " ...");
+        logger.info("Sending a stream initiate message to " + target + " ...");
         MessagingService.instance.sendOneWay(message, target);
 
         if (pendingFiles.length > 0)
         {
-            StreamingService.instance.setStatus("Waiting for transfer to " + target + " to complete");
+            logger.info("Waiting for transfer to " + target + " to complete");
             StreamOutManager.get(target).waitForStreamCompletion();
             // todo: it would be good if there were a dafe way to remove the StreamManager for target.
             // (StreamManager will delete the streamed file on completion.)
-            updateStatus("Done with transfer to " + target);
+            logger.info("Done with transfer to " + target);
         }
     }
 

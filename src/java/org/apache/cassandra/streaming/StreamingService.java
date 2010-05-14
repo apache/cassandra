@@ -35,8 +35,6 @@ public class StreamingService implements StreamingServiceMBean
     private static final Logger logger = LoggerFactory.getLogger(StreamingService.class);
     public static final String MBEAN_OBJECT_NAME = "org.apache.cassandra.streaming:type=StreamingService";
     public static final StreamingService instance = new StreamingService();
-    static final String NOTHING = "Nothing is happening";
-    private String status = NOTHING;
 
     private StreamingService()
     {
@@ -50,16 +48,29 @@ public class StreamingService implements StreamingServiceMBean
             throw new RuntimeException(e);
         }
     }
-    
-    public void setStatus(String s)
-    {
-        assert s != null;
-        status = s;
-    }
 
     public String getStatus()
     {
-        return status;
+        StringBuilder sb = new StringBuilder();
+        sb.append("Receiving from:\n");
+        for (InetAddress source : StreamInManager.getSources())
+        {
+            sb.append(String.format(" %s:\n", source.getHostAddress()));
+            for (PendingFile pf : StreamInManager.getIncomingFiles(source))
+            {
+                sb.append(String.format("  %s %d/%d\n", pf.getFilename(), pf.getPtr(), pf.getExpectedBytes()));
+            }
+        }
+        sb.append("Sending to:\n");
+        for (InetAddress dest : StreamOutManager.getDestinations())
+        {
+            sb.append(String.format(" %s:\n", dest.getHostAddress()));
+            for (PendingFile pf : StreamOutManager.getPendingFiles(dest))
+            {
+                sb.append(String.format("  %s %d/%d\n", pf.getFilename(), pf.getPtr(), pf.getExpectedBytes()));
+            }
+        }
+        return sb.toString();
     }
 
     /** hosts receiving outgoing streams. */
