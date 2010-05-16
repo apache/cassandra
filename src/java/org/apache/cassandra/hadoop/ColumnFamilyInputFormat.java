@@ -119,7 +119,7 @@ public class ColumnFamilyInputFormat extends InputFormat<String, SortedMap<byte[
         }
 
         assert splits.size() > 0;
-        
+        Collections.shuffle(splits, new Random(System.nanoTime()));
         return splits;
     }
 
