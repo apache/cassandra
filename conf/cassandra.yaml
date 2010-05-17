@@ -5,9 +5,9 @@
 # name of the cluster
 cluster_name: 'Test Cluster'
 
-# Set to true to make new [non-seed] nodes automatically migrate the
-# right data to themselves.
-auto_bootstrap: false
+# Set to true to make new [non-seed] nodes automatically migrate data
+# to themselves from the pre-existing nodes in the cluster.
+auto_bootstrap: true
 
 # See http://wiki.apache.org/cassandra/HintedHandoff
 hinted_handoff_enabled: true
