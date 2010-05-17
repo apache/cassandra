@@ -60,37 +60,30 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
         boolean bOtherRack = false;
         while (endpoints.size() < replicas && iter.hasNext())
         {
-            try
-            {
-                AbstractRackAwareSnitch snitch = (AbstractRackAwareSnitch)snitch_;
+            AbstractRackAwareSnitch snitch = (AbstractRackAwareSnitch)snitch_;
 
-                // First try to find one in a different data center
-                Token t = iter.next();
-                if (!snitch.getDatacenter(metadata.getEndpoint(primaryToken)).equals(snitch.getDatacenter(metadata.getEndpoint(t))))
-                {
-                    // If we have already found something in a diff datacenter no need to find another
-                    if (!bDataCenter)
-                    {
-                        endpoints.add(metadata.getEndpoint(t));
-                        bDataCenter = true;
-                    }
-                    continue;
-                }
-                // Now  try to find one on a different rack
-                if (!snitch.getRack(metadata.getEndpoint(primaryToken)).equals(snitch.getRack(metadata.getEndpoint(t))) &&
-                    snitch.getDatacenter(metadata.getEndpoint(primaryToken)).equals(snitch.getDatacenter(metadata.getEndpoint(t))))
-                {
-                    // If we have already found something in a diff rack no need to find another
-                    if (!bOtherRack)
-                    {
-                        endpoints.add(metadata.getEndpoint(t));
-                        bOtherRack = true;
-                    }
-                }
-            }
-            catch (UnknownHostException e)
+            // First try to find one in a different data center
+            Token t = iter.next();
+            if (!snitch.getDatacenter(metadata.getEndpoint(primaryToken)).equals(snitch.getDatacenter(metadata.getEndpoint(t))))
             {
-                throw new RuntimeException(e);
+                // If we have already found something in a diff datacenter no need to find another
+                if (!bDataCenter)
+                {
+                    endpoints.add(metadata.getEndpoint(t));
+                    bDataCenter = true;
+                }
+                continue;
+            }
+            // Now  try to find one on a different rack
+            if (!snitch.getRack(metadata.getEndpoint(primaryToken)).equals(snitch.getRack(metadata.getEndpoint(t))) &&
+                snitch.getDatacenter(metadata.getEndpoint(primaryToken)).equals(snitch.getDatacenter(metadata.getEndpoint(t))))
+            {
+                // If we have already found something in a diff rack no need to find another
+                if (!bOtherRack)
+                {
+                    endpoints.add(metadata.getEndpoint(t));
+                    bOtherRack = true;
+                }
             }
 
         }

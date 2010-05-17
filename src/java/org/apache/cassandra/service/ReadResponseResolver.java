@@ -32,7 +32,6 @@ import java.net.InetAddress;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.config.DatabaseDescriptor;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,17 +44,12 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 {
 	private static Logger logger_ = LoggerFactory.getLogger(ReadResponseResolver.class);
     private final String table;
-    private final int responseCount;
 
-    public ReadResponseResolver(String table, int responseCount)
+    public ReadResponseResolver(String table)
     {
-        assert 1 <= responseCount && responseCount <= DatabaseDescriptor.getReplicationFactor(table)
-            : "invalid response count " + responseCount;
-
-        this.responseCount = responseCount;
         this.table = table;
     }
-
+    
     /*
       * This method for resolving read data should look at the timestamps of each
       * of the columns that are read and should pick up columns with the latest
@@ -170,9 +164,6 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 
 	public boolean isDataPresent(Collection<Message> responses)
 	{
-        if (responses.size() < responseCount)
-            return false;
-
         boolean isDataPresent = false;
         for (Message response : responses)
         {

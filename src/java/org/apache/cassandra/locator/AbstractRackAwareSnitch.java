@@ -37,7 +37,7 @@ public abstract class AbstractRackAwareSnitch implements IEndpointSnitch
      * @return string of rack
      * @throws UnknownHostException
      */
-    abstract public String getRack(InetAddress endpoint) throws UnknownHostException;
+    abstract public String getRack(InetAddress endpoint);
 
     /**
      * Return the data center for which an endpoint resides in
@@ -45,7 +45,7 @@ public abstract class AbstractRackAwareSnitch implements IEndpointSnitch
      * @return string of data center
      * @throws UnknownHostException
      */
-    abstract public String getDatacenter(InetAddress endpoint) throws UnknownHostException;
+    abstract public String getDatacenter(InetAddress endpoint);
 
     /**
      * Sorts the <tt>Collection</tt> of node addresses by proximity to the given address
@@ -72,35 +72,28 @@ public abstract class AbstractRackAwareSnitch implements IEndpointSnitch
         {
             public int compare(InetAddress a1, InetAddress a2)
             {
-                try
-                {
-                    if (address.equals(a1) && !address.equals(a2))
-                        return -1;
-                    if (address.equals(a2) && !address.equals(a1))
-                        return 1;
+                if (address.equals(a1) && !address.equals(a2))
+                    return -1;
+                if (address.equals(a2) && !address.equals(a1))
+                    return 1;
 
-                    String addressRack = getRack(address);
-                    String a1Rack = getRack(a1);
-                    String a2Rack = getRack(a2);
-                    if (addressRack.equals(a1Rack) && !addressRack.equals(a2Rack))
-                        return -1;
-                    if (addressRack.equals(a2Rack) && !addressRack.equals(a1Rack))
-                        return 1;
+                String addressRack = getRack(address);
+                String a1Rack = getRack(a1);
+                String a2Rack = getRack(a2);
+                if (addressRack.equals(a1Rack) && !addressRack.equals(a2Rack))
+                    return -1;
+                if (addressRack.equals(a2Rack) && !addressRack.equals(a1Rack))
+                    return 1;
 
-                    String addressDatacenter = getDatacenter(address);
-                    String a1Datacenter = getDatacenter(a1);
-                    String a2Datacenter = getDatacenter(a2);
-                    if (addressDatacenter.equals(a1Datacenter) && !addressDatacenter.equals(a2Datacenter))
-                        return -1;
-                    if (addressDatacenter.equals(a2Datacenter) && !addressDatacenter.equals(a1Datacenter))
-                        return 1;
+                String addressDatacenter = getDatacenter(address);
+                String a1Datacenter = getDatacenter(a1);
+                String a2Datacenter = getDatacenter(a2);
+                if (addressDatacenter.equals(a1Datacenter) && !addressDatacenter.equals(a2Datacenter))
+                    return -1;
+                if (addressDatacenter.equals(a2Datacenter) && !addressDatacenter.equals(a1Datacenter))
+                    return 1;
 
-                    return 0;
-                }
-                catch (UnknownHostException e)
-                {
-                    throw new RuntimeException(e);
-                }
+                return 0;
             }
         });
         return addresses;

@@ -26,56 +26,70 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.AbstractRackAwareSnitch;
+import org.apache.cassandra.locator.DatacenterShardStrategy;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
 
+import com.google.common.collect.Multimap;
+
 /**
- * This class will basically will block for the replication factor which is
- * provided in the input map. it will block till we recive response from (DC, n)
- * nodes.
+ * This class blocks for a quorum of responses _in the local datacenter only_ (CL.DCQUORUM).
  */
 public class DatacenterWriteResponseHandler extends WriteResponseHandler
 {
-    private final AtomicInteger blockFor;
-    private final AbstractRackAwareSnitch endpointsnitch;
-    private final InetAddress localEndpoint;
+    private static final AbstractRackAwareSnitch snitch = (AbstractRackAwareSnitch) DatabaseDescriptor.getEndpointSnitch();
 
-    public DatacenterWriteResponseHandler(int blockFor, String table)
+    private static final String localdc;
+    static
     {
-        // Response is been managed by the map so the waitlist size really doesnt matter.
-        super(blockFor, table);
-        this.blockFor = new AtomicInteger(blockFor);
-        endpointsnitch = (AbstractRackAwareSnitch) DatabaseDescriptor.getEndpointSnitch();
-        localEndpoint = FBUtilities.getLocalAddress();
+        localdc = snitch.getDatacenter(FBUtilities.getLocalAddress());
     }
+
+    public DatacenterWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
+    {
+        super(writeEndpoints, hintedEndpoints, consistencyLevel, table);
+        assert consistencyLevel == ConsistencyLevel.DCQUORUM;
+    }
+
+
+    @Override
+    protected int determineBlockFor(String table)
+    {
+        DatacenterShardStrategy strategy = (DatacenterShardStrategy) StorageService.instance.getReplicationStrategy(table);
+        return (strategy.getReplicationFactor(localdc, table) / 2) + 1;
+    }
+
 
     @Override
     public void response(Message message)
     {
-        //Is optimal to check if same datacenter than comparing Arrays.
-        int b = -1;
-        try
+        if (message == null || localdc.equals(snitch.getDatacenter(message.getFrom())))
         {
-            if (endpointsnitch.getDatacenter(localEndpoint).equals(endpointsnitch.getDatacenter(message.getFrom())))
-            {
-                b = blockFor.decrementAndGet();
-            }
+            if (responses.decrementAndGet() == 0)
+                condition.signal();
         }
-        catch (UnknownHostException e)
+    }
+    
+    @Override
+    public void assureSufficientLiveNodes() throws UnavailableException
+    {
+        int liveNodes = 0;
+        for (InetAddress destination : writeEndpoints)
         {
-            throw new RuntimeException(e);
+            if (localdc.equals(snitch.getDatacenter(destination)))
+                liveNodes++;
         }
-        responses.add(message);
-        if (b == 0)
+
+        if (liveNodes < responses.get())
         {
-            //Singnal when Quorum is recived.
-            condition.signal();
+            throw new UnavailableException();
         }
-        if (logger.isDebugEnabled())
-            logger.debug("Processed Message: " + message.toString());
     }
 }

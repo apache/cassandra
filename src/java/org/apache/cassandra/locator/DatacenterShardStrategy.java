@@ -30,17 +30,20 @@ import java.net.UnknownHostException;
 import java.util.*;
 import java.util.Map.Entry;
 
+import com.google.common.collect.Multimap;
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * This Replication Strategy takes a property file that gives the intended
  * replication factor in each datacenter.  The sum total of the datacenter
  * replication factor values should be equal to the keyspace replication
  * factor.
- * <p>
+ * <p/>
  * So for example, if the keyspace replication factor is 6, the
  * datacenter replication factors could be 3, 2, and 1 - so 3 replicas in
  * one datacenter, 2 in another, and 1 in another - totalling 6.
@@ -50,91 +53,74 @@ import org.apache.cassandra.thrift.ConsistencyLevel;
  */
 public class DatacenterShardStrategy extends AbstractReplicationStrategy
 {
-    private static Map<String, List<Token>> dcMap = new HashMap<String, List<Token>>();
-    private static Map<String, Integer> dcReplicationFactor = new HashMap<String, Integer>();
-    private static Map<String, Integer> quorumRepFactor = new HashMap<String, Integer>();
-    private static int locQFactor = 0;
-    ArrayList<Token> tokens;
-
-    private List<InetAddress> localEndpoints = new ArrayList<InetAddress>();
-    private static final String DATACENTER_PROPERTIES_FILENAME = "datacenters.properties";
-
-    private List<InetAddress> getLocalEndpoints()
-    {
-        return new ArrayList<InetAddress>(localEndpoints);
-    }
-
-    private Map<String, Integer> getQuorumRepFactor()
-    {
-        return new HashMap<String, Integer>(quorumRepFactor);
-    }
+    private static final String DATACENTER_PROPERTY_FILENAME = "datacenters.properties";
+    private Map<String, List<Token>> dcTokens;
+    private int tokensize = 0;
+    private AbstractRackAwareSnitch snitch;
+    private Map<String, Map<String, Integer>> datacenters = new HashMap<String, Map<String, Integer>>();
 
     private synchronized void loadEndpoints(TokenMetadata metadata) throws UnknownHostException
     {
-        this.tokens = new ArrayList<Token>(metadata.sortedTokens());
-        String localDC = ((AbstractRackAwareSnitch)snitch_).getDatacenter(InetAddress.getLocalHost());
-        dcMap = new HashMap<String, List<Token>>();
-        for (Token token : this.tokens)
+        String localDC = snitch.getDatacenter(DatabaseDescriptor.getListenAddress());
+        assert (localDC != null) : "Invalid configuration, Coldn't find the host: " + FBUtilities.getLocalAddress();
+        // re -init the map
+        dcTokens = new HashMap<String, List<Token>>();
+        List<Token> tokens = metadata.sortedTokens();
+        for (Token token : tokens)
         {
-            InetAddress endpoint = metadata.getEndpoint(token);
-            String dataCenter = ((AbstractRackAwareSnitch)snitch_).getDatacenter(endpoint);
-            if (dataCenter.equals(localDC))
-            {
-                localEndpoints.add(endpoint);
-            }
-            List<Token> lst = dcMap.get(dataCenter);
+            InetAddress endPoint = metadata.getEndpoint(token);
+            String dataCenter = snitch.getDatacenter(endPoint);
+            // add tokens to dcmap.
+            List<Token> lst = dcTokens.get(dataCenter);
             if (lst == null)
             {
                 lst = new ArrayList<Token>();
             }
             lst.add(token);
-            dcMap.put(dataCenter, lst);
+            dcTokens.put(dataCenter, lst);
         }
-        for (Entry<String, List<Token>> entry : dcMap.entrySet())
+        for (Entry<String, List<Token>> entry : dcTokens.entrySet())
         {
             List<Token> valueList = entry.getValue();
             Collections.sort(valueList);
-            dcMap.put(entry.getKey(), valueList);
+            dcTokens.put(entry.getKey(), valueList);
         }
-        for (Entry<String, Integer> entry : dcReplicationFactor.entrySet())
-        {
-            String datacenter = entry.getKey();
-            int qFactor = (entry.getValue() / 2 + 1);
-            quorumRepFactor.put(datacenter, qFactor);
-            if (datacenter.equals(localDC))
-            {
-                locQFactor = qFactor;
-            }
-        }
+        tokensize = tokens.size();
     }
 
     public DatacenterShardStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch) throws ConfigurationException
     {
         super(tokenMetadata, snitch);
-        if (!(snitch instanceof AbstractRackAwareSnitch))
-        {
+        if ((!(snitch instanceof AbstractRackAwareSnitch)))
             throw new IllegalArgumentException("DatacenterShardStrategy requires a rack-aware endpointsnitch");
-        }
+        this.snitch = (AbstractRackAwareSnitch)snitch;
 
-        // load replication factors for each DC
         ClassLoader loader = PropertyFileSnitch.class.getClassLoader();
-        URL scpurl = loader.getResource(DATACENTER_PROPERTIES_FILENAME);
+        URL scpurl = loader.getResource(DATACENTER_PROPERTY_FILENAME);
         if (scpurl == null)
-            throw new ConfigurationException("unable to locate " + DATACENTER_PROPERTIES_FILENAME);
-
-        String rackPropertyFilename = scpurl.getFile();
+        {
+            throw new RuntimeException("unable to locate " + DATACENTER_PROPERTY_FILENAME);
+        }
+        String dcPropertyFile = scpurl.getFile();
         try
         {
-            Properties p = new Properties();
-            p.load(new FileReader(rackPropertyFilename));
-            for (Entry<Object, Object> entry : p.entrySet())
+            Properties props = new Properties();
+            props.load(new FileReader(dcPropertyFile));
+            for (Object key : props.keySet())
             {
-                dcReplicationFactor.put((String)entry.getKey(), Integer.valueOf((String)entry.getValue()));
+                String[] keys = ((String)key).split(":");
+                Map<String, Integer> map = datacenters.get(keys[0]);
+                if (null == map)
+                {
+                    map = new HashMap<String, Integer>();
+                }
+                map.put(keys[1], Integer.parseInt((String)props.get(key)));
+                datacenters.put(keys[0], map);
             }
         }
         catch (IOException ioe)
         {
-            throw new ConfigurationException("Could not process " + rackPropertyFilename, ioe);
+            throw new IOError(ioe);
         }
     }
 
@@ -142,7 +128,7 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
     {
         try
         {
-            return getNaturalEndpointsInternal(token, metadata);
+            return getNaturalEndpointsInternal(token, metadata, table);
         }
         catch (IOException e)
         {
@@ -150,37 +136,37 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
         }
     }
 
-    private ArrayList<InetAddress> getNaturalEndpointsInternal(Token searchToken, TokenMetadata metadata) throws IOException
+    private ArrayList<InetAddress> getNaturalEndpointsInternal(Token searchToken, TokenMetadata metadata, String table) throws UnknownHostException
     {
         ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>();
 
-        if (metadata.sortedTokens().size() == 0)
+        if (metadata.sortedTokens().isEmpty())
             return endpoints;
 
-        if (null == tokens || tokens.size() != metadata.sortedTokens().size())
-        {
+        if (tokensize != metadata.sortedTokens().size())
             loadEndpoints(metadata);
-        }
 
-        for (String dc : dcMap.keySet())
+        for (String dc : dcTokens.keySet())
         {
-            int replicas_ = dcReplicationFactor.get(dc);
-            ArrayList<InetAddress> forloopReturn = new ArrayList<InetAddress>(replicas_);
-            List<Token> tokens = dcMap.get(dc);
+            int replicas = getReplicationFactor(dc, table);
+        	int dcEpCount = 0;
+            List<Token> tokens = dcTokens.get(dc);
             boolean bOtherRack = false;
             boolean doneDataCenterItr;
             // Add the node at the index by default
             Iterator<Token> iter = TokenMetadata.ringIterator(tokens, searchToken);
             InetAddress primaryHost = metadata.getEndpoint(iter.next());
-            forloopReturn.add(primaryHost);
-
-            while (forloopReturn.size() < replicas_ && iter.hasNext())
+            endpoints.add(primaryHost);
+            dcEpCount++;
+            
+            while (dcEpCount < replicas && iter.hasNext())
             {
                 Token t = iter.next();
-                InetAddress endpointOfInterest = metadata.getEndpoint(t);
-                if (forloopReturn.size() < replicas_ - 1)
+                InetAddress endPointOfInterest = metadata.getEndpoint(t);
+                if (dcEpCount < replicas - 1)
                 {
-                    forloopReturn.add(endpointOfInterest);
+                    endpoints.add(endPointOfInterest);
+                    dcEpCount++;
                     continue;
                 }
                 else
@@ -191,10 +177,10 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
                 // Now try to find one on a different rack
                 if (!bOtherRack)
                 {
-                    AbstractRackAwareSnitch snitch = (AbstractRackAwareSnitch)snitch_;
-                    if (!snitch.getRack(primaryHost).equals(snitch.getRack(endpointOfInterest)))
+                    if (!snitch.getRack(primaryHost).equals(snitch.getRack(endPointOfInterest)))
                     {
-                        forloopReturn.add(metadata.getEndpoint(t));
+                        endpoints.add(metadata.getEndpoint(t));
+                        dcEpCount++;
                         bOtherRack = true;
                     }
                 }
@@ -210,22 +196,32 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
             * exit. Otherwise just loop through the list and add until we
             * have N nodes.
             */
-            if (forloopReturn.size() < replicas_)
+            if (dcEpCount < replicas)
             {
                 iter = TokenMetadata.ringIterator(tokens, searchToken);
-                while (forloopReturn.size() < replicas_ && iter.hasNext())
+                while (dcEpCount < replicas && iter.hasNext())
                 {
                     Token t = iter.next();
-                    if (!forloopReturn.contains(metadata.getEndpoint(t)))
+                    if (!endpoints.contains(metadata.getEndpoint(t)))
                     {
-                        forloopReturn.add(metadata.getEndpoint(t));
+                    	endpoints.add(metadata.getEndpoint(t));
+                    	dcEpCount++;
                     }
                 }
             }
-            endpoints.addAll(forloopReturn);
         }
 
         return endpoints;
+    }
+
+    public int getReplicationFactor(String dc, String table)
+    {
+        return datacenters.get(table).get(dc);
+    }
+
+    public Set<String> getDatacenters(String table)
+    {
+        return datacenters.get(table).keySet();
     }
 
     /**
@@ -235,21 +231,31 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
      * return a DCQRH with a map of all the DC rep factor.
      */
     @Override
-    public WriteResponseHandler getWriteResponseHandler(int blockFor, ConsistencyLevel consistency_level, String table)
+    public AbstractWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistency_level, String table)
     {
         if (consistency_level == ConsistencyLevel.DCQUORUM)
         {
-            return new DatacenterWriteResponseHandler(locQFactor, table);
+            // block for in this context will be localnodes block.
+            return new DatacenterWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level, table);
         }
         else if (consistency_level == ConsistencyLevel.DCQUORUMSYNC)
         {
-            return new DatacenterSyncWriteResponseHandler(getQuorumRepFactor(), table);
+            return new DatacenterSyncWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level, table);
         }
-        return super.getWriteResponseHandler(blockFor, consistency_level, table);
+        return super.getWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level, table);
     }
 
-    int getReplicationFactor(String datacenter)
+    /**
+     * This method will generate the WRH object and returns. If the Consistency
+     * level is DCQUORUM/DCQUORUMSYNC then it will return a DCQRH.
+     */
+    @Override
+    public QuorumResponseHandler getQuorumResponseHandler(IResponseResolver responseResolver, ConsistencyLevel consistencyLevel, String table)
     {
-        return dcReplicationFactor.get(datacenter);
+        if (consistencyLevel.equals(ConsistencyLevel.DCQUORUM) || consistencyLevel.equals(ConsistencyLevel.DCQUORUMSYNC))
+        {
+            return new DatacenterQuorumResponseHandler(responseResolver, consistencyLevel, table);
+        }
+        return super.getQuorumResponseHandler(responseResolver, consistencyLevel, table);
     }
 }

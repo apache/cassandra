@@ -78,7 +78,7 @@ public class PropertyFileSnitch extends AbstractRackAwareSnitch implements Prope
      * @return a array of string with the first index being the data center and the second being the rack
      */
     public String[] getEndpointInfo(InetAddress endpoint) {
-        String key = endpoint.toString();
+        String key = endpoint.getHostAddress();
         String value = hostProperties.getProperty(key);
         if (value == null)
         {

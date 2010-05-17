@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.service;
 
-import java.util.Collection;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -27,7 +25,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.SimpleCondition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,67 +34,42 @@ public class TruncateResponseHandler implements IAsyncCallback
     protected static final Logger logger = LoggerFactory.getLogger(TruncateResponseHandler.class);
     protected final SimpleCondition condition = new SimpleCondition();
     private final int responseCount;
-    protected final Collection<Message> responses;
-    protected AtomicInteger localResponses = new AtomicInteger(0);
+    protected AtomicInteger responses = new AtomicInteger(0);
     private final long startTime;
 
-    public TruncateResponseHandler(int responseCount, String table)
+    public TruncateResponseHandler(int responseCount)
     {
         // at most one node per range can bootstrap at a time, and these will be added to the write until
         // bootstrap finishes (at which point we no longer need to write to the old ones).
         assert 1 <= responseCount: "invalid response count " + responseCount;
 
         this.responseCount = responseCount;
-        responses = new LinkedBlockingQueue<Message>();
         startTime = System.currentTimeMillis();
     }
 
     public void get() throws TimeoutException
     {
+        long timeout = DatabaseDescriptor.getRpcTimeout() - (System.currentTimeMillis() - startTime);
+        boolean success;
         try
         {
-            long timeout = DatabaseDescriptor.getRpcTimeout() - (System.currentTimeMillis() - startTime);
-            boolean success;
-            try
-            {
-                success = condition.await(timeout, TimeUnit.MILLISECONDS);
-            }
-            catch (InterruptedException ex)
-            {
-                throw new AssertionError(ex);
-            }
-
-            if (!success)
-            {
-                throw new TimeoutException("Operation timed out - received only " + responses.size() + localResponses + " responses");
-            }
+            success = condition.await(timeout, TimeUnit.MILLISECONDS); // TODO truncate needs a much longer timeout
         }
-        finally
+        catch (InterruptedException ex)
         {
-            for (Message response : responses)
-            {
-                MessagingService.removeRegisteredCallback(response.getMessageId());
-            }
+            throw new AssertionError(ex);
+        }
+
+        if (!success)
+        {
+            throw new TimeoutException("Truncate timed out - received only " + responses.get() + " responses");
         }
     }
 
     public void response(Message message)
     {
-        responses.add(message);
-        maybeSignal();
-    }
-
-    public void localResponse()
-    {
-        localResponses.addAndGet(1);
-        maybeSignal();
-    }
-
-    private void maybeSignal()
-    {
-        if (responses.size() + localResponses.get() >= responseCount)
-        {
+        responses.incrementAndGet();
+        if (responses.get() >= responseCount)
             condition.signal();
-        }
     }
 }

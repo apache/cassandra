@@ -24,73 +24,92 @@ package org.apache.cassandra.service;
  */
 
 
+import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.AbstractRackAwareSnitch;
+import org.apache.cassandra.locator.DatacenterShardStrategy;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.thrift.UnavailableException;
+
+import com.google.common.collect.Multimap;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
- * This class will block for the replication factor which is
- * provided in the input map. it will block till we recive response from
- * n nodes in each of our data centers.
+ * This class blocks for a quorum of responses _in all datacenters_ (CL.DCQUORUMSYNC).
  */
-public class DatacenterSyncWriteResponseHandler extends WriteResponseHandler
+public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHandler
 {
-    private final Map<String, Integer> dcResponses = new HashMap<String, Integer>();
-    private final Map<String, Integer> responseCounts;
-    private final AbstractRackAwareSnitch endpointSnitch;
+    private static final AbstractRackAwareSnitch snitch = (AbstractRackAwareSnitch) DatabaseDescriptor.getEndpointSnitch();
 
-    public DatacenterSyncWriteResponseHandler(Map<String, Integer> responseCounts, String table)
+    private static final String localdc;
+    static
     {
-        // Response is been managed by the map so make it 1 for the superclass.
-        super(1, table);
-        this.responseCounts = responseCounts;
-        endpointSnitch = (AbstractRackAwareSnitch) DatabaseDescriptor.getEndpointSnitch();
+        localdc = snitch.getDatacenter(FBUtilities.getLocalAddress());
     }
 
-    @Override
-    // synchronized for the benefit of dcResponses and responseCounts.  "responses" itself
-    // is inherited from WRH and is concurrent.
-    // TODO can we use concurrent structures instead?
-    public synchronized void response(Message message)
+	private final DatacenterShardStrategy strategy;
+    private HashMap<String, AtomicInteger> responses = new HashMap<String, AtomicInteger>();
+    private final String table;
+
+    public DatacenterSyncWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
-        try
+        // Response is been managed by the map so make it 1 for the superclass.
+        super(writeEndpoints, hintedEndpoints, consistencyLevel);
+        assert consistencyLevel == ConsistencyLevel.DCQUORUM;
+
+        this.table = table;
+        strategy = (DatacenterShardStrategy) StorageService.instance.getReplicationStrategy(table);
+
+        for (String dc : strategy.getDatacenters(table))
         {
-            String dataCenter = endpointSnitch.getDatacenter(message.getFrom());
-            Object blockFor = responseCounts.get(dataCenter);
-            // If this DC needs to be blocked then do the below.
-            if (blockFor != null)
-            {
-                Integer quorumCount = dcResponses.get(dataCenter);
-                if (quorumCount == null)
-                {
-                    // Intialize and recognize the first response
-                    dcResponses.put(dataCenter, 1);
-                }
-                else if ((Integer) blockFor > quorumCount)
-                {
-                    // recognize the consequtive responses.
-                    dcResponses.put(dataCenter, quorumCount + 1);
-                }
-                else
-                {
-                    // No need to wait on it anymore so remove it.
-                    responseCounts.remove(dataCenter);
-                }
-            }
+            int rf = strategy.getReplicationFactor(dc, table);
+            responses.put(dc, new AtomicInteger((rf / 2) + 1));
         }
-        catch (UnknownHostException e)
+    }
+
+    public void response(Message message)
+    {
+        String dataCenter = message == null
+                            ? localdc
+                            : snitch.getDatacenter(message.getFrom());
+
+        responses.get(dataCenter).getAndDecrement();
+
+        for (AtomicInteger i : responses.values())
         {
-            throw new RuntimeException(e);
+            if (0 < i.get())
+                return;
         }
-        responses.add(message);
-        // If done then the response count will be empty
-        if (responseCounts.isEmpty())
+
+        // all the quorum conditionas are met
+        condition.signal();
+    }
+
+    public void assureSufficientLiveNodes() throws UnavailableException
+    {   
+		Map<String, AtomicInteger> dcEndpoints = new HashMap<String, AtomicInteger>();
+        for (String dc: strategy.getDatacenters(table))
+            dcEndpoints.put(dc, new AtomicInteger());
+        for (InetAddress destination : hintedEndpoints.keySet())
         {
-            condition.signal();
+            assert writeEndpoints.contains(destination);
+            // figure out the destination dc
+            String destinationDC = snitch.getDatacenter(destination);
+            dcEndpoints.get(destinationDC).incrementAndGet();
+        }
+
+        // Throw exception if any of the DC doesnt have livenodes to accept write.
+        for (String dc: strategy.getDatacenters(table)) 
+        {
+        	if (dcEndpoints.get(dc).get() != responses.get(dc).get())
+                throw new UnavailableException();
         }
     }
 }
