@@ -99,22 +99,28 @@ public class SSTableTracker implements Iterable<SSTableReader>
     public synchronized void updateCacheSizes()
     {
         long keys = estimatedKeys();
-        
-        int keyCacheSize = DatabaseDescriptor.getKeysCachedFor(ksname, cfname, keys);
-        if (keyCacheSize != keyCache.getCapacity())
+
+        if (!keyCache.isCapacityModified())
         {
-            // update cache size for the new key volume
-            if (logger.isDebugEnabled())
-                logger.debug("key cache capacity for " + cfname + " is " + keyCacheSize);
-            keyCache.setCapacity(keyCacheSize);
+            int keyCacheSize = DatabaseDescriptor.getKeysCachedFor(ksname, cfname, keys);
+            if (keyCacheSize != keyCache.getCapacity())
+            {
+                // update cache size for the new key volume
+                if (logger.isDebugEnabled())
+                    logger.debug("key cache capacity for " + cfname + " is " + keyCacheSize);
+                keyCache.setCapacity(keyCacheSize);
+            }
         }
 
-        int rowCacheSize = DatabaseDescriptor.getRowsCachedFor(ksname, cfname, keys);
-        if (rowCacheSize != rowCache.getCapacity())
-        {   
-            if (logger.isDebugEnabled())
-                logger.debug("row cache capacity for " + cfname + " is " + rowCacheSize);
-            rowCache.setCapacity(rowCacheSize);
+        if (!rowCache.isCapacityModified())
+        {
+            int rowCacheSize = DatabaseDescriptor.getRowsCachedFor(ksname, cfname, keys);
+            if (rowCacheSize != rowCache.getCapacity())
+            {
+                if (logger.isDebugEnabled())
+                    logger.debug("row cache capacity for " + cfname + " is " + rowCacheSize);
+                rowCache.setCapacity(rowCacheSize);
+            }
         }
     }
 
