@@ -33,6 +33,7 @@ public class InstrumentedCache<K, V>
     private final AtomicLong hits = new AtomicLong(0);
     private final AtomicLong lastRequests = new AtomicLong(0);
     private final AtomicLong lastHits = new AtomicLong(0);
+    private volatile boolean capacityModified;
 
     public InstrumentedCache(int capacity)
     {
@@ -69,10 +70,16 @@ public class InstrumentedCache<K, V>
         return capacity;
     }
 
+    public boolean isCapacityModified()
+    {
+        return capacityModified;
+    }
+
     public void setCapacity(int capacity)
     {
         map.setCapacity(capacity);
         this.capacity = capacity;
+        capacityModified = true;
      }
 
     public int getSize()

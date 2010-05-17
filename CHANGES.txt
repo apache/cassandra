@@ -18,6 +18,8 @@
    finished (CASSANDRA-1076)
  * added Collections.shuffle(splits) before returning the splits in 
    ColumnFamilyInputFormat (CASSANDRA-1096)
+ * do not recalculate cache capacity post-compaction if it's been manually 
+   modified (CASSANDRA-1079)
 
 
 0.6.1
