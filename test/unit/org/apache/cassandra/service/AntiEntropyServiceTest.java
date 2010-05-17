@@ -41,6 +41,7 @@ import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.DatabaseDescriptorTest;
 import org.apache.cassandra.Util;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -75,6 +76,16 @@ public class AntiEntropyServiceTest extends CleanupHelper
         tmd.updateNormalToken(StorageService.getPartitioner().getRandomToken(), LOCAL);
         tmd.updateNormalToken(StorageService.getPartitioner().getMinimumToken(), REMOTE);
         assert tmd.isMember(REMOTE);
+    }
+
+    @After
+    public void teardown() throws Exception
+    {
+        // block for AES to clear before we teardown the token metadata for the next test.
+        StageManager.getStage(StageManager.AE_SERVICE_STAGE).submit(new Runnable()
+        {
+            public void run() { /* no-op */ }
+        }).get();
     }
 
     @Test
