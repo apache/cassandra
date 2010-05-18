@@ -135,11 +135,11 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
             int replicas = getReplicationFactor(dc, table);
             List<Token> tokens = dcTokens.get(dc);
             boolean bOtherRack = false;
-            boolean doneDataCenterItr;
             // Add the node at the index by default
             Iterator<Token> iter = TokenMetadata.ringIterator(tokens, searchToken);
-            InetAddress primaryHost = metadata.getEndpoint(iter.next());
-            endpoints.add(primaryHost);
+            InetAddress initialDCHost = metadata.getEndpoint(iter.next());
+            assert initialDCHost != null;
+            endpoints.add(initialDCHost);
 
             while (endpoints.size() < replicas && iter.hasNext())
             {
@@ -150,22 +150,18 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
                     endpoints.add(endPointOfInterest);
                     continue;
                 }
-                else
-                {
-                    doneDataCenterItr = true;
-                }
 
                 // Now try to find one on a different rack
                 if (!bOtherRack)
                 {
-                    if (!snitch.getRack(primaryHost).equals(snitch.getRack(endPointOfInterest)))
+                    if (!snitch.getRack(initialDCHost).equals(snitch.getRack(endPointOfInterest)))
                     {
                         endpoints.add(metadata.getEndpoint(t));
                         bOtherRack = true;
                     }
                 }
                 // If both already found exit loop.
-                if (doneDataCenterItr && bOtherRack)
+                if (bOtherRack)
                     break;
             }
 
