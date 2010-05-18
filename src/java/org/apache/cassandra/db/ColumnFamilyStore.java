@@ -79,14 +79,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                Runtime.getRuntime().availableProcessors(),
                                                Integer.MAX_VALUE,
                                                TimeUnit.SECONDS,
-                                               new LinkedBlockingQueue<Runnable>(1 + Runtime.getRuntime().availableProcessors()),
+                                               new LinkedBlockingQueue<Runnable>(Runtime.getRuntime().availableProcessors()),
                                                new NamedThreadFactory("FLUSH-SORTER-POOL"));
     private static ExecutorService flushWriter_
             = new JMXEnabledThreadPoolExecutor(1,
                                                DatabaseDescriptor.getAllDataFileLocations().length,
                                                Integer.MAX_VALUE,
                                                TimeUnit.SECONDS,
-                                               new LinkedBlockingQueue<Runnable>(1 + 2 * DatabaseDescriptor.getAllDataFileLocations().length),
+                                               new LinkedBlockingQueue<Runnable>(DatabaseDescriptor.getAllDataFileLocations().length),
                                                new NamedThreadFactory("FLUSH-WRITER-POOL"));
     private static ExecutorService commitLogUpdater_ = new JMXEnabledThreadPoolExecutor("MEMTABLE-POST-FLUSHER");
 
