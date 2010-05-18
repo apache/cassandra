@@ -565,4 +565,10 @@ public class CassandraServer implements Cassandra {
         
         return avroResults;
     }
+
+    @Override
+    public Utf8 describe_cluster_name() throws AvroRemoteException
+    {
+        return new Utf8(DatabaseDescriptor.getClusterName());
+    }
 }

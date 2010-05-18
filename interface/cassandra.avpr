@@ -187,6 +187,11 @@
         "request": [],
         "response": {"type": "array", "items": "string"},
         "errors": []
+    },
+    "describe_cluster_name": {
+        "request": [],
+        "response": "string",
+        "errors": []
     }
   }
 }

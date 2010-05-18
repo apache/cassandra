@@ -129,4 +129,6 @@ protocol Cassandra {
     void set_keyspace(string keyspace) throws InvalidRequestException;
 
     array<string> describe_keyspaces();
+
+    string describe_cluster_name();
 }

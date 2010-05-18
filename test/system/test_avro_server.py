@@ -96,6 +96,11 @@ class TestRpcOperations(AvroTester):
         keyspaces = self.client.request('describe_keyspaces', {})
         assert 'Keyspace1' in keyspaces, "Keyspace1 not in " + keyspaces
 
+    def test_describe_cluster_name(self):
+        "retrieving the cluster name"
+        name = self.client.request('describe_cluster_name', {})
+        assert 'Test' in name, "'Test' not in '" + name + "'"
+
     def test_get_api_version(self):
         "getting the remote api version string"
         vers = self.client.request('get_api_version', {})
