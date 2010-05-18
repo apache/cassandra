@@ -469,11 +469,6 @@ public class CassandraServer implements Cassandra {
         return null;
     }
 
-    public Utf8 get_api_version() throws AvroRemoteException
-    {
-        return API_VERSION;
-    }
-
     @Override
     public Void set_keyspace(Utf8 keyspace) throws InvalidRequestException
     {
@@ -570,5 +565,12 @@ public class CassandraServer implements Cassandra {
     public Utf8 describe_cluster_name() throws AvroRemoteException
     {
         return new Utf8(DatabaseDescriptor.getClusterName());
+    }
+    
+
+    @Override
+    public Utf8 describe_version() throws AvroRemoteException
+    {
+        return API_VERSION;
     }
 }

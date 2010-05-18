@@ -169,10 +169,6 @@
         "errors": ["InvalidRequestException", "UnavailableException",
             "TimedOutException"]
     },
-    "get_api_version": {
-        "request": [],
-        "response": "string"
-    },
     "system_add_keyspace": {
         "request": [{"name": "ks_def", "type": "KsDef"}],
         "response": "null",
@@ -189,6 +185,11 @@
         "errors": []
     },
     "describe_cluster_name": {
+        "request": [],
+        "response": "string",
+        "errors": []
+    },
+    "describe_version": {
         "request": [],
         "response": "string",
         "errors": []

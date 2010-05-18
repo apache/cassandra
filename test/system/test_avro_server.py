@@ -101,9 +101,9 @@ class TestRpcOperations(AvroTester):
         name = self.client.request('describe_cluster_name', {})
         assert 'Test' in name, "'Test' not in '" + name + "'"
 
-    def test_get_api_version(self):
+    def test_describe_version(self):
         "getting the remote api version string"
-        vers = self.client.request('get_api_version', {})
+        vers = self.client.request('describe_version', {})
         assert isinstance(vers, (str,unicode)), "api version is not a string"
         segs = vers.split('.')
         assert len(segs) == 3 and len([i for i in segs if i.isdigit()]) == 3, \
