@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.io.IOError;
 import java.net.InetAddress;
 import java.net.URL;
-import java.net.UnknownHostException;
 import java.util.*;
 import java.util.Map.Entry;
 
@@ -55,38 +54,8 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
 {
     private static final String DATACENTER_PROPERTY_FILENAME = "datacenters.properties";
     private Map<String, List<Token>> dcTokens;
-    private int tokensize = 0;
     private AbstractRackAwareSnitch snitch;
     private Map<String, Map<String, Integer>> datacenters = new HashMap<String, Map<String, Integer>>();
-
-    private synchronized void loadEndpoints(TokenMetadata metadata) throws UnknownHostException
-    {
-        String localDC = snitch.getDatacenter(DatabaseDescriptor.getListenAddress());
-        assert (localDC != null) : "Invalid configuration, Coldn't find the host: " + FBUtilities.getLocalAddress();
-        // re -init the map
-        dcTokens = new HashMap<String, List<Token>>();
-        List<Token> tokens = metadata.sortedTokens();
-        for (Token token : tokens)
-        {
-            InetAddress endPoint = metadata.getEndpoint(token);
-            String dataCenter = snitch.getDatacenter(endPoint);
-            // add tokens to dcmap.
-            List<Token> lst = dcTokens.get(dataCenter);
-            if (lst == null)
-            {
-                lst = new ArrayList<Token>();
-            }
-            lst.add(token);
-            dcTokens.put(dataCenter, lst);
-        }
-        for (Entry<String, List<Token>> entry : dcTokens.entrySet())
-        {
-            List<Token> valueList = entry.getValue();
-            Collections.sort(valueList);
-            dcTokens.put(entry.getKey(), valueList);
-        }
-        tokensize = tokens.size();
-    }
 
     public DatacenterShardStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch) throws ConfigurationException
     {
@@ -122,34 +91,48 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
         {
             throw new IOError(ioe);
         }
+
+        loadEndpoints(tokenMetadata);
     }
 
-    public ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata, String table)
+    private synchronized void loadEndpoints(TokenMetadata metadata) throws ConfigurationException
     {
-        try
+        String localDC = snitch.getDatacenter(DatabaseDescriptor.getListenAddress());
+        if (localDC == null)
+            throw new ConfigurationException("Invalid datacenter configuration; couldn't find local host " + FBUtilities.getLocalAddress());
+
+        dcTokens = new HashMap<String, List<Token>>();
+        for (Token token : metadata.sortedTokens())
         {
-            return getNaturalEndpointsInternal(token, metadata, table);
+            InetAddress endPoint = metadata.getEndpoint(token);
+            String dataCenter = snitch.getDatacenter(endPoint);
+            // add tokens to dcmap.
+            List<Token> lst = dcTokens.get(dataCenter);
+            if (lst == null)
+            {
+                lst = new ArrayList<Token>();
+            }
+            lst.add(token);
+            dcTokens.put(dataCenter, lst);
         }
-        catch (IOException e)
+        for (Entry<String, List<Token>> entry : dcTokens.entrySet())
         {
-            throw new IOError(e);
+            List<Token> valueList = entry.getValue();
+            Collections.sort(valueList);
+            dcTokens.put(entry.getKey(), valueList);
         }
     }
 
-    private ArrayList<InetAddress> getNaturalEndpointsInternal(Token searchToken, TokenMetadata metadata, String table) throws UnknownHostException
+    public ArrayList<InetAddress> getNaturalEndpoints(Token searchToken, TokenMetadata metadata, String table)
     {
         ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>();
 
         if (metadata.sortedTokens().isEmpty())
             return endpoints;
 
-        if (tokensize != metadata.sortedTokens().size())
-            loadEndpoints(metadata);
-
         for (String dc : dcTokens.keySet())
         {
             int replicas = getReplicationFactor(dc, table);
-        	int dcEpCount = 0;
             List<Token> tokens = dcTokens.get(dc);
             boolean bOtherRack = false;
             boolean doneDataCenterItr;
@@ -157,16 +140,14 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
             Iterator<Token> iter = TokenMetadata.ringIterator(tokens, searchToken);
             InetAddress primaryHost = metadata.getEndpoint(iter.next());
             endpoints.add(primaryHost);
-            dcEpCount++;
-            
-            while (dcEpCount < replicas && iter.hasNext())
+
+            while (endpoints.size() < replicas && iter.hasNext())
             {
                 Token t = iter.next();
                 InetAddress endPointOfInterest = metadata.getEndpoint(t);
-                if (dcEpCount < replicas - 1)
+                if (endpoints.size() < replicas - 1)
                 {
                     endpoints.add(endPointOfInterest);
-                    dcEpCount++;
                     continue;
                 }
                 else
@@ -180,15 +161,12 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
                     if (!snitch.getRack(primaryHost).equals(snitch.getRack(endPointOfInterest)))
                     {
                         endpoints.add(metadata.getEndpoint(t));
-                        dcEpCount++;
                         bOtherRack = true;
                     }
                 }
                 // If both already found exit loop.
                 if (doneDataCenterItr && bOtherRack)
-                {
                     break;
-                }
             }
 
             /*
@@ -196,17 +174,14 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
             * exit. Otherwise just loop through the list and add until we
             * have N nodes.
             */
-            if (dcEpCount < replicas)
+            if (endpoints.size() < replicas)
             {
                 iter = TokenMetadata.ringIterator(tokens, searchToken);
-                while (dcEpCount < replicas && iter.hasNext())
+                while (endpoints.size() < replicas && iter.hasNext())
                 {
                     Token t = iter.next();
                     if (!endpoints.contains(metadata.getEndpoint(t)))
-                    {
                     	endpoints.add(metadata.getEndpoint(t));
-                    	dcEpCount++;
-                    }
                 }
             }
         }

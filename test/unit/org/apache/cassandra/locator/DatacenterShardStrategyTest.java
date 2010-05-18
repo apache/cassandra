@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.HashSet;
 
 import javax.xml.parsers.ParserConfigurationException;
 
@@ -33,6 +34,7 @@ public class DatacenterShardStrategyTest
         // Query for the natural hosts
         ArrayList<InetAddress> endpoints = strategy.getNaturalEndpoints(new StringToken("123"), table);
         assert 6 == endpoints.size();
+        assert 6 == new HashSet<InetAddress>(endpoints).size(); // ensure uniqueness
     }
 
     public void createDummyTokens(TokenMetadata metadata) throws UnknownHostException
