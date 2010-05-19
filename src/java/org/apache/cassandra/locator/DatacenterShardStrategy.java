@@ -145,25 +145,32 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
 
             // find replicas on unique racks
             int replicas = getReplicationFactor(dc, table);
-            while (endpoints.size() < replicas && iter.hasNext())
+            int localEndpoints = 1;
+            while (localEndpoints < replicas && iter.hasNext())
             {
                 Token t = iter.next();
                 InetAddress endpoint = metadata.getEndpoint(t);
                 if (!racks.contains(snitch.getRack(endpoint)))
+                {
                     endpoints.add(endpoint);
+                    localEndpoints++;
+                }
             }
 
-            if (endpoints.size() == replicas)
+            if (localEndpoints == replicas)
                 continue;
 
             // if not enough unique racks were found, re-loop and add other endpoints
             iter = TokenMetadata.ringIterator(tokens, searchToken);
             iter.next(); // skip the first one since we already know it's used
-            while (endpoints.size() < replicas && iter.hasNext())
+            while (localEndpoints < replicas && iter.hasNext())
             {
                 Token t = iter.next();
                 if (!endpoints.contains(metadata.getEndpoint(t)))
+                {
+                    localEndpoints++;
                     endpoints.add(metadata.getEndpoint(t));
+                }
             }
         }
 
