@@ -51,6 +51,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
@@ -173,8 +174,8 @@ public class CassandraBulkLoader {
             columnFamilies.add(columnFamily);
 
             /* Get serialized message to send to cluster */
-            message = createMessage(keyspace, key.toString(), cfName, columnFamilies);
-            for (InetAddress endpoint: StorageService.instance.getNaturalEndpoints(keyspace, key.toString()))
+            message = createMessage(keyspace, key.getBytes(), cfName, columnFamilies);
+            for (InetAddress endpoint: StorageService.instance.getNaturalEndpoints(keyspace, key.getBytes()))
             {
                 /* Send message to end point */
                 MessagingService.instance.sendOneWay(message, endpoint);
@@ -222,7 +223,7 @@ public class CassandraBulkLoader {
         }
     }
 
-    public static Message createMessage(String Keyspace, String Key, String CFName, List<ColumnFamily> ColumnFamiles)
+    public static Message createMessage(String Keyspace, byte[] Key, String CFName, List<ColumnFamily> ColumnFamiles)
     {
         ColumnFamily baseColumnFamily;
         DataOutputBuffer bufOut = new DataOutputBuffer();
@@ -234,7 +235,8 @@ public class CassandraBulkLoader {
         baseColumnFamily = new ColumnFamily(CFName,
                                             ColumnFamilyType.Standard,
                                             DatabaseDescriptor.getComparator(Keyspace, CFName),
-                                            DatabaseDescriptor.getSubComparator(Keyspace, CFName));
+                                            DatabaseDescriptor.getSubComparator(Keyspace, CFName),
+                                            CFMetaData.getId(Keyspace, CFName));
         
         for(ColumnFamily cf : ColumnFamiles) {
             bufOut.reset();
@@ -244,7 +246,7 @@ public class CassandraBulkLoader {
                 byte[] data = new byte[bufOut.getLength()];
                 System.arraycopy(bufOut.getData(), 0, data, 0, bufOut.getLength());
 
-                column = new Column(cf.name().getBytes("UTF-8"), data, 0, false);
+                column = new Column(cf.name().getBytes("UTF-8"), data, 0);
                 baseColumnFamily.addColumn(column);
             }
             catch (IOException e)
