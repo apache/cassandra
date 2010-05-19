@@ -32,8 +32,13 @@ import java.net.InetAddress;
 
 import org.apache.commons.lang.StringUtils;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class TokenMetadata
 {
+    private static Logger logger = LoggerFactory.getLogger(TokenMetadata.class);
+
     /* Maintains token to endpoint map of every node in the cluster. */
     private BiMap<Token, InetAddress> tokenToEndpointMap;
 
@@ -103,8 +108,11 @@ public class TokenMetadata
         {
             bootstrapTokens.inverse().remove(endpoint);
             tokenToEndpointMap.inverse().remove(endpoint);
-            if (!endpoint.equals(tokenToEndpointMap.put(token, endpoint)))
+            InetAddress prev = tokenToEndpointMap.put(token, endpoint);
+            if (!endpoint.equals(prev))
             {
+                if (prev != null)
+                    logger.warn("Token " + token + " changing ownership from " + prev + " to " + endpoint);
                 sortedTokens = sortTokens();
             }
             leavingEndpoints.remove(endpoint);
