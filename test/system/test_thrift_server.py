@@ -1124,6 +1124,19 @@ class TestMutations(ThriftTester):
         assert client.get('key1', ColumnPath('Standard1', column='cttl3'), ConsistencyLevel.ONE).column == column
         time.sleep(2)
         _expect_missing(lambda: client.get('key1', ColumnPath('Standard1', column='cttl3'), ConsistencyLevel.ONE))
+    
+    def test_simple_expiration_batch_mutate(self):
+        """ Test that column ttled do expires using batch_mutate """
+        _set_keyspace('Keyspace1')
+        column = Column('cttl4', 'value1', 0, 2)
+        cfmap = {'Standard1': [Mutation(ColumnOrSuperColumn(column))]}
+        client.batch_mutate({'key1': cfmap}, ConsistencyLevel.ONE)
+        time.sleep(1)
+        c = client.get('key1', ColumnPath('Standard1', column='cttl4'), ConsistencyLevel.ONE).column
+        assert c == column
+        assert client.get('key1', ColumnPath('Standard1', column='cttl4'), ConsistencyLevel.ONE).column == column
+        time.sleep(2)
+        _expect_missing(lambda: client.get('key1', ColumnPath('Standard1', column='cttl3'), ConsistencyLevel.ONE))
 
     def test_update_expiring(self):
         """ Test that updating a column with ttl override the ttl """
