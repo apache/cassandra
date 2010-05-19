@@ -47,6 +47,9 @@ dev
    ColumnFamilyInputFormat (CASSANDRA-1096)
  * do not recalculate cache capacity post-compaction if it's been manually 
    modified (CASSANDRA-1079)
+ * better defaults for flush sorter + writer executor queue sizes
+   (CASSANDRA-1100)
+ * windows scripts for SSTableImport/Export (CASSANDRA-1051)
 
 
 0.6.1

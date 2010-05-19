@@ -40,7 +40,7 @@ public class GCInspector
     public static final GCInspector instance = new GCInspector();
 
     private static final Logger logger = LoggerFactory.getLogger(GCInspector.class);
-    final static long INTERVAL_IN_MS = 10 * 1000;
+    final static long INTERVAL_IN_MS = 1000;
     final static long MIN_DURATION = 200;
 
     private HashMap<String, Long> gctimes = new HashMap<String, Long>();

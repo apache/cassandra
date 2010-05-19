@@ -53,6 +53,10 @@ except ImportError:
     print "Cassandra thrift bindings not found, please run 'ant gen-thrift-py'"
     sys.exit(2)
 
+try:
+    from thrift.protocol import fastbinary
+except ImportError:
+    print "WARNING: thrift binary extension not found, benchmark will not be accurate!"
 
 parser = OptionParser()
 parser.add_option('-n', '--num-keys', type="int", dest="numkeys",
