@@ -217,17 +217,17 @@ public class Cassandra {
      */
     public List<String> describe_splits(String start_token, String end_token, int keys_per_split) throws TException;
 
-    public void system_add_column_family(CfDef cf_def) throws InvalidRequestException, TException;
+    public String system_add_column_family(CfDef cf_def) throws InvalidRequestException, TException;
 
-    public void system_drop_column_family(String keyspace, String column_family) throws InvalidRequestException, TException;
+    public String system_drop_column_family(String keyspace, String column_family) throws InvalidRequestException, TException;
 
-    public void system_rename_column_family(String keyspace, String old_name, String new_name) throws InvalidRequestException, TException;
+    public String system_rename_column_family(String keyspace, String old_name, String new_name) throws InvalidRequestException, TException;
 
-    public void system_add_keyspace(KsDef ks_def) throws InvalidRequestException, TException;
+    public String system_add_keyspace(KsDef ks_def) throws InvalidRequestException, TException;
 
-    public void system_drop_keyspace(String keyspace) throws InvalidRequestException, TException;
+    public String system_drop_keyspace(String keyspace) throws InvalidRequestException, TException;
 
-    public void system_rename_keyspace(String old_name, String new_name) throws InvalidRequestException, TException;
+    public String system_rename_keyspace(String old_name, String new_name) throws InvalidRequestException, TException;
 
   }
 
@@ -999,10 +999,10 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "describe_splits failed: unknown result");
     }
 
-    public void system_add_column_family(CfDef cf_def) throws InvalidRequestException, TException
+    public String system_add_column_family(CfDef cf_def) throws InvalidRequestException, TException
     {
       send_system_add_column_family(cf_def);
-      recv_system_add_column_family();
+      return recv_system_add_column_family();
     }
 
     public void send_system_add_column_family(CfDef cf_def) throws TException
@@ -1015,7 +1015,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public void recv_system_add_column_family() throws InvalidRequestException, TException
+    public String recv_system_add_column_family() throws InvalidRequestException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -1026,16 +1026,19 @@ public class Cassandra {
       system_add_column_family_result result = new system_add_column_family_result();
       result.read(iprot_);
       iprot_.readMessageEnd();
+      if (result.isSetSuccess()) {
+        return result.success;
+      }
       if (result.ire != null) {
         throw result.ire;
       }
-      return;
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "system_add_column_family failed: unknown result");
     }
 
-    public void system_drop_column_family(String keyspace, String column_family) throws InvalidRequestException, TException
+    public String system_drop_column_family(String keyspace, String column_family) throws InvalidRequestException, TException
     {
       send_system_drop_column_family(keyspace, column_family);
-      recv_system_drop_column_family();
+      return recv_system_drop_column_family();
     }
 
     public void send_system_drop_column_family(String keyspace, String column_family) throws TException
@@ -1049,7 +1052,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public void recv_system_drop_column_family() throws InvalidRequestException, TException
+    public String recv_system_drop_column_family() throws InvalidRequestException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -1060,16 +1063,19 @@ public class Cassandra {
       system_drop_column_family_result result = new system_drop_column_family_result();
       result.read(iprot_);
       iprot_.readMessageEnd();
+      if (result.isSetSuccess()) {
+        return result.success;
+      }
       if (result.ire != null) {
         throw result.ire;
       }
-      return;
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "system_drop_column_family failed: unknown result");
     }
 
-    public void system_rename_column_family(String keyspace, String old_name, String new_name) throws InvalidRequestException, TException
+    public String system_rename_column_family(String keyspace, String old_name, String new_name) throws InvalidRequestException, TException
     {
       send_system_rename_column_family(keyspace, old_name, new_name);
-      recv_system_rename_column_family();
+      return recv_system_rename_column_family();
     }
 
     public void send_system_rename_column_family(String keyspace, String old_name, String new_name) throws TException
@@ -1084,7 +1090,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public void recv_system_rename_column_family() throws InvalidRequestException, TException
+    public String recv_system_rename_column_family() throws InvalidRequestException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -1095,16 +1101,19 @@ public class Cassandra {
       system_rename_column_family_result result = new system_rename_column_family_result();
       result.read(iprot_);
       iprot_.readMessageEnd();
+      if (result.isSetSuccess()) {
+        return result.success;
+      }
       if (result.ire != null) {
         throw result.ire;
       }
-      return;
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "system_rename_column_family failed: unknown result");
     }
 
-    public void system_add_keyspace(KsDef ks_def) throws InvalidRequestException, TException
+    public String system_add_keyspace(KsDef ks_def) throws InvalidRequestException, TException
     {
       send_system_add_keyspace(ks_def);
-      recv_system_add_keyspace();
+      return recv_system_add_keyspace();
     }
 
     public void send_system_add_keyspace(KsDef ks_def) throws TException
@@ -1117,7 +1126,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public void recv_system_add_keyspace() throws InvalidRequestException, TException
+    public String recv_system_add_keyspace() throws InvalidRequestException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -1128,16 +1137,19 @@ public class Cassandra {
       system_add_keyspace_result result = new system_add_keyspace_result();
       result.read(iprot_);
       iprot_.readMessageEnd();
+      if (result.isSetSuccess()) {
+        return result.success;
+      }
       if (result.ire != null) {
         throw result.ire;
       }
-      return;
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "system_add_keyspace failed: unknown result");
     }
 
-    public void system_drop_keyspace(String keyspace) throws InvalidRequestException, TException
+    public String system_drop_keyspace(String keyspace) throws InvalidRequestException, TException
     {
       send_system_drop_keyspace(keyspace);
-      recv_system_drop_keyspace();
+      return recv_system_drop_keyspace();
     }
 
     public void send_system_drop_keyspace(String keyspace) throws TException
@@ -1150,7 +1162,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public void recv_system_drop_keyspace() throws InvalidRequestException, TException
+    public String recv_system_drop_keyspace() throws InvalidRequestException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -1161,16 +1173,19 @@ public class Cassandra {
       system_drop_keyspace_result result = new system_drop_keyspace_result();
       result.read(iprot_);
       iprot_.readMessageEnd();
+      if (result.isSetSuccess()) {
+        return result.success;
+      }
       if (result.ire != null) {
         throw result.ire;
       }
-      return;
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "system_drop_keyspace failed: unknown result");
     }
 
-    public void system_rename_keyspace(String old_name, String new_name) throws InvalidRequestException, TException
+    public String system_rename_keyspace(String old_name, String new_name) throws InvalidRequestException, TException
     {
       send_system_rename_keyspace(old_name, new_name);
-      recv_system_rename_keyspace();
+      return recv_system_rename_keyspace();
     }
 
     public void send_system_rename_keyspace(String old_name, String new_name) throws TException
@@ -1184,7 +1199,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public void recv_system_rename_keyspace() throws InvalidRequestException, TException
+    public String recv_system_rename_keyspace() throws InvalidRequestException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -1195,10 +1210,13 @@ public class Cassandra {
       system_rename_keyspace_result result = new system_rename_keyspace_result();
       result.read(iprot_);
       iprot_.readMessageEnd();
+      if (result.isSetSuccess()) {
+        return result.success;
+      }
       if (result.ire != null) {
         throw result.ire;
       }
-      return;
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "system_rename_keyspace failed: unknown result");
     }
 
   }
@@ -1982,7 +2000,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         system_add_column_family_result result = new system_add_column_family_result();
         try {
-          iface_.system_add_column_family(args.cf_def);
+          result.success = iface_.system_add_column_family(args.cf_def);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
@@ -2020,7 +2038,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         system_drop_column_family_result result = new system_drop_column_family_result();
         try {
-          iface_.system_drop_column_family(args.keyspace, args.column_family);
+          result.success = iface_.system_drop_column_family(args.keyspace, args.column_family);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
@@ -2058,7 +2076,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         system_rename_column_family_result result = new system_rename_column_family_result();
         try {
-          iface_.system_rename_column_family(args.keyspace, args.old_name, args.new_name);
+          result.success = iface_.system_rename_column_family(args.keyspace, args.old_name, args.new_name);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
@@ -2096,7 +2114,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         system_add_keyspace_result result = new system_add_keyspace_result();
         try {
-          iface_.system_add_keyspace(args.ks_def);
+          result.success = iface_.system_add_keyspace(args.ks_def);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
@@ -2134,7 +2152,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         system_drop_keyspace_result result = new system_drop_keyspace_result();
         try {
-          iface_.system_drop_keyspace(args.keyspace);
+          result.success = iface_.system_drop_keyspace(args.keyspace);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
@@ -2172,7 +2190,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         system_rename_keyspace_result result = new system_rename_keyspace_result();
         try {
-          iface_.system_rename_keyspace(args.old_name, args.new_name);
+          result.success = iface_.system_rename_keyspace(args.old_name, args.new_name);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
@@ -18462,12 +18480,15 @@ public class Cassandra {
   public static class system_add_column_family_result implements TBase<system_add_column_family_result._Fields>, java.io.Serializable, Cloneable, Comparable<system_add_column_family_result>   {
     private static final TStruct STRUCT_DESC = new TStruct("system_add_column_family_result");
 
+    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRING, (short)0);
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
 
+    public String success;
     public InvalidRequestException ire;
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements TFieldIdEnum {
+      SUCCESS((short)0, "success"),
       IRE((short)1, "ire");
 
       private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
@@ -18524,6 +18545,8 @@ public class Cassandra {
     // isset id assignments
 
     public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
+      put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRING)));
       put(_Fields.IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
     }});
@@ -18536,9 +18559,11 @@ public class Cassandra {
     }
 
     public system_add_column_family_result(
+      String success,
       InvalidRequestException ire)
     {
       this();
+      this.success = success;
       this.ire = ire;
     }
 
@@ -18546,6 +18571,9 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public system_add_column_family_result(system_add_column_family_result other) {
+      if (other.isSetSuccess()) {
+        this.success = other.success;
+      }
       if (other.isSetIre()) {
         this.ire = new InvalidRequestException(other.ire);
       }
@@ -18558,6 +18586,30 @@ public class Cassandra {
     @Deprecated
     public system_add_column_family_result clone() {
       return new system_add_column_family_result(this);
+    }
+
+    public String getSuccess() {
+      return this.success;
+    }
+
+    public system_add_column_family_result setSuccess(String success) {
+      this.success = success;
+      return this;
+    }
+
+    public void unsetSuccess() {
+      this.success = null;
+    }
+
+    /** Returns true if field success is set (has been asigned a value) and false otherwise */
+    public boolean isSetSuccess() {
+      return this.success != null;
+    }
+
+    public void setSuccessIsSet(boolean value) {
+      if (!value) {
+        this.success = null;
+      }
     }
 
     public InvalidRequestException getIre() {
@@ -18586,6 +18638,14 @@ public class Cassandra {
 
     public void setFieldValue(_Fields field, Object value) {
       switch (field) {
+      case SUCCESS:
+        if (value == null) {
+          unsetSuccess();
+        } else {
+          setSuccess((String)value);
+        }
+        break;
+
       case IRE:
         if (value == null) {
           unsetIre();
@@ -18603,6 +18663,9 @@ public class Cassandra {
 
     public Object getFieldValue(_Fields field) {
       switch (field) {
+      case SUCCESS:
+        return getSuccess();
+
       case IRE:
         return getIre();
 
@@ -18617,6 +18680,8 @@ public class Cassandra {
     /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
     public boolean isSet(_Fields field) {
       switch (field) {
+      case SUCCESS:
+        return isSetSuccess();
       case IRE:
         return isSetIre();
       }
@@ -18639,6 +18704,15 @@ public class Cassandra {
     public boolean equals(system_add_column_family_result that) {
       if (that == null)
         return false;
+
+      boolean this_present_success = true && this.isSetSuccess();
+      boolean that_present_success = true && that.isSetSuccess();
+      if (this_present_success || that_present_success) {
+        if (!(this_present_success && that_present_success))
+          return false;
+        if (!this.success.equals(that.success))
+          return false;
+      }
 
       boolean this_present_ire = true && this.isSetIre();
       boolean that_present_ire = true && that.isSetIre();
@@ -18665,6 +18739,15 @@ public class Cassandra {
       int lastComparison = 0;
       system_add_column_family_result typedOther = (system_add_column_family_result)other;
 
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
       lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
       if (lastComparison != 0) {
         return lastComparison;
@@ -18687,6 +18770,13 @@ public class Cassandra {
           break;
         }
         switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.STRING) {
+              this.success = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
           case 1: // IRE
             if (field.type == TType.STRUCT) {
               this.ire = new InvalidRequestException();
@@ -18709,7 +18799,11 @@ public class Cassandra {
     public void write(TProtocol oprot) throws TException {
       oprot.writeStructBegin(STRUCT_DESC);
 
-      if (this.isSetIre()) {
+      if (this.isSetSuccess()) {
+        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
+        oprot.writeString(this.success);
+        oprot.writeFieldEnd();
+      } else if (this.isSetIre()) {
         oprot.writeFieldBegin(IRE_FIELD_DESC);
         this.ire.write(oprot);
         oprot.writeFieldEnd();
@@ -18723,6 +18817,14 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("system_add_column_family_result(");
       boolean first = true;
 
+      sb.append("success:");
+      if (this.success == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.success);
+      }
+      first = false;
+      if (!first) sb.append(", ");
       sb.append("ire:");
       if (this.ire == null) {
         sb.append("null");
@@ -19115,12 +19217,15 @@ public class Cassandra {
   public static class system_drop_column_family_result implements TBase<system_drop_column_family_result._Fields>, java.io.Serializable, Cloneable, Comparable<system_drop_column_family_result>   {
     private static final TStruct STRUCT_DESC = new TStruct("system_drop_column_family_result");
 
+    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRING, (short)0);
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
 
+    public String success;
     public InvalidRequestException ire;
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements TFieldIdEnum {
+      SUCCESS((short)0, "success"),
       IRE((short)1, "ire");
 
       private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
@@ -19177,6 +19282,8 @@ public class Cassandra {
     // isset id assignments
 
     public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
+      put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRING)));
       put(_Fields.IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
     }});
@@ -19189,9 +19296,11 @@ public class Cassandra {
     }
 
     public system_drop_column_family_result(
+      String success,
       InvalidRequestException ire)
     {
       this();
+      this.success = success;
       this.ire = ire;
     }
 
@@ -19199,6 +19308,9 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public system_drop_column_family_result(system_drop_column_family_result other) {
+      if (other.isSetSuccess()) {
+        this.success = other.success;
+      }
       if (other.isSetIre()) {
         this.ire = new InvalidRequestException(other.ire);
       }
@@ -19211,6 +19323,30 @@ public class Cassandra {
     @Deprecated
     public system_drop_column_family_result clone() {
       return new system_drop_column_family_result(this);
+    }
+
+    public String getSuccess() {
+      return this.success;
+    }
+
+    public system_drop_column_family_result setSuccess(String success) {
+      this.success = success;
+      return this;
+    }
+
+    public void unsetSuccess() {
+      this.success = null;
+    }
+
+    /** Returns true if field success is set (has been asigned a value) and false otherwise */
+    public boolean isSetSuccess() {
+      return this.success != null;
+    }
+
+    public void setSuccessIsSet(boolean value) {
+      if (!value) {
+        this.success = null;
+      }
     }
 
     public InvalidRequestException getIre() {
@@ -19239,6 +19375,14 @@ public class Cassandra {
 
     public void setFieldValue(_Fields field, Object value) {
       switch (field) {
+      case SUCCESS:
+        if (value == null) {
+          unsetSuccess();
+        } else {
+          setSuccess((String)value);
+        }
+        break;
+
       case IRE:
         if (value == null) {
           unsetIre();
@@ -19256,6 +19400,9 @@ public class Cassandra {
 
     public Object getFieldValue(_Fields field) {
       switch (field) {
+      case SUCCESS:
+        return getSuccess();
+
       case IRE:
         return getIre();
 
@@ -19270,6 +19417,8 @@ public class Cassandra {
     /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
     public boolean isSet(_Fields field) {
       switch (field) {
+      case SUCCESS:
+        return isSetSuccess();
       case IRE:
         return isSetIre();
       }
@@ -19292,6 +19441,15 @@ public class Cassandra {
     public boolean equals(system_drop_column_family_result that) {
       if (that == null)
         return false;
+
+      boolean this_present_success = true && this.isSetSuccess();
+      boolean that_present_success = true && that.isSetSuccess();
+      if (this_present_success || that_present_success) {
+        if (!(this_present_success && that_present_success))
+          return false;
+        if (!this.success.equals(that.success))
+          return false;
+      }
 
       boolean this_present_ire = true && this.isSetIre();
       boolean that_present_ire = true && that.isSetIre();
@@ -19318,6 +19476,15 @@ public class Cassandra {
       int lastComparison = 0;
       system_drop_column_family_result typedOther = (system_drop_column_family_result)other;
 
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
       lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
       if (lastComparison != 0) {
         return lastComparison;
@@ -19340,6 +19507,13 @@ public class Cassandra {
           break;
         }
         switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.STRING) {
+              this.success = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
           case 1: // IRE
             if (field.type == TType.STRUCT) {
               this.ire = new InvalidRequestException();
@@ -19362,7 +19536,11 @@ public class Cassandra {
     public void write(TProtocol oprot) throws TException {
       oprot.writeStructBegin(STRUCT_DESC);
 
-      if (this.isSetIre()) {
+      if (this.isSetSuccess()) {
+        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
+        oprot.writeString(this.success);
+        oprot.writeFieldEnd();
+      } else if (this.isSetIre()) {
         oprot.writeFieldBegin(IRE_FIELD_DESC);
         this.ire.write(oprot);
         oprot.writeFieldEnd();
@@ -19376,6 +19554,14 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("system_drop_column_family_result(");
       boolean first = true;
 
+      sb.append("success:");
+      if (this.success == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.success);
+      }
+      first = false;
+      if (!first) sb.append(", ");
       sb.append("ire:");
       if (this.ire == null) {
         sb.append("null");
@@ -19856,12 +20042,15 @@ public class Cassandra {
   public static class system_rename_column_family_result implements TBase<system_rename_column_family_result._Fields>, java.io.Serializable, Cloneable, Comparable<system_rename_column_family_result>   {
     private static final TStruct STRUCT_DESC = new TStruct("system_rename_column_family_result");
 
+    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRING, (short)0);
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
 
+    public String success;
     public InvalidRequestException ire;
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements TFieldIdEnum {
+      SUCCESS((short)0, "success"),
       IRE((short)1, "ire");
 
       private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
@@ -19918,6 +20107,8 @@ public class Cassandra {
     // isset id assignments
 
     public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
+      put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRING)));
       put(_Fields.IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
     }});
@@ -19930,9 +20121,11 @@ public class Cassandra {
     }
 
     public system_rename_column_family_result(
+      String success,
       InvalidRequestException ire)
     {
       this();
+      this.success = success;
       this.ire = ire;
     }
 
@@ -19940,6 +20133,9 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public system_rename_column_family_result(system_rename_column_family_result other) {
+      if (other.isSetSuccess()) {
+        this.success = other.success;
+      }
       if (other.isSetIre()) {
         this.ire = new InvalidRequestException(other.ire);
       }
@@ -19952,6 +20148,30 @@ public class Cassandra {
     @Deprecated
     public system_rename_column_family_result clone() {
       return new system_rename_column_family_result(this);
+    }
+
+    public String getSuccess() {
+      return this.success;
+    }
+
+    public system_rename_column_family_result setSuccess(String success) {
+      this.success = success;
+      return this;
+    }
+
+    public void unsetSuccess() {
+      this.success = null;
+    }
+
+    /** Returns true if field success is set (has been asigned a value) and false otherwise */
+    public boolean isSetSuccess() {
+      return this.success != null;
+    }
+
+    public void setSuccessIsSet(boolean value) {
+      if (!value) {
+        this.success = null;
+      }
     }
 
     public InvalidRequestException getIre() {
@@ -19980,6 +20200,14 @@ public class Cassandra {
 
     public void setFieldValue(_Fields field, Object value) {
       switch (field) {
+      case SUCCESS:
+        if (value == null) {
+          unsetSuccess();
+        } else {
+          setSuccess((String)value);
+        }
+        break;
+
       case IRE:
         if (value == null) {
           unsetIre();
@@ -19997,6 +20225,9 @@ public class Cassandra {
 
     public Object getFieldValue(_Fields field) {
       switch (field) {
+      case SUCCESS:
+        return getSuccess();
+
       case IRE:
         return getIre();
 
@@ -20011,6 +20242,8 @@ public class Cassandra {
     /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
     public boolean isSet(_Fields field) {
       switch (field) {
+      case SUCCESS:
+        return isSetSuccess();
       case IRE:
         return isSetIre();
       }
@@ -20033,6 +20266,15 @@ public class Cassandra {
     public boolean equals(system_rename_column_family_result that) {
       if (that == null)
         return false;
+
+      boolean this_present_success = true && this.isSetSuccess();
+      boolean that_present_success = true && that.isSetSuccess();
+      if (this_present_success || that_present_success) {
+        if (!(this_present_success && that_present_success))
+          return false;
+        if (!this.success.equals(that.success))
+          return false;
+      }
 
       boolean this_present_ire = true && this.isSetIre();
       boolean that_present_ire = true && that.isSetIre();
@@ -20059,6 +20301,15 @@ public class Cassandra {
       int lastComparison = 0;
       system_rename_column_family_result typedOther = (system_rename_column_family_result)other;
 
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
       lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
       if (lastComparison != 0) {
         return lastComparison;
@@ -20081,6 +20332,13 @@ public class Cassandra {
           break;
         }
         switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.STRING) {
+              this.success = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
           case 1: // IRE
             if (field.type == TType.STRUCT) {
               this.ire = new InvalidRequestException();
@@ -20103,7 +20361,11 @@ public class Cassandra {
     public void write(TProtocol oprot) throws TException {
       oprot.writeStructBegin(STRUCT_DESC);
 
-      if (this.isSetIre()) {
+      if (this.isSetSuccess()) {
+        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
+        oprot.writeString(this.success);
+        oprot.writeFieldEnd();
+      } else if (this.isSetIre()) {
         oprot.writeFieldBegin(IRE_FIELD_DESC);
         this.ire.write(oprot);
         oprot.writeFieldEnd();
@@ -20117,6 +20379,14 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("system_rename_column_family_result(");
       boolean first = true;
 
+      sb.append("success:");
+      if (this.success == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.success);
+      }
+      first = false;
+      if (!first) sb.append(", ");
       sb.append("ire:");
       if (this.ire == null) {
         sb.append("null");
@@ -20422,12 +20692,15 @@ public class Cassandra {
   public static class system_add_keyspace_result implements TBase<system_add_keyspace_result._Fields>, java.io.Serializable, Cloneable, Comparable<system_add_keyspace_result>   {
     private static final TStruct STRUCT_DESC = new TStruct("system_add_keyspace_result");
 
+    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRING, (short)0);
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
 
+    public String success;
     public InvalidRequestException ire;
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements TFieldIdEnum {
+      SUCCESS((short)0, "success"),
       IRE((short)1, "ire");
 
       private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
@@ -20484,6 +20757,8 @@ public class Cassandra {
     // isset id assignments
 
     public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
+      put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRING)));
       put(_Fields.IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
     }});
@@ -20496,9 +20771,11 @@ public class Cassandra {
     }
 
     public system_add_keyspace_result(
+      String success,
       InvalidRequestException ire)
     {
       this();
+      this.success = success;
       this.ire = ire;
     }
 
@@ -20506,6 +20783,9 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public system_add_keyspace_result(system_add_keyspace_result other) {
+      if (other.isSetSuccess()) {
+        this.success = other.success;
+      }
       if (other.isSetIre()) {
         this.ire = new InvalidRequestException(other.ire);
       }
@@ -20518,6 +20798,30 @@ public class Cassandra {
     @Deprecated
     public system_add_keyspace_result clone() {
       return new system_add_keyspace_result(this);
+    }
+
+    public String getSuccess() {
+      return this.success;
+    }
+
+    public system_add_keyspace_result setSuccess(String success) {
+      this.success = success;
+      return this;
+    }
+
+    public void unsetSuccess() {
+      this.success = null;
+    }
+
+    /** Returns true if field success is set (has been asigned a value) and false otherwise */
+    public boolean isSetSuccess() {
+      return this.success != null;
+    }
+
+    public void setSuccessIsSet(boolean value) {
+      if (!value) {
+        this.success = null;
+      }
     }
 
     public InvalidRequestException getIre() {
@@ -20546,6 +20850,14 @@ public class Cassandra {
 
     public void setFieldValue(_Fields field, Object value) {
       switch (field) {
+      case SUCCESS:
+        if (value == null) {
+          unsetSuccess();
+        } else {
+          setSuccess((String)value);
+        }
+        break;
+
       case IRE:
         if (value == null) {
           unsetIre();
@@ -20563,6 +20875,9 @@ public class Cassandra {
 
     public Object getFieldValue(_Fields field) {
       switch (field) {
+      case SUCCESS:
+        return getSuccess();
+
       case IRE:
         return getIre();
 
@@ -20577,6 +20892,8 @@ public class Cassandra {
     /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
     public boolean isSet(_Fields field) {
       switch (field) {
+      case SUCCESS:
+        return isSetSuccess();
       case IRE:
         return isSetIre();
       }
@@ -20599,6 +20916,15 @@ public class Cassandra {
     public boolean equals(system_add_keyspace_result that) {
       if (that == null)
         return false;
+
+      boolean this_present_success = true && this.isSetSuccess();
+      boolean that_present_success = true && that.isSetSuccess();
+      if (this_present_success || that_present_success) {
+        if (!(this_present_success && that_present_success))
+          return false;
+        if (!this.success.equals(that.success))
+          return false;
+      }
 
       boolean this_present_ire = true && this.isSetIre();
       boolean that_present_ire = true && that.isSetIre();
@@ -20625,6 +20951,15 @@ public class Cassandra {
       int lastComparison = 0;
       system_add_keyspace_result typedOther = (system_add_keyspace_result)other;
 
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
       lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
       if (lastComparison != 0) {
         return lastComparison;
@@ -20647,6 +20982,13 @@ public class Cassandra {
           break;
         }
         switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.STRING) {
+              this.success = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
           case 1: // IRE
             if (field.type == TType.STRUCT) {
               this.ire = new InvalidRequestException();
@@ -20669,7 +21011,11 @@ public class Cassandra {
     public void write(TProtocol oprot) throws TException {
       oprot.writeStructBegin(STRUCT_DESC);
 
-      if (this.isSetIre()) {
+      if (this.isSetSuccess()) {
+        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
+        oprot.writeString(this.success);
+        oprot.writeFieldEnd();
+      } else if (this.isSetIre()) {
         oprot.writeFieldBegin(IRE_FIELD_DESC);
         this.ire.write(oprot);
         oprot.writeFieldEnd();
@@ -20683,6 +21029,14 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("system_add_keyspace_result(");
       boolean first = true;
 
+      sb.append("success:");
+      if (this.success == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.success);
+      }
+      first = false;
+      if (!first) sb.append(", ");
       sb.append("ire:");
       if (this.ire == null) {
         sb.append("null");
@@ -20987,12 +21341,15 @@ public class Cassandra {
   public static class system_drop_keyspace_result implements TBase<system_drop_keyspace_result._Fields>, java.io.Serializable, Cloneable, Comparable<system_drop_keyspace_result>   {
     private static final TStruct STRUCT_DESC = new TStruct("system_drop_keyspace_result");
 
+    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRING, (short)0);
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
 
+    public String success;
     public InvalidRequestException ire;
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements TFieldIdEnum {
+      SUCCESS((short)0, "success"),
       IRE((short)1, "ire");
 
       private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
@@ -21049,6 +21406,8 @@ public class Cassandra {
     // isset id assignments
 
     public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
+      put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRING)));
       put(_Fields.IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
     }});
@@ -21061,9 +21420,11 @@ public class Cassandra {
     }
 
     public system_drop_keyspace_result(
+      String success,
       InvalidRequestException ire)
     {
       this();
+      this.success = success;
       this.ire = ire;
     }
 
@@ -21071,6 +21432,9 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public system_drop_keyspace_result(system_drop_keyspace_result other) {
+      if (other.isSetSuccess()) {
+        this.success = other.success;
+      }
       if (other.isSetIre()) {
         this.ire = new InvalidRequestException(other.ire);
       }
@@ -21083,6 +21447,30 @@ public class Cassandra {
     @Deprecated
     public system_drop_keyspace_result clone() {
       return new system_drop_keyspace_result(this);
+    }
+
+    public String getSuccess() {
+      return this.success;
+    }
+
+    public system_drop_keyspace_result setSuccess(String success) {
+      this.success = success;
+      return this;
+    }
+
+    public void unsetSuccess() {
+      this.success = null;
+    }
+
+    /** Returns true if field success is set (has been asigned a value) and false otherwise */
+    public boolean isSetSuccess() {
+      return this.success != null;
+    }
+
+    public void setSuccessIsSet(boolean value) {
+      if (!value) {
+        this.success = null;
+      }
     }
 
     public InvalidRequestException getIre() {
@@ -21111,6 +21499,14 @@ public class Cassandra {
 
     public void setFieldValue(_Fields field, Object value) {
       switch (field) {
+      case SUCCESS:
+        if (value == null) {
+          unsetSuccess();
+        } else {
+          setSuccess((String)value);
+        }
+        break;
+
       case IRE:
         if (value == null) {
           unsetIre();
@@ -21128,6 +21524,9 @@ public class Cassandra {
 
     public Object getFieldValue(_Fields field) {
       switch (field) {
+      case SUCCESS:
+        return getSuccess();
+
       case IRE:
         return getIre();
 
@@ -21142,6 +21541,8 @@ public class Cassandra {
     /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
     public boolean isSet(_Fields field) {
       switch (field) {
+      case SUCCESS:
+        return isSetSuccess();
       case IRE:
         return isSetIre();
       }
@@ -21164,6 +21565,15 @@ public class Cassandra {
     public boolean equals(system_drop_keyspace_result that) {
       if (that == null)
         return false;
+
+      boolean this_present_success = true && this.isSetSuccess();
+      boolean that_present_success = true && that.isSetSuccess();
+      if (this_present_success || that_present_success) {
+        if (!(this_present_success && that_present_success))
+          return false;
+        if (!this.success.equals(that.success))
+          return false;
+      }
 
       boolean this_present_ire = true && this.isSetIre();
       boolean that_present_ire = true && that.isSetIre();
@@ -21190,6 +21600,15 @@ public class Cassandra {
       int lastComparison = 0;
       system_drop_keyspace_result typedOther = (system_drop_keyspace_result)other;
 
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
       lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
       if (lastComparison != 0) {
         return lastComparison;
@@ -21212,6 +21631,13 @@ public class Cassandra {
           break;
         }
         switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.STRING) {
+              this.success = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
           case 1: // IRE
             if (field.type == TType.STRUCT) {
               this.ire = new InvalidRequestException();
@@ -21234,7 +21660,11 @@ public class Cassandra {
     public void write(TProtocol oprot) throws TException {
       oprot.writeStructBegin(STRUCT_DESC);
 
-      if (this.isSetIre()) {
+      if (this.isSetSuccess()) {
+        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
+        oprot.writeString(this.success);
+        oprot.writeFieldEnd();
+      } else if (this.isSetIre()) {
         oprot.writeFieldBegin(IRE_FIELD_DESC);
         this.ire.write(oprot);
         oprot.writeFieldEnd();
@@ -21248,6 +21678,14 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("system_drop_keyspace_result(");
       boolean first = true;
 
+      sb.append("success:");
+      if (this.success == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.success);
+      }
+      first = false;
+      if (!first) sb.append(", ");
       sb.append("ire:");
       if (this.ire == null) {
         sb.append("null");
@@ -21640,12 +22078,15 @@ public class Cassandra {
   public static class system_rename_keyspace_result implements TBase<system_rename_keyspace_result._Fields>, java.io.Serializable, Cloneable, Comparable<system_rename_keyspace_result>   {
     private static final TStruct STRUCT_DESC = new TStruct("system_rename_keyspace_result");
 
+    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRING, (short)0);
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
 
+    public String success;
     public InvalidRequestException ire;
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements TFieldIdEnum {
+      SUCCESS((short)0, "success"),
       IRE((short)1, "ire");
 
       private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
@@ -21702,6 +22143,8 @@ public class Cassandra {
     // isset id assignments
 
     public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
+      put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRING)));
       put(_Fields.IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
     }});
@@ -21714,9 +22157,11 @@ public class Cassandra {
     }
 
     public system_rename_keyspace_result(
+      String success,
       InvalidRequestException ire)
     {
       this();
+      this.success = success;
       this.ire = ire;
     }
 
@@ -21724,6 +22169,9 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public system_rename_keyspace_result(system_rename_keyspace_result other) {
+      if (other.isSetSuccess()) {
+        this.success = other.success;
+      }
       if (other.isSetIre()) {
         this.ire = new InvalidRequestException(other.ire);
       }
@@ -21736,6 +22184,30 @@ public class Cassandra {
     @Deprecated
     public system_rename_keyspace_result clone() {
       return new system_rename_keyspace_result(this);
+    }
+
+    public String getSuccess() {
+      return this.success;
+    }
+
+    public system_rename_keyspace_result setSuccess(String success) {
+      this.success = success;
+      return this;
+    }
+
+    public void unsetSuccess() {
+      this.success = null;
+    }
+
+    /** Returns true if field success is set (has been asigned a value) and false otherwise */
+    public boolean isSetSuccess() {
+      return this.success != null;
+    }
+
+    public void setSuccessIsSet(boolean value) {
+      if (!value) {
+        this.success = null;
+      }
     }
 
     public InvalidRequestException getIre() {
@@ -21764,6 +22236,14 @@ public class Cassandra {
 
     public void setFieldValue(_Fields field, Object value) {
       switch (field) {
+      case SUCCESS:
+        if (value == null) {
+          unsetSuccess();
+        } else {
+          setSuccess((String)value);
+        }
+        break;
+
       case IRE:
         if (value == null) {
           unsetIre();
@@ -21781,6 +22261,9 @@ public class Cassandra {
 
     public Object getFieldValue(_Fields field) {
       switch (field) {
+      case SUCCESS:
+        return getSuccess();
+
       case IRE:
         return getIre();
 
@@ -21795,6 +22278,8 @@ public class Cassandra {
     /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
     public boolean isSet(_Fields field) {
       switch (field) {
+      case SUCCESS:
+        return isSetSuccess();
       case IRE:
         return isSetIre();
       }
@@ -21817,6 +22302,15 @@ public class Cassandra {
     public boolean equals(system_rename_keyspace_result that) {
       if (that == null)
         return false;
+
+      boolean this_present_success = true && this.isSetSuccess();
+      boolean that_present_success = true && that.isSetSuccess();
+      if (this_present_success || that_present_success) {
+        if (!(this_present_success && that_present_success))
+          return false;
+        if (!this.success.equals(that.success))
+          return false;
+      }
 
       boolean this_present_ire = true && this.isSetIre();
       boolean that_present_ire = true && that.isSetIre();
@@ -21843,6 +22337,15 @@ public class Cassandra {
       int lastComparison = 0;
       system_rename_keyspace_result typedOther = (system_rename_keyspace_result)other;
 
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
       lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
       if (lastComparison != 0) {
         return lastComparison;
@@ -21865,6 +22368,13 @@ public class Cassandra {
           break;
         }
         switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.STRING) {
+              this.success = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
           case 1: // IRE
             if (field.type == TType.STRUCT) {
               this.ire = new InvalidRequestException();
@@ -21887,7 +22397,11 @@ public class Cassandra {
     public void write(TProtocol oprot) throws TException {
       oprot.writeStructBegin(STRUCT_DESC);
 
-      if (this.isSetIre()) {
+      if (this.isSetSuccess()) {
+        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
+        oprot.writeString(this.success);
+        oprot.writeFieldEnd();
+      } else if (this.isSetIre()) {
         oprot.writeFieldBegin(IRE_FIELD_DESC);
         this.ire.write(oprot);
         oprot.writeFieldEnd();
@@ -21901,6 +22415,14 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("system_rename_keyspace_result(");
       boolean first = true;
 
+      sb.append("success:");
+      if (this.success == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.success);
+      }
+      first = false;
+      if (!first) sb.append(", ");
       sb.append("ire:");
       if (this.ire == null) {
         sb.append("null");

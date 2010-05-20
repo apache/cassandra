@@ -605,7 +605,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public void system_add_column_family(CfDef cf_def) throws InvalidRequestException, TException
+    public String system_add_column_family(CfDef cf_def) throws InvalidRequestException, TException
     {
         checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
 
@@ -633,6 +633,7 @@ public class CassandraServer implements Cassandra.Iface
             AddColumnFamily add = new AddColumnFamily(cfm);
             add.apply();
             add.announce();
+            return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)
         {
@@ -648,7 +649,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public void system_drop_column_family(String keyspace, String column_family) throws InvalidRequestException, TException
+    public String system_drop_column_family(String keyspace, String column_family) throws InvalidRequestException, TException
     {
         checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
         
@@ -661,6 +662,7 @@ public class CassandraServer implements Cassandra.Iface
             DropColumnFamily drop = new DropColumnFamily(keyspace, column_family, true);
             drop.apply();
             drop.announce();
+            return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)
         {
@@ -676,7 +678,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public void system_rename_column_family(String keyspace, String old_name, String new_name) throws InvalidRequestException, TException
+    public String system_rename_column_family(String keyspace, String old_name, String new_name) throws InvalidRequestException, TException
     {
         checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
         
@@ -689,6 +691,7 @@ public class CassandraServer implements Cassandra.Iface
             RenameColumnFamily rename = new RenameColumnFamily(keyspace, old_name, new_name);
             rename.apply();
             rename.announce();
+            return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)
         {
@@ -704,7 +707,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public void system_add_keyspace(KsDef ks_def) throws InvalidRequestException, TException
+    public String system_add_keyspace(KsDef ks_def) throws InvalidRequestException, TException
     {
         // IAuthenticator was devised prior to, and without thought for, dynamic keyspace creation. As
         // a result, we must choose between letting anyone/everyone create keyspaces (which they likely
@@ -747,6 +750,7 @@ public class CassandraServer implements Cassandra.Iface
             AddKeyspace add = new AddKeyspace(ksm);
             add.apply();
             add.announce();
+            return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ClassNotFoundException e)
         {
@@ -768,7 +772,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public void system_drop_keyspace(String keyspace) throws InvalidRequestException, TException
+    public String system_drop_keyspace(String keyspace) throws InvalidRequestException, TException
     {
         checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
         
@@ -781,6 +785,7 @@ public class CassandraServer implements Cassandra.Iface
             DropKeyspace drop = new DropKeyspace(keyspace, true);
             drop.apply();
             drop.announce();
+            return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)
         {
@@ -796,7 +801,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public void system_rename_keyspace(String old_name, String new_name) throws InvalidRequestException, TException
+    public String system_rename_keyspace(String old_name, String new_name) throws InvalidRequestException, TException
     {
         checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
         
@@ -809,6 +814,7 @@ public class CassandraServer implements Cassandra.Iface
             RenameKeyspace rename = new RenameKeyspace(old_name, new_name);
             rename.apply();
             rename.announce();
+            return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)
         {
