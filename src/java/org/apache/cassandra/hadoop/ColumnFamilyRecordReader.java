@@ -56,7 +56,11 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
     private String cfName;
     private String keyspace;
 
-    public void close() {}
+    public void close() 
+    {
+        if (iter != null)
+            iter.close();
+    }
     
     public String getCurrentKey()
     {
@@ -102,6 +106,7 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
         private int totalRead = 0;
         private int i = 0;
         private AbstractType comparator = DatabaseDescriptor.getComparator(keyspace, cfName);
+        private TSocket socket;
 
         private void maybeInit()
         {
@@ -111,7 +116,11 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
             
             if (rows != null)
                 return;
-            TSocket socket = new TSocket(getLocation(),
+            
+            // close previous connection if one is open
+            close();
+            
+            socket = new TSocket(getLocation(),
                                          DatabaseDescriptor.getThriftPort());
             TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket, false, false);
             Cassandra.Client client = new Cassandra.Client(binaryProtocol);
@@ -225,6 +234,14 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
                 map.put(column.name(), column);
             }
             return new Pair<String, SortedMap<byte[], IColumn>>(ks.key, map);
+        }
+        
+        public void close() 
+        {
+            if (socket != null && socket.isOpen())
+            {
+                socket.close();
+            }
         }
     }
 
