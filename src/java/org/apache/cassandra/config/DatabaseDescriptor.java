@@ -84,7 +84,7 @@ public class DatabaseDescriptor
 
     private final static String STORAGE_CONF_FILE = "cassandra.yaml";
 
-    private static final UUID INITIAL_VERSION = new UUID(4096, 0); // has type nibble set to 1, everything else to zero.
+    public static final UUID INITIAL_VERSION = new UUID(4096, 0); // has type nibble set to 1, everything else to zero.
     private static UUID defsVersion = INITIAL_VERSION;
 
     /**

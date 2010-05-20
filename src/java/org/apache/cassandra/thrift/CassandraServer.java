@@ -856,5 +856,12 @@ public class CassandraServer implements Cassandra.Iface
         keySpace.set(keyspace); 
     }
 
+    @Override
+    public Map<String, List<String>> check_schema_agreement() throws TException, InvalidRequestException
+    {
+        logger.debug("checking schema agreement");      
+        return StorageProxy.checkSchemaAgreement();
+    }
+
     // main method moved to CassandraDaemon
 }

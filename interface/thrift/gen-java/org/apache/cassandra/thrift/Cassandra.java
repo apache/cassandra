@@ -162,6 +162,13 @@ public class Cassandra {
     public void truncate(String keyspace, String cfname) throws InvalidRequestException, UnavailableException, TException;
 
     /**
+     * ask the cluster if they all are using the same migration id. returns a map of version->hosts-on-that-version.
+     * hosts that did not respond will be under the key DatabaseDescriptor.INITIAL_VERSION. agreement can be determined
+     * by checking if the size of the map is 1.
+     */
+    public Map<String,List<String>> check_schema_agreement() throws InvalidRequestException, TException;
+
+    /**
      * list the defined keyspaces in this cluster
      */
     public Set<String> describe_keyspaces() throws TException;
@@ -757,6 +764,41 @@ public class Cassandra {
       return;
     }
 
+    public Map<String,List<String>> check_schema_agreement() throws InvalidRequestException, TException
+    {
+      send_check_schema_agreement();
+      return recv_check_schema_agreement();
+    }
+
+    public void send_check_schema_agreement() throws TException
+    {
+      oprot_.writeMessageBegin(new TMessage("check_schema_agreement", TMessageType.CALL, seqid_));
+      check_schema_agreement_args args = new check_schema_agreement_args();
+      args.write(oprot_);
+      oprot_.writeMessageEnd();
+      oprot_.getTransport().flush();
+    }
+
+    public Map<String,List<String>> recv_check_schema_agreement() throws InvalidRequestException, TException
+    {
+      TMessage msg = iprot_.readMessageBegin();
+      if (msg.type == TMessageType.EXCEPTION) {
+        TApplicationException x = TApplicationException.read(iprot_);
+        iprot_.readMessageEnd();
+        throw x;
+      }
+      check_schema_agreement_result result = new check_schema_agreement_result();
+      result.read(iprot_);
+      iprot_.readMessageEnd();
+      if (result.isSetSuccess()) {
+        return result.success;
+      }
+      if (result.ire != null) {
+        throw result.ire;
+      }
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "check_schema_agreement failed: unknown result");
+    }
+
     public Set<String> describe_keyspaces() throws TException
     {
       send_describe_keyspaces();
@@ -1177,6 +1219,7 @@ public class Cassandra {
       processMap_.put("remove", new remove());
       processMap_.put("batch_mutate", new batch_mutate());
       processMap_.put("truncate", new truncate());
+      processMap_.put("check_schema_agreement", new check_schema_agreement());
       processMap_.put("describe_keyspaces", new describe_keyspaces());
       processMap_.put("describe_cluster_name", new describe_cluster_name());
       processMap_.put("describe_version", new describe_version());
@@ -1708,6 +1751,44 @@ public class Cassandra {
           return;
         }
         oprot.writeMessageBegin(new TMessage("truncate", TMessageType.REPLY, seqid));
+        result.write(oprot);
+        oprot.writeMessageEnd();
+        oprot.getTransport().flush();
+      }
+
+    }
+
+    private class check_schema_agreement implements ProcessFunction {
+      public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
+      {
+        check_schema_agreement_args args = new check_schema_agreement_args();
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("check_schema_agreement", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
+        iprot.readMessageEnd();
+        check_schema_agreement_result result = new check_schema_agreement_result();
+        try {
+          result.success = iface_.check_schema_agreement();
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+        } catch (Throwable th) {
+          LOGGER.error("Internal error processing check_schema_agreement", th);
+          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing check_schema_agreement");
+          oprot.writeMessageBegin(new TMessage("check_schema_agreement", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
+        oprot.writeMessageBegin(new TMessage("check_schema_agreement", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
         oprot.getTransport().flush();
@@ -13999,6 +14080,598 @@ public class Cassandra {
 
   }
 
+  public static class check_schema_agreement_args implements TBase<check_schema_agreement_args._Fields>, java.io.Serializable, Cloneable, Comparable<check_schema_agreement_args>   {
+    private static final TStruct STRUCT_DESC = new TStruct("check_schema_agreement_args");
+
+
+
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements TFieldIdEnum {
+;
+
+      private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
+      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+      static {
+        for (_Fields field : EnumSet.allOf(_Fields.class)) {
+          byId.put((int)field._thriftId, field);
+          byName.put(field.getFieldName(), field);
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, or null if its not found.
+       */
+      public static _Fields findByThriftId(int fieldId) {
+        return byId.get(fieldId);
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, throwing an exception
+       * if it is not found.
+       */
+      public static _Fields findByThriftIdOrThrow(int fieldId) {
+        _Fields fields = findByThriftId(fieldId);
+        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+        return fields;
+      }
+
+      /**
+       * Find the _Fields constant that matches name, or null if its not found.
+       */
+      public static _Fields findByName(String name) {
+        return byName.get(name);
+      }
+
+      private final short _thriftId;
+      private final String _fieldName;
+
+      _Fields(short thriftId, String fieldName) {
+        _thriftId = thriftId;
+        _fieldName = fieldName;
+      }
+
+      public short getThriftFieldId() {
+        return _thriftId;
+      }
+
+      public String getFieldName() {
+        return _fieldName;
+      }
+    }
+    public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
+    }});
+
+    static {
+      FieldMetaData.addStructMetaDataMap(check_schema_agreement_args.class, metaDataMap);
+    }
+
+    public check_schema_agreement_args() {
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public check_schema_agreement_args(check_schema_agreement_args other) {
+    }
+
+    public check_schema_agreement_args deepCopy() {
+      return new check_schema_agreement_args(this);
+    }
+
+    @Deprecated
+    public check_schema_agreement_args clone() {
+      return new check_schema_agreement_args(this);
+    }
+
+    public void setFieldValue(_Fields field, Object value) {
+      switch (field) {
+      }
+    }
+
+    public void setFieldValue(int fieldID, Object value) {
+      setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
+    }
+
+    public Object getFieldValue(_Fields field) {
+      switch (field) {
+      }
+      throw new IllegalStateException();
+    }
+
+    public Object getFieldValue(int fieldId) {
+      return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+    public boolean isSet(_Fields field) {
+      switch (field) {
+      }
+      throw new IllegalStateException();
+    }
+
+    public boolean isSet(int fieldID) {
+      return isSet(_Fields.findByThriftIdOrThrow(fieldID));
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof check_schema_agreement_args)
+        return this.equals((check_schema_agreement_args)that);
+      return false;
+    }
+
+    public boolean equals(check_schema_agreement_args that) {
+      if (that == null)
+        return false;
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public int compareTo(check_schema_agreement_args other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      check_schema_agreement_args typedOther = (check_schema_agreement_args)other;
+
+      return 0;
+    }
+
+    public void read(TProtocol iprot) throws TException {
+      TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == TType.STOP) { 
+          break;
+        }
+        switch (field.id) {
+          default:
+            TProtocolUtil.skip(iprot, field.type);
+        }
+        iprot.readFieldEnd();
+      }
+      iprot.readStructEnd();
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      validate();
+    }
+
+    public void write(TProtocol oprot) throws TException {
+      validate();
+
+      oprot.writeStructBegin(STRUCT_DESC);
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("check_schema_agreement_args(");
+      boolean first = true;
+
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws TException {
+      // check for required fields
+    }
+
+  }
+
+  public static class check_schema_agreement_result implements TBase<check_schema_agreement_result._Fields>, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("check_schema_agreement_result");
+
+    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.MAP, (short)0);
+    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
+
+    public Map<String,List<String>> success;
+    public InvalidRequestException ire;
+
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements TFieldIdEnum {
+      SUCCESS((short)0, "success"),
+      IRE((short)1, "ire");
+
+      private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
+      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+      static {
+        for (_Fields field : EnumSet.allOf(_Fields.class)) {
+          byId.put((int)field._thriftId, field);
+          byName.put(field.getFieldName(), field);
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, or null if its not found.
+       */
+      public static _Fields findByThriftId(int fieldId) {
+        return byId.get(fieldId);
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, throwing an exception
+       * if it is not found.
+       */
+      public static _Fields findByThriftIdOrThrow(int fieldId) {
+        _Fields fields = findByThriftId(fieldId);
+        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+        return fields;
+      }
+
+      /**
+       * Find the _Fields constant that matches name, or null if its not found.
+       */
+      public static _Fields findByName(String name) {
+        return byName.get(name);
+      }
+
+      private final short _thriftId;
+      private final String _fieldName;
+
+      _Fields(short thriftId, String fieldName) {
+        _thriftId = thriftId;
+        _fieldName = fieldName;
+      }
+
+      public short getThriftFieldId() {
+        return _thriftId;
+      }
+
+      public String getFieldName() {
+        return _fieldName;
+      }
+    }
+
+    // isset id assignments
+
+    public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
+      put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
+          new MapMetaData(TType.MAP, 
+              new FieldValueMetaData(TType.STRING), 
+              new ListMetaData(TType.LIST, 
+                  new FieldValueMetaData(TType.STRING)))));
+      put(_Fields.IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+    }});
+
+    static {
+      FieldMetaData.addStructMetaDataMap(check_schema_agreement_result.class, metaDataMap);
+    }
+
+    public check_schema_agreement_result() {
+    }
+
+    public check_schema_agreement_result(
+      Map<String,List<String>> success,
+      InvalidRequestException ire)
+    {
+      this();
+      this.success = success;
+      this.ire = ire;
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public check_schema_agreement_result(check_schema_agreement_result other) {
+      if (other.isSetSuccess()) {
+        Map<String,List<String>> __this__success = new HashMap<String,List<String>>();
+        for (Map.Entry<String, List<String>> other_element : other.success.entrySet()) {
+
+          String other_element_key = other_element.getKey();
+          List<String> other_element_value = other_element.getValue();
+
+          String __this__success_copy_key = other_element_key;
+
+          List<String> __this__success_copy_value = new ArrayList<String>();
+          for (String other_element_value_element : other_element_value) {
+            __this__success_copy_value.add(other_element_value_element);
+          }
+
+          __this__success.put(__this__success_copy_key, __this__success_copy_value);
+        }
+        this.success = __this__success;
+      }
+      if (other.isSetIre()) {
+        this.ire = new InvalidRequestException(other.ire);
+      }
+    }
+
+    public check_schema_agreement_result deepCopy() {
+      return new check_schema_agreement_result(this);
+    }
+
+    @Deprecated
+    public check_schema_agreement_result clone() {
+      return new check_schema_agreement_result(this);
+    }
+
+    public int getSuccessSize() {
+      return (this.success == null) ? 0 : this.success.size();
+    }
+
+    public void putToSuccess(String key, List<String> val) {
+      if (this.success == null) {
+        this.success = new HashMap<String,List<String>>();
+      }
+      this.success.put(key, val);
+    }
+
+    public Map<String,List<String>> getSuccess() {
+      return this.success;
+    }
+
+    public check_schema_agreement_result setSuccess(Map<String,List<String>> success) {
+      this.success = success;
+      return this;
+    }
+
+    public void unsetSuccess() {
+      this.success = null;
+    }
+
+    /** Returns true if field success is set (has been asigned a value) and false otherwise */
+    public boolean isSetSuccess() {
+      return this.success != null;
+    }
+
+    public void setSuccessIsSet(boolean value) {
+      if (!value) {
+        this.success = null;
+      }
+    }
+
+    public InvalidRequestException getIre() {
+      return this.ire;
+    }
+
+    public check_schema_agreement_result setIre(InvalidRequestException ire) {
+      this.ire = ire;
+      return this;
+    }
+
+    public void unsetIre() {
+      this.ire = null;
+    }
+
+    /** Returns true if field ire is set (has been asigned a value) and false otherwise */
+    public boolean isSetIre() {
+      return this.ire != null;
+    }
+
+    public void setIreIsSet(boolean value) {
+      if (!value) {
+        this.ire = null;
+      }
+    }
+
+    public void setFieldValue(_Fields field, Object value) {
+      switch (field) {
+      case SUCCESS:
+        if (value == null) {
+          unsetSuccess();
+        } else {
+          setSuccess((Map<String,List<String>>)value);
+        }
+        break;
+
+      case IRE:
+        if (value == null) {
+          unsetIre();
+        } else {
+          setIre((InvalidRequestException)value);
+        }
+        break;
+
+      }
+    }
+
+    public void setFieldValue(int fieldID, Object value) {
+      setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
+    }
+
+    public Object getFieldValue(_Fields field) {
+      switch (field) {
+      case SUCCESS:
+        return getSuccess();
+
+      case IRE:
+        return getIre();
+
+      }
+      throw new IllegalStateException();
+    }
+
+    public Object getFieldValue(int fieldId) {
+      return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+    public boolean isSet(_Fields field) {
+      switch (field) {
+      case SUCCESS:
+        return isSetSuccess();
+      case IRE:
+        return isSetIre();
+      }
+      throw new IllegalStateException();
+    }
+
+    public boolean isSet(int fieldID) {
+      return isSet(_Fields.findByThriftIdOrThrow(fieldID));
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof check_schema_agreement_result)
+        return this.equals((check_schema_agreement_result)that);
+      return false;
+    }
+
+    public boolean equals(check_schema_agreement_result that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_success = true && this.isSetSuccess();
+      boolean that_present_success = true && that.isSetSuccess();
+      if (this_present_success || that_present_success) {
+        if (!(this_present_success && that_present_success))
+          return false;
+        if (!this.success.equals(that.success))
+          return false;
+      }
+
+      boolean this_present_ire = true && this.isSetIre();
+      boolean that_present_ire = true && that.isSetIre();
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
+          return false;
+        if (!this.ire.equals(that.ire))
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public void read(TProtocol iprot) throws TException {
+      TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == TType.STOP) { 
+          break;
+        }
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.MAP) {
+              {
+                TMap _map73 = iprot.readMapBegin();
+                this.success = new HashMap<String,List<String>>(2*_map73.size);
+                for (int _i74 = 0; _i74 < _map73.size; ++_i74)
+                {
+                  String _key75;
+                  List<String> _val76;
+                  _key75 = iprot.readString();
+                  {
+                    TList _list77 = iprot.readListBegin();
+                    _val76 = new ArrayList<String>(_list77.size);
+                    for (int _i78 = 0; _i78 < _list77.size; ++_i78)
+                    {
+                      String _elem79;
+                      _elem79 = iprot.readString();
+                      _val76.add(_elem79);
+                    }
+                    iprot.readListEnd();
+                  }
+                  this.success.put(_key75, _val76);
+                }
+                iprot.readMapEnd();
+              }
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 1: // IRE
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
+        }
+        iprot.readFieldEnd();
+      }
+      iprot.readStructEnd();
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      validate();
+    }
+
+    public void write(TProtocol oprot) throws TException {
+      oprot.writeStructBegin(STRUCT_DESC);
+
+      if (this.isSetSuccess()) {
+        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
+        {
+          oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, this.success.size()));
+          for (Map.Entry<String, List<String>> _iter80 : this.success.entrySet())
+          {
+            oprot.writeString(_iter80.getKey());
+            {
+              oprot.writeListBegin(new TList(TType.STRING, _iter80.getValue().size()));
+              for (String _iter81 : _iter80.getValue())
+              {
+                oprot.writeString(_iter81);
+              }
+              oprot.writeListEnd();
+            }
+          }
+          oprot.writeMapEnd();
+        }
+        oprot.writeFieldEnd();
+      } else if (this.isSetIre()) {
+        oprot.writeFieldBegin(IRE_FIELD_DESC);
+        this.ire.write(oprot);
+        oprot.writeFieldEnd();
+      }
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("check_schema_agreement_result(");
+      boolean first = true;
+
+      sb.append("success:");
+      if (this.success == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.success);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ire:");
+      if (this.ire == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.ire);
+      }
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws TException {
+      // check for required fields
+    }
+
+  }
+
   public static class describe_keyspaces_args implements TBase<describe_keyspaces_args._Fields>, java.io.Serializable, Cloneable, Comparable<describe_keyspaces_args>   {
     private static final TStruct STRUCT_DESC = new TStruct("describe_keyspaces_args");
 
@@ -14420,13 +15093,13 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.SET) {
               {
-                TSet _set73 = iprot.readSetBegin();
-                this.success = new HashSet<String>(2*_set73.size);
-                for (int _i74 = 0; _i74 < _set73.size; ++_i74)
+                TSet _set82 = iprot.readSetBegin();
+                this.success = new HashSet<String>(2*_set82.size);
+                for (int _i83 = 0; _i83 < _set82.size; ++_i83)
                 {
-                  String _elem75;
-                  _elem75 = iprot.readString();
-                  this.success.add(_elem75);
+                  String _elem84;
+                  _elem84 = iprot.readString();
+                  this.success.add(_elem84);
                 }
                 iprot.readSetEnd();
               }
@@ -14452,9 +15125,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeSetBegin(new TSet(TType.STRING, this.success.size()));
-          for (String _iter76 : this.success)
+          for (String _iter85 : this.success)
           {
-            oprot.writeString(_iter76);
+            oprot.writeString(_iter85);
           }
           oprot.writeSetEnd();
         }
@@ -15961,14 +16634,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list77 = iprot.readListBegin();
-                this.success = new ArrayList<TokenRange>(_list77.size);
-                for (int _i78 = 0; _i78 < _list77.size; ++_i78)
+                TList _list86 = iprot.readListBegin();
+                this.success = new ArrayList<TokenRange>(_list86.size);
+                for (int _i87 = 0; _i87 < _list86.size; ++_i87)
                 {
-                  TokenRange _elem79;
-                  _elem79 = new TokenRange();
-                  _elem79.read(iprot);
-                  this.success.add(_elem79);
+                  TokenRange _elem88;
+                  _elem88 = new TokenRange();
+                  _elem88.read(iprot);
+                  this.success.add(_elem88);
                 }
                 iprot.readListEnd();
               }
@@ -15994,9 +16667,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (TokenRange _iter80 : this.success)
+          for (TokenRange _iter89 : this.success)
           {
-            _iter80.write(oprot);
+            _iter89.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -16617,27 +17290,27 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.MAP) {
               {
-                TMap _map81 = iprot.readMapBegin();
-                this.success = new HashMap<String,Map<String,String>>(2*_map81.size);
-                for (int _i82 = 0; _i82 < _map81.size; ++_i82)
+                TMap _map90 = iprot.readMapBegin();
+                this.success = new HashMap<String,Map<String,String>>(2*_map90.size);
+                for (int _i91 = 0; _i91 < _map90.size; ++_i91)
                 {
-                  String _key83;
-                  Map<String,String> _val84;
-                  _key83 = iprot.readString();
+                  String _key92;
+                  Map<String,String> _val93;
+                  _key92 = iprot.readString();
                   {
-                    TMap _map85 = iprot.readMapBegin();
-                    _val84 = new HashMap<String,String>(2*_map85.size);
-                    for (int _i86 = 0; _i86 < _map85.size; ++_i86)
+                    TMap _map94 = iprot.readMapBegin();
+                    _val93 = new HashMap<String,String>(2*_map94.size);
+                    for (int _i95 = 0; _i95 < _map94.size; ++_i95)
                     {
-                      String _key87;
-                      String _val88;
-                      _key87 = iprot.readString();
-                      _val88 = iprot.readString();
-                      _val84.put(_key87, _val88);
+                      String _key96;
+                      String _val97;
+                      _key96 = iprot.readString();
+                      _val97 = iprot.readString();
+                      _val93.put(_key96, _val97);
                     }
                     iprot.readMapEnd();
                   }
-                  this.success.put(_key83, _val84);
+                  this.success.put(_key92, _val93);
                 }
                 iprot.readMapEnd();
               }
@@ -16671,15 +17344,15 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.MAP, this.success.size()));
-          for (Map.Entry<String, Map<String,String>> _iter89 : this.success.entrySet())
+          for (Map.Entry<String, Map<String,String>> _iter98 : this.success.entrySet())
           {
-            oprot.writeString(_iter89.getKey());
+            oprot.writeString(_iter98.getKey());
             {
-              oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, _iter89.getValue().size()));
-              for (Map.Entry<String, String> _iter90 : _iter89.getValue().entrySet())
+              oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, _iter98.getValue().size()));
+              for (Map.Entry<String, String> _iter99 : _iter98.getValue().entrySet())
               {
-                oprot.writeString(_iter90.getKey());
-                oprot.writeString(_iter90.getValue());
+                oprot.writeString(_iter99.getKey());
+                oprot.writeString(_iter99.getValue());
               }
               oprot.writeMapEnd();
             }
@@ -17435,13 +18108,13 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list91 = iprot.readListBegin();
-                this.success = new ArrayList<String>(_list91.size);
-                for (int _i92 = 0; _i92 < _list91.size; ++_i92)
+                TList _list100 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list100.size);
+                for (int _i101 = 0; _i101 < _list100.size; ++_i101)
                 {
-                  String _elem93;
-                  _elem93 = iprot.readString();
-                  this.success.add(_elem93);
+                  String _elem102;
+                  _elem102 = iprot.readString();
+                  this.success.add(_elem102);
                 }
                 iprot.readListEnd();
               }
@@ -17467,9 +18140,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.success.size()));
-          for (String _iter94 : this.success)
+          for (String _iter103 : this.success)
           {
-            oprot.writeString(_iter94);
+            oprot.writeString(_iter103);
           }
           oprot.writeListEnd();
         }

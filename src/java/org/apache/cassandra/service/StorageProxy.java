@@ -26,12 +26,17 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -55,6 +60,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -562,6 +568,76 @@ public class StorageProxy implements StorageProxyMBean
 
         rangeStats.addNano(System.nanoTime() - startTime);
         return rows.size() > command.max_keys ? rows.subList(0, command.max_keys) : rows;
+    }
+
+    /**
+     * initiate a request/response session with each live node to check whether or not everybody is using the same 
+     * migration id. This is useful for determining if a schema change has propagated through the cluster. Disagreement
+     * is assumed if any node fails to respond.
+     */
+    public static Map<String, List<String>> checkSchemaAgreement()
+    {
+        final Map<String, List<String>> results = new HashMap<String, List<String>>();
+        
+        final String myVersion = DatabaseDescriptor.getDefsVersion().toString();
+        final Map<InetAddress, UUID> versions = new ConcurrentHashMap<InetAddress, UUID>();
+        final Set<InetAddress> liveHosts = Gossiper.instance.getLiveMembers();
+        final Message msg = new Message(FBUtilities.getLocalAddress(), StageManager.MIGRATION_STAGE, StorageService.Verb.SCHEMA_CHECK, ArrayUtils.EMPTY_BYTE_ARRAY);
+        final CountDownLatch latch = new CountDownLatch(liveHosts.size());
+        // an empty message acts as a request to the SchemaCheckVerbHandler.
+        MessagingService.instance.sendRR(msg, liveHosts.toArray(new InetAddress[]{}), new IAsyncCallback() 
+        {
+            @Override
+            public void response(Message msg)
+            {
+                // record the response from the remote node.
+                logger.debug("Received schema check response from " + msg.getFrom().getHostAddress());
+                UUID theirVersion = UUID.fromString(new String(msg.getMessageBody()));
+                versions.put(msg.getFrom(), theirVersion);
+                latch.countDown();
+            }
+        });
+        
+        try
+        {
+            // wait for as long as possible. timeout-1s if possible.
+            latch.await(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
+        } 
+        catch (InterruptedException ex) 
+        {
+            throw new AssertionError("This latch shouldn't have been interrupted.");
+        }
+        
+        logger.debug("My version is " + myVersion);
+        
+        // first, indicate any hosts that did not respond.
+        final Set<InetAddress> ackedHosts = versions.keySet();
+        if (ackedHosts.size() < liveHosts.size())
+        {
+            Set<InetAddress> missingHosts = new HashSet<InetAddress>(liveHosts);
+            missingHosts.removeAll(ackedHosts);
+            assert missingHosts.size() > 0;
+            List<String> missingHostNames = new ArrayList<String>(missingHosts.size());
+            for (InetAddress host : missingHosts)
+                missingHostNames.add(host.getHostAddress());
+            results.put(DatabaseDescriptor.INITIAL_VERSION.toString(), missingHostNames);
+            logger.debug("Hosts not in agreement. Didn't get a response from everybody: " + StringUtils.join(missingHostNames, ","));
+        }
+        
+        // check for version disagreement. log the hosts that don't agree.
+        for (InetAddress host : ackedHosts)
+        {
+            String uuid = versions.get(host).toString();
+            if (!results.containsKey(uuid))
+                results.put(uuid, new ArrayList<String>());
+            results.get(uuid).add(host.getHostAddress());
+            if (!uuid.equals(myVersion))
+                logger.debug("%s disagrees (%s)", host.getHostAddress(), uuid);
+        }
+        if (results.size() == 1)
+            logger.debug("Schemas are in agreement.");
+        
+        return results;
     }
 
     /**

@@ -111,6 +111,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         DEFINITIONS_ANNOUNCE,
         DEFINITIONS_UPDATE_RESPONSE,
         TRUNCATE,
+        SCHEMA_CHECK,
         ;
         // remember to add new verbs at the end, since we serialize by ordinal
     }
@@ -236,6 +237,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         MessagingService.instance.registerVerbHandlers(Verb.DEFINITIONS_ANNOUNCE, new DefinitionsAnnounceVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.DEFINITIONS_UPDATE_RESPONSE, new DefinitionsUpdateResponseVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.TRUNCATE, new TruncateVerbHandler());
+        MessagingService.instance.registerVerbHandlers(Verb.SCHEMA_CHECK, new SchemaCheckVerbHandler());
 
         replicationStrategies = new HashMap<String, AbstractReplicationStrategy>();
         for (String table : DatabaseDescriptor.getNonSystemTables())

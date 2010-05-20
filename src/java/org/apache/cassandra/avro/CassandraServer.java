@@ -51,6 +51,8 @@ import org.apache.cassandra.service.StorageProxy;
 import static org.apache.cassandra.utils.FBUtilities.UTF8;
 
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.thrift.*;
+import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import static org.apache.cassandra.avro.AvroRecordFactory.*;
@@ -572,5 +574,11 @@ public class CassandraServer implements Cassandra {
     public Utf8 describe_version() throws AvroRemoteException
     {
         return API_VERSION;
+    }
+    
+    public Map<String, List<String>> check_schema_agreement()
+    {
+        logger.debug("checking schema agreement");      
+        return StorageProxy.checkSchemaAgreement();
     }
 }
