@@ -51,24 +51,43 @@ public class StreamingService implements StreamingServiceMBean
     public String getStatus()
     {
         StringBuilder sb = new StringBuilder();
-        sb.append("Receiving from:\n");
-        for (InetAddress source : StreamInManager.getSources())
+        
+        Set<InetAddress> sources = StreamInManager.getSources();
+        if (sources.size() > 0)
         {
-            sb.append(String.format(" %s:\n", source.getHostAddress()));
-            for (PendingFile pf : StreamInManager.getIncomingFiles(source))
+            sb.append("Receiving from:\n");
+            for (InetAddress source : sources)
             {
-                sb.append(String.format("  %s %d/%d\n", pf.getTargetFile(), pf.getPtr(), pf.getExpectedBytes()));
+                sb.append(String.format(" %s:\n", source.getHostAddress()));
+                for (PendingFile pf : StreamInManager.getIncomingFiles(source))
+                {
+                    sb.append(String.format("  %s %d/%d\n", pf.getTargetFile(), pf.getPtr(), pf.getExpectedBytes()));
+                }
             }
         }
-        sb.append("Sending to:\n");
-        for (InetAddress dest : StreamOutManager.getDestinations())
+        
+        Set<InetAddress> destinations = StreamOutManager.getDestinations();
+        if (destinations.size() > 0)
         {
-            sb.append(String.format(" %s:\n", dest.getHostAddress()));
-            for (PendingFile pf : StreamOutManager.getPendingFiles(dest))
+            sb.append("Sending to:\n");
+            for (InetAddress dest : destinations)
             {
-                sb.append(String.format("  %s %d/%d\n", pf.getTargetFile(), pf.getPtr(), pf.getExpectedBytes()));
+                sb.append(String.format(" %s:\n", dest.getHostAddress()));
+                for (PendingFile pf : StreamOutManager.getPendingFiles(dest))
+                {
+                    sb.append(String.format("  %s %d/%d\n", pf.getTargetFile(), pf.getPtr(), pf.getExpectedBytes()));
+                }
             }
         }
+        
+        Set<InetAddress> waiting = StreamOutManager.getDestinationsWaiting();
+        if (waiting.size() > 0)
+        {
+            sb.append("Destinations waiting for anticompaction:\n");
+            for (InetAddress dest : waiting)
+                sb.append(String.format(" %s\n", dest.getHostAddress()));
+        }
+        
         return sb.toString();
         
     }
