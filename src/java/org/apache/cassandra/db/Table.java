@@ -132,7 +132,10 @@ public class Table
     @Deprecated
     public ColumnFamilyStore getColumnFamilyStore(String cfName)
     {
-        return columnFamilyStores.get(CFMetaData.getId(name, cfName));
+        Integer id = CFMetaData.getId(name, cfName);
+        if (id == null)
+            throw new IllegalArgumentException(String.format("Unknown table/cf pair (%s.%s)", name, cfName));
+        return columnFamilyStores.get(id);
     }
 
     /**

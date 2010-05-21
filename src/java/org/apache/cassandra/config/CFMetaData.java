@@ -38,6 +38,8 @@ import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Pair;
 
+import com.google.common.collect.*;
+
 public final class CFMetaData
 {
     public final static double DEFAULT_READ_REPAIR_CHANCE = 1.0;
@@ -50,29 +52,43 @@ public final class CFMetaData
     
     private static final Map<Integer, String> currentCfNames = new HashMap<Integer, String>();
     
-    private static final Map<Pair<String, String>, Integer> cfIdMap = new HashMap<Pair<String, String>, Integer>();
+    private static final BiMap<Pair<String, String>, Integer> cfIdMap = HashBiMap.<Pair<String, String>, Integer>create();
     
     public static final CFMetaData StatusCf = new CFMetaData(Table.SYSTEM_TABLE, SystemTable.STATUS_CF, ColumnFamilyType.Standard, new UTF8Type(), null, "persistent metadata for the local node", 0, false, 0.01, 0);
     public static final CFMetaData HintsCf = new CFMetaData(Table.SYSTEM_TABLE, HintedHandOffManager.HINTS_CF, ColumnFamilyType.Super, new UTF8Type(), new BytesType(), "hinted handoff data", 0, false, 0.01, 1);
     public static final CFMetaData MigrationsCf = new CFMetaData(Table.SYSTEM_TABLE, Migration.MIGRATIONS_CF, ColumnFamilyType.Standard, new TimeUUIDType(), null, "individual schema mutations", 0, false, 2);
     public static final CFMetaData SchemaCf = new CFMetaData(Table.SYSTEM_TABLE, Migration.SCHEMA_CF, ColumnFamilyType.Standard, new UTF8Type(), null, "current state of the schema", 0, false, 3);
 
-    public static final Map<Pair<String, String>, Integer> getCfIdMap()
+    /**
+     * @return An immutable mapping of (ksname,cfname) to id.
+     */
+    public static final Map<Pair<String, String>, Integer> getCfToIdMap()
     {
-        return Collections.unmodifiableMap(cfIdMap);    
+        return Collections.unmodifiableMap(cfIdMap);
     }
     
-    public static final String getCurrentName(int id)
+    /**
+     * @return An immutable mapping of id to (ksname,cfname).
+     */
+    public static final Map<Integer, Pair<String, String>> getIdToCfMap()
     {
-        return currentCfNames.get(id);
+        return Collections.unmodifiableMap(cfIdMap.inverse());
     }
     
-    public static final int getId(String table, String cfName)
+    /**
+     * @return The (ksname,cfname) pair for the given id, or null if it has been dropped.
+     */
+    public static final Pair<String,String> getCF(int id)
     {
-        Integer id = cfIdMap.get(new Pair<String, String>(table, cfName));
-        if (id == null)
-            throw new IllegalArgumentException(String.format("Illegal table/cf pair (%s.%s)", table, cfName));
-        return id;
+        return cfIdMap.inverse().get(Integer.valueOf(id));
+    }
+    
+    /**
+     * @return The id for the given (ksname,cfname) pair, or null if it has been dropped.
+     */
+    public static final Integer getId(String table, String cfName)
+    {
+        return cfIdMap.get(new Pair<String, String>(table, cfName));
     }
     
     // this gets called after initialization to make sure that id generation happens properly.

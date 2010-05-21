@@ -250,12 +250,9 @@ public class CommitLog
                         // thing based on the cfid instead.
                         for (ColumnFamily columnFamily : columnFamilies)
                         {
-                            // make sure to use the current name of the cf (null means its been dropped).
-                            String currentName = CFMetaData.getCurrentName(columnFamily.id());
-                            if (currentName == null)
+                            if (CFMetaData.getCF(columnFamily.id()) == null)
+                                // null means the cf has been dropped
                                 continue;
-                            else if (!currentName.equals(columnFamily.name()))
-                                columnFamily.rename(currentName);
                             
                             if (clHeader.isDirty(columnFamily.id()) && entryLocation >= clHeader.getPosition(columnFamily.id()))
                                 newRm.add(columnFamily);

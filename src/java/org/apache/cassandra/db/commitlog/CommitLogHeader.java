@@ -56,7 +56,7 @@ class CommitLogHeader
     
     CommitLogHeader()
     {
-        this(new HashMap<Integer, Integer>(), CFMetaData.getCfIdMap().size());
+        this(new HashMap<Integer, Integer>(), CFMetaData.getCfToIdMap().size());
     }
     
     /*

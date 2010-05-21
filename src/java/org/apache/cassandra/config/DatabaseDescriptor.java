@@ -32,6 +32,7 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.cassandra.locator.IEndpointSnitch;
@@ -655,6 +656,14 @@ public class DatabaseDescriptor
         return ksm.cfMetaData().get(cfName);
     }
     
+    public static CFMetaData getCFMetaData(int cfid)
+    {
+        Pair<String,String> cf = CFMetaData.getCF(cfid);
+        if (cf == null)
+            return null;
+        return getCFMetaData(cf.left, cf.right);
+    }
+
     public static ColumnFamilyType getColumnFamilyType(String tableName, String cfName)
     {
         assert tableName != null && cfName != null;

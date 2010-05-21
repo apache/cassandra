@@ -58,7 +58,9 @@ public class ColumnFamily implements IColumnContainer
         ColumnFamilyType cfType = DatabaseDescriptor.getColumnFamilyType(tableName, cfName);
         AbstractType comparator = DatabaseDescriptor.getComparator(tableName, cfName);
         AbstractType subcolumnComparator = DatabaseDescriptor.getSubComparator(tableName, cfName);
-        int id = CFMetaData.getId(tableName, cfName);
+        Integer id = CFMetaData.getId(tableName, cfName);
+        if (id == null)
+            throw new RuntimeException("Cannot create ColumnFamily for non-existant table/cf pair.");
         return new ColumnFamily(cfName, cfType, comparator, subcolumnComparator, id);
     }
 
