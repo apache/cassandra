@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.migration;
 
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamily;
@@ -98,11 +99,11 @@ public abstract class Migration
     public void beforeApplyModels() {}
     
     /** apply changes */
-    public final void apply() throws IOException
+    public final void apply() throws IOException, ConfigurationException
     {
         // ensure migration is serial. don't apply unless the previous version matches.
         if (!DatabaseDescriptor.getDefsVersion().equals(lastVersion))
-            throw new IOException("Previous version mismatch. cannot apply.");
+            throw new ConfigurationException("Previous version mismatch. cannot apply.");
         // write to schema
         assert rm != null;
         if (!clientMode)
@@ -124,6 +125,10 @@ public abstract class Migration
             migration = new RowMutation(Table.SYSTEM_TABLE, LAST_MIGRATION_KEY);
             migration.add(new QueryPath(SCHEMA_CF, null, LAST_MIGRATION_KEY), UUIDGen.decompose(newVersion), now);
             migration.apply();
+            
+            // if we fail here, there will be schema changes in the CL that will get replayed *AFTER* the schema is loaded.
+            // CassandraDaemon checks for this condition (the stored version will be greater than the loaded version)
+            // and calls MigrationManager.applyMigrations(loaded version, stored version).
         
             // flush changes out of memtables so we don't need to rely on the commit log.
             ColumnFamilyStore[] schemaStores = new ColumnFamilyStore[] {

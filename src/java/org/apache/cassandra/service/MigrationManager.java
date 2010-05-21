@@ -19,6 +19,7 @@
 package org.apache.cassandra.service;
 
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.IColumn;
@@ -42,8 +43,11 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 public class MigrationManager implements IEndpointStateChangeSubscriber
 {
@@ -98,6 +102,59 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         Message msg = makeVersionMessage(version);
         for (InetAddress host : hosts)
             MessagingService.instance.sendOneWay(msg, host);
+    }
+
+    /**
+     * gets called during startup if we notice a mismatch between the current migration version and the one saved. This
+     * can only happen as a result of the commit log recovering schema updates, which overwrites lastVersionId.
+     * 
+     * This method silently eats IOExceptions thrown by Migration.apply() as a result of applying a migration out of
+     * order.
+     */
+    public static void applyMigrations(UUID from, UUID to) throws IOException
+    {
+        List<Future> updates = new ArrayList<Future>();
+        Collection<IColumn> migrations = Migration.getLocalMigrations(from, to);
+        for (IColumn col : migrations)
+        {
+            final Migration migration = Migration.deserialize(new ByteArrayInputStream(col.value()));
+            Future update = StageManager.getStage(StageManager.MIGRATION_STAGE).submit(new Runnable() 
+            {
+                public void run()
+                {
+                    try
+                    {
+                        migration.apply();
+                    }
+                    catch (ConfigurationException ex)
+                    {
+                        // this happens if we try to apply something that's already been applied. ignore and proceed.
+                    }
+                    catch (IOException ex)
+                    {
+                        throw new RuntimeException(ex);
+                    }
+                }
+            });
+            updates.add(update);
+        }
+        
+        // wait on all the updates before proceeding.
+        for (Future f : updates)
+        {
+            try
+            {
+                f.get();
+            }
+            catch (InterruptedException e)
+            {
+                throw new IOException(e);
+            }
+            catch (ExecutionException e)
+            {
+                throw new IOException(e);
+            }
+        }
     }
     
     /** pushes migrations from this host to another host */

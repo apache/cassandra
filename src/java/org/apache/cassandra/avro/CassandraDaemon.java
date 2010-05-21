@@ -22,18 +22,28 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 import org.apache.avro.ipc.SocketServer;
 import org.apache.avro.ipc.HttpServer;
 import org.apache.avro.specific.SpecificResponder;
+import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.CompactionManager;
+import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Mx4jTool;
 
+import org.apache.cassandra.utils.WrappedRunnable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -94,6 +104,16 @@ public class CassandraDaemon {
         // replay the log if necessary and check for compaction candidates
         CommitLog.recover();
         CompactionManager.instance.checkAllColumnFamilies();
+        
+        // check to see if CL.recovery modified the lastMigrationId. if it did, we need to re apply migrations. this isn't
+        // the same as merely reloading the schema (which wouldn't perform file deletion after a DROP). The solution
+        // is to read those migrations from disk and apply them.
+        UUID currentMigration = DatabaseDescriptor.getDefsVersion();
+        UUID lastMigration = Migration.getLastMigrationId();
+        if (lastMigration.timestamp() > currentMigration.timestamp())
+        {
+            MigrationManager.applyMigrations(currentMigration, lastMigration);
+        }
 
         // start server internals
         StorageService.instance.initServer();
