@@ -131,7 +131,7 @@
        ~ a different datacenter, and the others on different racks in the same
        ~ one.)
       -->
-      <!-- <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy> -->
+      <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
 
       <!-- Number of replicas of the data -->
       <ReplicationFactor>1</ReplicationFactor>

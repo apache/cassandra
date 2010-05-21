@@ -39,6 +39,7 @@ goto runNodeTool
 
 :runNodeTool
 echo Starting NodeTool
+echo cp %CASSANDRA_CLASSPATH%
 "%JAVA_HOME%\bin\java" -cp "%CASSANDRA_CLASSPATH%" -Dstorage-config=%CASSANDRA_HOME%\conf\ -Dlog4j.configuration=log4j-tools.properties org.apache.cassandra.tools.NodeCmd %*
 goto finally
 

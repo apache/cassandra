@@ -78,11 +78,6 @@ public class StreamOutManager
         return hosts;        
     }
     
-    public static Set<InetAddress> getDestinationsWaiting()
-    {
-        return new HashSet<InetAddress>(pendingDestinations);
-    }
-    
     /** 
      * this method exists so that we don't have to call StreamOutManager.get() which has a nasty side-effect of 
      * indicating that we are streaming to a particular host.
