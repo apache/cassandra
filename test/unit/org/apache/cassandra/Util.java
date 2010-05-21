@@ -87,7 +87,7 @@ public class Util
     {
         RowMutation first = rms.get(0);
         String tablename = first.getTable();
-        String cfname = first.columnFamilyNames().iterator().next();
+        String cfname = first.getColumnFamilies().iterator().next().metadata().cfName;
 
         Table table = Table.open(tablename);
         ColumnFamilyStore store = table.getColumnFamilyStore(cfname);

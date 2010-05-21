@@ -144,7 +144,7 @@ public class StorageProxy implements StorageProxyMBean
                             if (destination.equals(FBUtilities.getLocalAddress()))
                             {
                                 if (logger.isDebugEnabled())
-                                    logger.debug("insert writing local key " + FBUtilities.bytesToHex(rm.key()) + " (keyspace: " + rm.getTable() + ", CFs:" + rm.columnFamilyNames() + ")");
+                                    logger.debug("insert writing local " + rm.toString(true));
                                 Runnable runnable = new WrappedRunnable()
                                 {
                                     public void runMayThrow() throws IOException
@@ -293,7 +293,7 @@ public class StorageProxy implements StorageProxyMBean
     private static void insertLocalMessage(final RowMutation rm, final AbstractWriteResponseHandler responseHandler)
     {
         if (logger.isDebugEnabled())
-            logger.debug("insert writing local key " + FBUtilities.bytesToHex(rm.key()) + " (keyspace: " + rm.getTable() + ", CFs:" + rm.columnFamilyNames() + ")");
+            logger.debug("insert writing local " + rm.toString(true));
         Runnable runnable = new WrappedRunnable()
         {
             public void runMayThrow() throws IOException

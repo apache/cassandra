@@ -22,11 +22,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.nio.ByteBuffer;
 
@@ -42,6 +38,7 @@ import org.apache.cassandra.thrift.Deletion;
 import org.apache.cassandra.thrift.Mutation;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.concurrent.StageManager;
 
@@ -62,7 +59,8 @@ public class RowMutation
 
     private String table_;
     private byte[] key_;
-    protected Map<String, ColumnFamily> modifications_ = new HashMap<String, ColumnFamily>();
+    // map of column family id to mutations for that column family.
+    protected Map<Integer, ColumnFamily> modifications_ = new HashMap<Integer, ColumnFamily>();
 
     public RowMutation(String table, byte[] key)
     {
@@ -77,7 +75,7 @@ public class RowMutation
         add(row.cf);
     }
 
-    protected RowMutation(String table, byte[] key, Map<String, ColumnFamily> modifications)
+    protected RowMutation(String table, byte[] key, Map<Integer, ColumnFamily> modifications)
     {
         table_ = table;
         key_ = key;
@@ -94,11 +92,6 @@ public class RowMutation
         return key_;
     }
 
-    public Set<String> columnFamilyNames()
-    {
-        return modifications_.keySet();
-    }
-    
     public Collection<ColumnFamily> getColumnFamilies()
     {
         return modifications_.values();
@@ -119,19 +112,12 @@ public class RowMutation
     public void add(ColumnFamily columnFamily)
     {
         assert columnFamily != null;
-        if (modifications_.containsKey(columnFamily.name()))
-        {
-            throw new IllegalArgumentException("ColumnFamily " + columnFamily.name() + " is already being modified");
-        }
-        modifications_.put(columnFamily.name(), columnFamily);
+        ColumnFamily prev = modifications_.put(columnFamily.id(), columnFamily);
+        if (prev != null)
+            // developer error
+            throw new IllegalArgumentException("ColumnFamily " + columnFamily + " already has modifications in this mutation: " + prev);
     }
 
-    /** should only be called by commitlog replay code */
-    public void removeColumnFamily(String cfName)
-    {
-        modifications_.remove(cfName);
-    }
-    
     public boolean isEmpty()
     {
         return modifications_.isEmpty();
@@ -152,13 +138,14 @@ public class RowMutation
     */
     public void add(QueryPath path, byte[] value, long timestamp, int timeToLive)
     {
-        ColumnFamily columnFamily = modifications_.get(path.columnFamilyName);
+        Integer id = CFMetaData.getId(table_, path.columnFamilyName);
+        ColumnFamily columnFamily = modifications_.get(id);
         if (columnFamily == null)
         {
             columnFamily = ColumnFamily.create(table_, path.columnFamilyName);
+            modifications_.put(id, columnFamily);
         }
         columnFamily.addColumn(path, value, timestamp, timeToLive);
-        modifications_.put(path.columnFamilyName, columnFamily);
     }
 
     public void add(QueryPath path, byte[] value, long timestamp)
@@ -168,14 +155,16 @@ public class RowMutation
 
     public void delete(QueryPath path, long timestamp)
     {
-        assert path.columnFamilyName != null;
-        String cfName = path.columnFamilyName;
+        Integer id = CFMetaData.getId(table_, path.columnFamilyName);
 
         int localDeleteTime = (int) (System.currentTimeMillis() / 1000);
 
-        ColumnFamily columnFamily = modifications_.get(cfName);
+        ColumnFamily columnFamily = modifications_.get(id);
         if (columnFamily == null)
-            columnFamily = ColumnFamily.create(table_, cfName);
+        {
+            columnFamily = ColumnFamily.create(table_, path.columnFamilyName);
+            modifications_.put(id, columnFamily);
+        }
 
         if (path.superColumnName == null && path.columnName == null)
         {
@@ -183,7 +172,7 @@ public class RowMutation
         }
         else if (path.columnName == null)
         {
-            SuperColumn sc = new SuperColumn(path.superColumnName, DatabaseDescriptor.getSubComparator(table_, cfName));
+            SuperColumn sc = new SuperColumn(path.superColumnName, columnFamily.getSubComparator());
             sc.markForDeleteAt(localDeleteTime, timestamp);
             columnFamily.addColumn(sc);
         }
@@ -191,8 +180,6 @@ public class RowMutation
         {
             columnFamily.deleteColumn(path, localDeleteTime, timestamp);
         }
-
-        modifications_.put(cfName, columnFamily);
     }
 
     /*
@@ -282,11 +269,28 @@ public class RowMutation
 
     public String toString()
     {
-        return "RowMutation(" +
-               "table='" + table_ + '\'' +
-               ", key='" + FBUtilities.bytesToHex(key_) + '\'' +
-               ", modifications=[" + StringUtils.join(modifications_.values(), ", ") + "]" +
-               ')';
+        return toString(false);
+    }
+
+    public String toString(boolean shallow)
+    {
+        StringBuilder buff = new StringBuilder("RowMutation(");
+        buff.append("keyspace='").append(table_).append('\'');
+        buff.append(", key='").append(FBUtilities.bytesToHex(key_)).append('\'');
+        buff.append(", modifications=[");
+        if (shallow)
+        {
+            List<String> cfnames = new ArrayList<String>();
+            for (Integer cfid : modifications_.keySet())
+            {
+                CFMetaData cfm = DatabaseDescriptor.getCFMetaData(cfid);
+                cfnames.add(cfm == null ? "-dropped-" : cfm.cfName);
+            }
+            buff.append(StringUtils.join(cfnames, ", "));
+        }
+        else
+            buff.append(StringUtils.join(modifications_.values(), ", "));
+        return buff.append("])").toString();
     }
 
     private static void addColumnOrSuperColumnToRowMutation(RowMutation rm, String cfName, ColumnOrSuperColumn cosc)
@@ -325,15 +329,15 @@ public class RowMutation
 
 class RowMutationSerializer implements ICompactSerializer<RowMutation>
 {
-    private void freezeTheMaps(Map<String, ColumnFamily> map, DataOutputStream dos) throws IOException
+    private void freezeTheMaps(Map<Integer, ColumnFamily> map, DataOutputStream dos) throws IOException
     {
         int size = map.size();
         dos.writeInt(size);
         if (size > 0)
         {
-            for (Map.Entry<String,ColumnFamily> entry : map.entrySet())
+            for (Map.Entry<Integer,ColumnFamily> entry : map.entrySet())
             {
-                dos.writeUTF(entry.getKey());
+                dos.writeInt(entry.getKey());
                 ColumnFamily.serializer().serialize(entry.getValue(), dos);
             }
         }
@@ -348,15 +352,15 @@ class RowMutationSerializer implements ICompactSerializer<RowMutation>
         freezeTheMaps(rm.modifications_, dos);
     }
 
-    private Map<String, ColumnFamily> defreezeTheMaps(DataInputStream dis) throws IOException
+    private Map<Integer, ColumnFamily> defreezeTheMaps(DataInputStream dis) throws IOException
     {
-        Map<String, ColumnFamily> map = new HashMap<String, ColumnFamily>();
+        Map<Integer, ColumnFamily> map = new HashMap<Integer, ColumnFamily>();
         int size = dis.readInt();
         for (int i = 0; i < size; ++i)
         {
-            String key = dis.readUTF();
+            Integer cfid = Integer.valueOf(dis.readInt());
             ColumnFamily cf = ColumnFamily.serializer().deserialize(dis);
-            map.put(key, cf);
+            map.put(cfid, cf);
         }
         return map;
     }
@@ -365,7 +369,7 @@ class RowMutationSerializer implements ICompactSerializer<RowMutation>
     {
         String table = dis.readUTF();
         byte[] key = FBUtilities.readShortByteArray(dis);
-        Map<String, ColumnFamily> modifications = defreezeTheMaps(dis);
+        Map<Integer, ColumnFamily> modifications = defreezeTheMaps(dis);
         return new RowMutation(table, key, modifications);
     }
 }

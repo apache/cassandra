@@ -30,96 +30,93 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.FBUtilities;
-
+import org.apache.cassandra.utils.Pair;
 
 public class ColumnFamily implements IColumnContainer
 {
     /* The column serializer for this Column Family. Create based on config. */
-    private static ColumnFamilySerializer serializer_ = new ColumnFamilySerializer();
-
-    private static Logger logger_ = LoggerFactory.getLogger( ColumnFamily.class );
-    ColumnFamilyType type_;
+    private static ColumnFamilySerializer serializer = new ColumnFamilySerializer();
 
     public static ColumnFamilySerializer serializer()
     {
-        return serializer_;
+        return serializer;
+    }
+
+    public static ColumnFamily create(int cfid)
+    {
+        return create(DatabaseDescriptor.getCFMetaData(cfid));
     }
 
     public static ColumnFamily create(String tableName, String cfName)
     {
-        ColumnFamilyType cfType = DatabaseDescriptor.getColumnFamilyType(tableName, cfName);
-        AbstractType comparator = DatabaseDescriptor.getComparator(tableName, cfName);
-        AbstractType subcolumnComparator = DatabaseDescriptor.getSubComparator(tableName, cfName);
-        Integer id = CFMetaData.getId(tableName, cfName);
-        if (id == null)
-            throw new RuntimeException("Cannot create ColumnFamily for non-existant table/cf pair.");
-        return new ColumnFamily(cfName, cfType, comparator, subcolumnComparator, id);
+        return create(DatabaseDescriptor.getCFMetaData(tableName, cfName));
     }
 
-    private String name_;
-    private final int id_;
-
-    private transient ICompactSerializer2<IColumn> columnSerializer_;
-    AtomicLong markedForDeleteAt = new AtomicLong(Long.MIN_VALUE);
-    AtomicInteger localDeletionTime = new AtomicInteger(Integer.MIN_VALUE);
-    private ConcurrentSkipListMap<byte[], IColumn> columns_;
-
-    public ColumnFamily(String cfName, ColumnFamilyType cfType, AbstractType comparator, AbstractType subcolumnComparator, int id)
+    public static ColumnFamily create(CFMetaData cfm)
     {
-        name_ = cfName;
-        type_ = cfType;
-        columnSerializer_ = cfType == ColumnFamilyType.Standard ? Column.serializer() : SuperColumn.serializer(subcolumnComparator);
-        columns_ = new ConcurrentSkipListMap<byte[], IColumn>(comparator);
-        id_ = id;
+        if (cfm == null)
+            throw new IllegalArgumentException("Unknown column family.");
+        return new ColumnFamily(cfm.cfType, cfm.comparator, cfm.subcolumnComparator, cfm.cfId);
     }
+
+    private final int cfid;
+    private final ColumnFamilyType type;
+
+    private transient ICompactSerializer2<IColumn> columnSerializer;
+    final AtomicLong markedForDeleteAt = new AtomicLong(Long.MIN_VALUE);
+    final AtomicInteger localDeletionTime = new AtomicInteger(Integer.MIN_VALUE);
+    private ConcurrentSkipListMap<byte[], IColumn> columns;
+
+    public ColumnFamily(ColumnFamilyType type, AbstractType comparator, AbstractType subcolumnComparator, int cfid)
+    {
+        this.type = type;
+        columnSerializer = type == ColumnFamilyType.Standard ? Column.serializer() : SuperColumn.serializer(subcolumnComparator);
+        columns = new ConcurrentSkipListMap<byte[], IColumn>(comparator);
+        this.cfid = cfid;
+     }
     
-    /** called during CL recovery when it is determined that a CF name was changed. */
-    public void rename(String newName)
-    {
-        name_ = newName;
-    }
-
     public ColumnFamily cloneMeShallow()
     {
-        ColumnFamily cf = new ColumnFamily(name_, type_, getComparator(), getSubComparator(), id_);
-        cf.markedForDeleteAt = markedForDeleteAt;
-        cf.localDeletionTime = localDeletionTime;
+        ColumnFamily cf = new ColumnFamily(type, getComparator(), getSubComparator(), cfid);
+        cf.markedForDeleteAt.set(markedForDeleteAt.get());
+        cf.localDeletionTime.set(localDeletionTime.get());
         return cf;
     }
 
-    private AbstractType getSubComparator()
+    public AbstractType getSubComparator()
     {
-        return (columnSerializer_ instanceof SuperColumnSerializer) ? ((SuperColumnSerializer)columnSerializer_).getComparator() : null;
+        return (columnSerializer instanceof SuperColumnSerializer) ? ((SuperColumnSerializer)columnSerializer).getComparator() : null;
     }
 
     public ColumnFamilyType getColumnFamilyType()
     {
-        return type_;
+        return type;
     }
 
     public ColumnFamily cloneMe()
     {
         ColumnFamily cf = cloneMeShallow();
-        cf.columns_ = columns_.clone();
-    	return cf;
+        cf.columns = columns.clone();
+        return cf;
     }
 
-    public String name()
-    {
-        return name_;
-    }
-    
     public int id()
     {
-        return id_;
+        return cfid;
+    }
+
+    /**
+     * @return The CFMetaData for this row, or null if the column family was dropped.
+     */
+    public CFMetaData metadata()
+    {
+        return DatabaseDescriptor.getCFMetaData(cfid);
     }
 
     /*
@@ -135,31 +132,28 @@ public class ColumnFamily implements IColumnContainer
         delete(cf);
     }
 
+    /**
+     * FIXME: Gross.
+     */
     public ICompactSerializer2<IColumn> getColumnSerializer()
     {
-    	return columnSerializer_;
+        return columnSerializer;
     }
 
     int getColumnCount()
     {
-    	int count = 0;
-        if(type_ == ColumnFamilyType.Standard)
-        {
-            count = columns_.size();
-        }
-        else
-        {
-            for(IColumn column: columns_.values())
-            {
-                count += column.getObjectCount();
-            }
-        }
-    	return count;
+        if (!isSuper())
+            return columns.size();
+
+        int count = 0;
+        for (IColumn column: columns.values())
+            count += column.getObjectCount();
+        return count;
     }
 
     public boolean isSuper()
     {
-        return type_ == ColumnFamilyType.Super;
+        return type == ColumnFamilyType.Super;
     }
 
     public void addColumn(QueryPath path, byte[] value, long timestamp)
@@ -203,12 +197,12 @@ public class ColumnFamily implements IColumnContainer
             c = new SuperColumn(superColumnName, getSubComparator());
             c.addColumn(column); // checks subcolumn name
         }
-		addColumn(c);
+        addColumn(c);
     }
 
     public void clear()
     {
-    	columns_.clear();
+        columns.clear();
     }
 
     /*
@@ -218,7 +212,7 @@ public class ColumnFamily implements IColumnContainer
     public void addColumn(IColumn column)
     {
         byte[] name = column.name();
-        IColumn oldColumn = columns_.putIfAbsent(name, column);
+        IColumn oldColumn = columns.putIfAbsent(name, column);
         if (oldColumn != null)
         {
             if (oldColumn instanceof SuperColumn)
@@ -229,9 +223,9 @@ public class ColumnFamily implements IColumnContainer
             {
                 while (((Column) oldColumn).comparePriority((Column)column) <= 0)
                 {
-                    if (columns_.replace(name, oldColumn, column))
+                    if (columns.replace(name, oldColumn, column))
                         break;
-                    oldColumn = columns_.get(name);
+                    oldColumn = columns.get(name);
                 }
             }
         }
@@ -239,27 +233,27 @@ public class ColumnFamily implements IColumnContainer
 
     public IColumn getColumn(byte[] name)
     {
-        return columns_.get(name);
+        return columns.get(name);
     }
 
     public SortedSet<byte[]> getColumnNames()
     {
-        return columns_.keySet();
+        return columns.keySet();
     }
 
     public Collection<IColumn> getSortedColumns()
     {
-        return columns_.values();
+        return columns.values();
     }
 
     public Map<byte[], IColumn> getColumnsMap()
     {
-        return columns_;
+        return columns;
     }
 
     public void remove(byte[] columnName)
     {
-    	columns_.remove(columnName);
+        columns.remove(columnName);
     }
 
     @Deprecated // TODO this is a hack to set initial value outside constructor
@@ -286,7 +280,7 @@ public class ColumnFamily implements IColumnContainer
      */
     public ColumnFamily diff(ColumnFamily cfComposite)
     {
-    	ColumnFamily cfDiff = new ColumnFamily(cfComposite.name(), cfComposite.type_, getComparator(), getSubComparator(), cfComposite.id());
+        ColumnFamily cfDiff = new ColumnFamily(cfComposite.type, getComparator(), getSubComparator(), cfComposite.id());
         if (cfComposite.getMarkedForDeleteAt() > getMarkedForDeleteAt())
         {
             cfDiff.delete(cfComposite.getLocalDeletionTime(), cfComposite.getMarkedForDeleteAt());
@@ -299,7 +293,7 @@ public class ColumnFamily implements IColumnContainer
         Set<byte[]> cNames = columns.keySet();
         for (byte[] cName : cNames)
         {
-            IColumn columnInternal = columns_.get(cName);
+            IColumn columnInternal = this.columns.get(cName);
             IColumn columnExternal = columns.get(cName);
             if (columnInternal == null)
             {
@@ -316,60 +310,46 @@ public class ColumnFamily implements IColumnContainer
         }
 
         if (!cfDiff.getColumnsMap().isEmpty() || cfDiff.isMarkedForDelete())
-        	return cfDiff;
-        else
-        	return null;
+            return cfDiff;
+        return null;
     }
 
     public AbstractType getComparator()
     {
-        return (AbstractType)columns_.comparator();
+        return (AbstractType)columns.comparator();
     }
 
     int size()
     {
         int size = 0;
-        for (IColumn column : columns_.values())
+        for (IColumn column : columns.values())
         {
             size += column.size();
         }
         return size;
     }
 
-    private transient int hash_ = 0;
     public int hashCode()
     {
-        if (hash_ == 0)
-        {
-            int h = id_ * 7 + name().hashCode();
-            hash_ = h;
-        }
-        return hash_;
+        throw new RuntimeException("Not implemented.");
     }
 
     public boolean equals(Object o)
     {
-        if ( !(o instanceof ColumnFamily) )
-            return false;
-        ColumnFamily cf = (ColumnFamily)o;
-        return name().equals(cf.name());
+        throw new RuntimeException("Not implemented.");
     }
 
     public String toString()
     {
-    	StringBuilder sb = new StringBuilder();
-        sb.append("ColumnFamily(");
-    	sb.append(name_);
+        StringBuilder sb = new StringBuilder("ColumnFamily(");
+        CFMetaData cfm = metadata();
+        sb.append(cfm == null ? "-deleted-" : cfm.cfName);
 
-        if (isMarkedForDelete()) {
-            sb.append(" -delete at " + getMarkedForDeleteAt() + "-");
-        }
+        if (isMarkedForDelete())
+            sb.append(" -deleted at " + getMarkedForDeleteAt() + "-");
 
-    	sb.append(" [");
-        sb.append(getComparator().getColumnsString(getSortedColumns()));
-        sb.append("])");
-
-    	return sb.toString();
+        sb.append(" [").append(getComparator().getColumnsString(getSortedColumns())).append("])");
+        return sb.toString();
     }
 
     public static byte[] digest(ColumnFamily cf)
@@ -391,10 +371,8 @@ public class ColumnFamily implements IColumnContainer
 
     public void updateDigest(MessageDigest digest)
     {
-        for (IColumn column : columns_.values())
-        {
+        for (IColumn column : columns.values())
             column.updateDigest(digest);
-        }
     }
 
     public long getMarkedForDeleteAt()

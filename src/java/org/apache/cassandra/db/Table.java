@@ -351,7 +351,7 @@ public class Table
                 ColumnFamilyStore cfs = columnFamilyStores.get(columnFamily.id());
                 if (cfs == null)
                 {
-                    logger.error("Attempting to mutate non-existant column family " + columnFamily.name());
+                    logger.error("Attempting to mutate non-existant column family " + columnFamily.id());
                 }
                 else
                 {

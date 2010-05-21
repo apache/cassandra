@@ -36,10 +36,8 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
      * Serialized ColumnFamily format:
      *
      * [serialized for intra-node writes only, e.g. returning a query result]
-     * <cf name>
-     * <cf type [super or standard]>
-     * <cf comparator name>
-     * <cf subcolumn comparator name>
+     * <cf nullability boolean: false if the cf is null>
+     * <cf id>
      *
      * [in sstable only]
      * <column bloom filter>
@@ -57,15 +55,12 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
         {
             if (columnFamily == null)
             {
-                dos.writeUTF(""); // not a legal CF name
+                dos.writeBoolean(false);
                 return;
             }
 
-            dos.writeUTF(columnFamily.name());
+            dos.writeBoolean(true);
             dos.writeInt(columnFamily.id());
-            dos.writeUTF(columnFamily.type_.name());
-            dos.writeUTF(columnFamily.getComparatorName());
-            dos.writeUTF(columnFamily.getSubComparatorName());
         }
         catch (IOException e)
         {
@@ -102,12 +97,12 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
 
     public ColumnFamily deserialize(DataInput dis) throws IOException
     {
-        String cfName = dis.readUTF();
-        if (cfName.isEmpty())
+        if (!dis.readBoolean())
             return null;
-        int id = dis.readInt();
-        ColumnFamilyType cfType = ColumnFamilyType.create(dis.readUTF());
-        ColumnFamily cf = deserializeFromSSTableNoColumns(cfName, cfType, readComparator(dis), readComparator(dis), id, dis);
+
+        // create a ColumnFamily based on the cf id
+        ColumnFamily cf = ColumnFamily.create(dis.readInt());
+        deserializeFromSSTableNoColumns(cf, dis);
         deserializeColumns(dis, cf);
         return cf;
     }
@@ -142,12 +137,6 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
         {
             throw new RuntimeException(e);
         }
-    }
-
-    private ColumnFamily deserializeFromSSTableNoColumns(String name, ColumnFamilyType type, AbstractType comparator, AbstractType subComparator, int id, DataInput input) throws IOException
-    {
-        ColumnFamily cf = new ColumnFamily(name, type, comparator, subComparator, id);
-        return deserializeFromSSTableNoColumns(cf, input);
     }
 
     public ColumnFamily deserializeFromSSTableNoColumns(ColumnFamily cf, DataInput input) throws IOException

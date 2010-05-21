@@ -21,6 +21,7 @@ package org.apache.cassandra.tools;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
@@ -85,10 +86,12 @@ public class SSTableImport
      */
     private static void addToStandardCF(JSONArray row, ColumnFamily cfamily)
     {
+        CFMetaData cfm = cfamily.metadata();
+        assert cfm != null;
         for (Object c : row)
         {
             JsonColumn col = new JsonColumn(c);
-            QueryPath path = new QueryPath(cfamily.name(), null, hexToBytes(col.name));
+            QueryPath path = new QueryPath(cfm.cfName, null, hexToBytes(col.name));
             if (col.isDeleted) {
                 cfamily.addColumn(path, hexToBytes(col.value), col.timestamp);
             } else {
@@ -105,6 +108,8 @@ public class SSTableImport
      */
     private static void addToSuperCF(JSONObject row, ColumnFamily cfamily)
     {
+        CFMetaData cfm = cfamily.metadata();
+        assert cfm != null;
         // Super columns
         for (Map.Entry<String, JSONObject> entry : (Set<Map.Entry<String, JSONObject>>)row.entrySet())
         {
@@ -116,7 +121,7 @@ public class SSTableImport
             for (Object c : subColumns)
             {
                 JsonColumn col = new JsonColumn(c);
-                QueryPath path = new QueryPath(cfamily.name(), superName, hexToBytes(col.name));
+                QueryPath path = new QueryPath(cfm.cfName, superName, hexToBytes(col.name));
                 if (col.isDeleted) {
                     cfamily.addColumn(path, hexToBytes(col.value), col.timestamp);
                 } else {

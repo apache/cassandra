@@ -111,10 +111,10 @@ public class CommitLogSegment
                 // we can ignore the serialized map in the header (and avoid deserializing it) since we know we are
                 // writing the cfs as they exist now.  check for null cfm in case a cl write goes through after the cf is 
                 // defined but before a new segment is created.
-                CFMetaData cfm = DatabaseDescriptor.getTableDefinition(table.name).cfMetaData().get(columnFamily.name());
+                CFMetaData cfm = DatabaseDescriptor.getCFMetaData(columnFamily.id());
                 if (cfm == null)
                 {
-                    logger.error("Attempted to write commit log entry for unrecognized column family: " + columnFamily.name());
+                    logger.error("Attempted to write commit log entry for unrecognized column family: " + columnFamily.id());
                 }
                 else
                 {

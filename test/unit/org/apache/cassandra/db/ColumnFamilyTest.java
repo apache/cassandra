@@ -48,7 +48,7 @@ public class ColumnFamilyTest extends SchemaLoader
         ByteArrayInputStream bufIn = new ByteArrayInputStream(bufOut.getData(), 0, bufOut.getLength());
         cf = ColumnFamily.serializer().deserialize(new DataInputStream(bufIn));
         assert cf != null;
-        assert cf.name().equals("Standard1");
+        assert cf.metadata().cfName.equals("Standard1");
         assert cf.getSortedColumns().size() == 1;
     }
 
