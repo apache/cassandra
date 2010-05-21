@@ -113,7 +113,7 @@ launch_service()
     # to close stdout/stderr, but it's up to us not to background.
     if [ "x$foreground" != "x" ]; then
         cassandra_parms="$cassandra_parms -Dcassandra-foreground=yes"
-        $JAVA $JVM_OPTS $cassandra_parms -cp $CLASSPATH $props \
+        exec $JAVA $JVM_OPTS $cassandra_parms -cp $CLASSPATH $props \
                 org.apache.cassandra.thrift.CassandraDaemon
     # Startup CassandraDaemon, background it, and write the pid.
     else
