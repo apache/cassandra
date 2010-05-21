@@ -121,15 +121,6 @@ public class Table
         return Collections.unmodifiableCollection(columnFamilyStores.values());
     }
 
-    public ColumnFamilyStore getColumnFamilyStore(int cfId)
-    {
-        return columnFamilyStores.get(cfId);
-    }
-
-    /**
-     * @Deprecated Use getColumnFamilyStore(id) instead.
-     */
-    @Deprecated
     public ColumnFamilyStore getColumnFamilyStore(String cfName)
     {
         Integer id = CFMetaData.getId(name, cfName);
