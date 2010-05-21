@@ -64,7 +64,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
         StorageService.instance.initServer();
         // generate a fake endpoint for which we can spoof receiving/sending trees
         REMOTE = InetAddress.getByName("127.0.0.2");
-        cfname = Table.open(tablename).getColumnFamilies().iterator().next();
+        cfname = Table.open(tablename).getColumnFamilyStores().iterator().next().columnFamily_;
     }
 
     @Before
@@ -242,13 +242,13 @@ public class AntiEntropyServiceTest extends CleanupHelper
     public void testDifferencer() throws Throwable
     {
         // generate a tree
-        Validator validator = new Validator(new CFPair("Keyspace1", "lcf"));
+        Validator validator = new Validator(new CFPair(tablename, cfname));
         validator.prepare();
-
-        // create a clone with no values filled
         validator.complete();
         MerkleTree ltree = validator.tree;
-        validator = new Validator(new CFPair("Keyspace1", "rcf"));
+
+        // and a clone
+        validator = new Validator(new CFPair(tablename, cfname));
         validator.prepare();
         validator.complete();
         MerkleTree rtree = validator.tree;

@@ -924,11 +924,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         for (String tableName : DatabaseDescriptor.getTables())
         {
             Table table = Table.open(tableName);
-            for (String cfName : table.getColumnFamilies())
-            {
-                ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+            for (ColumnFamilyStore cfs : table.getColumnFamilyStores())
                 bytes += cfs.getLiveDiskSpaceUsed();
-            }
         }
         return bytes;
     }
@@ -1066,12 +1063,17 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger_.debug("Cleared out all snapshot directories");
     }
 
-    public Iterable<ColumnFamilyStore> getValidColumnFamilies(String tableName, String... columnFamilies) throws IOException
+    public Iterable<ColumnFamilyStore> getValidColumnFamilies(String tableName, String... cfNames) throws IOException
     {
         Table table = getValidTable(tableName);
-        Set<ColumnFamilyStore> valid = new HashSet<ColumnFamilyStore>();
 
-        for (String cfName : columnFamilies.length == 0 ? table.getColumnFamilies() : Arrays.asList(columnFamilies))
+        if (cfNames.length == 0)
+            // all stores are interesting
+            return table.getColumnFamilyStores();
+
+        // filter out interesting stores
+        Set<ColumnFamilyStore> valid = new HashSet<ColumnFamilyStore>();
+        for (String cfName : cfNames)
         {
             ColumnFamilyStore cfStore = table.getColumnFamilyStore(cfName);
             if (cfStore == null)
