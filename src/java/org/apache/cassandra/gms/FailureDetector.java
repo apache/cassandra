@@ -33,6 +33,7 @@ import org.apache.commons.lang.StringUtils;
 import java.net.InetAddress;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.BoundedStatsDeque;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.log4j.Logger;
 
 /**
@@ -45,7 +46,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     public static final IFailureDetector instance = new FailureDetector();
     private static Logger logger_ = Logger.getLogger(FailureDetector.class);
     private static final int sampleSize_ = 1000;
-    private static final int phiConvictThreshold_ = 8;
+    private static int phiConvictThreshold_;
     /* The Failure Detector has to have been up for at least 1 min. */
     private static final long uptimeThreshold_ = 60000;
     /* The time when the module was instantiated. */
@@ -56,6 +57,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     
     public FailureDetector()
     {
+        phiConvictThreshold_ = DatabaseDescriptor.getPhiConvictThreshold();
         creationTime_ = System.currentTimeMillis();
         // Register this instance with JMX
         try
@@ -109,6 +111,16 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         {
             throw new IOError(e);
         }
+    }
+
+    public void setPhiConvictThreshold(int phi)
+    {
+        phiConvictThreshold_ = phi;
+    }
+
+    public int getPhiConvictThreshold()
+    {
+        return phiConvictThreshold_;
     }
     
     public boolean isAlive(InetAddress ep)

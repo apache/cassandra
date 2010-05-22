@@ -74,6 +74,7 @@ public class DatabaseDescriptor
     private static InetAddress thriftAddress;
     private static String clusterName = "Test";
     private static long rpcTimeoutInMillis = 2000;
+    private static int phiConvictThreshold = 8;
     private static Set<InetAddress> seeds = new HashSet<InetAddress>();
     /* Keeps the list of data file directories */
     private static String[] dataFileDirectories;
@@ -288,6 +289,16 @@ public class DatabaseDescriptor
             if ( rpcTimeout != null )
                 rpcTimeoutInMillis = Integer.parseInt(rpcTimeout);
 
+            /* phi convict threshold for FailureDetector */
+            String phiThreshold = xmlUtils.getNodeValue("/Storage/PhiConvictThreshold");
+            if ( phiThreshold != null )
+                    phiConvictThreshold = Integer.parseInt(phiThreshold);
+
+            if (phiConvictThreshold < 5 || phiConvictThreshold > 16)
+            {
+                throw new ConfigurationException("PhiConvictThreshold must be between 5 and 16");
+            }
+            
             /* Thread per pool */
             String rawReaders = xmlUtils.getNodeValue("/Storage/ConcurrentReads");
             if (rawReaders != null)
@@ -1000,6 +1011,11 @@ public class DatabaseDescriptor
     public static long getRpcTimeout()
     {
         return rpcTimeoutInMillis;
+    }
+
+    public static int getPhiConvictThreshold()
+    {
+        return phiConvictThreshold;
     }
 
     public static int getConsistencyThreads()

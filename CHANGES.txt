@@ -24,6 +24,7 @@
    (CASSANDRA-1100)
  * windows scripts for SSTableImport/Export (CASSANDRA-1051)
  * windows script for nodetool (CASSANDRA-1113)
+ * expose PhiConvictThreshold (CASSANDRA-1053)
 
 
 0.6.1

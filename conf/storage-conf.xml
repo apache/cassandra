@@ -215,6 +215,9 @@
 
   <!-- Time to wait for a reply from other nodes before failing the command -->
   <RpcTimeoutInMillis>10000</RpcTimeoutInMillis>
+  <!-- phi value that must be reached before a host is marked as down.
+       most users should never adjust this -->
+  <!-- PhiConvictThreshold>8</PhiConvictThreshold -->
   <!-- Size to allow commitlog to grow to before creating a new segment -->
   <CommitLogRotationThresholdInMB>128</CommitLogRotationThresholdInMB>
 
