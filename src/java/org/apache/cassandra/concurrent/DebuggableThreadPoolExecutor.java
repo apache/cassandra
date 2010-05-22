@@ -27,7 +27,7 @@ import org.apache.log4j.Logger;
 
 public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
 {
-    protected static Logger logger = Logger.getLogger(JMXEnabledThreadPoolExecutor.class);
+    protected static Logger logger = Logger.getLogger(DebuggableThreadPoolExecutor.class);
 
     public DebuggableThreadPoolExecutor(String threadPoolName)
     {
