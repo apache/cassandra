@@ -33,6 +33,10 @@ Configuraton
       has been added.
     - auto_bootstrap now defaults to true
 
+JMX
+---
+    - StreamingService moved from o.a.c.streaming to o.a.c.service
+
 Thrift API
 ----------
     - Row keys are now 'bytes': see the Features list.
