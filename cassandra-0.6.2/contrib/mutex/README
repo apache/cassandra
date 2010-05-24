@@ -1,0 +1,9 @@
+Provides cluster-wide mutex. In order to use this, you need to
+
+(1) apply cassandra.patch to support relevant configuration options
+
+(2) add zookeeper configuration (storage-conf.xml) to your cassandra
+configuration file
+
+(3) copy org/apache/cassandra/mutex/ClusterMutex.java to cassandra src
+directory

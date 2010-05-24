@@ -1,0 +1,139 @@
+
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+
+## Cassandra Web Browser ########################################
+
+This is a simple but useful web-based browser for Cassandra.
+(http://incubator.apache.org/cassandra/).
+
+It offers the following features:
+ * form-based interface
+ * browse columns in a column family, including pagination of results
+ * all queries are based on URL parameters; so they can be bookmarked 
+   in a browser for re-querying later.
+ * view detailed data on any column
+ * certain types of data are annotated:
+   - Timestamps are shown both as decimal and as date/time.
+   - JSON strings are parsed and pretty-printed, with syntax highlighting, 
+     including parsing of nested elements (See the included cutejson library)
+
+== Install ================================================================
+
+There are two modes to serve the application:
+ 1) Via apache mod_python
+ 2) Creating a WSGI python server
+
+== 1. Setup via WSGI ==
+
+The only requisite is to generate the cassandra thrift interfaces, and
+have thrift libraries in PYTHONPATH.
+
+Just run the following command:
+$ python index.py
+This will do no output, and the server will be running. Then load this
+URL in your browser: http://localhost:8111/list
+
+Alternatively, you can change the default server's listen address and ports
+with --address and --port command line parameters -- See _index_wsgi function 
+in index.py.
+
+== 2. The mod_python way ==
+
+This setup is probably harder but may be useful in a host already running
+an apache server.
+
+You need to setup mod_python to serve the directory where the files of
+this project live:
+ * index.py
+ * cutejson.py
+ * README (this file)
+You also need the following python libraries:
+ * simplejson: http://pypi.python.org/pypi/simplejson/
+               (I used 'json' library originally, but was not installed in
+                bluemino's python 2.4)
+ * thrift: a version compatible with your cassandra code
+ * cassandra: the cassandra thrift interface. This can be generated with
+   "thrift -gen py cassandra.interface", from your cassandra's interface
+   directory.
+
+You need to set a path to find this libraries -- in the same way
+PYTHONPATH is set for the python shell interpreter.
+Using mod_python, this parameter is given in the apache server configuration.
+Two examples follow:
+
+* Setup on Kubuntu 9.04:
+  (Note I point to several directories, where I downloaded, installed
+  or use each library)
+	<Directory /var/www/py>
+	   SetHandler mod_python
+	   PythonHandler mod_python.publisher
+	   PythonDebug On
+	   PythonPath "['/usr/lib/python2.6/site-packages', '/home/myuser/dev/Cassandra/interface/gen-py', '/home/myuser/dev/pybrowser' ] + sys.path"
+       PythonOption CassandraHost "example.cassandra.host"
+       PythonOption CassandraPort 9160
+	</Directory>
+
+* Setup on a RedHat 5.x:
+  (Note: I put all three libraries in the same directory there)
+	$ cat /etc/httpd/conf.d/pybrowser.conf
+	<Location /pybrowser>
+	   SetHandler python-program
+	   PythonHandler mod_python.publisher
+	   PythonDebug On
+	   PythonPath "['/home/myuser/python-modules'] + sys.path"
+       PythonOption CassandraHost "my.cassandra.host"
+       PythonOption CassandraPort 9160
+	</Location>
+
+Finally, on the directory (e.g. /var/www/py) you are configuring with the
+apache directives shown, you just need to put index.py and cutejson.py.
+Opening the directory's url in a browser should show the index() function from the
+script. (If you see a directory listing, then something is wrong).
+
+= Additional configuration =================================================
+
+  Opening the default URL will load a blank or almost-blank form, with default parameters.
+  If you always use the same cassandra server, for instance, it is useful to configure some
+  default parameters. They can be passed as python options, configured in the same apache
+  configuration section described above (See "Installing"). This is the list of all implemented
+  options:
+
+  Cassandra server: (it defaults to "localhost")
+     PythonOption CassandraHost <yourPreferredHost>
+  Thrift port: (it defaults to 9160)
+     PythonOption CassandraPort <thriftPort>
+  Keyspace, row, columnFamily (they all default to "")
+     PythonOption CassandraKeyspace <defaultKeyspace>
+     PythonOption CassandraRow <defaultRow>
+     PythonOption CassandraColumnFamily <defaultColumnFamily>
+
+== Changelog  =============================================================
+
+* 2009.09.06: Added WSGI interface (as alternative)
+* 2009.09.28:
+  - using 'simplejson' only if 'json' lib is not available
+  - fixed remove() usage of old api
+  - using FieldStorage to process forms; cleaner code
+  - configuration of default parameters via PythonOption(s)
+* 2009.09.18: ported to cassandr 0.4rc1. Reworked styling.
+* 2009.08.31: Implemented column deletion.
+* 2009.08.27: Initial version, supports browsing and opening
+  a column for viewing formatted-json.
+
+===========================================================================
+
