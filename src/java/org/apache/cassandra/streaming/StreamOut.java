@@ -65,9 +65,6 @@ public class StreamOut
     public static void transferRanges(InetAddress target, String tableName, Collection<Range> ranges, Runnable callback)
     {
         assert ranges.size() > 0;
-        
-        // this is so that this target shows up as a destination while anticompaction is happening.
-        StreamOutManager.pendingDestinations.add(target);        
 
         logger.debug("Beginning transfer process to " + target + " for ranges " + StringUtils.join(ranges, ", "));
 
