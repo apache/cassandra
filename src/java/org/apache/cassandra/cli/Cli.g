@@ -146,9 +146,9 @@ columnFamilyExpr
       -> ^(NODE_COLUMN_ACCESS table columnFamily rowKey ($a+)?)
     ;
 
-table: Identifier;
+table: (Identifier | IntegerLiteral);
 
-columnFamily: Identifier;
+columnFamily: (Identifier | IntegerLiteral);
 
 rowKey:   StringLiteral;
 
@@ -208,9 +208,12 @@ Alnum
     | Digit
     ;
 
+IntegerLiteral
+   : Digit+;
+
 // syntactic Elements
 Identifier
-    : Letter ( Alnum | '_' | '-' )*
+    : Alnum ( Alnum | '_' | '-' )*
     ;
 
 // literals
@@ -218,10 +221,6 @@ StringLiteral
     :
     '\'' (~'\'')* '\'' ( '\'' (~'\'')* '\'' )* 
     ;
-
-
-IntegerLiteral
-   : Digit+;
 
 //
 // syntactic elements
