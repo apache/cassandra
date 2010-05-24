@@ -298,6 +298,8 @@ public class AntiEntropyService
         if (StorageService.instance.getTokenMetadata().sortedTokens().size()  < 1)
             // gossiper isn't started
             return new NoopValidator();
+        if (DatabaseDescriptor.getReplicationFactor(table) < 2)
+            return new NoopValidator();
         CFPair cfpair = new CFPair(table, cf);
         if (initiator == null && !shouldRunNaturally(cfpair))
             return new NoopValidator();
