@@ -26,6 +26,7 @@
  * expose PhiConvictThreshold (CASSANDRA-1053)
  * make repair of RF==1 a no-op (CASSANDRA-1090)
  * improve default JVM GC options (CASSANDRA-1014)
+ * fix SlicePredicate serialization inside Hadoop jobs (CASSANDRA-1049)
 
 
 0.6.1

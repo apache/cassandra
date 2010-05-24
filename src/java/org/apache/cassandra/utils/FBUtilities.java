@@ -22,6 +22,7 @@ import java.io.*;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -38,7 +39,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.thrift.TBase;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
@@ -479,5 +479,12 @@ public class FBUtilities
                 utflen += 2;
         }
         return utflen;
+    }
+
+    public static byte[] toByteArray(long n)
+    {
+        byte[] bytes = new byte[8];
+        ByteBuffer.wrap(bytes).putLong(n);
+        return bytes;
     }
 }

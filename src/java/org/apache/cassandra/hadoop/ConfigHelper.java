@@ -24,11 +24,12 @@ package org.apache.cassandra.hadoop;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.ThriftValidation;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
-import org.apache.thrift.protocol.TJSONProtocol;
+import org.apache.thrift.protocol.TBinaryProtocol;
 
 public class ConfigHelper
 {
@@ -135,10 +136,10 @@ public class ConfigHelper
     {
         assert predicate != null;
         // this is so awful it's kind of cool!
-        TSerializer serializer = new TSerializer(new TJSONProtocol.Factory());
+        TSerializer serializer = new TSerializer(new TBinaryProtocol.Factory());
         try
         {
-            return serializer.toString(predicate, "UTF-8");
+            return FBUtilities.bytesToHex(serializer.serialize(predicate));
         }
         catch (TException e)
         {
@@ -149,11 +150,11 @@ public class ConfigHelper
     private static SlicePredicate predicateFromString(String st)
     {
         assert st != null;
-        TDeserializer deserializer = new TDeserializer(new TJSONProtocol.Factory());
+        TDeserializer deserializer = new TDeserializer(new TBinaryProtocol.Factory());
         SlicePredicate predicate = new SlicePredicate();
         try
         {
-            deserializer.deserialize(predicate, st, "UTF-8");
+            deserializer.deserialize(predicate, FBUtilities.hexToBytes(st));
         }
         catch (TException e)
         {
