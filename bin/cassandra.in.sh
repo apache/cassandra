@@ -39,16 +39,14 @@ done
 # Arguments to pass to the JVM
 JVM_OPTS=" \
         -ea \
-        -Xms128M \
+        -Xms256M \
         -Xmx1G \
-        -XX:TargetSurvivorRatio=90 \
-        -XX:+AggressiveOpts \
         -XX:+UseParNewGC \
         -XX:+UseConcMarkSweepGC \
         -XX:+CMSParallelRemarkEnabled \
+        -XX:SurvivorRatio=8 \
+        -XX:MaxTenuringThreshold=1 \
         -XX:+HeapDumpOnOutOfMemoryError \
-        -XX:SurvivorRatio=128 \
-        -XX:MaxTenuringThreshold=0 \
         -Dcom.sun.management.jmxremote.port=8080 \
         -Dcom.sun.management.jmxremote.ssl=false \
         -Dcom.sun.management.jmxremote.authenticate=false"
