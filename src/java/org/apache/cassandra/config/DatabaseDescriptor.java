@@ -43,7 +43,9 @@ import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.error.YAMLException;
 
 import java.io.File;
+import java.io.FileFilter;
 import java.io.FileInputStream;
+import java.io.FilenameFilter;
 import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
@@ -366,7 +368,39 @@ public class DatabaseDescriptor
         // don't load from xml anymore.
         UUID uuid = Migration.getLastMigrationId();
         if (uuid == null)
-            logger.warn("Couldn't detect any schema definitions in local storage. I hope you've got a plan.");
+        {
+            logger.info("Couldn't detect any schema definitions in local storage.");
+            // peek around the data directories to see if anything is there.
+            boolean hasExistingTables = false;
+            for (String dataDir : DatabaseDescriptor.getAllDataFileLocations())
+            {
+                File dataPath = new File(dataDir);
+                if (dataPath.exists() && dataPath.isDirectory())
+                {
+                    // see if there are other directories present.
+                    int dirCount = dataPath.listFiles(new FileFilter()
+                    {
+                        @Override
+                        public boolean accept(File pathname)
+                        {
+                            return pathname.isDirectory();
+                        }
+                    }).length;
+                    if (dirCount > 0)
+                        hasExistingTables = true;
+                }
+                if (hasExistingTables)
+                {
+                    break;
+                }
+            }
+            
+            if (hasExistingTables)
+                logger.info("Found table data in data directories. Consider using JMX to call org.apache.cassandra.service.StorageService.loadSchemaFromYaml().");
+            else
+                logger.info("Consider using JMX to org.apache.cassandra.service.StorageService.loadSchemaFromYaml() or set up a schema using the system_* calls provided via thrift.");
+            
+        }
         else
         {
             logger.info("Loading schema version " + uuid.toString());
