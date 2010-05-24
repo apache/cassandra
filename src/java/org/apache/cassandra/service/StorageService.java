@@ -1334,7 +1334,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     private void startLeaving()
     {
-        Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_LEAVING + Delimiter + getLocalToken().toString()));
+        Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_LEAVING + Delimiter + partitioner_.getTokenFactory().toString(getLocalToken())));
         tokenMetadata_.addLeavingEndpoint(FBUtilities.getLocalAddress());
         calculatePendingRanges();
     }
@@ -1377,7 +1377,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         tokenMetadata_.removeEndpoint(FBUtilities.getLocalAddress());
         calculatePendingRanges();
 
-        Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_LEFT + Delimiter + LEFT_NORMALLY + Delimiter + getLocalToken().toString()));
+        Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_LEFT + Delimiter + LEFT_NORMALLY + Delimiter + partitioner_.getTokenFactory().toString(getLocalToken())));
         try
         {
             Thread.sleep(2 * Gossiper.intervalInMillis_);
@@ -1521,7 +1521,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // not good. REMOVE_TOKEN|LEFT_NORMALLY is used to distinguish
         // between ``removetoken command and normal state left, so it is
         // not so bad.
-        Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_LEFT + Delimiter + REMOVE_TOKEN + Delimiter + token.toString()));
+        Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_LEFT + Delimiter + REMOVE_TOKEN + Delimiter + partitioner_.getTokenFactory().toString(token)));
     }
 
     public boolean isClientMode()
