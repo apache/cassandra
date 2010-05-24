@@ -193,6 +193,25 @@ public class AntiEntropyServiceTest extends CleanupHelper
     }
 
     @Test
+    public void testManualRepair() throws Throwable
+    {
+        AntiEntropyService.RepairSession sess = AntiEntropyService.instance.getRepairSession(tablename, cfname);
+        sess.start();
+        sess.blockUntilRunning();
+
+        // ensure that the session doesn't end without a response from REMOTE
+        sess.join(100);
+        assert sess.isAlive();
+
+        // deliver fake responses from LOCAL and REMOTE
+        AntiEntropyService.instance.completedRequest(new CFPair(tablename, cfname), LOCAL);
+        AntiEntropyService.instance.completedRequest(new CFPair(tablename, cfname), REMOTE);
+
+        // block until the repair has completed
+        sess.join();
+    }
+
+    @Test
     public void testNotifyNeighbors() throws Throwable
     {
         // generate empty tree

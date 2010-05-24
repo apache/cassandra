@@ -1112,15 +1112,17 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public void forceTableRepair(final String tableName, final String... columnFamilies) throws IOException
     {
-        // request that all relevant endpoints generate trees
-        final MessagingService ms = MessagingService.instance;
-        final Set<InetAddress> endpoints = AntiEntropyService.getNeighbors(tableName);
-        endpoints.add(FBUtilities.getLocalAddress());
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
+        AntiEntropyService.RepairSession sess = AntiEntropyService.instance.getRepairSession(tableName, columnFamilies);
+        
+        try
         {
-            Message request = TreeRequestVerbHandler.makeVerb(tableName, cfStore.getColumnFamilyName());
-            for (InetAddress endpoint : endpoints)
-                ms.sendOneWay(request, endpoint);
+            sess.start();
+            // block until the repair has completed
+            sess.join();
+        }
+        catch (InterruptedException e)
+        {
+            throw new IOException("Repair session " + sess + " failed.", e);
         }
     }
 

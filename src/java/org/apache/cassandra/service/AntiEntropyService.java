@@ -111,12 +111,41 @@ public class AntiEntropyService
     private final Map<CFPair, ExpiringMap<InetAddress, TreePair>> trees;
 
     /**
+     * A map of repair request ids to a Queue of TreeRequests that have been performed since the session was started.
+     */
+    private final ConcurrentMap<String, BlockingQueue<TreeRequest>> sessions;
+
+    /**
      * Protected constructor. Use AntiEntropyService.instance.
      */
     protected AntiEntropyService()
     {
         naturalRepairs = new ConcurrentHashMap<CFPair, Long>();
         trees = new HashMap<CFPair, ExpiringMap<InetAddress, TreePair>>();
+        sessions = new ConcurrentHashMap<String, BlockingQueue<TreeRequest>>();
+    }
+
+    /**
+     * Requests repairs for the given table and column families, and blocks until all repairs have been completed.
+     * TODO: Should add retries: if nodes go offline before they respond to the requests, this could block forever.
+     */
+    public RepairSession getRepairSession(String tablename, String... cfnames)
+    {
+        return new RepairSession(tablename, cfnames);
+    }
+
+    /**
+     * Called by Differencer when a full repair round trip has been completed between the given CF and endpoints.
+     */
+    void completedRequest(CFPair cf, InetAddress... endpoints)
+    {
+        for (InetAddress endpoint : endpoints)
+        {
+            // indicate to each waiting session that this request completed
+            TreeRequest completed = new TreeRequest(cf, endpoint);
+            for (BlockingQueue<TreeRequest> session : sessions.values())
+                session.offer(completed);
+        }
     }
 
     /**
@@ -140,7 +169,7 @@ public class AntiEntropyService
     /**
      * Return all of the neighbors with whom we share data.
      */
-    public static Set<InetAddress> getNeighbors(String table)
+    static Set<InetAddress> getNeighbors(String table)
     {
         StorageService ss = StorageService.instance;
         Set<InetAddress> neighbors = new HashSet<InetAddress>();
@@ -579,20 +608,24 @@ public class AntiEntropyService
             
             // choose a repair method based on the significance of the difference
             float difference = differenceFraction();
-            try
+            if (difference == 0.0)
             {
-                if (difference == 0.0)
+                logger.info("Endpoints " + local + " and " + remote + " are consistent for " + cf);
+            }
+            else
+            {
+                try
                 {
-                    logger.debug("Endpoints " + local + " and " + remote + " are consistent for " + cf);
-                    return;
+                    performStreamingRepair();
                 }
-                
-                performStreamingRepair();
+                catch(IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
             }
-            catch(IOException e)
-            {
-                throw new RuntimeException(e);
-            }
+
+            // repair was completed successfully: notify any waiting sessions
+            AntiEntropyService.instance.completedRequest(cf, local, remote);
         }
         
         /**
@@ -776,6 +809,85 @@ public class AntiEntropyService
         {
             super(local, remote);
             assert local != null ^ remote != null;
+        }
+    }
+
+    /**
+     * A triple of table, cf and address that represents a location we have an outstanding TreeRequest for.
+     */
+    static class TreeRequest extends Pair<CFPair,InetAddress>
+    {
+        public TreeRequest(CFPair cf, InetAddress target)
+        {
+            super(cf, target);
+            assert cf != null && target != null;
+        }
+    }
+
+    /**
+     * Triggers repairs with all neighbors for the given table and cfs. Typical lifecycle is: start() then join().
+     */
+    class RepairSession extends Thread
+    {
+        private final String tablename;
+        private final String[] cfnames;
+        private final SimpleCondition requestsMade;
+        public RepairSession(String tablename, String... cfnames)
+        {
+            super("manual-repair-" + UUID.randomUUID());
+            this.tablename = tablename;
+            this.cfnames = cfnames;
+            this.requestsMade = new SimpleCondition();
+        }
+
+        /**
+         * Waits until all requests for the session have been sent out: to wait for the session to end, call join().
+         */
+        public void blockUntilRunning() throws InterruptedException
+        {
+            requestsMade.await();
+        }
+
+        @Override
+        public void run()
+        {
+            // begin a repair session
+            BlockingQueue<TreeRequest> completed = new LinkedBlockingQueue<TreeRequest>();
+            AntiEntropyService.this.sessions.put(getName(), completed);
+            try
+            {
+                // request that all relevant endpoints generate trees
+                Set<TreeRequest> requests = new HashSet<TreeRequest>();
+                Set<InetAddress> endpoints = AntiEntropyService.getNeighbors(tablename);
+                endpoints.add(FBUtilities.getLocalAddress());
+                for (String cfname : cfnames)
+                {
+                    Message request = TreeRequestVerbHandler.makeVerb(tablename, cfname);
+                    for (InetAddress endpoint : endpoints)
+                    {
+                        requests.add(new TreeRequest(new CFPair(tablename, cfname), endpoint));
+                        MessagingService.instance.sendOneWay(request, endpoint);
+                    }
+                }
+                requestsMade.signalAll();
+
+                // block until all requests have been returned by completedRequest calls
+                logger.info("Waiting for repair requests to: " + requests);
+                while (!requests.isEmpty())
+                {
+                    TreeRequest request = completed.take();
+                    logger.info("Repair request to " + request + " completed successfully.");
+                    requests.remove(request);
+                }
+            }
+            catch (InterruptedException e)
+            {
+                throw new RuntimeException("Interrupted while waiting for repair: repair will continue in the background.");
+            }
+            finally
+            {
+                AntiEntropyService.this.sessions.remove(getName());
+            }
         }
     }
 }
