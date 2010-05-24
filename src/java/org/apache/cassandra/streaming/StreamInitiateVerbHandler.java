@@ -67,7 +67,6 @@ public class StreamInitiateVerbHandler implements IVerbHandler
                     logger.debug("no data needed from " + message.getFrom());
                 if (StorageService.instance.isBootstrapMode())
                     StorageService.instance.removeBootstrapSource(message.getFrom(), new String(message.getHeader(StreamOut.TABLE_NAME)));
-                StreamInManager.waitingForAnticompaction.removeAll(message.getFrom());
                 return;
             }
 
@@ -86,7 +85,6 @@ public class StreamInitiateVerbHandler implements IVerbHandler
                 if (logger.isDebugEnabled())
                   logger.debug("Preparing to receive stream from " + message.getFrom() + ": " + remoteFile + " -> " + localFile);
                 addStreamContext(message.getFrom(), localFile, streamStatus);
-                StreamInManager.waitingForAnticompaction.remove(message.getFrom(), remoteFile.getDescriptor().ksname);
             }
 
             StreamInManager.registerStreamCompletionHandler(message.getFrom(), new StreamCompletionHandler());

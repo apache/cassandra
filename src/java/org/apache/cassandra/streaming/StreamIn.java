@@ -45,7 +45,6 @@ public class StreamIn
     {
         if (logger.isDebugEnabled())
             logger.debug("Requesting from " + source + " ranges " + StringUtils.join(ranges, ", "));
-        StreamInManager.waitingForAnticompaction.put(source, tableName);
         StreamRequestMetadata streamRequestMetadata = new StreamRequestMetadata(FBUtilities.getLocalAddress(), ranges, tableName);
         Message message = StreamRequestMessage.makeStreamRequestMessage(new StreamRequestMessage(streamRequestMetadata));
         MessagingService.instance.sendOneWay(message, source);
