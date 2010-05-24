@@ -25,7 +25,6 @@ import org.antlr.runtime.tree.*;
 
 import static org.apache.cassandra.thrift.ThriftGlue.*;
 
-import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.ColumnOrSuperColumn;
@@ -166,7 +165,8 @@ public class CliClient
        assert(childCount == 1);
 
        CommonTree columnFamilySpec = (CommonTree)ast.getChild(0);
-       assert(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS);
+       if (!(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS))
+           return;
 
        String tableName = CliCompiler.getTableName(columnFamilySpec);
        String key = CliCompiler.getKey(columnFamilySpec);
@@ -198,7 +198,8 @@ public class CliClient
         assert(childCount == 1);
 
         CommonTree columnFamilySpec = (CommonTree)ast.getChild(0);
-        assert(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS);
+        if (!(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS))
+            return;
 
         String tableName = CliCompiler.getTableName(columnFamilySpec);
         String key = CliCompiler.getKey(columnFamilySpec);
@@ -328,7 +329,8 @@ public class CliClient
         assert (ast.getChildCount() == 1) : "serious parsing error (this is a bug).";
 
         CommonTree columnFamilySpec = (CommonTree)ast.getChild(0);
-        assert(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS);
+        if (!(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS))
+            return;
 
         String tableName = CliCompiler.getTableName(columnFamilySpec);
         String key = CliCompiler.getKey(columnFamilySpec);
@@ -396,7 +398,8 @@ public class CliClient
         assert (ast.getChildCount() == 2) : "serious parsing error (this is a bug).";
 
         CommonTree columnFamilySpec = (CommonTree)ast.getChild(0);
-        assert(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS);
+        if (!(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS))
+            return;
 
         String tableName = CliCompiler.getTableName(columnFamilySpec);
         String key = CliCompiler.getKey(columnFamilySpec);
