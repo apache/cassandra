@@ -34,6 +34,7 @@
     <property name="javadoc.dir" value="${build.dir}/javadoc"/>
     <property name="interface.dir" value="${basedir}/interface"/>
     <property name="interface.thrift.dir" value="${interface.dir}/thrift"/>
+    <property name="interface.thrift.gen-java" value="${interface.thrift.dir}/gen-java"/>
     <property name="interface.avro.dir" value="${interface.dir}/avro/gen-java"/>
     <property name="test.dir" value="${basedir}/test"/>
     <property name="test.resources" value="${test.dir}/resources"/>
@@ -479,7 +480,7 @@
       <fileset dir="${build.src}" defaultexcludes="yes">
         <include name="org/apache/**/*.java"/>
       </fileset>
-      <fileset dir="${interface.thrift.dir}" defaultexcludes="yes">
+      <fileset dir="${interface.thrift.gen-java}" defaultexcludes="yes">
         <include name="org/apache/**/*.java"/>
       </fileset>
     </javadoc>
