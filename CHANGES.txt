@@ -24,6 +24,7 @@
  * windows scripts for SSTableImport/Export (CASSANDRA-1051)
  * windows script for nodetool (CASSANDRA-1113)
  * expose PhiConvictThreshold (CASSANDRA-1053)
+ * make repair of RF==1 a no-op (CASSANDRA-1090)
 
 
 0.6.1
