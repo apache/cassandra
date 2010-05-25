@@ -42,6 +42,7 @@ import java.net.InetAddress;
 
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import org.slf4j.Logger;
@@ -386,7 +387,7 @@ public class Table
             Collection<IColumn> columns = columnFamily.getSortedColumns();
             for (IColumn column : columns)
             {
-                ColumnFamilyStore cfStore = getColumnFamilyStore(new String(column.name(), "UTF-8"));
+                ColumnFamilyStore cfStore = columnFamilyStores.get(FBUtilities.byteArrayToInt(column.name()));
                 cfStore.applyBinary(key, column.value());
             }
         }

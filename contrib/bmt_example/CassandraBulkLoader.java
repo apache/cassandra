@@ -66,6 +66,7 @@ import java.net.UnknownHostException;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Text;
@@ -232,27 +233,19 @@ public class CassandraBulkLoader {
         Column column;
 
         /* Get the first column family from list, this is just to get past validation */
-        baseColumnFamily = new ColumnFamily(CFName,
-                                            ColumnFamilyType.Standard,
+        baseColumnFamily = new ColumnFamily(ColumnFamilyType.Standard,
                                             DatabaseDescriptor.getComparator(Keyspace, CFName),
                                             DatabaseDescriptor.getSubComparator(Keyspace, CFName),
                                             CFMetaData.getId(Keyspace, CFName));
         
         for(ColumnFamily cf : ColumnFamiles) {
             bufOut.reset();
-            try
-            {
-                ColumnFamily.serializer().serializeWithIndexes(cf, bufOut);
-                byte[] data = new byte[bufOut.getLength()];
-                System.arraycopy(bufOut.getData(), 0, data, 0, bufOut.getLength());
+            ColumnFamily.serializer().serializeWithIndexes(cf, bufOut);
+            byte[] data = new byte[bufOut.getLength()];
+            System.arraycopy(bufOut.getData(), 0, data, 0, bufOut.getLength());
 
-                column = new Column(cf.name().getBytes("UTF-8"), data, 0);
-                baseColumnFamily.addColumn(column);
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
+            column = new Column(FBUtilities.toByteArray(cf.id()), data, 0);
+            baseColumnFamily.addColumn(column);
         }
         rm = new RowMutation(Keyspace, Key);
         rm.add(baseColumnFamily);
