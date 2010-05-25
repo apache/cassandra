@@ -10,6 +10,9 @@ Features
     - A new ByteOrderedPartitioner supports bytes keys with arbitrary content,
       and orders keys by their byte value. 
     - Truncate thrift method allows clearing an entire ColumnFamily at once
+    - DatacenterShardStrategy is ready for use, enabling 
+      ConsitencyLevel.DCQUORUM and DCQUORUMSYNC.  See comments in
+      `cassandra.yaml.`
 
 Configuraton
 ------------

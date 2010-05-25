@@ -132,10 +132,24 @@ endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
 # - replica_placement_strategy: the class that determines how replicas
 #   are distributed among nodes.  Must implement IReplicaPlacementStrategy.
 #   Out of the box, Cassandra provides 
-#   org.apache.cassandra.locator.RackUnawareStrategy and
-#   org.apache.cassandra.locator.RackAwareStrategy.  RackAwareStrategy
-#   place one replica in each of two datacenter, and other replicas in
-#   different racks in one.
+#     * org.apache.cassandra.locator.RackUnawareStrategy 
+#     * org.apache.cassandra.locator.RackAwareStrategy
+#     * org.apache.cassandra.locator.DatacenterShardStrategy
+#
+#   RackUnawareStrategy is the simplest; it simply places the first
+#   replica at the node whose token is closest to the key (as determined
+#   by the Partitioner), and additional replicas on subsequent nodes
+#   along the ring in increasing Token order.
+# 
+#   RackAwareStrategy is special cased for replication_factor of 3.  It
+#   places one replica in each of two datacenters, and the third on a
+#   different rack in in the first.
+#
+#   DatacenterShardStrategy is a generalization of RackAwareStrategy.
+#   For each datacenter, you can specify (in `datacenter.properties`)
+#   how many replicas you want on a per-keyspace basis.  Replicas are
+#   placed on different racks within each DC, if possible.
+# 
 # - replication_factor: Number of replicas of each row
 # - column_families: column families associated with this keyspace
 #
