@@ -1279,20 +1279,19 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     /**
      * @return list of Tokens (_not_ keys!) breaking up the data this node is responsible for into pieces of roughly keysPerSplit
      */ 
-    public List<Token> getSplits(Range range, int keysPerSplit)
+    public List<Token> getSplits(String table, String cfName, Range range, int keysPerSplit)
     {
         List<Token> tokens = new ArrayList<Token>();
         // we use the actual Range token for the first and last brackets of the splits to ensure correctness
         tokens.add(range.left);
 
         List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
-        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+        Table t = Table.open(table);
+        ColumnFamilyStore cfs = t.getColumnFamilyStore(cfName);
+        for (DecoratedKey sample : cfs.allKeySamples())
         {
-            for (DecoratedKey sample : cfs.allKeySamples())
-            {
-                if (range.contains(sample.token))
-                    keys.add(sample);
-            }
+            if (range.contains(sample.token))
+                keys.add(sample);
         }
         FBUtilities.sortSampledKeys(keys, range);
         int splits = keys.size() * SSTableReader.indexInterval() / keysPerSplit;

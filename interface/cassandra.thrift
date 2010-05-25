@@ -473,9 +473,11 @@ service Cassandra {
 
       returns list of token strings such that first subrange is (list[0], list[1]],
       next is (list[1], list[2]], etc. */
-  list<string> describe_splits(1:required string start_token, 
-  	                           2:required string end_token,
-                               3:required i32 keys_per_split),
+  list<string> describe_splits(1:required string keyspace,
+                               2:required string cfName,
+                               3:required string start_token, 
+                               4:required string end_token,
+                               5:required i32 keys_per_split),
 
   /** adds a column family. returns the new schema id. */
   string system_add_column_family(1:required CfDef cf_def)

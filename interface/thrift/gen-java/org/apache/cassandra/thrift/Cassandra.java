@@ -4,27 +4,6 @@
  * DO NOT EDIT UNLESS YOU ARE SURE THAT YOU KNOW WHAT YOU ARE DOING
  */
 package org.apache.cassandra.thrift;
-/*
- * 
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
- */
-
 
 import java.util.List;
 import java.util.ArrayList;
@@ -211,22 +190,58 @@ public class Cassandra {
      * returns list of token strings such that first subrange is (list[0], list[1]],
      * next is (list[1], list[2]], etc.
      * 
+     * @param keyspace
+     * @param cfName
      * @param start_token
      * @param end_token
      * @param keys_per_split
      */
-    public List<String> describe_splits(String start_token, String end_token, int keys_per_split) throws TException;
+    public List<String> describe_splits(String keyspace, String cfName, String start_token, String end_token, int keys_per_split) throws TException;
 
+    /**
+     * adds a column family. returns the new schema id.
+     * 
+     * @param cf_def
+     */
     public String system_add_column_family(CfDef cf_def) throws InvalidRequestException, TException;
 
+    /**
+     * drops a column family. returns the new schema id.
+     * 
+     * @param keyspace
+     * @param column_family
+     */
     public String system_drop_column_family(String keyspace, String column_family) throws InvalidRequestException, TException;
 
+    /**
+     * renames a column family. returns the new schema id.
+     * 
+     * @param keyspace
+     * @param old_name
+     * @param new_name
+     */
     public String system_rename_column_family(String keyspace, String old_name, String new_name) throws InvalidRequestException, TException;
 
+    /**
+     * adds a keyspace and any column families that are part of it. returns the new schema id.
+     * 
+     * @param ks_def
+     */
     public String system_add_keyspace(KsDef ks_def) throws InvalidRequestException, TException;
 
+    /**
+     * drops a keyspace and any column families that are part of it. returns the new schema id.
+     * 
+     * @param keyspace
+     */
     public String system_drop_keyspace(String keyspace) throws InvalidRequestException, TException;
 
+    /**
+     * renames a keyspace. returns the new schema id.
+     * 
+     * @param old_name
+     * @param new_name
+     */
     public String system_rename_keyspace(String old_name, String new_name) throws InvalidRequestException, TException;
 
   }
@@ -964,16 +979,18 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "describe_keyspace failed: unknown result");
     }
 
-    public List<String> describe_splits(String start_token, String end_token, int keys_per_split) throws TException
+    public List<String> describe_splits(String keyspace, String cfName, String start_token, String end_token, int keys_per_split) throws TException
     {
-      send_describe_splits(start_token, end_token, keys_per_split);
+      send_describe_splits(keyspace, cfName, start_token, end_token, keys_per_split);
       return recv_describe_splits();
     }
 
-    public void send_describe_splits(String start_token, String end_token, int keys_per_split) throws TException
+    public void send_describe_splits(String keyspace, String cfName, String start_token, String end_token, int keys_per_split) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("describe_splits", TMessageType.CALL, seqid_));
       describe_splits_args args = new describe_splits_args();
+      args.keyspace = keyspace;
+      args.cfName = cfName;
       args.start_token = start_token;
       args.end_token = end_token;
       args.keys_per_split = keys_per_split;
@@ -1973,7 +1990,7 @@ public class Cassandra {
         }
         iprot.readMessageEnd();
         describe_splits_result result = new describe_splits_result();
-        result.success = iface_.describe_splits(args.start_token, args.end_token, args.keys_per_split);
+        result.success = iface_.describe_splits(args.keyspace, args.cfName, args.start_token, args.end_token, args.keys_per_split);
         oprot.writeMessageBegin(new TMessage("describe_splits", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
@@ -17420,19 +17437,25 @@ public class Cassandra {
   public static class describe_splits_args implements TBase<describe_splits_args._Fields>, java.io.Serializable, Cloneable, Comparable<describe_splits_args>   {
     private static final TStruct STRUCT_DESC = new TStruct("describe_splits_args");
 
-    private static final TField START_TOKEN_FIELD_DESC = new TField("start_token", TType.STRING, (short)1);
-    private static final TField END_TOKEN_FIELD_DESC = new TField("end_token", TType.STRING, (short)2);
-    private static final TField KEYS_PER_SPLIT_FIELD_DESC = new TField("keys_per_split", TType.I32, (short)3);
+    private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
+    private static final TField CF_NAME_FIELD_DESC = new TField("cfName", TType.STRING, (short)2);
+    private static final TField START_TOKEN_FIELD_DESC = new TField("start_token", TType.STRING, (short)3);
+    private static final TField END_TOKEN_FIELD_DESC = new TField("end_token", TType.STRING, (short)4);
+    private static final TField KEYS_PER_SPLIT_FIELD_DESC = new TField("keys_per_split", TType.I32, (short)5);
 
+    public String keyspace;
+    public String cfName;
     public String start_token;
     public String end_token;
     public int keys_per_split;
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements TFieldIdEnum {
-      START_TOKEN((short)1, "start_token"),
-      END_TOKEN((short)2, "end_token"),
-      KEYS_PER_SPLIT((short)3, "keys_per_split");
+      KEYSPACE((short)1, "keyspace"),
+      CF_NAME((short)2, "cfName"),
+      START_TOKEN((short)3, "start_token"),
+      END_TOKEN((short)4, "end_token"),
+      KEYS_PER_SPLIT((short)5, "keys_per_split");
 
       private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
       private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
@@ -17490,6 +17513,10 @@ public class Cassandra {
     private BitSet __isset_bit_vector = new BitSet(1);
 
     public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
+      put(_Fields.KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.REQUIRED, 
+          new FieldValueMetaData(TType.STRING)));
+      put(_Fields.CF_NAME, new FieldMetaData("cfName", TFieldRequirementType.REQUIRED, 
+          new FieldValueMetaData(TType.STRING)));
       put(_Fields.START_TOKEN, new FieldMetaData("start_token", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
       put(_Fields.END_TOKEN, new FieldMetaData("end_token", TFieldRequirementType.REQUIRED, 
@@ -17506,11 +17533,15 @@ public class Cassandra {
     }
 
     public describe_splits_args(
+      String keyspace,
+      String cfName,
       String start_token,
       String end_token,
       int keys_per_split)
     {
       this();
+      this.keyspace = keyspace;
+      this.cfName = cfName;
       this.start_token = start_token;
       this.end_token = end_token;
       this.keys_per_split = keys_per_split;
@@ -17523,6 +17554,12 @@ public class Cassandra {
     public describe_splits_args(describe_splits_args other) {
       __isset_bit_vector.clear();
       __isset_bit_vector.or(other.__isset_bit_vector);
+      if (other.isSetKeyspace()) {
+        this.keyspace = other.keyspace;
+      }
+      if (other.isSetCfName()) {
+        this.cfName = other.cfName;
+      }
       if (other.isSetStart_token()) {
         this.start_token = other.start_token;
       }
@@ -17539,6 +17576,54 @@ public class Cassandra {
     @Deprecated
     public describe_splits_args clone() {
       return new describe_splits_args(this);
+    }
+
+    public String getKeyspace() {
+      return this.keyspace;
+    }
+
+    public describe_splits_args setKeyspace(String keyspace) {
+      this.keyspace = keyspace;
+      return this;
+    }
+
+    public void unsetKeyspace() {
+      this.keyspace = null;
+    }
+
+    /** Returns true if field keyspace is set (has been asigned a value) and false otherwise */
+    public boolean isSetKeyspace() {
+      return this.keyspace != null;
+    }
+
+    public void setKeyspaceIsSet(boolean value) {
+      if (!value) {
+        this.keyspace = null;
+      }
+    }
+
+    public String getCfName() {
+      return this.cfName;
+    }
+
+    public describe_splits_args setCfName(String cfName) {
+      this.cfName = cfName;
+      return this;
+    }
+
+    public void unsetCfName() {
+      this.cfName = null;
+    }
+
+    /** Returns true if field cfName is set (has been asigned a value) and false otherwise */
+    public boolean isSetCfName() {
+      return this.cfName != null;
+    }
+
+    public void setCfNameIsSet(boolean value) {
+      if (!value) {
+        this.cfName = null;
+      }
     }
 
     public String getStart_token() {
@@ -17614,6 +17699,22 @@ public class Cassandra {
 
     public void setFieldValue(_Fields field, Object value) {
       switch (field) {
+      case KEYSPACE:
+        if (value == null) {
+          unsetKeyspace();
+        } else {
+          setKeyspace((String)value);
+        }
+        break;
+
+      case CF_NAME:
+        if (value == null) {
+          unsetCfName();
+        } else {
+          setCfName((String)value);
+        }
+        break;
+
       case START_TOKEN:
         if (value == null) {
           unsetStart_token();
@@ -17647,6 +17748,12 @@ public class Cassandra {
 
     public Object getFieldValue(_Fields field) {
       switch (field) {
+      case KEYSPACE:
+        return getKeyspace();
+
+      case CF_NAME:
+        return getCfName();
+
       case START_TOKEN:
         return getStart_token();
 
@@ -17667,6 +17774,10 @@ public class Cassandra {
     /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
     public boolean isSet(_Fields field) {
       switch (field) {
+      case KEYSPACE:
+        return isSetKeyspace();
+      case CF_NAME:
+        return isSetCfName();
       case START_TOKEN:
         return isSetStart_token();
       case END_TOKEN:
@@ -17693,6 +17804,24 @@ public class Cassandra {
     public boolean equals(describe_splits_args that) {
       if (that == null)
         return false;
+
+      boolean this_present_keyspace = true && this.isSetKeyspace();
+      boolean that_present_keyspace = true && that.isSetKeyspace();
+      if (this_present_keyspace || that_present_keyspace) {
+        if (!(this_present_keyspace && that_present_keyspace))
+          return false;
+        if (!this.keyspace.equals(that.keyspace))
+          return false;
+      }
+
+      boolean this_present_cfName = true && this.isSetCfName();
+      boolean that_present_cfName = true && that.isSetCfName();
+      if (this_present_cfName || that_present_cfName) {
+        if (!(this_present_cfName && that_present_cfName))
+          return false;
+        if (!this.cfName.equals(that.cfName))
+          return false;
+      }
 
       boolean this_present_start_token = true && this.isSetStart_token();
       boolean that_present_start_token = true && that.isSetStart_token();
@@ -17737,6 +17866,24 @@ public class Cassandra {
       int lastComparison = 0;
       describe_splits_args typedOther = (describe_splits_args)other;
 
+      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(typedOther.isSetKeyspace());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetKeyspace()) {        lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetCfName()).compareTo(typedOther.isSetCfName());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetCfName()) {        lastComparison = TBaseHelper.compareTo(cfName, typedOther.cfName);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
       lastComparison = Boolean.valueOf(isSetStart_token()).compareTo(typedOther.isSetStart_token());
       if (lastComparison != 0) {
         return lastComparison;
@@ -17777,21 +17924,35 @@ public class Cassandra {
           break;
         }
         switch (field.id) {
-          case 1: // START_TOKEN
+          case 1: // KEYSPACE
+            if (field.type == TType.STRING) {
+              this.keyspace = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // CF_NAME
+            if (field.type == TType.STRING) {
+              this.cfName = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // START_TOKEN
             if (field.type == TType.STRING) {
               this.start_token = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case 2: // END_TOKEN
+          case 4: // END_TOKEN
             if (field.type == TType.STRING) {
               this.end_token = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case 3: // KEYS_PER_SPLIT
+          case 5: // KEYS_PER_SPLIT
             if (field.type == TType.I32) {
               this.keys_per_split = iprot.readI32();
               setKeys_per_splitIsSet(true);
@@ -17817,6 +17978,16 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
+      if (this.keyspace != null) {
+        oprot.writeFieldBegin(KEYSPACE_FIELD_DESC);
+        oprot.writeString(this.keyspace);
+        oprot.writeFieldEnd();
+      }
+      if (this.cfName != null) {
+        oprot.writeFieldBegin(CF_NAME_FIELD_DESC);
+        oprot.writeString(this.cfName);
+        oprot.writeFieldEnd();
+      }
       if (this.start_token != null) {
         oprot.writeFieldBegin(START_TOKEN_FIELD_DESC);
         oprot.writeString(this.start_token);
@@ -17839,6 +18010,22 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("describe_splits_args(");
       boolean first = true;
 
+      sb.append("keyspace:");
+      if (this.keyspace == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.keyspace);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("cfName:");
+      if (this.cfName == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.cfName);
+      }
+      first = false;
+      if (!first) sb.append(", ");
       sb.append("start_token:");
       if (this.start_token == null) {
         sb.append("null");
@@ -17864,6 +18051,12 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (keyspace == null) {
+        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      }
+      if (cfName == null) {
+        throw new TProtocolException("Required field 'cfName' was not present! Struct: " + toString());
+      }
       if (start_token == null) {
         throw new TProtocolException("Required field 'start_token' was not present! Struct: " + toString());
       }

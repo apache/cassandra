@@ -64,6 +64,10 @@ public class ColumnFamilyInputFormat extends InputFormat<byte[], SortedMap<byte[
 {
 
     private static final Logger logger = LoggerFactory.getLogger(StorageService.class);
+    
+    private int splitsize;
+    private String keyspace;
+    private String cfName;
 
     private void validateConfiguration(Configuration conf)
     {
@@ -86,7 +90,9 @@ public class ColumnFamilyInputFormat extends InputFormat<byte[], SortedMap<byte[
         // cannonical ranges and nodes holding replicas
         List<TokenRange> masterRangeNodes = getRangeMap(ConfigHelper.getKeyspace(conf));
 
-        int splitsize = ConfigHelper.getInputSplitSize(context.getConfiguration());
+        splitsize = ConfigHelper.getInputSplitSize(context.getConfiguration());
+        keyspace = ConfigHelper.getKeyspace(context.getConfiguration());
+        cfName = ConfigHelper.getColumnFamily(context.getConfiguration());
         
         // cannonical ranges, split into pieces, fetching the splits in parallel 
         ExecutorService executor = Executors.newCachedThreadPool();
@@ -98,7 +104,7 @@ public class ColumnFamilyInputFormat extends InputFormat<byte[], SortedMap<byte[
             for (TokenRange range : masterRangeNodes)
             {
                 // for each range, pick a live owner and ask it to compute bite-sized splits
-                splitfutures.add(executor.submit(new SplitCallable(range, splitsize)));
+                splitfutures.add(executor.submit(new SplitCallable(range)));
             }
     
             // wait until we have all the results back
@@ -132,19 +138,17 @@ public class ColumnFamilyInputFormat extends InputFormat<byte[], SortedMap<byte[
     {
 
         private TokenRange range;
-        private int splitsize;
         
-        public SplitCallable(TokenRange tr, int splitsize)
+        public SplitCallable(TokenRange tr)
         {
             this.range = tr;
-            this.splitsize = splitsize;
         }
 
         @Override
         public List<InputSplit> call() throws Exception
         {
             ArrayList<InputSplit> splits = new ArrayList<InputSplit>();
-            List<String> tokens = getSubSplits(range, splitsize);
+            List<String> tokens = getSubSplits(keyspace, cfName, range, splitsize);
 
             // turn the sub-ranges into InputSplits
             String[] endpoints = range.endpoints.toArray(new String[range.endpoints.size()]);
@@ -164,7 +168,7 @@ public class ColumnFamilyInputFormat extends InputFormat<byte[], SortedMap<byte[
         }
     }
 
-    private List<String> getSubSplits(TokenRange range, int splitsize) throws IOException
+    private List<String> getSubSplits(String keyspace, String cfName, TokenRange range, int splitsize) throws IOException
     {
         // TODO handle failure of range replicas & retry
         TSocket socket = new TSocket(range.endpoints.get(0),
@@ -182,7 +186,7 @@ public class ColumnFamilyInputFormat extends InputFormat<byte[], SortedMap<byte[
         List<String> splits;
         try
         {
-            splits = client.describe_splits(range.start_token, range.end_token, splitsize);
+            splits = client.describe_splits(keyspace, cfName, range.start_token, range.end_token, splitsize);
         }
         catch (TException e)
         {
