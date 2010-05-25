@@ -1,5 +1,5 @@
-conf/log4j.properties etc/cassandra
-conf/storage-conf.xml etc/cassandra
+conf/log4j-server.properties etc/cassandra
+conf/cassandra.yaml etc/cassandra
 debian/cassandra.in.sh usr/share/cassandra
 bin/cassandra usr/sbin
 bin/cassandra-cli usr/bin
