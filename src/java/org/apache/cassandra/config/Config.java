@@ -28,6 +28,8 @@ public class Config {
     public String initial_token;
     
     public Long rpc_timeout_in_ms = new Long(2000);
+
+    public Integer phi_convict_threshold = 8;
     
     public Integer concurrent_reads = 8;
     public Integer concurrent_writes = 32;

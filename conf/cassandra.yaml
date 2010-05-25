@@ -109,6 +109,10 @@ commitlog_sync_period_in_ms: 10000
 # Time to wait for a reply from other nodes before failing the command 
 rpc_timeout_in_ms: 10000
 
+# phi value that must be reached for a host to be marked down.
+# most users should never need to adjust this.
+# phi_convict_threshold: 8
+
 # time to wait before garbage collecting tombstones (deletion markers)
 gc_grace_seconds: 864000
 

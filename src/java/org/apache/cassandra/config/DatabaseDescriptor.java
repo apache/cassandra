@@ -202,6 +202,12 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("Invalid partitioner class " + conf.partitioner);
             }
 
+            /* phi convict threshold for FailureDetector */
+            if (conf.phi_convict_threshold < 5 || conf.phi_convict_threshold > 16)
+            {
+                throw new ConfigurationException("phi_convict_threshold must be between 5 and 16");
+            }
+            
             /* Thread per pool */
             if (conf.concurrent_reads != null && conf.concurrent_reads < 2) 
             {
@@ -743,6 +749,11 @@ public class DatabaseDescriptor
     public static long getRpcTimeout()
     {
         return conf.rpc_timeout_in_ms;
+    }
+
+    public static int getPhiConvictThreshold()
+    {
+        return conf.phi_convict_threshold;
     }
 
     public static int getConsistencyThreads()
