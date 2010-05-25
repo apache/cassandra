@@ -151,7 +151,7 @@ exception AuthorizationException {
  *              calls will have correct data even if the initial read gets an older value. (This is called 'read repair'.)
  *      QUORUM  Will query all storage nodes and return the record with the most recent timestamp once it has at least a
  *              majority of replicas reported. Again, the remaining replicas will be checked in the background.
- *      ALL     Not yet supported, but we plan to eventually.
+ *      ALL     Queries all storage nodes and returns the record with the most recent timestamp.
 */
 enum ConsistencyLevel {
     ZERO = 0,
