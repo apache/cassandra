@@ -86,7 +86,7 @@ public class StreamInitiateVerbHandler implements IVerbHandler
                 addStreamContext(message.getFrom(), localFile, streamStatus);
             }
 
-            StreamInManager.registerStreamCompletionHandler(message.getFrom(), new StreamCompletionHandler());
+            StreamInManager.registerFileStatusHandler(message.getFrom(), new FileStatusHandler());
             if (logger.isDebugEnabled())
               logger.debug("Sending a stream initiate done message ...");
             Message doneMessage = new Message(FBUtilities.getLocalAddress(), "", StorageService.Verb.STREAM_INITIATE_DONE, new byte[0] );

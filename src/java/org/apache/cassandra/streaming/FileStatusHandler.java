@@ -30,35 +30,42 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.streaming.IStreamComplete;
-import org.apache.cassandra.streaming.StreamInManager;
 import org.apache.cassandra.service.StorageService;
 
 /**
- * This is the callback handler that is invoked when we have
- * completely received a single file from a remote host.
- *
- * TODO if we move this into CFS we could make addSSTables private, improving encapsulation.
+ * This is the callback handler that is invoked on the receiving node when a file changes status from RECEIVE to either
+ * FileStatus.STREAM (needs to be restreamed) or FileStatus.DELETE (successfully completed).
 */
-class StreamCompletionHandler implements IStreamComplete
+class FileStatusHandler
 {
-    private static Logger logger = LoggerFactory.getLogger(StreamCompletionHandler.class);
+    private static Logger logger = LoggerFactory.getLogger(FileStatusHandler.class);
 
-    public void onStreamCompletion(InetAddress host, PendingFile pendingFile, FileStatus streamStatus) throws IOException
+    public void onStatusChange(InetAddress host, PendingFile pendingFile, FileStatus streamStatus) throws IOException
     {
-        /* Parse the stream context and the file to the list of SSTables in the associated Column Family Store. */
-        if (pendingFile.getFilename().contains("-Data.db"))
+        if (FileStatus.StreamCompletionAction.STREAM == streamStatus.getAction())
         {
+            // file needs to be restreamed
+            logger.warn("Streaming of file " + pendingFile + " from " + host + " failed, but will be retried.");
+            // request that the source node re-stream the file
+            MessagingService.instance.sendOneWay(streamStatus.makeStreamStatusMessage(), host);
+            return;
+        }
+        assert FileStatus.StreamCompletionAction.DELETE == streamStatus.getAction() :
+            "Unknown stream status: " + streamStatus.getAction();
+
+        // file was successfully streamed: if it was the last component of an sstable, assume that the rest
+        // have already arrived
+        if (pendingFile.getFilename().endsWith("-Data.db"))
+        {
+            // last component triggers add: see TODO in SSTable.getAllComponents()
             String tableName = pendingFile.getDescriptor().ksname;
-            File file = new File( pendingFile.getFilename() );
+            File file = new File(pendingFile.getFilename());
             String fileName = file.getName();
             String [] temp = fileName.split("-");
 
-            //Open the file to see if all parts are now here
             try
             {
                 SSTableReader sstable = SSTableWriter.renameAndOpen(pendingFile.getFilename());
-                //TODO add a sanity check that this sstable has all its parts and is ok
                 Table.open(tableName).getColumnFamilyStore(temp[0]).addSSTable(sstable);
                 logger.info("Streaming added " + sstable.getFilename());
             }
@@ -68,12 +75,12 @@ class StreamCompletionHandler implements IStreamComplete
             }
         }
 
+        // send a StreamStatus message telling the source node it can delete this file
         if (logger.isDebugEnabled())
-          logger.debug("Sending a streaming finished message with " + streamStatus + " to " + host);
-        /* Send a StreamStatus message which may require the source node to re-stream certain files. */
+            logger.debug("Sending a streaming finished message for " + pendingFile + " to " + host);
         MessagingService.instance.sendOneWay(streamStatus.makeStreamStatusMessage(), host);
 
-        /* If we're done with everything for this host, remove from bootstrap sources */
+        // if all files have been received from this host, remove from bootstrap sources
         if (StreamInManager.isDone(host) && StorageService.instance.isBootstrapMode())
         {
             StorageService.instance.removeBootstrapSource(host, pendingFile.getDescriptor().ksname);

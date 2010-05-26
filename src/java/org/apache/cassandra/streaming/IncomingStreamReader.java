@@ -69,7 +69,7 @@ public class IncomingStreamReader
         {
             /* Ask the source node to re-stream this file. */
             streamStatus.setAction(FileStatus.StreamCompletionAction.STREAM);
-            handleStreamCompletion(remoteAddress.getAddress());
+            handleFileStatus(remoteAddress.getAddress());
             /* Delete the orphaned file. */
             File file = new File(pendingFile.getFilename());
             file.delete();
@@ -88,18 +88,18 @@ public class IncomingStreamReader
                 logger.debug("Removing stream context " + pendingFile);
             }
             fc.close();
-            handleStreamCompletion(remoteAddress.getAddress());
+            handleFileStatus(remoteAddress.getAddress());
         }
     }
 
-    private void handleStreamCompletion(InetAddress remoteHost) throws IOException
+    private void handleFileStatus(InetAddress remoteHost) throws IOException
     {
         /*
          * Streaming is complete. If all the data that has to be received inform the sender via
          * the stream completion callback so that the source may perform the requisite cleanup.
         */
-        IStreamComplete streamComplete = StreamInManager.getStreamCompletionHandler(remoteHost);
-        if (streamComplete != null)
-            streamComplete.onStreamCompletion(remoteHost, pendingFile, streamStatus);
+        FileStatusHandler handler = StreamInManager.getFileStatusHandler(remoteHost);
+        if (handler != null)
+            handler.onStatusChange(remoteHost, pendingFile, streamStatus);
     }
 }
