@@ -1106,6 +1106,29 @@ class TestMutations(ThriftTester):
         assert 'NewColumnFamily' not in ks1
         assert 'Standard1' in ks1
 
+    def test_system_super_column_family_operations(self):
+        """test cf (add, drop, rename) operations"""
+        _set_keyspace('Keyspace1')
+        
+        # create
+        newcf = CfDef('Keyspace1', 'NewSuperColumnFamily', 'Super')
+        client.system_add_column_family(newcf)
+        ks1 = client.describe_keyspace('Keyspace1')
+        assert 'NewSuperColumnFamily' in ks1
+        
+        # rename
+        client.system_rename_column_family('Keyspace1', 'NewSuperColumnFamily', 'RenameSuperColumnFamily')
+        ks1 = client.describe_keyspace('Keyspace1')
+        assert 'RenameSuperColumnFamily' in ks1
+        assert 'NewSuperColumnFamily' not in ks1
+        
+        # drop
+        client.system_drop_column_family('Keyspace1', 'RenameSuperColumnFamily')
+        ks1 = client.describe_keyspace('Keyspace1')
+        assert 'RenameSuperColumnFamily' not in ks1
+        assert 'NewSuperColumnFamily' not in ks1
+        assert 'Standard1' in ks1
+        
     def test_insert_ttl(self):
         """ Test simple insertion of a column with ttl """
         _set_keyspace('Keyspace1')

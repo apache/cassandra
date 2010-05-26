@@ -120,13 +120,15 @@ public final class CFMetaData
         this.cfType = cfType;
         this.clockType = clockType;
         this.comparator = comparator;
-        this.subcolumnComparator = subcolumnComparator;
+        // the default subcolumncomparator is null per thrift spec, but only should be null if cfType == Standard. If
+        // cfType == Super, subcolumnComparator should default to BytesType if not set.
+        this.subcolumnComparator = subcolumnComparator == null && cfType == ColumnFamilyType.Super ? new BytesType() : subcolumnComparator;
         this.comment = comment;
         this.rowCacheSize = rowCacheSize;
         this.preloadRowCache = preloadRowCache;
         this.keyCacheSize = keyCacheSize;
         this.readRepairChance = readRepairChance;
-        this.cfId = cfId;
+        this.cfId = cfId;        
     }
     
     /** adds this cfm to the map. */
