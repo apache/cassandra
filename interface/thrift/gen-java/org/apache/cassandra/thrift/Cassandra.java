@@ -4,6 +4,27 @@
  * DO NOT EDIT UNLESS YOU ARE SURE THAT YOU KNOW WHAT YOU ARE DOING
  */
 package org.apache.cassandra.thrift;
+/*
+ * 
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ * 
+ */
+
 
 import java.util.List;
 import java.util.ArrayList;
@@ -105,16 +126,16 @@ public class Cassandra {
     public void insert(byte[] key, ColumnParent column_parent, Column column, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
-     * Remove data from the row specified by key at the granularity specified by column_path, and the given timestamp. Note
+     * Remove data from the row specified by key at the granularity specified by column_path, and the given clock. Note
      * that all the values in column_path besides column_path.column_family are truly optional: you can remove the entire
      * row by just specifying the ColumnFamily, or you can remove a SuperColumn or a single Column by specifying those levels too.
      * 
      * @param key
      * @param column_path
-     * @param timestamp
+     * @param clock
      * @param consistency_level
      */
-    public void remove(byte[] key, ColumnPath column_path, long timestamp, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
+    public void remove(byte[] key, ColumnPath column_path, Clock clock, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
      *   Mutate many columns or super columns for many row keys. See also: Mutation.
@@ -660,19 +681,19 @@ public class Cassandra {
       return;
     }
 
-    public void remove(byte[] key, ColumnPath column_path, long timestamp, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    public void remove(byte[] key, ColumnPath column_path, Clock clock, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
-      send_remove(key, column_path, timestamp, consistency_level);
+      send_remove(key, column_path, clock, consistency_level);
       recv_remove();
     }
 
-    public void send_remove(byte[] key, ColumnPath column_path, long timestamp, ConsistencyLevel consistency_level) throws TException
+    public void send_remove(byte[] key, ColumnPath column_path, Clock clock, ConsistencyLevel consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("remove", TMessageType.CALL, seqid_));
       remove_args args = new remove_args();
       args.key = key;
       args.column_path = column_path;
-      args.timestamp = timestamp;
+      args.clock = clock;
       args.consistency_level = consistency_level;
       args.write(oprot_);
       oprot_.writeMessageEnd();
@@ -1687,7 +1708,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         remove_result result = new remove_result();
         try {
-          iface_.remove(args.key, args.column_path, args.timestamp, args.consistency_level);
+          iface_.remove(args.key, args.column_path, args.clock, args.consistency_level);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (UnavailableException ue) {
@@ -11450,12 +11471,12 @@ public class Cassandra {
 
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)1);
     private static final TField COLUMN_PATH_FIELD_DESC = new TField("column_path", TType.STRUCT, (short)2);
-    private static final TField TIMESTAMP_FIELD_DESC = new TField("timestamp", TType.I64, (short)3);
+    private static final TField CLOCK_FIELD_DESC = new TField("clock", TType.STRUCT, (short)3);
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)4);
 
     public byte[] key;
     public ColumnPath column_path;
-    public long timestamp;
+    public Clock clock;
     /**
      * 
      * @see ConsistencyLevel
@@ -11466,7 +11487,7 @@ public class Cassandra {
     public enum _Fields implements TFieldIdEnum {
       KEY((short)1, "key"),
       COLUMN_PATH((short)2, "column_path"),
-      TIMESTAMP((short)3, "timestamp"),
+      CLOCK((short)3, "clock"),
       /**
        * 
        * @see ConsistencyLevel
@@ -11525,16 +11546,14 @@ public class Cassandra {
     }
 
     // isset id assignments
-    private static final int __TIMESTAMP_ISSET_ID = 0;
-    private BitSet __isset_bit_vector = new BitSet(1);
 
     public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
       put(_Fields.KEY, new FieldMetaData("key", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
       put(_Fields.COLUMN_PATH, new FieldMetaData("column_path", TFieldRequirementType.REQUIRED, 
           new StructMetaData(TType.STRUCT, ColumnPath.class)));
-      put(_Fields.TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.REQUIRED, 
-          new FieldValueMetaData(TType.I64)));
+      put(_Fields.CLOCK, new FieldMetaData("clock", TFieldRequirementType.REQUIRED, 
+          new StructMetaData(TType.STRUCT, Clock.class)));
       put(_Fields.CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.DEFAULT, 
           new EnumMetaData(TType.ENUM, ConsistencyLevel.class)));
     }});
@@ -11551,14 +11570,13 @@ public class Cassandra {
     public remove_args(
       byte[] key,
       ColumnPath column_path,
-      long timestamp,
+      Clock clock,
       ConsistencyLevel consistency_level)
     {
       this();
       this.key = key;
       this.column_path = column_path;
-      this.timestamp = timestamp;
-      setTimestampIsSet(true);
+      this.clock = clock;
       this.consistency_level = consistency_level;
     }
 
@@ -11566,8 +11584,6 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public remove_args(remove_args other) {
-      __isset_bit_vector.clear();
-      __isset_bit_vector.or(other.__isset_bit_vector);
       if (other.isSetKey()) {
         this.key = new byte[other.key.length];
         System.arraycopy(other.key, 0, key, 0, other.key.length);
@@ -11575,7 +11591,9 @@ public class Cassandra {
       if (other.isSetColumn_path()) {
         this.column_path = new ColumnPath(other.column_path);
       }
-      this.timestamp = other.timestamp;
+      if (other.isSetClock()) {
+        this.clock = new Clock(other.clock);
+      }
       if (other.isSetConsistency_level()) {
         this.consistency_level = other.consistency_level;
       }
@@ -11638,27 +11656,28 @@ public class Cassandra {
       }
     }
 
-    public long getTimestamp() {
-      return this.timestamp;
+    public Clock getClock() {
+      return this.clock;
     }
 
-    public remove_args setTimestamp(long timestamp) {
-      this.timestamp = timestamp;
-      setTimestampIsSet(true);
+    public remove_args setClock(Clock clock) {
+      this.clock = clock;
       return this;
     }
 
-    public void unsetTimestamp() {
-      __isset_bit_vector.clear(__TIMESTAMP_ISSET_ID);
+    public void unsetClock() {
+      this.clock = null;
     }
 
-    /** Returns true if field timestamp is set (has been asigned a value) and false otherwise */
-    public boolean isSetTimestamp() {
-      return __isset_bit_vector.get(__TIMESTAMP_ISSET_ID);
+    /** Returns true if field clock is set (has been asigned a value) and false otherwise */
+    public boolean isSetClock() {
+      return this.clock != null;
     }
 
-    public void setTimestampIsSet(boolean value) {
-      __isset_bit_vector.set(__TIMESTAMP_ISSET_ID, value);
+    public void setClockIsSet(boolean value) {
+      if (!value) {
+        this.clock = null;
+      }
     }
 
     /**
@@ -11711,11 +11730,11 @@ public class Cassandra {
         }
         break;
 
-      case TIMESTAMP:
+      case CLOCK:
         if (value == null) {
-          unsetTimestamp();
+          unsetClock();
         } else {
-          setTimestamp((Long)value);
+          setClock((Clock)value);
         }
         break;
 
@@ -11742,8 +11761,8 @@ public class Cassandra {
       case COLUMN_PATH:
         return getColumn_path();
 
-      case TIMESTAMP:
-        return new Long(getTimestamp());
+      case CLOCK:
+        return getClock();
 
       case CONSISTENCY_LEVEL:
         return getConsistency_level();
@@ -11763,8 +11782,8 @@ public class Cassandra {
         return isSetKey();
       case COLUMN_PATH:
         return isSetColumn_path();
-      case TIMESTAMP:
-        return isSetTimestamp();
+      case CLOCK:
+        return isSetClock();
       case CONSISTENCY_LEVEL:
         return isSetConsistency_level();
       }
@@ -11806,12 +11825,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_timestamp = true;
-      boolean that_present_timestamp = true;
-      if (this_present_timestamp || that_present_timestamp) {
-        if (!(this_present_timestamp && that_present_timestamp))
+      boolean this_present_clock = true && this.isSetClock();
+      boolean that_present_clock = true && that.isSetClock();
+      if (this_present_clock || that_present_clock) {
+        if (!(this_present_clock && that_present_clock))
           return false;
-        if (this.timestamp != that.timestamp)
+        if (!this.clock.equals(that.clock))
           return false;
       }
 
@@ -11858,11 +11877,11 @@ public class Cassandra {
           return lastComparison;
         }
       }
-      lastComparison = Boolean.valueOf(isSetTimestamp()).compareTo(typedOther.isSetTimestamp());
+      lastComparison = Boolean.valueOf(isSetClock()).compareTo(typedOther.isSetClock());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      if (isSetTimestamp()) {        lastComparison = TBaseHelper.compareTo(timestamp, typedOther.timestamp);
+      if (isSetClock()) {        lastComparison = TBaseHelper.compareTo(clock, typedOther.clock);
         if (lastComparison != 0) {
           return lastComparison;
         }
@@ -11904,10 +11923,10 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case 3: // TIMESTAMP
-            if (field.type == TType.I64) {
-              this.timestamp = iprot.readI64();
-              setTimestampIsSet(true);
+          case 3: // CLOCK
+            if (field.type == TType.STRUCT) {
+              this.clock = new Clock();
+              this.clock.read(iprot);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -11927,9 +11946,6 @@ public class Cassandra {
       iprot.readStructEnd();
 
       // check for required fields of primitive type, which can't be checked in the validate method
-      if (!isSetTimestamp()) {
-        throw new TProtocolException("Required field 'timestamp' was not found in serialized data! Struct: " + toString());
-      }
       validate();
     }
 
@@ -11947,9 +11963,11 @@ public class Cassandra {
         this.column_path.write(oprot);
         oprot.writeFieldEnd();
       }
-      oprot.writeFieldBegin(TIMESTAMP_FIELD_DESC);
-      oprot.writeI64(this.timestamp);
-      oprot.writeFieldEnd();
+      if (this.clock != null) {
+        oprot.writeFieldBegin(CLOCK_FIELD_DESC);
+        this.clock.write(oprot);
+        oprot.writeFieldEnd();
+      }
       if (this.consistency_level != null) {
         oprot.writeFieldBegin(CONSISTENCY_LEVEL_FIELD_DESC);
         oprot.writeI32(this.consistency_level.getValue());
@@ -11985,8 +12003,12 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("timestamp:");
-      sb.append(this.timestamp);
+      sb.append("clock:");
+      if (this.clock == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.clock);
+      }
       first = false;
       if (!first) sb.append(", ");
       sb.append("consistency_level:");
@@ -12008,7 +12030,9 @@ public class Cassandra {
       if (column_path == null) {
         throw new TProtocolException("Required field 'column_path' was not present! Struct: " + toString());
       }
-      // alas, we cannot check 'timestamp' because it's a primitive and you chose the non-beans generator.
+      if (clock == null) {
+        throw new TProtocolException("Required field 'clock' was not present! Struct: " + toString());
+      }
     }
 
   }

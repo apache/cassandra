@@ -52,7 +52,7 @@ public class RecoveryManagerTruncateTest extends CleanupHelper
 		// trucate clears memtable
 		rm = new RowMutation("Keyspace1", "keymulti".getBytes());
 		cf = ColumnFamily.create("Keyspace1", "Standard1");
-		cf.addColumn(column("col1", "val1", 1L));
+		cf.addColumn(column("col1", "val1", new TimestampClock(1L)));
 		rm.add(cf);
 		rm.apply();
 
@@ -69,7 +69,7 @@ public class RecoveryManagerTruncateTest extends CleanupHelper
 		// truncate clears sstable
 		rm = new RowMutation("Keyspace1", "keymulti".getBytes());
 		cf = ColumnFamily.create("Keyspace1", "Standard1");
-		cf.addColumn(column("col1", "val1", 1L));
+		cf.addColumn(column("col1", "val1", new TimestampClock(1L)));
 		rm.add(cf);
 		rm.apply();
 		cfs.forceBlockingFlush();

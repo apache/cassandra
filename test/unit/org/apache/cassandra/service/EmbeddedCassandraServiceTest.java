@@ -30,6 +30,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.thrift.Cassandra;
+import org.apache.cassandra.thrift.Clock;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.ColumnOrSuperColumn;
 import org.apache.cassandra.thrift.Column;
@@ -111,8 +112,10 @@ public class EmbeddedCassandraServiceTest
         cp.setColumn("name".getBytes("utf-8"));
 
         // insert
+        Clock clock = new Clock();
+        clock.setTimestamp(timestamp);
         client.insert(key_user_id, par, new Column("name".getBytes("utf-8"),
-                "Ran".getBytes("UTF-8"), timestamp), ConsistencyLevel.ONE);
+                "Ran".getBytes("UTF-8"), clock), ConsistencyLevel.ONE);
 
         // read
         ColumnOrSuperColumn got = client.get(key_user_id, cp,

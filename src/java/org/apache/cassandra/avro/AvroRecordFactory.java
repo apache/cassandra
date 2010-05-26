@@ -27,18 +27,25 @@ import org.apache.avro.util.Utf8;
 
 public class AvroRecordFactory
 {
-    public static Column newColumn(ByteBuffer name, ByteBuffer value, long timestamp)
+    public static Column newColumn(ByteBuffer name, ByteBuffer value, Clock clock)
     {
         Column column = new Column();
         column.name = name;
         column.value = value;
-        column.timestamp = timestamp;
+        column.clock = clock;
         return column;
     }
-    
-    public static Column newColumn(byte[] name, byte[] value, long timestamp)
+
+    public static Clock newClock(long timestamp)
     {
-        return newColumn(ByteBuffer.wrap(name), ByteBuffer.wrap(value), timestamp);
+        Clock clock = new Clock();
+        clock.timestamp = timestamp;
+        return clock;
+    }
+    
+    public static Column newColumn(byte[] name, byte[] value, Clock clock)
+    {
+        return newColumn(ByteBuffer.wrap(name), ByteBuffer.wrap(value), clock);
     }
     
     public static SuperColumn newSuperColumn(ByteBuffer name, GenericArray<Column> columns)

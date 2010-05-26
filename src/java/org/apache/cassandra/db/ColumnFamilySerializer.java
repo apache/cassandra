@@ -74,7 +74,8 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
         try
         {
             dos.writeInt(columnFamily.localDeletionTime.get());
-            dos.writeLong(columnFamily.markedForDeleteAt.get());
+            IClock _markedForDeleteAt = columnFamily.markedForDeleteAt.get();
+            columnFamily.getClockType().serializer().serialize(_markedForDeleteAt, dos);
 
             Collection<IColumn> columns = columnFamily.getSortedColumns();
             dos.writeInt(columns.size());
@@ -140,8 +141,8 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
     }
 
     public ColumnFamily deserializeFromSSTableNoColumns(ColumnFamily cf, DataInput input) throws IOException
-    {
-        cf.delete(input.readInt(), input.readLong());
+    {        
+        cf.delete(input.readInt(), cf.getClockType().serializer().deserialize(input));
         return cf;
     }
 

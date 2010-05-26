@@ -57,7 +57,7 @@ public class CompactionsTest extends CleanupHelper
             for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
                 DecoratedKey key = Util.dk(String.valueOf(i % 2));
                 RowMutation rm = new RowMutation(TABLE1, key.key);
-                rm.add(new QueryPath("Standard1", null, String.valueOf(i / 2).getBytes()), new byte[0], j * ROWS_PER_SSTABLE + i);
+                rm.add(new QueryPath("Standard1", null, String.valueOf(i / 2).getBytes()), new byte[0], new TimestampClock(j * ROWS_PER_SSTABLE + i));
                 rm.apply();
                 inserted.add(key);
             }
@@ -90,7 +90,7 @@ public class CompactionsTest extends CleanupHelper
             for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
                 byte[] key = String.valueOf(i % 2).getBytes();
                 RowMutation rm = new RowMutation(TABLE2, key);
-                rm.add(new QueryPath("Standard1", null, String.valueOf(i / 2).getBytes()), new byte[0], j * ROWS_PER_SSTABLE + i);
+                rm.add(new QueryPath("Standard1", null, String.valueOf(i / 2).getBytes()), new byte[0], new TimestampClock(j * ROWS_PER_SSTABLE + i));
                 rm.apply();
             }
             store.forceBlockingFlush();

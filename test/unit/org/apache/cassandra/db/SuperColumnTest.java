@@ -1,6 +1,5 @@
 /*
-* Licensed to the Apache Software Foundation (ASF) under one
-* or more contributor license agreements.  See the NOTICE file
+* Licensed to the Apache Software Foundation (ASF) under one * or more contributor license agreements.  See the NOTICE file
 * distributed with this work for additional information
 * regarding copyright ownership.  The ASF licenses this file
 * to you under the Apache License, Version 2.0 (the
@@ -29,8 +28,8 @@ public class SuperColumnTest
 {   
     @Test
     public void testMissingSubcolumn() {
-    	SuperColumn sc = new SuperColumn("sc1".getBytes(), new LongType());
-    	sc.addColumn(new Column(getBytes(1), "value".getBytes(), 1));
+    	SuperColumn sc = new SuperColumn("sc1".getBytes(), new LongType(), ClockType.Timestamp);
+    	sc.addColumn(new Column(getBytes(1), "value".getBytes(), new TimestampClock(1)));
     	assertNotNull(sc.getSubColumn(getBytes(1)));
     	assertNull(sc.getSubColumn(getBytes(2)));
     }

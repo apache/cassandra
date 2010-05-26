@@ -21,11 +21,16 @@
             {"name": "super_column", "type": ["bytes", "null"]}
         ]
       },
+      {"name": "Clock", "type": "record",
+          "fields": [
+            {"name": "timestamp", "type": "long"}
+        ]
+      },
       {"name": "Column", "type": "record",
           "fields": [
             {"name": "name", "type": "bytes"},
             {"name": "value", "type": "bytes"},
-            {"name": "timestamp", "type": "long"},
+            {"name": "clock", "type": "Clock"},
             {"name": "ttl", "type": ["int", "null"]}
         ]
       },
@@ -59,7 +64,7 @@
       },
       {"name": "Deletion", "type": "record",
           "fields": [
-            {"name": "timestamp", "type": "long"},
+            {"name": "clock", "type": "Clock"},
             {"name": "super_column", "type": ["bytes", "null"]},
             {"name": "predicate", "type": ["SlicePredicate", "null"]}
           ]
@@ -76,6 +81,7 @@
             {"name": "keyspace", "type": "string"},
             {"name": "name", "type": "string"},
             {"name": "column_type", "type": ["string", "null"]},
+            {"name": "clock_type", "type": ["string", "null"]},
             {"name": "comparator_type", "type": ["string", "null"]},
             {"name": "subcomparator_type", "type": ["string", "null"]},
             {"name": "comment", "type": ["string", "null"]},

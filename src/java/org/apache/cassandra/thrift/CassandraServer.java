@@ -137,7 +137,7 @@ public class CassandraServer implements Cassandra.Iface
             {
                 continue;
             }
-            Column thrift_column = new Column(column.name(), column.value(), column.timestamp());
+            Column thrift_column = new Column(column.name(), column.value(), thriftifyIClock(column.clock()));
             if (column instanceof ExpiringColumn)
             {
                 thrift_column.setTtl(((ExpiringColumn) column).getTimeToLive());
@@ -157,7 +157,7 @@ public class CassandraServer implements Cassandra.Iface
             {
                 continue;
             }
-            Column thrift_column = new Column(column.name(), column.value(), column.timestamp());
+            Column thrift_column = new Column(column.name(), column.value(), thriftifyIClock(column.clock()));
             if (column instanceof ExpiringColumn)
             {
                 thrift_column.setTtl(((ExpiringColumn) column).getTimeToLive());
@@ -191,6 +191,16 @@ public class CassandraServer implements Cassandra.Iface
             Collections.reverse(thriftSuperColumns);
 
         return thriftSuperColumns;
+    }
+
+    private static Clock thriftifyIClock(IClock clock)
+    {
+        Clock thrift_clock = new Clock();
+        if (clock instanceof TimestampClock)
+        {
+            thrift_clock.setTimestamp(((TimestampClock)clock).timestamp());
+        }
+        return thrift_clock;
     }
 
     private Map<byte[], List<ColumnOrSuperColumn>> getSlice(List<ReadCommand> commands, ConsistencyLevel consistency_level)
@@ -344,11 +354,12 @@ public class CassandraServer implements Cassandra.Iface
         ThriftValidation.validateKey(key);
         ThriftValidation.validateColumnParent(keySpace.get(), column_parent);
         ThriftValidation.validateColumn(keySpace.get(), column_parent, column);
+        IClock cassandra_clock = ThriftValidation.validateClock(column.clock);
 
         RowMutation rm = new RowMutation(keySpace.get(), key);
         try
         {
-            rm.add(new QueryPath(column_parent.column_family, column_parent.super_column, column.name), column.value, column.timestamp, column.ttl);
+            rm.add(new QueryPath(column_parent.column_family, column_parent.super_column, column.name), column.value, cassandra_clock, column.ttl);
         }
         catch (MarshalException e)
         {
@@ -418,7 +429,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public void remove(byte[] key, ColumnPath column_path, long timestamp, ConsistencyLevel consistency_level)
+    public void remove(byte[] key, ColumnPath column_path, Clock clock, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
@@ -428,9 +439,11 @@ public class CassandraServer implements Cassandra.Iface
 
         ThriftValidation.validateKey(key);
         ThriftValidation.validateColumnPathOrParent(keySpace.get(), column_path);
-        
+
+        IClock cassandra_clock = ThriftValidation.validateClock(clock);
+
         RowMutation rm = new RowMutation(keySpace.get(), key);
-        rm.delete(new QueryPath(column_path), timestamp);
+        rm.delete(new QueryPath(column_path), cassandra_clock);
 
         doInsert(consistency_level, rm);
     }
@@ -469,6 +482,7 @@ public class CassandraServer implements Cassandra.Iface
 
             Map<String, String> columnMap = new HashMap<String, String>();
             columnMap.put("Type", columnFamilyMetaData.cfType.name());
+            columnMap.put("ClockType", columnFamilyMetaData.clockType.name());
             columnMap.put("Desc", columnFamilyMetaData.comment == null ? columnFamilyMetaData.pretty() : columnFamilyMetaData.comment);
             columnMap.put("CompareWith", columnFamilyMetaData.comparator.getClass().getName());
             if (columnFamilyMetaData.cfType == ColumnFamilyType.Super)
@@ -624,6 +638,7 @@ public class CassandraServer implements Cassandra.Iface
                         cf_def.table,
                         cf_def.name,
                         cfType,
+                        ClockType.Timestamp,
                         DatabaseDescriptor.getComparator(cf_def.comparator_type),
                         cf_def.subcomparator_type.length() == 0 ? null : DatabaseDescriptor.getComparator(cf_def.subcomparator_type),
                         cf_def.comment,
@@ -733,6 +748,7 @@ public class CassandraServer implements Cassandra.Iface
                         cfDef.table,
                         cfDef.name,
                         cfType,
+                        ClockType.Timestamp,
                         DatabaseDescriptor.getComparator(cfDef.comparator_type),
                         cfDef.subcomparator_type.length() == 0 ? null : DatabaseDescriptor.getComparator(cfDef.subcomparator_type),
                         cfDef.comment,

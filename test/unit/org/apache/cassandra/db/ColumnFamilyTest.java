@@ -41,7 +41,7 @@ public class ColumnFamilyTest extends SchemaLoader
         ColumnFamily cf;
 
         cf = ColumnFamily.create("Keyspace1", "Standard1");
-        cf.addColumn(column("C", "v", 1));
+        cf.addColumn(column("C", "v", new TimestampClock(1)));
         DataOutputBuffer bufOut = new DataOutputBuffer();
         ColumnFamily.serializer().serialize(cf, bufOut);
 
@@ -68,7 +68,7 @@ public class ColumnFamilyTest extends SchemaLoader
         DataOutputBuffer bufOut = new DataOutputBuffer();
         for (String cName : map.navigableKeySet())
         {
-            cf.addColumn(column(cName, map.get(cName), 314));
+            cf.addColumn(column(cName, map.get(cName), new TimestampClock(314)));
         }
         ColumnFamily.serializer().serialize(cf, bufOut);
 
@@ -87,9 +87,9 @@ public class ColumnFamilyTest extends SchemaLoader
     {
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
 
-        cf.addColumn(column("col1", "", 1));
-        cf.addColumn(column("col2", "", 2));
-        cf.addColumn(column("col1", "", 3));
+        cf.addColumn(column("col1", "", new TimestampClock(1)));
+        cf.addColumn(column("col2", "", new TimestampClock(2)));
+        cf.addColumn(column("col1", "", new TimestampClock(3)));
 
         assert 2 == cf.getColumnCount();
         assert 2 == cf.getSortedColumns().size();
@@ -100,9 +100,9 @@ public class ColumnFamilyTest extends SchemaLoader
     {
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
 
-        cf.addColumn(column("col1", "val1", 2));
-        cf.addColumn(column("col1", "val2", 2)); // same timestamp, new value
-        cf.addColumn(column("col1", "val3", 1)); // older timestamp -- should be ignored
+        cf.addColumn(column("col1", "val1", new TimestampClock(2)));
+        cf.addColumn(column("col1", "val2", new TimestampClock(2))); // same timestamp, new value
+        cf.addColumn(column("col1", "val3", new TimestampClock(1))); // older timestamp -- should be ignored
 
         assert Arrays.equals("val2".getBytes(), cf.getColumn("col1".getBytes()).value());
     }
@@ -117,11 +117,11 @@ public class ColumnFamilyTest extends SchemaLoader
         byte val2[] = "x value ".getBytes();
 
         // exercise addColumn(QueryPath, ...)
-        cf_new.addColumn(QueryPath.column("col1".getBytes()), val, 3);
-        cf_new.addColumn(QueryPath.column("col2".getBytes()), val, 4);
+        cf_new.addColumn(QueryPath.column("col1".getBytes()), val, new TimestampClock(3));
+        cf_new.addColumn(QueryPath.column("col2".getBytes()), val, new TimestampClock(4));
 
-        cf_old.addColumn(QueryPath.column("col2".getBytes()), val2, 1);
-        cf_old.addColumn(QueryPath.column("col3".getBytes()), val2, 2);
+        cf_old.addColumn(QueryPath.column("col2".getBytes()), val2, new TimestampClock(1));
+        cf_old.addColumn(QueryPath.column("col3".getBytes()), val2, new TimestampClock(2));
 
         cf_result.addAll(cf_new);
         cf_result.addAll(cf_old);

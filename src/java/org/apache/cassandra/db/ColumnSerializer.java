@@ -33,6 +33,13 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
     public final static int DELETION_MASK = 0x01;
     public final static int EXPIRATION_MASK = 0x02;
 
+    private ClockType clockType;
+
+    public ColumnSerializer(ClockType clockType)
+    {
+        this.clockType = clockType;
+    }
+    
     public void serialize(IColumn column, DataOutput dos)
     {
         FBUtilities.writeShortByteArray(column.name(), dos);
@@ -45,7 +52,7 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
             } else {
               dos.writeByte((column.isMarkedForDelete()) ? DELETION_MASK : 0);
             }
-            dos.writeLong(column.timestamp());
+            clockType.serializer().serialize(column.clock(), dos);
             FBUtilities.writeByteArray(column.value(), dos);
         }
         catch (IOException e)
@@ -62,7 +69,7 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
         {
             int ttl = dis.readInt();
             int expiration = dis.readInt();
-            long ts = dis.readLong();
+            IClock clock = clockType.serializer().deserialize(dis);
             byte[] value = FBUtilities.readByteArray(dis);
             if ((int) (System.currentTimeMillis() / 1000 ) > expiration)
             {
@@ -70,22 +77,22 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
                 // tombstone
                 ByteBuffer bytes = ByteBuffer.allocate(4);
                 bytes.putInt(expiration);
-                return new DeletedColumn(name, bytes.array(), ts);
+                return new DeletedColumn(name, bytes.array(), clock);
             }
             else
             {
-                return new ExpiringColumn(name, value, ts, ttl, expiration);
+                return new ExpiringColumn(name, value, clock, ttl, expiration);
             }
         }
         else
         {
             boolean delete = FBUtilities.testBitUsingBitMask(b, DELETION_MASK);
-            long ts = dis.readLong();
+            IClock clock = clockType.serializer().deserialize(dis);
             byte[] value = FBUtilities.readByteArray(dis);
             if (FBUtilities.testBitUsingBitMask(b, DELETION_MASK)) {
-                return new DeletedColumn(name, value, ts);
+                return new DeletedColumn(name, value, clock);
             } else {
-                return new Column(name, value, ts);
+                return new Column(name, value, clock);
             }
         }
     }

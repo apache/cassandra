@@ -28,6 +28,7 @@ import java.security.MessageDigest;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
@@ -39,6 +40,8 @@ import org.apache.commons.collections.iterators.CollatingIterator;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.IClock;
+import org.apache.cassandra.db.IClock.ClockRelationship;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.thrift.TBase;
@@ -399,23 +402,48 @@ public class FBUtilities
 
     public static void atomicSetMax(AtomicInteger atomic, int i)
     {
-        int j;
         while (true)
         {
-            if ((j = atomic.getAndSet(i)) <= i)
+            int j = atomic.get();
+            if (j >= i || atomic.compareAndSet(j, i))
                 break;
-            i = j;
         }
     }
 
     public static void atomicSetMax(AtomicLong atomic, long i)
     {
-        long j;
         while (true)
         {
-            if ((j = atomic.getAndSet(i)) <= i)
+            long j = atomic.get();
+            if (j >= i || atomic.compareAndSet(j, i))
                 break;
-            i = j;
+        }
+    }
+
+    /** 
+     * Sets an atomic clock reference to the maximum of its current value and
+     * a new value.
+     *
+     * The function is not synchronized and does not guarantee that the resulting
+     * reference will hold either the old or new value, but it does guarantee
+     * that it will hold a value, v, such that: v = max(oldValue, newValue, v).
+     *
+     * @param atomic the atomic reference to set
+     * @param newClock the new provided value
+     */
+    public static void atomicSetMax(AtomicReference<IClock> atomic, IClock newClock)
+    {
+        while (true)
+        {
+            IClock oldClock = atomic.get();
+            ClockRelationship rel = oldClock.compare(newClock);
+            if (rel == ClockRelationship.DISJOINT)
+            {
+                newClock = oldClock.getSuperset(Arrays.asList(newClock));
+            }
+            if (rel == ClockRelationship.GREATER_THAN || rel == ClockRelationship.EQUAL 
+                || atomic.compareAndSet(oldClock, newClock))
+                break;
         }
     }
 

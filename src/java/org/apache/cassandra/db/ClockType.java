@@ -15,44 +15,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.db;
 
-import java.nio.ByteBuffer;
+import org.apache.cassandra.io.ICompactSerializer2;
 
-import org.apache.cassandra.utils.FBUtilities;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-public class DeletedColumn extends Column
+public enum ClockType
 {
-    private static Logger logger = LoggerFactory.getLogger(DeletedColumn.class);
-    
-    public DeletedColumn(byte[] name, int localDeletionTime, IClock clock)
+    Timestamp;
+
+    public final static ClockType create(String name)
     {
-        this(name, FBUtilities.toByteArray(localDeletionTime), clock);
+        assert name != null;
+        try
+        {
+            return ClockType.valueOf(name);
+        }
+        catch (IllegalArgumentException e)
+        {
+            return null;
+        }
     }
 
-    public DeletedColumn(byte[] name, byte[] value, IClock clock)
+    public final IClock minClock()
     {
-        super(name, value, clock);
+        return TimestampClock.MIN_VALUE;
     }
 
-    @Override
-    public boolean isMarkedForDelete()
+    public final ICompactSerializer2<IClock> serializer()
     {
-        return true;
-    }
-
-    @Override
-    public IClock getMarkedForDeleteAt()
-    {
-        return clock;
-    }
-
-    @Override
-    public int getLocalDeletionTime()
-    {
-        return ByteBuffer.wrap(value()).getInt();
+        return TimestampClock.SERIALIZER;
     }
 }

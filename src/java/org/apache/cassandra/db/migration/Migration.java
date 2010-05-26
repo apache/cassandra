@@ -26,6 +26,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.TimestampClock;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -117,13 +118,13 @@ public abstract class Migration
             long now = System.currentTimeMillis();
             byte[] buf = getBytes();
             RowMutation migration = new RowMutation(Table.SYSTEM_TABLE, MIGRATIONS_KEY);
-            migration.add(new QueryPath(MIGRATIONS_CF, null, UUIDGen.decompose(newVersion)), buf, now);
+            migration.add(new QueryPath(MIGRATIONS_CF, null, UUIDGen.decompose(newVersion)), buf, new TimestampClock(now));
             migration.apply();
             
             // note that we storing this in the system table, which is not replicated, instead of the definitions table, which is.
             logger.debug("Applying migration " + newVersion.toString());
             migration = new RowMutation(Table.SYSTEM_TABLE, LAST_MIGRATION_KEY);
-            migration.add(new QueryPath(SCHEMA_CF, null, LAST_MIGRATION_KEY), UUIDGen.decompose(newVersion), now);
+            migration.add(new QueryPath(SCHEMA_CF, null, LAST_MIGRATION_KEY), UUIDGen.decompose(newVersion), new TimestampClock(now));
             migration.apply();
             
             // if we fail here, there will be schema changes in the CL that will get replayed *AFTER* the schema is loaded.
@@ -208,9 +209,9 @@ public abstract class Migration
         final long now = System.currentTimeMillis();
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, toBytes(versionId));
         if (remove != null)
-            rm.delete(new QueryPath(SCHEMA_CF, null, remove.name.getBytes()), System.currentTimeMillis());
+            rm.delete(new QueryPath(SCHEMA_CF, null, remove.name.getBytes()), new TimestampClock(System.currentTimeMillis()));
         if (add != null)
-            rm.add(new QueryPath(SCHEMA_CF, null, add.name.getBytes()), KSMetaData.serialize(add), now);
+            rm.add(new QueryPath(SCHEMA_CF, null, add.name.getBytes()), KSMetaData.serialize(add), new TimestampClock(now));
         
         // include all other key spaces.
         for (String tableName : DatabaseDescriptor.getNonSystemTables())
@@ -218,7 +219,7 @@ public abstract class Migration
             if (add != null && add.name.equals(tableName) || remove != null && remove.name.equals(tableName))
                 continue;
             KSMetaData ksm = DatabaseDescriptor.getTableDefinition(tableName);
-            rm.add(new QueryPath(SCHEMA_CF, null, ksm.name.getBytes()), KSMetaData.serialize(ksm), now);
+            rm.add(new QueryPath(SCHEMA_CF, null, ksm.name.getBytes()), KSMetaData.serialize(ksm), new TimestampClock(now));
         }
         return rm;
     }

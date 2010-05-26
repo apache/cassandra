@@ -45,16 +45,22 @@ import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
 /**
- * Not all the replicas required could be created and/or read.
+ * Encapsulate types of conflict resolution.
+ * 
+ * @param timestamp. User-supplied timestamp. When two columns with this type of clock conflict, the one with the
+ *                   highest timestamp is the one whose value the system will converge to. No other assumptions
+ *                   are made about what the timestamp represents, but using microseconds-since-epoch is customary.
  */
-public class UnavailableException extends Exception implements TBase<UnavailableException._Fields>, java.io.Serializable, Cloneable, Comparable<UnavailableException> {
-  private static final TStruct STRUCT_DESC = new TStruct("UnavailableException");
+public class Clock implements TBase<Clock._Fields>, java.io.Serializable, Cloneable, Comparable<Clock> {
+  private static final TStruct STRUCT_DESC = new TStruct("Clock");
 
+  private static final TField TIMESTAMP_FIELD_DESC = new TField("timestamp", TType.I64, (short)1);
 
+  public long timestamp;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
-;
+    TIMESTAMP((short)1, "timestamp");
 
     private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
@@ -106,33 +112,82 @@ public class UnavailableException extends Exception implements TBase<Unavailable
       return _fieldName;
     }
   }
+
+  // isset id assignments
+  private static final int __TIMESTAMP_ISSET_ID = 0;
+  private BitSet __isset_bit_vector = new BitSet(1);
+
   public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
+    put(_Fields.TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.REQUIRED, 
+        new FieldValueMetaData(TType.I64)));
   }});
 
   static {
-    FieldMetaData.addStructMetaDataMap(UnavailableException.class, metaDataMap);
+    FieldMetaData.addStructMetaDataMap(Clock.class, metaDataMap);
   }
 
-  public UnavailableException() {
+  public Clock() {
+  }
+
+  public Clock(
+    long timestamp)
+  {
+    this();
+    this.timestamp = timestamp;
+    setTimestampIsSet(true);
   }
 
   /**
    * Performs a deep copy on <i>other</i>.
    */
-  public UnavailableException(UnavailableException other) {
+  public Clock(Clock other) {
+    __isset_bit_vector.clear();
+    __isset_bit_vector.or(other.__isset_bit_vector);
+    this.timestamp = other.timestamp;
   }
 
-  public UnavailableException deepCopy() {
-    return new UnavailableException(this);
+  public Clock deepCopy() {
+    return new Clock(this);
   }
 
   @Deprecated
-  public UnavailableException clone() {
-    return new UnavailableException(this);
+  public Clock clone() {
+    return new Clock(this);
+  }
+
+  public long getTimestamp() {
+    return this.timestamp;
+  }
+
+  public Clock setTimestamp(long timestamp) {
+    this.timestamp = timestamp;
+    setTimestampIsSet(true);
+    return this;
+  }
+
+  public void unsetTimestamp() {
+    __isset_bit_vector.clear(__TIMESTAMP_ISSET_ID);
+  }
+
+  /** Returns true if field timestamp is set (has been asigned a value) and false otherwise */
+  public boolean isSetTimestamp() {
+    return __isset_bit_vector.get(__TIMESTAMP_ISSET_ID);
+  }
+
+  public void setTimestampIsSet(boolean value) {
+    __isset_bit_vector.set(__TIMESTAMP_ISSET_ID, value);
   }
 
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
+    case TIMESTAMP:
+      if (value == null) {
+        unsetTimestamp();
+      } else {
+        setTimestamp((Long)value);
+      }
+      break;
+
     }
   }
 
@@ -142,6 +197,9 @@ public class UnavailableException extends Exception implements TBase<Unavailable
 
   public Object getFieldValue(_Fields field) {
     switch (field) {
+    case TIMESTAMP:
+      return new Long(getTimestamp());
+
     }
     throw new IllegalStateException();
   }
@@ -153,6 +211,8 @@ public class UnavailableException extends Exception implements TBase<Unavailable
   /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
     switch (field) {
+    case TIMESTAMP:
+      return isSetTimestamp();
     }
     throw new IllegalStateException();
   }
@@ -165,14 +225,23 @@ public class UnavailableException extends Exception implements TBase<Unavailable
   public boolean equals(Object that) {
     if (that == null)
       return false;
-    if (that instanceof UnavailableException)
-      return this.equals((UnavailableException)that);
+    if (that instanceof Clock)
+      return this.equals((Clock)that);
     return false;
   }
 
-  public boolean equals(UnavailableException that) {
+  public boolean equals(Clock that) {
     if (that == null)
       return false;
+
+    boolean this_present_timestamp = true;
+    boolean that_present_timestamp = true;
+    if (this_present_timestamp || that_present_timestamp) {
+      if (!(this_present_timestamp && that_present_timestamp))
+        return false;
+      if (this.timestamp != that.timestamp)
+        return false;
+    }
 
     return true;
   }
@@ -182,14 +251,23 @@ public class UnavailableException extends Exception implements TBase<Unavailable
     return 0;
   }
 
-  public int compareTo(UnavailableException other) {
+  public int compareTo(Clock other) {
     if (!getClass().equals(other.getClass())) {
       return getClass().getName().compareTo(other.getClass().getName());
     }
 
     int lastComparison = 0;
-    UnavailableException typedOther = (UnavailableException)other;
+    Clock typedOther = (Clock)other;
 
+    lastComparison = Boolean.valueOf(isSetTimestamp()).compareTo(typedOther.isSetTimestamp());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetTimestamp()) {      lastComparison = TBaseHelper.compareTo(timestamp, typedOther.timestamp);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -203,6 +281,14 @@ public class UnavailableException extends Exception implements TBase<Unavailable
         break;
       }
       switch (field.id) {
+        case 1: // TIMESTAMP
+          if (field.type == TType.I64) {
+            this.timestamp = iprot.readI64();
+            setTimestampIsSet(true);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           TProtocolUtil.skip(iprot, field.type);
       }
@@ -211,6 +297,9 @@ public class UnavailableException extends Exception implements TBase<Unavailable
     iprot.readStructEnd();
 
     // check for required fields of primitive type, which can't be checked in the validate method
+    if (!isSetTimestamp()) {
+      throw new TProtocolException("Required field 'timestamp' was not found in serialized data! Struct: " + toString());
+    }
     validate();
   }
 
@@ -218,21 +307,28 @@ public class UnavailableException extends Exception implements TBase<Unavailable
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
+    oprot.writeFieldBegin(TIMESTAMP_FIELD_DESC);
+    oprot.writeI64(this.timestamp);
+    oprot.writeFieldEnd();
     oprot.writeFieldStop();
     oprot.writeStructEnd();
   }
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder("UnavailableException(");
+    StringBuilder sb = new StringBuilder("Clock(");
     boolean first = true;
 
+    sb.append("timestamp:");
+    sb.append(this.timestamp);
+    first = false;
     sb.append(")");
     return sb.toString();
   }
 
   public void validate() throws TException {
     // check for required fields
+    // alas, we cannot check 'timestamp' because it's a primitive and you chose the non-beans generator.
   }
 
 }

@@ -30,15 +30,15 @@ from constants import VERSION
 def _i64(n):
     return struct.pack('>q', n) # big endian = network order
 
-_SIMPLE_COLUMNS = [Column('c1', 'value1', 0),
-                   Column('c2', 'value2', 0)]
-_SUPER_COLUMNS = [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', 0)]),
-                  SuperColumn(name='sc2', columns=[Column(_i64(5), 'value5', 0),
-                                                   Column(_i64(6), 'value6', 0)])]
+_SIMPLE_COLUMNS = [Column('c1', 'value1', Clock(0)),
+                   Column('c2', 'value2', Clock(0))]
+_SUPER_COLUMNS = [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', Clock(0))]),
+                  SuperColumn(name='sc2', columns=[Column(_i64(5), 'value5', Clock(0)),
+                                                   Column(_i64(6), 'value6', Clock(0))])]
 
 def _assert_column(column_family, key, column, value, ts = 0):
     try:
-        assert client.get(key, ColumnPath(column_family, column=column), ConsistencyLevel.ONE).column == Column(column, value, ts)
+        assert client.get(key, ColumnPath(column_family, column=column), ConsistencyLevel.ONE).column == Column(column, value, Clock(ts))
     except NotFoundException:
         raise Exception('expected %s:%s:%s:%s, but was not present' % (column_family, key, column, value) )
 
@@ -68,8 +68,8 @@ def _insert_multi(keys, block=True):
         consistencyLevel = ConsistencyLevel.ZERO
 
     for key in keys:
-        client.insert(key, ColumnParent('Standard1'), Column('c1', 'value1', 0), consistencyLevel)
-        client.insert(key, ColumnParent('Standard1'), Column('c2', 'value2', 0), consistencyLevel)
+        client.insert(key, ColumnParent('Standard1'), Column('c1', 'value1', Clock(0)), consistencyLevel)
+        client.insert(key, ColumnParent('Standard1'), Column('c2', 'value2', Clock(0)), consistencyLevel)
 
 def _insert_multi_batch(keys, block):
     cfmap = {'Standard1': [Mutation(ColumnOrSuperColumn(c)) for c in _SIMPLE_COLUMNS],
@@ -97,21 +97,21 @@ def _verify_batch():
     assert L == _SIMPLE_COLUMNS, L
 
 def _verify_simple():
-    assert client.get('key1', ColumnPath('Standard1', column='c1'), ConsistencyLevel.ONE).column == Column('c1', 'value1', 0)
+    assert client.get('key1', ColumnPath('Standard1', column='c1'), ConsistencyLevel.ONE).column == Column('c1', 'value1', Clock(0))
     L = [result.column
          for result in _big_slice('key1', ColumnParent('Standard1'))]
     assert L == _SIMPLE_COLUMNS, L
 
 def _insert_super(key='key1'):
-    client.insert(key, ColumnParent('Super1', 'sc1'), Column(_i64(4), 'value4', 0), ConsistencyLevel.ZERO)
-    client.insert(key, ColumnParent('Super1', 'sc2'), Column(_i64(5), 'value5', 0), ConsistencyLevel.ZERO)
-    client.insert(key, ColumnParent('Super1', 'sc2'), Column(_i64(6), 'value6', 0), ConsistencyLevel.ZERO)
+    client.insert(key, ColumnParent('Super1', 'sc1'), Column(_i64(4), 'value4', Clock(0)), ConsistencyLevel.ZERO)
+    client.insert(key, ColumnParent('Super1', 'sc2'), Column(_i64(5), 'value5', Clock(0)), ConsistencyLevel.ZERO)
+    client.insert(key, ColumnParent('Super1', 'sc2'), Column(_i64(6), 'value6', Clock(0)), ConsistencyLevel.ZERO)
     time.sleep(0.1)
 
 def _insert_range():
-    client.insert('key1', ColumnParent('Standard1'), Column('c1', 'value1', 0), ConsistencyLevel.ONE)
-    client.insert('key1', ColumnParent('Standard1'), Column('c2', 'value2', 0), ConsistencyLevel.ONE)
-    client.insert('key1', ColumnParent('Standard1'), Column('c3', 'value3', 0), ConsistencyLevel.ONE)
+    client.insert('key1', ColumnParent('Standard1'), Column('c1', 'value1', Clock(0)), ConsistencyLevel.ONE)
+    client.insert('key1', ColumnParent('Standard1'), Column('c2', 'value2', Clock(0)), ConsistencyLevel.ONE)
+    client.insert('key1', ColumnParent('Standard1'), Column('c3', 'value3', Clock(0)), ConsistencyLevel.ONE)
     time.sleep(0.1)
 
 def _verify_range():
@@ -139,10 +139,10 @@ def _set_keyspace(keyspace):
     client.set_keyspace(keyspace)
 
 def _insert_super_range():
-    client.insert('key1', ColumnParent('Super1', 'sc1'), Column(_i64(4), 'value4', 0), False)
-    client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(5), 'value5', 0), False)
-    client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(6), 'value6', 0), False)
-    client.insert('key1', ColumnParent('Super1', 'sc3'), Column(_i64(7), 'value7', 0), False)
+    client.insert('key1', ColumnParent('Super1', 'sc1'), Column(_i64(4), 'value4', Clock(0)), False)
+    client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(5), 'value5', Clock(0)), False)
+    client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(6), 'value6', Clock(0)), False)
+    client.insert('key1', ColumnParent('Super1', 'sc3'), Column(_i64(7), 'value7', Clock(0)), False)
     time.sleep(0.1)
 
 def _verify_super_range():
@@ -159,7 +159,7 @@ def _verify_super_range():
     assert result[1].super_column.name == 'sc2'
 
 def _verify_super(supercf='Super1', key='key1'):
-    assert client.get(key, ColumnPath(supercf, 'sc1', _i64(4)), ConsistencyLevel.ONE).column == Column(_i64(4), 'value4', 0)
+    assert client.get(key, ColumnPath(supercf, 'sc1', _i64(4)), ConsistencyLevel.ONE).column == Column(_i64(4), 'value4', Clock(0))
     slice = [result.super_column
              for result in _big_slice(key, ColumnParent('Super1'))]
     assert slice == _SUPER_COLUMNS, slice
@@ -227,9 +227,9 @@ class TestMutations(ThriftTester):
         assert client.get_count('key1', ColumnParent('Super1'), p, ConsistencyLevel.ONE) == 2
 
         # Let's make that a little more interesting
-        client.insert('key1', ColumnParent('Standard1'), Column('c3', 'value3', 0), ConsistencyLevel.ONE)
-        client.insert('key1', ColumnParent('Standard1'), Column('c4', 'value4', 0), ConsistencyLevel.ONE)
-        client.insert('key1', ColumnParent('Standard1'), Column('c5', 'value5', 0), ConsistencyLevel.ONE)
+        client.insert('key1', ColumnParent('Standard1'), Column('c3', 'value3', Clock(0)), ConsistencyLevel.ONE)
+        client.insert('key1', ColumnParent('Standard1'), Column('c4', 'value4', Clock(0)), ConsistencyLevel.ONE)
+        client.insert('key1', ColumnParent('Standard1'), Column('c5', 'value5', Clock(0)), ConsistencyLevel.ONE)
 
         p = SlicePredicate(slice_range=SliceRange('c2', 'c4', False, 1000)) 
         assert client.get_count('key1', ColumnParent('Standard1'), p, ConsistencyLevel.ONE) == 3
@@ -257,11 +257,11 @@ class TestMutations(ThriftTester):
         column_parent = ColumnParent('Super1', 'sc2')
         slice = [result.column
                  for result in client.get_slice('key1', column_parent, p, ConsistencyLevel.ONE)]
-        assert slice == [Column(_i64(5), 'value5', 0)], slice
+        assert slice == [Column(_i64(5), 'value5', Clock(0))], slice
         p = SlicePredicate(slice_range=SliceRange('', '', True, 1))
         slice = [result.column
                  for result in client.get_slice('key1', column_parent, p, ConsistencyLevel.ONE)]
-        assert slice == [Column(_i64(6), 'value6', 0)], slice
+        assert slice == [Column(_i64(6), 'value6', Clock(0))], slice
         
     def test_long_order(self):
         _set_keyspace('Keyspace1')
@@ -273,7 +273,7 @@ class TestMutations(ThriftTester):
         L = []
         for i in long_xrange(0, 104294967296, 429496729):
             name = _i64(i)
-            client.insert('key1', ColumnParent('StandardLong1'), Column(name, 'v', 0), ConsistencyLevel.ONE)
+            client.insert('key1', ColumnParent('StandardLong1'), Column(name, 'v', Clock(0)), ConsistencyLevel.ONE)
             L.append(name)
         slice = [result.column.name for result in _big_slice('key1', ColumnParent('StandardLong1'))]
         assert slice == L, slice
@@ -285,7 +285,7 @@ class TestMutations(ThriftTester):
         # 100 isn't enough to fail reliably if the comparator is borked
         for i in xrange(500):
             L.append(uuid.uuid1())
-            client.insert('key1', ColumnParent('Super4', 'sc1'), Column(L[-1].bytes, 'value%s' % i, i), ConsistencyLevel.ONE)
+            client.insert('key1', ColumnParent('Super4', 'sc1'), Column(L[-1].bytes, 'value%s' % i, Clock(i)), ConsistencyLevel.ONE)
         slice = _big_slice('key1', ColumnParent('Super4', 'sc1'))
         assert len(slice) == 500, len(slice)
         for i in xrange(500):
@@ -297,29 +297,29 @@ class TestMutations(ThriftTester):
         column_parent = ColumnParent('Super4', 'sc1')
         slice = [result.column
                  for result in client.get_slice('key1', column_parent, p, ConsistencyLevel.ONE)]
-        assert slice == [Column(L[-1].bytes, 'value499', 499)], slice
+        assert slice == [Column(L[-1].bytes, 'value499', Clock(499))], slice
 
         p = SlicePredicate(slice_range=SliceRange('', L[2].bytes, False, 1000))
         column_parent = ColumnParent('Super4', 'sc1')
         slice = [result.column
                  for result in client.get_slice('key1', column_parent, p, ConsistencyLevel.ONE)]
-        assert slice == [Column(L[0].bytes, 'value0', 0),
-                         Column(L[1].bytes, 'value1', 1),
-                         Column(L[2].bytes, 'value2', 2)], slice
+        assert slice == [Column(L[0].bytes, 'value0', Clock(0)),
+                         Column(L[1].bytes, 'value1', Clock(1)),
+                         Column(L[2].bytes, 'value2', Clock(2))], slice
 
         p = SlicePredicate(slice_range=SliceRange(L[2].bytes, '', True, 1000))
         column_parent = ColumnParent('Super4', 'sc1')
         slice = [result.column
                  for result in client.get_slice('key1', column_parent, p, ConsistencyLevel.ONE)]
-        assert slice == [Column(L[2].bytes, 'value2', 2),
-                         Column(L[1].bytes, 'value1', 1),
-                         Column(L[0].bytes, 'value0', 0)], slice
+        assert slice == [Column(L[2].bytes, 'value2', Clock(2)),
+                         Column(L[1].bytes, 'value1', Clock(1)),
+                         Column(L[0].bytes, 'value0', Clock(0))], slice
 
         p = SlicePredicate(slice_range=SliceRange(L[2].bytes, '', False, 1))
         column_parent = ColumnParent('Super4', 'sc1')
         slice = [result.column
                  for result in client.get_slice('key1', column_parent, p, ConsistencyLevel.ONE)]
-        assert slice == [Column(L[2].bytes, 'value2', 2)], slice
+        assert slice == [Column(L[2].bytes, 'value2', Clock(2))], slice
         
     def test_long_remove(self):
         column_parent = ColumnParent('StandardLong1')
@@ -328,15 +328,15 @@ class TestMutations(ThriftTester):
         for i in xrange(10):
             parent = ColumnParent('StandardLong1')
 
-            client.insert('key1', parent, Column(_i64(i), 'value1', 10 * i), ConsistencyLevel.ONE)
-            client.remove('key1', ColumnPath('StandardLong1'), 10 * i + 1, ConsistencyLevel.ONE)
+            client.insert('key1', parent, Column(_i64(i), 'value1', Clock(10 * i)), ConsistencyLevel.ONE)
+            client.remove('key1', ColumnPath('StandardLong1'), Clock(10 * i + 1), ConsistencyLevel.ONE)
             slice = client.get_slice('key1', column_parent, sp, ConsistencyLevel.ONE)
             assert slice == [], slice
             # resurrect
-            client.insert('key1', parent, Column(_i64(i), 'value2', 10 * i + 2), ConsistencyLevel.ONE)
+            client.insert('key1', parent, Column(_i64(i), 'value2', Clock(10 * i + 2)), ConsistencyLevel.ONE)
             slice = [result.column
                      for result in client.get_slice('key1', column_parent, sp, ConsistencyLevel.ONE)]
-            assert slice == [Column(_i64(i), 'value2', 10 * i + 2)], (slice, i)
+            assert slice == [Column(_i64(i), 'value2', Clock(10 * i + 2))], (slice, i)
         
     def test_batch_insert(self):
         _set_keyspace('Keyspace1')
@@ -385,7 +385,7 @@ class TestMutations(ThriftTester):
         keys = ['key_%d' % i for i in range(11,21)]
         _insert_multi(keys)
 
-        mutations = [Mutation(deletion=Deletion(20, predicate=SlicePredicate(column_names=[c.name]))) for c in _SIMPLE_COLUMNS]
+        mutations = [Mutation(deletion=Deletion(Clock(20), predicate=SlicePredicate(column_names=[c.name]))) for c in _SIMPLE_COLUMNS]
         mutation_map = dict((column_family, mutations) for column_family in column_families)
 
         keyed_mutations = dict((key, mutation_map) for key in keys)
@@ -403,7 +403,7 @@ class TestMutations(ThriftTester):
         keys = ['key_%d' % i for i in range(11,21)]
         _insert_multi(keys)
 
-        mutations = [Mutation(deletion=Deletion(20))]
+        mutations = [Mutation(deletion=Deletion(Clock(20)))]
         mutation_map = dict((column_family, mutations) for column_family in column_families)
 
         keyed_mutations = dict((key, mutation_map) for key in keys)
@@ -426,7 +426,7 @@ class TestMutations(ThriftTester):
             names = []
             for c in sc.columns:
                 names.append(c.name)
-            mutations.append(Mutation(deletion=Deletion(20, super_column=c.name, predicate=SlicePredicate(column_names=names))))
+            mutations.append(Mutation(deletion=Deletion(Clock(20), super_column=c.name, predicate=SlicePredicate(column_names=names))))
 
         mutation_map = dict((column_family, mutations) for column_family in column_families)
 
@@ -450,7 +450,7 @@ class TestMutations(ThriftTester):
         mutations = []
 
         for sc in _SUPER_COLUMNS:
-            mutations.append(Mutation(deletion=Deletion(20,
+            mutations.append(Mutation(deletion=Deletion(Clock(20),
                                                         super_column=sc.name)))
 
         mutation_map = {'Super1': mutations}
@@ -479,7 +479,7 @@ class TestMutations(ThriftTester):
 
         mutations = []
 
-        mutations.append(Mutation(deletion=Deletion(20)))
+        mutations.append(Mutation(deletion=Deletion(Clock(20))))
 
         mutation_map = {'Super1': mutations}
 
@@ -500,11 +500,11 @@ class TestMutations(ThriftTester):
         _set_keyspace('Keyspace1')
         
         first_insert = SuperColumn("sc1",
-                                   columns=[Column(_i64(20), 'value20', 3),
-                                            Column(_i64(21), 'value21', 3)])
+                                   columns=[Column(_i64(20), 'value20', Clock(3)),
+                                            Column(_i64(21), 'value21', Clock(3))])
         second_insert = SuperColumn("sc1",
-                                    columns=[Column(_i64(20), 'value20', 3),
-                                             Column(_i64(21), 'value21', 3)])
+                                    columns=[Column(_i64(20), 'value20', Clock(3)),
+                                             Column(_i64(21), 'value21', Clock(3))])
         first_deletion = {'super_column': "sc1",
                           'predicate': SlicePredicate(column_names=[_i64(22), _i64(23)])}
         second_deletion = {'super_column': "sc2",
@@ -512,21 +512,21 @@ class TestMutations(ThriftTester):
 
         keys = ['key_30', 'key_31']
         for key in keys:
-            sc = SuperColumn('sc1',[Column(_i64(22), 'value22', 0),
-                                    Column(_i64(23), 'value23', 0)])
+            sc = SuperColumn('sc1',[Column(_i64(22), 'value22', Clock(0)),
+                                    Column(_i64(23), 'value23', Clock(0))])
             cfmap = {'Super1': [Mutation(ColumnOrSuperColumn(super_column=sc))]}
             client.batch_mutate({key: cfmap}, ConsistencyLevel.ONE)
 
-            sc2 = SuperColumn('sc2', [Column(_i64(22), 'value22', 0),
-                                      Column(_i64(23), 'value23', 0)])
+            sc2 = SuperColumn('sc2', [Column(_i64(22), 'value22', Clock(0)),
+                                      Column(_i64(23), 'value23', Clock(0))])
             cfmap2 = {'Super2': [Mutation(ColumnOrSuperColumn(super_column=sc2))]}
             client.batch_mutate({key: cfmap2}, ConsistencyLevel.ONE)
 
         cfmap3 = {
             'Super1' : [Mutation(ColumnOrSuperColumn(super_column=first_insert)),
-                        Mutation(deletion=Deletion(3, **first_deletion))],
+                        Mutation(deletion=Deletion(Clock(3), **first_deletion))],
         
-            'Super2' : [Mutation(deletion=Deletion(2, **second_deletion)),
+            'Super2' : [Mutation(deletion=Deletion(Clock(2), **second_deletion)),
                         Mutation(ColumnOrSuperColumn(super_column=second_insert))]
             }
 
@@ -545,8 +545,8 @@ class TestMutations(ThriftTester):
     def test_batch_mutate_does_not_accept_cosc_and_deletion_in_same_mutation(self):
         def too_full():
             _set_keyspace('Keyspace1')
-            col = ColumnOrSuperColumn(column=Column("foo", 'bar', 0))
-            dele = Deletion(2, predicate=SlicePredicate(column_names=['baz']))
+            col = ColumnOrSuperColumn(column=Column("foo", 'bar', Clock(0)))
+            dele = Deletion(Clock(2), predicate=SlicePredicate(column_names=['baz']))
             client.batch_mutate({'key_34': {'Standard1': [Mutation(col, dele)]}},
                                  ConsistencyLevel.ONE)
         _expect_exception(too_full, InvalidRequestException)
@@ -555,7 +555,7 @@ class TestMutations(ThriftTester):
         def send_range():
             _set_keyspace('Keyspace1')
             sp = SlicePredicate(slice_range=SliceRange(start='0', finish="", count=10))
-            d = Deletion(2, predicate=sp)
+            d = Deletion(Clock(2), predicate=sp)
             client.batch_mutate({'key_35': {'Standard1':[Mutation(deletion=d)]}},
                                  ConsistencyLevel.ONE)
         _expect_exception(send_range, InvalidRequestException)
@@ -563,7 +563,7 @@ class TestMutations(ThriftTester):
     def test_batch_mutate_does_not_accept_cosc_on_undefined_cf(self):
         def bad_cf():
             _set_keyspace('Keyspace1')
-            col = ColumnOrSuperColumn(column=Column("foo", 'bar', 0))
+            col = ColumnOrSuperColumn(column=Column("foo", 'bar', Clock(0)))
             client.batch_mutate({'key_36': {'Undefined': [Mutation(col)]}},
                                  ConsistencyLevel.ONE)
         _expect_exception(bad_cf, InvalidRequestException)
@@ -571,30 +571,30 @@ class TestMutations(ThriftTester):
     def test_batch_mutate_does_not_accept_deletion_on_undefined_cf(self):
         def bad_cf():
             _set_keyspace('Keyspace1')
-            d = Deletion(2, predicate=SlicePredicate(column_names=['baz']))
+            d = Deletion(Clock(2), predicate=SlicePredicate(column_names=['baz']))
             client.batch_mutate({'key_37': {'Undefined':[Mutation(deletion=d)]}},
                                  ConsistencyLevel.ONE)
         _expect_exception(bad_cf, InvalidRequestException)
 
     def test_column_name_lengths(self):
         _set_keyspace('Keyspace1')
-        _expect_exception(lambda: client.insert('key1', ColumnParent('Standard1'), Column('', 'value', 0), ConsistencyLevel.ONE), InvalidRequestException)
-        client.insert('key1', ColumnParent('Standard1'), Column('x'*1, 'value', 0), ConsistencyLevel.ONE)
-        client.insert('key1', ColumnParent('Standard1'), Column('x'*127, 'value', 0), ConsistencyLevel.ONE)
-        client.insert('key1', ColumnParent('Standard1'), Column('x'*128, 'value', 0), ConsistencyLevel.ONE)
-        client.insert('key1', ColumnParent('Standard1'), Column('x'*129, 'value', 0), ConsistencyLevel.ONE)
-        client.insert('key1', ColumnParent('Standard1'), Column('x'*255, 'value', 0), ConsistencyLevel.ONE)
-        client.insert('key1', ColumnParent('Standard1'), Column('x'*256, 'value', 0), ConsistencyLevel.ONE)
-        client.insert('key1', ColumnParent('Standard1'), Column('x'*257, 'value', 0), ConsistencyLevel.ONE)
-        client.insert('key1', ColumnParent('Standard1'), Column('x'*(2**16 - 1), 'value', 0), ConsistencyLevel.ONE)
-        _expect_exception(lambda: client.insert('key1', ColumnParent('Standard1'), Column('x'*(2**16), 'value', 0), ConsistencyLevel.ONE), InvalidRequestException)
+        _expect_exception(lambda: client.insert('key1', ColumnParent('Standard1'), Column('', 'value', Clock(0)), ConsistencyLevel.ONE), InvalidRequestException)
+        client.insert('key1', ColumnParent('Standard1'), Column('x'*1, 'value', Clock(0)), ConsistencyLevel.ONE)
+        client.insert('key1', ColumnParent('Standard1'), Column('x'*127, 'value', Clock(0)), ConsistencyLevel.ONE)
+        client.insert('key1', ColumnParent('Standard1'), Column('x'*128, 'value', Clock(0)), ConsistencyLevel.ONE)
+        client.insert('key1', ColumnParent('Standard1'), Column('x'*129, 'value', Clock(0)), ConsistencyLevel.ONE)
+        client.insert('key1', ColumnParent('Standard1'), Column('x'*255, 'value', Clock(0)), ConsistencyLevel.ONE)
+        client.insert('key1', ColumnParent('Standard1'), Column('x'*256, 'value', Clock(0)), ConsistencyLevel.ONE)
+        client.insert('key1', ColumnParent('Standard1'), Column('x'*257, 'value', Clock(0)), ConsistencyLevel.ONE)
+        client.insert('key1', ColumnParent('Standard1'), Column('x'*(2**16 - 1), 'value', Clock(0)), ConsistencyLevel.ONE)
+        _expect_exception(lambda: client.insert('key1', ColumnParent('Standard1'), Column('x'*(2**16), 'value', Clock(0)), ConsistencyLevel.ONE), InvalidRequestException)
 
     def test_bad_calls(self):
         _set_keyspace('Keyspace1')
         # missing arguments
         _expect_exception(lambda: client.insert(None, None, None, None), TApplicationException)
         # supercolumn in a non-super CF
-        _expect_exception(lambda: client.insert('key1', ColumnParent('Standard1', 'x'), Column('y', 'value', 0), ConsistencyLevel.ONE), InvalidRequestException)
+        _expect_exception(lambda: client.insert('key1', ColumnParent('Standard1', 'x'), Column('y', 'value', Clock(0)), ConsistencyLevel.ONE), InvalidRequestException)
         # key too long
         _expect_exception(lambda: client.get('x' * 2**16, ColumnPath('Standard1', column='c1'), ConsistencyLevel.ONE), InvalidRequestException)
         # empty key
@@ -613,7 +613,7 @@ class TestMutations(ThriftTester):
         # invalid CF
         _expect_exception(lambda: get_range_slice(client, ColumnParent('S'), SlicePredicate(column_names=['', '']), '', '', 5, ConsistencyLevel.ONE), InvalidRequestException)
         # 'x' is not a valid Long
-        _expect_exception(lambda: client.insert('key1', ColumnParent('Super1', 'sc1'), Column('x', 'value', 0), ConsistencyLevel.ONE), InvalidRequestException)
+        _expect_exception(lambda: client.insert('key1', ColumnParent('Super1', 'sc1'), Column('x', 'value', Clock(0)), ConsistencyLevel.ONE), InvalidRequestException)
         # start is not a valid Long
         p = SlicePredicate(slice_range=SliceRange('x', '', False, 1))
         column_parent = ColumnParent('StandardLong1')
@@ -637,7 +637,7 @@ class TestMutations(ThriftTester):
         # start > finish, key version
         _expect_exception(lambda: get_range_slice(client, ColumnParent('Standard1'), SlicePredicate(column_names=['']), 'z', 'a', 1, ConsistencyLevel.ONE), InvalidRequestException)
         # ttl must be positive
-        column = Column('cttl1', 'value1', 0, 0)
+        column = Column('cttl1', 'value1', Clock(0), 0)
         _expect_exception(lambda: client.insert('key1', ColumnParent('Standard1'), column, ConsistencyLevel.ONE),
                           InvalidRequestException)
 
@@ -664,30 +664,30 @@ class TestMutations(ThriftTester):
     def test_cf_remove_column(self):
         _set_keyspace('Keyspace1')
         _insert_simple()
-        client.remove('key1', ColumnPath('Standard1', column='c1'), 1, ConsistencyLevel.ONE)
+        client.remove('key1', ColumnPath('Standard1', column='c1'), Clock(1), ConsistencyLevel.ONE)
         _expect_missing(lambda: client.get('key1', ColumnPath('Standard1', column='c1'), ConsistencyLevel.ONE))
         assert client.get('key1', ColumnPath('Standard1', column='c2'), ConsistencyLevel.ONE).column \
-            == Column('c2', 'value2', 0)
+            == Column('c2', 'value2', Clock(0))
         assert _big_slice('key1', ColumnParent('Standard1')) \
-            == [ColumnOrSuperColumn(column=Column('c2', 'value2', 0))]
+            == [ColumnOrSuperColumn(column=Column('c2', 'value2', Clock(0)))]
 
         # New insert, make sure it shows up post-remove:
-        client.insert('key1', ColumnParent('Standard1'), Column('c3', 'value3', 0), ConsistencyLevel.ONE)
+        client.insert('key1', ColumnParent('Standard1'), Column('c3', 'value3', Clock(0)), ConsistencyLevel.ONE)
         columns = [result.column
                    for result in _big_slice('key1', ColumnParent('Standard1'))]
-        assert columns == [Column('c2', 'value2', 0), Column('c3', 'value3', 0)], columns
+        assert columns == [Column('c2', 'value2', Clock(0)), Column('c3', 'value3', Clock(0))], columns
 
         # Test resurrection.  First, re-insert the value w/ older timestamp, 
         # and make sure it stays removed
-        client.insert('key1', ColumnParent('Standard1'), Column('c1', 'value1', 0), ConsistencyLevel.ONE)
+        client.insert('key1', ColumnParent('Standard1'), Column('c1', 'value1', Clock(0)), ConsistencyLevel.ONE)
         columns = [result.column
                    for result in _big_slice('key1', ColumnParent('Standard1'))]
-        assert columns == [Column('c2', 'value2', 0), Column('c3', 'value3', 0)], columns
+        assert columns == [Column('c2', 'value2', Clock(0)), Column('c3', 'value3', Clock(0))], columns
         # Next, w/ a newer timestamp; it should come back:
-        client.insert('key1', ColumnParent('Standard1'), Column('c1', 'value1', 2), ConsistencyLevel.ONE)
+        client.insert('key1', ColumnParent('Standard1'), Column('c1', 'value1', Clock(2)), ConsistencyLevel.ONE)
         columns = [result.column
                    for result in _big_slice('key1', ColumnParent('Standard1'))]
-        assert columns == [Column('c1', 'value1', 2), Column('c2', 'value2', 0), Column('c3', 'value3', 0)], columns
+        assert columns == [Column('c1', 'value1', Clock(2)), Column('c2', 'value2', Clock(0)), Column('c3', 'value3', Clock(0))], columns
 
 
     def test_cf_remove(self):
@@ -697,21 +697,21 @@ class TestMutations(ThriftTester):
         _insert_super()
 
         # Remove the key1:Standard1 cf; verify super is unaffected
-        client.remove('key1', ColumnPath('Standard1'), 3, ConsistencyLevel.ONE)
+        client.remove('key1', ColumnPath('Standard1'), Clock(3), ConsistencyLevel.ONE)
         assert _big_slice('key1', ColumnParent('Standard1')) == []
         _verify_super()
 
         # Test resurrection.  First, re-insert a value w/ older timestamp, 
         # and make sure it stays removed:
-        client.insert('key1', ColumnParent('Standard1'), Column('c1', 'value1', 0), ConsistencyLevel.ONE)
+        client.insert('key1', ColumnParent('Standard1'), Column('c1', 'value1', Clock(0)), ConsistencyLevel.ONE)
         assert _big_slice('key1', ColumnParent('Standard1')) == []
         # Next, w/ a newer timestamp; it should come back:
-        client.insert('key1', ColumnParent('Standard1'), Column('c1', 'value1', 4), ConsistencyLevel.ONE)
+        client.insert('key1', ColumnParent('Standard1'), Column('c1', 'value1', Clock(4)), ConsistencyLevel.ONE)
         result = _big_slice('key1', ColumnParent('Standard1'))
-        assert result == [ColumnOrSuperColumn(column=Column('c1', 'value1', 4))], result
+        assert result == [ColumnOrSuperColumn(column=Column('c1', 'value1', Clock(4)))], result
 
         # check removing the entire super cf, too.
-        client.remove('key1', ColumnPath('Super1'), 3, ConsistencyLevel.ONE)
+        client.remove('key1', ColumnPath('Super1'), Clock(3), ConsistencyLevel.ONE)
         assert _big_slice('key1', ColumnParent('Super1')) == []
         assert _big_slice('key1', ColumnParent('Super1', 'sc1')) == []
 
@@ -722,37 +722,37 @@ class TestMutations(ThriftTester):
         _insert_super()
 
         # Make sure remove clears out what it's supposed to, and _only_ that:
-        client.remove('key1', ColumnPath('Super1', 'sc2', _i64(5)), 5, ConsistencyLevel.ONE)
+        client.remove('key1', ColumnPath('Super1', 'sc2', _i64(5)), Clock(5), ConsistencyLevel.ONE)
         _expect_missing(lambda: client.get('key1', ColumnPath('Super1', 'sc2', _i64(5)), ConsistencyLevel.ONE))
         super_columns = [result.super_column for result in _big_slice('key1', ColumnParent('Super1'))]
-        assert super_columns == [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', 0)]),
-                                 SuperColumn(name='sc2', columns=[Column(_i64(6), 'value6', 0)])]
+        assert super_columns == [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', Clock(0))]),
+                                 SuperColumn(name='sc2', columns=[Column(_i64(6), 'value6', Clock(0))])]
         _verify_simple()
 
         # New insert, make sure it shows up post-remove:
-        client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(7), 'value7', 0), ConsistencyLevel.ONE)
+        client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(7), 'value7', Clock(0)), ConsistencyLevel.ONE)
         super_columns_expected = [SuperColumn(name='sc1', 
-                                              columns=[Column(_i64(4), 'value4', 0)]),
+                                              columns=[Column(_i64(4), 'value4', Clock(0))]),
                                   SuperColumn(name='sc2', 
-                                              columns=[Column(_i64(6), 'value6', 0), Column(_i64(7), 'value7', 0)])]
+                                              columns=[Column(_i64(6), 'value6', Clock(0)), Column(_i64(7), 'value7', Clock(0))])]
 
         super_columns = [result.super_column for result in _big_slice('key1', ColumnParent('Super1'))]
         assert super_columns == super_columns_expected, actual
 
         # Test resurrection.  First, re-insert the value w/ older timestamp, 
         # and make sure it stays removed:
-        client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(5), 'value5', 0), ConsistencyLevel.ONE)
+        client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(5), 'value5', Clock(0)), ConsistencyLevel.ONE)
 
         super_columns = [result.super_column for result in _big_slice('key1', ColumnParent('Super1'))]
         assert super_columns == super_columns_expected, super_columns
 
         # Next, w/ a newer timestamp; it should come back
-        client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(5), 'value5', 6), ConsistencyLevel.ONE)
+        client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(5), 'value5', Clock(6)), ConsistencyLevel.ONE)
         super_columns = [result.super_column for result in _big_slice('key1', ColumnParent('Super1'))]
-        super_columns_expected = [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', 0)]), 
-                                  SuperColumn(name='sc2', columns=[Column(_i64(5), 'value5', 6), 
-                                                                   Column(_i64(6), 'value6', 0), 
-                                                                   Column(_i64(7), 'value7', 0)])]
+        super_columns_expected = [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', Clock(0))]), 
+                                  SuperColumn(name='sc2', columns=[Column(_i64(5), 'value5', Clock(6)), 
+                                                                   Column(_i64(6), 'value6', Clock(0)), 
+                                                                   Column(_i64(7), 'value7', Clock(0))])]
         assert super_columns == super_columns_expected, super_columns
 
     def test_super_cf_remove_supercolumn(self):
@@ -762,11 +762,11 @@ class TestMutations(ThriftTester):
         _insert_super()
 
         # Make sure remove clears out what it's supposed to, and _only_ that:
-        client.remove('key1', ColumnPath('Super1', 'sc2'), 5, ConsistencyLevel.ONE)
+        client.remove('key1', ColumnPath('Super1', 'sc2'), Clock(5), ConsistencyLevel.ONE)
         _expect_missing(lambda: client.get('key1', ColumnPath('Super1', 'sc2', _i64(5)), ConsistencyLevel.ONE))
         super_columns = _big_slice('key1', ColumnParent('Super1', 'sc2'))
         assert super_columns == [], super_columns
-        super_columns_expected = [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', 0)])]
+        super_columns_expected = [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', Clock(0))])]
         super_columns = [result.super_column
                          for result in _big_slice('key1', ColumnParent('Super1'))]
         assert super_columns == super_columns_expected, super_columns
@@ -774,34 +774,34 @@ class TestMutations(ThriftTester):
 
         # Test resurrection.  First, re-insert the value w/ older timestamp, 
         # and make sure it stays removed:
-        client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(5), 'value5', 1), ConsistencyLevel.ONE)
+        client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(5), 'value5', Clock(1)), ConsistencyLevel.ONE)
         super_columns = [result.super_column
                          for result in _big_slice('key1', ColumnParent('Super1'))]
         assert super_columns == super_columns_expected, super_columns
 
         # Next, w/ a newer timestamp; it should come back
-        client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(5), 'value5', 6), ConsistencyLevel.ONE)
+        client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(5), 'value5', Clock(6)), ConsistencyLevel.ONE)
         super_columns = [result.super_column
                          for result in _big_slice('key1', ColumnParent('Super1'))]
-        super_columns_expected = [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', 0)]),
-                                  SuperColumn(name='sc2', columns=[Column(_i64(5), 'value5', 6)])]
+        super_columns_expected = [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', Clock(0))]),
+                                  SuperColumn(name='sc2', columns=[Column(_i64(5), 'value5', Clock(6))])]
         assert super_columns == super_columns_expected, super_columns
 
         # check slicing at the subcolumn level too
         p = SlicePredicate(slice_range=SliceRange('', '', False, 1000))
         columns = [result.column
                    for result in client.get_slice('key1', ColumnParent('Super1', 'sc2'), p, ConsistencyLevel.ONE)]
-        assert columns == [Column(_i64(5), 'value5', 6)], columns
+        assert columns == [Column(_i64(5), 'value5', Clock(6))], columns
 
 
     def test_super_cf_resurrect_subcolumn(self):
         _set_keyspace('Keyspace1')
         key = 'vijay'
-        client.insert(key, ColumnParent('Super1', 'sc1'), Column(_i64(4), 'value4', 0), ConsistencyLevel.ONE)
+        client.insert(key, ColumnParent('Super1', 'sc1'), Column(_i64(4), 'value4', Clock(0)), ConsistencyLevel.ONE)
 
-        client.remove(key, ColumnPath('Super1', 'sc1'), 1, ConsistencyLevel.ONE)
+        client.remove(key, ColumnPath('Super1', 'sc1'), Clock(1), ConsistencyLevel.ONE)
 
-        client.insert(key, ColumnParent('Super1', 'sc1'), Column(_i64(4), 'value4', 2), ConsistencyLevel.ONE)
+        client.insert(key, ColumnParent('Super1', 'sc1'), Column(_i64(4), 'value4', Clock(2)), ConsistencyLevel.ONE)
 
         result = client.get(key, ColumnPath('Super1', 'sc1'), ConsistencyLevel.ONE)
         assert result.super_column.columns is not None, result.super_column
@@ -818,8 +818,8 @@ class TestMutations(ThriftTester):
         _insert_simple()
         assert get_range_slice(client, ColumnParent('Standard1'), SlicePredicate(column_names=['c1', 'c1']), 'key1', '', 1000, ConsistencyLevel.ONE)[0].key == 'key1'
 
-        client.remove('key1', ColumnPath('Standard1', column='c1'), 1, ConsistencyLevel.ONE)
-        client.remove('key1', ColumnPath('Standard1', column='c2'), 1, ConsistencyLevel.ONE)
+        client.remove('key1', ColumnPath('Standard1', column='c1'), Clock(1), ConsistencyLevel.ONE)
+        client.remove('key1', ColumnPath('Standard1', column='c2'), Clock(1), ConsistencyLevel.ONE)
         actual = get_range_slice(client, ColumnParent('Standard1'), SlicePredicate(column_names=['c1', 'c2']), '', '', 1000, ConsistencyLevel.ONE)
         assert actual == [KeySlice(columns=[], key='key1')], actual
 
@@ -828,14 +828,14 @@ class TestMutations(ThriftTester):
         _insert_simple()
         assert get_range_slice(client, ColumnParent('Standard1'), SlicePredicate(column_names=['c1', 'c1']), 'key1', '', 1000, ConsistencyLevel.ONE)[0].key == 'key1'
 
-        client.remove('key1', ColumnPath('Standard1'), 1, ConsistencyLevel.ONE)
+        client.remove('key1', ColumnPath('Standard1'), Clock(1), ConsistencyLevel.ONE)
         actual = get_range_slice(client, ColumnParent('Standard1'), SlicePredicate(column_names=['c1', 'c1']), '', '', 1000, ConsistencyLevel.ONE)
         assert actual == [KeySlice(columns=[], key='key1')], actual
 
     def test_range_collation(self):
         _set_keyspace('Keyspace1')
         for key in ['-a', '-b', 'a', 'b'] + [str(i) for i in xrange(100)]:
-            client.insert(key, ColumnParent('Standard1'), Column(key, 'v', 0), ConsistencyLevel.ONE)
+            client.insert(key, ColumnParent('Standard1'), Column(key, 'v', Clock(0)), ConsistencyLevel.ONE)
 
         slices = get_range_slice(client, ColumnParent('Standard1'), SlicePredicate(column_names=['-a', '-a']), '', '', 1000, ConsistencyLevel.ONE)
         # note the collated ordering rather than ascii
@@ -848,7 +848,7 @@ class TestMutations(ThriftTester):
         _set_keyspace('Keyspace1')
         
         for key in ['-a', '-b', 'a', 'b'] + [str(i) for i in xrange(100)]:
-            client.insert(key, ColumnParent('Standard1'), Column(key, 'v', 0), ConsistencyLevel.ONE)
+            client.insert(key, ColumnParent('Standard1'), Column(key, 'v', Clock(0)), ConsistencyLevel.ONE)
 
         def check_slices_against_keys(keyList, sliceList):
             assert len(keyList) == len(sliceList)
@@ -881,7 +881,7 @@ class TestMutations(ThriftTester):
         _set_keyspace('Keyspace2')
         for key in ['key1', 'key2', 'key3', 'key4', 'key5']:
             for cname in ['col1', 'col2', 'col3', 'col4', 'col5']:
-                client.insert(key, ColumnParent('Super3', 'sc1'), Column(cname, 'v-' + cname, 0), ConsistencyLevel.ONE)
+                client.insert(key, ColumnParent('Super3', 'sc1'), Column(cname, 'v-' + cname, Clock(0)), ConsistencyLevel.ONE)
 
         cp = ColumnParent('Super3', 'sc1')
         predicate = SlicePredicate(column_names=['col1', 'col3'])
@@ -895,7 +895,7 @@ class TestMutations(ThriftTester):
         _set_keyspace('Keyspace2')
         for key in ['key1', 'key2', 'key3', 'key4', 'key5']:
             for cname in ['col1', 'col2', 'col3', 'col4', 'col5']:
-                client.insert(key, ColumnParent('Super3', 'sc1'), Column(cname, 'v-' + cname, 0), ConsistencyLevel.ONE)
+                client.insert(key, ColumnParent('Super3', 'sc1'), Column(cname, 'v-' + cname, Clock(0)), ConsistencyLevel.ONE)
 
         cp = ColumnParent('Super3', 'sc1')
         result = get_range_slice(client, cp, SlicePredicate(column_names=['col1', 'col3']), 'key2', 'key4', 5, ConsistencyLevel.ONE)
@@ -912,7 +912,7 @@ class TestMutations(ThriftTester):
         _set_keyspace('Keyspace1')
         for key in ['key1', 'key2', 'key3', 'key4', 'key5']:
             for cname in ['col1', 'col2', 'col3', 'col4', 'col5']:
-                client.insert(key, ColumnParent('Standard1'), Column(cname, 'v-' + cname, 0), ConsistencyLevel.ONE)
+                client.insert(key, ColumnParent('Standard1'), Column(cname, 'v-' + cname, Clock(0)), ConsistencyLevel.ONE)
         cp = ColumnParent('Standard1')
 
         # test empty slice
@@ -957,7 +957,7 @@ class TestMutations(ThriftTester):
         assert len(result) == 1
 
         # removed data
-        client.remove('key1', ColumnPath('Standard1', column='col1'), 1, ConsistencyLevel.ONE)
+        client.remove('key1', ColumnPath('Standard1', column='col1'), Clock(1), ConsistencyLevel.ONE)
         result = get_range_slice(client, cp, SlicePredicate(slice_range=SliceRange('', '')), 'key1', 'key2', 5, ConsistencyLevel.ONE)
         assert len(result) == 2, result
         assert result[0].columns[0].column.name == 'col2', result[0].columns[0].column.name
@@ -1008,7 +1008,7 @@ class TestMutations(ThriftTester):
         for i in range(1, num_keys+1):
           key = 'key'+str(i)
           for j in range(1, i+1):
-            client.insert(key, ColumnParent('Standard1'), Column('c'+str(j), 'value'+str(j), 0), ConsistencyLevel.ONE)
+            client.insert(key, ColumnParent('Standard1'), Column('c'+str(j), 'value'+str(j), Clock(0)), ConsistencyLevel.ONE)
 
         # Count columns in all 10 keys
         keys = ['key'+str(i) for i in range(1, num_keys+1)]
@@ -1023,7 +1023,7 @@ class TestMutations(ThriftTester):
     def test_batch_mutate_super_deletion(self):
         _set_keyspace('Keyspace1')
         _insert_super('test')
-        d = Deletion(1, predicate=SlicePredicate(column_names=['sc1']))
+        d = Deletion(Clock(1), predicate=SlicePredicate(column_names=['sc1']))
         cfmap = {'Super1': [Mutation(deletion=d)]}
         client.batch_mutate({'test': cfmap}, ConsistencyLevel.ONE)
         _expect_missing(lambda: client.get('key1', ColumnPath('Super1', 'sc1'), ConsistencyLevel.ONE))
@@ -1031,12 +1031,12 @@ class TestMutations(ThriftTester):
     def test_super_reinsert(self):
         _set_keyspace('Keyspace1')
         for x in xrange(3):
-            client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(x), 'value', 1), ConsistencyLevel.ONE)
+            client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(x), 'value', Clock(1)), ConsistencyLevel.ONE)
 
-        client.remove('key1', ColumnPath('Super1'), 2, ConsistencyLevel.ONE)
+        client.remove('key1', ColumnPath('Super1'), Clock(2), ConsistencyLevel.ONE)
 
         for x in xrange(3):
-            client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(x + 3), 'value', 3), ConsistencyLevel.ONE)
+            client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(x + 3), 'value', Clock(3)), ConsistencyLevel.ONE)
 
         for n in xrange(1, 4):
             p =  SlicePredicate(slice_range=SliceRange('', '', False, n))
@@ -1109,14 +1109,14 @@ class TestMutations(ThriftTester):
     def test_insert_ttl(self):
         """ Test simple insertion of a column with ttl """
         _set_keyspace('Keyspace1')
-        column = Column('cttl1', 'value1', 0, 5)
+        column = Column('cttl1', 'value1', Clock(0), 5)
         client.insert('key1', ColumnParent('Standard1'), column, ConsistencyLevel.ONE)
         assert client.get('key1', ColumnPath('Standard1', column='cttl1'), ConsistencyLevel.ONE).column == column
 
     def test_simple_expiration(self):
         """ Test that column ttled do expires """
         _set_keyspace('Keyspace1')
-        column = Column('cttl3', 'value1', 0, 2)
+        column = Column('cttl3', 'value1', Clock(0), 2)
         client.insert('key1', ColumnParent('Standard1'), column, ConsistencyLevel.ONE)
         time.sleep(1)
         c = client.get('key1', ColumnPath('Standard1', column='cttl3'), ConsistencyLevel.ONE).column
@@ -1128,7 +1128,7 @@ class TestMutations(ThriftTester):
     def test_simple_expiration_batch_mutate(self):
         """ Test that column ttled do expires using batch_mutate """
         _set_keyspace('Keyspace1')
-        column = Column('cttl4', 'value1', 0, 2)
+        column = Column('cttl4', 'value1', Clock(0), 2)
         cfmap = {'Standard1': [Mutation(ColumnOrSuperColumn(column))]}
         client.batch_mutate({'key1': cfmap}, ConsistencyLevel.ONE)
         time.sleep(1)
@@ -1141,9 +1141,9 @@ class TestMutations(ThriftTester):
     def test_update_expiring(self):
         """ Test that updating a column with ttl override the ttl """
         _set_keyspace('Keyspace1')
-        column1 = Column('cttl4', 'value1', 0, 1)
+        column1 = Column('cttl4', 'value1', Clock(0), 1)
         client.insert('key1', ColumnParent('Standard1'), column1, ConsistencyLevel.ONE)
-        column2 = Column('cttl4', 'value1', 1)
+        column2 = Column('cttl4', 'value1', Clock(1))
         client.insert('key1', ColumnParent('Standard1'), column2, ConsistencyLevel.ONE)
         time.sleep(1.5)
         assert client.get('key1', ColumnPath('Standard1', column='cttl4'), ConsistencyLevel.ONE).column == column2
@@ -1151,9 +1151,9 @@ class TestMutations(ThriftTester):
     def test_remove_expiring(self):
         """ Test removing a column with ttl """
         _set_keyspace('Keyspace1')
-        column = Column('cttl5', 'value1', 0, 10)
+        column = Column('cttl5', 'value1', Clock(0), 10)
         client.insert('key1', ColumnParent('Standard1'), column, ConsistencyLevel.ONE)
-        client.remove('key1', ColumnPath('Standard1', column='cttl5'), 1, ConsistencyLevel.ONE)
+        client.remove('key1', ColumnPath('Standard1', column='cttl5'), Clock(1), ConsistencyLevel.ONE)
         _expect_missing(lambda: client.get('key1', ColumnPath('Standard1', column='ctt5'), ConsistencyLevel.ONE))
         
 class TestTruncate(ThriftTester):

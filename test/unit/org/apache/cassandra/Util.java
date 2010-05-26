@@ -44,9 +44,9 @@ public class Util
         return StorageService.getPartitioner().decorateKey(key.getBytes(UTF8));
     }
 
-    public static Column column(String name, String value, long timestamp)
+    public static Column column(String name, String value, IClock clock)
     {
-        return new Column(name.getBytes(), value.getBytes(), timestamp);
+        return new Column(name.getBytes(), value.getBytes(), clock);
     }
 
     public static Range range(IPartitioner p, String left, String right)
@@ -54,9 +54,9 @@ public class Util
         return new Range(p.getToken(left.getBytes()), p.getToken(right.getBytes()));
     }
 
-    public static void addMutation(RowMutation rm, String columnFamilyName, String superColumnName, long columnName, String value, long timestamp)
+    public static void addMutation(RowMutation rm, String columnFamilyName, String superColumnName, long columnName, String value, IClock clock)
     {
-        rm.add(new QueryPath(columnFamilyName, superColumnName.getBytes(), getBytes(columnName)), value.getBytes(), timestamp);
+        rm.add(new QueryPath(columnFamilyName, superColumnName.getBytes(), getBytes(columnName)), value.getBytes(), clock);
     }
 
     public static byte[] getBytes(long v)

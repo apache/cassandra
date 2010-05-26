@@ -289,7 +289,8 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
     private IColumn unthriftifySuper(SuperColumn super_column)
     {
         AbstractType subComparator = DatabaseDescriptor.getSubComparator(keyspace, cfName);
-        org.apache.cassandra.db.SuperColumn sc = new org.apache.cassandra.db.SuperColumn(super_column.name, subComparator);
+        ClockType clockType = DatabaseDescriptor.getClockType(keyspace, cfName);
+        org.apache.cassandra.db.SuperColumn sc = new org.apache.cassandra.db.SuperColumn(super_column.name, subComparator, clockType);
         for (Column column : super_column.columns)
         {
             sc.addColumn(unthriftifySimple(column));
@@ -299,6 +300,11 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
 
     private IColumn unthriftifySimple(Column column)
     {
-        return new org.apache.cassandra.db.Column(column.name, column.value, column.timestamp);
+        return new org.apache.cassandra.db.Column(column.name, column.value, unthriftifyClock(column.clock));
+    }
+
+    private static IClock unthriftifyClock(Clock clock)
+    {
+        return new org.apache.cassandra.db.TimestampClock(clock.getTimestamp());
     }
 }

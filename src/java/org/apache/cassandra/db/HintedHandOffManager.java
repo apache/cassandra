@@ -143,14 +143,14 @@ public class HintedHandOffManager
     private static void deleteEndpoint(byte[] endpointAddress, String tableName, byte[] key, long timestamp) throws IOException
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, tableName.getBytes(UTF8));
-        rm.delete(new QueryPath(HINTS_CF, key, endpointAddress), timestamp);
+        rm.delete(new QueryPath(HINTS_CF, key, endpointAddress), new TimestampClock(timestamp));
         rm.apply();
     }
 
     private static void deleteHintKey(String tableName, byte[] key) throws IOException
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, tableName.getBytes(UTF8));
-        rm.delete(new QueryPath(HINTS_CF, key, null), System.currentTimeMillis());
+        rm.delete(new QueryPath(HINTS_CF, key, null), new TimestampClock(System.currentTimeMillis()));
         rm.apply();
     }
 
@@ -294,7 +294,7 @@ public class HintedHandOffManager
             RowMutation drop = new RowMutation(Table.SYSTEM_TABLE, oldTableKey.key);
             for (byte[] key : cf.getColumnNames())
             {
-                drop.delete(new QueryPath(HINTS_CF, key), now);
+                drop.delete(new QueryPath(HINTS_CF, key), new TimestampClock(now));
                 startCol = key;
             }
             drop.apply();

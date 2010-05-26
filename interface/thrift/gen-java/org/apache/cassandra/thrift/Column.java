@@ -4,6 +4,27 @@
  * DO NOT EDIT UNLESS YOU ARE SURE THAT YOU KNOW WHAT YOU ARE DOING
  */
 package org.apache.cassandra.thrift;
+/*
+ * 
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ * 
+ */
+
 
 import java.util.List;
 import java.util.ArrayList;
@@ -27,7 +48,7 @@ import org.apache.thrift.protocol.*;
  * Basic unit of data within a ColumnFamily.
  * @param name, the name by which this column is set and retrieved.  Maximum 64KB long.
  * @param value. The data associated with the name.  Maximum 2GB long, but in practice you should limit it to small numbers of MB (since Thrift must read the full value into memory to operate on it).
- * @param timestamp. The highest timestamp associated with the given column name is the one whose value the system will converge to.  No other assumptions are made about what the timestamp represents, but using microseconds-since-epoch is customary.
+ * @param clock. The clock is used for conflict detection/resolution when two columns with same name need to be compared.
  * @param ttl. An optional, positive delay (in seconds) after which the column will be automatically deleted.
  */
 public class Column implements TBase<Column._Fields>, java.io.Serializable, Cloneable, Comparable<Column> {
@@ -35,19 +56,19 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
 
   private static final TField NAME_FIELD_DESC = new TField("name", TType.STRING, (short)1);
   private static final TField VALUE_FIELD_DESC = new TField("value", TType.STRING, (short)2);
-  private static final TField TIMESTAMP_FIELD_DESC = new TField("timestamp", TType.I64, (short)3);
+  private static final TField CLOCK_FIELD_DESC = new TField("clock", TType.STRUCT, (short)3);
   private static final TField TTL_FIELD_DESC = new TField("ttl", TType.I32, (short)4);
 
   public byte[] name;
   public byte[] value;
-  public long timestamp;
+  public Clock clock;
   public int ttl;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
     NAME((short)1, "name"),
     VALUE((short)2, "value"),
-    TIMESTAMP((short)3, "timestamp"),
+    CLOCK((short)3, "clock"),
     TTL((short)4, "ttl");
 
     private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
@@ -102,17 +123,16 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
   }
 
   // isset id assignments
-  private static final int __TIMESTAMP_ISSET_ID = 0;
-  private static final int __TTL_ISSET_ID = 1;
-  private BitSet __isset_bit_vector = new BitSet(2);
+  private static final int __TTL_ISSET_ID = 0;
+  private BitSet __isset_bit_vector = new BitSet(1);
 
   public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
     put(_Fields.NAME, new FieldMetaData("name", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.STRING)));
     put(_Fields.VALUE, new FieldMetaData("value", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.STRING)));
-    put(_Fields.TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.I64)));
+    put(_Fields.CLOCK, new FieldMetaData("clock", TFieldRequirementType.REQUIRED, 
+        new StructMetaData(TType.STRUCT, Clock.class)));
     put(_Fields.TTL, new FieldMetaData("ttl", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.I32)));
   }});
@@ -127,13 +147,12 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
   public Column(
     byte[] name,
     byte[] value,
-    long timestamp)
+    Clock clock)
   {
     this();
     this.name = name;
     this.value = value;
-    this.timestamp = timestamp;
-    setTimestampIsSet(true);
+    this.clock = clock;
   }
 
   /**
@@ -150,7 +169,9 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
       this.value = new byte[other.value.length];
       System.arraycopy(other.value, 0, value, 0, other.value.length);
     }
-    this.timestamp = other.timestamp;
+    if (other.isSetClock()) {
+      this.clock = new Clock(other.clock);
+    }
     this.ttl = other.ttl;
   }
 
@@ -211,27 +232,28 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
     }
   }
 
-  public long getTimestamp() {
-    return this.timestamp;
+  public Clock getClock() {
+    return this.clock;
   }
 
-  public Column setTimestamp(long timestamp) {
-    this.timestamp = timestamp;
-    setTimestampIsSet(true);
+  public Column setClock(Clock clock) {
+    this.clock = clock;
     return this;
   }
 
-  public void unsetTimestamp() {
-    __isset_bit_vector.clear(__TIMESTAMP_ISSET_ID);
+  public void unsetClock() {
+    this.clock = null;
   }
 
-  /** Returns true if field timestamp is set (has been asigned a value) and false otherwise */
-  public boolean isSetTimestamp() {
-    return __isset_bit_vector.get(__TIMESTAMP_ISSET_ID);
+  /** Returns true if field clock is set (has been asigned a value) and false otherwise */
+  public boolean isSetClock() {
+    return this.clock != null;
   }
 
-  public void setTimestampIsSet(boolean value) {
-    __isset_bit_vector.set(__TIMESTAMP_ISSET_ID, value);
+  public void setClockIsSet(boolean value) {
+    if (!value) {
+      this.clock = null;
+    }
   }
 
   public int getTtl() {
@@ -275,11 +297,11 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
       }
       break;
 
-    case TIMESTAMP:
+    case CLOCK:
       if (value == null) {
-        unsetTimestamp();
+        unsetClock();
       } else {
-        setTimestamp((Long)value);
+        setClock((Clock)value);
       }
       break;
 
@@ -306,8 +328,8 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
     case VALUE:
       return getValue();
 
-    case TIMESTAMP:
-      return new Long(getTimestamp());
+    case CLOCK:
+      return getClock();
 
     case TTL:
       return new Integer(getTtl());
@@ -327,8 +349,8 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
       return isSetName();
     case VALUE:
       return isSetValue();
-    case TIMESTAMP:
-      return isSetTimestamp();
+    case CLOCK:
+      return isSetClock();
     case TTL:
       return isSetTtl();
     }
@@ -370,12 +392,12 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
         return false;
     }
 
-    boolean this_present_timestamp = true;
-    boolean that_present_timestamp = true;
-    if (this_present_timestamp || that_present_timestamp) {
-      if (!(this_present_timestamp && that_present_timestamp))
+    boolean this_present_clock = true && this.isSetClock();
+    boolean that_present_clock = true && that.isSetClock();
+    if (this_present_clock || that_present_clock) {
+      if (!(this_present_clock && that_present_clock))
         return false;
-      if (this.timestamp != that.timestamp)
+      if (!this.clock.equals(that.clock))
         return false;
     }
 
@@ -422,11 +444,11 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
         return lastComparison;
       }
     }
-    lastComparison = Boolean.valueOf(isSetTimestamp()).compareTo(typedOther.isSetTimestamp());
+    lastComparison = Boolean.valueOf(isSetClock()).compareTo(typedOther.isSetClock());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetTimestamp()) {      lastComparison = TBaseHelper.compareTo(timestamp, typedOther.timestamp);
+    if (isSetClock()) {      lastComparison = TBaseHelper.compareTo(clock, typedOther.clock);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -467,10 +489,10 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 3: // TIMESTAMP
-          if (field.type == TType.I64) {
-            this.timestamp = iprot.readI64();
-            setTimestampIsSet(true);
+        case 3: // CLOCK
+          if (field.type == TType.STRUCT) {
+            this.clock = new Clock();
+            this.clock.read(iprot);
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -491,9 +513,6 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
     iprot.readStructEnd();
 
     // check for required fields of primitive type, which can't be checked in the validate method
-    if (!isSetTimestamp()) {
-      throw new TProtocolException("Required field 'timestamp' was not found in serialized data! Struct: " + toString());
-    }
     validate();
   }
 
@@ -511,9 +530,11 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
       oprot.writeBinary(this.value);
       oprot.writeFieldEnd();
     }
-    oprot.writeFieldBegin(TIMESTAMP_FIELD_DESC);
-    oprot.writeI64(this.timestamp);
-    oprot.writeFieldEnd();
+    if (this.clock != null) {
+      oprot.writeFieldBegin(CLOCK_FIELD_DESC);
+      this.clock.write(oprot);
+      oprot.writeFieldEnd();
+    }
     if (isSetTtl()) {
       oprot.writeFieldBegin(TTL_FIELD_DESC);
       oprot.writeI32(this.ttl);
@@ -554,8 +575,12 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
     }
     first = false;
     if (!first) sb.append(", ");
-    sb.append("timestamp:");
-    sb.append(this.timestamp);
+    sb.append("clock:");
+    if (this.clock == null) {
+      sb.append("null");
+    } else {
+      sb.append(this.clock);
+    }
     first = false;
     if (isSetTtl()) {
       if (!first) sb.append(", ");
@@ -575,7 +600,9 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
     if (value == null) {
       throw new TProtocolException("Required field 'value' was not present! Struct: " + toString());
     }
-    // alas, we cannot check 'timestamp' because it's a primitive and you chose the non-beans generator.
+    if (clock == null) {
+      throw new TProtocolException("Required field 'clock' was not present! Struct: " + toString());
+    }
   }
 
 }

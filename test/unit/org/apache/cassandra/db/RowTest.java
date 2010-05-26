@@ -33,39 +33,39 @@ public class RowTest extends SchemaLoader
     public void testDiffColumnFamily()
     {
         ColumnFamily cf1 = ColumnFamily.create("Keyspace1", "Standard1");
-        cf1.addColumn(column("one", "onev", 0));
+        cf1.addColumn(column("one", "onev", new TimestampClock(0)));
 
         ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
-        cf2.delete(0, 0);
+        cf2.delete(0, new TimestampClock(0));
 
         ColumnFamily cfDiff = cf1.diff(cf2);
         assertEquals(cfDiff.getColumnsMap().size(), 0);
-        assertEquals(cfDiff.getMarkedForDeleteAt(), 0);
+        assertEquals(((TimestampClock) cfDiff.getMarkedForDeleteAt()).timestamp(), 0);
     }
 
     @Test
     public void testDiffSuperColumn()
     {
-        SuperColumn sc1 = new SuperColumn("one".getBytes(), new AsciiType());
-        sc1.addColumn(column("subcolumn", "A", 0));
+        SuperColumn sc1 = new SuperColumn("one".getBytes(), new AsciiType(), ClockType.Timestamp);
+        sc1.addColumn(column("subcolumn", "A", new TimestampClock(0)));
 
-        SuperColumn sc2 = new SuperColumn("one".getBytes(), new AsciiType());
-        sc2.markForDeleteAt(0, 0);
+        SuperColumn sc2 = new SuperColumn("one".getBytes(), new AsciiType(), ClockType.Timestamp);
+        sc2.markForDeleteAt(0, new TimestampClock(0));
 
         SuperColumn scDiff = (SuperColumn)sc1.diff(sc2);
         assertEquals(scDiff.getSubColumns().size(), 0);
-        assertEquals(scDiff.getMarkedForDeleteAt(), 0);
+        assertEquals(((TimestampClock)scDiff.getMarkedForDeleteAt()).timestamp(), 0);
     }
 
     @Test
     public void testResolve()
     {
         ColumnFamily cf1 = ColumnFamily.create("Keyspace1", "Standard1");
-        cf1.addColumn(column("one", "A", 0));
+        cf1.addColumn(column("one", "A", new TimestampClock(0)));
 
         ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
-        cf2.addColumn(column("one", "B", 1));
-        cf2.addColumn(column("two", "C", 1));
+        cf2.addColumn(column("one", "B", new TimestampClock(1)));
+        cf2.addColumn(column("two", "C", new TimestampClock(1)));
 
         cf1.resolve(cf2);
         assert Arrays.equals(cf1.getColumn("one".getBytes()).value(), "B".getBytes());

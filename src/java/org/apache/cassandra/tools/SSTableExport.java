@@ -27,6 +27,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.TimestampClock;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.SSTable;
@@ -95,7 +96,7 @@ public class SSTableExport
             json.append(", ");
             json.append(quote(bytesToHex(column.value())));
             json.append(", ");
-            json.append(column.timestamp());
+            json.append(((TimestampClock) column.clock()).timestamp());
             json.append(", ");
             json.append(column.isMarkedForDelete());
             json.append("]");
@@ -125,7 +126,7 @@ public class SSTableExport
                 json.append(asKey(bytesToHex(column.name())));
                 json.append("{");
                 json.append(asKey("deletedAt"));
-                json.append(column.getMarkedForDeleteAt());
+                json.append(((TimestampClock) column.getMarkedForDeleteAt()).timestamp());
                 json.append(", ");
                 json.append(asKey("subColumns"));
                 json.append(serializeColumns(column.getSubColumns(), comparator));

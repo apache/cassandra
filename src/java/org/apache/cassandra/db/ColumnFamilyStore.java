@@ -41,6 +41,8 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.IClock;
+import org.apache.cassandra.db.IClock.ClockRelationship;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.db.filter.*;
@@ -484,10 +486,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (byte[] cname : cf.getColumnNames())
         {
             IColumn c = cf.getColumnsMap().get(cname);
-            if ((c.isMarkedForDelete() && c.getLocalDeletionTime() <= gcBefore)
-                || c.timestamp() <= cf.getMarkedForDeleteAt())
+            // we split the test to avoid comparing if not necessary
+            if ((c.isMarkedForDelete() && c.getLocalDeletionTime() <= gcBefore))
             {
                 cf.remove(cname);
+            }
+            else
+            {
+                ClockRelationship rel = c.clock().compare(cf.getMarkedForDeleteAt());
+                if ((ClockRelationship.LESS_THAN == rel) || (ClockRelationship.EQUAL == rel))
+                {
+                    cf.remove(cname);
+                }
             }
         }
     }
@@ -500,13 +510,22 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (byte[] cname : cf.getColumnNames())
         {
             IColumn c = cf.getColumnsMap().get(cname);
-            long minTimestamp = Math.max(c.getMarkedForDeleteAt(), cf.getMarkedForDeleteAt());
+            List<IClock> clocks = Arrays.asList(cf.getMarkedForDeleteAt());
+            IClock minClock = c.getMarkedForDeleteAt().getSuperset(clocks);
             for (IColumn subColumn : c.getSubColumns())
             {
-                if (subColumn.timestamp() <= minTimestamp
-                    || (subColumn.isMarkedForDelete() && subColumn.getLocalDeletionTime() <= gcBefore))
+                // we split the test to avoid comparing if not necessary
+                if (subColumn.isMarkedForDelete() && subColumn.getLocalDeletionTime() <= gcBefore)
                 {
                     ((SuperColumn)c).remove(subColumn.name());
+                }
+                else
+                {
+                    ClockRelationship subRel = subColumn.clock().compare(minClock);
+                    if ((ClockRelationship.LESS_THAN == subRel) || (ClockRelationship.EQUAL == subRel))
+                    {
+                        ((SuperColumn)c).remove(subColumn.name());
+                    }
                 }
             }
             if (c.getSubColumns().isEmpty() && c.getLocalDeletionTime() <= gcBefore)

@@ -28,11 +28,13 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.cassandra.config.CFMetaData;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.db.IClock.ClockRelationship;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.FBUtilities;
@@ -62,28 +64,31 @@ public class ColumnFamily implements IColumnContainer
     {
         if (cfm == null)
             throw new IllegalArgumentException("Unknown column family.");
-        return new ColumnFamily(cfm.cfType, cfm.comparator, cfm.subcolumnComparator, cfm.cfId);
+        return new ColumnFamily(cfm.cfType, cfm.clockType, cfm.comparator, cfm.subcolumnComparator, cfm.cfId);
     }
 
     private final int cfid;
     private final ColumnFamilyType type;
+    private final ClockType clockType;
 
     private transient ICompactSerializer2<IColumn> columnSerializer;
-    final AtomicLong markedForDeleteAt = new AtomicLong(Long.MIN_VALUE);
+    final AtomicReference<IClock> markedForDeleteAt;
     final AtomicInteger localDeletionTime = new AtomicInteger(Integer.MIN_VALUE);
     private ConcurrentSkipListMap<byte[], IColumn> columns;
 
-    public ColumnFamily(ColumnFamilyType type, AbstractType comparator, AbstractType subcolumnComparator, int cfid)
+    public ColumnFamily(ColumnFamilyType type, ClockType clockType, AbstractType comparator, AbstractType subcolumnComparator, int cfid)
     {
         this.type = type;
-        columnSerializer = type == ColumnFamilyType.Standard ? Column.serializer() : SuperColumn.serializer(subcolumnComparator);
+        this.clockType = clockType;
+        this.markedForDeleteAt = new AtomicReference<IClock>(clockType.minClock());
+        columnSerializer = type == ColumnFamilyType.Standard ? Column.serializer(clockType) : SuperColumn.serializer(subcolumnComparator, clockType);
         columns = new ConcurrentSkipListMap<byte[], IColumn>(comparator);
         this.cfid = cfid;
      }
     
     public ColumnFamily cloneMeShallow()
     {
-        ColumnFamily cf = new ColumnFamily(type, getComparator(), getSubComparator(), cfid);
+        ColumnFamily cf = new ColumnFamily(type, clockType, getComparator(), getSubComparator(), cfid);
         cf.markedForDeleteAt.set(markedForDeleteAt.get());
         cf.localDeletionTime.set(localDeletionTime.get());
         return cf;
@@ -97,6 +102,11 @@ public class ColumnFamily implements IColumnContainer
     public ColumnFamilyType getColumnFamilyType()
     {
         return type;
+    }
+
+    public ClockType getClockType()
+    {
+        return clockType;
     }
 
     public ColumnFamily cloneMe()
@@ -156,32 +166,32 @@ public class ColumnFamily implements IColumnContainer
         return type == ColumnFamilyType.Super;
     }
 
-    public void addColumn(QueryPath path, byte[] value, long timestamp)
+    public void addColumn(QueryPath path, byte[] value, IClock clock)
     {
         assert path.columnName != null : path;
-        addColumn(path.superColumnName, new Column(path.columnName, value, timestamp));
+        addColumn(path.superColumnName, new Column(path.columnName, value, clock));
     }
 
-    public void addTombstone(QueryPath path, byte[] localDeletionTime, long timestamp)
+    public void addTombstone(QueryPath path, byte[] localDeletionTime, IClock clock)
     {
-        addColumn(path.superColumnName, new DeletedColumn(path.columnName, localDeletionTime, timestamp));
+        addColumn(path.superColumnName, new DeletedColumn(path.columnName, localDeletionTime, clock));
     }
 
-    public void addColumn(QueryPath path, byte[] value, long timestamp, int timeToLive)
+    public void addColumn(QueryPath path, byte[] value, IClock clock, int timeToLive)
     {
         assert path.columnName != null : path;
         Column column;
         if (timeToLive > 0)
-            column = new ExpiringColumn(path.columnName, value, timestamp, timeToLive);
+            column = new ExpiringColumn(path.columnName, value, clock, timeToLive);
         else
-            column = new Column(path.columnName, value, timestamp);
+            column = new Column(path.columnName, value, clock);
         addColumn(path.superColumnName, column);
     }
 
-    public void deleteColumn(QueryPath path, int localDeletionTime, long timestamp)
+    public void deleteColumn(QueryPath path, int localDeletionTime, IClock clock)
     {
         assert path.columnName != null : path;
-        addColumn(path.superColumnName, new DeletedColumn(path.columnName, localDeletionTime, timestamp));
+        addColumn(path.superColumnName, new DeletedColumn(path.columnName, localDeletionTime, clock));
     }
 
     public void addColumn(byte[] superColumnName, Column column)
@@ -194,7 +204,7 @@ public class ColumnFamily implements IColumnContainer
         else
         {
             assert isSuper();
-            c = new SuperColumn(superColumnName, getSubComparator());
+            c = new SuperColumn(superColumnName, getSubComparator(), clockType);
             c.addColumn(column); // checks subcolumn name
         }
         addColumn(c);
@@ -221,7 +231,7 @@ public class ColumnFamily implements IColumnContainer
             }
             else
             {
-                while (((Column) oldColumn).comparePriority((Column)column) <= 0)
+                while (ClockRelationship.GREATER_THAN != ((Column) oldColumn).comparePriority((Column) column))
                 {
                     if (columns.replace(name, oldColumn, column))
                         break;
@@ -257,10 +267,10 @@ public class ColumnFamily implements IColumnContainer
     }
 
     @Deprecated // TODO this is a hack to set initial value outside constructor
-    public void delete(int localtime, long timestamp)
+    public void delete(int localtime, IClock clock)
     {
         localDeletionTime.set(localtime);
-        markedForDeleteAt.set(timestamp);
+        markedForDeleteAt.set(clock);
     }
 
     public void delete(ColumnFamily cf2)
@@ -271,7 +281,8 @@ public class ColumnFamily implements IColumnContainer
 
     public boolean isMarkedForDelete()
     {
-        return markedForDeleteAt.get() > Long.MIN_VALUE;
+        IClock _markedForDeleteAt = markedForDeleteAt.get();
+        return _markedForDeleteAt.compare(clockType.minClock()) == ClockRelationship.GREATER_THAN;
     }
 
     /*
@@ -280,8 +291,9 @@ public class ColumnFamily implements IColumnContainer
      */
     public ColumnFamily diff(ColumnFamily cfComposite)
     {
-        ColumnFamily cfDiff = new ColumnFamily(cfComposite.type, getComparator(), getSubComparator(), cfComposite.id());
-        if (cfComposite.getMarkedForDeleteAt() > getMarkedForDeleteAt())
+        ColumnFamily cfDiff = new ColumnFamily(cfComposite.type, cfComposite.clockType, getComparator(), getSubComparator(), cfComposite.id());
+        ClockRelationship rel = cfComposite.getMarkedForDeleteAt().compare(getMarkedForDeleteAt());
+        if (ClockRelationship.GREATER_THAN == rel)
         {
             cfDiff.delete(cfComposite.getLocalDeletionTime(), cfComposite.getMarkedForDeleteAt());
         }
@@ -346,7 +358,7 @@ public class ColumnFamily implements IColumnContainer
         sb.append(cfm == null ? "-deleted-" : cfm.cfName);
 
         if (isMarkedForDelete())
-            sb.append(" -deleted at " + getMarkedForDeleteAt() + "-");
+            sb.append(" -deleted at " + getMarkedForDeleteAt().toString() + "-");
 
         sb.append(" [").append(getComparator().getColumnsString(getSortedColumns())).append("])");
         return sb.toString();
@@ -375,7 +387,7 @@ public class ColumnFamily implements IColumnContainer
             column.updateDigest(digest);
     }
 
-    public long getMarkedForDeleteAt()
+    public IClock getMarkedForDeleteAt()
     {
         return markedForDeleteAt.get();
     }

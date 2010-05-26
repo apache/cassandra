@@ -105,7 +105,7 @@ public class ReadMessageTest extends SchemaLoader
 
         // add data
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "abcd".getBytes(), 0);
+        rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "abcd".getBytes(), new TimestampClock(0));
         rm.apply();
 
         ReadCommand command = new SliceByNamesReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), Arrays.asList("Column1".getBytes()));

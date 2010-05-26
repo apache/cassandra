@@ -80,7 +80,7 @@ public class DefsTest extends CleanupHelper
     @Test
     public void addNewCfToBogusTable() throws InterruptedException
     {
-        CFMetaData newCf = new CFMetaData("MadeUpKeyspace", "NewCF", ColumnFamilyType.Standard, new UTF8Type(), null, "new cf", 0, false, 0);
+        CFMetaData newCf = new CFMetaData("MadeUpKeyspace", "NewCF", ColumnFamilyType.Standard, ClockType.Timestamp, new UTF8Type(), null, "new cf", 0, false, 0);
         try
         {
             new AddColumnFamily(newCf).apply();
@@ -105,7 +105,7 @@ public class DefsTest extends CleanupHelper
         assert DatabaseDescriptor.getDefsVersion().equals(prior);
         
         // add a cf.
-        CFMetaData newCf1 = new CFMetaData("Keyspace1", "MigrationCf_1", ColumnFamilyType.Standard, new UTF8Type(), null, "Migration CF ", 0, false, 0);
+        CFMetaData newCf1 = new CFMetaData("Keyspace1", "MigrationCf_1", ColumnFamilyType.Standard, ClockType.Timestamp, new UTF8Type(), null, "Migration CF ", 0, false, 0);
         Migration m1 = new AddColumnFamily(newCf1);
         m1.apply();
         UUID ver1 = m1.getVersion();
@@ -164,7 +164,7 @@ public class DefsTest extends CleanupHelper
         final String cf = "BrandNewCf";
         KSMetaData original = DatabaseDescriptor.getTableDefinition(ks);
 
-        CFMetaData newCf = new CFMetaData(original.name, cf, ColumnFamilyType.Standard, new UTF8Type(), null, "A New Column Family", 0, false, 0);
+        CFMetaData newCf = new CFMetaData(original.name, cf, ColumnFamilyType.Standard, ClockType.Timestamp, new UTF8Type(), null, "A New Column Family", 0, false, 0);
         int clSegments = CommitLog.instance().getSegmentCount();
         assert !DatabaseDescriptor.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
         new AddColumnFamily(newCf).apply();
@@ -176,7 +176,7 @@ public class DefsTest extends CleanupHelper
         // now read and write to it.
         DecoratedKey dk = Util.dk("key0");
         RowMutation rm = new RowMutation(ks, dk.key);
-        rm.add(new QueryPath(cf, null, "col0".getBytes()), "value0".getBytes(), 1L);
+        rm.add(new QueryPath(cf, null, "col0".getBytes()), "value0".getBytes(), new TimestampClock(1L));
         rm.apply();
         ColumnFamilyStore store = Table.open(ks).getColumnFamilyStore(cf);
         assert store != null;
@@ -201,7 +201,7 @@ public class DefsTest extends CleanupHelper
         // write some data, force a flush, then verify that files exist on disk.
         RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
-            rm.add(new QueryPath(cfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), 1L);
+            rm.add(new QueryPath(cfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), new TimestampClock(1L));
         rm.apply();
         ColumnFamilyStore store = Table.open(cfm.tableName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
@@ -217,7 +217,7 @@ public class DefsTest extends CleanupHelper
         rm = new RowMutation(ks.name, dk.key);
         try
         {
-            rm.add(new QueryPath("Standard1", null, "col0".getBytes()), "value0".getBytes(), 1L);
+            rm.add(new QueryPath("Standard1", null, "col0".getBytes()), "value0".getBytes(), new TimestampClock(1L));
             rm.apply();
             assert false : "This mutation should have failed since the CF no longer exists.";
         }
@@ -242,7 +242,7 @@ public class DefsTest extends CleanupHelper
         // write some data, force a flush, then verify that files exist on disk.
         RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
-            rm.add(new QueryPath(oldCfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), 1L);
+            rm.add(new QueryPath(oldCfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), new TimestampClock(1L));
         rm.apply();
         ColumnFamilyStore store = Table.open(oldCfm.tableName).getColumnFamilyStore(oldCfm.cfName);
         assert store != null;
@@ -267,7 +267,7 @@ public class DefsTest extends CleanupHelper
         
         // do some writes
         rm = new RowMutation(ks.name, dk.key);
-        rm.add(new QueryPath(cfName, null, "col5".getBytes()), "updated".getBytes(), 2L);
+        rm.add(new QueryPath(cfName, null, "col5".getBytes()), "updated".getBytes(), new TimestampClock(2L));
         rm.apply();
         store.forceBlockingFlush();
         
@@ -280,7 +280,7 @@ public class DefsTest extends CleanupHelper
     public void addNewKS() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
         DecoratedKey dk = Util.dk("key0");
-        CFMetaData newCf = new CFMetaData("NewKeyspace1", "AddedStandard1", ColumnFamilyType.Standard, new UTF8Type(), null, "A new cf for a new ks", 0, false, 0);
+        CFMetaData newCf = new CFMetaData("NewKeyspace1", "AddedStandard1", ColumnFamilyType.Standard, ClockType.Timestamp, new UTF8Type(), null, "A new cf for a new ks", 0, false, 0);
         KSMetaData newKs = new KSMetaData(newCf.tableName, RackUnawareStrategy.class, 5, newCf);
         
         int segmentCount = CommitLog.instance().getSegmentCount();
@@ -292,7 +292,7 @@ public class DefsTest extends CleanupHelper
 
         // test reads and writes.
         RowMutation rm = new RowMutation(newCf.tableName, dk.key);
-        rm.add(new QueryPath(newCf.cfName, null, "col0".getBytes()), "value0".getBytes(), 1L);
+        rm.add(new QueryPath(newCf.cfName, null, "col0".getBytes()), "value0".getBytes(), new TimestampClock(1L));
         rm.apply();
         ColumnFamilyStore store = Table.open(newCf.tableName).getColumnFamilyStore(newCf.cfName);
         assert store != null;
@@ -317,7 +317,7 @@ public class DefsTest extends CleanupHelper
         // write some data, force a flush, then verify that files exist on disk.
         RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
-            rm.add(new QueryPath(cfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), 1L);
+            rm.add(new QueryPath(cfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), new TimestampClock(1L));
         rm.apply();
         ColumnFamilyStore store = Table.open(cfm.tableName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
@@ -332,7 +332,7 @@ public class DefsTest extends CleanupHelper
         rm = new RowMutation(ks.name, dk.key);
         try
         {
-            rm.add(new QueryPath("Standard1", null, "col0".getBytes()), "value0".getBytes(), 1L);
+            rm.add(new QueryPath("Standard1", null, "col0".getBytes()), "value0".getBytes(), new TimestampClock(1L));
             rm.apply();
             throw new AssertionError("This mutation should have failed since the CF no longer exists.");
         }
@@ -366,7 +366,7 @@ public class DefsTest extends CleanupHelper
         // write some data that we hope to read back later.
         RowMutation rm = new RowMutation(oldKs.name, dk.key);
         for (int i = 0; i < 10; i++)
-            rm.add(new QueryPath(cfName, null, ("col" + i).getBytes()), "value".getBytes(), 1L);
+            rm.add(new QueryPath(cfName, null, ("col" + i).getBytes()), "value".getBytes(), new TimestampClock(1L));
         rm.apply();
         ColumnFamilyStore store = Table.open(oldKs.name).getColumnFamilyStore(cfName);
         assert store != null;
@@ -399,7 +399,7 @@ public class DefsTest extends CleanupHelper
         rm = new RowMutation(oldKs.name, "any key will do".getBytes());
         try
         {
-            rm.add(new QueryPath(cfName, null, "col0".getBytes()), "value0".getBytes(), 1L);
+            rm.add(new QueryPath(cfName, null, "col0".getBytes()), "value0".getBytes(), new TimestampClock(1L));
             rm.apply();
             throw new AssertionError("This mutation should have failed since the CF/Table no longer exists.");
         }
@@ -410,7 +410,7 @@ public class DefsTest extends CleanupHelper
         
         // write on new should work.
         rm = new RowMutation(newKsName, dk.key);
-        rm.add(new QueryPath(cfName, null, "col0".getBytes()), "newvalue".getBytes(), 2L);
+        rm.add(new QueryPath(cfName, null, "col0".getBytes()), "newvalue".getBytes(), new TimestampClock(2L));
         rm.apply();
         store = Table.open(newKs.name).getColumnFamilyStore(cfName);
         assert store != null;

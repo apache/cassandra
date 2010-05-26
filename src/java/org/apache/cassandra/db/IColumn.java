@@ -29,12 +29,12 @@ public interface IColumn
     public static final int MAX_NAME_LENGTH = FBUtilities.MAX_UNSIGNED_SHORT;
 
     public boolean isMarkedForDelete();
-    public long getMarkedForDeleteAt();
-    public long mostRecentLiveChangeAt();
+    public IClock getMarkedForDeleteAt();
+    public IClock mostRecentLiveChangeAt();
     public byte[] name();
     public int size();
     public int serializedSize();
-    public long timestamp();
+    public IClock clock();
     public byte[] value();
     public Collection<IColumn> getSubColumns();
     public IColumn getSubColumn(byte[] columnName);

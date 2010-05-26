@@ -46,12 +46,12 @@ public class TimeSortTest extends CleanupHelper
         DecoratedKey key = Util.dk("key0");
 
         rm = new RowMutation("Keyspace1", key.key);
-        rm.add(new QueryPath("StandardLong1", null, getBytes(100)), "a".getBytes(), 100);
+        rm.add(new QueryPath("StandardLong1", null, getBytes(100)), "a".getBytes(), new TimestampClock(100));
         rm.apply();
         cfStore.forceBlockingFlush();
 
         rm = new RowMutation("Keyspace1", key.key);
-        rm.add(new QueryPath("StandardLong1", null, getBytes(0)), "b".getBytes(), 0);
+        rm.add(new QueryPath("StandardLong1", null, getBytes(0)), "b".getBytes(), new TimestampClock(0));
         rm.apply();
 
         ColumnFamily cf = cfStore.getColumnFamily(key, new QueryPath("StandardLong1"), getBytes(10), ArrayUtils.EMPTY_BYTE_ARRAY, false, 1000);
@@ -70,7 +70,7 @@ public class TimeSortTest extends CleanupHelper
             RowMutation rm = new RowMutation("Keyspace1", Integer.toString(i).getBytes());
             for (int j = 0; j < 8; ++j)
             {
-                rm.add(new QueryPath("StandardLong1", null, getBytes(j * 2)), "a".getBytes(), j * 2);
+                rm.add(new QueryPath("StandardLong1", null, getBytes(j * 2)), "a".getBytes(), new TimestampClock(j * 2));
             }
             rm.apply();
         }
@@ -85,13 +85,13 @@ public class TimeSortTest extends CleanupHelper
         RowMutation rm = new RowMutation("Keyspace1", key.key);
         for (int j = 0; j < 4; ++j)
         {
-            rm.add(new QueryPath("StandardLong1", null, getBytes(j * 2 + 1)), "b".getBytes(), j * 2 + 1);
+            rm.add(new QueryPath("StandardLong1", null, getBytes(j * 2 + 1)), "b".getBytes(), new TimestampClock(j * 2 + 1));
         }
         rm.apply();
         // and some overwrites
         rm = new RowMutation("Keyspace1", key.key);
-        rm.add(new QueryPath("StandardLong1", null, getBytes(0)), "c".getBytes(), 100);
-        rm.add(new QueryPath("StandardLong1", null, getBytes(10)), "c".getBytes(), 100);
+        rm.add(new QueryPath("StandardLong1", null, getBytes(0)), "c".getBytes(), new TimestampClock(100));
+        rm.add(new QueryPath("StandardLong1", null, getBytes(10)), "c".getBytes(), new TimestampClock(100));
         rm.apply();
 
         // verify
@@ -126,7 +126,8 @@ public class TimeSortTest extends CleanupHelper
                 int k = j;
                 for (IColumn c : columns)
                 {
-                    assertEquals((k++) * 2, c.timestamp());
+                    assertEquals((k++) * 2, ((TimestampClock)c.clock()).timestamp());
+
                 }
             }
         }

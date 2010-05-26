@@ -42,12 +42,12 @@ public class RemoveColumnFamilyTest extends CleanupHelper
 
         // add data
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
+        rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), new TimestampClock(0));
         rm.apply();
 
         // remove
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.delete(new QueryPath("Standard1"), 1);
+        rm.delete(new QueryPath("Standard1"), new TimestampClock(1));
         rm.apply();
 
         ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, new QueryPath("Standard1", null, "Column1".getBytes())));

@@ -21,6 +21,7 @@ import org.apache.cassandra.auth.SimpleAuthenticator;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.thrift.*;
+
 import org.apache.thrift.*;
 
 import org.antlr.runtime.tree.*;
@@ -228,8 +229,9 @@ public class CliClient
             columnName = CliCompiler.getColumn(columnFamilySpec, 1).getBytes("UTF-8");
         }
 
+        Clock thrift_clock = new Clock().setTimestamp(timestampMicros());
         thriftClient_.remove(key.getBytes(), new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnName),
-                             timestampMicros(), ConsistencyLevel.ONE);
+                             thrift_clock, ConsistencyLevel.ONE);
         css_.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "column"));
     }
 
@@ -259,7 +261,7 @@ public class CliClient
                 css_.out.printf("=> (super_column=%s,", formatSuperColumnName(keyspace, columnFamily, superColumn));
                 for (Column col : superColumn.getColumns())
                     css_.out.printf("\n     (column=%s, value=%s, timestamp=%d)", formatSubcolumnName(keyspace, columnFamily, col),
-                                    new String(col.value, "UTF-8"), col.timestamp);
+                                    new String(col.value, "UTF-8"), col.clock.timestamp);
                 
                 css_.out.println(")"); 
             }
@@ -267,7 +269,7 @@ public class CliClient
             {
                 Column column = cosc.column;
                 css_.out.printf("=> (column=%s, value=%s, timestamp=%d)\n", formatColumnName(keyspace, columnFamily, column),
-                                new String(column.value, "UTF-8"), column.timestamp);
+                                new String(column.value, "UTF-8"), column.clock.timestamp);
             }
         }
         
@@ -365,7 +367,7 @@ public class CliClient
         ColumnPath path = new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnName);
         Column column = thriftClient_.get(key.getBytes(), path, ConsistencyLevel.ONE).column;
         css_.out.printf("=> (column=%s, value=%s, timestamp=%d)\n", formatColumnName(keySpace, columnFamily, column),
-                        new String(column.value, "UTF-8"), column.timestamp);
+                        new String(column.value, "UTF-8"), column.clock.timestamp);
     }
 
     // Execute SET statement
@@ -410,8 +412,9 @@ public class CliClient
         }
         
         // do the insert
+        Clock thrift_clock = new Clock().setTimestamp(timestampMicros());
         thriftClient_.insert(key.getBytes(), new ColumnParent(columnFamily).setSuper_column(superColumnName),
-                             new Column(columnName, value.getBytes(), timestampMicros()), ConsistencyLevel.ONE);
+                             new Column(columnName, value.getBytes(), thrift_clock), ConsistencyLevel.ONE);
         
         css_.out.println("Value inserted.");
     }

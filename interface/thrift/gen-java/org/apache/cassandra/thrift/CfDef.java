@@ -4,6 +4,27 @@
  * DO NOT EDIT UNLESS YOU ARE SURE THAT YOU KNOW WHAT YOU ARE DOING
  */
 package org.apache.cassandra.thrift;
+/*
+ * 
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ * 
+ */
+
 
 import java.util.List;
 import java.util.ArrayList;
@@ -29,16 +50,18 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
   private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
   private static final TField NAME_FIELD_DESC = new TField("name", TType.STRING, (short)2);
   private static final TField COLUMN_TYPE_FIELD_DESC = new TField("column_type", TType.STRING, (short)3);
-  private static final TField COMPARATOR_TYPE_FIELD_DESC = new TField("comparator_type", TType.STRING, (short)4);
-  private static final TField SUBCOMPARATOR_TYPE_FIELD_DESC = new TField("subcomparator_type", TType.STRING, (short)5);
-  private static final TField COMMENT_FIELD_DESC = new TField("comment", TType.STRING, (short)6);
-  private static final TField ROW_CACHE_SIZE_FIELD_DESC = new TField("row_cache_size", TType.DOUBLE, (short)7);
-  private static final TField PRELOAD_ROW_CACHE_FIELD_DESC = new TField("preload_row_cache", TType.BOOL, (short)8);
-  private static final TField KEY_CACHE_SIZE_FIELD_DESC = new TField("key_cache_size", TType.DOUBLE, (short)9);
+  private static final TField CLOCK_TYPE_FIELD_DESC = new TField("clock_type", TType.STRING, (short)4);
+  private static final TField COMPARATOR_TYPE_FIELD_DESC = new TField("comparator_type", TType.STRING, (short)5);
+  private static final TField SUBCOMPARATOR_TYPE_FIELD_DESC = new TField("subcomparator_type", TType.STRING, (short)6);
+  private static final TField COMMENT_FIELD_DESC = new TField("comment", TType.STRING, (short)7);
+  private static final TField ROW_CACHE_SIZE_FIELD_DESC = new TField("row_cache_size", TType.DOUBLE, (short)8);
+  private static final TField PRELOAD_ROW_CACHE_FIELD_DESC = new TField("preload_row_cache", TType.BOOL, (short)9);
+  private static final TField KEY_CACHE_SIZE_FIELD_DESC = new TField("key_cache_size", TType.DOUBLE, (short)10);
 
   public String table;
   public String name;
   public String column_type;
+  public String clock_type;
   public String comparator_type;
   public String subcomparator_type;
   public String comment;
@@ -51,12 +74,13 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     TABLE((short)1, "table"),
     NAME((short)2, "name"),
     COLUMN_TYPE((short)3, "column_type"),
-    COMPARATOR_TYPE((short)4, "comparator_type"),
-    SUBCOMPARATOR_TYPE((short)5, "subcomparator_type"),
-    COMMENT((short)6, "comment"),
-    ROW_CACHE_SIZE((short)7, "row_cache_size"),
-    PRELOAD_ROW_CACHE((short)8, "preload_row_cache"),
-    KEY_CACHE_SIZE((short)9, "key_cache_size");
+    CLOCK_TYPE((short)4, "clock_type"),
+    COMPARATOR_TYPE((short)5, "comparator_type"),
+    SUBCOMPARATOR_TYPE((short)6, "subcomparator_type"),
+    COMMENT((short)7, "comment"),
+    ROW_CACHE_SIZE((short)8, "row_cache_size"),
+    PRELOAD_ROW_CACHE((short)9, "preload_row_cache"),
+    KEY_CACHE_SIZE((short)10, "key_cache_size");
 
     private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
@@ -122,6 +146,8 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
         new FieldValueMetaData(TType.STRING)));
     put(_Fields.COLUMN_TYPE, new FieldMetaData("column_type", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
+    put(_Fields.CLOCK_TYPE, new FieldMetaData("clock_type", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.STRING)));
     put(_Fields.COMPARATOR_TYPE, new FieldMetaData("comparator_type", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
     put(_Fields.SUBCOMPARATOR_TYPE, new FieldMetaData("subcomparator_type", TFieldRequirementType.OPTIONAL, 
@@ -142,6 +168,8 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
 
   public CfDef() {
     this.column_type = "Standard";
+
+    this.clock_type = "Timestamp";
 
     this.comparator_type = "BytesType";
 
@@ -180,6 +208,9 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     }
     if (other.isSetColumn_type()) {
       this.column_type = other.column_type;
+    }
+    if (other.isSetClock_type()) {
+      this.clock_type = other.clock_type;
     }
     if (other.isSetComparator_type()) {
       this.comparator_type = other.comparator_type;
@@ -273,6 +304,30 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
   public void setColumn_typeIsSet(boolean value) {
     if (!value) {
       this.column_type = null;
+    }
+  }
+
+  public String getClock_type() {
+    return this.clock_type;
+  }
+
+  public CfDef setClock_type(String clock_type) {
+    this.clock_type = clock_type;
+    return this;
+  }
+
+  public void unsetClock_type() {
+    this.clock_type = null;
+  }
+
+  /** Returns true if field clock_type is set (has been asigned a value) and false otherwise */
+  public boolean isSetClock_type() {
+    return this.clock_type != null;
+  }
+
+  public void setClock_typeIsSet(boolean value) {
+    if (!value) {
+      this.clock_type = null;
     }
   }
 
@@ -443,6 +498,14 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
       }
       break;
 
+    case CLOCK_TYPE:
+      if (value == null) {
+        unsetClock_type();
+      } else {
+        setClock_type((String)value);
+      }
+      break;
+
     case COMPARATOR_TYPE:
       if (value == null) {
         unsetComparator_type();
@@ -509,6 +572,9 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     case COLUMN_TYPE:
       return getColumn_type();
 
+    case CLOCK_TYPE:
+      return getClock_type();
+
     case COMPARATOR_TYPE:
       return getComparator_type();
 
@@ -544,6 +610,8 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
       return isSetName();
     case COLUMN_TYPE:
       return isSetColumn_type();
+    case CLOCK_TYPE:
+      return isSetClock_type();
     case COMPARATOR_TYPE:
       return isSetComparator_type();
     case SUBCOMPARATOR_TYPE:
@@ -601,6 +669,15 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
       if (!(this_present_column_type && that_present_column_type))
         return false;
       if (!this.column_type.equals(that.column_type))
+        return false;
+    }
+
+    boolean this_present_clock_type = true && this.isSetClock_type();
+    boolean that_present_clock_type = true && that.isSetClock_type();
+    if (this_present_clock_type || that_present_clock_type) {
+      if (!(this_present_clock_type && that_present_clock_type))
+        return false;
+      if (!this.clock_type.equals(that.clock_type))
         return false;
     }
 
@@ -701,6 +778,15 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetClock_type()).compareTo(typedOther.isSetClock_type());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetClock_type()) {      lastComparison = TBaseHelper.compareTo(clock_type, typedOther.clock_type);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     lastComparison = Boolean.valueOf(isSetComparator_type()).compareTo(typedOther.isSetComparator_type());
     if (lastComparison != 0) {
       return lastComparison;
@@ -789,28 +875,35 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 4: // COMPARATOR_TYPE
+        case 4: // CLOCK_TYPE
+          if (field.type == TType.STRING) {
+            this.clock_type = iprot.readString();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 5: // COMPARATOR_TYPE
           if (field.type == TType.STRING) {
             this.comparator_type = iprot.readString();
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 5: // SUBCOMPARATOR_TYPE
+        case 6: // SUBCOMPARATOR_TYPE
           if (field.type == TType.STRING) {
             this.subcomparator_type = iprot.readString();
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 6: // COMMENT
+        case 7: // COMMENT
           if (field.type == TType.STRING) {
             this.comment = iprot.readString();
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 7: // ROW_CACHE_SIZE
+        case 8: // ROW_CACHE_SIZE
           if (field.type == TType.DOUBLE) {
             this.row_cache_size = iprot.readDouble();
             setRow_cache_sizeIsSet(true);
@@ -818,7 +911,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 8: // PRELOAD_ROW_CACHE
+        case 9: // PRELOAD_ROW_CACHE
           if (field.type == TType.BOOL) {
             this.preload_row_cache = iprot.readBool();
             setPreload_row_cacheIsSet(true);
@@ -826,7 +919,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 9: // KEY_CACHE_SIZE
+        case 10: // KEY_CACHE_SIZE
           if (field.type == TType.DOUBLE) {
             this.key_cache_size = iprot.readDouble();
             setKey_cache_sizeIsSet(true);
@@ -863,6 +956,13 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
       if (isSetColumn_type()) {
         oprot.writeFieldBegin(COLUMN_TYPE_FIELD_DESC);
         oprot.writeString(this.column_type);
+        oprot.writeFieldEnd();
+      }
+    }
+    if (this.clock_type != null) {
+      if (isSetClock_type()) {
+        oprot.writeFieldBegin(CLOCK_TYPE_FIELD_DESC);
+        oprot.writeString(this.clock_type);
         oprot.writeFieldEnd();
       }
     }
@@ -933,6 +1033,16 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
         sb.append("null");
       } else {
         sb.append(this.column_type);
+      }
+      first = false;
+    }
+    if (isSetClock_type()) {
+      if (!first) sb.append(", ");
+      sb.append("clock_type:");
+      if (this.clock_type == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.clock_type);
       }
       first = false;
     }

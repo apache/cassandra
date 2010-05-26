@@ -34,7 +34,7 @@ public class SSTableUtils
     public static String TABLENAME = "Keyspace1";
     public static String CFNAME = "Standard1";
 
-    public static ColumnFamily createCF(long mfda, int ldt, IColumn... cols)
+    public static ColumnFamily createCF(IClock mfda, int ldt, IColumn... cols)
     {
         ColumnFamily cf = ColumnFamily.create(TABLENAME, CFNAME);
         cf.delete(ldt, mfda);
@@ -65,7 +65,7 @@ public class SSTableUtils
         for (String key : keys)
         {
             ColumnFamily cf = ColumnFamily.create(TABLENAME, CFNAME);
-            cf.addColumn(new Column(key.getBytes(), key.getBytes(), 0));
+            cf.addColumn(new Column(key.getBytes(), key.getBytes(), new TimestampClock(0)));
             map.put(key, cf);
         }
         return writeSSTable(map);

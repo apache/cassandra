@@ -73,7 +73,7 @@ public class NameSortTest extends CleanupHelper
             {
                 byte[] bytes = j % 2 == 0 ? "a".getBytes() : "b".getBytes();
                 rm = new RowMutation("Keyspace1", key);
-                rm.add(new QueryPath("Standard1", null, ("Column-" + j).getBytes()), bytes, j);
+                rm.add(new QueryPath("Standard1", null, ("Column-" + j).getBytes()), bytes, new TimestampClock(j));
                 rm.apply();
             }
 
@@ -84,7 +84,7 @@ public class NameSortTest extends CleanupHelper
                 for (int k = 0; k < 4; ++k)
                 {
                     String value = (j + k) % 2 == 0 ? "a" : "b";
-                    addMutation(rm, "Super1", "SuperColumn-" + j, k, value, k);
+                    addMutation(rm, "Super1", "SuperColumn-" + j, k, value, new TimestampClock(k));
                 }
                 rm.apply();
             }

@@ -511,7 +511,7 @@ public class DatabaseDescriptor
                 {                        
                     throw new ConfigurationException("read_repair_chance must be between 0.0 and 1.0");
                 }
-                cfDefs[j++] = new CFMetaData(keyspace.name, cf.name, cfType, comparator, subcolumnComparator, cf.comment, cf.rows_cached, cf.preload_row_cache, cf.keys_cached, cf.read_repair_chance);
+                cfDefs[j++] = new CFMetaData(keyspace.name, cf.name, cfType, ClockType.Timestamp, comparator, subcolumnComparator, cf.comment, cf.rows_cached, cf.preload_row_cache, cf.keys_cached, cf.read_repair_chance);
             }
             defs.add(new KSMetaData(keyspace.name, strategyClass, keyspace.replication_factor, cfDefs));
             
@@ -712,6 +712,15 @@ public class DatabaseDescriptor
         if (cfMetaData == null)
             return null;
         return cfMetaData.cfType;
+    }
+
+    public static ClockType getClockType(String tableName, String cfName)
+    {
+        assert tableName != null && cfName != null;
+        CFMetaData cfMetaData = getCFMetaData(tableName, cfName);
+
+        assert (cfMetaData != null);
+        return cfMetaData.clockType;
     }
 
     public static Set<String> getTables()
