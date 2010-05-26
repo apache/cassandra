@@ -68,7 +68,7 @@ public class IncomingStreamReader
         catch (IOException ex)
         {
             /* Ask the source node to re-stream this file. */
-            streamStatus.setAction(FileStatus.StreamCompletionAction.STREAM);
+            streamStatus.setAction(FileStatus.Action.STREAM);
             handleFileStatus(remoteAddress.getAddress());
             /* Delete the orphaned file. */
             File file = new File(pendingFile.getFilename());
@@ -84,10 +84,9 @@ public class IncomingStreamReader
         if (bytesRead == pendingFile.getExpectedBytes())
         {
             if (logger.isDebugEnabled())
-            {
                 logger.debug("Removing stream context " + pendingFile);
-            }
             fc.close();
+            streamStatus.setAction(FileStatus.Action.DELETE);
             handleFileStatus(remoteAddress.getAddress());
         }
     }

@@ -35,9 +35,11 @@ class FileStatus
 {
     private static ICompactSerializer<FileStatus> serializer_;
 
-    public static enum StreamCompletionAction
+    static enum Action
     {
+        // was received successfully, and can be deleted from the source node
         DELETE,
+        // needs to be streamed (or restreamed)
         STREAM
     }
 
@@ -51,15 +53,18 @@ class FileStatus
         return serializer_;
     }
 
-    private String file_;
-    private long expectedBytes_;
-    private StreamCompletionAction action_;
+    private final String file_;
+    private final long expectedBytes_;
+    private Action action_;
 
+    /**
+     * Create a FileStatus with the default Action: STREAM.
+     */
     public FileStatus(String file, long expectedBytes)
     {
         file_ = file;
         expectedBytes_ = expectedBytes;
-        action_ = StreamCompletionAction.DELETE;
+        action_ = Action.STREAM;
     }
 
     public String getFile()
@@ -72,12 +77,12 @@ class FileStatus
         return expectedBytes_;
     }
 
-    public void setAction(StreamCompletionAction action)
+    public void setAction(Action action)
     {
         action_ = action;
     }
 
-    public StreamCompletionAction getAction()
+    public Action getAction()
     {
         return action_;
     }
@@ -106,14 +111,12 @@ class FileStatus
             FileStatus streamStatus = new FileStatus(targetFile, expectedBytes);
 
             int ordinal = dis.readInt();
-            if ( ordinal == StreamCompletionAction.DELETE.ordinal() )
-            {
-                streamStatus.setAction(StreamCompletionAction.DELETE);
-            }
-            else if ( ordinal == StreamCompletionAction.STREAM.ordinal() )
-            {
-                streamStatus.setAction(StreamCompletionAction.STREAM);
-            }
+            if (ordinal == Action.DELETE.ordinal())
+                streamStatus.setAction(Action.DELETE);
+            else if (ordinal == Action.STREAM.ordinal())
+                streamStatus.setAction(Action.STREAM);
+            else
+                throw new IOException("Bad FileStatus.Action: " + ordinal);
 
             return streamStatus;
         }

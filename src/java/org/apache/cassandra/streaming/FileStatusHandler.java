@@ -42,16 +42,15 @@ class FileStatusHandler
 
     public void onStatusChange(InetAddress host, PendingFile pendingFile, FileStatus streamStatus) throws IOException
     {
-        if (FileStatus.StreamCompletionAction.STREAM == streamStatus.getAction())
+        if (FileStatus.Action.STREAM == streamStatus.getAction())
         {
             // file needs to be restreamed
-            logger.warn("Streaming of file " + pendingFile + " from " + host + " failed, but will be retried.");
-            // request that the source node re-stream the file
+            logger.warn("Streaming of file " + pendingFile + " from " + host + " failed: requesting a retry.");
             MessagingService.instance.sendOneWay(streamStatus.makeStreamStatusMessage(), host);
             return;
         }
-        assert FileStatus.StreamCompletionAction.DELETE == streamStatus.getAction() :
-            "Unknown stream status: " + streamStatus.getAction();
+        assert FileStatus.Action.DELETE == streamStatus.getAction() :
+            "Unknown stream action: " + streamStatus.getAction();
 
         // file was successfully streamed: if it was the last component of an sstable, assume that the rest
         // have already arrived
