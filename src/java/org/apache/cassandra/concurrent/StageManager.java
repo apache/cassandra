@@ -58,7 +58,7 @@ public class StageManager
         stages.put(RESPONSE_STAGE, multiThreadedStage(RESPONSE_STAGE, Math.max(2, Runtime.getRuntime().availableProcessors())));
         // the rest are all single-threaded
         stages.put(STREAM_STAGE, new JMXEnabledThreadPoolExecutor(STREAM_STAGE));
-        stages.put(GOSSIP_STAGE, new JMXEnabledThreadPoolExecutor("GMFD"));
+        stages.put(GOSSIP_STAGE, new JMXEnabledThreadPoolExecutor("GOSSIP_STAGE"));
         stages.put(AE_SERVICE_STAGE, new JMXEnabledThreadPoolExecutor(AE_SERVICE_STAGE));
         stages.put(LOADBALANCE_STAGE, new JMXEnabledThreadPoolExecutor(LOADBALANCE_STAGE));
         stages.put(MIGRATION_STAGE, new JMXEnabledThreadPoolExecutor(MIGRATION_STAGE));

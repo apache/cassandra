@@ -39,6 +39,7 @@ Configuraton
 JMX
 ---
     - StreamingService moved from o.a.c.streaming to o.a.c.service
+    - GMFD renamed to GOSSIP_STAGE
 
 Thrift API
 ----------
