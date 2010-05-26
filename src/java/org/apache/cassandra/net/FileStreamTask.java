@@ -38,6 +38,8 @@ public class FileStreamTask extends WrappedRunnable
     private static Logger logger = LoggerFactory.getLogger( FileStreamTask.class );
     
     public static final int CHUNK_SIZE = 32*1024*1024;
+    // around 10 minutes at the default rpctimeout
+    public static final int MAX_CONNECT_ATTEMPTS = 8;
 
     private final String file;
     private final long startPosition;
@@ -54,11 +56,10 @@ public class FileStreamTask extends WrappedRunnable
     
     public void runMayThrow() throws IOException
     {
-        SocketChannel channel = SocketChannel.open();
-        // force local binding on correctly specified interface.
-        channel.socket().bind(new InetSocketAddress(FBUtilities.getLocalAddress(), 0));
-        // obey the unwritten law that all nodes on a cluster must use the same storage port.
-        channel.connect(new InetSocketAddress(to, DatabaseDescriptor.getStoragePort()));
+        SocketChannel channel = connect();
+
+        // successfully connected: stream.
+        // (at this point, if we fail, it is the receiver's job to re-request)
         try
         {
             stream(channel);
@@ -113,4 +114,41 @@ public class FileStreamTask extends WrappedRunnable
         }
     }
 
+    /**
+     * Connects to the destination, with backoff for failed attempts.
+     * TODO: all nodes on a cluster must currently use the same storage port
+     * @throws IOException If all attempts fail.
+     */
+    private SocketChannel connect() throws IOException
+    {
+        SocketChannel channel = SocketChannel.open();
+        // force local binding on correctly specified interface.
+        channel.socket().bind(new InetSocketAddress(FBUtilities.getLocalAddress(), 0));
+        int attempts = 0;
+        while (true)
+        {
+            try
+            {
+                channel.connect(new InetSocketAddress(to, DatabaseDescriptor.getStoragePort()));
+                // success
+                return channel;
+            }
+            catch (IOException e)
+            {
+                if (++attempts >= MAX_CONNECT_ATTEMPTS)
+                    throw e;
+
+                long waitms = DatabaseDescriptor.getRpcTimeout() * (long)Math.pow(2, attempts);
+                logger.warn("Failed attempt " + attempts + " to connect to " + to + " to stream " + file + ". Retrying in " + waitms + " ms. (" + e + ")");
+                try
+                {
+                    Thread.sleep(waitms);
+                }
+                catch (InterruptedException wtf)
+                {
+                    throw new RuntimeException(wtf);
+                }
+            }
+        }
+    }
 }
