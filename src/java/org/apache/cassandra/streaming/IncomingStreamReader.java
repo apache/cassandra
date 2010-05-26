@@ -33,7 +33,7 @@ public class IncomingStreamReader
 {
     private static Logger logger = LoggerFactory.getLogger(IncomingStreamReader.class);
     private PendingFile pendingFile;
-    private CompletedFileStatus streamStatus;
+    private FileStatus streamStatus;
     private SocketChannel socketChannel;
 
     public IncomingStreamReader(SocketChannel socketChannel)
@@ -68,7 +68,7 @@ public class IncomingStreamReader
         catch (IOException ex)
         {
             /* Ask the source node to re-stream this file. */
-            streamStatus.setAction(CompletedFileStatus.StreamCompletionAction.STREAM);
+            streamStatus.setAction(FileStatus.StreamCompletionAction.STREAM);
             handleStreamCompletion(remoteAddress.getAddress());
             /* Delete the orphaned file. */
             File file = new File(pendingFile.getFilename());

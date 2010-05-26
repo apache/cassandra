@@ -36,7 +36,7 @@ class StreamInManager
     /* Maintain a stream context per host that is the source of the stream */
     public static final Map<InetAddress, List<PendingFile>> ctxBag_ = new Hashtable<InetAddress, List<PendingFile>>();
     /* Maintain in this map the status of the streams that need to be sent back to the source */
-    public static final Map<InetAddress, List<CompletedFileStatus>> streamStatusBag_ = new Hashtable<InetAddress, List<CompletedFileStatus>>();
+    public static final Map<InetAddress, List<FileStatus>> streamStatusBag_ = new Hashtable<InetAddress, List<FileStatus>>();
     /* Maintains a callback handler per endpoint to notify the app that a stream from a given endpoint has been handled */
     public static final Map<InetAddress, IStreamComplete> streamNotificationHandlers_ = new HashMap<InetAddress, IStreamComplete>();
 
@@ -53,12 +53,12 @@ class StreamInManager
         return pendingFile;
     }
     
-    public synchronized static CompletedFileStatus getStreamStatus(InetAddress key)
+    public synchronized static FileStatus getStreamStatus(InetAddress key)
     {
-        List<CompletedFileStatus> status = streamStatusBag_.get(key);
+        List<FileStatus> status = streamStatusBag_.get(key);
         if ( status == null )
             throw new IllegalStateException("Streaming status has not been set for " + key);
-        CompletedFileStatus streamStatus = status.remove(0);
+        FileStatus streamStatus = status.remove(0);
         if ( status.isEmpty() )
             streamStatusBag_.remove(key);
         return streamStatus;
@@ -108,7 +108,7 @@ class StreamInManager
         streamNotificationHandlers_.put(key, streamComplete);
     }
     
-    public synchronized static void addStreamContext(InetAddress key, PendingFile pendingFile, CompletedFileStatus streamStatus)
+    public synchronized static void addStreamContext(InetAddress key, PendingFile pendingFile, FileStatus streamStatus)
     {
         /* Record the stream context */
         List<PendingFile> context = ctxBag_.get(key);
@@ -120,10 +120,10 @@ class StreamInManager
         context.add(pendingFile);
         
         /* Record the stream status for this stream context */
-        List<CompletedFileStatus> status = streamStatusBag_.get(key);
+        List<FileStatus> status = streamStatusBag_.get(key);
         if ( status == null )
         {
-            status = new ArrayList<CompletedFileStatus>();
+            status = new ArrayList<FileStatus>();
             streamStatusBag_.put(key, status);
         }
         status.add( streamStatus );

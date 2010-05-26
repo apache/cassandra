@@ -44,7 +44,7 @@ class StreamCompletionHandler implements IStreamComplete
 {
     private static Logger logger = LoggerFactory.getLogger(StreamCompletionHandler.class);
 
-    public void onStreamCompletion(InetAddress host, PendingFile pendingFile, CompletedFileStatus streamStatus) throws IOException
+    public void onStreamCompletion(InetAddress host, PendingFile pendingFile, FileStatus streamStatus) throws IOException
     {
         /* Parse the stream context and the file to the list of SSTables in the associated Column Family Store. */
         if (pendingFile.getFilename().contains("-Data.db"))

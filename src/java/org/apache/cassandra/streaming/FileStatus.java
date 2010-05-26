@@ -31,9 +31,9 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
-class CompletedFileStatus
+class FileStatus
 {
-    private static ICompactSerializer<CompletedFileStatus> serializer_;
+    private static ICompactSerializer<FileStatus> serializer_;
 
     public static enum StreamCompletionAction
     {
@@ -43,10 +43,10 @@ class CompletedFileStatus
 
     static
     {
-        serializer_ = new CompletedFileStatusSerializer();
+        serializer_ = new FileStatusSerializer();
     }
 
-    public static ICompactSerializer<CompletedFileStatus> serializer()
+    public static ICompactSerializer<FileStatus> serializer()
     {
         return serializer_;
     }
@@ -55,7 +55,7 @@ class CompletedFileStatus
     private long expectedBytes_;
     private StreamCompletionAction action_;
 
-    public CompletedFileStatus(String file, long expectedBytes)
+    public FileStatus(String file, long expectedBytes)
     {
         file_ = file;
         expectedBytes_ = expectedBytes;
@@ -86,24 +86,24 @@ class CompletedFileStatus
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
-        CompletedFileStatus.serializer().serialize(this, dos);
+        FileStatus.serializer().serialize(this, dos);
         return new Message(FBUtilities.getLocalAddress(), "", StorageService.Verb.STREAM_FINISHED, bos.toByteArray());
     }
 
-    private static class CompletedFileStatusSerializer implements ICompactSerializer<CompletedFileStatus>
+    private static class FileStatusSerializer implements ICompactSerializer<FileStatus>
     {
-        public void serialize(CompletedFileStatus streamStatus, DataOutputStream dos) throws IOException
+        public void serialize(FileStatus streamStatus, DataOutputStream dos) throws IOException
         {
             dos.writeUTF(streamStatus.getFile());
             dos.writeLong(streamStatus.getExpectedBytes());
             dos.writeInt(streamStatus.getAction().ordinal());
         }
 
-        public CompletedFileStatus deserialize(DataInputStream dis) throws IOException
+        public FileStatus deserialize(DataInputStream dis) throws IOException
         {
             String targetFile = dis.readUTF();
             long expectedBytes = dis.readLong();
-            CompletedFileStatus streamStatus = new CompletedFileStatus(targetFile, expectedBytes);
+            FileStatus streamStatus = new FileStatus(targetFile, expectedBytes);
 
             int ordinal = dis.readInt();
             if ( ordinal == StreamCompletionAction.DELETE.ordinal() )

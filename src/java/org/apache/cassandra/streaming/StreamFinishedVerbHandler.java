@@ -44,7 +44,7 @@ public class StreamFinishedVerbHandler implements IVerbHandler
 
         try
         {
-            CompletedFileStatus streamStatus = CompletedFileStatus.serializer().deserialize(new DataInputStream(bufIn));
+            FileStatus streamStatus = FileStatus.serializer().deserialize(new DataInputStream(bufIn));
 
             switch (streamStatus.getAction())
             {
