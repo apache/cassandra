@@ -20,18 +20,14 @@ package org.apache.cassandra.locator;
 
 import java.io.FileReader;
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
-import java.net.UnknownHostException;
-import java.net.URL;
+import java.net.InetAddress;
 import java.util.Properties;
 import java.util.StringTokenizer;
 
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
-
-import java.net.InetAddress;
-
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ResourceWatcher;
+import org.apache.cassandra.utils.WrappedRunnable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,11 +36,11 @@ import org.slf4j.LoggerFactory;
  * <p/>
  * Based on a properties file configuration.
  */
-public class PropertyFileSnitch extends AbstractRackAwareSnitch implements PropertyFileSnitchMBean {
+public class PropertyFileSnitch extends AbstractRackAwareSnitch {
     /**
      * A list of properties with keys being host:port and values being datacenter:rack
      */
-    private Properties hostProperties = new Properties();
+    private volatile Properties hostProperties = new Properties();
 
     /**
      * The default rack property file to be read.
@@ -56,18 +52,16 @@ public class PropertyFileSnitch extends AbstractRackAwareSnitch implements Prope
      */
     private static Logger logger_ = LoggerFactory.getLogger(PropertyFileSnitch.class);
 
-    public PropertyFileSnitch() throws ConfigurationException
-    {
+    public PropertyFileSnitch() throws ConfigurationException {
         reloadConfiguration();
-        try
+        Runnable runnable = new WrappedRunnable()
         {
-            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-            mbs.registerMBean(this, new ObjectName(MBEAN_OBJECT_NAME));
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
+            protected void runMayThrow() throws ConfigurationException
+            {
+                reloadConfiguration();
+            }
+        };
+        ResourceWatcher.watch(RACK_PROPERTY_FILENAME, runnable, 60 * 1000);
     }
 
     /**
@@ -115,40 +109,25 @@ public class PropertyFileSnitch extends AbstractRackAwareSnitch implements Prope
         return getEndpointInfo(endpoint)[1];
     }
 
-    /**
-     * @return the <tt>String</tt> representation of the configuration
-     */
-    public String displayConfiguration() {
-        StringBuffer configurationString = new StringBuffer("Current rack configuration\n=================\n");
-        for (Object key: hostProperties.keySet()) {
-            String endpoint = (String) key;
-            String value = hostProperties.getProperty(endpoint);
-            configurationString.append(endpoint).append("=").append(value).append("\n");
-        }
-        return configurationString.toString();
-    }
-
-    /**
-     * Reloads the configuration from the file
-     */
     public void reloadConfiguration() throws ConfigurationException
     {
-        ClassLoader loader = PropertyFileSnitch.class.getClassLoader();
-        URL scpurl = loader.getResource(RACK_PROPERTY_FILENAME);
-        if (scpurl == null)
-            throw new ConfigurationException("unable to locate " + RACK_PROPERTY_FILENAME);
+        hostProperties = resourceToProperties(RACK_PROPERTY_FILENAME);
+    }
 
-        String rackPropertyFilename = scpurl.getFile();
+    public static Properties resourceToProperties(String filename) throws ConfigurationException
+    {
+        String rackPropertyFilename = FBUtilities.resourceToFile(filename);
 
+        Properties localHostProperties;
         try
         {
-            Properties localHostProperties = new Properties();
+            localHostProperties = new Properties();
             localHostProperties.load(new FileReader(rackPropertyFilename));
-            hostProperties = localHostProperties;
         }
-        catch (IOException ioe)
+        catch (IOException e)
         {
-            throw new ConfigurationException("Could not process " + rackPropertyFilename, ioe);
+            throw new ConfigurationException("Unable to load " + rackPropertyFilename, e);
         }
+        return localHostProperties;
     }
 }

@@ -21,6 +21,7 @@ package org.apache.cassandra.utils;
 import java.io.*;
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
@@ -33,6 +34,8 @@ import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.locator.PropertyFileSnitch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -547,5 +550,15 @@ public class FBUtilities
         byte[] bytes = new byte[8];
         ByteBuffer.wrap(bytes).putLong(n);
         return bytes;
+    }
+
+    public static String resourceToFile(String filename) throws ConfigurationException
+    {
+        ClassLoader loader = PropertyFileSnitch.class.getClassLoader();
+        URL scpurl = loader.getResource(filename);
+        if (scpurl == null)
+            throw new ConfigurationException("unable to locate " + filename);
+
+        return scpurl.getFile();
     }
 }

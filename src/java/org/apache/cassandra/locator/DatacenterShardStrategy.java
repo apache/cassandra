@@ -1,4 +1,5 @@
 package org.apache.cassandra.locator;
+
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -21,11 +22,7 @@ package org.apache.cassandra.locator;
  */
 
 
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.IOError;
 import java.net.InetAddress;
-import java.net.URL;
 import java.util.*;
 import java.util.Map.Entry;
 
@@ -33,9 +30,11 @@ import com.google.common.collect.Multimap;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.utils.ResourceWatcher;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.WrappedRunnable;
 
 /**
  * This Replication Strategy takes a property file that gives the intended
@@ -63,36 +62,34 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
         if ((!(snitch instanceof AbstractRackAwareSnitch)))
             throw new IllegalArgumentException("DatacenterShardStrategy requires a rack-aware endpointsnitch");
         this.snitch = (AbstractRackAwareSnitch)snitch;
-
-        ClassLoader loader = PropertyFileSnitch.class.getClassLoader();
-        URL scpurl = loader.getResource(DATACENTER_PROPERTY_FILENAME);
-        if (scpurl == null)
+        
+        reloadConfiguration();
+        Runnable runnable = new WrappedRunnable()
         {
-            throw new RuntimeException("unable to locate " + DATACENTER_PROPERTY_FILENAME);
-        }
-        String dcPropertyFile = scpurl.getFile();
-        try
-        {
-            Properties props = new Properties();
-            props.load(new FileReader(dcPropertyFile));
-            for (Object key : props.keySet())
+            protected void runMayThrow() throws ConfigurationException
             {
-                String[] keys = ((String)key).split(":");
-                Map<String, Integer> map = datacenters.get(keys[0]);
-                if (null == map)
-                {
-                    map = new HashMap<String, Integer>();
-                }
-                map.put(keys[1], Integer.parseInt((String)props.get(key)));
-                datacenters.put(keys[0], map);
+                reloadConfiguration();
             }
-        }
-        catch (IOException ioe)
-        {
-            throw new IOError(ioe);
-        }
+        };
+        ResourceWatcher.watch(DATACENTER_PROPERTY_FILENAME, runnable, 60 * 1000);
 
         loadEndpoints(tokenMetadata);
+    }
+
+    public void reloadConfiguration() throws ConfigurationException
+    {
+        Properties props = PropertyFileSnitch.resourceToProperties(DATACENTER_PROPERTY_FILENAME);
+        for (Object key : props.keySet())
+        {
+            String[] keys = ((String)key).split(":");
+            Map<String, Integer> map = datacenters.get(keys[0]);
+            if (null == map)
+            {
+                map = new HashMap<String, Integer>();
+            }
+            map.put(keys[1], Integer.parseInt((String)props.get(key)));
+            datacenters.put(keys[0], map);
+        }
     }
 
     private synchronized void loadEndpoints(TokenMetadata metadata) throws ConfigurationException
