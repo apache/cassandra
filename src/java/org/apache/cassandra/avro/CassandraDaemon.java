@@ -110,7 +110,7 @@ public class CassandraDaemon {
         // is to read those migrations from disk and apply them.
         UUID currentMigration = DatabaseDescriptor.getDefsVersion();
         UUID lastMigration = Migration.getLastMigrationId();
-        if (lastMigration.timestamp() > currentMigration.timestamp())
+        if ((lastMigration != null) && (lastMigration.timestamp() > currentMigration.timestamp()))
         {
             MigrationManager.applyMigrations(currentMigration, lastMigration);
         }
