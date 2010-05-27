@@ -47,13 +47,13 @@ public class WordCountSetup
         Column c;
 
         // text1: 1 row, 1 word
-        c = new Column("text1".getBytes(), "word1".getBytes(), System.currentTimeMillis());
+        c = new Column("text1".getBytes(), "word1".getBytes(), new Clock(System.currentTimeMillis()));
         mutationMap = getMutationMap("key0".getBytes(), WordCount.COLUMN_FAMILY, c);
         client.batch_mutate(mutationMap, ConsistencyLevel.ONE);
         logger.info("added text1");
 
         // text1: 1 row, 2 word
-        c = new Column("text2".getBytes(), "word1 word2".getBytes(), System.currentTimeMillis());
+        c = new Column("text2".getBytes(), "word1 word2".getBytes(), new Clock(System.currentTimeMillis()));
         mutationMap = getMutationMap("key0".getBytes(), WordCount.COLUMN_FAMILY, c);
         client.batch_mutate(mutationMap, ConsistencyLevel.ONE);
         logger.info("added text2");
@@ -62,7 +62,7 @@ public class WordCountSetup
         mutationMap = new HashMap<byte[],Map<String,List<Mutation>>>();
         for (int i=0; i<1000; i++)
         {
-            c = new Column("text3".getBytes(), "word1".getBytes(), System.currentTimeMillis());
+            c = new Column("text3".getBytes(), "word1".getBytes(), new Clock(System.currentTimeMillis()));
             addToMutationMap(mutationMap, ("key" + i).getBytes(), WordCount.COLUMN_FAMILY, c);
         }
         client.batch_mutate(mutationMap, ConsistencyLevel.ONE);
