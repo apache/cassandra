@@ -1259,16 +1259,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         throw new UnavailableException(); // no nodes that could contain key are alive
     }
 
-    public Map<String, String> getStringEndpointMap()
-    {
-        HashMap<String, String> map = new HashMap<String, String>();
-        for (Token t : tokenMetadata_.sortedTokens())
-        {
-            map.put(t.toString(), tokenMetadata_.getEndpoint(t).getHostAddress());
-        }
-        return map;
-    }
-
     public void setLog4jLevel(String classQualifier, String rawLevel)
     {
         Level level = Level.toLevel(rawLevel);

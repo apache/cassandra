@@ -645,18 +645,6 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static Iterable<Pair<AbstractBounds, List<InetAddress>>> getRangeIterator(final List<Pair<AbstractBounds, List<InetAddress>>> ranges, Token start)
     {
-        // sort ranges in ring order
-        Comparator<Pair<AbstractBounds, List<InetAddress>>> comparator = new Comparator<Pair<AbstractBounds, List<InetAddress>>>()
-        {
-            public int compare(Pair<AbstractBounds, List<InetAddress>> o1, Pair<AbstractBounds, List<InetAddress>> o2)
-            {
-                // no restricted ranges will overlap so we don't need to worry about inclusive vs exclusive left,
-                // just sort by raw token position.
-                return o1.left.left.compareTo(o2.left.left);
-            }
-        };
-        Collections.sort(ranges, comparator);
-
         // find the one to start with
         int i;
         for (i = 0; i < ranges.size(); i++)

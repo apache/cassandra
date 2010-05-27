@@ -564,11 +564,12 @@ public class CassandraServer implements Cassandra.Iface
     public List<TokenRange> describe_ring(String keyspace)
     {
         List<TokenRange> ranges = new ArrayList<TokenRange>();
+        Token.TokenFactory tf = StorageService.getPartitioner().getTokenFactory();
         for (Map.Entry<Range, List<String>> entry : StorageService.instance.getRangeToEndpointMap(keyspace).entrySet())
         {
             Range range = entry.getKey();
             List<String> endpoints = entry.getValue();
-            ranges.add(new TokenRange(range.left.toString(), range.right.toString(), endpoints));
+            ranges.add(new TokenRange(tf.toString(range.left), tf.toString(range.right), endpoints));
         }
         return ranges;
     }
@@ -580,7 +581,7 @@ public class CassandraServer implements Cassandra.Iface
         List<String> splits = new ArrayList<String>(tokens.size());
         for (Token token : tokens)
         {
-            splits.add(token.toString());
+            splits.add(tf.toString(token));
         }
         return splits;
     }
