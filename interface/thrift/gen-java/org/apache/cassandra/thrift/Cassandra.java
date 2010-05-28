@@ -195,7 +195,7 @@ public class Cassandra {
      * 
      * @param keyspace
      */
-    public List<TokenRange> describe_ring(String keyspace) throws TException;
+    public List<TokenRange> describe_ring(String keyspace) throws InvalidRequestException, TException;
 
     /**
      * describe specified keyspace
@@ -931,7 +931,7 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "describe_version failed: unknown result");
     }
 
-    public List<TokenRange> describe_ring(String keyspace) throws TException
+    public List<TokenRange> describe_ring(String keyspace) throws InvalidRequestException, TException
     {
       send_describe_ring(keyspace);
       return recv_describe_ring();
@@ -947,7 +947,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public List<TokenRange> recv_describe_ring() throws TException
+    public List<TokenRange> recv_describe_ring() throws InvalidRequestException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -960,6 +960,9 @@ public class Cassandra {
       iprot_.readMessageEnd();
       if (result.isSetSuccess()) {
         return result.success;
+      }
+      if (result.ire != null) {
+        throw result.ire;
       }
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "describe_ring failed: unknown result");
     }
@@ -1947,7 +1950,19 @@ public class Cassandra {
         }
         iprot.readMessageEnd();
         describe_ring_result result = new describe_ring_result();
-        result.success = iface_.describe_ring(args.keyspace);
+        try {
+          result.success = iface_.describe_ring(args.keyspace);
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+        } catch (Throwable th) {
+          LOGGER.error("Internal error processing describe_ring", th);
+          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing describe_ring");
+          oprot.writeMessageBegin(new TMessage("describe_ring", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         oprot.writeMessageBegin(new TMessage("describe_ring", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
@@ -16446,12 +16461,15 @@ public class Cassandra {
     private static final TStruct STRUCT_DESC = new TStruct("describe_ring_result");
 
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.LIST, (short)0);
+    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
 
     public List<TokenRange> success;
+    public InvalidRequestException ire;
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements TFieldIdEnum {
-      SUCCESS((short)0, "success");
+      SUCCESS((short)0, "success"),
+      IRE((short)1, "ire");
 
       private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
       private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
@@ -16510,6 +16528,8 @@ public class Cassandra {
       put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
           new ListMetaData(TType.LIST, 
               new StructMetaData(TType.STRUCT, TokenRange.class))));
+      put(_Fields.IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
     }});
 
     static {
@@ -16520,10 +16540,12 @@ public class Cassandra {
     }
 
     public describe_ring_result(
-      List<TokenRange> success)
+      List<TokenRange> success,
+      InvalidRequestException ire)
     {
       this();
       this.success = success;
+      this.ire = ire;
     }
 
     /**
@@ -16536,6 +16558,9 @@ public class Cassandra {
           __this__success.add(new TokenRange(other_element));
         }
         this.success = __this__success;
+      }
+      if (other.isSetIre()) {
+        this.ire = new InvalidRequestException(other.ire);
       }
     }
 
@@ -16587,6 +16612,30 @@ public class Cassandra {
       }
     }
 
+    public InvalidRequestException getIre() {
+      return this.ire;
+    }
+
+    public describe_ring_result setIre(InvalidRequestException ire) {
+      this.ire = ire;
+      return this;
+    }
+
+    public void unsetIre() {
+      this.ire = null;
+    }
+
+    /** Returns true if field ire is set (has been asigned a value) and false otherwise */
+    public boolean isSetIre() {
+      return this.ire != null;
+    }
+
+    public void setIreIsSet(boolean value) {
+      if (!value) {
+        this.ire = null;
+      }
+    }
+
     public void setFieldValue(_Fields field, Object value) {
       switch (field) {
       case SUCCESS:
@@ -16594,6 +16643,14 @@ public class Cassandra {
           unsetSuccess();
         } else {
           setSuccess((List<TokenRange>)value);
+        }
+        break;
+
+      case IRE:
+        if (value == null) {
+          unsetIre();
+        } else {
+          setIre((InvalidRequestException)value);
         }
         break;
 
@@ -16609,6 +16666,9 @@ public class Cassandra {
       case SUCCESS:
         return getSuccess();
 
+      case IRE:
+        return getIre();
+
       }
       throw new IllegalStateException();
     }
@@ -16622,6 +16682,8 @@ public class Cassandra {
       switch (field) {
       case SUCCESS:
         return isSetSuccess();
+      case IRE:
+        return isSetIre();
       }
       throw new IllegalStateException();
     }
@@ -16652,6 +16714,15 @@ public class Cassandra {
           return false;
       }
 
+      boolean this_present_ire = true && this.isSetIre();
+      boolean that_present_ire = true && that.isSetIre();
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
+          return false;
+        if (!this.ire.equals(that.ire))
+          return false;
+      }
+
       return true;
     }
 
@@ -16673,6 +16744,15 @@ public class Cassandra {
         return lastComparison;
       }
       if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetIre()) {        lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
         if (lastComparison != 0) {
           return lastComparison;
         }
@@ -16708,6 +16788,14 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
+          case 1: // IRE
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
           default:
             TProtocolUtil.skip(iprot, field.type);
         }
@@ -16733,6 +16821,10 @@ public class Cassandra {
           oprot.writeListEnd();
         }
         oprot.writeFieldEnd();
+      } else if (this.isSetIre()) {
+        oprot.writeFieldBegin(IRE_FIELD_DESC);
+        this.ire.write(oprot);
+        oprot.writeFieldEnd();
       }
       oprot.writeFieldStop();
       oprot.writeStructEnd();
@@ -16748,6 +16840,14 @@ public class Cassandra {
         sb.append("null");
       } else {
         sb.append(this.success);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ire:");
+      if (this.ire == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.ire);
       }
       first = false;
       sb.append(")");

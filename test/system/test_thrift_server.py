@@ -1178,6 +1178,11 @@ class TestMutations(ThriftTester):
         client.insert('key1', ColumnParent('Standard1'), column, ConsistencyLevel.ONE)
         client.remove('key1', ColumnPath('Standard1', column='cttl5'), Clock(1), ConsistencyLevel.ONE)
         _expect_missing(lambda: client.get('key1', ColumnPath('Standard1', column='ctt5'), ConsistencyLevel.ONE))
+    
+    def test_describe_ring_on_invalid_keyspace(self):
+        def req():
+            client.describe_ring('system')
+        _expect_exception(req, InvalidRequestException)
         
 class TestTruncate(ThriftTester):
     def test_truncate(self):

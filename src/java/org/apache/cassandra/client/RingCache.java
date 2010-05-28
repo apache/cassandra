@@ -31,6 +31,7 @@ import java.net.UnknownHostException;
 
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.Cassandra;
+import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.TokenRange;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -100,6 +101,10 @@ public class RingCache
                 tokenMetadata = new TokenMetadata(tokenEndpointMap);
 
                 break;
+            }
+            catch (InvalidRequestException e)
+            {
+                throw new RuntimeException(e);
             }
             catch (TException e)
             {

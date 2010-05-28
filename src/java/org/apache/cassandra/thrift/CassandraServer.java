@@ -561,8 +561,10 @@ public class CassandraServer implements Cassandra.Iface
         return Constants.VERSION;
     }
 
-    public List<TokenRange> describe_ring(String keyspace)
+    public List<TokenRange> describe_ring(String keyspace)throws InvalidRequestException
     {
+        if (!DatabaseDescriptor.getNonSystemTables().contains(keyspace))
+            throw new InvalidRequestException("There is no ring for the keyspace: " + keyspace);
         List<TokenRange> ranges = new ArrayList<TokenRange>();
         Token.TokenFactory tf = StorageService.getPartitioner().getTokenFactory();
         for (Map.Entry<Range, List<String>> entry : StorageService.instance.getRangeToEndpointMap(keyspace).entrySet())
