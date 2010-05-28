@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SuperColumn;
@@ -195,7 +196,7 @@ public class SSTableImport
      * @throws IOException on failure to open/read/write files or output streams
      * @throws ParseException on failure to parse JSON input
      */
-    public static void main(String[] args) throws IOException, ParseException
+    public static void main(String[] args) throws IOException, ParseException, ConfigurationException
     {
         String usage = String.format("Usage: %s -K keyspace -c column_family <json> <sstable>%n",
                 SSTableImport.class.getName());
@@ -221,6 +222,14 @@ public class SSTableImport
         String ssTable = cmd.getArgs()[1];
         String keyspace = cmd.getOptionValue(KEYSPACE_OPTION);
         String cfamily = cmd.getOptionValue(COLFAM_OPTION);
+
+        DatabaseDescriptor.loadSchemas();
+        if (DatabaseDescriptor.getNonSystemTables().size() < 1)
+        {
+            String msg = "no non-system tables are defined";
+            System.err.println(msg);
+            throw new ConfigurationException(msg);
+        }
 
         importJson(json, keyspace, cfamily, ssTable);
         
