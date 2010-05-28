@@ -923,3 +923,8 @@ class TestMutations(CassandraTester):
 
     def test_describe_ring(self):
         assert list(client.describe_ring('Keyspace1'))[0].endpoints == ['127.0.0.1']
+    
+    def test_describe_ring_on_invalid_keyspace(self):
+        def req():
+            client.describe_ring('system')
+        _expect_exception(req, InvalidRequestException)

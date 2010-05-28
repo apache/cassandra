@@ -443,7 +443,8 @@ service Cassandra {
 
       for the same reason, we can't return a set here, even though
       order is neither important nor predictable. */
-  list<TokenRange> describe_ring(1:required string keyspace),
+  list<TokenRange> describe_ring(1:required string keyspace)
+                   throws (1:InvalidRequestException ire),
 
   /** describe specified keyspace */
   map<string, map<string, string>> describe_keyspace(1:required string keyspace)

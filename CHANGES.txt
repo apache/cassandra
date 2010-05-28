@@ -1,6 +1,7 @@
 0.6.3
  * retry to make streaming connections up to 8 times. (CASSANDRA-1019)
  * fix potential for duplicate rows seen by Hadoop jobs (CASSANDRA-1042)
+ * reject describe_ring() calls on invalid keyspaces (CASSANDRA-1111)
 
 0.6.2
  * fix contrib/word_count build. (CASSANDRA-992)

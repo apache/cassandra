@@ -213,6 +213,10 @@ public class ColumnFamilyInputFormat extends InputFormat<String, SortedMap<byte[
         {
             throw new RuntimeException(e);
         }
+        catch (InvalidRequestException e)
+        {
+            throw new RuntimeException(e);
+        }
         return map;
     }
 
