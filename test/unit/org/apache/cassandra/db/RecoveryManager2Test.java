@@ -53,7 +53,7 @@ public class RecoveryManager2Test extends CleanupHelper
         cfs.clearUnsafe();
         CommitLog.recover(); // this is a no-op. is testing this useful?
 
-        assert Util.getRangeSlice(cfs).rows.isEmpty();
+        assert Util.getRangeSlice(cfs).isEmpty();
     }
 
     private void insertRow(String key) throws IOException

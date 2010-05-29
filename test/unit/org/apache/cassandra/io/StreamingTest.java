@@ -55,8 +55,8 @@ public class StreamingTest extends CleanupHelper
 
         // confirm that the SSTable was transferred and registered
         ColumnFamilyStore cfstore = Table.open(tablename).getColumnFamilyStore(cfname);
-        RangeSliceReply rr = Util.getRangeSlice(cfstore);
-        assert rr.rows.size() == 1;
-        assert Arrays.equals(rr.rows.get(0).key.key, "key".getBytes());
+        List<Row> rows = Util.getRangeSlice(cfstore);
+        assert rows.size() == 1;
+        assert Arrays.equals(rows.get(0).key.key, "key".getBytes());
     }
 }

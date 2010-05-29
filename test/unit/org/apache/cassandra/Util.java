@@ -67,7 +67,7 @@ public class Util
         return bytes;
     }
     
-    public static RangeSliceReply getRangeSlice(ColumnFamilyStore cfs) throws IOException, ExecutionException, InterruptedException
+    public static List<Row> getRangeSlice(ColumnFamilyStore cfs) throws IOException, ExecutionException, InterruptedException
     {
         Token min = StorageService.getPartitioner().getMinimumToken();
         return cfs.getRangeSlice(null,

@@ -934,7 +934,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @throws ExecutionException
      * @throws InterruptedException
      */
-    public RangeSliceReply getRangeSlice(byte[] super_column, final AbstractBounds range, int keyMax, SliceRange sliceRange, List<byte[]> columnNames)
+    public List<Row> getRangeSlice(byte[] super_column, final AbstractBounds range, int keyMax, SliceRange sliceRange, List<byte[]> columnNames)
     throws ExecutionException, InterruptedException
     {
         List<Row> rows = new ArrayList<Row>();
@@ -956,7 +956,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
         }
 
-        return new RangeSliceReply(rows);
+        return rows;
     }
 
     public AbstractType getComparator()
@@ -1030,7 +1030,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             long i = 0;
             while (i < ssTables_.getRowCache().getCapacity())
             {
-                RangeSliceReply result;
+                List<Row> result;
                 try
                 {
                     SliceRange range = new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, ROWS);
@@ -1041,13 +1041,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     throw new RuntimeException(e);
                 }
 
-                for (Row row : result.rows)
+                for (Row row : result)
                     ssTables_.getRowCache().put(row.key, row.cf);
-                i += result.rows.size();
-                if (result.rows.size() < ROWS)
+                i += result.size();
+                if (result.size() < ROWS)
                     break;
 
-                start = DatabaseDescriptor.getPartitioner().getToken(result.rows.get(ROWS - 1).key.key);
+                start = DatabaseDescriptor.getPartitioner().getToken(result.get(ROWS - 1).key.key);
             }
             logger_.info(String.format("Loaded %s rows into the %s cache", i, columnFamily_));
         }

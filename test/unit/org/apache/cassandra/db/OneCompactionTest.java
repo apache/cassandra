@@ -48,7 +48,7 @@ public class OneCompactionTest extends CleanupHelper
             rm.apply();
             inserted.add(key);
             store.forceBlockingFlush();
-            assertEquals(inserted.size(), Util.getRangeSlice(store).rows.size());
+            assertEquals(inserted.size(), Util.getRangeSlice(store).size());
         }
         CompactionManager.instance.submitMajor(store).get();
         assertEquals(1, store.getSSTables().size());

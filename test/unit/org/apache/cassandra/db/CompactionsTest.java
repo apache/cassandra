@@ -62,7 +62,7 @@ public class CompactionsTest extends CleanupHelper
                 inserted.add(key);
             }
             store.forceBlockingFlush();
-            assertEquals(inserted.toString(), inserted.size(), Util.getRangeSlice(store).rows.size());
+            assertEquals(inserted.toString(), inserted.size(), Util.getRangeSlice(store).size());
         }
         while (true)
         {
@@ -74,7 +74,7 @@ public class CompactionsTest extends CleanupHelper
         {
             CompactionManager.instance.submitMajor(store).get();
         }
-        assertEquals(inserted.size(), Util.getRangeSlice(store).rows.size());
+        assertEquals(inserted.size(), Util.getRangeSlice(store).size());
     }
 
     @Test

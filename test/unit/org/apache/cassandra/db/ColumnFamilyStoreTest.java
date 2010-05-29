@@ -138,12 +138,12 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         ColumnFamilyStore cfs = insertKey1Key2();
 
         IPartitioner p = StorageService.getPartitioner();
-        RangeSliceReply result = cfs.getRangeSlice(ArrayUtils.EMPTY_BYTE_ARRAY,
-                                                   Util.range(p, "key15", "key1"),
-                                                   10,
-                                                   null,
-                                                   Arrays.asList("asdf".getBytes()));
-        assertEquals(2, result.rows.size());
+        List<Row> result = cfs.getRangeSlice(ArrayUtils.EMPTY_BYTE_ARRAY,
+                                             Util.range(p, "key15", "key1"),
+                                             10,
+                                             null,
+                                             Arrays.asList("asdf".getBytes()));
+        assertEquals(2, result.size());
     }
 
     @Test
@@ -152,13 +152,13 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         ColumnFamilyStore cfs = insertKey1Key2();
 
         IPartitioner p = StorageService.getPartitioner();
-        RangeSliceReply result = cfs.getRangeSlice(ArrayUtils.EMPTY_BYTE_ARRAY,
-                                                   Util.range(p, "key1", "key2"),
-                                                   10,
-                                                   null,
-                                                   Arrays.asList("asdf".getBytes()));
-        assertEquals(1, result.rows.size());
-        assert Arrays.equals(result.rows.get(0).key.key, "key2".getBytes());
+        List<Row> result = cfs.getRangeSlice(ArrayUtils.EMPTY_BYTE_ARRAY,
+                                             Util.range(p, "key1", "key2"),
+                                             10,
+                                             null,
+                                             Arrays.asList("asdf".getBytes()));
+        assertEquals(1, result.size());
+        assert Arrays.equals(result.get(0).key.key, "key2".getBytes());
     }
 
     private ColumnFamilyStore insertKey1Key2() throws IOException, ExecutionException, InterruptedException
