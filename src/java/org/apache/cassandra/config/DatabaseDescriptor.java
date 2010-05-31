@@ -218,7 +218,17 @@ public class DatabaseDescriptor
             {
                 throw new ConfigurationException("concurrent_writes must be at least 2");
             }
-            
+
+            /* Memtable flush writer threads */
+            if (conf.memtable_flush_writers != null && conf.memtable_flush_writers < 1)
+            {
+                throw new ConfigurationException("memtable_flush_writers must be at least 1");
+            }
+            else if (conf.memtable_flush_writers == null)
+            {
+                conf.memtable_flush_writers = conf.data_file_directories.length;
+            }
+
             /* Local IP or hostname to bind services to */
             if (conf.listen_address != null)
             {
@@ -778,6 +788,11 @@ public class DatabaseDescriptor
     public static int getConcurrentWriters()
     {
         return conf.concurrent_writes;
+    }
+
+    public static int getFlushWriters()
+    {
+            return conf.memtable_flush_writers;
     }
 
     public static long getRowWarningThreshold()
