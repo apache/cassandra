@@ -82,8 +82,7 @@ do_start()
         -cp `classpath` \
         -Xmx$JVM_MAX_MEM \
         -Xms$JVM_START_MEM \
-        -Dcassandra \
-        -Dstorage-config=$CONFDIR \
+        -Dlog4j.configuration=log4j-server.properties \
         -Dcom.sun.management.jmxremote.port=8080 \
         -Dcom.sun.management.jmxremote.ssl=false \
         -Dcom.sun.management.jmxremote.authenticate=false \
