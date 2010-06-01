@@ -25,6 +25,8 @@ import java.util.*;
 
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.thrift.SlicePredicate;
+import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.utils.ReducingIterator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -37,7 +39,7 @@ public class QueryFilter
     private final IFilter filter;
     private final IFilter superFilter;
 
-    protected QueryFilter(DecoratedKey key, QueryPath path, IFilter filter)
+    public QueryFilter(DecoratedKey key, QueryPath path, IFilter filter)
     {
         this.key = key;
         this.path = path;
@@ -176,6 +178,19 @@ public class QueryFilter
     public static QueryFilter getNamesFilter(DecoratedKey key, QueryPath path, SortedSet<byte[]> columns)
     {
         return new QueryFilter(key, path, new NamesQueryFilter(columns));
+    }
+
+    public static IFilter getFilter(SlicePredicate predicate, AbstractType comparator)
+    {
+        if (predicate.column_names != null)
+        {
+            final SortedSet<byte[]> columnNameSet = new TreeSet<byte[]>(comparator);
+            columnNameSet.addAll(predicate.column_names);
+            return new NamesQueryFilter(columnNameSet);
+        }
+
+        SliceRange range = predicate.slice_range;
+        return new SliceQueryFilter(range.start, range.finish, range.bitmasks, range.reversed, range.count);
     }
 
     /**

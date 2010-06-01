@@ -27,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.commons.lang.ArrayUtils;
 
@@ -73,8 +74,7 @@ public class Util
         return cfs.getRangeSlice(null,
                                  new Bounds(min, min),
                                  10000,
-                                 new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 10000),
-                                 null);
+                                 new IdentityQueryFilter());
     }
 
     /**

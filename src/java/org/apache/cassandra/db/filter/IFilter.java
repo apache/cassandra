@@ -35,7 +35,7 @@ import org.apache.cassandra.io.util.FileDataInput;
  * takes care of putting the two together if subcolumn filtering needs to be done, based on the
  * querypath that it knows (but that IFilter implementations are oblivious to).
  */
-interface IFilter
+public interface IFilter
 {
     /**
      * returns an iterator that returns columns from the given memtable

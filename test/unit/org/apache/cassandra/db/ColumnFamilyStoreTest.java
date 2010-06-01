@@ -141,8 +141,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         List<Row> result = cfs.getRangeSlice(ArrayUtils.EMPTY_BYTE_ARRAY,
                                              Util.range(p, "key15", "key1"),
                                              10,
-                                             null,
-                                             Arrays.asList("asdf".getBytes()));
+                                             new NamesQueryFilter("asdf".getBytes()));
         assertEquals(2, result.size());
     }
 
@@ -155,8 +154,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         List<Row> result = cfs.getRangeSlice(ArrayUtils.EMPTY_BYTE_ARRAY,
                                              Util.range(p, "key1", "key2"),
                                              10,
-                                             null,
-                                             Arrays.asList("asdf".getBytes()));
+                                             new NamesQueryFilter("asdf".getBytes()));
         assertEquals(1, result.size());
         assert Arrays.equals(result.get(0).key.key, "key2".getBytes());
     }

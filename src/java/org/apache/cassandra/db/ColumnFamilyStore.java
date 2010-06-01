@@ -860,11 +860,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
       * @param superColumn Super column to filter by
       * @param range Either a Bounds, which includes start key, or a Range, which does not.
       * @param maxResults Maximum rows to return
-      * @param sliceRange Information on how to slice columns
-      * @param columnNames Column names to filter by 
+      * @param columnFilter description of the columns we're interested in for each row
       * @return true if we found all keys we were looking for, otherwise false
      */
-    private boolean getRangeRows(List<Row> rows, byte[] superColumn, final AbstractBounds range, int maxResults, SliceRange sliceRange, List<byte[]> columnNames)
+    private boolean getRangeRows(List<Row> rows, byte[] superColumn, final AbstractBounds range, int maxResults, IFilter columnFilter)
     throws ExecutionException, InterruptedException
     {
         final DecoratedKey startWith = new DecoratedKey(range.left, (byte[])null);
@@ -873,13 +872,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         final int gcBefore = CompactionManager.getDefaultGCBefore();
 
         final QueryPath queryPath =  new QueryPath(columnFamily_, superColumn, null);
-        final SortedSet<byte[]> columnNameSet = new TreeSet<byte[]>(getComparator());
-        if (columnNames != null)
-            columnNameSet.addAll(columnNames);
 
-        final QueryFilter filter = sliceRange == null ? QueryFilter.getNamesFilter(null, queryPath, columnNameSet)
-                                                      : QueryFilter.getSliceFilter(null, queryPath, sliceRange.start, sliceRange.finish, sliceRange.bitmasks, sliceRange.reversed, sliceRange.count);
-
+        final QueryFilter filter = new QueryFilter(null, queryPath, columnFilter);
         Collection<Memtable> memtables = new ArrayList<Memtable>();
         memtables.add(getMemtableThreadSafe());
         memtables.addAll(memtablesPendingFlush);
@@ -929,30 +923,29 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @param super_column
      * @param range: either a Bounds, which includes start key, or a Range, which does not.
      * @param keyMax maximum number of keys to process, regardless of startKey/finishKey
-     * @param sliceRange may be null if columnNames is specified. specifies contiguous columns to return in what order.
-     * @param columnNames may be null if sliceRange is specified. specifies which columns to return in what order.      @return list of key->list<column> tuples.
+     * @param columnFilter description of the columns we're interested in for each row
      * @throws ExecutionException
      * @throws InterruptedException
      */
-    public List<Row> getRangeSlice(byte[] super_column, final AbstractBounds range, int keyMax, SliceRange sliceRange, List<byte[]> columnNames)
+    public List<Row> getRangeSlice(byte[] super_column, final AbstractBounds range, int keyMax, IFilter columnFilter)
     throws ExecutionException, InterruptedException
     {
         List<Row> rows = new ArrayList<Row>();
         boolean completed;
         if ((range instanceof Bounds || !((Range)range).isWrapAround()))
         {
-            completed = getRangeRows(rows, super_column, range, keyMax, sliceRange, columnNames);
+            completed = getRangeRows(rows, super_column, range, keyMax, columnFilter);
         }
         else
         {
             // wrapped range
             Token min = StorageService.getPartitioner().getMinimumToken();
             Range first = new Range(range.left, min);
-            completed = getRangeRows(rows, super_column, first, keyMax, sliceRange, columnNames);
+            completed = getRangeRows(rows, super_column, first, keyMax, columnFilter);
             if (!completed && min.compareTo(range.right) < 0)
             {
                 Range second = new Range(min, range.right);
-                getRangeRows(rows, super_column, second, keyMax, sliceRange, columnNames);
+                getRangeRows(rows, super_column, second, keyMax, columnFilter);
             }
         }
 
@@ -1033,8 +1026,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 List<Row> result;
                 try
                 {
-                    SliceRange range = new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, ROWS);
-                    result = getRangeSlice(null, new Bounds(start, min), ROWS, range, null);
+                    result = getRangeSlice(null, new Bounds(start, min), ROWS, new IdentityQueryFilter());
                 }
                 catch (Exception e)
                 {
