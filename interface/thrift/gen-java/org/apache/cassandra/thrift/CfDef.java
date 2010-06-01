@@ -53,10 +53,11 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
   private static final TField CLOCK_TYPE_FIELD_DESC = new TField("clock_type", TType.STRING, (short)4);
   private static final TField COMPARATOR_TYPE_FIELD_DESC = new TField("comparator_type", TType.STRING, (short)5);
   private static final TField SUBCOMPARATOR_TYPE_FIELD_DESC = new TField("subcomparator_type", TType.STRING, (short)6);
-  private static final TField COMMENT_FIELD_DESC = new TField("comment", TType.STRING, (short)7);
-  private static final TField ROW_CACHE_SIZE_FIELD_DESC = new TField("row_cache_size", TType.DOUBLE, (short)8);
-  private static final TField PRELOAD_ROW_CACHE_FIELD_DESC = new TField("preload_row_cache", TType.BOOL, (short)9);
-  private static final TField KEY_CACHE_SIZE_FIELD_DESC = new TField("key_cache_size", TType.DOUBLE, (short)10);
+  private static final TField RECONCILER_FIELD_DESC = new TField("reconciler", TType.STRING, (short)7);
+  private static final TField COMMENT_FIELD_DESC = new TField("comment", TType.STRING, (short)8);
+  private static final TField ROW_CACHE_SIZE_FIELD_DESC = new TField("row_cache_size", TType.DOUBLE, (short)9);
+  private static final TField PRELOAD_ROW_CACHE_FIELD_DESC = new TField("preload_row_cache", TType.BOOL, (short)10);
+  private static final TField KEY_CACHE_SIZE_FIELD_DESC = new TField("key_cache_size", TType.DOUBLE, (short)11);
 
   public String table;
   public String name;
@@ -64,6 +65,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
   public String clock_type;
   public String comparator_type;
   public String subcomparator_type;
+  public String reconciler;
   public String comment;
   public double row_cache_size;
   public boolean preload_row_cache;
@@ -77,10 +79,11 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     CLOCK_TYPE((short)4, "clock_type"),
     COMPARATOR_TYPE((short)5, "comparator_type"),
     SUBCOMPARATOR_TYPE((short)6, "subcomparator_type"),
-    COMMENT((short)7, "comment"),
-    ROW_CACHE_SIZE((short)8, "row_cache_size"),
-    PRELOAD_ROW_CACHE((short)9, "preload_row_cache"),
-    KEY_CACHE_SIZE((short)10, "key_cache_size");
+    RECONCILER((short)7, "reconciler"),
+    COMMENT((short)8, "comment"),
+    ROW_CACHE_SIZE((short)9, "row_cache_size"),
+    PRELOAD_ROW_CACHE((short)10, "preload_row_cache"),
+    KEY_CACHE_SIZE((short)11, "key_cache_size");
 
     private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
@@ -152,6 +155,8 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
         new FieldValueMetaData(TType.STRING)));
     put(_Fields.SUBCOMPARATOR_TYPE, new FieldMetaData("subcomparator_type", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
+    put(_Fields.RECONCILER, new FieldMetaData("reconciler", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.STRING)));
     put(_Fields.COMMENT, new FieldMetaData("comment", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
     put(_Fields.ROW_CACHE_SIZE, new FieldMetaData("row_cache_size", TFieldRequirementType.OPTIONAL, 
@@ -174,6 +179,8 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     this.comparator_type = "BytesType";
 
     this.subcomparator_type = "";
+
+    this.reconciler = "";
 
     this.comment = "";
 
@@ -217,6 +224,9 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     }
     if (other.isSetSubcomparator_type()) {
       this.subcomparator_type = other.subcomparator_type;
+    }
+    if (other.isSetReconciler()) {
+      this.reconciler = other.reconciler;
     }
     if (other.isSetComment()) {
       this.comment = other.comment;
@@ -379,6 +389,30 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     }
   }
 
+  public String getReconciler() {
+    return this.reconciler;
+  }
+
+  public CfDef setReconciler(String reconciler) {
+    this.reconciler = reconciler;
+    return this;
+  }
+
+  public void unsetReconciler() {
+    this.reconciler = null;
+  }
+
+  /** Returns true if field reconciler is set (has been asigned a value) and false otherwise */
+  public boolean isSetReconciler() {
+    return this.reconciler != null;
+  }
+
+  public void setReconcilerIsSet(boolean value) {
+    if (!value) {
+      this.reconciler = null;
+    }
+  }
+
   public String getComment() {
     return this.comment;
   }
@@ -522,6 +556,14 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
       }
       break;
 
+    case RECONCILER:
+      if (value == null) {
+        unsetReconciler();
+      } else {
+        setReconciler((String)value);
+      }
+      break;
+
     case COMMENT:
       if (value == null) {
         unsetComment();
@@ -581,6 +623,9 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     case SUBCOMPARATOR_TYPE:
       return getSubcomparator_type();
 
+    case RECONCILER:
+      return getReconciler();
+
     case COMMENT:
       return getComment();
 
@@ -616,6 +661,8 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
       return isSetComparator_type();
     case SUBCOMPARATOR_TYPE:
       return isSetSubcomparator_type();
+    case RECONCILER:
+      return isSetReconciler();
     case COMMENT:
       return isSetComment();
     case ROW_CACHE_SIZE:
@@ -696,6 +743,15 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
       if (!(this_present_subcomparator_type && that_present_subcomparator_type))
         return false;
       if (!this.subcomparator_type.equals(that.subcomparator_type))
+        return false;
+    }
+
+    boolean this_present_reconciler = true && this.isSetReconciler();
+    boolean that_present_reconciler = true && that.isSetReconciler();
+    if (this_present_reconciler || that_present_reconciler) {
+      if (!(this_present_reconciler && that_present_reconciler))
+        return false;
+      if (!this.reconciler.equals(that.reconciler))
         return false;
     }
 
@@ -805,6 +861,15 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetReconciler()).compareTo(typedOther.isSetReconciler());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetReconciler()) {      lastComparison = TBaseHelper.compareTo(reconciler, typedOther.reconciler);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     lastComparison = Boolean.valueOf(isSetComment()).compareTo(typedOther.isSetComment());
     if (lastComparison != 0) {
       return lastComparison;
@@ -896,14 +961,21 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 7: // COMMENT
+        case 7: // RECONCILER
+          if (field.type == TType.STRING) {
+            this.reconciler = iprot.readString();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 8: // COMMENT
           if (field.type == TType.STRING) {
             this.comment = iprot.readString();
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 8: // ROW_CACHE_SIZE
+        case 9: // ROW_CACHE_SIZE
           if (field.type == TType.DOUBLE) {
             this.row_cache_size = iprot.readDouble();
             setRow_cache_sizeIsSet(true);
@@ -911,7 +983,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 9: // PRELOAD_ROW_CACHE
+        case 10: // PRELOAD_ROW_CACHE
           if (field.type == TType.BOOL) {
             this.preload_row_cache = iprot.readBool();
             setPreload_row_cacheIsSet(true);
@@ -919,7 +991,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 10: // KEY_CACHE_SIZE
+        case 11: // KEY_CACHE_SIZE
           if (field.type == TType.DOUBLE) {
             this.key_cache_size = iprot.readDouble();
             setKey_cache_sizeIsSet(true);
@@ -977,6 +1049,13 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
       if (isSetSubcomparator_type()) {
         oprot.writeFieldBegin(SUBCOMPARATOR_TYPE_FIELD_DESC);
         oprot.writeString(this.subcomparator_type);
+        oprot.writeFieldEnd();
+      }
+    }
+    if (this.reconciler != null) {
+      if (isSetReconciler()) {
+        oprot.writeFieldBegin(RECONCILER_FIELD_DESC);
+        oprot.writeString(this.reconciler);
         oprot.writeFieldEnd();
       }
     }
@@ -1063,6 +1142,16 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
         sb.append("null");
       } else {
         sb.append(this.subcomparator_type);
+      }
+      first = false;
+    }
+    if (isSetReconciler()) {
+      if (!first) sb.append(", ");
+      sb.append("reconciler:");
+      if (this.reconciler == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.reconciler);
       }
       first = false;
     }

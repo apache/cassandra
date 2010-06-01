@@ -34,6 +34,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.clock.AbstractReconciler;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.ICompactSerializer2;
@@ -278,9 +279,10 @@ public abstract class SSTableReader extends SSTable implements Comparable<SSTabl
     {
         ColumnFamilyType cfType = DatabaseDescriptor.getColumnFamilyType(getTableName(), getColumnFamilyName());
         ClockType clockType = DatabaseDescriptor.getClockType(getTableName(), getColumnFamilyName());
+        AbstractReconciler reconciler = DatabaseDescriptor.getReconciler(getTableName(), getColumnFamilyName());
         return cfType == ColumnFamilyType.Standard
                ? Column.serializer(clockType)
-               : SuperColumn.serializer(getColumnComparator(), clockType);
+               : SuperColumn.serializer(getColumnComparator(), clockType, reconciler);
     }
 
     /**

@@ -30,10 +30,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.IClock.ClockRelationship;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.IClock.ClockRelationship;
+import org.apache.cassandra.db.clock.AbstractReconciler;
 import org.apache.cassandra.utils.FBUtilities;
 
 
@@ -41,27 +42,29 @@ public class SuperColumn implements IColumn, IColumnContainer
 {
 	private static Logger logger_ = LoggerFactory.getLogger(SuperColumn.class);
 
-    public static SuperColumnSerializer serializer(AbstractType comparator, ClockType clockType)
+    public static SuperColumnSerializer serializer(AbstractType comparator, ClockType clockType, AbstractReconciler reconciler)
     {
-        return new SuperColumnSerializer(comparator, clockType);
+        return new SuperColumnSerializer(comparator, clockType, reconciler);
     }
 
     private byte[] name_;
     private ConcurrentSkipListMap<byte[], IColumn> columns_;
     private AtomicInteger localDeletionTime = new AtomicInteger(Integer.MIN_VALUE);
     private AtomicReference<IClock> markedForDeleteAt;
+    private AbstractReconciler reconciler;
 
-    public SuperColumn(byte[] name, AbstractType comparator, ClockType clockType)
+    public SuperColumn(byte[] name, AbstractType comparator, ClockType clockType, AbstractReconciler reconciler)
     {
-        this(name, new ConcurrentSkipListMap<byte[], IColumn>(comparator), clockType);
+        this(name, new ConcurrentSkipListMap<byte[], IColumn>(comparator), clockType, reconciler);
     }
 
-    private SuperColumn(byte[] name, ConcurrentSkipListMap<byte[], IColumn> columns, ClockType clockType)
+    private SuperColumn(byte[] name, ConcurrentSkipListMap<byte[], IColumn> columns, ClockType clockType, AbstractReconciler reconciler)
     {
         assert name != null;
         assert name.length <= IColumn.MAX_NAME_LENGTH;
-    	name_ = name;
+        name_ = name;
         columns_ = columns;
+        this.reconciler = reconciler;
         markedForDeleteAt = new AtomicReference<IClock>(clockType.minClock());
     }
 
@@ -73,7 +76,7 @@ public class SuperColumn implements IColumn, IColumnContainer
     public SuperColumn cloneMeShallow()
     {
         IClock _markedForDeleteAt = markedForDeleteAt.get();
-        SuperColumn sc = new SuperColumn(name_, getComparator(), _markedForDeleteAt.type());
+        SuperColumn sc = new SuperColumn(name_, getComparator(), _markedForDeleteAt.type(), reconciler);
         sc.markForDeleteAt(localDeletionTime.get(), _markedForDeleteAt);
         return sc;
     }
@@ -81,7 +84,7 @@ public class SuperColumn implements IColumn, IColumnContainer
     public IColumn cloneMe()
     {
         IClock _markedForDeleteAt = markedForDeleteAt.get();
-        SuperColumn sc = new SuperColumn(name_, new ConcurrentSkipListMap<byte[], IColumn>(columns_), _markedForDeleteAt.type());
+        SuperColumn sc = new SuperColumn(name_, new ConcurrentSkipListMap<byte[], IColumn>(columns_), _markedForDeleteAt.type(), reconciler);
         sc.markForDeleteAt(localDeletionTime.get(), _markedForDeleteAt);
         return sc;
     }
@@ -166,18 +169,20 @@ public class SuperColumn implements IColumn, IColumnContainer
 
     public void addColumn(IColumn column)
     {
-    	assert column instanceof Column : "A super column can only contain simple columns";
+        assert column instanceof Column : "A super column can only contain simple columns";
+
         byte[] name = column.name();
         IColumn oldColumn = columns_.putIfAbsent(name, column);
-    	if (oldColumn != null)
+        if (oldColumn != null)
         {
-            ClockRelationship rel = ((Column)oldColumn).comparePriority((Column)column);
-            while (ClockRelationship.GREATER_THAN != rel)
+            IColumn reconciledColumn = reconciler.reconcile((Column)column, (Column)oldColumn);
+            while (!columns_.replace(name, oldColumn, reconciledColumn))
             {
-                if (columns_.replace(name, oldColumn, column))
-                    break;
+                // if unable to replace, then get updated old (existing) col
                 oldColumn = columns_.get(name);
-                rel = ((Column)oldColumn).comparePriority((Column)column);
+                // re-calculate reconciled col from updated old col and original new col
+                reconciledColumn = reconciler.reconcile((Column)column, (Column)oldColumn);
+                // try to re-update value, again
             }
     	}
     }
@@ -211,7 +216,7 @@ public class SuperColumn implements IColumn, IColumnContainer
     public IColumn diff(IColumn columnNew)
     {
         IClock _markedForDeleteAt = markedForDeleteAt.get();
-        IColumn columnDiff = new SuperColumn(columnNew.name(), ((SuperColumn)columnNew).getComparator(), _markedForDeleteAt.type());
+        IColumn columnDiff = new SuperColumn(columnNew.name(), ((SuperColumn)columnNew).getComparator(), _markedForDeleteAt.type(), reconciler);
         ClockRelationship rel = columnNew.getMarkedForDeleteAt().compare(_markedForDeleteAt);
         if (ClockRelationship.GREATER_THAN == rel)
         {
@@ -299,11 +304,13 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
 {
     private AbstractType comparator;
     private ClockType clockType;
+    private AbstractReconciler reconciler;
 
-    public SuperColumnSerializer(AbstractType comparator, ClockType clockType)
+    public SuperColumnSerializer(AbstractType comparator, ClockType clockType, AbstractReconciler reconciler)
     {
         this.comparator = comparator;
         this.clockType = clockType;
+        this.reconciler = reconciler;
     }
 
     public AbstractType getComparator()
@@ -337,7 +344,7 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
     public IColumn deserialize(DataInput dis) throws IOException
     {
         byte[] name = FBUtilities.readShortByteArray(dis);
-        SuperColumn superColumn = new SuperColumn(name, comparator, clockType);
+        SuperColumn superColumn = new SuperColumn(name, comparator, clockType, reconciler);
         int localDeleteTime = dis.readInt();
         if (localDeleteTime != Integer.MIN_VALUE && localDeleteTime <= 0)
         {

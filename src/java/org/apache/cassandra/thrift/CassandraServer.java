@@ -39,6 +39,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.clock.AbstractReconciler;
+import org.apache.cassandra.db.clock.TimestampReconciler;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -632,23 +634,7 @@ public class CassandraServer implements Cassandra.Iface
         
         try
         {
-            ColumnFamilyType cfType = ColumnFamilyType.create(cf_def.column_type);
-            if (cfType == null)
-            {
-              throw new InvalidRequestException("Invalid column type " + cf_def.column_type);
-            }
-            CFMetaData cfm = new CFMetaData(
-                        cf_def.table,
-                        cf_def.name,
-                        cfType,
-                        ClockType.Timestamp,
-                        DatabaseDescriptor.getComparator(cf_def.comparator_type),
-                        cf_def.subcomparator_type.length() == 0 ? null : DatabaseDescriptor.getComparator(cf_def.subcomparator_type),
-                        cf_def.comment,
-                        cf_def.row_cache_size,
-                        cf_def.preload_row_cache,
-                        cf_def.key_cache_size);
-            AddColumnFamily add = new AddColumnFamily(cfm);
+            AddColumnFamily add = new AddColumnFamily(convertToCFMetaData(cf_def));
             add.apply();
             add.announce();
             return DatabaseDescriptor.getDefsVersion().toString();
@@ -742,23 +728,7 @@ public class CassandraServer implements Cassandra.Iface
             Collection<CFMetaData> cfDefs = new ArrayList<CFMetaData>(ks_def.cf_defs.size());
             for (CfDef cfDef : ks_def.cf_defs)
             {
-                ColumnFamilyType cfType = ColumnFamilyType.create(cfDef.column_type);
-                if (cfType == null)
-                {
-                    throw new InvalidRequestException("Invalid column type " + cfDef.column_type);
-                }
-                CFMetaData cfm = new CFMetaData(
-                        cfDef.table,
-                        cfDef.name,
-                        cfType,
-                        ClockType.Timestamp,
-                        DatabaseDescriptor.getComparator(cfDef.comparator_type),
-                        cfDef.subcomparator_type.length() == 0 ? null : DatabaseDescriptor.getComparator(cfDef.subcomparator_type),
-                        cfDef.comment,
-                        cfDef.row_cache_size,
-                        cfDef.preload_row_cache,
-                        cfDef.key_cache_size);
-                cfDefs.add(cfm);
+                cfDefs.add(convertToCFMetaData(cfDef));
             }
             
             KSMetaData ksm = new KSMetaData(
@@ -847,6 +817,42 @@ public class CassandraServer implements Cassandra.Iface
             ex.initCause(e);
             throw ex;
         }
+    }
+    
+    private CFMetaData convertToCFMetaData(CfDef cf_def) throws InvalidRequestException, ConfigurationException
+    {
+        ColumnFamilyType cfType = ColumnFamilyType.create(cf_def.column_type);
+        if (cfType == null)
+        {
+          throw new InvalidRequestException("Invalid column type " + cf_def.column_type);
+        }
+        ClockType clockType = ClockType.create(cf_def.clock_type);
+        if (clockType == null)
+        {
+            throw new InvalidRequestException("Invalid clock type " + cf_def.clock_type);
+        }
+        AbstractReconciler reconciler = DatabaseDescriptor.getReconciler(cf_def.reconciler);
+        if (reconciler == null)
+        {
+            if (clockType == ClockType.Timestamp)    
+                reconciler = new TimestampReconciler(); // default
+            else
+                throw new ConfigurationException("No reconciler specified for column family " + cf_def.name);
+
+        }
+        
+        return new CFMetaData(
+                    cf_def.table,
+                    cf_def.name,
+                    cfType,
+                    clockType,
+                    DatabaseDescriptor.getComparator(cf_def.comparator_type),
+                    cf_def.subcomparator_type.length() == 0 ? null : DatabaseDescriptor.getComparator(cf_def.subcomparator_type),
+                    reconciler,
+                    cf_def.comment,
+                    cf_def.row_cache_size,
+                    cf_def.preload_row_cache,
+                    cf_def.key_cache_size);
     }
 
     @Override

@@ -24,7 +24,6 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
-import java.nio.ByteBuffer;
 
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
@@ -174,7 +173,7 @@ public class RowMutation
         else if (path.columnName == null)
         {
             SuperColumn sc = new SuperColumn(path.superColumnName, columnFamily.getSubComparator(), 
-                    columnFamily.getClockType());
+                    columnFamily.getClockType(), columnFamily.getReconciler());
             sc.markForDeleteAt(localDeleteTime, clock);
             columnFamily.addColumn(sc);
         }

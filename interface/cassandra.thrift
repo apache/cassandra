@@ -322,10 +322,11 @@ struct CfDef {
     4: optional string clock_type="Timestamp",
     5: optional string comparator_type="BytesType",
     6: optional string subcomparator_type="",
-    7: optional string comment="",
-    8: optional double row_cache_size=0,
-    9: optional bool preload_row_cache=0,
-    10: optional double key_cache_size=200000,
+    7: optional string reconciler="",
+    8: optional string comment="",
+    9: optional double row_cache_size=0,
+    10: optional bool preload_row_cache=0,
+    11: optional double key_cache_size=200000
 }
 
 /* describes a keyspace. */

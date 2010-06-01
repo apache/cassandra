@@ -19,7 +19,6 @@
 package org.apache.cassandra.db;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
@@ -27,18 +26,17 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.cassandra.config.CFMetaData;
 
+import org.apache.cassandra.db.IClock.ClockRelationship;
+import org.apache.cassandra.db.clock.AbstractReconciler;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.ICompactSerializer2;
-import org.apache.cassandra.db.IClock.ClockRelationship;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 
 public class ColumnFamily implements IColumnContainer
 {
@@ -64,31 +62,33 @@ public class ColumnFamily implements IColumnContainer
     {
         if (cfm == null)
             throw new IllegalArgumentException("Unknown column family.");
-        return new ColumnFamily(cfm.cfType, cfm.clockType, cfm.comparator, cfm.subcolumnComparator, cfm.cfId);
+        return new ColumnFamily(cfm.cfType, cfm.clockType, cfm.comparator, cfm.subcolumnComparator, cfm.reconciler, cfm.cfId);
     }
 
     private final int cfid;
     private final ColumnFamilyType type;
     private final ClockType clockType;
+    private final AbstractReconciler reconciler;
 
     private transient ICompactSerializer2<IColumn> columnSerializer;
     final AtomicReference<IClock> markedForDeleteAt;
     final AtomicInteger localDeletionTime = new AtomicInteger(Integer.MIN_VALUE);
     private ConcurrentSkipListMap<byte[], IColumn> columns;
 
-    public ColumnFamily(ColumnFamilyType type, ClockType clockType, AbstractType comparator, AbstractType subcolumnComparator, int cfid)
+    public ColumnFamily(ColumnFamilyType type, ClockType clockType, AbstractType comparator, AbstractType subcolumnComparator, AbstractReconciler reconciler, int cfid)
     {
         this.type = type;
         this.clockType = clockType;
+        this.reconciler = reconciler;
         this.markedForDeleteAt = new AtomicReference<IClock>(clockType.minClock());
-        columnSerializer = type == ColumnFamilyType.Standard ? Column.serializer(clockType) : SuperColumn.serializer(subcolumnComparator, clockType);
+        columnSerializer = type == ColumnFamilyType.Standard ? Column.serializer(clockType) : SuperColumn.serializer(subcolumnComparator, clockType, reconciler);
         columns = new ConcurrentSkipListMap<byte[], IColumn>(comparator);
         this.cfid = cfid;
      }
     
     public ColumnFamily cloneMeShallow()
     {
-        ColumnFamily cf = new ColumnFamily(type, clockType, getComparator(), getSubComparator(), cfid);
+        ColumnFamily cf = new ColumnFamily(type, clockType, getComparator(), getSubComparator(), reconciler, cfid);
         cf.markedForDeleteAt.set(markedForDeleteAt.get());
         cf.localDeletionTime.set(localDeletionTime.get());
         return cf;
@@ -107,6 +107,11 @@ public class ColumnFamily implements IColumnContainer
     public ClockType getClockType()
     {
         return clockType;
+    }
+    
+    public AbstractReconciler getReconciler()
+    {
+        return reconciler;
     }
 
     public ColumnFamily cloneMe()
@@ -204,7 +209,7 @@ public class ColumnFamily implements IColumnContainer
         else
         {
             assert isSuper();
-            c = new SuperColumn(superColumnName, getSubComparator(), clockType);
+            c = new SuperColumn(superColumnName, getSubComparator(), clockType, reconciler);
             c.addColumn(column); // checks subcolumn name
         }
         addColumn(c);
@@ -231,11 +236,15 @@ public class ColumnFamily implements IColumnContainer
             }
             else
             {
-                while (ClockRelationship.GREATER_THAN != ((Column) oldColumn).comparePriority((Column) column))
+                // calculate reconciled col from old (existing) col and new col
+                IColumn reconciledColumn = reconciler.reconcile((Column)column, (Column)oldColumn);
+                while (!columns.replace(name, oldColumn, reconciledColumn))
                 {
-                    if (columns.replace(name, oldColumn, column))
-                        break;
+                    // if unable to replace, then get updated old (existing) col
                     oldColumn = columns.get(name);
+                    // re-calculate reconciled col from updated old col and original new col
+                    reconciledColumn = reconciler.reconcile((Column)column, (Column)oldColumn);
+                    // try to re-update value, again
                 }
             }
         }
@@ -291,7 +300,7 @@ public class ColumnFamily implements IColumnContainer
      */
     public ColumnFamily diff(ColumnFamily cfComposite)
     {
-        ColumnFamily cfDiff = new ColumnFamily(cfComposite.type, cfComposite.clockType, getComparator(), getSubComparator(), cfComposite.id());
+        ColumnFamily cfDiff = new ColumnFamily(cfComposite.type, cfComposite.clockType, getComparator(), getSubComparator(), cfComposite.reconciler, cfComposite.id());
         ClockRelationship rel = cfComposite.getMarkedForDeleteAt().compare(getMarkedForDeleteAt());
         if (ClockRelationship.GREATER_THAN == rel)
         {

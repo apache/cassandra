@@ -32,6 +32,7 @@ import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.auth.SimpleAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.clock.AbstractReconciler;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.thrift.*;
@@ -290,7 +291,8 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
     {
         AbstractType subComparator = DatabaseDescriptor.getSubComparator(keyspace, cfName);
         ClockType clockType = DatabaseDescriptor.getClockType(keyspace, cfName);
-        org.apache.cassandra.db.SuperColumn sc = new org.apache.cassandra.db.SuperColumn(super_column.name, subComparator, clockType);
+        AbstractReconciler reconciler = DatabaseDescriptor.getReconciler(keyspace, cfName);
+        org.apache.cassandra.db.SuperColumn sc = new org.apache.cassandra.db.SuperColumn(super_column.name, subComparator, clockType, reconciler);
         for (Column column : super_column.columns)
         {
             sc.addColumn(unthriftifySimple(column));

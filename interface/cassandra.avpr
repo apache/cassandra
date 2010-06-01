@@ -84,6 +84,7 @@
             {"name": "clock_type", "type": ["string", "null"]},
             {"name": "comparator_type", "type": ["string", "null"]},
             {"name": "subcomparator_type", "type": ["string", "null"]},
+            {"name": "reconciler", "type": ["string", "null"]},
             {"name": "comment", "type": ["string", "null"]},
             {"name": "row_cache_size", "type": ["double", "null"]},
             {"name": "preload_row_cache", "type": ["boolean", "null"]},
