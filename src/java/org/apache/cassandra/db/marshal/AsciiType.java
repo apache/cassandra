@@ -25,6 +25,10 @@ import java.io.UnsupportedEncodingException;
 
 public class AsciiType extends BytesType
 {
+    public static final AsciiType instance = new AsciiType();
+
+    AsciiType() {} // singleton
+
     @Override
     public String getString(byte[] bytes)
     {

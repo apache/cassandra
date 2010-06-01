@@ -497,7 +497,7 @@ public class TableTest extends CleanupHelper
 
         RowMutation rm = new RowMutation("Keyspace1", ROW.key);
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Super1");
-        SuperColumn sc = new SuperColumn("sc1".getBytes(), new LongType(), ClockType.Timestamp);
+        SuperColumn sc = new SuperColumn("sc1".getBytes(), LongType.instance, ClockType.Timestamp);
         sc.addColumn(new Column(getBytes(1), "val1".getBytes(), new TimestampClock(1L)));
         cf.addColumn(sc);
         rm.add(cf);

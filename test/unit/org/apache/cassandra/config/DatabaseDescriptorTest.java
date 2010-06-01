@@ -38,7 +38,7 @@ public class DatabaseDescriptorTest
     }
 
     @Test
-    public void testCFMetaDataSerialization() throws IOException
+    public void testCFMetaDataSerialization() throws IOException, ConfigurationException
     {
         // test serialization of all defined test CFs.
         for (String table : DatabaseDescriptor.getNonSystemTables())

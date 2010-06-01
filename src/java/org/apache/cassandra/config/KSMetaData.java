@@ -108,10 +108,9 @@ public final class KSMetaData
             {
                 cfMetaData[i] = CFMetaData.deserialize(din);
             }
-            catch (IOException ex)
+            catch (ConfigurationException e)
             {
-                System.err.println(name);
-                throw ex;
+                throw new IOException(e);
             }
         }
 

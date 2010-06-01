@@ -119,7 +119,7 @@ public class SystemTable
         /* Read the system table to retrieve the storage ID and the generation */
         IPartitioner p = StorageService.getPartitioner();
         Table table = Table.open(Table.SYSTEM_TABLE);
-        SortedSet<byte[]> columns = new TreeSet<byte[]>(new BytesType());
+        SortedSet<byte[]> columns = new TreeSet<byte[]>(BytesType.instance);
         columns.add(TOKEN);
         columns.add(GENERATION);
         columns.add(CLUSTERNAME);

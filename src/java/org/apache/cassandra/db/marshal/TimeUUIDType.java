@@ -26,6 +26,10 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class TimeUUIDType extends AbstractType
 {
+    public static final TimeUUIDType instance = new TimeUUIDType();
+
+    TimeUUIDType() {} // singleton
+
     public int compare(byte[] o1, byte[] o2)
     {
         if (o1.length == 0)

@@ -61,7 +61,7 @@ public class UUIDTests
     @Test
     public void testTimeUUIDType() throws UnknownHostException
     {
-        TimeUUIDType comp = new TimeUUIDType();
+        TimeUUIDType comp = TimeUUIDType.instance;
         byte[] first = UUIDGen.decompose(UUIDGen.makeType1UUIDFromHost(InetAddress.getByName("127.0.0.1")));
         byte[] second = UUIDGen.decompose(UUIDGen.makeType1UUIDFromHost(InetAddress.getByName("127.0.0.1")));
         assert comp.compare(first, second) < 0;

@@ -45,7 +45,14 @@ public class AddColumnFamily extends Migration
     {
         super(UUIDGen.makeType1UUID(din), UUIDGen.makeType1UUID(din));
         rm = RowMutation.serializer().deserialize(din);
-        cfm = CFMetaData.deserialize(din);
+        try
+        {
+            cfm = CFMetaData.deserialize(din);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IOException(e);
+        }
     }
     
     public AddColumnFamily(CFMetaData cfm) throws ConfigurationException, IOException
@@ -111,7 +118,7 @@ public class AddColumnFamily extends Migration
         }
 
         public AddColumnFamily deserialize(DataInputStream dis) throws IOException
-        { 
+        {
             return new AddColumnFamily(dis);
         }
     }

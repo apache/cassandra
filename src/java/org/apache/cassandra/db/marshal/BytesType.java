@@ -27,6 +27,10 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class BytesType extends AbstractType
 {
+    public static final BytesType instance = new BytesType();
+
+    BytesType() {} // singleton
+    
     public int compare(byte[] o1, byte[] o2)
     {
         return FBUtilities.compareByteArrays(o1, o2);

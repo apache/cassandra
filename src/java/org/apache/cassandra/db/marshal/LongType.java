@@ -26,6 +26,10 @@ import java.nio.ByteOrder;
 
 public class LongType extends AbstractType
 {
+    public static final LongType instance = new LongType();
+
+    LongType() {} // singleton
+
     public int compare(byte[] o1, byte[] o2)
     {
         if (o1.length == 0)

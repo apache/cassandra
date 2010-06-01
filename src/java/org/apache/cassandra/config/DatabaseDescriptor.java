@@ -50,6 +50,7 @@ import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.net.InetAddress;
@@ -541,8 +542,8 @@ public class DatabaseDescriptor
     }
 
     public static AbstractType getComparator(String compareWith) throws ConfigurationException
-//    throws ConfigurationException, TransformerException, NoSuchMethodException, InvocationTargetException, IllegalAccessException, InstantiationException
     {
+        logger.info(compareWith);
         Class<? extends AbstractType> typeClass;
         
         if (compareWith == null)
@@ -561,29 +562,19 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("Unable to load class " + className);
             }
         }
+
         try
         {
-            return typeClass.getConstructor().newInstance();
+            Field field = typeClass.getDeclaredField("instance");
+            return (AbstractType) field.get(null);
         }
-        catch (InstantiationException e)
+        catch (NoSuchFieldException e)
         {
             ConfigurationException ex = new ConfigurationException(e.getMessage());
             ex.initCause(e);
             throw ex;
         }
         catch (IllegalAccessException e)
-        {
-            ConfigurationException ex = new ConfigurationException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
-        catch (InvocationTargetException e)
-        {
-            ConfigurationException ex = new ConfigurationException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
-        catch (NoSuchMethodException e)
         {
             ConfigurationException ex = new ConfigurationException(e.getMessage());
             ex.initCause(e);

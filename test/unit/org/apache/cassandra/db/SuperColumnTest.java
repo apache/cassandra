@@ -28,7 +28,7 @@ public class SuperColumnTest
 {   
     @Test
     public void testMissingSubcolumn() {
-    	SuperColumn sc = new SuperColumn("sc1".getBytes(), new LongType(), ClockType.Timestamp);
+    	SuperColumn sc = new SuperColumn("sc1".getBytes(), LongType.instance, ClockType.Timestamp);
     	sc.addColumn(new Column(getBytes(1), "value".getBytes(), new TimestampClock(1)));
     	assertNotNull(sc.getSubColumn(getBytes(1)));
     	assertNull(sc.getSubColumn(getBytes(2)));

@@ -25,6 +25,10 @@ import java.io.UnsupportedEncodingException;
 
 public class UTF8Type extends AbstractType
 {
+    public static final UTF8Type instance = new UTF8Type();
+
+    UTF8Type() {} // singleton
+
     public int compare(byte[] o1, byte[] o2)
     {
         try

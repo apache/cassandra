@@ -26,6 +26,10 @@ import java.nio.ByteBuffer;
 
 public class LexicalUUIDType extends AbstractType
 {
+    public static final LexicalUUIDType instance = new LexicalUUIDType();
+
+    LexicalUUIDType() {} // singleton
+
     static UUID getUUID(byte[] bytes)
     {
         ByteBuffer bb = ByteBuffer.wrap(bytes);

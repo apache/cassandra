@@ -46,10 +46,10 @@ public class RowTest extends SchemaLoader
     @Test
     public void testDiffSuperColumn()
     {
-        SuperColumn sc1 = new SuperColumn("one".getBytes(), new AsciiType(), ClockType.Timestamp);
+        SuperColumn sc1 = new SuperColumn("one".getBytes(), AsciiType.instance, ClockType.Timestamp);
         sc1.addColumn(column("subcolumn", "A", new TimestampClock(0)));
 
-        SuperColumn sc2 = new SuperColumn("one".getBytes(), new AsciiType(), ClockType.Timestamp);
+        SuperColumn sc2 = new SuperColumn("one".getBytes(), AsciiType.instance, ClockType.Timestamp);
         sc2.markForDeleteAt(0, new TimestampClock(0));
 
         SuperColumn scDiff = (SuperColumn)sc1.diff(sc2);

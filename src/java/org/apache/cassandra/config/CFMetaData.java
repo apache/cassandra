@@ -55,10 +55,10 @@ public final class CFMetaData
     
     private static final BiMap<Pair<String, String>, Integer> cfIdMap = HashBiMap.<Pair<String, String>, Integer>create();
     
-    public static final CFMetaData StatusCf = new CFMetaData(Table.SYSTEM_TABLE, SystemTable.STATUS_CF, ColumnFamilyType.Standard, ClockType.Timestamp, new UTF8Type(), null, "persistent metadata for the local node", 0, false, 0.01, 0);
-    public static final CFMetaData HintsCf = new CFMetaData(Table.SYSTEM_TABLE, HintedHandOffManager.HINTS_CF, ColumnFamilyType.Super, ClockType.Timestamp, new UTF8Type(), new BytesType(), "hinted handoff data", 0, false, 0.01, 1);
-    public static final CFMetaData MigrationsCf = new CFMetaData(Table.SYSTEM_TABLE, Migration.MIGRATIONS_CF, ColumnFamilyType.Standard, ClockType.Timestamp, new TimeUUIDType(), null, "individual schema mutations", 0, false, 2);
-    public static final CFMetaData SchemaCf = new CFMetaData(Table.SYSTEM_TABLE, Migration.SCHEMA_CF, ColumnFamilyType.Standard, ClockType.Timestamp, new UTF8Type(), null, "current state of the schema", 0, false, 3);
+    public static final CFMetaData StatusCf = new CFMetaData(Table.SYSTEM_TABLE, SystemTable.STATUS_CF, ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, "persistent metadata for the local node", 0, false, 0.01, 0);
+    public static final CFMetaData HintsCf = new CFMetaData(Table.SYSTEM_TABLE, HintedHandOffManager.HINTS_CF, ColumnFamilyType.Super, ClockType.Timestamp, UTF8Type.instance, BytesType.instance, "hinted handoff data", 0, false, 0.01, 1);
+    public static final CFMetaData MigrationsCf = new CFMetaData(Table.SYSTEM_TABLE, Migration.MIGRATIONS_CF, ColumnFamilyType.Standard, ClockType.Timestamp, TimeUUIDType.instance, null, "individual schema mutations", 0, false, 2);
+    public static final CFMetaData SchemaCf = new CFMetaData(Table.SYSTEM_TABLE, Migration.SCHEMA_CF, ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, "current state of the schema", 0, false, 3);
 
     /**
      * @return An immutable mapping of (ksname,cfname) to id.
@@ -122,7 +122,7 @@ public final class CFMetaData
         this.comparator = comparator;
         // the default subcolumncomparator is null per thrift spec, but only should be null if cfType == Standard. If
         // cfType == Super, subcolumnComparator should default to BytesType if not set.
-        this.subcolumnComparator = subcolumnComparator == null && cfType == ColumnFamilyType.Super ? new BytesType() : subcolumnComparator;
+        this.subcolumnComparator = subcolumnComparator == null && cfType == ColumnFamilyType.Super ? BytesType.instance : subcolumnComparator;
         this.comment = comment;
         this.rowCacheSize = rowCacheSize;
         this.preloadRowCache = preloadRowCache;
@@ -207,31 +207,16 @@ public final class CFMetaData
         return bout.toByteArray();
     }
 
-    public static CFMetaData deserialize(InputStream in) throws IOException
+    public static CFMetaData deserialize(InputStream in) throws IOException, ConfigurationException
     {
         DataInputStream din = new DataInputStream(in);
         String tableName = din.readUTF();
         String cfName = din.readUTF();
         ColumnFamilyType cfType = ColumnFamilyType.create(din.readUTF());
         ClockType clockType = ClockType.create(din.readUTF());
-        AbstractType comparator = null;
-        try
-        {
-            comparator = (AbstractType)Class.forName(din.readUTF()).newInstance();
-        }
-        catch (Exception ex)
-        {
-            throw new IOException(ex);
-        }
+        AbstractType comparator = DatabaseDescriptor.getComparator(din.readUTF());
         AbstractType subcolumnComparator = null;
-        try
-        {
-            subcolumnComparator = din.readBoolean() ? (AbstractType)Class.forName(din.readUTF()).newInstance() : null;
-        }
-        catch (Exception ex)
-        {
-            throw new IOException(ex);
-        }
+        subcolumnComparator = din.readBoolean() ? DatabaseDescriptor.getComparator(din.readUTF()) : null;
         String comment = din.readBoolean() ? din.readUTF() : null;
         double rowCacheSize = din.readDouble();
         boolean preloadRowCache = din.readBoolean();
