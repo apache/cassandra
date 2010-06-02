@@ -53,6 +53,7 @@ import java.util.List;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.clock.TimestampReconciler;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.BigIntegerToken;
@@ -234,6 +235,7 @@ public class CassandraBulkLoader {
                                             ClockType.Timestamp,
                                             DatabaseDescriptor.getComparator(Keyspace, CFName),
                                             DatabaseDescriptor.getSubComparator(Keyspace, CFName),
+                                            new TimestampReconciler(),
                                             CFMetaData.getId(Keyspace, CFName));
         
         for(ColumnFamily cf : ColumnFamiles) {
