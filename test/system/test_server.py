@@ -913,7 +913,7 @@ class TestMutations(CassandraTester):
         kspaces = client.describe_keyspaces()
         assert len(kspaces) == 5, kspaces # ['Keyspace1', 'Keyspace2', 'Keyspace3', 'Keyspace4', 'system']
         ks1 = client.describe_keyspace("Keyspace1")
-        assert set(ks1.keys()) == set(['Super1', 'Standard1', 'Standard2', 'StandardLong1', 'StandardLong2', 'Super3', 'Super2', 'Super4'])
+        assert set(ks1.keys()) == set(['Super1', 'Standard1', 'Standard2', 'Standard3', 'Standard4', 'StandardLong1', 'StandardLong2', 'Super3', 'Super2', 'Super4'])
         sysks = client.describe_keyspace("system")
 
     def test_describe(self):
