@@ -131,9 +131,6 @@ public class CassandraServer implements Cassandra {
         if (consistency == ConsistencyLevel.ZERO)
             throw newInvalidRequestException("Consistency level zero may not be applied to read operations");
         
-        if (consistency == ConsistencyLevel.ALL)
-            throw newInvalidRequestException("Consistency level all is not yet supported on read operations");
-        
         List<Row> rows;
         try
         {
