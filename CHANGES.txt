@@ -4,6 +4,7 @@
  * reject describe_ring() calls on invalid keyspaces (CASSANDRA-1111)
  * fix cache size calculation for size of 100% (CASSANDRA-1129)
  * fix cache capacity only being recalculated once (CASSANDRA-1129)
+ * don't reject reads at CL.ALL (CASSANDRA-1152)
 
 
 0.6.2
