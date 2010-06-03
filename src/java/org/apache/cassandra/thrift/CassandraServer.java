@@ -95,10 +95,6 @@ public class CassandraServer implements Cassandra.Iface
         {
             throw new InvalidRequestException("Consistency level zero may not be applied to read operations");
         }
-        if (consistency_level == ConsistencyLevel.ALL)
-        {
-            throw new InvalidRequestException("Consistency level all is not yet supported on read operations");
-        }
         if (consistency_level == ConsistencyLevel.ANY)
         {
             throw new InvalidRequestException("Consistency level any may not be applied to read operations");
