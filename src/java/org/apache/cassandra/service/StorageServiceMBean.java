@@ -19,6 +19,7 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -191,4 +192,7 @@ public interface StorageServiceMBean
      * @throws UnavailableException if some of the hosts in the ring are down.
      */
     public void truncate(String keyspace, String columnFamily) throws UnavailableException, TimeoutException, IOException;
+
+    /** force hint delivery to an endpoint **/
+    public void deliverHints(String host) throws UnknownHostException;
 }
