@@ -38,7 +38,7 @@ if [ "x$PIG_HOME" = "x" ]; then
 fi
 
 # pig jar.
-PIG_JAR=$PIG_HOME/pig.jar
+PIG_JAR=$PIG_HOME/pig*core.jar
 if [ ! -e $PIG_JAR ]; then
     echo "Unable to locate Pig jar" >&2
     exit 1
