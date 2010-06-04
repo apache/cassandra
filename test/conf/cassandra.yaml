@@ -30,6 +30,12 @@ keyspaces:
 
         - name: Standard2
 
+        - name: Standard3
+          keys_cached: 0.5
+
+        - name: Standard4
+          keys_cached: 1.0
+
         - name: StandardLong1
           compare_with: LongType
           clock_type: Timestamp

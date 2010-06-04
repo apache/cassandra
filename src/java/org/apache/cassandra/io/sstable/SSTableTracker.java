@@ -100,7 +100,7 @@ public class SSTableTracker implements Iterable<SSTableReader>
     {
         long keys = estimatedKeys();
 
-        if (!keyCache.isCapacityModified())
+        if (!keyCache.isCapacitySetManually())
         {
             int keyCacheSize = DatabaseDescriptor.getKeysCachedFor(ksname, cfname, keys);
             if (keyCacheSize != keyCache.getCapacity())
@@ -108,18 +108,18 @@ public class SSTableTracker implements Iterable<SSTableReader>
                 // update cache size for the new key volume
                 if (logger.isDebugEnabled())
                     logger.debug("key cache capacity for " + cfname + " is " + keyCacheSize);
-                keyCache.setCapacity(keyCacheSize);
+                keyCache.updateCapacity(keyCacheSize);
             }
         }
 
-        if (!rowCache.isCapacityModified())
+        if (!rowCache.isCapacitySetManually())
         {
             int rowCacheSize = DatabaseDescriptor.getRowsCachedFor(ksname, cfname, keys);
             if (rowCacheSize != rowCache.getCapacity())
             {
                 if (logger.isDebugEnabled())
                     logger.debug("row cache capacity for " + cfname + " is " + rowCacheSize);
-                rowCache.setCapacity(rowCacheSize);
+                rowCache.updateCapacity(rowCacheSize);
             }
         }
     }

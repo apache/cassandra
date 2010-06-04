@@ -140,7 +140,7 @@ class RowIndexedReader extends SSTableReader
 
     public long estimatedKeys()
     {
-        return (indexSummary.getIndexPositions().size() + 1) * IndexSummary.INDEX_INTERVAL;
+        return indexSummary.getIndexPositions().size() * IndexSummary.INDEX_INTERVAL;
     }
 
     public Collection<DecoratedKey> getKeySamples()
