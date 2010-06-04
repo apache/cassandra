@@ -26,9 +26,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 
+import com.google.common.collect.Iterators;
+import com.google.common.collect.PeekingIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.*;
@@ -207,39 +208,24 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     public static IColumnIterator getSliceIterator(final DecoratedKey key, final ColumnFamily cf, SliceQueryFilter filter, AbstractType typeComparator)
     {
         assert cf != null;
-        Collection<IColumn> rawColumns = cf.getSortedColumns();
-        Collection<IColumn> filteredColumns = filter.applyPredicate(rawColumns);
+        final boolean isSuper = cf.isSuper();
+        final Collection<IColumn> filteredColumns = filter.reversed ? filter.applyPredicate(cf.getReverseSortedColumns()) : filter.applyPredicate(cf.getSortedColumns());
 
-        final IColumn columns[] = filteredColumns.toArray(new IColumn[0]);
-        // TODO if we are dealing with supercolumns, we need to clone them while we have the read lock since they can be modified later
-        if (filter.reversed)
-            ArrayUtils.reverse(columns);
-        IColumn startIColumn;
-        final boolean isStandard = !cf.isSuper();
-        if (isStandard)
-            startIColumn = new Column(filter.start);
-        else
-            startIColumn = new SuperColumn(filter.start, null, cf.getClockType(), cf.getReconciler()); // ok to not have subcolumnComparator since we won't be adding columns to this object
-
-        // can't use a ColumnComparatorFactory comparator since those compare on both name and time (and thus will fail to match
-        // our dummy column, since the time there is arbitrary).
+        // ok to not have subcolumnComparator since we won't be adding columns to this object
+        IColumn startColumn = isSuper ? new SuperColumn(filter.start, null, cf.getClockType(), cf.getReconciler()) :  new Column(filter.start);
         Comparator<IColumn> comparator = filter.getColumnComparator(typeComparator);
-        int index;
-        if (filter.start.length == 0 && filter.reversed)
+
+        final PeekingIterator<IColumn> filteredIter = Iterators.peekingIterator(filteredColumns.iterator());
+        if (!filter.reversed || filter.start.length != 0)
         {
-            /* scan from the largest column in descending order */
-            index = 0;
+            while (filteredIter.hasNext() && comparator.compare(filteredIter.peek(), startColumn) < 0)
+            {
+                filteredIter.next();
+            }
         }
-        else
-        {
-            index = Arrays.binarySearch(columns, startIColumn, comparator);
-        }
-        final int startIndex = index < 0 ? -(index + 1) : index;
 
         return new AbstractColumnIterator()
         {
-            private int curIndex_ = startIndex;
-
             public ColumnFamily getColumnFamily()
             {
                 return cf;
@@ -252,13 +238,14 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 
             public boolean hasNext()
             {
-                return curIndex_ < columns.length;
+                return filteredIter.hasNext();
             }
 
             public IColumn next()
             {
                 // clone supercolumns so caller can freely removeDeleted or otherwise mutate it
-                return isStandard ? columns[curIndex_++] : ((SuperColumn)columns[curIndex_++]).cloneMe();
+                // TODO can't the callers that wish to mutate it clone it themselves?
+                return isSuper ? ((SuperColumn) filteredIter.next()).cloneMe() : filteredIter.next();
             }
         };
     }

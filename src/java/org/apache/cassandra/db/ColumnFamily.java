@@ -18,10 +18,7 @@
 
 package org.apache.cassandra.db;
 
-import java.util.Collection;
-import java.util.Map;
-import java.util.Set;
-import java.util.SortedSet;
+import java.util.*;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -263,6 +260,11 @@ public class ColumnFamily implements IColumnContainer
     public Collection<IColumn> getSortedColumns()
     {
         return columns.values();
+    }
+
+    public Collection<IColumn> getReverseSortedColumns()
+    {
+        return columns.descendingMap().values();
     }
 
     public Map<byte[], IColumn> getColumnsMap()
