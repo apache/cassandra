@@ -30,7 +30,7 @@
     <property name="final.name" value="cassandra_loadfunc" />
 
     <path id="pig.classpath">
-        <pathelement location="${env.PIG_HOME}/pig.jar" />
+        <fileset file="${env.PIG_HOME}/pig*core.jar" />
         <fileset dir="${cassandra.dir}/lib">
             <include name="libthrift*.jar" />
         </fileset>
