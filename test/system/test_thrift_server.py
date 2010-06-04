@@ -640,6 +640,12 @@ class TestMutations(ThriftTester):
         column = Column('cttl1', 'value1', Clock(0), 0)
         _expect_exception(lambda: client.insert('key1', ColumnParent('Standard1'), column, ConsistencyLevel.ONE),
                           InvalidRequestException)
+        # don't allow super_column in Deletion for standard ColumnFamily
+        deletion = Deletion(Clock(1), 'supercolumn', None)
+        mutation = Mutation(deletion=deletion)
+        mutations = {'key' : {'Standard1' : [mutation]}}
+        _expect_exception(lambda: client.batch_mutate(mutations, ConsistencyLevel.QUORUM),
+                          InvalidRequestException)
 
     def test_batch_insert_super(self):
          _set_keyspace('Keyspace1')

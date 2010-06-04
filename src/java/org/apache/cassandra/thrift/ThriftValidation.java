@@ -282,6 +282,12 @@ public class ThriftValidation
             if (del.predicate.slice_range != null)
                 throw new InvalidRequestException("Deletion does not yet support SliceRange predicates.");
         }
+        
+        if (ColumnFamilyType.Standard == DatabaseDescriptor.getColumnFamilyType(keyspace, cfName) && del.super_column != null)
+        {
+            String msg = String.format("deletion of super_column is not possible on a standard ColumnFamily (KeySpace=%s ColumnFamily=%s Deletion=%s)", keyspace, cfName, del);
+            throw new InvalidRequestException(msg);
+        }
     }
 
     public static void validateSlicePredicate(String keyspace, String cfName, byte[] scName, SlicePredicate predicate) throws InvalidRequestException
