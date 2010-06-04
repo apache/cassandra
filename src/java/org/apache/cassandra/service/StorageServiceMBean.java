@@ -170,4 +170,6 @@ public interface StorageServiceMBean
     /** makes node unavailable for writes, flushes memtables and replays commitlog. */
     public void drain() throws IOException, InterruptedException, ExecutionException;
     
+    /** force hint delivery to an endpoint **/
+    public void deliverHints(String host) throws UnknownHostException;
 }

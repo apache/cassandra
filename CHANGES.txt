@@ -4,6 +4,9 @@
  * reject describe_ring() calls on invalid keyspaces (CASSANDRA-1111)
  * fix cache size calculation for size of 100% (CASSANDRA-1129)
  * fix cache capacity only being recalculated once (CASSANDRA-1129)
+ * remove hourly scan of all hints on the off chance that the gossiper
+   missed a status change; instead, expose deliverHintsToEndpoint to JMX
+   so it can be done manually, if necessary (CASSANDRA-1141)
  * don't reject reads at CL.ALL (CASSANDRA-1152)
 
 

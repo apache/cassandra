@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.IOError;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Constructor;
+import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -917,6 +918,11 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     public final void deliverHints(InetAddress endpoint)
     {
         HintedHandOffManager.instance.deliverHints(endpoint);
+    }
+
+    public final void deliverHints(String host) throws UnknownHostException
+    {
+        HintedHandOffManager.instance.deliverHints(host);
     }
 
     public Token getLocalToken()
