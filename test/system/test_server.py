@@ -549,6 +549,12 @@ class TestMutations(CassandraTester):
                           InvalidRequestException)
         # start > finish, key version
         _expect_exception(lambda: client.get_range_slice('Keyspace1', ColumnParent('Standard1'), SlicePredicate(column_names=['']), 'z', 'a', 1, ConsistencyLevel.ONE), InvalidRequestException)
+        # don't allow super_column in Deletion for standard ColumnFamily
+        deletion = Deletion(1, 'supercolumn', None)
+        mutation = Mutation(deletion=deletion)
+        mutations = { 'key' : { 'Standard1' : [ mutation ] } }
+        _expect_exception(lambda: client.batch_mutate("Keyspace1", mutations, ConsistencyLevel.QUORUM),
+                          InvalidRequestException)
 
     def test_batch_insert_super(self):
          cfmap = {'Super1': [ColumnOrSuperColumn(super_column=c) for c in _SUPER_COLUMNS],
