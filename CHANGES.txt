@@ -24,6 +24,9 @@ dev
  * add truncate thrift method (CASSANDRA-531)
  * http mini-interface using mx4j (CASSANDRA-1068)
  * optimize away copy of sliced row on memtable read path (CASSANDRA-1046)
+ * replace constant-size 2GB mmaped segments and special casing for index 
+   entries spanning segment boundaries, with SegmentedFile that computes 
+   segments that always contain entire entries/rows (CASSANDRA-1117)
 
 
 0.6.3
