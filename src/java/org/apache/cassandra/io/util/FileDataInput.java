@@ -31,11 +31,11 @@ public interface FileDataInput extends DataInput, Closeable
 
     public boolean isEOF() throws IOException;
 
+    public long bytesRemaining() throws IOException;
+
     public void mark();
 
     public void reset() throws IOException;
 
     public int bytesPastMark();
-
-    long getAbsolutePosition();
 }

@@ -36,16 +36,12 @@ public class IndexSummary
     public static final int INDEX_INTERVAL = 128;/* Required extension for temporary files created during compactions. */
 
     private ArrayList<KeyPosition> indexPositions;
-    private Map<KeyPosition, SSTable.PositionSize> spannedIndexDataPositions;
-    private Map<Long, KeyPosition> spannedIndexPositions;
     private int keysWritten = 0;
     private long lastIndexPosition;
 
-    public void maybeAddEntry(DecoratedKey decoratedKey, long dataPosition, long rowSize, long indexPosition, long nextIndexPosition)
+    public void maybeAddEntry(DecoratedKey decoratedKey, long indexPosition)
     {
-        boolean spannedIndexEntry = DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap
-                                    && RowIndexedReader.bufferIndex(indexPosition) != RowIndexedReader.bufferIndex(nextIndexPosition);
-        if ((keysWritten++ % INDEX_INTERVAL == 0) || spannedIndexEntry)
+        if (keysWritten++ % INDEX_INTERVAL == 0)
         {
             if (indexPositions == null)
             {
@@ -53,24 +49,8 @@ public class IndexSummary
             }
             KeyPosition info = new KeyPosition(decoratedKey, indexPosition);
             indexPositions.add(info);
-
-            if (spannedIndexEntry)
-            {
-                if (spannedIndexDataPositions == null)
-                {
-                    spannedIndexDataPositions = new HashMap<KeyPosition, SSTable.PositionSize>();
-                    spannedIndexPositions = new HashMap<Long, KeyPosition>();
-                }
-                spannedIndexDataPositions.put(info, new SSTable.PositionSize(dataPosition, rowSize));
-                spannedIndexPositions.put(info.indexPosition, info);
-            }
         }
         lastIndexPosition = indexPosition;
-    }
-
-    public Map<KeyPosition, SSTable.PositionSize> getSpannedIndexDataPositions()
-    {
-        return spannedIndexDataPositions;
     }
 
     public List<KeyPosition> getIndexPositions()
@@ -83,35 +63,10 @@ public class IndexSummary
         indexPositions.trimToSize();
     }
 
-    public SSTable.PositionSize getSpannedDataPosition(KeyPosition sampledPosition)
-    {
-        if (spannedIndexDataPositions == null)
-            return null;
-        return spannedIndexDataPositions.get(sampledPosition);
-    }
-
-    public KeyPosition getSpannedIndexPosition(long nextIndexPosition)
-    {
-        return spannedIndexPositions == null ? null : spannedIndexPositions.get(nextIndexPosition);
-    }
-
-    public SSTable.PositionSize getSpannedDataPosition(long nextIndexPosition)
-    {
-        if (spannedIndexDataPositions == null)
-            return null;
-
-        KeyPosition info = spannedIndexPositions.get(nextIndexPosition);
-        if (info == null)
-            return null;
-
-        return spannedIndexDataPositions.get(info);
-    }
-
     public long getLastIndexPosition()
     {
         return lastIndexPosition;
     }
-
 
     /**
      * This is a simple container for the index Key and its corresponding position

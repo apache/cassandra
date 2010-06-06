@@ -64,7 +64,7 @@ class FileStatusHandler
 
             try
             {
-                SSTableReader sstable = SSTableWriter.renameAndOpen(pendingFile.getFilename());
+                SSTableReader sstable = SSTableWriter.renameAndOpen(pendingFile.getDescriptor());
                 Table.open(tableName).getColumnFamilyStore(temp[0]).addSSTable(sstable);
                 logger.info("Streaming added " + sstable.getFilename());
             }

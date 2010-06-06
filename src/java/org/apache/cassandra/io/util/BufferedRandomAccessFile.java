@@ -260,11 +260,6 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
         this.curr_ = pos;
     }
 
-    public long getAbsolutePosition()
-    {
-        return getFilePointer();
-    }
-
     public long getFilePointer()
     {
         return this.curr_;
@@ -406,6 +401,11 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     public boolean isEOF() throws IOException
     {
         return getFilePointer() == length();
+    }
+
+    public long bytesRemaining() throws IOException
+    {
+        return length() - getFilePointer();
     }
 
     public void mark()

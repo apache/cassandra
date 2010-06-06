@@ -30,28 +30,16 @@ public class MappedFileDataInput extends InputStream implements FileDataInput
     private final String filename;
     private int position;
     private int markedPosition;
-    private final long absoluteStartPosition;
 
-    public MappedFileDataInput(MappedByteBuffer buffer, String filename, long absoluteStartPosition)
-    {
-        this(buffer, filename, absoluteStartPosition, 0);
-    }
-
-    public MappedFileDataInput(MappedByteBuffer buffer, String filename, long absoluteStartPosition, int position)
+    public MappedFileDataInput(MappedByteBuffer buffer, String filename, int position)
     {
         assert buffer != null;
-        this.absoluteStartPosition = absoluteStartPosition;
         this.buffer = buffer;
         this.filename = filename;
         this.position = position;
     }
 
-    public long getAbsolutePosition()
-    {
-        return absoluteStartPosition + position;
-    }
-
-// don't make this public, this is only for seeking WITHIN the current mapped segment
+    // don't make this public, this is only for seeking WITHIN the current mapped segment
     private void seekInternal(int pos) throws IOException
     {
         position = pos;
@@ -89,6 +77,11 @@ public class MappedFileDataInput extends InputStream implements FileDataInput
     public boolean isEOF() throws IOException
     {
         return position == buffer.capacity();
+    }
+
+    public long bytesRemaining() throws IOException
+    {
+        return buffer.capacity() - position;
     }
 
     public String getPath()

@@ -120,7 +120,7 @@ public class StreamOut
         int i = 0;
         for (SSTableReader sstable : sstables)
         {
-            for (String component : sstable.getAllComponents())
+            for (String component : SSTable.components)
             {
                 SSTable.Descriptor desc = sstable.getDescriptor();
                 long filelen = new File(desc.filenameFor(component)).length();

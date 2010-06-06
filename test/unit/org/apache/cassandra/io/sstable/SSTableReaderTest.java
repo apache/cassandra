@@ -2,7 +2,6 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
-import java.util.Map;
 
 import org.junit.Test;
 
@@ -10,9 +9,8 @@ import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.io.util.MmappedSegmentedFile;
 import org.apache.cassandra.utils.FBUtilities;
 
 import org.apache.cassandra.Util;
@@ -24,7 +22,7 @@ public class SSTableReaderTest extends CleanupHelper
     @Test
     public void testSpannedIndexPositions() throws IOException, ExecutionException, InterruptedException
     {
-        RowIndexedReader.BUFFER_SIZE = 40; // each index entry is ~11 bytes, so this will generate lots of spanned entries
+        MmappedSegmentedFile.MAX_SEGMENT_SIZE = 40; // each index entry is ~11 bytes, so this will generate lots of segments
 
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
@@ -55,24 +53,7 @@ public class SSTableReaderTest extends CleanupHelper
         for (int j = 1; j < 110; j += 2)
         {
             DecoratedKey dk = Util.dk(String.valueOf(j));
-            assert sstable.getPosition(dk) == null;
-        }
-
-        // check positionsize information
-        assert sstable.indexSummary.getSpannedIndexDataPositions().entrySet().size() > 0;
-        for (Map.Entry<IndexSummary.KeyPosition, SSTable.PositionSize> entry : sstable.indexSummary.getSpannedIndexDataPositions().entrySet())
-        {
-            IndexSummary.KeyPosition kp = entry.getKey();
-            SSTable.PositionSize info = entry.getValue();
-
-            long nextIndexPosition = kp.indexPosition + 2 + StorageService.getPartitioner().convertToDiskFormat(kp.key).length + 8;
-            BufferedRandomAccessFile indexFile = new BufferedRandomAccessFile(sstable.indexFilename(), "r");
-            indexFile.seek(nextIndexPosition);
-            String nextKey = indexFile.readUTF();
-
-            BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.getFilename(), "r");
-            file.seek(info.position + info.size);
-            assertEquals(nextKey, file.readUTF());
+            assert sstable.getPosition(dk) == -1;
         }
     }
 }

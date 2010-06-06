@@ -22,18 +22,17 @@ package org.apache.cassandra.io.sstable;
 import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Arrays;
 import java.util.StringTokenizer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.db.DecoratedKey;
 
 import com.google.common.base.Objects;
 
@@ -67,6 +66,9 @@ public abstract class SSTable
 
     public static final String TEMPFILE_MARKER = "tmp";
 
+    // TODO streaming relies on the -Data (getFilename) file to be last, this is clunky
+    public static List<String> components = Collections.unmodifiableList(Arrays.asList(COMPONENT_FILTER, COMPONENT_INDEX, COMPONENT_DATA));
+
     protected SSTable(String filename, IPartitioner partitioner)
     {
         assert filename.endsWith("-" + COMPONENT_DATA);
@@ -88,11 +90,6 @@ public abstract class SSTable
     public Descriptor getDescriptor()
     {
         return desc;
-    }
-
-    protected static String parseColumnFamilyName(String filename)
-    {
-        return new File(filename).getName().split("-")[0];
     }
 
     public static String indexFilename(String dataFile)
@@ -160,13 +157,6 @@ public abstract class SSTable
         return desc.filenameFor(COMPONENT_DATA);
     }
 
-    /** @return component names for files associated w/ this SSTable */
-    public List<String> getAllComponents()
-    {
-        // TODO streaming relies on the -Data (getFilename) file to be last, this is clunky
-        return Arrays.asList(COMPONENT_FILTER, COMPONENT_INDEX, COMPONENT_DATA);
-    }
-
     public String getColumnFamilyName()
     {
         return desc.cfname;
@@ -195,7 +185,7 @@ public abstract class SSTable
     public long bytesOnDisk()
     {
         long bytes = 0;
-        for (String cname : getAllComponents())
+        for (String cname : components)
         {
             bytes += new File(desc.filenameFor(cname)).length();
         }
@@ -208,18 +198,6 @@ public abstract class SSTable
         return getClass().getName() + "(" +
                "path='" + getFilename() + '\'' +
                ')';
-    }
-
-    public static class PositionSize
-    {
-        public final long position;
-        public final long size;
-
-        public PositionSize(long position, long size)
-        {
-            this.position = position;
-            this.size = size;
-        }
     }
 
     /**
