@@ -22,6 +22,10 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.InetAddress;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
@@ -29,7 +33,7 @@ import org.apache.log4j.PropertyConfigurator;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocolFactory;
-import org.apache.thrift.server.TThreadPoolServer;
+import org.apache.thrift.server.TServer;
 import org.apache.thrift.transport.TServerSocket;
 import org.apache.thrift.transport.TTransportException;
 import org.apache.thrift.transport.TTransportFactory;
@@ -53,7 +57,7 @@ import org.apache.cassandra.db.CompactionManager;
 public class CassandraDaemon
 {
     private static Logger logger = Logger.getLogger(CassandraDaemon.class);
-    private TThreadPoolServer serverEngine;
+    private TServer serverEngine;
 
     private void setup() throws IOException, TTransportException
     {
@@ -99,7 +103,7 @@ public class CassandraDaemon
         StorageService.instance.initServer();
         
         // now we start listening for clients
-        CassandraServer cassandraServer = new CassandraServer();
+        final CassandraServer cassandraServer = new CassandraServer();
         Cassandra.Processor processor = new Cassandra.Processor(cassandraServer);
 
         // Transport
@@ -124,16 +128,34 @@ public class CassandraDaemon
             outTransportFactory = new TTransportFactory();
         }
 
+
         // ThreadPool Server
-        TThreadPoolServer.Options options = new TThreadPoolServer.Options();
+        CustomTThreadPoolServer.Options options = new CustomTThreadPoolServer.Options();
         options.minWorkerThreads = 64;
-        serverEngine = new TThreadPoolServer(new TProcessorFactory(processor),
+
+        SynchronousQueue<Runnable> executorQueue = new SynchronousQueue<Runnable>();
+
+        ExecutorService executorService = new ThreadPoolExecutor(options.minWorkerThreads,
+                                                                 options.maxWorkerThreads,
+                                                                 60,
+                                                                 TimeUnit.SECONDS,
+                                                                 executorQueue)
+        {
+            @Override
+            protected void afterExecute(Runnable r, Throwable t)
+            {
+                super.afterExecute(r, t);
+                cassandraServer.logout();
+            }
+        };
+        serverEngine = new CustomTThreadPoolServer(new TProcessorFactory(processor),
                                              tServerSocket,
                                              inTransportFactory,
                                              outTransportFactory,
                                              tProtocolFactory,
                                              tProtocolFactory,
-                                             options);
+                                             options,
+                                             executorService);
     }
 
     /** hook for JSVC */

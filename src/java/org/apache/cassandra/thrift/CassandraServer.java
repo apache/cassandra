@@ -651,6 +651,14 @@ public class CassandraServer implements Cassandra.Iface
         loginDone.set(true);
     }
 
+    public void logout()
+    {
+        loginDone.remove();
+
+        if (logger.isDebugEnabled())
+            logger.debug("logout complete");
+    }
+
     protected void checkLoginDone() throws InvalidRequestException
     {
         // FIXME: This disables the "you must call login()" requirement when the configured
