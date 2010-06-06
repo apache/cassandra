@@ -604,6 +604,15 @@ public class CassandraServer implements Cassandra.Iface
         return level;
     }
 
+    public void logout()
+    {
+        keySpace.remove();
+        loginDone.remove();
+
+        if (logger.isDebugEnabled())
+            logger.debug("logout complete");
+    }
+
     protected void checkKeyspaceAndLoginAuthorized(AccessLevel level) throws InvalidRequestException
     {
         if (keySpace.get() == null)
@@ -851,7 +860,6 @@ public class CassandraServer implements Cassandra.Iface
                     cf_def.key_cache_size);
     }
 
-    @Override
     public void truncate(String keyspace, String cfname) throws InvalidRequestException, UnavailableException, TException
     {
         logger.debug("truncating {} in {}", cfname, keyspace);
@@ -883,7 +891,6 @@ public class CassandraServer implements Cassandra.Iface
         keySpace.set(keyspace); 
     }
 
-    @Override
     public Map<String, List<String>> check_schema_agreement() throws TException, InvalidRequestException
     {
         logger.debug("checking schema agreement");      
