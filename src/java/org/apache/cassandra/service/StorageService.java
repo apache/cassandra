@@ -595,7 +595,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (tokenMetadata_.isMember(endpoint))
             logger_.info("Node " + endpoint + " state jump to normal");
 
-        tokenMetadata_.updateNormalToken(token, endpoint);
+        // we don't want to update if this node is responsible for the token and it has a later startup time than endpoint.
+        InetAddress currentNode = tokenMetadata_.getEndpoint(token);
+        if (currentNode == null || (FBUtilities.getLocalAddress().equals(currentNode) && Gossiper.instance.compareEndpointStartup(endpoint, currentNode) > 0))
+            tokenMetadata_.updateNormalToken(token, endpoint);
+        else
+            logger_.info("Will not change my token ownership to " + endpoint);
         calculatePendingRanges();
         if (!isClientMode)
             SystemTable.updateToken(endpoint, token);

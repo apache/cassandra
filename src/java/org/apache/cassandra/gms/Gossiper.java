@@ -480,6 +480,15 @@ public class Gossiper implements IFailureDetectionEventListener, IEndpointStateC
         return reqdEndpointState;
     }
 
+    /** determine which endpoint started up earlier */
+    public int compareEndpointStartup(InetAddress addr1, InetAddress addr2)
+    {
+        EndpointState ep1 = getEndpointStateForEndpoint(addr1);
+        EndpointState ep2 = getEndpointStateForEndpoint(addr2);
+        assert ep1 != null && ep2 != null;
+        return ep1.getHeartBeatState().getGeneration() - ep2.getHeartBeatState().getGeneration();
+    }
+
     void notifyFailureDetector(List<GossipDigest> gDigests)
     {
         IFailureDetector fd = FailureDetector.instance;
