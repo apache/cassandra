@@ -12,6 +12,8 @@
    columns (CASSANDRA-1139)
  * avoid preserving login information after client disconnects
    (CASSANDRA-1057)
+ * detect partioner config changes between restarts and fail fast 
+   (CASSANDRA-1146)
 
 
 0.6.2
