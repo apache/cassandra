@@ -472,6 +472,15 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         }
         return reqdEndPointState;
     }
+    
+    /** determine which endpoint started up earlier */
+    public int compareEndpointStartup(InetAddress addr1, InetAddress addr2)
+    {
+        EndPointState ep1 = getEndPointStateForEndPoint(addr1);
+        EndPointState ep2 = getEndPointStateForEndPoint(addr2);
+        assert ep1 != null && ep2 != null;
+        return ep1.getHeartBeatState().getGeneration() - ep2.getHeartBeatState().getGeneration();
+    }    
 
     /*
      * This method is called only from the JoinVerbHandler. This happens

@@ -14,6 +14,8 @@
    (CASSANDRA-1057)
  * detect partioner config changes between restarts and fail fast 
    (CASSANDRA-1146)
+ * use generation time to resolve node token reassignment disagreements
+   (CASSANDRA-1118)
 
 
 0.6.2
