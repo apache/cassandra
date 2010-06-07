@@ -27,6 +27,7 @@ import org.apache.avro.ipc.SocketServer;
 import org.apache.avro.specific.SpecificResponder;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.CompactionManager;
+import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.service.StorageService;
@@ -71,6 +72,17 @@ public class CassandraDaemon {
                 }
             }
         });
+        
+        // check the system table for mismatched partitioner.
+        try
+        {
+            SystemTable.checkHealth();
+        }
+        catch (IOException e)
+        {
+            logger.error("Fatal exception during initialization", e);
+            System.exit(100);
+        }
 
         // initialize keyspaces
         for (String table : DatabaseDescriptor.getTables())
