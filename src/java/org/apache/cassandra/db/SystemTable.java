@@ -144,7 +144,6 @@ public class SystemTable
             {
                 File[] dbContents = new File(path).listFiles(new FilenameFilter()
                 {
-                    @Override
                     public boolean accept(File dir, String name)
                     {
                         return name.endsWith(".db");
