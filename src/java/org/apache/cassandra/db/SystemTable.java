@@ -18,11 +18,13 @@
 
 package org.apache.cassandra.db;
 
+import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.io.IOError;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.utils.FBUtilities.UTF8;
 
@@ -42,6 +44,8 @@ import java.net.InetAddress;
 import java.util.Collection;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 public class SystemTable
 {
@@ -54,6 +58,7 @@ public class SystemTable
     private static final byte[] TOKEN = "Token".getBytes(UTF8);
     private static final byte[] GENERATION = "Generation".getBytes(UTF8);
     private static final byte[] CLUSTERNAME = "ClusterName".getBytes(UTF8);
+    private static final byte[] PARTITIONER = "Partioner".getBytes(UTF8);
     private static StorageMetadata metadata;
 
     private static DecoratedKey decorate(byte[] key)
@@ -102,6 +107,67 @@ public class SystemTable
         }
         metadata.setToken(token);
     }
+
+    /**
+     * One of three things will happen if you try to read the system table:
+     * 1. files are present and you can read them: great
+     * 2. no files are there: great (new node is assumed)
+     * 3. files are present but you can't read them: bad (suspect that the partitioner was changed).
+     * @throws ConfigurationException
+     */
+    public static void checkHealth() throws ConfigurationException
+    {
+        Table table = null;
+        try
+        {
+            table = Table.open(Table.SYSTEM_TABLE);
+        }
+        catch (AssertionError err)
+        {
+            // this happens when a user switches from OPP to RP.
+            ConfigurationException ex = new ConfigurationException("Could not read system table. Did you change partitioners?");
+            ex.initCause(err);
+            throw ex;
+        }
+        
+        SortedSet<byte[]> cols = new TreeSet<byte[]>(BytesType.instance);
+        cols.add(TOKEN);
+        cols.add(GENERATION);
+        cols.add(PARTITIONER);
+        QueryFilter filter = QueryFilter.getNamesFilter(decorate(LOCATION_KEY), new QueryPath(STATUS_CF), cols);
+        ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
+        
+        if (cf == null)
+        {
+            // this is either a brand new node (there will be no files), or the partitioner was changed from RP to OPP.
+            for (String path : DatabaseDescriptor.getAllDataFileLocationsForTable("system"))
+            {
+                File[] dbContents = new File(path).listFiles(new FilenameFilter()
+                {
+                    @Override
+                    public boolean accept(File dir, String name)
+                    {
+                        return name.endsWith(".db");
+                    }
+                }); 
+                if (dbContents.length > 0)
+                    throw new ConfigurationException("Found system table files, but they couldn't be loaded. Did you change the partitioner?");
+            }   
+            // no system files. data is either in the commit log or this is a new node.
+            return;
+        }
+        
+        
+        // token and generation should *always* be there. If either are missing, we can assume that the partitioner has
+        // been switched.
+        if (cf.getColumnCount() > 0 && (cf.getColumn(GENERATION) == null || cf.getColumn(TOKEN) == null))
+            throw new ConfigurationException("Couldn't read system generation or token. Did you change the partitioner?");
+        IColumn partitionerCol = cf.getColumn(PARTITIONER);
+        if (partitionerCol != null && !DatabaseDescriptor.getPartitioner().getClass().getName().equals(new String(partitionerCol.value(), UTF8)))
+            throw new ConfigurationException("Detected partitioner mismatch! Did you change the partitioner?");
+        if (partitionerCol == null)
+            logger.info("Did not see a partitioner in system storage.");
+    }
     
     /*
      * This method reads the system table and retrieves the metadata
@@ -125,6 +191,7 @@ public class SystemTable
         columns.add(CLUSTERNAME);
         QueryFilter filter = QueryFilter.getNamesFilter(decorate(LOCATION_KEY), new QueryPath(STATUS_CF), columns);
         ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
+        String partitioner = DatabaseDescriptor.getPartitioner().getClass().getName();
 
         if (cf == null)
         {
@@ -148,8 +215,21 @@ public class SystemTable
             cf.addColumn(new Column(TOKEN, p.getTokenFactory().toByteArray(token), TimestampClock.ZERO_VALUE));
             cf.addColumn(new Column(GENERATION, FBUtilities.toByteArray(generation), TimestampClock.ZERO_VALUE));
             cf.addColumn(new Column(CLUSTERNAME, DatabaseDescriptor.getClusterName().getBytes(), TimestampClock.ZERO_VALUE));
+            cf.addColumn(new Column(PARTITIONER, partitioner.getBytes(UTF8), TimestampClock.ZERO_VALUE));
             rm.add(cf);
             rm.apply();
+            try
+            {
+                table.getColumnFamilyStore(SystemTable.STATUS_CF).forceBlockingFlush();
+            }
+            catch (ExecutionException e)
+            {
+                throw new RuntimeException(e);
+            }
+            catch (InterruptedException e)
+            {
+                throw new RuntimeException(e);
+            }
             metadata = new StorageMetadata(token, generation, DatabaseDescriptor.getClusterName().getBytes());
             return metadata;
         }
@@ -167,6 +247,7 @@ public class SystemTable
         int gen = Math.max(FBUtilities.byteArrayToInt(generation.value()) + 1, (int) (System.currentTimeMillis() / 1000));
 
         IColumn cluster = cf.getColumn(CLUSTERNAME);
+        IColumn partitionerColumn = cf.getColumn(PARTITIONER);
 
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
         cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.STATUS_CF);
@@ -186,8 +267,29 @@ public class SystemTable
             cname = DatabaseDescriptor.getClusterName().getBytes();
             logger.info("Saved ClusterName not found. Using " + DatabaseDescriptor.getClusterName());
         }
+        
+        if (partitionerColumn == null)
+        {
+            Column c = new Column(PARTITIONER, partitioner.getBytes(UTF8), TimestampClock.ZERO_VALUE);
+            cf.addColumn(c);
+            logger.info("Saved partitioner not found. Using " + partitioner);
+        }
+        
         rm.add(cf);
         rm.apply();
+        try
+        {
+            table.getColumnFamilyStore(SystemTable.STATUS_CF).forceBlockingFlush();
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+
         metadata = new StorageMetadata(token, gen, cname);
         return metadata;
     }

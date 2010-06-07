@@ -26,6 +26,7 @@ import java.net.UnknownHostException;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.commons.lang.StringUtils;
 import org.junit.Test;
@@ -43,7 +44,7 @@ import org.apache.cassandra.locator.RackUnawareStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.gms.ApplicationState;
 
-public class MoveTest
+public class MoveTest extends CleanupHelper
 {
     // handy way of creating a mapping of strategies to use in StorageService.
     private static Map<String, AbstractReplicationStrategy> createReplacements(AbstractReplicationStrategy strat)
