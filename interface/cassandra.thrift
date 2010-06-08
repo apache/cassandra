@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "7.0.0"
+const string VERSION = "8.0.0"
 
 #
 # data structures
@@ -442,8 +442,7 @@ service Cassandra {
    The operation succeeds only if all hosts in the cluster at available and will throw an UnavailableException if 
    some hosts are down.
   */
-  void truncate(1:required string keyspace,
-                2:required string cfname)
+  void truncate(1:required string cfname)
        throws (1: InvalidRequestException ire, 2: UnavailableException ue),
     
   // Meta-APIs -- APIs to get information about the node or cluster,
@@ -497,11 +496,11 @@ service Cassandra {
     throws (1:InvalidRequestException ire),
     
   /** drops a column family. returns the new schema id. */
-  string system_drop_column_family(1:required string keyspace, 2:required string column_family)
+  string system_drop_column_family(1:required string column_family)
     throws (1:InvalidRequestException ire), 
     
   /** renames a column family. returns the new schema id. */
-  string system_rename_column_family(1:required string keyspace, 2:required string old_name, 3:required string new_name)
+  string system_rename_column_family(1:required string old_name, 2:required string new_name)
     throws (1:InvalidRequestException ire),
   
   /** adds a keyspace and any column families that are part of it. returns the new schema id. */
