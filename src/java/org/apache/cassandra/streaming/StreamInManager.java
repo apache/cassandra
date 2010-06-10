@@ -42,6 +42,15 @@ class StreamInManager
 
     public static final Multimap<InetAddress, PendingFile> activeStreams = Multimaps.synchronizedMultimap(HashMultimap.<InetAddress, PendingFile>create());
 
+    public synchronized static void initContect(InetAddress key)
+    {
+        List<PendingFile> context = ctxBag_.get(key);
+        if (context == null)
+        {
+            context = new ArrayList<PendingFile>();
+            ctxBag_.put(key, context);
+        }
+    }
     /**
      * gets the next file to be received given a host key.
      * @param key
