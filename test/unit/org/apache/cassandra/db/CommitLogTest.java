@@ -18,14 +18,16 @@
 */
 package org.apache.cassandra.db;
 
-import java.io.IOException;
-import java.util.concurrent.ExecutionException;
-
-import org.junit.Test;
-
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.junit.Test;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.concurrent.ExecutionException;
 
 public class CommitLogTest extends CleanupHelper
 {
@@ -58,5 +60,16 @@ public class CommitLogTest extends CleanupHelper
         // after flushing Standard2 we should be able to clean out all segments
         store2.forceBlockingFlush();
         assert CommitLog.instance().getSegmentCount() == 1;
+    }
+
+    @Test
+    public void testRecoveryWithPartiallyWrittenHeader() throws Exception
+    {
+        File tmpFile = File.createTempFile("testRecoveryWithPartiallyWrittenHeaderTestFile", null);
+        tmpFile.deleteOnExit();
+        OutputStream out = new FileOutputStream(tmpFile);
+        out.write(new byte[6]);
+        //statics make it annoying to test things correctly
+        CommitLog.instance().recover(new File[] {tmpFile}); //CASSANDRA-1119 throws on failure
     }
 }
