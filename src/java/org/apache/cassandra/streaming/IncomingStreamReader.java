@@ -40,7 +40,8 @@ public class IncomingStreamReader
     {
         this.socketChannel = socketChannel;
         InetSocketAddress remoteAddress = (InetSocketAddress)socketChannel.socket().getRemoteSocketAddress();
-        pendingFile = StreamInManager.getStreamContext(remoteAddress.getAddress());
+        // this is the part where we are assuming files come in order from a particular host.
+        pendingFile = StreamInManager.getNextIncomingFile(remoteAddress.getAddress());
         StreamInManager.activeStreams.put(remoteAddress.getAddress(), pendingFile);
         assert pendingFile != null;
         streamStatus = StreamInManager.getStreamStatus(remoteAddress.getAddress());

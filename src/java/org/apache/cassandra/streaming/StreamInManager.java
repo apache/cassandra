@@ -42,11 +42,18 @@ class StreamInManager
 
     public static final Multimap<InetAddress, PendingFile> activeStreams = Multimaps.synchronizedMultimap(HashMultimap.<InetAddress, PendingFile>create());
 
-    public synchronized static PendingFile getStreamContext(InetAddress key)
+    /**
+     * gets the next file to be received given a host key.
+     * @param key
+     * @return next file to receive.
+     * @throws IndexOutOfBoundsException if you are unfortunate enough to call this on an empty context. 
+     */
+    public synchronized static PendingFile getNextIncomingFile(InetAddress key)
     {        
         List<PendingFile> context = ctxBag_.get(key);
         if ( context == null )
             throw new IllegalStateException("Streaming context has not been set for " + key);
+        // will thrown an IndexOutOfBoundsException if nothing is there.
         PendingFile pendingFile = context.remove(0);
         if ( context.isEmpty() )
             ctxBag_.remove(key);
