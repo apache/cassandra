@@ -231,9 +231,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         MessagingService.instance.registerVerbHandlers(Verb.TREE_REQUEST, new TreeRequestVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.TREE_RESPONSE, new AntiEntropyService.TreeResponseVerbHandler());
 
-        MessagingService.instance.registerVerbHandlers(Verb.GOSSIP_DIGEST_SYN, new Gossiper.GossipDigestSynVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.GOSSIP_DIGEST_ACK, new Gossiper.GossipDigestAckVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.GOSSIP_DIGEST_ACK2, new Gossiper.GossipDigestAck2VerbHandler());
+        MessagingService.instance.registerVerbHandlers(Verb.GOSSIP_DIGEST_SYN, new GossipDigestSynVerbHandler());
+        MessagingService.instance.registerVerbHandlers(Verb.GOSSIP_DIGEST_ACK, new GossipDigestAckVerbHandler());
+        MessagingService.instance.registerVerbHandlers(Verb.GOSSIP_DIGEST_ACK2, new GossipDigestAck2VerbHandler());
         
         MessagingService.instance.registerVerbHandlers(Verb.DEFINITIONS_ANNOUNCE, new DefinitionsAnnounceVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.DEFINITIONS_UPDATE_RESPONSE, new DefinitionsUpdateResponseVerbHandler());
@@ -308,10 +308,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         initialized = true;
         isClientMode = true;
         logger_.info("Starting up client gossip");
-        MessagingService.instance.listen(FBUtilities.getLocalAddress());
+        setMode("Client", false);
         Gossiper.instance.register(this);
         Gossiper.instance.start(FBUtilities.getLocalAddress(), (int)(System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
-        setMode("Client", false);
+        MessagingService.instance.listen(FBUtilities.getLocalAddress());
         
         // sleep a while to allow gossip to warm up (the other nodes need to know about this one before they can reply).
         try
@@ -358,18 +358,16 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         logger_.info("Starting up server gossip");
 
-        MessagingService.instance.listen(FBUtilities.getLocalAddress());
-
-        StorageLoadBalancer.instance.startBroadcasting();
-        
-        MigrationManager.announce(DatabaseDescriptor.getDefsVersion(), DatabaseDescriptor.getSeeds());
-
         // have to start the gossip service before we can see any info on other nodes.  this is necessary
         // for bootstrap to get the load info it needs.
         // (we won't be part of the storage ring though until we add a nodeId to our state, below.)
         Gossiper.instance.register(this);
         Gossiper.instance.register(migrationManager);
         Gossiper.instance.start(FBUtilities.getLocalAddress(), storageMetadata_.getGeneration()); // needed for node-ring gathering.
+
+        MessagingService.instance.listen(FBUtilities.getLocalAddress());
+        StorageLoadBalancer.instance.startBroadcasting();
+        MigrationManager.announce(DatabaseDescriptor.getDefsVersion(), DatabaseDescriptor.getSeeds());
 
         if (DatabaseDescriptor.isAutoBootstrap()
                 && DatabaseDescriptor.getSeeds().contains(FBUtilities.getLocalAddress())

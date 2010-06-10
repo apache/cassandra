@@ -40,6 +40,9 @@ dev
    (CASSANDRA-1146)
  * use generation time to resolve node token reassignment disagreements
    (CASSANDRA-1118)
+ * restructure the startup ordering of Gossiper and MessageService to avoid
+   timing anomalies (CASSANDRA-1160)
+ * detect incomplete commit log hearders (CASSANDRA-1119)
 
 
 0.6.2
