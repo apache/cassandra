@@ -51,12 +51,25 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements IColumnI
     private ColumnGroupReader reader;
     private boolean closeFileWhenDone = false;
     private DecoratedKey decoratedKey;
-    
+
     public SSTableSliceIterator(SSTableReader ssTable, DecoratedKey key, byte[] startColumn, byte[] finishColumn, Predicate<IColumn> predicate, boolean reversed)
     {
         this(ssTable, null, key, startColumn, finishColumn, predicate, reversed); 
     }
-    
+
+    /**
+     * An iterator for a slice within an SSTable
+     * @param ssTable The SSTable to iterate over
+     * @param file Optional parameter that input is read from.  If null is passed, this class creates an appropriate one automatically.
+     * If this class creates, it will close the underlying file when #close() is called.
+     * If a caller passes a non-null argument, this class will NOT close the underlying file when the iterator is closed (i.e. the caller is responsible for closing the file)
+     * In all cases the caller should explicitly #close() this iterator.
+     * @param key The key the requested slice resides under
+     * @param startColumn The start of the slice
+     * @param finishColumn The end of the slice
+     * @param predicate The predicate used for filtering columns
+     * @param reversed Results are returned in reverse order iff reversed is true.
+     */
     public SSTableSliceIterator(SSTableReader ssTable, FileDataInput file, DecoratedKey key, byte[] startColumn, byte[] finishColumn, Predicate<IColumn> predicate, boolean reversed) 
     {
         this.reversed = reversed;
@@ -68,6 +81,7 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements IColumnI
 
         if (file == null)
         {
+            closeFileWhenDone = true; //if we create it, we close it
             file = ssTable.getFileDataInput(decoratedKey, DatabaseDescriptor.getSlicedReadBufferSizeInKB() * 1024);
             if (file == null)
                 return;
