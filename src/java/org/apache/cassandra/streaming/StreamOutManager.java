@@ -130,7 +130,7 @@ public class StreamOutManager
             File file = new File(files.get(0).getFilename());
             if (logger.isDebugEnabled())
               logger.debug("Streaming " + file.length() + " length file " + file + " ...");
-            MessagingService.instance.stream(file.getAbsolutePath(), 0L, file.length(), FBUtilities.getLocalAddress(), to);
+            MessagingService.instance.stream(file.getAbsolutePath(), to);
         }
     }
 

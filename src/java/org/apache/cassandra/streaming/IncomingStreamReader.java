@@ -40,7 +40,8 @@ public class IncomingStreamReader
     {
         this.socketChannel = socketChannel;
         InetSocketAddress remoteAddress = (InetSocketAddress)socketChannel.socket().getRemoteSocketAddress();
-        // this is the part where we are assuming files come in order from a particular host.
+        // this is the part where we are assuming files come in order from a particular host. it is brittle because
+        // any node could send a stream message to this host and it would just assume it is receiving the next file.
         pendingFile = StreamInManager.getNextIncomingFile(remoteAddress.getAddress());
         StreamInManager.activeStreams.put(remoteAddress.getAddress(), pendingFile);
         assert pendingFile != null;

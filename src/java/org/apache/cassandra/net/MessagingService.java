@@ -306,15 +306,13 @@ public class MessagingService implements IFailureDetectionEventListener
      * Stream a file from source to destination. This is highly optimized
      * to not hold any of the contents of the file in memory.
      * @param file name of file to stream.
-     * @param startPosition position inside the file
-     * @param endPosition
      * @param to endpoint to which we need to stream the file.
     */
 
-    public void stream(String file, long startPosition, long endPosition, InetAddress from, InetAddress to)
+    public void stream(String file, InetAddress to)
     {
         /* Streaming asynchronously on streamExector_ threads. */
-        Runnable streamingTask = new FileStreamTask(file, startPosition, endPosition, from, to);
+        Runnable streamingTask = new FileStreamTask(file, to);
         streamExecutor_.execute(streamingTask);
     }
     

@@ -45,8 +45,13 @@ public class FileStreamTask extends WrappedRunnable
     private final long startPosition;
     private final long endPosition;
     private final InetAddress to;
+    
+    FileStreamTask(String file, InetAddress to)
+    {
+        this(file, 0, new File(file).length(), to);
+    }
 
-    FileStreamTask(String file, long startPosition, long endPosition, InetAddress from, InetAddress to)
+    private FileStreamTask(String file, long startPosition, long endPosition, InetAddress to)
     {
         this.file = file;
         this.startPosition = startPosition;
