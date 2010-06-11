@@ -24,13 +24,12 @@ if NOT DEFINED JAVA_HOME goto err
 
 REM ***** JAVA options *****
 set JAVA_OPTS=^
- -Dlog4j.configuration=log4j-tools.properties^
- -Dstorage-config=storage-conf.xml
+ -Dlog4j.configuration=log4j-tools.properties
 
 REM ***** CLASSPATH library setting *****
 
 REM Ensure that any user defined CLASSPATH variables are not used on startup
-set CLASSPATH=
+set CLASSPATH=%CASSANDRA_HOME%\conf
 
 REM For each jar in the CASSANDRA_HOME lib directory call append to build the CLASSPATH variable.
 for %%i in (%CASSANDRA_HOME%\lib\*.jar) do call :append %%~fi

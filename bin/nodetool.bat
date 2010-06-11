@@ -21,7 +21,7 @@ if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%CD%
 if NOT DEFINED JAVA_HOME goto err
 
 REM Ensure that any user defined CLASSPATH variables are not used on startup
-set CLASSPATH=
+set CLASSPATH=%CASSANDRA_HOME%\conf
 
 REM For each jar in the CASSANDRA_HOME lib directory call append to build the CLASSPATH variable.
 rem for %%i in (%CASSANDRA_HOME%\lib*.jar) do call :append %%~fi
@@ -39,7 +39,7 @@ goto runNodeTool
 
 :runNodeTool
 echo Starting NodeTool
-"%JAVA_HOME%\bin\java" -cp "%CASSANDRA_CLASSPATH%" -Dstorage-config=%CASSANDRA_HOME%\conf\ -Dlog4j.configuration=log4j-tools.properties org.apache.cassandra.tools.NodeCmd %*
+"%JAVA_HOME%\bin\java" -cp "%CASSANDRA_CLASSPATH%" -Dlog4j.configuration=log4j-tools.properties org.apache.cassandra.tools.NodeCmd %*
 goto finally
 
 :err
