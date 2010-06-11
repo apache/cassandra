@@ -17,10 +17,20 @@ NAME=cassandra
 PIDFILE=/var/run/$NAME.pid
 SCRIPTNAME=/etc/init.d/$NAME
 CONFDIR=/etc/cassandra
-JAVA_HOME="/usr/lib/jvm/java-6-openjdk/jre"
 JSVC=/usr/bin/jsvc
 JVM_MAX_MEM="1G"
 JVM_START_MEM="128M"
+
+# The first existing directory is used for JAVA_HOME
+JDK_DIRS="/usr/lib/jvm/java-6-sun /usr/lib/jvm/java-6-openjdk"
+
+# Look for the right JVM to use
+for jdir in $JDK_DIRS; do
+ if [ -r "$jdir/bin/java" -a -z "${JAVA_HOME}" ]; then
+ JAVA_HOME="$jdir"
+ fi
+done
+
 
 [ -e /usr/share/cassandra/apache-cassandra.jar ] || exit 0
 [ -e /etc/cassandra/cassandra.yaml ] || exit 0
