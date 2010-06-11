@@ -44,6 +44,8 @@ dev
  * restructure the startup ordering of Gossiper and MessageService to avoid
    timing anomalies (CASSANDRA-1160)
  * detect incomplete commit log hearders (CASSANDRA-1119)
+ * force anti-entropy service to stream files on the stream stage to avoid
+   sending streams out of order (CASSANDRA-1169)
 
 
 0.6.2
