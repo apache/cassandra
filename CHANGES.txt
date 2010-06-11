@@ -36,6 +36,7 @@ dev
  * don't reject reads at CL.ALL (CASSANDRA-1152)
  * reject deletions to supercolumns in CFs containing only standard
    columns (CASSANDRA-1139)
+ * prefer sun jdk to openjdk in debian init script (CASSANDRA-1174)
  * detect partioner config changes between restarts and fail fast 
    (CASSANDRA-1146)
  * use generation time to resolve node token reassignment disagreements
