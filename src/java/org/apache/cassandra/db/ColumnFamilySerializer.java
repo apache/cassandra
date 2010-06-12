@@ -128,7 +128,9 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
 
         try
         {
-            return (AbstractType)Class.forName(className).getConstructor().newInstance();
+            // Get the singleton instance of the AbstractType subclass
+            Class c = Class.forName(className);
+            return (AbstractType) c.getField("instance").get(c);
         }
         catch (ClassNotFoundException e)
         {

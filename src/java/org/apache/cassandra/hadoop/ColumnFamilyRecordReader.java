@@ -187,7 +187,7 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
          */
         private void maybeConnect() throws InvalidRequestException, TException, AuthenticationException, 
             AuthorizationException, NotFoundException, InstantiationException, IllegalAccessException, 
-            ClassNotFoundException
+            ClassNotFoundException, NoSuchFieldException
         {
             // only need to connect once
             if (socket != null && socket.isOpen())
@@ -213,7 +213,9 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
                 Map<String, Map<String,String>> desc = client.describe_keyspace(keyspace);
                 Map<String,String> ksProps = desc.get(cfName);
                 String compClass = ksProps.get("CompareWith");
-                comparator = (AbstractType) Class.forName(compClass).newInstance();
+                // Get the singleton instance of the AbstractType subclass
+                Class c = Class.forName(compClass);
+                comparator = (AbstractType) c.getField("instance").get(c);
             }
         }
 

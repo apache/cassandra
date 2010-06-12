@@ -46,6 +46,8 @@ public class WordCountSetup
         Map<byte[], Map<String,List<Mutation>>> mutationMap;
         Column c;
 
+        // text0: no rows
+
         // text1: 1 row, 1 word
         c = new Column("text1".getBytes(), "word1".getBytes(), new Clock(System.currentTimeMillis()));
         mutationMap = getMutationMap("key0".getBytes(), WordCount.COLUMN_FAMILY, c);

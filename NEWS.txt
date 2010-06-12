@@ -48,6 +48,12 @@ Thrift API
     - The get_string_property() method has been removed.
     - The get_string_list_property() method has been removed.
 
+Other
+-----
+    - If extending AbstractType, make sure you follow the singleton pattern
+      followed by Cassandra core AbstractType extensions.
+      e.g. BytesType has a variable called 'instance' and an empty constructor
+      with default access
 
 0.6.0
 =====

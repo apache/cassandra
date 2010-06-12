@@ -1,0 +1,236 @@
+# Cassandra storage config YAML 
+# See http://wiki.apache.org/cassandra/StorageConfiguration for
+# explanations of configuration directives.
+
+# name of the cluster
+cluster_name: 'Test Cluster'
+
+# Set to true to make new [non-seed] nodes automatically migrate data
+# to themselves from the pre-existing nodes in the cluster.  Defaults
+# to false because you can only bootstrap N machines at a time from
+# an existing cluster of N, so if you are bringing up a cluster of
+# 10 machines with 3 seeds you would have to do it in stages.  Leaving
+# this off for the initial start simplifies that.
+auto_bootstrap: false
+
+# See http://wiki.apache.org/cassandra/HintedHandoff
+hinted_handoff_enabled: true
+
+# authentication backend, implementing IAuthenticator; used to limit keyspace access
+authenticator: org.apache.cassandra.auth.AllowAllAuthenticator
+
+# any IPartitioner may be used, including your own as long as it is on
+# the classpath.  Out of the box, Cassandra provides
+# org.apache.cassandra.dht.RandomPartitioner
+# org.apache.cassandra.dht.OrderPreservingPartitioner, and
+# org.apache.cassandra.dht.CollatingOrderPreservingPartitioner.
+partitioner: org.apache.cassandra.dht.RandomPartitioner
+
+# directories where Cassandra should store data on disk.
+data_file_directories:
+    - /var/lib/cassandra/data
+
+# Addresses of hosts that are deemed contact points. 
+# Cassandra nodes use this list of hosts to find each other and learn
+# the topology of the ring.  You must change this if you are running
+# multiple nodes!
+seeds:
+    - 127.0.0.1
+
+# Access mode.  mmapped i/o is substantially faster, but only practical on
+# a 64bit machine (which notably does not include EC2 "small" instances)
+# or relatively small datasets.  "auto", the safe choice, will enable
+# mmapping on a 64bit JVM.  Other values are "mmap", "mmap_index_only"
+# (which may allow you to get part of the benefits of mmap on a 32bit
+# machine by mmapping only index files) and "standard".
+# (The buffer size settings that follow only apply to standard,
+# non-mmapped i/o.)
+disk_access_mode: auto
+
+# Unlike most systems, in Cassandra writes are faster than reads, so
+# you can afford more of those in parallel.  A good rule of thumb is 2
+# concurrent reads per processor core.  Increase ConcurrentWrites to
+# the number of clients writing at once if you enable CommitLogSync +
+# CommitLogSyncDelay. -->
+concurrent_reads: 8
+concurrent_writes: 32
+
+# This sets the amount of memtable flush writer threads.  These will
+# be blocked by disk io, and each one will hold a memtable in memory
+# while blocked. If you have a large heap and many data directories,
+# you can increase this value for better flush performance.
+# By default this will be set to the amount of data directories defined.
+#memtable_flush_writers: 1
+
+# Buffer size to use when performing contiguous column slices. 
+# Increase this to the size of the column slices you typically perform
+sliced_buffer_size_in_kb: 64
+
+# TCP port, for commands and data
+storage_port: 7000
+
+# Address to bind to and tell other nodes to connect to. You _must_
+# change this if you want multiple nodes to be able to communicate!
+listen_address: localhost
+
+# The address to bind the Thrift RPC service to
+rpc_address: localhost
+# port for Thrift to listen on
+rpc_port: 9160
+# Whether or not to use a framed transport for Thrift.
+thrift_framed_transport: false
+snapshot_before_compaction: false
+
+# The threshold size in megabytes the binary memtable must grow to,
+# before it's submitted for flushing to disk.
+binary_memtable_throughput_in_mb: 256
+# Number of minutes to keep a memtable in memory
+memtable_flush_after_mins: 60
+# Size of the memtable in memory before it is dumped
+memtable_throughput_in_mb: 64
+# Number of objects in millions in the memtable before it is dumped
+memtable_operations_in_millions: 0.3
+# Buffer size to use when flushing !memtables to disk.
+flush_data_buffer_size_in_mb: 32
+# Increase (decrease) the index buffer size relative to the data
+# buffer if you have few (many) columns per key.
+flush_index_buffer_size_in_mb: 8
+
+column_index_size_in_kb: 64
+row_warning_threshold_in_mb: 512
+
+# commit log
+commitlog_directory: /var/lib/cassandra/commitlog
+
+# Size to allow commitlog to grow to before creating a new segment 
+commitlog_rotation_threshold_in_mb: 128
+
+# commitlog_sync may be either "periodic" or "batch." 
+# When in batch mode, Cassandra won't ack writes until the commit log
+# has been fsynced to disk.  It will wait up to
+# CommitLogSyncBatchWindowInMS milliseconds for other writes, before
+# performing the sync.
+commitlog_sync: periodic
+
+# the other option is "timed," where writes may be acked immediately
+# and the CommitLog is simply synced every commitlog_sync_period_in_ms
+# milliseconds.
+commitlog_sync_period_in_ms: 10000
+
+# Time to wait for a reply from other nodes before failing the command 
+rpc_timeout_in_ms: 10000
+
+# phi value that must be reached for a host to be marked down.
+# most users should never need to adjust this.
+# phi_convict_threshold: 8
+
+# time to wait before garbage collecting tombstones (deletion markers)
+gc_grace_seconds: 864000
+
+# endpoint_snitch -- Set this to a class that implements
+# IEndpointSnitch, which will let Cassandra know enough
+# about your network topology to route requests efficiently.
+# Out of the box, Cassandra provides
+# org.apache.cassandra.locator.SimpleSnitch,
+# org.apache.cassandra.locator.RackInferringSnitch, and
+# org.apache.cassandra.locator.PropertyFileSnitch.
+endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
+
+# A ColumnFamily is the Cassandra concept closest to a relational table. 
+#
+# Keyspaces are separate groups of ColumnFamilies.  Except in very
+# unusual circumstances you will have one Keyspace per application.
+#
+# Keyspace required parameters:
+# - name: name of the keyspace; "system" and "definitions" are 
+#   reserved for Cassandra Internals.
+# - replica_placement_strategy: the class that determines how replicas
+#   are distributed among nodes.  Must implement IReplicaPlacementStrategy.
+#   Out of the box, Cassandra provides 
+#     * org.apache.cassandra.locator.RackUnawareStrategy 
+#     * org.apache.cassandra.locator.RackAwareStrategy
+#     * org.apache.cassandra.locator.DatacenterShardStrategy
+#
+#   RackUnawareStrategy is the simplest; it simply places the first
+#   replica at the node whose token is closest to the key (as determined
+#   by the Partitioner), and additional replicas on subsequent nodes
+#   along the ring in increasing Token order.
+# 
+#   RackAwareStrategy is special cased for replication_factor of 3.  It
+#   places one replica in each of two datacenters, and the third on a
+#   different rack in in the first.
+#
+#   DatacenterShardStrategy is a generalization of RackAwareStrategy.
+#   For each datacenter, you can specify (in `datacenter.properties`)
+#   how many replicas you want on a per-keyspace basis.  Replicas are
+#   placed on different racks within each DC, if possible.
+# 
+# - replication_factor: Number of replicas of each row
+# - column_families: column families associated with this keyspace
+#
+# ColumnFamily required parameters:
+# - name: name of the ColumnFamily.  Must not contain the character "-".
+# - compare_with: tells Cassandra how to sort the columns for slicing
+#   operations. The default is BytesType, which is a straightforward
+#   lexical comparison of the bytes in each column.  Other options are
+#   AsciiType, UTF8Type, LexicalUUIDType, TimeUUIDType, and LongType.
+#   You can also specify the fully-qualified class name to a class of
+#   your choice extending org.apache.cassandra.db.marshal.AbstractType.
+#
+# ColumnFamily optional parameters:
+# - keys_cached: specifies the number of keys per sstable whose
+#   locations we keep in memory in "mostly LRU" order.  (JUST the key
+#   locations, NOT any column values.) Specify a fraction (value less
+#   than 1) or an absolute number of keys to cache.  Defaults to 200000
+#   keys.
+# - rows_cached: specifies the number of rows whose entire contents we
+#   cache in memory. Do not use this on ColumnFamilies with large rows,
+#   or ColumnFamilies with high write:read ratios. Specify a fraction
+#   (value less than 1) or an absolute number of rows to cache.
+#   Defaults to 0. (i.e. row caching is off by default)
+# - comment: used to attach additional human-readable information about 
+#   the column family to its definition.
+# - read_repair_chance: specifies the probability with which read
+#   repairs should be invoked on non-quorum reads.  must be between 0
+#   and 1. defaults to 1.0 (always read repair).
+# - preload_row_cache: If true, will populate row cache on startup.
+#   Defaults to false.
+#
+# NOTE: this keyspace definition is for demonstration purposes only.
+#       Cassandra will not load these definitions during startup. See
+#       http://wiki.apache.org/cassandra/FAQ#no_keyspaces for an explanation.
+keyspaces:
+    - name: Keyspace1
+      replica_placement_strategy: org.apache.cassandra.locator.RackUnawareStrategy
+      replication_factor: 1
+      column_families:
+        - name: Standard1
+          compare_with: BytesType
+
+        - name: Standard2
+          compare_with: UTF8Type
+          read_repair_chance: 0.1
+          keys_cached: 100
+
+        - name: StandardByUUID1
+          compare_with: TimeUUIDType
+          clock_type: Timestamp
+          reconciler: TimestampReconciler          
+
+        - name: Super1
+          column_type: Super
+          compare_with: BytesType
+          compare_subcolumns_with: BytesType
+
+        - name: Super2
+          column_type: Super
+          compare_subcolumns_with: UTF8Type
+          preload_row_cache: true
+          rows_cached: 10000
+          keys_cached: 50
+          comment: 'A column family with supercolumns, whose column and subcolumn names are UTF8 strings'
+
+        - name: Super3
+          column_type: Super
+          compare_with: LongType
+          comment: 'A column family with supercolumns, whose column names are Longs (8 bytes)'

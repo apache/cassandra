@@ -47,7 +47,7 @@ public class CliClient
     }
 
     // Execute a CLI Statement 
-    public void executeCLIStmt(String stmt) throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException, IllegalAccessException, ClassNotFoundException, InstantiationException
+    public void executeCLIStmt(String stmt) throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException, IllegalAccessException, ClassNotFoundException, InstantiationException, NoSuchFieldException
     {
         CommonTree ast = null;
 
@@ -243,7 +243,7 @@ public class CliClient
     }
 
     private void doSlice(String keyspace, String key, String columnFamily, byte[] superColumnName)
-            throws InvalidRequestException, UnavailableException, TimedOutException, TException, UnsupportedEncodingException, IllegalAccessException, NotFoundException, InstantiationException, ClassNotFoundException
+            throws InvalidRequestException, UnavailableException, TimedOutException, TException, UnsupportedEncodingException, IllegalAccessException, NotFoundException, InstantiationException, NoSuchFieldException
     {
         SliceRange range = new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 1000000);
         List<ColumnOrSuperColumn> columns = thriftClient_.get_slice(key.getBytes(),
@@ -276,34 +276,36 @@ public class CliClient
         css_.out.println("Returned " + size + " results.");
     }
  
-    private String formatSuperColumnName(String keyspace, String columnFamily, SuperColumn column) throws NotFoundException, TException, ClassNotFoundException, IllegalAccessException, InstantiationException
+    private String formatSuperColumnName(String keyspace, String columnFamily, SuperColumn column) throws NotFoundException, TException, IllegalAccessException, InstantiationException, NoSuchFieldException
     {
         return getFormatTypeForColumn(keyspacesMap.get(keyspace).get(columnFamily).get("CompareWith")).getString(column.name);
     }
 
-    private String formatSubcolumnName(String keyspace, String columnFamily, Column subcolumn) throws NotFoundException, TException, ClassNotFoundException, IllegalAccessException, InstantiationException
+    private String formatSubcolumnName(String keyspace, String columnFamily, Column subcolumn) throws NotFoundException, TException, IllegalAccessException, InstantiationException, NoSuchFieldException
     {
         return getFormatTypeForColumn(keyspacesMap.get(keyspace).get(columnFamily).get("CompareSubcolumnsWith")).getString(subcolumn.name);
     }
 
-    private String formatColumnName(String keyspace, String columnFamily, Column column) throws ClassNotFoundException, NotFoundException, TException, IllegalAccessException, InstantiationException
+    private String formatColumnName(String keyspace, String columnFamily, Column column) throws NotFoundException, TException, IllegalAccessException, InstantiationException, NoSuchFieldException
     {
         return getFormatTypeForColumn(keyspacesMap.get(keyspace).get(columnFamily).get("CompareWith")).getString(column.name);
     }
 
-    private AbstractType getFormatTypeForColumn(String compareWith) throws ClassNotFoundException, IllegalAccessException, InstantiationException
+    private AbstractType getFormatTypeForColumn(String compareWith) throws IllegalAccessException, InstantiationException, NoSuchFieldException
     {
         AbstractType type;
         try {
-            type = (AbstractType) Class.forName(compareWith).newInstance();
+            // Get the singleton instance of the AbstractType subclass
+            Class c = Class.forName(compareWith);
+            type = (AbstractType) c.getField("instance").get(c);
         } catch (ClassNotFoundException e) {
-            type = BytesType.class.newInstance();
+            type = BytesType.instance;
         }
         return type;
     }
 
     // Execute GET statement
-    private void executeGet(CommonTree ast) throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException, IllegalAccessException, InstantiationException, ClassNotFoundException
+    private void executeGet(CommonTree ast) throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException, IllegalAccessException, InstantiationException, ClassNotFoundException, NoSuchFieldException
     {
         if (!CliMain.isConnected() || !hasKeySpace())
             return;

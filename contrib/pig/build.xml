@@ -49,7 +49,7 @@
     </target>
 
     <target depends="init" name="build">
-        <fail unless="env.PIG_HOME" message="Please set PIG_HOME to the location of a Pig >= 0.7.0-dev install." />
+        <fail unless="env.PIG_HOME" message="Please set PIG_HOME to the location of a Pig >= 0.7.0 install." />
         <javac destdir="${build.classes}">
             <src path="${build.src}" />
             <classpath refid="classpath" />
