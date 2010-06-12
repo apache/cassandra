@@ -33,7 +33,7 @@ fi
 CLASSPATH=$CLASSPATH:$LOADFUNC_JAR
 
 if [ "x$PIG_HOME" = "x" ]; then
-    echo "PIG_HOME not set: requires Pig >= 0.7.0-dev" >&2
+    echo "PIG_HOME not set: requires Pig >= 0.7.0" >&2
     exit 1
 fi
 
