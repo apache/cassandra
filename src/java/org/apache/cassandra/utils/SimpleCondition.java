@@ -37,6 +37,11 @@ public class SimpleCondition implements Condition
         while (!set)
             wait();
     }
+    
+    public synchronized void reset()
+    {
+        set = false;
+    }
 
     public synchronized boolean await(long time, TimeUnit unit) throws InterruptedException
     {

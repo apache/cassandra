@@ -106,6 +106,8 @@ public class StreamOutManager
     
     public void addFilesToStream(PendingFile[] pendingFiles)
     {
+        // reset the condition in case this SOM is getting reused before it can be removed.
+        condition.reset();
         for (PendingFile pendingFile : pendingFiles)
         {
             if (logger.isDebugEnabled())
