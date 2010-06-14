@@ -49,16 +49,16 @@ public abstract class AbstractReplicationStrategy
 
     private TokenMetadata tokenMetadata;
     protected final IEndpointSnitch snitch;
-    private final Map<EndpointCacheKey, ArrayList<InetAddress>> cachedEndpoints;
+    private volatile Map<EndpointCacheKey, ArrayList<InetAddress>> cachedEndpoints;
 
     AbstractReplicationStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch)
     {
+        // TODO assert snitch != null some test code violates this
+        assert tokenMetadata != null;
         this.tokenMetadata = tokenMetadata;
         this.snitch = snitch;
         cachedEndpoints = new NonBlockingHashMap<EndpointCacheKey, ArrayList<InetAddress>>();
         this.tokenMetadata.register(this);
-        if (this.snitch != null)
-            this.snitch.register(this);
     }
 
     /**
@@ -233,7 +233,7 @@ public abstract class AbstractReplicationStrategy
     protected void clearCachedEndpoints()
     {
         logger.debug("clearing cached endpoints");
-        cachedEndpoints.clear();
+        cachedEndpoints = new NonBlockingHashMap<EndpointCacheKey, ArrayList<InetAddress>>();
     }
 
     public void invalidateCachedTokenEndpointValues()
