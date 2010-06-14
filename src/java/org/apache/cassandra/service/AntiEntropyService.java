@@ -39,6 +39,7 @@ import org.apache.cassandra.streaming.StreamOut;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.streaming.StreamOutManager;
 import org.apache.cassandra.utils.*;
 
 import org.apache.log4j.Logger;
@@ -629,6 +630,7 @@ public class AntiEntropyService
                     protected void runMayThrow() throws Exception
                     {
                         StreamOut.transferSSTables(remote, sstables, cf.left);
+                        StreamOutManager.remove(remote);
                     }
                 });
                 f.get();

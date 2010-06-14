@@ -22,6 +22,7 @@
  * detect incomplete commit log hearders (CASSANDRA-1119)
  * force anti-entropy service to stream files on the stream stage to avoid
    sending streams out of order (CASSANDRA-1169)
+ * remove inactive stream managers after AES streams files (CASSANDRA-1169)
 
 
 0.6.2
