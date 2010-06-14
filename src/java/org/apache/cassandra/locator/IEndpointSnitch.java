@@ -18,13 +18,9 @@
 
 package org.apache.cassandra.locator;
 
-import java.net.UnknownHostException;
-
 import java.net.InetAddress;
-import java.util.Set;
-import java.util.List;
 import java.util.Collection;
-
+import java.util.List;
 
 /**
  * This interface helps determine location of node in the data center relative to another node.
@@ -43,5 +39,10 @@ public interface IEndpointSnitch
      * This method will sort the <tt>List</tt> by proximity to the given address.
      */
     public List<InetAddress> sortByProximity(InetAddress address, List<InetAddress> addresses);
-}
 
+    /**
+     * register to receive notification when the endpoint snitch has changed the answers it was providing.
+     * @param subscriber the subscriber to notify
+     */
+    public void register(AbstractReplicationStrategy subscriber);
+}

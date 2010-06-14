@@ -1,4 +1,3 @@
-package org.apache.cassandra.locator;
 /*
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -20,6 +19,7 @@ package org.apache.cassandra.locator;
  *
  */
 
+package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -29,7 +29,7 @@ import java.util.*;
  * An endpoint snitch tells Cassandra information about network topology that it can use to route
  * requests more efficiently.
  */
-public abstract class AbstractRackAwareSnitch implements IEndpointSnitch
+public abstract class AbstractRackAwareSnitch extends AbstractEndpointSnitch
 {
     /**
      * Return the rack for which an endpoint resides in

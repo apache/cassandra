@@ -16,9 +16,8 @@
 * specific language governing permissions and limitations
 * under the License.
 */
-package org.apache.cassandra.locator;
 
-import static org.junit.Assert.assertEquals;
+package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -27,12 +26,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.junit.Before;
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.BigIntegerToken;
 import org.apache.cassandra.dht.Token;
-
-import org.junit.Before;
-import org.junit.Test;
 
 public class RackAwareStrategyTest
 {
@@ -160,7 +160,7 @@ public class RackAwareStrategyTest
     {
         for (Token keyToken : keyTokens)
         {
-            List<InetAddress> endpoints = strategy.getNaturalEndpoints(keyToken, tmd, table);
+            List<InetAddress> endpoints = strategy.getNaturalEndpoints(keyToken, table);
             for (int j = 0; j < endpoints.size(); j++)
             {
                 ArrayList<InetAddress> hostsExpected = expectedResults.get(keyToken.toString());

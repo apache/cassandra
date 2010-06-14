@@ -24,23 +24,25 @@ import java.net.InetAddress;
 import java.util.Properties;
 import java.util.StringTokenizer;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ResourceWatcher;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Used to determine if two IP's are in the same datacenter or on the same rack.
  * <p/>
  * Based on a properties file configuration.
  */
-public class PropertyFileSnitch extends AbstractRackAwareSnitch {
+public class PropertyFileSnitch extends AbstractRackAwareSnitch
+{
     /**
      * A list of properties with keys being host:port and values being datacenter:rack
      */
-    private volatile Properties hostProperties = new Properties();
+    private volatile Properties hostProperties;
 
     /**
      * The default rack property file to be read.
@@ -112,6 +114,7 @@ public class PropertyFileSnitch extends AbstractRackAwareSnitch {
     public void reloadConfiguration() throws ConfigurationException
     {
         hostProperties = resourceToProperties(RACK_PROPERTY_FILENAME);
+        invalidateCachedSnitchValues();
     }
 
     public static Properties resourceToProperties(String filename) throws ConfigurationException

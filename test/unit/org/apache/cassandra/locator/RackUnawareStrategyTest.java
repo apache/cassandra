@@ -18,28 +18,21 @@
 */
 package org.apache.cassandra.locator;
 
-import static org.junit.Assert.*;
-
-import java.util.Arrays;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Collection;
-
-import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.service.StorageServiceAccessor;
-import org.junit.Test;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.RandomPartitioner;
-import org.apache.cassandra.dht.BigIntegerToken;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.dht.OrderPreservingPartitioner;
-import org.apache.cassandra.dht.StringToken;
-import org.apache.cassandra.service.StorageService;
-
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+
+import org.junit.Test;
+
+import static org.junit.Assert.*;
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.*;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.StorageServiceAccessor;
 
 public class RackUnawareStrategyTest extends SchemaLoader
 {
@@ -71,8 +64,7 @@ public class RackUnawareStrategyTest extends SchemaLoader
             endpointTokens.add(new BigIntegerToken(String.valueOf(10 * i)));
             keyTokens.add(new BigIntegerToken(String.valueOf(10 * i + 5)));
         }
-        for (String table : DatabaseDescriptor.getNonSystemTables())
-            testGetEndpoints(tmd, strategy, endpointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]), table);
+        verifyGetNaturalEndpoints(tmd, strategy, endpointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]));
     }
 
     @Test
@@ -88,29 +80,31 @@ public class RackUnawareStrategyTest extends SchemaLoader
             endpointTokens.add(new StringToken(String.valueOf((char)('a' + i * 2))));
             keyTokens.add(partitioner.getToken(String.valueOf((char)('a' + i * 2 + 1)).getBytes()));
         }
-        for (String table : DatabaseDescriptor.getNonSystemTables())
-            testGetEndpoints(tmd, strategy, endpointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]), table);
+        verifyGetNaturalEndpoints(tmd, strategy, endpointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]));
     }
 
     // given a list of endpoint tokens, and a set of key tokens falling between the endpoint tokens,
     // make sure that the Strategy picks the right endpoints for the keys.
-    private void testGetEndpoints(TokenMetadata tmd, AbstractReplicationStrategy strategy, Token[] endpointTokens, Token[] keyTokens, String table) throws UnknownHostException
+    private void verifyGetNaturalEndpoints(TokenMetadata tmd, AbstractReplicationStrategy strategy, Token[] endpointTokens, Token[] keyTokens) throws UnknownHostException
     {
-        List<InetAddress> hosts = new ArrayList<InetAddress>();
-        for (int i = 0; i < endpointTokens.length; i++)
+        for (String table : DatabaseDescriptor.getNonSystemTables())
         {
-            InetAddress ep = InetAddress.getByName("127.0.0." + String.valueOf(i + 1));
-            tmd.updateNormalToken(endpointTokens[i], ep);
-            hosts.add(ep);
-        }
-
-        for (int i = 0; i < keyTokens.length; i++)
-        {
-            List<InetAddress> endpoints = strategy.getNaturalEndpoints(keyTokens[i], table);
-            assertEquals(DatabaseDescriptor.getReplicationFactor(table), endpoints.size());
-            for (int j = 0; j < endpoints.size(); j++)
+            List<InetAddress> hosts = new ArrayList<InetAddress>();
+            for (int i = 0; i < endpointTokens.length; i++)
             {
-                assertEquals(endpoints.get(j), hosts.get((i + j + 1) % hosts.size()));
+                InetAddress ep = InetAddress.getByName("127.0.0." + String.valueOf(i + 1));
+                tmd.updateNormalToken(endpointTokens[i], ep);
+                hosts.add(ep);
+            }
+
+            for (int i = 0; i < keyTokens.length; i++)
+            {
+                List<InetAddress> endpoints = strategy.getNaturalEndpoints(keyTokens[i], table);
+                assertEquals(DatabaseDescriptor.getReplicationFactor(table), endpoints.size());
+                List<InetAddress> correctEndpoints = new ArrayList<InetAddress>();
+                for (int j = 0; j < endpoints.size(); j++)
+                    correctEndpoints.add(hosts.get((i + j + 1) % hosts.size()));
+                assertEquals(new HashSet<InetAddress>(correctEndpoints), new HashSet<InetAddress>(endpoints));
             }
         }
     }

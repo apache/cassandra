@@ -16,15 +16,14 @@
 * specific language governing permissions and limitations
 * under the License.
 */
+
 package org.apache.cassandra.locator;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import java.net.InetAddress;
+import java.util.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
-import java.net.InetAddress;
 
 /**
  * This class returns the nodes responsible for a given
@@ -39,11 +38,11 @@ public class RackUnawareStrategy extends AbstractReplicationStrategy
         super(tokenMetadata, snitch);
     }
 
-    public ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata, String table)
+    public Set<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata, String table)
     {
         int replicas = DatabaseDescriptor.getReplicationFactor(table);
         List<Token> tokens = metadata.sortedTokens();
-        ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>(replicas);
+        Set<InetAddress> endpoints = new HashSet<InetAddress>(replicas);
 
         if (tokens.isEmpty())
             return endpoints;

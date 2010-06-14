@@ -19,18 +19,19 @@
 package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * A simple endpoint snitch implementation does not sort addresses by
  * proximity.
  */
-public class SimpleSnitch implements IEndpointSnitch
+public class SimpleSnitch extends AbstractEndpointSnitch
 {
     public List<InetAddress> getSortedListByProximity(final InetAddress address, Collection<InetAddress> addresses)
     {
-        List<InetAddress> list = new ArrayList<InetAddress>(addresses);
-        return list;
+        return new ArrayList<InetAddress>(addresses);
     }
 
     public List<InetAddress> sortByProximity(final InetAddress address, List<InetAddress> addresses)

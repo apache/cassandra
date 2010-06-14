@@ -16,56 +16,78 @@
 * specific language governing permissions and limitations
 * under the License.
 */
+
 package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
 import java.util.*;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.service.AbstractWriteResponseHandler;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
-
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.service.IResponseResolver;
 import org.apache.cassandra.service.QuorumResponseHandler;
 import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
  * A abstract parent for all replication strategies.
 */
 public abstract class AbstractReplicationStrategy
 {
-    protected static final Logger logger_ = LoggerFactory.getLogger(AbstractReplicationStrategy.class);
+    private static final Logger logger = LoggerFactory.getLogger(AbstractReplicationStrategy.class);
 
-    protected TokenMetadata tokenMetadata_;
-    protected final IEndpointSnitch snitch_;
+    private TokenMetadata tokenMetadata;
+    protected final IEndpointSnitch snitch;
+    private final Map<EndpointCacheKey, ArrayList<InetAddress>> cachedEndpoints;
 
     AbstractReplicationStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch)
     {
-        tokenMetadata_ = tokenMetadata;
-        snitch_ = snitch;
+        this.tokenMetadata = tokenMetadata;
+        this.snitch = snitch;
+        cachedEndpoints = new NonBlockingHashMap<EndpointCacheKey, ArrayList<InetAddress>>();
+        this.tokenMetadata.register(this);
+        if (this.snitch != null)
+            this.snitch.register(this);
     }
 
     /**
-     * get the endpoints that should store the given Token, for the given table.
+     * get the (possibly cached) endpoints that should store the given Token, for the given table.
      * Note that while the endpoints are conceptually a Set (no duplicates will be included),
-     * we return a List to avoid an extra allocation when sorting by proximity later.
+     * we return a List to avoid an extra allocation when sorting by proximity later
+     * @param searchToken the token the natural endpoints are requested for
+     * @param table the table the natural endpoints are requested for
+     * @return a copy of the natural endpoints for the given token and table
      */
-    public abstract ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata, String table);
-
-    public ArrayList<InetAddress> getNaturalEndpoints(Token token, String table)
+    public ArrayList<InetAddress> getNaturalEndpoints(Token searchToken, String table)
     {
-        return getNaturalEndpoints(token, tokenMetadata_, table);
+        // TODO creating a iterator object just to get the closest token is wasteful -- we do in multiple places w/ ringIterator
+        Token keyToken = TokenMetadata.ringIterator(tokenMetadata.sortedTokens(), searchToken).next();
+        EndpointCacheKey cacheKey = new EndpointCacheKey(table, keyToken);
+        ArrayList<InetAddress> endpoints = cachedEndpoints.get(cacheKey);
+        if (endpoints == null)
+        {
+            TokenMetadata tokenMetadataClone = tokenMetadata.cloneOnlyTokenMap();
+            keyToken = TokenMetadata.ringIterator(tokenMetadataClone.sortedTokens(), searchToken).next();
+            cacheKey = new EndpointCacheKey(table, keyToken);
+            endpoints = new ArrayList<InetAddress>(calculateNaturalEndpoints(searchToken, tokenMetadataClone, table));
+            cachedEndpoints.put(cacheKey, endpoints);
+        }
+
+        return new ArrayList<InetAddress>(endpoints);
     }
+
+    public abstract Set<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata, String table);
 
     public AbstractWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints,
                                                                 Multimap<InetAddress, InetAddress> hintedEndpoints,
@@ -132,12 +154,12 @@ public abstract class AbstractReplicationStrategy
      */
     public Collection<InetAddress> getWriteEndpoints(Token token, String table, Collection<InetAddress> naturalEndpoints)
     {
-        if (tokenMetadata_.getPendingRanges(table).isEmpty())
+        if (tokenMetadata.getPendingRanges(table).isEmpty())
             return naturalEndpoints;
 
         List<InetAddress> endpoints = new ArrayList<InetAddress>(naturalEndpoints);
 
-        for (Map.Entry<Range, Collection<InetAddress>> entry : tokenMetadata_.getPendingRanges(table).entrySet())
+        for (Map.Entry<Range, Collection<InetAddress>> entry : tokenMetadata.getPendingRanges(table).entrySet())
         {
             if (entry.getKey().contains(token))
             {
@@ -161,7 +183,7 @@ public abstract class AbstractReplicationStrategy
         for (Token token : metadata.sortedTokens())
         {
             Range range = metadata.getPrimaryRangeFor(token);
-            for (InetAddress ep : getNaturalEndpoints(token, metadata, table))
+            for (InetAddress ep : calculateNaturalEndpoints(token, metadata, table))
             {
                 map.put(ep, range);
             }
@@ -177,7 +199,7 @@ public abstract class AbstractReplicationStrategy
         for (Token token : metadata.sortedTokens())
         {
             Range range = metadata.getPrimaryRangeFor(token);
-            for (InetAddress ep : getNaturalEndpoints(token, metadata, table))
+            for (InetAddress ep : calculateNaturalEndpoints(token, metadata, table))
             {
                 map.put(range, ep);
             }
@@ -188,7 +210,7 @@ public abstract class AbstractReplicationStrategy
 
     public Multimap<InetAddress, Range> getAddressRanges(String table)
     {
-        return getAddressRanges(tokenMetadata_, table);
+        return getAddressRanges(tokenMetadata, table);
     }
 
     public Collection<Range> getPendingAddressRanges(TokenMetadata metadata, Token pendingToken, InetAddress pendingAddress, String table)
@@ -201,5 +223,26 @@ public abstract class AbstractReplicationStrategy
     public QuorumResponseHandler getQuorumResponseHandler(IResponseResolver responseResolver, ConsistencyLevel consistencyLevel, String table)
     {
         return new QuorumResponseHandler(responseResolver, consistencyLevel, table);
+    }
+
+    protected static class EndpointCacheKey extends Pair<String, Token>
+    {
+        public EndpointCacheKey(String table, Token keyToken) {super(table, keyToken);}
+    }
+
+    protected void clearCachedEndpoints()
+    {
+        logger.debug("clearing cached endpoints");
+        cachedEndpoints.clear();
+    }
+
+    public void invalidateCachedTokenEndpointValues()
+    {
+        clearCachedEndpoints();
+    }
+
+    public void invalidateCachedSnitchValues()
+    {
+        clearCachedEndpoints();
     }
 }

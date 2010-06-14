@@ -18,22 +18,22 @@
 
 package org.apache.cassandra.locator;
 
+import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
-import com.google.common.collect.*;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.dht.Range;
-
-import java.net.InetAddress;
 
 import org.apache.commons.lang.StringUtils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.collect.*;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 
 public class TokenMetadata
 {
@@ -64,6 +64,9 @@ public class TokenMetadata
     private final ReadWriteLock lock = new ReentrantReadWriteLock(true);
     private List<Token> sortedTokens;
 
+    /* list of subscribers that are notified when the tokenToEndpointMap changed */
+    private final CopyOnWriteArrayList<AbstractReplicationStrategy> subscribers;
+
     public TokenMetadata()
     {
         this(null);
@@ -78,6 +81,7 @@ public class TokenMetadata
         leavingEndpoints = new HashSet<InetAddress>();
         pendingRanges = new ConcurrentHashMap<String, Multimap<Range, InetAddress>>();
         sortedTokens = sortTokens();
+        subscribers = new CopyOnWriteArrayList<AbstractReplicationStrategy>();
     }
 
     private List<Token> sortTokens()
@@ -116,6 +120,7 @@ public class TokenMetadata
                 sortedTokens = sortTokens();
             }
             leavingEndpoints.remove(endpoint);
+            fireTokenToEndpointMapChanged();
         }
         finally
         {
@@ -205,6 +210,7 @@ public class TokenMetadata
             tokenToEndpointMap.inverse().remove(endpoint);
             leavingEndpoints.remove(endpoint);
             sortedTokens = sortTokens();
+            fireTokenToEndpointMapChanged();
         }
         finally
         {
@@ -454,6 +460,7 @@ public class TokenMetadata
         tokenToEndpointMap.clear();
         leavingEndpoints.clear();
         pendingRanges.clear();
+        fireTokenToEndpointMapChanged();
     }
 
     public String toString()
@@ -528,5 +535,18 @@ public class TokenMetadata
         }
 
         return sb.toString();
+    }
+
+    protected void fireTokenToEndpointMapChanged()
+    {
+        for (AbstractReplicationStrategy subscriber : subscribers)
+        {
+            subscriber.invalidateCachedTokenEndpointValues();
+        }
+    }
+
+    public void register(AbstractReplicationStrategy subscriber)
+    {
+        subscribers.add(subscriber);
     }
 }

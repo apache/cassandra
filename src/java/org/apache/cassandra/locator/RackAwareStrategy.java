@@ -16,16 +16,14 @@
 * specific language governing permissions and limitations
 * under the License.
 */
+
 package org.apache.cassandra.locator;
 
-import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import java.net.InetAddress;
+import java.util.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
-import java.net.InetAddress;
 
 /*
  * This Replication Strategy returns the nodes responsible for a given
@@ -43,10 +41,10 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
             throw new IllegalArgumentException(("RackAwareStrategy requires AbstractRackAwareSnitch."));
     }
 
-    public ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata, String table)
+    public Set<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata, String table)
     {
         int replicas = DatabaseDescriptor.getReplicationFactor(table);
-        ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>(replicas);
+        Set<InetAddress> endpoints = new HashSet<InetAddress>(replicas);
         List<Token> tokens = metadata.sortedTokens();
 
         if (tokens.isEmpty())
@@ -60,7 +58,7 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
         boolean bOtherRack = false;
         while (endpoints.size() < replicas && iter.hasNext())
         {
-            AbstractRackAwareSnitch snitch = (AbstractRackAwareSnitch)snitch_;
+            AbstractRackAwareSnitch snitch = (AbstractRackAwareSnitch) this.snitch;
 
             // First try to find one in a different data center
             Token t = iter.next();

@@ -1,5 +1,3 @@
-package org.apache.cassandra.locator;
-
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -21,19 +19,21 @@ package org.apache.cassandra.locator;
  * 
  */
 
+package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
 import java.util.*;
 import java.util.Map.Entry;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.google.common.collect.Multimap;
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.utils.ResourceWatcher;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ResourceWatcher;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 /**
@@ -52,9 +52,9 @@ import org.apache.cassandra.utils.WrappedRunnable;
 public class DatacenterShardStrategy extends AbstractReplicationStrategy
 {
     private static final String DATACENTER_PROPERTY_FILENAME = "datacenters.properties";
-    private Map<String, List<Token>> dcTokens;
     private AbstractRackAwareSnitch snitch;
-    private Map<String, Map<String, Integer>> datacenters = new HashMap<String, Map<String, Integer>>();
+    private volatile Map<String, Map<String, Integer>> datacenters;
+    private static final Logger logger = LoggerFactory.getLogger(DatacenterShardStrategy.class);
 
     public DatacenterShardStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch) throws ConfigurationException
     {
@@ -72,106 +72,86 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
             }
         };
         ResourceWatcher.watch(DATACENTER_PROPERTY_FILENAME, runnable, 60 * 1000);
-
-        loadEndpoints(tokenMetadata);
     }
 
-    public void reloadConfiguration() throws ConfigurationException
+    public synchronized void reloadConfiguration() throws ConfigurationException
     {
         Properties props = PropertyFileSnitch.resourceToProperties(DATACENTER_PROPERTY_FILENAME);
-        for (Object key : props.keySet())
+        Map<String, Map<String, Integer>> newDatacenters = new HashMap<String, Map<String, Integer>>();
+        for (Entry entry : props.entrySet())
         {
-            String[] keys = ((String)key).split(":");
-            Map<String, Integer> map = datacenters.get(keys[0]);
-            if (null == map)
-            {
+            String[] keys = ((String)entry.getKey()).split(":");
+            Map<String, Integer> map = newDatacenters.get(keys[0]);
+            if (map == null)
                 map = new HashMap<String, Integer>();
-            }
-            map.put(keys[1], Integer.parseInt((String)props.get(key)));
-            datacenters.put(keys[0], map);
+            map.put(keys[1], Integer.parseInt((String) entry.getValue()));
+            newDatacenters.put(keys[0], map);
         }
+        datacenters = Collections.unmodifiableMap(newDatacenters);
+        logger.info(DATACENTER_PROPERTY_FILENAME + " changed, clearing endpoint cache");
+        clearCachedEndpoints();
     }
 
-    private synchronized void loadEndpoints(TokenMetadata metadata) throws ConfigurationException
+    public Set<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata, String table)
     {
-        String localDC = snitch.getDatacenter(DatabaseDescriptor.getListenAddress());
-        if (localDC == null)
-            throw new ConfigurationException("Invalid datacenter configuration; couldn't find local host " + FBUtilities.getLocalAddress());
+        int totalReplicas = getReplicationfactor(table);
+        Map<String, Integer> remainingReplicas = new HashMap<String, Integer>(datacenters.get(table));
+        Map<String, Set<String>> dcUsedRacks = new HashMap<String, Set<String>>();
+        Set<InetAddress> endpoints = new HashSet<InetAddress>(totalReplicas);
 
-        dcTokens = new HashMap<String, List<Token>>();
-        for (Token token : metadata.sortedTokens())
+        // first pass: only collect replicas on unique racks
+        for (Iterator<Token> iter = TokenMetadata.ringIterator(tokenMetadata.sortedTokens(), searchToken);
+             endpoints.size() < totalReplicas && iter.hasNext();)
         {
-            InetAddress endPoint = metadata.getEndpoint(token);
-            String dataCenter = snitch.getDatacenter(endPoint);
-            // add tokens to dcmap.
-            List<Token> lst = dcTokens.get(dataCenter);
-            if (lst == null)
+            Token token = iter.next();
+            InetAddress endpoint = tokenMetadata.getEndpoint(token);
+            String datacenter = snitch.getDatacenter(endpoint);
+            int remaining = remainingReplicas.containsKey(datacenter) ? remainingReplicas.get(datacenter) : 0;
+            if (remaining > 0)
             {
-                lst = new ArrayList<Token>();
-            }
-            lst.add(token);
-            dcTokens.put(dataCenter, lst);
-        }
-        for (Entry<String, List<Token>> entry : dcTokens.entrySet())
-        {
-            List<Token> valueList = entry.getValue();
-            Collections.sort(valueList);
-            dcTokens.put(entry.getKey(), valueList);
-        }
-
-        // TODO verify that each DC has enough endpoints for the desired RF
-    }
-
-    public ArrayList<InetAddress> getNaturalEndpoints(Token searchToken, TokenMetadata metadata, String table)
-    {
-        ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>();
-
-        if (metadata.sortedTokens().isEmpty())
-            return endpoints;
-
-        for (String dc : dcTokens.keySet())
-        {
-            List<Token> tokens = dcTokens.get(dc);
-            Set<String> racks = new HashSet<String>();
-            // Add the node at the index by default
-            Iterator<Token> iter = TokenMetadata.ringIterator(tokens, searchToken);
-            InetAddress initialDCHost = metadata.getEndpoint(iter.next());
-            assert initialDCHost != null;
-            endpoints.add(initialDCHost);
-            racks.add(snitch.getRack(initialDCHost));
-
-            // find replicas on unique racks
-            int replicas = getReplicationFactor(dc, table);
-            int localEndpoints = 1;
-            while (localEndpoints < replicas && iter.hasNext())
-            {
-                Token t = iter.next();
-                InetAddress endpoint = metadata.getEndpoint(t);
-                if (!racks.contains(snitch.getRack(endpoint)))
+                Set<String> usedRacks = dcUsedRacks.get(datacenter);
+                if (usedRacks == null)
+                {
+                    usedRacks = new HashSet<String>();
+                    dcUsedRacks.put(datacenter, usedRacks);
+                }
+                String rack = snitch.getRack(endpoint);
+                if (!usedRacks.contains(rack))
                 {
                     endpoints.add(endpoint);
-                    localEndpoints++;
+                    usedRacks.add(rack);
+                    remainingReplicas.put(datacenter, remaining - 1);
                 }
             }
+        }
 
-            if (localEndpoints == replicas)
+        // 2nd pass: if replica count has not been achieved from unique racks, add nodes from the same racks
+        for (Iterator<Token> iter = TokenMetadata.ringIterator(tokenMetadata.sortedTokens(), searchToken);
+             endpoints.size() < totalReplicas && iter.hasNext();)
+        {
+            Token token = iter.next();
+            InetAddress endpoint = tokenMetadata.getEndpoint(token);
+            if (endpoints.contains(endpoint))
                 continue;
 
-            // if not enough unique racks were found, re-loop and add other endpoints
-            iter = TokenMetadata.ringIterator(tokens, searchToken);
-            iter.next(); // skip the first one since we already know it's used
-            while (localEndpoints < replicas && iter.hasNext())
+            String datacenter = snitch.getDatacenter(endpoint);
+            int remaining = remainingReplicas.containsKey(datacenter) ? remainingReplicas.get(datacenter) : 0;
+            if (remaining > 0)
             {
-                Token t = iter.next();
-                if (!endpoints.contains(metadata.getEndpoint(t)))
-                {
-                    localEndpoints++;
-                    endpoints.add(metadata.getEndpoint(t));
-                }
+                endpoints.add(endpoint);
+                remainingReplicas.put(datacenter, remaining - 1);
             }
         }
 
         return endpoints;
+    }
+
+    public int getReplicationfactor(String table)
+    {
+        int total = 0;
+        for (int repFactor : datacenters.get(table).values())
+            total += repFactor;
+        return total;
     }
 
     public int getReplicationFactor(String dc, String table)
