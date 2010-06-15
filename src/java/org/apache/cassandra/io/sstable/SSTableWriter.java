@@ -163,7 +163,7 @@ public class SSTableWriter extends SSTable
         SegmentedFile dfile = dbuilder.complete(newdesc.filenameFor(SSTable.COMPONENT_DATA));
         ibuilder = null;
         dbuilder = null;
-        return RowIndexedReader.internalOpen(newdesc, partitioner, ifile, dfile, indexSummary, bf, maxDataAge);
+        return SSTableReader.internalOpen(newdesc, partitioner, ifile, dfile, indexSummary, bf, maxDataAge);
     }
 
     static Descriptor rename(Descriptor tmpdesc)
