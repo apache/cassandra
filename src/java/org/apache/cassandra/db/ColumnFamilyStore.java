@@ -1087,11 +1087,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ssTables_.getRowCache().clear();
     }
 
-    public int getRowCacheSize()
-    {
-        return ssTables_.getRowCache().getCapacity();
-    }
-
     public int getKeyCacheSize()
     {
         return ssTables_.getKeyCache().getCapacity();

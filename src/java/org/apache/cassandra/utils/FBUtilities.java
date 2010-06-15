@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.utils;
 
-import java.io.*;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.File;
+import java.io.IOException;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.URL;
@@ -26,27 +29,26 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.security.MessageDigest;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.zip.DataFormatException;
-import java.util.zip.Deflater;
-import java.util.zip.Inflater;
 
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.locator.PropertyFileSnitch;
+import org.apache.commons.collections.iterators.CollatingIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.commons.collections.iterators.CollatingIterator;
-
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IClock;
 import org.apache.cassandra.db.IClock.ClockRelationship;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.PropertyFileSnitch;
 import org.apache.thrift.TBase;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
@@ -73,17 +75,6 @@ public class FBUtilities
         {
             throw new RuntimeException(e);
         }
-    }
-
-    public static String[] strip(String string, String token)
-    {
-        StringTokenizer st = new StringTokenizer(string, token);
-        List<String> result = new ArrayList<String>();
-        while ( st.hasMoreTokens() )
-        {
-            result.add( (String)st.nextElement() );
-        }
-        return result.toArray( new String[0] );
     }
 
     /**
@@ -251,7 +242,7 @@ public class FBUtilities
 
     public static byte[] hash(String type, byte[]... data)
     {
-    	byte[] result = null;
+    	byte[] result;
     	try
         {
             MessageDigest messageDigest = MessageDigest.getInstance(type);
@@ -265,49 +256,6 @@ public class FBUtilities
     	}
     	return result;
 	}
-
-    // The given byte array is compressed onto the specified stream.
-    // The method does not close the stream. The caller will have to do it.
-    public static void compressToStream(byte[] input, ByteArrayOutputStream bos) throws IOException
-    {
-    	 // Create the compressor with highest level of compression
-        Deflater compressor = new Deflater();
-        compressor.setLevel(Deflater.BEST_COMPRESSION);
-
-        // Give the compressor the data to compress
-        compressor.setInput(input);
-        compressor.finish();
-
-        // Write the compressed data to the stream
-        byte[] buf = new byte[1024];
-        while (!compressor.finished())
-        {
-            int count = compressor.deflate(buf);
-            bos.write(buf, 0, count);
-        }
-    }
-
-    public static byte[] decompress(byte[] compressedData, int off, int len) throws IOException, DataFormatException
-    {
-    	 // Create the decompressor and give it the data to compress
-        Inflater decompressor = new Inflater();
-        decompressor.setInput(compressedData, off, len);
-
-        // Create an expandable byte array to hold the decompressed data
-        ByteArrayOutputStream bos = new ByteArrayOutputStream(compressedData.length);
-
-        // Decompress the data
-        byte[] buf = new byte[1024];
-        while (!decompressor.finished())
-        {
-            int count = decompressor.inflate(buf);
-            bos.write(buf, 0, count);
-        }
-        bos.close();
-
-        // Get the decompressed data
-        return bos.toByteArray();
-    }
 
     public static void writeByteArray(byte[] bytes, DataOutput out) throws IOException
     {

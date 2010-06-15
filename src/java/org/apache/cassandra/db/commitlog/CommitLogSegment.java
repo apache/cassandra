@@ -103,7 +103,6 @@ public class CommitLogSegment
         {
             currentPosition = logWriter.getFilePointer();
             CommitLogSegment.CommitLogContext cLogCtx = new CommitLogSegment.CommitLogContext(currentPosition);
-            Table table = Table.open(rowMutation.getTable());
 
             // update header
             for (ColumnFamily columnFamily : rowMutation.getColumnFamilies())
