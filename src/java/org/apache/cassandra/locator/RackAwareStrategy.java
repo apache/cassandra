@@ -25,12 +25,12 @@ import java.util.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
 
-/*
+/**
  * This Replication Strategy returns the nodes responsible for a given
  * key but respects rack awareness. It places one replica in a
  * different data center from the first (if there is any such data center),
- * and remaining replicas in different racks in the same datacenter as
- * the first.
+ * the third replica in a different rack in the first datacenter, and
+ * any remaining replicas on the first unused nodes on the ring.
  */
 public class RackAwareStrategy extends AbstractReplicationStrategy
 {
