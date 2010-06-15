@@ -537,7 +537,8 @@ public class CassandraServer implements Cassandra {
                         cfDef.comment == null ? D_CF_COMMENT : cfDef.comment.toString(), 
                         cfDef.row_cache_size == null ? D_CF_ROWCACHE : cfDef.row_cache_size,
                         cfDef.preload_row_cache == null ? D_CF_PRELOAD_ROWCACHE : cfDef.preload_row_cache,
-                        cfDef.key_cache_size == null ? D_CF_KEYCACHE : cfDef.key_cache_size);
+                        cfDef.key_cache_size == null ? D_CF_KEYCACHE : cfDef.key_cache_size,
+                        CFMetaData.DEFAULT_READ_REPAIR_CHANCE);
                 cfDefs.add(cfmeta);
             }
             
