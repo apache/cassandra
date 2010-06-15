@@ -393,7 +393,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         isBootstrapMode = true;
         SystemTable.updateToken(token); // DON'T use setToken, that makes us part of the ring locally which is incorrect until we are done bootstrapping
         Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_BOOTSTRAPPING + Delimiter + partitioner_.getTokenFactory().toString(token)));
-        setMode("Joining: sleeping " + RING_DELAY + " for pending range setup", true);
+        setMode("Joining: sleeping " + RING_DELAY + " ms for pending range setup", true);
         try
         {
             Thread.sleep(RING_DELAY);
@@ -1324,7 +1324,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         if (logger_.isDebugEnabled())
             logger_.debug("DECOMMISSIONING");
         startLeaving();
-        setMode("Leaving: sleeping " + RING_DELAY + " for pending range setup", true);
+        setMode("Leaving: sleeping " + RING_DELAY + " ms for pending range setup", true);
         Thread.sleep(RING_DELAY);
 
         Runnable finishLeaving = new Runnable()
@@ -1441,7 +1441,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         if (logger_.isDebugEnabled())
             logger_.debug("Leaving: old token was " + getLocalToken());
         startLeaving();
-         setMode("Leaving: sleeping " + RING_DELAY + " for pending range setup", true);
+         setMode("Leaving: sleeping " + RING_DELAY + " ms for pending range setup", true);
         Thread.sleep(RING_DELAY);
 
         Runnable finishMoving = new WrappedRunnable()
