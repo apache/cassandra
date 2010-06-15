@@ -857,7 +857,8 @@ public class CassandraServer implements Cassandra.Iface
                     cf_def.comment,
                     cf_def.row_cache_size,
                     cf_def.preload_row_cache,
-                    cf_def.key_cache_size);
+                    cf_def.key_cache_size,
+                    cf_def.read_repair_chance);
     }
 
     public void truncate(String cfname) throws InvalidRequestException, UnavailableException, TException

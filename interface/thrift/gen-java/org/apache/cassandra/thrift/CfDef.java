@@ -58,6 +58,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
   private static final TField ROW_CACHE_SIZE_FIELD_DESC = new TField("row_cache_size", TType.DOUBLE, (short)9);
   private static final TField PRELOAD_ROW_CACHE_FIELD_DESC = new TField("preload_row_cache", TType.BOOL, (short)10);
   private static final TField KEY_CACHE_SIZE_FIELD_DESC = new TField("key_cache_size", TType.DOUBLE, (short)11);
+  private static final TField READ_REPAIR_CHANCE_FIELD_DESC = new TField("read_repair_chance", TType.DOUBLE, (short)12);
 
   public String table;
   public String name;
@@ -70,6 +71,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
   public double row_cache_size;
   public boolean preload_row_cache;
   public double key_cache_size;
+  public double read_repair_chance;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
@@ -83,7 +85,8 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     COMMENT((short)8, "comment"),
     ROW_CACHE_SIZE((short)9, "row_cache_size"),
     PRELOAD_ROW_CACHE((short)10, "preload_row_cache"),
-    KEY_CACHE_SIZE((short)11, "key_cache_size");
+    KEY_CACHE_SIZE((short)11, "key_cache_size"),
+    READ_REPAIR_CHANCE((short)12, "read_repair_chance");
 
     private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
@@ -140,7 +143,8 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
   private static final int __ROW_CACHE_SIZE_ISSET_ID = 0;
   private static final int __PRELOAD_ROW_CACHE_ISSET_ID = 1;
   private static final int __KEY_CACHE_SIZE_ISSET_ID = 2;
-  private BitSet __isset_bit_vector = new BitSet(3);
+  private static final int __READ_REPAIR_CHANCE_ISSET_ID = 3;
+  private BitSet __isset_bit_vector = new BitSet(4);
 
   public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
     put(_Fields.TABLE, new FieldMetaData("table", TFieldRequirementType.REQUIRED, 
@@ -164,6 +168,8 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     put(_Fields.PRELOAD_ROW_CACHE, new FieldMetaData("preload_row_cache", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.BOOL)));
     put(_Fields.KEY_CACHE_SIZE, new FieldMetaData("key_cache_size", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.DOUBLE)));
+    put(_Fields.READ_REPAIR_CHANCE, new FieldMetaData("read_repair_chance", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.DOUBLE)));
   }});
 
@@ -189,6 +195,8 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     this.preload_row_cache = false;
 
     this.key_cache_size = (double)200000;
+
+    this.read_repair_chance = 1;
 
   }
 
@@ -234,6 +242,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     this.row_cache_size = other.row_cache_size;
     this.preload_row_cache = other.preload_row_cache;
     this.key_cache_size = other.key_cache_size;
+    this.read_repair_chance = other.read_repair_chance;
   }
 
   public CfDef deepCopy() {
@@ -506,6 +515,29 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     __isset_bit_vector.set(__KEY_CACHE_SIZE_ISSET_ID, value);
   }
 
+  public double getRead_repair_chance() {
+    return this.read_repair_chance;
+  }
+
+  public CfDef setRead_repair_chance(double read_repair_chance) {
+    this.read_repair_chance = read_repair_chance;
+    setRead_repair_chanceIsSet(true);
+    return this;
+  }
+
+  public void unsetRead_repair_chance() {
+    __isset_bit_vector.clear(__READ_REPAIR_CHANCE_ISSET_ID);
+  }
+
+  /** Returns true if field read_repair_chance is set (has been asigned a value) and false otherwise */
+  public boolean isSetRead_repair_chance() {
+    return __isset_bit_vector.get(__READ_REPAIR_CHANCE_ISSET_ID);
+  }
+
+  public void setRead_repair_chanceIsSet(boolean value) {
+    __isset_bit_vector.set(__READ_REPAIR_CHANCE_ISSET_ID, value);
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case TABLE:
@@ -596,6 +628,14 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
       }
       break;
 
+    case READ_REPAIR_CHANCE:
+      if (value == null) {
+        unsetRead_repair_chance();
+      } else {
+        setRead_repair_chance((Double)value);
+      }
+      break;
+
     }
   }
 
@@ -638,6 +678,9 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     case KEY_CACHE_SIZE:
       return new Double(getKey_cache_size());
 
+    case READ_REPAIR_CHANCE:
+      return new Double(getRead_repair_chance());
+
     }
     throw new IllegalStateException();
   }
@@ -671,6 +714,8 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
       return isSetPreload_row_cache();
     case KEY_CACHE_SIZE:
       return isSetKey_cache_size();
+    case READ_REPAIR_CHANCE:
+      return isSetRead_repair_chance();
     }
     throw new IllegalStateException();
   }
@@ -791,6 +836,15 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
         return false;
     }
 
+    boolean this_present_read_repair_chance = true && this.isSetRead_repair_chance();
+    boolean that_present_read_repair_chance = true && that.isSetRead_repair_chance();
+    if (this_present_read_repair_chance || that_present_read_repair_chance) {
+      if (!(this_present_read_repair_chance && that_present_read_repair_chance))
+        return false;
+      if (this.read_repair_chance != that.read_repair_chance)
+        return false;
+    }
+
     return true;
   }
 
@@ -906,6 +960,15 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetRead_repair_chance()).compareTo(typedOther.isSetRead_repair_chance());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetRead_repair_chance()) {      lastComparison = TBaseHelper.compareTo(read_repair_chance, typedOther.read_repair_chance);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -999,6 +1062,14 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 12: // READ_REPAIR_CHANCE
+          if (field.type == TType.DOUBLE) {
+            this.read_repair_chance = iprot.readDouble();
+            setRead_repair_chanceIsSet(true);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           TProtocolUtil.skip(iprot, field.type);
       }
@@ -1079,6 +1150,11 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     if (isSetKey_cache_size()) {
       oprot.writeFieldBegin(KEY_CACHE_SIZE_FIELD_DESC);
       oprot.writeDouble(this.key_cache_size);
+      oprot.writeFieldEnd();
+    }
+    if (isSetRead_repair_chance()) {
+      oprot.writeFieldBegin(READ_REPAIR_CHANCE_FIELD_DESC);
+      oprot.writeDouble(this.read_repair_chance);
       oprot.writeFieldEnd();
     }
     oprot.writeFieldStop();
@@ -1181,6 +1257,12 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
       if (!first) sb.append(", ");
       sb.append("key_cache_size:");
       sb.append(this.key_cache_size);
+      first = false;
+    }
+    if (isSetRead_repair_chance()) {
+      if (!first) sb.append(", ");
+      sb.append("read_repair_chance:");
+      sb.append(this.read_repair_chance);
       first = false;
     }
     sb.append(")");

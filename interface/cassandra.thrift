@@ -326,7 +326,8 @@ struct CfDef {
     8: optional string comment="",
     9: optional double row_cache_size=0,
     10: optional bool preload_row_cache=0,
-    11: optional double key_cache_size=200000
+    11: optional double key_cache_size=200000,
+    12: optional double read_repair_chance=1.0
 }
 
 /* describes a keyspace. */
