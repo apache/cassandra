@@ -18,24 +18,15 @@
 
 package org.apache.cassandra.avro;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
-import org.apache.avro.ipc.SocketServer;
 import org.apache.avro.ipc.HttpServer;
 import org.apache.avro.specific.SpecificResponder;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.CompactionManager;
-import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -44,24 +35,20 @@ import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Mx4jTool;
-
-import org.apache.cassandra.utils.WrappedRunnable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import org.apache.log4j.PropertyConfigurator;
 
 /**
  * The Avro analogue to org.apache.cassandra.service.CassandraDaemon.
  *
  */
-public class CassandraDaemon {
+public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassandraDaemon {
     private static Logger logger = LoggerFactory.getLogger(CassandraDaemon.class);
     private HttpServer server;
     private InetAddress listenAddr;
     private int listenPort;
     
-    private void setup() throws IOException
+    protected void setup() throws IOException
     {
         listenPort = DatabaseDescriptor.getRpcPort();
         listenAddr = DatabaseDescriptor.getRpcAddress();
@@ -134,12 +121,6 @@ public class CassandraDaemon {
     }
     
     /** hook for JSVC */
-    public void load(String[] arguments) throws IOException
-    {
-        setup();
-    }
-    
-    /** hook for JSVC */
     public void start() throws IOException
     {
         if (logger.isDebugEnabled())
@@ -159,43 +140,8 @@ public class CassandraDaemon {
         server.close();
     }
     
-    /** hook for JSVC */
-    public void destroy()
-    {
-    }
-    
     public static void main(String[] args) {
-        CassandraDaemon daemon = new CassandraDaemon();
-        String pidFile = System.getProperty("cassandra-pidfile");
-        
-        try
-        {   
-            daemon.setup();
-
-            if (pidFile != null)
-            {
-                new File(pidFile).deleteOnExit();
-            }
-
-            if (System.getProperty("cassandra-foreground") == null)
-            {
-                System.out.close();
-                System.err.close();
-            }
-
-            daemon.start();
-        }
-        catch (Throwable e)
-        {
-            String msg = "Exception encountered during startup.";
-            logger.error(msg, e);
-
-            // try to warn user on stdout too, if we haven't already detached
-            System.out.println(msg);
-            e.printStackTrace();
-
-            System.exit(3);
-        }
+        new CassandraDaemon().activate();
     }
 
 }

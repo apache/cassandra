@@ -134,7 +134,7 @@ public class EmbeddedCassandraServiceTest
      */
     private Cassandra.Client getClient() throws TTransportException
     {
-        TTransport tr = new TSocket("localhost", 9170);
+        TTransport tr = new TSocket("localhost", DatabaseDescriptor.getRpcPort());
         TProtocol proto = new TBinaryProtocol(tr);
         Cassandra.Client client = new Cassandra.Client(proto);
         tr.open();
