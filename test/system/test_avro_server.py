@@ -91,6 +91,40 @@ class TestRpcOperations(AvroTester):
         assert_cosc(cosc)
         assert_columns_match(cosc['column'], params['column'])
 
+    def test_remove_simple(self):
+        "removing a simple column"
+        self.client.request('set_keyspace', {'keyspace': 'Keyspace1'})
+
+        params = dict()
+        params['key'] = 'key1'
+        params['column_parent'] = {'column_family': 'Standard1'}
+        params['column'] = dict()
+        params['column']['name'] = 'c1'
+        params['column']['value'] = 'v1'
+        params['column']['clock'] = { 'timestamp' : 0 }
+        params['consistency_level'] = 'ONE'
+        self.client.request('insert', params)
+
+        read_params = dict()
+        read_params['key'] = params['key']
+        read_params['column_path'] = dict()
+        read_params['column_path']['column_family'] = 'Standard1'
+        read_params['column_path']['column'] = params['column']['name']
+        read_params['consistency_level'] = 'ONE'
+
+        cosc = self.client.request('get', read_params)
+
+        assert_cosc(cosc)
+
+        remove_params = read_params
+        remove_params['clock'] = {'timestamp': 1}
+
+        self.client.request('remove', remove_params)
+
+        try: cosc = self.client.request('get', read_params)
+        except AvroRemoteException, err: pass
+        else: assert False, "Expected exception, returned %s instead" % cosc
+
     def test_describe_keyspaces(self):
         "retrieving a list of all keyspaces"
         keyspaces = self.client.request('describe_keyspaces', {})

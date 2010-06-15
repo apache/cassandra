@@ -28,8 +28,10 @@ import java.util.Comparator;
 import org.apache.avro.util.Utf8;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.IClock;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.db.TimestampClock;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.utils.FBUtilities;
@@ -266,5 +268,13 @@ public class AvroValidation {
     {
         if (column.ttl != null && column.ttl < 0)
             throw newInvalidRequestException("ttl must be a positive value");
+    }
+    
+    static IClock validateClock(Clock clock) throws InvalidRequestException
+    {
+        if (clock.timestamp >= 0)
+            return new TimestampClock(clock.timestamp);
+        
+        throw newInvalidRequestException("Clock must have a timestamp set");
     }
 }

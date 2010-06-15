@@ -282,6 +282,26 @@ public class CassandraServer implements Cassandra {
 
         return null;
     }
+    
+    @Override
+    public Void remove(ByteBuffer key, ColumnPath columnPath, Clock clock, ConsistencyLevel consistencyLevel)
+    throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
+    {
+        if (logger.isDebugEnabled())
+            logger.debug("remove");
+        
+        AvroValidation.validateKey(key.array());
+        AvroValidation.validateColumnPath(curKeyspace.get(), columnPath);
+        IClock dbClock = AvroValidation.validateClock(clock);
+        
+        RowMutation rm = new RowMutation(curKeyspace.get(), key.array());
+        byte[] superName = columnPath.super_column == null ? null : columnPath.super_column.array();
+        rm.delete(new QueryPath(columnPath.column_family.toString(), superName), dbClock);
+        
+        doInsert(consistencyLevel, rm);
+        
+        return null;
+    }
 
     private void doInsert(ConsistencyLevel consistency, RowMutation rm) throws UnavailableException, TimedOutException
     {

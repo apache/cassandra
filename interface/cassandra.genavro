@@ -115,6 +115,12 @@ protocol Cassandra {
                 Column column,
                 ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException;
+    
+    void remove(bytes key,
+                ColumnPath column_path,
+                Clock clock,
+                ConsistencyLevel consistency_level)
+    throws InvalidRequestException, UnavailableException, TimedOutException;
 
     void batch_mutate(string keyspace,
                       map<map<array<Mutation>>> mutation_map,

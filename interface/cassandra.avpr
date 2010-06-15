@@ -148,6 +148,17 @@
         "errors": ["InvalidRequestException", "UnavailableException",
             "TimedOutException"]
     },
+    "remove": {
+        "request": [
+            {"name": "key", "type": "bytes"},
+            {"name": "column_path", "type": "ColumnPath"},
+            {"name": "clock", "type": "Clock"},
+            {"name": "consistency_level", "type": "ConsistencyLevel"}
+        ],
+        "response": "null",
+        "errors": ["InvalidRequestException", "UnavailableException",
+            "TimedOutException"]
+    },
     "batch_mutate": {
         "request": [
             {"name": "keyspace", "type": "string"},
