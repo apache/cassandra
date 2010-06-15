@@ -20,7 +20,10 @@
 package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
@@ -41,7 +44,7 @@ public class RackUnawareStrategy extends AbstractReplicationStrategy
     public Set<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata, String table)
     {
         int replicas = DatabaseDescriptor.getReplicationFactor(table);
-        List<Token> tokens = metadata.sortedTokens();
+        ArrayList<Token> tokens = metadata.sortedTokens();
         Set<InetAddress> endpoints = new HashSet<InetAddress>(replicas);
 
         if (tokens.isEmpty())

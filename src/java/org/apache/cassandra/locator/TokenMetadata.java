@@ -62,7 +62,7 @@ public class TokenMetadata
 
     /* Use this lock for manipulating the token map */
     private final ReadWriteLock lock = new ReentrantReadWriteLock(true);
-    private List<Token> sortedTokens;
+    private ArrayList<Token> sortedTokens;
 
     /* list of subscribers that are notified when the tokenToEndpointMap changed */
     private final CopyOnWriteArrayList<AbstractReplicationStrategy> subscribers;
@@ -84,11 +84,11 @@ public class TokenMetadata
         subscribers = new CopyOnWriteArrayList<AbstractReplicationStrategy>();
     }
 
-    private List<Token> sortTokens()
+    private ArrayList<Token> sortTokens()
     {
-        List<Token> tokens = new ArrayList<Token>(tokenToEndpointMap.keySet());
+        ArrayList<Token> tokens = new ArrayList<Token>(tokenToEndpointMap.keySet());
         Collections.sort(tokens);
-        return Collections.unmodifiableList(tokens);
+        return tokens;
     }
 
     /** @return the number of nodes bootstrapping into source's primary range */
@@ -136,7 +136,7 @@ public class TokenMetadata
         lock.writeLock().lock();
         try
         {
-            InetAddress oldEndpoint = null;
+            InetAddress oldEndpoint;
 
             oldEndpoint = bootstrapTokens.get(token);
             if (oldEndpoint != null && !oldEndpoint.equals(endpoint))
@@ -264,21 +264,6 @@ public class TokenMetadata
         }
     }
 
-    public InetAddress getFirstEndpoint()
-    {
-        assert tokenToEndpointMap.size() > 0;
-
-        lock.readLock().lock();
-        try
-        {
-            return tokenToEndpointMap.get(sortedTokens.get(0));
-        }
-        finally
-        {
-            lock.readLock().unlock();
-        }
-    }
-
     /**
      * Create a copy of TokenMetadata with only tokenToEndpointMap. That is, pending ranges,
      * bootstrap tokens and leaving endpoints are not included in the copy.
@@ -334,7 +319,7 @@ public class TokenMetadata
         return new Range(getPredecessor(right), right);
     }
 
-    public List<Token> sortedTokens()
+    public ArrayList<Token> sortedTokens()
     {
         lock.readLock().lock();
         try
@@ -398,11 +383,6 @@ public class TokenMetadata
         return (Token) ((index == (tokens.size() - 1)) ? tokens.get(0) : tokens.get(index + 1));
     }
 
-    public InetAddress getSuccessor(InetAddress endpoint)
-    {
-        return getEndpoint(getSuccessor(getToken(endpoint)));
-    }
-
     /** caller should not modify bootstrapTokens */
     public Map<Token, InetAddress> getBootstrapTokens()
     {
@@ -415,11 +395,7 @@ public class TokenMetadata
         return leavingEndpoints;
     }
 
-    /**
-     * <tt>Iterator</tt> over the <tt>Token</tt>s in the given ring, starting with the token for the node owning start
-     * (which does not have to be a <tt>Token</tt> in the ring)
-     */
-    public static Iterator<Token> ringIterator(final List ring, Token start)
+    public static int firstTokenIndex(final ArrayList ring, Token start)
     {
         assert ring.size() > 0;
         int i = Collections.binarySearch(ring, start);
@@ -431,7 +407,21 @@ public class TokenMetadata
                 i = 0;
             }
         }
-        final int startIndex = i;
+        return i;
+    }
+
+    public static Token firstToken(final ArrayList<Token> ring, Token start)
+    {
+        return ring.get(firstTokenIndex(ring, start));
+    }
+
+    /**
+     * <tt>Iterator</tt> over the <tt>Token</tt>s in the given ring, starting with the token for the node owning start
+     * (which does not have to be a <tt>Token</tt> in the ring)
+     */
+    public static Iterator<Token> ringIterator(final ArrayList<Token> ring, Token start)
+    {
+        final int startIndex = firstTokenIndex(ring, start);
         return new AbstractIterator<Token>()
         {
             int j = startIndex;
@@ -441,7 +431,7 @@ public class TokenMetadata
                     return endOfData();
                 try
                 {
-                    return (Token) ring.get(j);
+                    return ring.get(j);
                 }
                 finally
                 {
@@ -548,5 +538,33 @@ public class TokenMetadata
     public void register(AbstractReplicationStrategy subscriber)
     {
         subscribers.add(subscriber);
+    }
+
+    /**
+     * write endpoints may be different from read endpoints, because read endpoints only need care about the
+     * "natural" nodes for a token, but write endpoints also need to account for nodes that are bootstrapping
+     * into the ring, and write data there too so that they stay up to date during the bootstrap process.
+     * Thus, this method may return more nodes than the Replication Factor.
+     *
+     * If possible, will return the same collection it was passed, for efficiency.
+     *
+     * Only ReplicationStrategy should care about this method (higher level users should only ask for Hinted).
+     */
+    public Collection<InetAddress> getWriteEndpoints(Token token, String table, Collection<InetAddress> naturalEndpoints)
+    {
+        if (getPendingRanges(table).isEmpty())
+            return naturalEndpoints;
+
+        List<InetAddress> endpoints = new ArrayList<InetAddress>(naturalEndpoints);
+
+        for (Map.Entry<Range, Collection<InetAddress>> entry : getPendingRanges(table).entrySet())
+        {
+            if (entry.getKey().contains(token))
+            {
+                endpoints.addAll(entry.getValue());
+            }
+        }
+
+        return endpoints;
     }
 }

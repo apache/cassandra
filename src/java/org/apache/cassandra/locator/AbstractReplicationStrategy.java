@@ -22,11 +22,11 @@ package org.apache.cassandra.locator;
 import java.net.InetAddress;
 import java.util.*;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -53,7 +53,7 @@ public abstract class AbstractReplicationStrategy
 
     AbstractReplicationStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch)
     {
-        // TODO assert snitch != null some test code violates this
+        assert snitch != null;
         assert tokenMetadata != null;
         this.tokenMetadata = tokenMetadata;
         this.snitch = snitch;
@@ -71,14 +71,13 @@ public abstract class AbstractReplicationStrategy
      */
     public ArrayList<InetAddress> getNaturalEndpoints(Token searchToken, String table)
     {
-        // TODO creating a iterator object just to get the closest token is wasteful -- we do in multiple places w/ ringIterator
-        Token keyToken = TokenMetadata.ringIterator(tokenMetadata.sortedTokens(), searchToken).next();
+        Token keyToken = TokenMetadata.firstToken(tokenMetadata.sortedTokens(), searchToken);
         EndpointCacheKey cacheKey = new EndpointCacheKey(table, keyToken);
         ArrayList<InetAddress> endpoints = cachedEndpoints.get(cacheKey);
         if (endpoints == null)
         {
             TokenMetadata tokenMetadataClone = tokenMetadata.cloneOnlyTokenMap();
-            keyToken = TokenMetadata.ringIterator(tokenMetadataClone.sortedTokens(), searchToken).next();
+            keyToken = TokenMetadata.firstToken(tokenMetadataClone.sortedTokens(), searchToken);
             cacheKey = new EndpointCacheKey(table, keyToken);
             endpoints = new ArrayList<InetAddress>(calculateNaturalEndpoints(searchToken, tokenMetadataClone, table));
             cachedEndpoints.put(cacheKey, endpoints);
@@ -139,35 +138,6 @@ public abstract class AbstractReplicationStrategy
         }
 
         return map;
-    }
-
-    /**
-     * write endpoints may be different from read endpoints, because read endpoints only need care about the
-     * "natural" nodes for a token, but write endpoints also need to account for nodes that are bootstrapping
-     * into the ring, and write data there too so that they stay up to date during the bootstrap process.
-     * Thus, this method may return more nodes than the Replication Factor.
-     *
-     * If possible, will return the same collection it was passed, for efficiency.
-     *
-     * Only ReplicationStrategy should care about this method (higher level users should only ask for Hinted).
-     * todo: this method should be moved into TokenMetadata.
-     */
-    public Collection<InetAddress> getWriteEndpoints(Token token, String table, Collection<InetAddress> naturalEndpoints)
-    {
-        if (tokenMetadata.getPendingRanges(table).isEmpty())
-            return naturalEndpoints;
-
-        List<InetAddress> endpoints = new ArrayList<InetAddress>(naturalEndpoints);
-
-        for (Map.Entry<Range, Collection<InetAddress>> entry : tokenMetadata.getPendingRanges(table).entrySet())
-        {
-            if (entry.getKey().contains(token))
-            {
-                endpoints.addAll(entry.getValue());
-            }
-        }
-
-        return endpoints;
     }
 
     /*

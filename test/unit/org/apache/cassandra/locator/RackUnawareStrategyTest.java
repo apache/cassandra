@@ -16,6 +16,7 @@
 * specific language governing permissions and limitations
 * under the License.
 */
+
 package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
@@ -56,7 +57,7 @@ public class RackUnawareStrategyTest extends SchemaLoader
     public void testBigIntegerEndpoints() throws UnknownHostException
     {
         TokenMetadata tmd = new TokenMetadata();
-        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, null);
+        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, new SimpleSnitch());
 
         List<Token> endpointTokens = new ArrayList<Token>();
         List<Token> keyTokens = new ArrayList<Token>();
@@ -72,7 +73,7 @@ public class RackUnawareStrategyTest extends SchemaLoader
     {
         TokenMetadata tmd = new TokenMetadata();
         IPartitioner partitioner = new OrderPreservingPartitioner();
-        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, null);
+        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, new SimpleSnitch());
 
         List<Token> endpointTokens = new ArrayList<Token>();
         List<Token> keyTokens = new ArrayList<Token>();
@@ -116,7 +117,7 @@ public class RackUnawareStrategyTest extends SchemaLoader
         final int RING_SIZE = 10;
         TokenMetadata tmd = new TokenMetadata();
         TokenMetadata oldTmd = StorageServiceAccessor.setTokenMetadata(tmd);
-        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, null);
+        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, new SimpleSnitch());
 
         Token[] endpointTokens = new Token[RING_SIZE];
         Token[] keyTokens = new Token[RING_SIZE];
@@ -147,7 +148,7 @@ public class RackUnawareStrategyTest extends SchemaLoader
 
             for (int i = 0; i < keyTokens.length; i++)
             {
-                Collection<InetAddress> endpoints = strategy.getWriteEndpoints(keyTokens[i], table, strategy.getNaturalEndpoints(keyTokens[i], table));
+                Collection<InetAddress> endpoints = tmd.getWriteEndpoints(keyTokens[i], table, strategy.getNaturalEndpoints(keyTokens[i], table));
                 assertTrue(endpoints.size() >= replicationFactor);
 
                 for (int j = 0; j < replicationFactor; j++)
