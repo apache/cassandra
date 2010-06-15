@@ -53,8 +53,6 @@ import org.apache.cassandra.service.StorageProxy;
 import static org.apache.cassandra.utils.FBUtilities.UTF8;
 
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.*;
-import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import static org.apache.cassandra.avro.AvroRecordFactory.*;
@@ -511,12 +509,14 @@ public class CassandraServer implements Cassandra {
             Collection<CFMetaData> cfDefs = new ArrayList<CFMetaData>((int)ksDef.cf_defs.size());
             for (CfDef cfDef : ksDef.cf_defs)
             {
-                String cfType, compare, subCompare;
+                String cfType, compare, subCompare, reconcilerName;
                 cfType = cfDef.column_type == null ? D_CF_CFTYPE : cfDef.column_type.toString();
                 ClockType clockType = ClockType.create(cfDef.clock_type == null ? D_CF_CFCLOCKTYPE : cfDef.clock_type.toString());
                 compare = cfDef.comparator_type == null ? D_CF_COMPTYPE : cfDef.comparator_type.toString();
                 subCompare = cfDef.subcomparator_type == null ? D_CF_SUBCOMPTYPE : cfDef.subcomparator_type.toString();
-                AbstractReconciler reconciler = DatabaseDescriptor.getReconciler(cfDef.reconciler.toString());
+                reconcilerName = cfDef.reconciler == null  ? null : cfDef.reconciler.toString();
+                
+                AbstractReconciler reconciler = DatabaseDescriptor.getReconciler(reconcilerName);
                 if (reconciler == null)
                 {
                     if (clockType == ClockType.Timestamp)    
