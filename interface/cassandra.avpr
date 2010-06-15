@@ -148,17 +148,6 @@
         "errors": ["InvalidRequestException", "UnavailableException",
             "TimedOutException"]
     },
-    "batch_insert": {
-        "request": [
-            {"name": "keyspace", "type": "string"},
-            {"name": "key", "type": "string"},
-            {"name": "cfmap", "type": {"type": "map", "values": {"type": "array", "items": "ColumnOrSuperColumn"}}},
-            {"name": "consistency_level", "type": "ConsistencyLevel"}
-        ],
-        "response": "null",
-        "errors": ["InvalidRequestException", "UnavailableException",
-            "TimedOutException"]
-    },
     "batch_mutate": {
         "request": [
             {"name": "keyspace", "type": "string"},

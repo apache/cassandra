@@ -116,12 +116,6 @@ protocol Cassandra {
                 ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException;
 
-    void batch_insert(string keyspace,
-                      string key,
-                      map<array<ColumnOrSuperColumn>> cfmap,
-                      ConsistencyLevel consistency_level)
-    throws InvalidRequestException, UnavailableException, TimedOutException;
-
     void batch_mutate(string keyspace,
                       map<map<array<Mutation>>> mutation_map,
                       ConsistencyLevel consistency_level)
