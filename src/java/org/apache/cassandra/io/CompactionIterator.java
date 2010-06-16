@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Iterator;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -127,10 +128,13 @@ public class CompactionIterator extends ReducingIterator<SSTableIdentityIterator
         {
             rowSize += row.getDataSize();
         }
-        if (rowSize > 512 * 1024 * 1024)
+
+        if (rowSize > DatabaseDescriptor.getInMemoryCompactionLimit())
+        {
+            logger.info("Compacting large row (" + rowSize + " bytes) incrementally");
             return new LazilyCompactedRow(rows, major, gcBefore);
-        else
-            return new PrecompactedRow(rows, major, gcBefore);
+        }
+        return new PrecompactedRow(rows, major, gcBefore);
     }
 
     public void close() throws IOException

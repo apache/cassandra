@@ -26,8 +26,6 @@ import org.apache.cassandra.db.clock.TimestampReconciler;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -47,7 +45,6 @@ import org.yaml.snakeyaml.error.YAMLException;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.FileInputStream;
-import java.io.FilenameFilter;
 import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
@@ -272,9 +269,9 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("memtable_operations_in_millions must be a positive double");
             }
             
-            if (conf.row_warning_threshold_in_mb != null && conf.row_warning_threshold_in_mb <= 0)
+            if (conf.in_memory_compaction_limit_in_mb != null && conf.in_memory_compaction_limit_in_mb <= 0)
             {
-                throw new ConfigurationException("row_warning_threshold_in_mb must be a positive integer");
+                throw new ConfigurationException("in_memory_compaction_limit_in_mb must be a positive integer");
             }
             
             /* data file and commit log directories. they get created later, when they're needed. */
@@ -399,7 +396,6 @@ public class DatabaseDescriptor
                     // see if there are other directories present.
                     int dirCount = dataPath.listFiles(new FileFilter()
                     {
-                        @Override
                         public boolean accept(File pathname)
                         {
                             return pathname.isDirectory();
@@ -848,9 +844,9 @@ public class DatabaseDescriptor
             return conf.memtable_flush_writers;
     }
 
-    public static long getRowWarningThreshold()
+    public static long getInMemoryCompactionLimit()
     {
-        return conf.row_warning_threshold_in_mb * 1024 * 1024;
+        return conf.in_memory_compaction_limit_in_mb * 1024 * 1024;
     }
     
     public static String[] getAllDataFileLocations()

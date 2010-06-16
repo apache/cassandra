@@ -59,7 +59,7 @@ public class Config {
     
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     public Integer column_index_size_in_kb = 64;
-    public Long row_warning_threshold_in_mb = new Long(512);
+    public Integer in_memory_compaction_limit_in_mb = 256;
     
     public String[] data_file_directories;
     

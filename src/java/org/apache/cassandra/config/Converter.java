@@ -234,12 +234,6 @@ public class Converter {
                 conf.column_index_size_in_kb = Integer.parseInt(columnIndexSize);
             }
 
-            String rowWarning = xmlUtils.getNodeValue("/Storage/RowWarningThresholdInMB");
-            if (rowWarning != null)
-            {
-                conf.row_warning_threshold_in_mb = Long.parseLong(rowWarning);
-            }
-            
             conf.data_file_directories = xmlUtils.getNodeValues("/Storage/DataFileDirectories/DataFileDirectory");
             
             conf.commitlog_directory = xmlUtils.getNodeValue("/Storage/CommitLogDirectory");

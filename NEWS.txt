@@ -13,6 +13,7 @@ Features
     - DatacenterShardStrategy is ready for use, enabling 
       ConsitencyLevel.DCQUORUM and DCQUORUMSYNC.  See comments in
       `cassandra.yaml.`
+    - row size limit increased from 2GB to 2 billion columns
 
 Configuraton
 ------------
@@ -35,6 +36,7 @@ Configuraton
     - EndPointSnitch was renamed to RackInferringSnitch.  A new SimpleSnitch
       has been added.
     - auto_bootstrap now defaults to true
+    - row_warning_threshold_in_mb replaced with in_memory_compaction_limit_in_mb
 
 JMX
 ---

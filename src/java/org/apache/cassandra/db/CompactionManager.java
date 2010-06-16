@@ -354,8 +354,6 @@ public class CompactionManager implements CompactionManagerMBean
                 totalkeysWritten++;
 
                 long rowsize = writer.getFilePointer() - prevpos;
-                if (rowsize > DatabaseDescriptor.getRowWarningThreshold())
-                    logger.warn("Large row " + row.key.key + " in " + cfs.getColumnFamilyName() + " " + rowsize + " bytes");
                 cfs.addToCompactedRowStats(rowsize);
             }
             validator.complete();

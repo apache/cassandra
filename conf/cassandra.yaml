@@ -97,7 +97,7 @@ flush_data_buffer_size_in_mb: 32
 flush_index_buffer_size_in_mb: 8
 
 column_index_size_in_kb: 64
-row_warning_threshold_in_mb: 512
+in_memory_compaction_limit_in_mb: 128
 
 # commit log
 commitlog_directory: /var/lib/cassandra/commitlog
