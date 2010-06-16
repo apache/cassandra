@@ -176,7 +176,6 @@ public class SSTableScanner implements Iterator<IColumnIterator>, Closeable
                 if (filter == null)
                 {
                     row = new SSTableIdentityIterator(sstable, file, key, dataStart, dataSize);
-                    ((SSTableIdentityIterator)row).reset();
                     return row;
                 }
                 else
