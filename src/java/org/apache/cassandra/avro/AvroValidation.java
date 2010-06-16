@@ -236,7 +236,8 @@ public class AvroValidation {
 
         if (del.predicate != null)
         {
-            validateSlicePredicate(keyspace, cfName, del.super_column.array(), del.predicate);
+            byte[] superName = del.super_column == null ? null : del.super_column.array();
+            validateSlicePredicate(keyspace, cfName, superName, del.predicate);
             if (del.predicate.slice_range != null)
                 throw newInvalidRequestException("Deletion does not yet support SliceRange predicates.");
         }

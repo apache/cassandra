@@ -99,6 +99,16 @@
             {"name": "cf_defs", "type": {"type": "array", "items": "CfDef"}}
           ]
       },
+      {"name": "MutationsMapEntry", "type": "record",
+          "fields": [
+            {"name": "key", "type" : "bytes"},
+            {"name": "mutations", "type":
+                {"type": "map",
+                    "values": {"type": "array", "items": "Mutation"}
+                }
+            }
+          ]
+      },
       {"name": "ConsistencyLevel", "type": "enum",
           "symbols": [
             "ZERO", "ONE", "QUORUM", "DCQUORUM", "DCQUORUMSYNC", "ALL"
@@ -161,14 +171,8 @@
     },
     "batch_mutate": {
         "request": [
-            {"name": "keyspace", "type": "string"},
-            {"name": "mutation_map",
-                "type": {
-                    "type": "map", "values": {
-                        "type": "map", "values": {
-                            "type": "array", "items": "Mutation"}
-                    }
-                }
+            {"name": "mutation_map", "type":
+                {"type": "array", "items": "MutationsMapEntry"}
             },
             {"name": "consistency_level", "type": "ConsistencyLevel"}
         ],

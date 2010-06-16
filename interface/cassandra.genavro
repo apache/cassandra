@@ -82,7 +82,12 @@ protocol Cassandra {
         string strategy_class;
         int replication_factor;
         array<CfDef> cf_defs;
-    } 
+    }
+    
+    record MutationsMapEntry {
+        bytes key;
+        map<array<Mutation>> mutations;
+    }
 
     enum ConsistencyLevel {
         ZERO, ONE, QUORUM, DCQUORUM, DCQUORUMSYNC, ALL
@@ -122,8 +127,7 @@ protocol Cassandra {
                 ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException;
 
-    void batch_mutate(string keyspace,
-                      map<map<array<Mutation>>> mutation_map,
+    void batch_mutate(array<MutationsMapEntry> mutation_map,
                       ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException;
 

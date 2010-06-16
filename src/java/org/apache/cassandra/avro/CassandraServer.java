@@ -326,29 +326,28 @@ public class CassandraServer implements Cassandra {
         }
     }
 
-    public Void batch_mutate(Utf8 keyspace, Map<Utf8, Map<Utf8, GenericArray<Mutation>>> mutationMap, ConsistencyLevel consistencyLevel)
-    throws AvroRemoteException, UnavailableException, TimedOutException
+    @Override
+    public Void batch_mutate(GenericArray<MutationsMapEntry> mutationMap, ConsistencyLevel consistencyLevel)
+    throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
             logger.debug("batch_mutate");
         
-        String keyspaceString = keyspace.toString();
-        
         List<RowMutation> rowMutations = new ArrayList<RowMutation>();
-        for (Map.Entry<Utf8, Map<Utf8, GenericArray<Mutation>>> mutationEntry: mutationMap.entrySet())
+        
+        for (MutationsMapEntry pair: mutationMap)
         {
-            String key = mutationEntry.getKey().toString();
-            AvroValidation.validateKey(key);
+            AvroValidation.validateKey(pair.key.array());
+            Map<Utf8, GenericArray<Mutation>> cfToMutations = pair.mutations;
             
-            Map<Utf8, GenericArray<Mutation>> cfToMutations = mutationEntry.getValue();
             for (Map.Entry<Utf8, GenericArray<Mutation>> cfMutations : cfToMutations.entrySet())
             {
                 String cfName = cfMutations.getKey().toString();
                 
                 for (Mutation mutation : cfMutations.getValue())
-                    AvroValidation.validateMutation(keyspaceString, cfName, mutation);
+                    AvroValidation.validateMutation(curKeyspace.get(), cfName, mutation);
             }
-            rowMutations.add(getRowMutationFromMutations(keyspaceString, key, cfToMutations));
+            rowMutations.add(getRowMutationFromMutations(curKeyspace.get(), pair.key.array(), cfToMutations));
         }
         
         if (consistencyLevel == ConsistencyLevel.ZERO)
@@ -381,10 +380,9 @@ public class CassandraServer implements Cassandra {
     }
     
     // FIXME: This is copypasta from o.a.c.db.RowMutation, (RowMutation.getRowMutation uses Thrift types directly).
-    private static RowMutation getRowMutationFromMutations(String keyspace, String key, Map<Utf8, GenericArray<Mutation>> cfMap)
+    private static RowMutation getRowMutationFromMutations(String keyspace, byte[] key, Map<Utf8, GenericArray<Mutation>> cfMap)
     {
-        // FIXME: string key
-        RowMutation rm = new RowMutation(keyspace, key.trim().getBytes(UTF8));
+        RowMutation rm = new RowMutation(keyspace, key);
         
         for (Map.Entry<Utf8, GenericArray<Mutation>> entry : cfMap.entrySet())
         {
@@ -419,6 +417,8 @@ public class CassandraServer implements Cassandra {
     // FIXME: This is copypasta from o.a.c.db.RowMutation, (RowMutation.getRowMutation uses Thrift types directly).
     private static void deleteColumnOrSuperColumnToRowMutation(RowMutation rm, String cfName, Deletion del)
     {
+        byte[] superName = del.super_column == null ? null : del.super_column.array();
+        
         if (del.predicate != null && del.predicate.column_names != null)
         {
             for (ByteBuffer col : del.predicate.column_names)
@@ -426,12 +426,12 @@ public class CassandraServer implements Cassandra {
                 if (del.super_column == null && DatabaseDescriptor.getColumnFamilyType(rm.getTable(), cfName) == ColumnFamilyType.Super)
                     rm.delete(new QueryPath(cfName, col.array()), unavronateClock(del.clock));
                 else
-                    rm.delete(new QueryPath(cfName, del.super_column.array(), col.array()), unavronateClock(del.clock));
+                    rm.delete(new QueryPath(cfName, superName, col.array()), unavronateClock(del.clock));
             }
         }
         else
         {
-            rm.delete(new QueryPath(cfName, del.super_column.array()), unavronateClock(del.clock));
+            rm.delete(new QueryPath(cfName, superName), unavronateClock(del.clock));
         }
     }
     
