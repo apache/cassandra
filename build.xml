@@ -165,7 +165,7 @@
     -->
     <target name="check-avro-generate">
         <uptodate property="avroUpToDate"
-                  srcfile="${interface.dir}/cassandra.avpr"
+                  srcfile="${interface.dir}/cassandra.genavro"
                   targetfile="${interface.avro.dir}/org/apache/cassandra/avro/Cassandra.java" />
       <taskdef name="protocol"
                classname="org.apache.avro.specific.ProtocolTask">
@@ -182,6 +182,15 @@
     <target name="avro-generate" unless="avroUpToDate"
             depends="init,check-avro-generate">
       <echo>Generating avro code...</echo>
+      <!-- Generate json schema from genavro IDL -->
+      <java classname="org.apache.avro.tool.Main" fork="true">
+        <classpath refid="cassandra.classpath" />
+        <arg value="genavro" />
+        <arg value="interface/cassandra.genavro" />
+        <arg value="interface/cassandra.avpr" />
+      </java>
+
+      <!-- Generate java code from json protocol schema -->
       <protocol destdir="${interface.avro.dir}">
         <fileset dir="${interface.dir}">
           <include name="**/*.avpr" />
@@ -194,6 +203,7 @@
         </fileset>
       </schema>
     </target>
+
 
     <!--
        Generate thrift code.  We have targets to build java because
