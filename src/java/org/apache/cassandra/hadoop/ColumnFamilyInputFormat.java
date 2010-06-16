@@ -62,7 +62,6 @@ import org.apache.thrift.transport.TTransportException;
  */
 public class ColumnFamilyInputFormat extends InputFormat<byte[], SortedMap<byte[], IColumn>>
 {
-
     private static final Logger logger = LoggerFactory.getLogger(StorageService.class);
     
     private int splitsize;

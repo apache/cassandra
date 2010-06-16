@@ -14,6 +14,7 @@ Features
       ConsitencyLevel.DCQUORUM and DCQUORUMSYNC.  See comments in
       `cassandra.yaml.`
     - row size limit increased from 2GB to 2 billion columns
+    - Hadoop OutputFormat support
 
 Configuraton
 ------------

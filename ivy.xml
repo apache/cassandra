@@ -25,6 +25,7 @@
     <dependency org="com.thoughtworks.paranamer"
                 name="paranamer-ant" rev="2.1"/>
     <dependency org="junit" name="junit" rev="4.6" />
+    <dependency org="commons-logging" name="commons-logging" rev="1.1.1"/>
     <dependency org="org.apache.rat" name="apache-rat" rev="0.6" />
     <dependency org="org.apache.hadoop" name="hadoop-core" rev="0.20.2"/>
   </dependencies>
