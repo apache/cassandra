@@ -27,6 +27,7 @@ dev
  * replace constant-size 2GB mmaped segments and special casing for index 
    entries spanning segment boundaries, with SegmentedFile that computes 
    segments that always contain entire entries/rows (CASSANDRA-1117)
+ * avoid reading large rows into memory during compaction (CASSANDRA-16)
 
 
 0.6.3
