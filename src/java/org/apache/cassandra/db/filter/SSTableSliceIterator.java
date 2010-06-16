@@ -90,7 +90,7 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements IColumnI
                 DecoratedKey keyInDisk = ssTable.getPartitioner().convertFromDiskFormat(FBUtilities.readShortByteArray(file));
                 assert keyInDisk.equals(decoratedKey)
                        : String.format("%s != %s in %s", keyInDisk, decoratedKey, file.getPath());
-                file.readInt(); // row size
+                SSTableReader.readRowSize(file, ssTable.getDescriptor());
             }
             catch (IOException e)
             {

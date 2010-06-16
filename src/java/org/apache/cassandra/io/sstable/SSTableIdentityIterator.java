@@ -37,7 +37,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     private final BufferedRandomAccessFile file;
     private SSTableReader sstable;
     private long dataStart;
-    private final int dataSize;
+    private final long dataSize;
 
     /**
      * Used to iterate through the columns of a row.
@@ -48,7 +48,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
      * @param dataSize length of row data
      * @throws IOException
      */
-    public SSTableIdentityIterator(SSTableReader sstable, BufferedRandomAccessFile file, DecoratedKey key, long dataStart, int dataSize)
+    public SSTableIdentityIterator(SSTableReader sstable, BufferedRandomAccessFile file, DecoratedKey key, long dataStart, long dataSize)
     throws IOException
     {
         this.sstable = sstable;
@@ -69,7 +69,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         return file.getPath();
     }
 
-    public int getDataSize()
+    public long getDataSize()
     {
         return dataSize;
     }

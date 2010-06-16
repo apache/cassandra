@@ -79,7 +79,7 @@ public class PrecompactedRow extends AbstractCompactedRow
 
     public void write(DataOutput out) throws IOException
     {
-        out.writeInt(buffer.getLength());
+        out.writeLong(buffer.getLength());
         out.write(buffer.getData(), 0, buffer.getLength());
     }
 

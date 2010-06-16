@@ -52,7 +52,7 @@ public class SSTableTest extends CleanupHelper
         BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.getFilename(), "r");
         file.seek(sstable.getPosition(sstable.partitioner.decorateKey(key)));
         assert Arrays.equals(key, FBUtilities.readShortByteArray(file));
-        int size = file.readInt();
+        int size = (int)SSTableReader.readRowSize(file, sstable.getDescriptor());
         byte[] bytes2 = new byte[size];
         file.readFully(bytes2);
         assert Arrays.equals(bytes2, bytes);
@@ -84,7 +84,7 @@ public class SSTableTest extends CleanupHelper
         {
             file.seek(sstable.getPosition(sstable.partitioner.decorateKey(key)));
             assert Arrays.equals(key, FBUtilities.readShortByteArray(file));
-            int size = file.readInt();
+            int size = (int)SSTableReader.readRowSize(file, sstable.getDescriptor());
             byte[] bytes2 = new byte[size];
             file.readFully(bytes2);
             assert Arrays.equals(bytes2, map.get(key));

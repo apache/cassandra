@@ -55,10 +55,10 @@ public class LazilyCompactedRowTest extends CleanupHelper
             // key isn't part of what CompactedRow writes, that's done by SSTW.append
 
             // row size can differ b/c of bloom filter counts being different
-            int rowSize1 = in1.readInt();
-            int rowSize2 = in2.readInt();
-            assertEquals(out1.getLength(), rowSize1 + 4);
-            assertEquals(out2.getLength(), rowSize2 + 4);
+            long rowSize1 = SSTableReader.readRowSize(in1, sstables.iterator().next().getDescriptor());
+            long rowSize2 = SSTableReader.readRowSize(in2, sstables.iterator().next().getDescriptor());
+            assertEquals(out1.getLength(), rowSize1 + 8);
+            assertEquals(out2.getLength(), rowSize2 + 8);
             // bloom filter
             IndexHelper.defreezeBloomFilter(in1);
             IndexHelper.defreezeBloomFilter(in2);

@@ -71,7 +71,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         if (rows.size() == 1 && !major)
         {
             SSTableIdentityIterator row = rows.get(0);
-            out.writeInt(row.getDataSize());
+            out.writeLong(row.getDataSize());
             row.echoData(out);
             return;
         }
@@ -79,7 +79,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         DataOutputBuffer clockOut = new DataOutputBuffer();
         ColumnFamily.serializer().serializeCFInfo(emptyColumnFamily, clockOut);
 
-        out.writeInt((int)(headerBuffer.getLength() + clockOut.getLength() + columnSerializedSize));
+        out.writeLong(headerBuffer.getLength() + clockOut.getLength() + columnSerializedSize);
         out.write(headerBuffer.getData(), 0, headerBuffer.getLength());
         out.write(clockOut.getData(), 0, clockOut.getLength());
         out.writeInt(columnCount);

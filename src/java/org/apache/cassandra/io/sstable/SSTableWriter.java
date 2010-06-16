@@ -126,7 +126,7 @@ public class SSTableWriter extends SSTable
         FBUtilities.writeShortByteArray(partitioner.convertToDiskFormat(decoratedKey), dataFile);
         int length = buffer.getLength();
         assert length > 0;
-        dataFile.writeInt(length);
+        dataFile.writeLong(length);
         dataFile.write(buffer.getData(), 0, length);
         afterAppend(decoratedKey, currentPosition);
     }
@@ -136,7 +136,7 @@ public class SSTableWriter extends SSTable
         long currentPosition = beforeAppend(decoratedKey);
         FBUtilities.writeShortByteArray(partitioner.convertToDiskFormat(decoratedKey), dataFile);
         assert value.length > 0;
-        dataFile.writeInt(value.length);
+        dataFile.writeLong(value.length);
         dataFile.write(value);
         afterAppend(decoratedKey, currentPosition);
     }

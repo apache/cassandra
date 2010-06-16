@@ -546,4 +546,11 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     {
         return maxDataAge > age;
     }
+
+    public static long readRowSize(DataInput in, Descriptor d) throws IOException
+    {
+        if (d.versionCompareTo("d") < 0)
+            return in.readInt();
+        return in.readLong();
+    }
 }

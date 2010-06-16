@@ -210,7 +210,7 @@ public abstract class SSTable
     public static class Descriptor
     {
         public static final String LEGACY_VERSION = "a";
-        public static final String CURRENT_VERSION = "c";
+        public static final String CURRENT_VERSION = "d";
 
         public final File directory;
         public final String version;

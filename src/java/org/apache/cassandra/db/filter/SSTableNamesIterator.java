@@ -71,8 +71,8 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
                     return;
                 DecoratedKey keyInDisk = ssTable.getPartitioner().convertFromDiskFormat(FBUtilities.readShortByteArray(file));
                 assert keyInDisk.equals(decoratedKey)
-                        : String.format("%s != %s in %s", keyInDisk, decoratedKey, file.getPath());
-                file.readInt(); // data size
+                       : String.format("%s != %s in %s", keyInDisk, decoratedKey, file.getPath());
+                SSTableReader.readRowSize(file, ssTable.getDescriptor());
             }
 
             // read the requested columns into `cf`
