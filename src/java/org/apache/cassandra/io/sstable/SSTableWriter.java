@@ -42,6 +42,7 @@ import java.io.FileOutputStream;
 import java.io.IOError;
 import java.io.IOException;
 
+import org.apache.cassandra.io.AbstractCompactedRow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -108,6 +109,14 @@ public class SSTableWriter extends SSTable
         indexSummary.maybeAddEntry(decoratedKey, indexPosition);
         ibuilder.addPotentialBoundary(indexPosition);
         dbuilder.addPotentialBoundary(dataPosition);
+    }
+
+    public void append(AbstractCompactedRow row) throws IOException
+    {
+        long currentPosition = beforeAppend(row.key);
+        FBUtilities.writeShortByteArray(partitioner.convertToDiskFormat(row.key), dataFile);
+        row.write(dataFile);
+        afterAppend(row.key, currentPosition);
     }
 
     // TODO make this take a DataOutputStream and wrap the byte[] version to combine them

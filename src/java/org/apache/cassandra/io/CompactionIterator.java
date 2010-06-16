@@ -42,7 +42,7 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 
-public class CompactionIterator extends ReducingIterator<SSTableIdentityIterator, CompactionIterator.CompactedRow> implements Closeable
+public class CompactionIterator extends ReducingIterator<SSTableIdentityIterator, AbstractCompactedRow> implements Closeable
 {
     private static Logger logger = LoggerFactory.getLogger(CompactionIterator.class);
 
@@ -97,55 +97,14 @@ public class CompactionIterator extends ReducingIterator<SSTableIdentityIterator
         rows.add(current);
     }
 
-    protected CompactedRow getReduced()
+    protected AbstractCompactedRow getReduced()
     {
         assert rows.size() > 0;
-        DataOutputBuffer buffer = new DataOutputBuffer();
-        DecoratedKey key = rows.get(0).getKey();
 
         try
         {
-            if (rows.size() > 1 || major)
-            {
-                ColumnFamily cf = null;
-                for (SSTableIdentityIterator row : rows)
-                {
-                    ColumnFamily thisCF;
-                    try
-                    {
-                        thisCF = row.getColumnFamily();
-                    }
-                    catch (IOException e)
-                    {
-                        logger.error("Skipping row " + key + " in " + row.getPath(), e);
-                        continue;
-                    }
-                    if (cf == null)
-                    {
-                        cf = thisCF;
-                    }
-                    else
-                    {
-                        cf.addAll(thisCF);
-                    }
-                }
-                ColumnFamily cfPurged = major ? ColumnFamilyStore.removeDeleted(cf, gcBefore) : cf;
-                if (cfPurged == null)
-                    return null;
-                ColumnFamily.serializer().serializeWithIndexes(cfPurged, buffer);
-            }
-            else
-            {
-                assert rows.size() == 1;
-                try
-                {
-                    rows.get(0).echoData(buffer);
-                }
-                catch (IOException e)
-                {
-                    throw new IOError(e);
-                }
-            }
+            PrecompactedRow compactedRow = new PrecompactedRow(rows, major, gcBefore);
+            return compactedRow.isEmpty() ? null : compactedRow;
         }
         finally
         {
@@ -159,7 +118,6 @@ public class CompactionIterator extends ReducingIterator<SSTableIdentityIterator
                 }
             }
         }
-        return new CompactedRow(key, buffer);
     }
 
     public void close() throws IOException
@@ -185,15 +143,4 @@ public class CompactionIterator extends ReducingIterator<SSTableIdentityIterator
         return bytesRead;
     }
 
-    public static class CompactedRow
-    {
-        public final DecoratedKey key;
-        public final DataOutputBuffer buffer;
-
-        public CompactedRow(DecoratedKey key, DataOutputBuffer buffer)
-        {
-            this.key = key;
-            this.buffer = buffer;
-        }
-    }
 }

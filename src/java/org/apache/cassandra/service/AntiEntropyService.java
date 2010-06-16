@@ -20,6 +20,8 @@ package org.apache.cassandra.service;
 
 import java.io.*;
 import java.net.InetAddress;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -31,11 +33,9 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.CompactionIterator.CompactedRow;
+import org.apache.cassandra.io.AbstractCompactedRow;
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.io.sstable.IndexSummary;
 import org.apache.cassandra.streaming.StreamOut;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -347,7 +347,7 @@ public class AntiEntropyService
     public static interface IValidator
     {
         public void prepare();
-        public void add(CompactedRow row);
+        public void add(AbstractCompactedRow row);
         public void complete();
     }
 
@@ -440,7 +440,7 @@ public class AntiEntropyService
          *
          * @param row The row.
          */
-        public void add(CompactedRow row)
+        public void add(AbstractCompactedRow row)
         {
             if (mintoken != null)
             {
@@ -471,12 +471,21 @@ public class AntiEntropyService
             range.addHash(rowHash(row));
         }
 
-        private MerkleTree.RowHash rowHash(CompactedRow row)
+        private MerkleTree.RowHash rowHash(AbstractCompactedRow row)
         {
             validated++;
             // MerkleTree uses XOR internally, so we want lots of output bits here
-            byte[] rowhash = FBUtilities.hash("SHA-256", row.key.key, row.buffer.getData());
-            return new MerkleTree.RowHash(row.key.token, rowhash);
+            MessageDigest digest = null;
+            try
+            {
+                digest = MessageDigest.getInstance("SHA-256");
+            }
+            catch (NoSuchAlgorithmException e)
+            {
+                throw new AssertionError(e);
+            }
+            row.update(digest);
+            return new MerkleTree.RowHash(row.key.token, digest.digest());
         }
 
         /**
@@ -541,7 +550,7 @@ public class AntiEntropyService
         /**
          * Does nothing.
          */
-        public void add(CompactedRow row)
+        public void add(AbstractCompactedRow row)
         {
             // noop
         }
