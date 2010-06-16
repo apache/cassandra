@@ -55,15 +55,12 @@ def assert_raises(excClass, func, *args, **kwargs):
 class TestRpcOperations(AvroTester):
     def test_insert_simple(self):       # Also tests get
         "setting and getting a simple column"
-        self.client.request('set_keyspace', {'keyspace': 'Keyspace1'})
+        self.__set_keyspace('Keyspace1')
 
         params = dict()
         params['key'] = 'key1'
         params['column_parent'] = {'column_family': 'Standard1'}
-        params['column'] = dict()
-        params['column']['name'] = 'c1'
-        params['column']['value'] = 'v1'
-        params['column']['clock'] = { 'timestamp' : 0 }
+        params['column'] = new_column(1)
         params['consistency_level'] = 'ONE'
         self.client.request('insert', params)
 
@@ -81,7 +78,7 @@ class TestRpcOperations(AvroTester):
 
     def test_insert_super(self):
         "setting and getting a super column"
-        self.client.request('set_keyspace', {'keyspace': 'Keyspace1'})
+        self.__set_keyspace('Keyspace1')
 
         params = dict()
         params['key'] = 'key1'
@@ -110,15 +107,12 @@ class TestRpcOperations(AvroTester):
 
     def test_remove_simple(self):
         "removing a simple column"
-        self.client.request('set_keyspace', {'keyspace': 'Keyspace1'})
+        self.__set_keyspace('Keyspace1')
 
         params = dict()
         params['key'] = 'key1'
         params['column_parent'] = {'column_family': 'Standard1'}
-        params['column'] = dict()
-        params['column']['name'] = 'c1'
-        params['column']['value'] = 'v1'
-        params['column']['clock'] = { 'timestamp' : 0 }
+        params['column'] = new_column(1)
         params['consistency_level'] = 'ONE'
         self.client.request('insert', params)
 
@@ -134,13 +128,12 @@ class TestRpcOperations(AvroTester):
         assert_cosc(cosc)
 
         remove_params = read_params
-        remove_params['clock'] = {'timestamp': 1}
+        remove_params['clock'] = {'timestamp': timestamp()}
 
         self.client.request('remove', remove_params)
 
-        try: cosc = self.client.request('get', read_params)
-        except AvroRemoteException, err: pass
-        else: assert False, "Expected exception, returned %s instead" % cosc
+        assert_raises(AvroRemoteException,
+                self.client.request, 'get', read_params)
 
     def test_batch_mutate(self):
         "batching addition/removal mutations"
