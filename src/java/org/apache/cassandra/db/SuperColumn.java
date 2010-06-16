@@ -203,11 +203,6 @@ public class SuperColumn implements IColumn, IColumnContainer
         FBUtilities.atomicSetMax(markedForDeleteAt, column.getMarkedForDeleteAt());
     }
 
-    public int getObjectCount()
-    {
-    	return 1 + columns_.size();
-    }
-
     public IClock getMarkedForDeleteAt()
     {
         return markedForDeleteAt.get();

@@ -92,11 +92,6 @@ public class Column implements IColumn
         throw new UnsupportedOperationException("This operation is unsupported on simple columns.");
     }
 
-    public int getObjectCount()
-    {
-        return 1;
-    }
-
     public IClock clock()
     {
         return clock;

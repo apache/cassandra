@@ -58,11 +58,7 @@ public class ColumnIndexer
     public static void serializeInternal(ColumnFamily columnFamily, DataOutput dos) throws IOException
     {
         Collection<IColumn> columns = columnFamily.getSortedColumns();
-        int columnCount = 0;
-        for (IColumn column : columns)
-        {
-            columnCount += column.getObjectCount();
-        }
+        int columnCount = columns.size();
 
         BloomFilter bf = BloomFilter.getFilter(columnCount, 4);
 
@@ -75,30 +71,15 @@ public class ColumnIndexer
             return;
         }
 
-        /*
-         * Maintains a list of ColumnIndexInfo objects for the columns in this
-         * column family. The key is the column name and the position is the
-         * relative offset of that column name from the start of the list.
-         * We do this so that we don't read all the columns into memory.
-        */
+        // update bloom filter and create a list of IndexInfo objects marking the first and last column
+        // in each block of ColumnIndexSize
         List<IndexHelper.IndexInfo> indexList = new ArrayList<IndexHelper.IndexInfo>();
-
         int endPosition = 0, startPosition = -1;
         int indexSizeInBytes = 0;
         IColumn lastColumn = null, firstColumn = null;
-        /* column offsets at the right thresholds into the index map. */
         for (IColumn column : columns)
         {
             bf.add(column.name());
-            /* If this is SuperColumn type Column Family we need to get the subColumns too. */
-            if (column instanceof SuperColumn)
-            {
-                Collection<IColumn> subColumns = column.getSubColumns();
-                for (IColumn subColumn : subColumns)
-                {
-                    bf.add(subColumn.name());
-                }
-            }
 
             if (firstColumn == null)
             {

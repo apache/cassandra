@@ -154,13 +154,7 @@ public class ColumnFamily implements IColumnContainer
 
     int getColumnCount()
     {
-        if (!isSuper())
-            return columns.size();
-
-        int count = 0;
-        for (IColumn column: columns.values())
-            count += column.getObjectCount();
-        return count;
+        return columns.size();
     }
 
     public boolean isSuper()
