@@ -102,6 +102,18 @@ public class TimestampClock implements IClock
     {
         return Long.toString(timestamp);
     }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        return o instanceof TimestampClock && compare((TimestampClock)o) == ClockRelationship.EQUAL;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return (int)(timestamp ^ (timestamp >>> 32));
+    }
 }
 
 class TimestampClockSerializer implements ICompactSerializer2<IClock>

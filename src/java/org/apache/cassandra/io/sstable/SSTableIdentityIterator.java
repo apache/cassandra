@@ -22,6 +22,7 @@ package org.apache.cassandra.io.sstable;
 
 
 import java.io.*;
+import java.util.ArrayList;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
@@ -29,15 +30,14 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.filter.IColumnIterator;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 
-import com.google.common.collect.AbstractIterator;
-
-public class SSTableIdentityIterator extends AbstractIterator<IColumn> implements Comparable<SSTableIdentityIterator>, IColumnIterator
+public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterator>, IColumnIterator
 {
     private final DecoratedKey key;
     private final long finishedAt;
     private final BufferedRandomAccessFile file;
     private SSTableReader sstable;
     private long dataStart;
+    private final int dataSize;
 
     /**
      * Used to iterate through the columns of a row.
@@ -45,17 +45,18 @@ public class SSTableIdentityIterator extends AbstractIterator<IColumn> implement
      * @param file Reading using this file.
      * @param key Key of this row.
      * @param dataStart Data for this row starts at this pos.
-     * @param finishedAt Data for this row ends at this pos.
+     * @param dataSize length of row data
      * @throws IOException
      */
-    public SSTableIdentityIterator(SSTableReader sstable, BufferedRandomAccessFile file, DecoratedKey key, long dataStart, long finishedAt)
+    public SSTableIdentityIterator(SSTableReader sstable, BufferedRandomAccessFile file, DecoratedKey key, long dataStart, int dataSize)
     throws IOException
     {
         this.sstable = sstable;
         this.file = file;
         this.key = key;
         this.dataStart = dataStart;
-        this.finishedAt = finishedAt;
+        this.dataSize = dataSize;
+        finishedAt = dataStart + dataSize;
     }
 
     public DecoratedKey getKey()
@@ -68,6 +69,11 @@ public class SSTableIdentityIterator extends AbstractIterator<IColumn> implement
         return file.getPath();
     }
 
+    public int getDataSize()
+    {
+        return dataSize;
+    }
+
     public void echoData(DataOutput out) throws IOException
     {
         file.seek(dataStart);
@@ -77,36 +83,75 @@ public class SSTableIdentityIterator extends AbstractIterator<IColumn> implement
         }
     }
 
-    // TODO r/m this and make compaction merge columns iteratively for CASSSANDRA-16
-    public ColumnFamily getColumnFamily() throws IOException
+    public ColumnFamily getColumnFamily()
     {
-        file.seek(dataStart);
-        IndexHelper.skipBloomFilter(file);
-        IndexHelper.skipIndex(file);
-        return ColumnFamily.serializer().deserializeFromSSTable(sstable, file);
-    }
-
-    protected IColumn computeNext()
-    {
+        ColumnFamily cf;
         try
         {
-            assert file.getFilePointer() <= finishedAt;
-            if (file.getFilePointer() == finishedAt)
-            {
-                return endOfData();
-            }
-
-            return sstable.getColumnSerializer().deserialize(file);
+            file.seek(dataStart);
+            IndexHelper.skipBloomFilter(file);
+            IndexHelper.skipIndex(file);
+            cf = sstable.makeColumnFamily();
+            ColumnFamily.serializer().deserializeFromSSTableNoColumns(cf, file);
         }
         catch (IOException e)
         {
             throw new RuntimeException(e);
         }
+
+        return cf;
+    }
+
+    public int getColumnCount()
+    {
+        getColumnFamily(); // skips to column count
+        try
+        {
+            return file.readInt();
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+    }
+
+    public ColumnFamily getColumnFamilyWithColumns() throws IOException
+    {
+        ColumnFamily cf = getColumnFamily();
+        ColumnFamily.serializer().deserializeColumns(file, cf);
+        return cf;
+    }
+
+    public boolean hasNext()
+    {
+        return file.getFilePointer() < finishedAt;
+    }
+
+    public IColumn next()
+    {
+        try
+        {
+            return sstable.getColumnSerializer().deserialize(file);
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+    }
+
+    public void remove()
+    {
+        throw new UnsupportedOperationException();
     }
 
     public int compareTo(SSTableIdentityIterator o)
     {
         return key.compareTo(o.key);
+    }
+
+    public void reset()
+    {
+        getColumnCount();
     }
 
     public void close() throws IOException

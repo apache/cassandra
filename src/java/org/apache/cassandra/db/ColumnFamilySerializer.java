@@ -73,9 +73,7 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
     {
         try
         {
-            dos.writeInt(columnFamily.localDeletionTime.get());
-            IClock _markedForDeleteAt = columnFamily.markedForDeleteAt.get();
-            columnFamily.getClockType().serializer().serialize(_markedForDeleteAt, dos);
+            serializeCFInfo(columnFamily, dos);
 
             Collection<IColumn> columns = columnFamily.getSortedColumns();
             dos.writeInt(columns.size());
@@ -88,6 +86,13 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public void serializeCFInfo(ColumnFamily columnFamily, DataOutput dos) throws IOException
+    {
+        dos.writeInt(columnFamily.localDeletionTime.get());
+        IClock _markedForDeleteAt = columnFamily.markedForDeleteAt.get();
+        columnFamily.getClockType().serializer().serialize(_markedForDeleteAt, dos);
     }
 
     public void serializeWithIndexes(ColumnFamily columnFamily, DataOutput dos)
@@ -108,7 +113,7 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
         return cf;
     }
 
-    private void deserializeColumns(DataInput dis, ColumnFamily cf) throws IOException
+    public void deserializeColumns(DataInput dis, ColumnFamily cf) throws IOException
     {
         int size = dis.readInt();
         for (int i = 0; i < size; ++i)

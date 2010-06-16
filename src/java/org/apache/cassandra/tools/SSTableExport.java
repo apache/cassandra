@@ -112,7 +112,7 @@ public class SSTableExport
     
     private static String serializeRow(SSTableIdentityIterator row) throws IOException
     {
-        ColumnFamily cf = row.getColumnFamily();
+        ColumnFamily cf = row.getColumnFamilyWithColumns();
         AbstractType comparator = cf.getComparator();
         StringBuilder json = new StringBuilder(asKey(bytesToHex(row.getKey().key)));
         
@@ -265,8 +265,8 @@ public class SSTableExport
             excludeSet = new HashSet<String>(Arrays.asList(excludes));
 
         outs.println("{");
-        
-        while(scanner.hasNext())
+
+        while (scanner.hasNext())
         {
             SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
             if (excludeSet.contains(bytesToHex(row.getKey().key)))

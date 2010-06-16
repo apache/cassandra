@@ -42,7 +42,7 @@ public class PrecompactedRow extends AbstractCompactedRow
                 ColumnFamily thisCF;
                 try
                 {
-                    thisCF = row.getColumnFamily();
+                    thisCF = row.getColumnFamilyWithColumns();
                 }
                 catch (IOException e)
                 {

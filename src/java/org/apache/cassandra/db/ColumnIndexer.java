@@ -22,12 +22,12 @@ import java.io.IOError;
 import java.io.IOException;
 import java.io.DataOutput;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.sstable.IndexHelper;
+import org.apache.cassandra.io.util.IIterableColumns;
 import org.apache.cassandra.utils.BloomFilter;
 
 
@@ -39,15 +39,15 @@ public class ColumnIndexer
 	/**
 	 * Given a column family this, function creates an in-memory structure that represents the
 	 * column index for the column family, and subsequently writes it to disk.
-	 * @param columnFamily Column family to create index for
+	 * @param columns Column family to create index for
 	 * @param dos data output stream
 	 * @throws IOException
 	 */
-    public static void serialize(ColumnFamily columnFamily, DataOutput dos)
+    public static void serialize(IIterableColumns columns, DataOutput dos)
     {
         try
         {
-            serializeInternal(columnFamily, dos);
+            serializeInternal(columns, dos);
         }
         catch (IOException e)
         {
@@ -55,19 +55,15 @@ public class ColumnIndexer
         }
     }
 
-    public static void serializeInternal(ColumnFamily columnFamily, DataOutput dos) throws IOException
+    public static void serializeInternal(IIterableColumns columns, DataOutput dos) throws IOException
     {
-        Collection<IColumn> columns = columnFamily.getSortedColumns();
-        int columnCount = columns.size();
+        int columnCount = columns.getEstimatedColumnCount();
 
         BloomFilter bf = BloomFilter.getFilter(columnCount, 4);
 
-        if (columns.isEmpty())
+        if (columnCount == 0)
         {
-            // write empty bloom filter and index
-            writeBloomFilter(dos, bf);
-            dos.writeInt(0);
-
+            writeEmptyHeader(dos, bf);
             return;
         }
 
@@ -98,8 +94,16 @@ public class ColumnIndexer
 
             lastColumn = column;
         }
+
+        // all columns were GC'd after all
+        if (lastColumn == null)
+        {
+            writeEmptyHeader(dos, bf);
+            return;
+        }
+
         // the last column may have fallen on an index boundary already.  if not, index it explicitly.
-        if (indexList.isEmpty() || columnFamily.getComparator().compare(indexList.get(indexList.size() - 1).lastName, lastColumn.name()) != 0)
+        if (indexList.isEmpty() || columns.getComparator().compare(indexList.get(indexList.size() - 1).lastName, lastColumn.name()) != 0)
         {
             IndexHelper.IndexInfo cIndexInfo = new IndexHelper.IndexInfo(firstColumn.name(), lastColumn.name(), startPosition, endPosition - startPosition);
             indexList.add(cIndexInfo);
@@ -117,6 +121,13 @@ public class ColumnIndexer
             cIndexInfo.serialize(dos);
         }
 	}
+
+    private static void writeEmptyHeader(DataOutput dos, BloomFilter bf)
+            throws IOException
+    {
+        writeBloomFilter(dos, bf);
+        dos.writeInt(0);
+    }
 
     private static void writeBloomFilter(DataOutput dos, BloomFilter bf) throws IOException
     {

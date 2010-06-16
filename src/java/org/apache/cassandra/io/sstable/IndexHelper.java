@@ -86,7 +86,7 @@ public class IndexHelper
      * @return bloom filter summarizing the column information
      * @throws java.io.IOException
      */
-    public static BloomFilter defreezeBloomFilter(FileDataInput file) throws IOException
+    public static BloomFilter defreezeBloomFilter(DataInput file) throws IOException
     {
         int size = file.readInt();
         byte[] bytes = new byte[size];

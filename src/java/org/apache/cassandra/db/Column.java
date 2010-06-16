@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.security.MessageDigest;
 import java.io.IOException;
@@ -211,6 +212,33 @@ public class Column implements IColumn
 
         // neither is tombstoned and clocks are different
         return rel;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+
+        Column column = (Column)o;
+
+        if (clock != null ? !clock.equals(column.clock) : column.clock != null)
+            return false;
+        if (!Arrays.equals(name, column.name))
+            return false;
+
+        return Arrays.equals(value, column.value);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        int result = name != null ? Arrays.hashCode(name) : 0;
+        result = 31 * result + (value != null ? Arrays.hashCode(value) : 0);
+        result = 31 * result + (clock != null ? clock.hashCode() : 0);
+        return result;
     }
 
     public String getString(AbstractType comparator)

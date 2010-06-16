@@ -48,7 +48,7 @@ public class CompactionIterator extends ReducingIterator<SSTableIdentityIterator
 
     protected static final int FILE_BUFFER_SIZE = 1024 * 1024;
 
-    private final List<SSTableIdentityIterator> rows = new ArrayList<SSTableIdentityIterator>();
+    protected final List<SSTableIdentityIterator> rows = new ArrayList<SSTableIdentityIterator>();
     private final int gcBefore;
     private final boolean major;
 
@@ -103,7 +103,7 @@ public class CompactionIterator extends ReducingIterator<SSTableIdentityIterator
 
         try
         {
-            PrecompactedRow compactedRow = new PrecompactedRow(rows, major, gcBefore);
+            AbstractCompactedRow compactedRow = getCompactedRow();
             return compactedRow.isEmpty() ? null : compactedRow;
         }
         finally
@@ -118,6 +118,19 @@ public class CompactionIterator extends ReducingIterator<SSTableIdentityIterator
                 }
             }
         }
+    }
+
+    protected AbstractCompactedRow getCompactedRow()
+    {
+        long rowSize = 0;
+        for (SSTableIdentityIterator row : rows)
+        {
+            rowSize += row.getDataSize();
+        }
+        if (rowSize > 512 * 1024 * 1024)
+            return new LazilyCompactedRow(rows, major, gcBefore);
+        else
+            return new PrecompactedRow(rows, major, gcBefore);
     }
 
     public void close() throws IOException
