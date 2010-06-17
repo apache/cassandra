@@ -261,10 +261,13 @@ public class CassandraServer implements Cassandra {
         if (logger.isDebugEnabled())
             logger.debug("get_slice");
         
-        return multigetSliceInternal(curKeyspace.get(), Arrays.asList(key.array()), columnParent, predicate, consistencyLevel).get(key);
+        GenericArray<ByteBuffer> keys = new GenericData.Array<ByteBuffer>(1, Schema.createArray(Schema.parse("{\"type\": \"bytes\"}")));
+        keys.add(key);
+        
+        return multigetSliceInternal(curKeyspace.get(), keys, columnParent, predicate, consistencyLevel).get(key);
     }
     
-    private Map<ByteBuffer, GenericArray<ColumnOrSuperColumn>> multigetSliceInternal(String keyspace, List<byte[]> keys,
+    private Map<ByteBuffer, GenericArray<ColumnOrSuperColumn>> multigetSliceInternal(String keyspace, GenericArray<ByteBuffer> keys,
             ColumnParent columnParent, SlicePredicate predicate, ConsistencyLevel consistencyLevel)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -277,7 +280,7 @@ public class CassandraServer implements Cassandra {
         List<ReadCommand> commands = new ArrayList<ReadCommand>();
         if (predicate.column_names != null)
         {
-            for (byte[] key : keys)
+            for (ByteBuffer key : keys)
             {
                 AvroValidation.validateKey(key);
                 
@@ -286,16 +289,16 @@ public class CassandraServer implements Cassandra {
                 for (ByteBuffer name : predicate.column_names)
                     column_names.add(name.array());
                 
-                commands.add(new SliceByNamesReadCommand(keyspace, key, queryPath, column_names));
+                commands.add(new SliceByNamesReadCommand(keyspace, key.array(), queryPath, column_names));
             }
         }
         else
         {
             SliceRange range = predicate.slice_range;
-            for (byte[] key : keys)
+            for (ByteBuffer key : keys)
             {
                 AvroValidation.validateKey(key);
-                commands.add(new SliceFromReadCommand(keyspace, key, queryPath, range.start.array(), range.finish.array(), range.reversed, range.count));
+                commands.add(new SliceFromReadCommand(keyspace, key.array(), queryPath, range.start.array(), range.finish.array(), range.reversed, range.count));
             }
         }
         
@@ -327,6 +330,29 @@ public class CassandraServer implements Cassandra {
             logger.debug("get_count");
         
         return (int)get_slice(key, columnParent, predicate, consistencyLevel).size();
+    }
+
+    @Override
+    public GenericArray<CoscsMapEntry> multiget_slice(GenericArray<ByteBuffer> keys, ColumnParent columnParent,
+            SlicePredicate predicate, ConsistencyLevel consistencyLevel)
+    throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
+    {
+        if (logger.isDebugEnabled())
+            logger.debug("multiget_slice");
+
+        // FIXME: This is bad; Shaving yaks to get to the right return type.
+        Map<ByteBuffer, GenericArray<ColumnOrSuperColumn>> results = multigetSliceInternal(curKeyspace.get(),
+                                                                                           keys,
+                                                                                           columnParent,
+                                                                                           predicate,
+                                                                                           consistencyLevel);
+        Schema sch = Schema.createArray(CoscsMapEntry.SCHEMA$);
+        GenericArray<CoscsMapEntry> avroResults = new GenericData.Array<CoscsMapEntry>(results.size(), sch);
+
+        for (Map.Entry<ByteBuffer, GenericArray<ColumnOrSuperColumn>> entry : results.entrySet())
+            avroResults.add(newCoscsMapEntry(entry.getKey(), entry.getValue()));
+        
+        return avroResults;
     }
 
     @Override

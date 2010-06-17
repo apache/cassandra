@@ -237,6 +237,52 @@ class TestRpcOperations(AvroTester):
         assert_columns_match(coscs[0]['column'], columns[2])
         assert_columns_match(coscs[3]['column'], columns[5])
 
+    def test_multiget_slice_simple(self):
+        "performing a slice of simple columns, multiple keys"
+        self.__set_keyspace('Keyspace1')
+
+        columns = list(); mutation_params = dict()
+
+        for i in range(12):
+            columns.append(new_column(i))
+
+        # key1, first 6 columns
+        mutations_one = list()
+        for column in columns[:6]:
+            mutation = {'column_or_supercolumn': {'column': column}}
+            mutations_one.append(mutation)
+
+        map_entry = {'key': 'key1', 'mutations': {'Standard1': mutations_one}}
+        mutation_params['mutation_map'] = [map_entry]
+
+        # key2, last 6 columns
+        mutations_two = list()
+        for column in columns[6:]:
+            mutation = {'column_or_supercolumn': {'column': column}}
+            mutations_two.append(mutation)
+
+        map_entry = {'key': 'key2', 'mutations': {'Standard1': mutations_two}}
+        mutation_params['mutation_map'].append(map_entry)
+
+        mutation_params['consistency_level'] = 'ONE'
+
+        self.client.request('batch_mutate', mutation_params)
+
+        # Slice all 6 columns on both keys
+        slice_params= dict()
+        slice_params['keys'] = ['key1', 'key2']
+        slice_params['column_parent'] = {'column_family': 'Standard1'}
+        sr = {'start': '', 'finish': '', 'reversed': False, 'count': 1000}
+        slice_params['predicate'] = {'slice_range': sr}
+        slice_params['consistency_level'] = 'ONE'
+
+        coscs_map = self.client.request('multiget_slice', slice_params)
+        for entry in coscs_map:
+            assert(entry['key'] in ['key1', 'key2']), \
+                    "expected one of [key1, key2]; got %s" % entry['key']
+            assert(len(entry['columns']) == 6), \
+                    "expected 6 results, got %d" % len(entry['columns'])
+
     def test_get_count(self):
         "counting columns"
         self.__set_keyspace('Keyspace1')

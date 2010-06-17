@@ -42,15 +42,8 @@ import static org.apache.cassandra.avro.AvroRecordFactory.newColumnPath;
 /**
  * The Avro analogue to org.apache.cassandra.service.ThriftValidation
  */
-public class AvroValidation {
-    // FIXME: could use method in ThriftValidation
-    // FIXME: remove me
-    static void validateKey(String key) throws InvalidRequestException
-    {
-        if (key.isEmpty())
-            throw newInvalidRequestException("Key may not be empty");
-    }
-    
+public class AvroValidation
+{    
     static void validateKey(byte[] key) throws InvalidRequestException
     {
         if (key == null || key.length == 0)
@@ -60,6 +53,11 @@ public class AvroValidation {
         if (key.length > FBUtilities.MAX_UNSIGNED_SHORT)
             throw newInvalidRequestException("Key length of " + key.length +
                     " is longer than maximum of " + FBUtilities.MAX_UNSIGNED_SHORT);
+    }
+    
+    static void validateKey(ByteBuffer key) throws InvalidRequestException
+    {
+        validateKey(key.array());
     }
     
     // FIXME: could use method in ThriftValidation

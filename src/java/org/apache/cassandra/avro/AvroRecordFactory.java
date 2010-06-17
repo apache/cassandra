@@ -99,6 +99,14 @@ public class AvroRecordFactory
             cp.super_column = ByteBuffer.wrap(superColumn);
         return cp;
     }
+    
+    public static CoscsMapEntry newCoscsMapEntry(ByteBuffer key, GenericArray<ColumnOrSuperColumn> columns)
+    {
+        CoscsMapEntry entry = new CoscsMapEntry();
+        entry.key = key;
+        entry.columns = columns;
+        return entry;
+    }
 }
 
 class ErrorFactory

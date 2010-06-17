@@ -108,6 +108,11 @@ protocol Cassandra {
         map<array<Mutation>> mutations;
     }
 
+    record CoscsMapEntry {
+         bytes key;
+         array<ColumnOrSuperColumn> columns;
+    }
+
     enum ConsistencyLevel {
         ZERO, ONE, QUORUM, DCQUORUM, DCQUORUMSYNC, ALL
     }
@@ -144,6 +149,16 @@ protocol Cassandra {
                                          ColumnParent column_parent,
                                          SlicePredicate predicate,
                                          ConsistencyLevel consistency_level)
+    throws InvalidRequestException, UnavailableException, TimedOutException;
+
+    /**
+     * Performs a get_slice for column_parent and predicate against the given
+     * set of keys in parallel.
+     */
+    array<CoscsMapEntry> multiget_slice(array<bytes> keys,
+                                        ColumnParent column_parent,
+                                        SlicePredicate predicate,
+                                        ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException;
 
     /**
