@@ -261,13 +261,14 @@ public class CassandraServer implements Cassandra {
         if (logger.isDebugEnabled())
             logger.debug("get_slice");
         
-        GenericArray<ByteBuffer> keys = new GenericData.Array<ByteBuffer>(1, Schema.createArray(Schema.parse("{\"type\": \"bytes\"}")));
+        Schema bytesArray = Schema.createArray(Schema.parse("{\"type\": \"bytes\"}"));
+        GenericArray<ByteBuffer> keys = new GenericData.Array<ByteBuffer>(1, bytesArray);
         keys.add(key);
         
-        return multigetSliceInternal(curKeyspace.get(), keys, columnParent, predicate, consistencyLevel).get(key);
+        return multigetSliceInternal(curKeyspace.get(), keys, columnParent, predicate, consistencyLevel).iterator().next().columns;
     }
     
-    private Map<ByteBuffer, GenericArray<ColumnOrSuperColumn>> multigetSliceInternal(String keyspace, GenericArray<ByteBuffer> keys,
+    private GenericArray<CoscsMapEntry> multigetSliceInternal(String keyspace, GenericArray<ByteBuffer> keys,
             ColumnParent columnParent, SlicePredicate predicate, ConsistencyLevel consistencyLevel)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -305,21 +306,22 @@ public class CassandraServer implements Cassandra {
         return getSlice(commands, consistencyLevel);
     }
     
-    private Map<ByteBuffer, GenericArray<ColumnOrSuperColumn>> getSlice(List<ReadCommand> commands, ConsistencyLevel consistencyLevel)
+    private GenericArray<CoscsMapEntry> getSlice(List<ReadCommand> commands, ConsistencyLevel consistencyLevel)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         Map<DecoratedKey<?>, ColumnFamily> columnFamilies = readColumnFamily(commands, consistencyLevel);
-        Map<ByteBuffer, GenericArray<ColumnOrSuperColumn>> columnFamiliesMap = new HashMap<ByteBuffer, GenericArray<ColumnOrSuperColumn>>();
+        Schema sch = Schema.createArray(CoscsMapEntry.SCHEMA$);
+        GenericArray<CoscsMapEntry> columnFamiliesList = new GenericData.Array<CoscsMapEntry>(commands.size(), sch);
         
         for (ReadCommand cmd : commands)
         {
             ColumnFamily cf = columnFamilies.get(StorageService.getPartitioner().decorateKey(cmd.key));
             boolean reverseOrder = cmd instanceof SliceFromReadCommand && ((SliceFromReadCommand)cmd).reversed;
             GenericArray<ColumnOrSuperColumn> avroColumns = avronateColumnFamily(cf, cmd.queryPath.superColumnName != null, reverseOrder);
-            columnFamiliesMap.put(ByteBuffer.wrap(cmd.key), avroColumns);
+            columnFamiliesList.add(newCoscsMapEntry(ByteBuffer.wrap(cmd.key), avroColumns));
         }
         
-        return columnFamiliesMap;
+        return columnFamiliesList;
     }
 
     @Override
@@ -339,20 +341,8 @@ public class CassandraServer implements Cassandra {
     {
         if (logger.isDebugEnabled())
             logger.debug("multiget_slice");
-
-        // FIXME: This is bad; Shaving yaks to get to the right return type.
-        Map<ByteBuffer, GenericArray<ColumnOrSuperColumn>> results = multigetSliceInternal(curKeyspace.get(),
-                                                                                           keys,
-                                                                                           columnParent,
-                                                                                           predicate,
-                                                                                           consistencyLevel);
-        Schema sch = Schema.createArray(CoscsMapEntry.SCHEMA$);
-        GenericArray<CoscsMapEntry> avroResults = new GenericData.Array<CoscsMapEntry>(results.size(), sch);
-
-        for (Map.Entry<ByteBuffer, GenericArray<ColumnOrSuperColumn>> entry : results.entrySet())
-            avroResults.add(newCoscsMapEntry(entry.getKey(), entry.getValue()));
         
-        return avroResults;
+        return multigetSliceInternal(curKeyspace.get(), keys, columnParent, predicate, consistencyLevel);
     }
 
     @Override
