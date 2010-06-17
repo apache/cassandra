@@ -261,10 +261,10 @@ public class CassandraServer implements Cassandra {
         if (logger.isDebugEnabled())
             logger.debug("get_slice");
         
-        return multigetSliceInternal(curKeyspace.get(), Arrays.asList(key.array()), columnParent, predicate, consistencyLevel).get(key.array());
+        return multigetSliceInternal(curKeyspace.get(), Arrays.asList(key.array()), columnParent, predicate, consistencyLevel).get(key);
     }
     
-    private Map<byte[], GenericArray<ColumnOrSuperColumn>> multigetSliceInternal(String keyspace, List<byte[]> keys,
+    private Map<ByteBuffer, GenericArray<ColumnOrSuperColumn>> multigetSliceInternal(String keyspace, List<byte[]> keys,
             ColumnParent columnParent, SlicePredicate predicate, ConsistencyLevel consistencyLevel)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -302,18 +302,18 @@ public class CassandraServer implements Cassandra {
         return getSlice(commands, consistencyLevel);
     }
     
-    private Map<byte[], GenericArray<ColumnOrSuperColumn>> getSlice(List<ReadCommand> commands, ConsistencyLevel consistencyLevel)
+    private Map<ByteBuffer, GenericArray<ColumnOrSuperColumn>> getSlice(List<ReadCommand> commands, ConsistencyLevel consistencyLevel)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         Map<DecoratedKey<?>, ColumnFamily> columnFamilies = readColumnFamily(commands, consistencyLevel);
-        Map<byte[], GenericArray<ColumnOrSuperColumn>> columnFamiliesMap = new HashMap<byte[], GenericArray<ColumnOrSuperColumn>>();
+        Map<ByteBuffer, GenericArray<ColumnOrSuperColumn>> columnFamiliesMap = new HashMap<ByteBuffer, GenericArray<ColumnOrSuperColumn>>();
         
         for (ReadCommand cmd : commands)
         {
             ColumnFamily cf = columnFamilies.get(StorageService.getPartitioner().decorateKey(cmd.key));
             boolean reverseOrder = cmd instanceof SliceFromReadCommand && ((SliceFromReadCommand)cmd).reversed;
             GenericArray<ColumnOrSuperColumn> avroColumns = avronateColumnFamily(cf, cmd.queryPath.superColumnName != null, reverseOrder);
-            columnFamiliesMap.put(cmd.key, avroColumns);
+            columnFamiliesMap.put(ByteBuffer.wrap(cmd.key), avroColumns);
         }
         
         return columnFamiliesMap;
