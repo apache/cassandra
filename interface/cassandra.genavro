@@ -146,6 +146,16 @@ protocol Cassandra {
                                          ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException;
 
+    /**
+     * Returns the number of columns matching a predicate for a particular
+     * key, ColumnFamily, and optionally SuperColumn.
+     */
+    int get_count(bytes key,
+                  ColumnParent column_parent,
+                  SlicePredicate predicate,
+                  ConsistencyLevel consistency_level)
+    throws InvalidRequestException, UnavailableException, TimedOutException;
+
     void insert(bytes key,
                 ColumnParent column_parent,
                 Column column,

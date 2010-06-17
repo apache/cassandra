@@ -320,6 +320,16 @@ public class CassandraServer implements Cassandra {
     }
 
     @Override
+    public int get_count(ByteBuffer key, ColumnParent columnParent, SlicePredicate predicate, ConsistencyLevel consistencyLevel)
+    throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
+    {
+        if (logger.isDebugEnabled())
+            logger.debug("get_count");
+        
+        return (int)get_slice(key, columnParent, predicate, consistencyLevel).size();
+    }
+
+    @Override
     public Void insert(ByteBuffer key, ColumnParent parent, Column column, ConsistencyLevel consistencyLevel)
     throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
     {

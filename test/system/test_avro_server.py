@@ -237,6 +237,33 @@ class TestRpcOperations(AvroTester):
         assert_columns_match(coscs[0]['column'], columns[2])
         assert_columns_match(coscs[3]['column'], columns[5])
 
+    def test_get_count(self):
+        "counting columns"
+        self.__set_keyspace('Keyspace1')
+
+        mutations = list()
+
+        for i in range(10):
+            mutation = {'column_or_supercolumn': {'column': new_column(i)}}
+            mutations.append(mutation)
+
+        mutation_params = dict()
+        map_entry = {'key': 'key1', 'mutations': {'Standard1': mutations}}
+        mutation_params['mutation_map'] = [map_entry]
+        mutation_params['consistency_level'] = 'ONE'
+
+        self.client.request('batch_mutate', mutation_params)
+
+        count_params = dict()
+        count_params['key'] = 'key1'
+        count_params['column_parent'] = {'column_family': 'Standard1'}
+        sr = {'start': '', 'finish': '', 'reversed': False, 'count': 1000}
+        count_params['predicate'] = {'slice_range': sr}
+        count_params['consistency_level'] = 'ONE'
+
+        num_columns = self.client.request('get_count', count_params)
+        assert(num_columns == 10), "expected 10 results, got %d" % num_columns
+
     def test_describe_keyspaces(self):
         "retrieving a list of all keyspaces"
         keyspaces = self.client.request('describe_keyspaces', {})
