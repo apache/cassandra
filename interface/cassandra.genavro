@@ -63,7 +63,7 @@ protocol Cassandra {
         bytes finish;
         boolean reversed;
         int count;
-        array<bytes> bitmasks;
+        union { array<bytes>, null } bitmasks;
     }
 
     record SlicePredicate {
@@ -133,6 +133,18 @@ protocol Cassandra {
                             ConsistencyLevel consistency_level)
     throws InvalidRequestException, NotFoundException, UnavailableException,
            TimedOutException;
+    
+    /**
+     * Get the group of columns contained by a column_parent (either a
+     * ColumnFamily name or a ColumnFamily/SuperColumn name pair) specified
+     * by the given SlicePredicate. If no matching values are found, an empty
+     * list is returned.
+     */
+    array<ColumnOrSuperColumn> get_slice(bytes key,
+                                         ColumnParent column_parent,
+                                         SlicePredicate predicate,
+                                         ConsistencyLevel consistency_level)
+    throws InvalidRequestException, UnavailableException, TimedOutException;
 
     void insert(bytes key,
                 ColumnParent column_parent,

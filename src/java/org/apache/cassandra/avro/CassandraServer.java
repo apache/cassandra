@@ -20,7 +20,6 @@ package org.apache.cassandra.avro;
  * 
  */
 
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -32,11 +31,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
+
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericArray;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.avro.util.Utf8;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
@@ -50,11 +53,8 @@ import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.migration.AddKeyspace;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.StorageProxy;
-import static org.apache.cassandra.utils.FBUtilities.UTF8;
-
 import org.apache.cassandra.service.StorageService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
 import static org.apache.cassandra.avro.AvroRecordFactory.*;
 import static org.apache.cassandra.avro.ErrorFactory.*;
 
@@ -251,6 +251,72 @@ public class CassandraServer implements Cassandra {
             return avronateSuperColumns(cf.getSortedColumns(), reverseOrder);
         else
             return avronateColumns(cf.getSortedColumns(), reverseOrder);
+    }
+    
+    @Override
+    public GenericArray<ColumnOrSuperColumn> get_slice(ByteBuffer key, ColumnParent columnParent,
+            SlicePredicate predicate, ConsistencyLevel consistencyLevel)
+    throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
+    {
+        if (logger.isDebugEnabled())
+            logger.debug("get_slice");
+        
+        return multigetSliceInternal(curKeyspace.get(), Arrays.asList(key.array()), columnParent, predicate, consistencyLevel).get(key.array());
+    }
+    
+    private Map<byte[], GenericArray<ColumnOrSuperColumn>> multigetSliceInternal(String keyspace, List<byte[]> keys,
+            ColumnParent columnParent, SlicePredicate predicate, ConsistencyLevel consistencyLevel)
+    throws InvalidRequestException, UnavailableException, TimedOutException
+    {
+        AvroValidation.validateColumnParent(keyspace, columnParent);
+        AvroValidation.validatePredicate(keyspace, columnParent, predicate);
+        
+        byte[] superName = columnParent.super_column == null ? null : columnParent.super_column.array();
+        QueryPath queryPath = new QueryPath(columnParent.column_family.toString(), superName);
+
+        List<ReadCommand> commands = new ArrayList<ReadCommand>();
+        if (predicate.column_names != null)
+        {
+            for (byte[] key : keys)
+            {
+                AvroValidation.validateKey(key);
+                
+                // FIXME: Copying the collection for the sake of SliceByNamesReadCommands
+                Collection<byte[]> column_names = new ArrayList<byte[]>();
+                for (ByteBuffer name : predicate.column_names)
+                    column_names.add(name.array());
+                
+                commands.add(new SliceByNamesReadCommand(keyspace, key, queryPath, column_names));
+            }
+        }
+        else
+        {
+            SliceRange range = predicate.slice_range;
+            for (byte[] key : keys)
+            {
+                AvroValidation.validateKey(key);
+                commands.add(new SliceFromReadCommand(keyspace, key, queryPath, range.start.array(), range.finish.array(), range.reversed, range.count));
+            }
+        }
+        
+        return getSlice(commands, consistencyLevel);
+    }
+    
+    private Map<byte[], GenericArray<ColumnOrSuperColumn>> getSlice(List<ReadCommand> commands, ConsistencyLevel consistencyLevel)
+    throws InvalidRequestException, UnavailableException, TimedOutException
+    {
+        Map<DecoratedKey<?>, ColumnFamily> columnFamilies = readColumnFamily(commands, consistencyLevel);
+        Map<byte[], GenericArray<ColumnOrSuperColumn>> columnFamiliesMap = new HashMap<byte[], GenericArray<ColumnOrSuperColumn>>();
+        
+        for (ReadCommand cmd : commands)
+        {
+            ColumnFamily cf = columnFamilies.get(StorageService.getPartitioner().decorateKey(cmd.key));
+            boolean reverseOrder = cmd instanceof SliceFromReadCommand && ((SliceFromReadCommand)cmd).reversed;
+            GenericArray<ColumnOrSuperColumn> avroColumns = avronateColumnFamily(cf, cmd.queryPath.superColumnName != null, reverseOrder);
+            columnFamiliesMap.put(cmd.key, avroColumns);
+        }
+        
+        return columnFamiliesMap;
     }
 
     @Override

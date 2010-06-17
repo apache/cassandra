@@ -214,6 +214,12 @@ public class AvroValidation {
         if (start.length > 0 && finish.length > 0 && orderedComparator.compare(start, finish) > 0)
             throw newInvalidRequestException("range finish must come after start in the order of traversal");
     }
+    
+    static void validateRange(String keyspace, ColumnParent cp, SliceRange range) throws InvalidRequestException
+    {
+        byte[] superName = cp.super_column == null ? null : cp.super_column.array();
+        validateRange(keyspace, cp.column_family.toString(), superName, range);
+    }
 
     static void validateSlicePredicate(String keyspace, String cfName, byte[] superName, SlicePredicate predicate)
     throws InvalidRequestException
@@ -277,5 +283,20 @@ public class AvroValidation {
             return new TimestampClock(clock.timestamp);
         
         throw newInvalidRequestException("Clock must have a timestamp set");
+    }
+    
+    static void validatePredicate(String keyspace, ColumnParent cp, SlicePredicate predicate)
+    throws InvalidRequestException
+    {
+        if (predicate.column_names == null && predicate.slice_range == null)
+            throw newInvalidRequestException("predicate column_names and slice_range may not both be null");
+        
+        if (predicate.column_names != null && predicate.slice_range != null)
+            throw newInvalidRequestException("predicate column_names and slice_range may not both be set");
+        
+        if (predicate.slice_range != null)
+            validateRange(keyspace, cp, predicate.slice_range);
+        else
+            validateColumns(keyspace, cp, predicate.column_names);
     }
 }
