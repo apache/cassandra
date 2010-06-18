@@ -322,14 +322,6 @@ public abstract class SSTable
             return true;
         }
 
-        /**
-         * @return Compares the version for this descriptor to the given version.
-         */
-        public int versionCompareTo(String ver)
-        {
-            return version.compareTo(ver);
-        }
-
         @Override
         public String toString()
         {
@@ -351,6 +343,16 @@ public abstract class SSTable
         public int hashCode()
         {
             return hashCode;
+        }
+
+        public boolean hasStringsInBloomFilter()
+        {
+            return version.compareTo("c") < 0;
+        }
+
+        public boolean hasIntRowSize()
+        {
+            return version.compareTo("d") < 0;
         }
     }
 }

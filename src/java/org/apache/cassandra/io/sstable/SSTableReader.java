@@ -23,8 +23,6 @@ import java.io.*;
 import java.util.*;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.Reference;
-import java.nio.channels.FileChannel;
-import java.nio.MappedByteBuffer;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
@@ -177,8 +175,10 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         SSTableReader sstable = new SSTableReader(desc, partitioner, null, null, null, null, System.currentTimeMillis());
 
         // versions before 'c' encoded keys as utf-16 before hashing to the filter
-        if (desc.versionCompareTo("c") < 0)
+        if (desc.hasStringsInBloomFilter())
+        {
             sstable.load(true);
+        }
         else
         {
             sstable.load(false);
@@ -549,7 +549,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     public static long readRowSize(DataInput in, Descriptor d) throws IOException
     {
-        if (d.versionCompareTo("d") < 0)
+        if (d.hasIntRowSize())
             return in.readInt();
         return in.readLong();
     }
