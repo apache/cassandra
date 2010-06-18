@@ -24,6 +24,7 @@
    sending streams out of order (CASSANDRA-1169)
  * remove inactive stream managers after AES streams files (CASSANDRA-1169)
  * allow removing entire row through batch_mutate Deletion (CASSANDRA-1027)
+ * added a redhat init script to contrib (CASSANDRA-1201)
 
 
 0.6.2
