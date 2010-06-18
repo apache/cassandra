@@ -30,7 +30,6 @@ dev
  * avoid reading large rows into memory during compaction (CASSANDRA-16)
  * added hadoop OutputFormat (CASSANDRA-1101)
  * efficient Streaming (no more anticompaction) (CASSANDRA-579)
- * added a redhat init script to contrib (CASSANDRA-1201)
 
 
 0.6.3
