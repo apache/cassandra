@@ -94,6 +94,7 @@ protocol Cassandra {
         union { double, null } row_cache_size;
         union { boolean, null } preload_row_cache;
         union { double, null } key_cache_size;
+        union { double, null } read_repair_chance;
     }
 
     record KsDef {

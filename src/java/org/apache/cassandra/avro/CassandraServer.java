@@ -70,10 +70,6 @@ public class CassandraServer implements Cassandra {
     private final static String D_CF_CFCLOCKTYPE = "Timestamp";
     private final static String D_CF_COMPTYPE = "BytesType";
     private final static String D_CF_SUBCOMPTYPE = "";
-    private final static String D_CF_COMMENT = "";
-    private final static double D_CF_ROWCACHE = 0;
-    private final static boolean D_CF_PRELOAD_ROWCACHE = false;
-    private final static double D_CF_KEYCACHE = 200000;
     
     private ThreadLocal<AccessLevel> loginDone = new ThreadLocal<AccessLevel>()
     {
@@ -596,11 +592,11 @@ public class CassandraServer implements Cassandra {
                         DatabaseDescriptor.getComparator(compare),
                         subCompare.length() == 0 ? null : DatabaseDescriptor.getComparator(subCompare),
                         reconciler,
-                        cfDef.comment == null ? D_CF_COMMENT : cfDef.comment.toString(), 
-                        cfDef.row_cache_size == null ? D_CF_ROWCACHE : cfDef.row_cache_size,
-                        cfDef.preload_row_cache == null ? D_CF_PRELOAD_ROWCACHE : cfDef.preload_row_cache,
-                        cfDef.key_cache_size == null ? D_CF_KEYCACHE : cfDef.key_cache_size,
-                        CFMetaData.DEFAULT_READ_REPAIR_CHANCE);
+                        cfDef.comment == null ? "" : cfDef.comment.toString(), 
+                        cfDef.row_cache_size == null ? CFMetaData.DEFAULT_ROW_CACHE_SIZE : cfDef.row_cache_size,
+                        cfDef.preload_row_cache == null ? CFMetaData.DEFAULT_PRELOAD_ROW_CACHE : cfDef.preload_row_cache,
+                        cfDef.key_cache_size == null ? CFMetaData.DEFAULT_KEY_CACHE_SIZE : cfDef.key_cache_size,
+                        cfDef.read_repair_chance == null ? CFMetaData.DEFAULT_READ_REPAIR_CHANCE : cfDef.read_repair_chance);
                 cfDefs.add(cfmeta);
             }
             
