@@ -44,6 +44,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.utils.BloomFilter;
 
 /**
  * SSTableReaders are open()ed by Table.onStart; after that they are created by SSTableWriter.renameAndOpen.
@@ -108,6 +109,9 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     // indexfile and datafile: might be null before a call to load()
     private SegmentedFile ifile;
     private SegmentedFile dfile;
+
+    private IndexSummary indexSummary;
+    private BloomFilter bf;
 
     private InstrumentedCache<Pair<Descriptor,DecoratedKey>, Long> keyCache;
 

@@ -117,16 +117,13 @@ public class StreamOut
      */
     public static void transferSSTables(InetAddress target, List<SSTableReader> sstables, String table) throws IOException
     {
-        PendingFile[] pendingFiles = new PendingFile[SSTable.FILES_ON_DISK * sstables.size()];
+        PendingFile[] pendingFiles = new PendingFile[sstables.size()];
         int i = 0;
         for (SSTableReader sstable : sstables)
         {
-            for (String component : SSTable.components)
-            {
-                Descriptor desc = sstable.getDescriptor();
-                long filelen = new File(desc.filenameFor(component)).length();
-                pendingFiles[i++] = new PendingFile(desc, component, filelen);
-            }
+            Descriptor desc = sstable.getDescriptor();
+            long filelen = new File(desc.filenameFor(SSTable.COMPONENT_DATA)).length();
+            pendingFiles[i++] = new PendingFile(desc, SSTable.COMPONENT_DATA, filelen);
         }
         logger.info("Stream context metadata " + StringUtils.join(pendingFiles, ", " + " " + sstables.size() + " sstables."));
         StreamOutManager.get(target).addFilesToStream(pendingFiles);
@@ -145,5 +142,4 @@ public class StreamOut
             logger.info("Done with transfer to " + target);
         }
     }
-
 }

@@ -103,20 +103,15 @@ public class StreamInitiateVerbHandler implements IVerbHandler
     {
         /* Create a local sstable for each remote sstable */
         LinkedHashMap<PendingFile, PendingFile> mapping = new LinkedHashMap<PendingFile, PendingFile>();
-        Map<Descriptor, Descriptor> sstables = new HashMap<Descriptor, Descriptor>();
         for (PendingFile remote : remoteFiles)
         {
             Descriptor remotedesc = remote.getDescriptor();
-            Descriptor localdesc = sstables.get(remotedesc);
-            if (localdesc == null)
-            {
-                // new local sstable
-                Table table = Table.open(remotedesc.ksname);
-                ColumnFamilyStore cfStore = table.getColumnFamilyStore(remotedesc.cfname);
 
-                localdesc = Descriptor.fromFilename(cfStore.getFlushPath());
-                sstables.put(remotedesc, localdesc);
-            }
+            // new local sstable
+            Table table = Table.open(remotedesc.ksname);
+            ColumnFamilyStore cfStore = table.getColumnFamilyStore(remotedesc.cfname);
+
+            Descriptor localdesc = Descriptor.fromFilename(cfStore.getFlushPath());
 
             // add a local file for this component
             mapping.put(remote, new PendingFile(localdesc, remote.getComponent(), remote.getExpectedBytes()));

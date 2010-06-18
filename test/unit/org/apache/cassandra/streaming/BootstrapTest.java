@@ -35,9 +35,7 @@ public class BootstrapTest extends SchemaLoader
     public void testGetNewNames() throws IOException
     {
         Descriptor desc = Descriptor.fromFilename(new File("Keyspace1", "Standard1-500-Data.db").toString());
-        PendingFile[] pendingFiles = new PendingFile[]{ new PendingFile(desc, "Data.db", 100),
-                                                        new PendingFile(desc, "Index.db", 100),
-                                                        new PendingFile(desc, "Filter.db", 100) };
+        PendingFile[] pendingFiles = new PendingFile[]{ new PendingFile(desc, "Data.db", 100) };
         StreamInitiateVerbHandler bivh = new StreamInitiateVerbHandler();
 
         // map the input (remote) contexts to output (local) contexts

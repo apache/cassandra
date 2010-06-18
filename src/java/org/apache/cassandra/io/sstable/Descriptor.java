@@ -159,4 +159,9 @@ public class Descriptor
     {
         return version.compareTo("d") < 0;
     }
+
+    public boolean isLatestVersion()
+    {
+        return version.compareTo(CURRENT_VERSION) == 0;
+    }
 }

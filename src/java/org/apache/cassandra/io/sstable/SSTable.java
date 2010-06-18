@@ -30,7 +30,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.io.util.FileUtils;
 
 /**
@@ -58,8 +57,6 @@ public abstract class SSTable
 
     protected Descriptor desc;
     protected IPartitioner partitioner;
-    protected BloomFilter bf;
-    protected IndexSummary indexSummary;
 
     public static final String TEMPFILE_MARKER = "tmp";
 
