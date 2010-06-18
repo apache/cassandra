@@ -33,6 +33,7 @@ import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.net.Message;
@@ -122,7 +123,7 @@ public class StreamOut
         {
             for (String component : SSTable.components)
             {
-                SSTable.Descriptor desc = sstable.getDescriptor();
+                Descriptor desc = sstable.getDescriptor();
                 long filelen = new File(desc.filenameFor(component)).length();
                 pendingFiles[i++] = new PendingFile(desc, component, filelen);
             }

@@ -26,7 +26,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.Descriptor;
 
 class PendingFile
 {
@@ -42,12 +42,12 @@ class PendingFile
         return serializer_;
     }
 
-    private SSTable.Descriptor desc;        
+    private Descriptor desc;
     private String component;
     private long expectedBytes;                     
     private long ptr;
 
-    public PendingFile(SSTable.Descriptor desc, String component, long expectedBytes)
+    public PendingFile(Descriptor desc, String component, long expectedBytes)
     {
         this.desc = desc;
         this.component = component;
@@ -70,7 +70,7 @@ class PendingFile
         return component;
     }
 
-    public SSTable.Descriptor getDescriptor()
+    public Descriptor getDescriptor()
     {
         return desc;
     }
@@ -115,7 +115,7 @@ class PendingFile
 
         public PendingFile deserialize(DataInputStream dis) throws IOException
         {
-            SSTable.Descriptor desc = SSTable.Descriptor.fromFilename(dis.readUTF());
+            Descriptor desc = Descriptor.fromFilename(dis.readUTF());
             String component = dis.readUTF();
             long expectedBytes = dis.readLong();           
             return new PendingFile(desc, component, expectedBytes);

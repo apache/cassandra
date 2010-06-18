@@ -25,15 +25,10 @@ import java.util.*;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
-import static org.junit.Assert.*;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.FBUtilities;
-
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
 
 /**
  * Tests backwards compatibility for SSTables. Requires that older SSTables match up with the existing config file,
@@ -66,10 +61,10 @@ public class LegacySSTableTest extends CleanupHelper
     /**
      * Get a descriptor for the legacy sstable at the given version.
      */
-    protected SSTable.Descriptor getDescriptor(String ver) throws IOException
+    protected Descriptor getDescriptor(String ver) throws IOException
     {
         File directory = new File(LEGACY_SSTABLE_ROOT + File.separator + ver + File.separator + KSNAME);
-        return new SSTable.Descriptor(ver, directory, KSNAME, CFNAME, 0, false);
+        return new Descriptor(ver, directory, KSNAME, CFNAME, 0, false);
     }
 
     /**

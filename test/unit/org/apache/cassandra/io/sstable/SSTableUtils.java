@@ -52,7 +52,7 @@ public class SSTableUtils
         File tabledir = new File(tempdir, tablename);
         tabledir.mkdir();
         tabledir.deleteOnExit();
-        File datafile = new File(new SSTable.Descriptor(tabledir, tablename, cfname, 0,
+        File datafile = new File(new Descriptor(tabledir, tablename, cfname, 0,
                                                         false).filenameFor("Data.db"));
         assert datafile.createNewFile();
         datafile.deleteOnExit();

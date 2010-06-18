@@ -33,7 +33,6 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import org.apache.commons.collections.IteratorUtils;
-import org.apache.commons.lang.ArrayUtils;
 
 import com.google.common.collect.Iterables;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
@@ -41,7 +40,6 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.IClock;
 import org.apache.cassandra.db.IClock.ClockRelationship;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
@@ -54,7 +52,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -307,12 +304,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private static String getColumnFamilyFromFileName(String filename)
     {
-        return SSTable.Descriptor.fromFilename(filename).cfname;
+        return Descriptor.fromFilename(filename).cfname;
     }
 
     public static int getGenerationFromFileName(String filename)
     {
-        return SSTable.Descriptor.fromFilename(filename).generation;
+        return Descriptor.fromFilename(filename).generation;
     }
 
     /*
@@ -331,7 +328,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public String getTempSSTablePath(String directory)
     {
-        SSTable.Descriptor desc = new SSTable.Descriptor(new File(directory),
+        Descriptor desc = new Descriptor(new File(directory),
                                                          table_,
                                                          columnFamily_,
                                                          fileIndexGenerator_.incrementAndGet(),
