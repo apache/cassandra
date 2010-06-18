@@ -90,7 +90,7 @@ public class SSTableScanner implements Iterator<IColumnIterator>, Closeable
     {
         try
         {
-            long position = sstable.getNearestPosition(seekKey);
+            long position = sstable.getPosition(seekKey, SSTableReader.Operator.GE);
             if (position < 0)
             {
                 exhausted = true;

@@ -25,12 +25,13 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 
-import org.apache.cassandra.streaming.StreamOutManager;
+import org.apache.cassandra.streaming.PendingFile;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 public class FileStreamTask extends WrappedRunnable
@@ -41,21 +42,12 @@ public class FileStreamTask extends WrappedRunnable
     // around 10 minutes at the default rpctimeout
     public static final int MAX_CONNECT_ATTEMPTS = 8;
 
-    private final String file;
-    private final long startPosition;
-    private final long endPosition;
+    private final PendingFile file;
     private final InetAddress to;
     
-    FileStreamTask(String file, InetAddress to)
-    {
-        this(file, 0, new File(file).length(), to);
-    }
-
-    private FileStreamTask(String file, long startPosition, long endPosition, InetAddress to)
+    FileStreamTask(PendingFile file, InetAddress to)
     {
         this.file = file;
-        this.startPosition = startPosition;
-        this.endPosition = endPosition;
         this.to = to;
     }
     
@@ -87,8 +79,7 @@ public class FileStreamTask extends WrappedRunnable
 
     private void stream(SocketChannel channel) throws IOException
     {
-        long start = startPosition;
-        RandomAccessFile raf = new RandomAccessFile(new File(file), "r");
+        RandomAccessFile raf = new RandomAccessFile(new File(file.getFilename()), "r");
         try
         {
             FileChannel fc = raf.getChannel();
@@ -96,14 +87,16 @@ public class FileStreamTask extends WrappedRunnable
             ByteBuffer buffer = MessagingService.constructStreamHeader(false);
             channel.write(buffer);
             assert buffer.remaining() == 0;
-
-            while (start < endPosition)
+            
+            // stream sections of the file as returned by PendingFile.currentSection
+            Pair<Long,Long> section;
+            while ((section = file.currentSection()) != null)
             {
-                long bytesTransferred = fc.transferTo(start, CHUNK_SIZE, channel);
+                long length = Math.min(CHUNK_SIZE, section.right - section.left);
+                long bytesTransferred = fc.transferTo(section.left, length, channel);
                 if (logger.isDebugEnabled())
                     logger.debug("Bytes transferred " + bytesTransferred);
-                start += bytesTransferred;
-                StreamOutManager.get(to).update(file, start);
+                file.update(section.left + bytesTransferred);
             }
         }
         finally

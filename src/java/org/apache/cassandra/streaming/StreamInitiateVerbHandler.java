@@ -76,7 +76,7 @@ public class StreamInitiateVerbHandler implements IVerbHandler
                 PendingFile remoteFile = pendingFile.getKey();
                 PendingFile localFile = pendingFile.getValue();
 
-                FileStatus streamStatus = new FileStatus(remoteFile.getFilename(), remoteFile.getExpectedBytes());
+                FileStatus streamStatus = new FileStatus(remoteFile.getFilename());
 
                 if (logger.isDebugEnabled())
                   logger.debug("Preparing to receive stream from " + message.getFrom() + ": " + remoteFile + " -> " + localFile);
@@ -114,7 +114,7 @@ public class StreamInitiateVerbHandler implements IVerbHandler
             Descriptor localdesc = Descriptor.fromFilename(cfStore.getFlushPath());
 
             // add a local file for this component
-            mapping.put(remote, new PendingFile(localdesc, remote.getComponent(), remote.getExpectedBytes()));
+            mapping.put(remote, new PendingFile(localdesc, remote));
         }
 
         return mapping;

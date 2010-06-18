@@ -431,7 +431,7 @@ public class TableTest extends CleanupHelper
             CompactionManager.instance.submitMajor(cfStore).get();
         }
         SSTableReader sstable = cfStore.getSSTables().iterator().next();
-        long position = sstable.getPosition(key);
+        long position = sstable.getPosition(key, SSTableReader.Operator.EQ);
         BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.getFilename(), "r");
         file.seek(position);
         assert Arrays.equals(FBUtilities.readShortByteArray(file), key.key);

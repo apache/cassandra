@@ -49,7 +49,7 @@ public class StreamFinishedVerbHandler implements IVerbHandler
             switch (streamStatus.getAction())
             {
                 case DELETE:
-                    StreamOutManager.get(message.getFrom()).finishAndStartNext(streamStatus.getFile());
+                    StreamOutManager.get(message.getFrom()).finishAndStartNext();
                     break;
 
                 case STREAM:

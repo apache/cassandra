@@ -38,7 +38,7 @@ import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-
+import org.apache.cassandra.utils.Pair;
 
 /**
  * This class handles streaming data from one node to another.
@@ -73,7 +73,7 @@ public class StreamOut
 
         /*
          * (1) dump all the memtables to disk.
-         * (2) anticompaction -- split out the keys in the range specified
+         * (2) determine the minimal file sections we need to send for the given ranges
          * (3) transfer the data.
         */
         try
@@ -95,9 +95,8 @@ public class StreamOut
                     throw new RuntimeException(e);
                 }
             }
-            logger.info("Performing anticompaction ...");
-            /* Get the list of files that need to be streamed */
-            transferSSTables(target, table.forceAntiCompaction(ranges, target), tableName); // SSTR GC deletes the file when done
+            // send the matching portion of every sstable in the keyspace
+            transferSSTables(target, tableName, table.getAllSSTables(), ranges);
         }
         catch (IOException e)
         {
@@ -112,20 +111,23 @@ public class StreamOut
     }
 
     /**
-     * Transfers a group of sstables from a single table to the target endpoint
-     * and then marks them as ready for local deletion.
+     * Transfers matching portions of a group of sstables from a single table to the target endpoint.
      */
-    public static void transferSSTables(InetAddress target, List<SSTableReader> sstables, String table) throws IOException
+    public static void transferSSTables(InetAddress target, String table, Collection<SSTableReader> sstables, Collection<Range> ranges) throws IOException
     {
-        PendingFile[] pendingFiles = new PendingFile[sstables.size()];
+        List<PendingFile> pending = new ArrayList<PendingFile>();
         int i = 0;
         for (SSTableReader sstable : sstables)
         {
             Descriptor desc = sstable.getDescriptor();
-            long filelen = new File(desc.filenameFor(SSTable.COMPONENT_DATA)).length();
-            pendingFiles[i++] = new PendingFile(desc, SSTable.COMPONENT_DATA, filelen);
+            List<Pair<Long,Long>> sections = sstable.getPositionsForRanges(ranges);
+            if (sections.isEmpty())
+                continue;
+            pending.add(new PendingFile(desc, SSTable.COMPONENT_DATA, sections));
         }
-        logger.info("Stream context metadata " + StringUtils.join(pendingFiles, ", " + " " + sstables.size() + " sstables."));
+        logger.info("Stream context metadata " + pending + " " + sstables.size() + " sstables.");
+
+        PendingFile[] pendingFiles = pending.toArray(new PendingFile[pending.size()]);
         StreamOutManager.get(target).addFilesToStream(pendingFiles);
         StreamInitiateMessage biMessage = new StreamInitiateMessage(pendingFiles);
         Message message = StreamInitiateMessage.makeStreamInitiateMessage(biMessage);

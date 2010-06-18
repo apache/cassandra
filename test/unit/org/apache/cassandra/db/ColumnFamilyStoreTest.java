@@ -64,7 +64,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         ColumnFamilyStore store = Util.writeColumnFamily(rms);
 
         Table table = Table.open("Keyspace1");
-        List<SSTableReader> ssTables = table.getAllSSTablesOnDisk();
+        List<SSTableReader> ssTables = table.getAllSSTables();
         assertEquals(1, ssTables.size());
         ssTables.get(0).forceFilterFailures();
         ColumnFamily cf = store.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("key2"), new QueryPath("Standard1", null, "Column1".getBytes())));

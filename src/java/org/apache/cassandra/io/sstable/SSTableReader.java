@@ -42,9 +42,12 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.clock.AbstractReconciler;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.utils.BloomFilter;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * SSTableReaders are open()ed by Table.onStart; after that they are created by SSTableWriter.renameAndOpen.
@@ -344,15 +347,40 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     }
 
     /**
-     * Returns the position in the data file to find the given key, or -1 if the
-     * key is not present.
-     * FIXME: should not be public: use Scanner.
+     * Determine the minimal set of sections that can be extracted from this SSTable to cover the given ranges.
+     * @return A sorted list of (offset,end) pairs that cover the given ranges in the datafile for this SSTable.
      */
-    @Deprecated
-    public long getPosition(DecoratedKey decoratedKey)
+    public List<Pair<Long,Long>> getPositionsForRanges(Collection<Range> ranges)
+    {
+        // use the index to determine a minimal section for each range
+        List<Pair<Long,Long>> positions = new ArrayList<Pair<Long,Long>>();
+        for (AbstractBounds range : AbstractBounds.normalize(ranges))
+        {
+            long left = getPosition(new DecoratedKey(range.left, null), Operator.GT);
+            if (left == -1)
+                // left is past the end of the file
+                continue;
+            long right = getPosition(new DecoratedKey(range.right, null), Operator.GT);
+            if (right == -1 || Range.isWrapAround(range.left, range.right))
+                // right is past the end of the file, or it wraps
+                right = length();
+            if (left == right)
+                // empty range
+                continue;
+            positions.add(new Pair(Long.valueOf(left), Long.valueOf(right)));
+        }
+        return positions;
+    }
+
+    /**
+     * @param decoratedKey The key to apply as the rhs to the given Operator.
+     * @param op The Operator defining matching keys: the nearest key to the target matching the operator wins.
+     * @return The position in the data file to find the key, or -1 if the key is not present
+     */
+    public long getPosition(DecoratedKey decoratedKey, Operator op)
     {
         // first, check bloom filter
-        if (!bf.isPresent(partitioner.convertToDiskFormat(decoratedKey)))
+        if (op == Operator.EQ && !bf.isPresent(partitioner.convertToDiskFormat(decoratedKey)))
             return -1;
 
         // next, the key cache
@@ -369,78 +397,33 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         // next, see if the sampled index says it's impossible for the key to be present
         IndexSummary.KeyPosition sampledPosition = getIndexScanPosition(decoratedKey);
         if (sampledPosition == null)
-            return -1;
+            // we matched the -1th position: if the operator might match forward, return the 0th position
+            return op.apply(1) >= 0 ? 0 : -1;
 
         // scan the on-disk index, starting at the nearest sampled position
-        int i = 0;
         Iterator<FileDataInput> segments = ifile.iterator(sampledPosition.indexPosition, INDEX_FILE_BUFFER_BYTES);
         while (segments.hasNext())
         {
             FileDataInput input = segments.next();
             try
             {
-                while (!input.isEOF() && i++ < IndexSummary.INDEX_INTERVAL)
+                while (!input.isEOF())
                 {
                     // read key & data position from index entry
                     DecoratedKey indexDecoratedKey = partitioner.convertFromDiskFormat(FBUtilities.readShortByteArray(input));
                     long dataPosition = input.readLong();
 
-                    int v = indexDecoratedKey.compareTo(decoratedKey);
+                    int comparison = indexDecoratedKey.compareTo(decoratedKey);
+                    int v = op.apply(comparison);
                     if (v == 0)
                     {
-                        if (keyCache != null && keyCache.getCapacity() > 0)
+                        if (comparison == 0 && keyCache != null && keyCache.getCapacity() > 0)
+                            // store exact match for the key
                             keyCache.put(unifiedKey, Long.valueOf(dataPosition));
                         return dataPosition;
                     }
-                    if (v > 0)
+                    if (v < 0)
                         return -1;
-                }
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
-            finally
-            {
-                try
-                {
-                    input.close();
-                }
-                catch (IOException e)
-                {
-                    logger.error("error closing file", e);
-                }
-            }
-        }
-        return -1;
-    }
-
-    /**
-     * Like getPosition, but if key is not found will return the location of the
-     * first key _greater_ than the desired one, or -1 if no such key exists.
-     * FIXME: should not be public: use Scanner.
-     */
-    @Deprecated
-    public long getNearestPosition(DecoratedKey decoratedKey)
-    {
-        IndexSummary.KeyPosition sampledPosition = getIndexScanPosition(decoratedKey);
-        if (sampledPosition == null)
-            return 0;
-
-        // scan the on-disk index, starting at the nearest sampled position
-        Iterator<FileDataInput> segiter = ifile.iterator(sampledPosition.indexPosition, INDEX_FILE_BUFFER_BYTES);
-        while (segiter.hasNext())
-        {
-            FileDataInput input = segiter.next();
-            try
-            {
-                while (!input.isEOF())
-                {
-                    DecoratedKey indexDecoratedKey = partitioner.convertFromDiskFormat(FBUtilities.readShortByteArray(input));
-                    long position = input.readLong();
-                    int v = indexDecoratedKey.compareTo(decoratedKey);
-                    if (v >= 0)
-                        return position;
                 }
             }
             catch (IOException e)
@@ -507,7 +490,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     public FileDataInput getFileDataInput(DecoratedKey decoratedKey, int bufferSize)
     {
-        long position = getPosition(decoratedKey);
+        long position = getPosition(decoratedKey, Operator.EQ);
         if (position < 0)
             return null;
 
@@ -556,5 +539,36 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         if (d.hasIntRowSize())
             return in.readInt();
         return in.readLong();
+    }
+
+    /**
+     * TODO: Move someplace reusable
+     */
+    public abstract static class Operator
+    {
+        public static final Operator EQ = new Equals();
+        public static final Operator GE = new GreaterThanOrEqualTo();
+        public static final Operator GT = new GreaterThan();
+
+        /**
+         * @param comparison The result of a call to compare/compareTo, with the desired field on the rhs.
+         * @return less than 0 if the operator cannot match forward, 0 if it matches, greater than 0 if it might match forward.
+         */
+        public abstract int apply(int comparison);
+
+        final static class Equals extends Operator
+        {
+            public int apply(int comparison) { return -comparison; }
+        }
+
+        final static class GreaterThanOrEqualTo extends Operator
+        {
+            public int apply(int comparison) { return comparison >= 0 ? 0 : -comparison; }
+        }
+
+        final static class GreaterThan extends Operator
+        {
+            public int apply(int comparison) { return comparison > 0 ? 0 : 1; }
+        }
     }
 }

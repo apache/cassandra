@@ -54,27 +54,20 @@ class FileStatus
     }
 
     private final String file_;
-    private final long expectedBytes_;
     private Action action_;
 
     /**
      * Create a FileStatus with the default Action: STREAM.
      */
-    public FileStatus(String file, long expectedBytes)
+    public FileStatus(String file)
     {
         file_ = file;
-        expectedBytes_ = expectedBytes;
         action_ = Action.STREAM;
     }
 
     public String getFile()
     {
         return file_;
-    }
-
-    public long getExpectedBytes()
-    {
-        return expectedBytes_;
     }
 
     public void setAction(Action action)
@@ -100,15 +93,13 @@ class FileStatus
         public void serialize(FileStatus streamStatus, DataOutputStream dos) throws IOException
         {
             dos.writeUTF(streamStatus.getFile());
-            dos.writeLong(streamStatus.getExpectedBytes());
             dos.writeInt(streamStatus.getAction().ordinal());
         }
 
         public FileStatus deserialize(DataInputStream dis) throws IOException
         {
             String targetFile = dis.readUTF();
-            long expectedBytes = dis.readLong();
-            FileStatus streamStatus = new FileStatus(targetFile, expectedBytes);
+            FileStatus streamStatus = new FileStatus(targetFile);
 
             int ordinal = dis.readInt();
             if (ordinal == Action.DELETE.ordinal())

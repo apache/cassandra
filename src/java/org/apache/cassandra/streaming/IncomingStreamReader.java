@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.FileStreamTask;
+import org.apache.cassandra.utils.Pair;
 
 public class IncomingStreamReader
 {
@@ -58,39 +59,43 @@ public class IncomingStreamReader
         FileOutputStream fos = new FileOutputStream(pendingFile.getFilename(), true);
         FileChannel fc = fos.getChannel();
 
-        long bytesRead = 0;
+        long offset = 0;
         try
         {
-            while (bytesRead < pendingFile.getExpectedBytes()) {
-                bytesRead += fc.transferFrom(socketChannel, bytesRead, FileStreamTask.CHUNK_SIZE);
-                pendingFile.update(bytesRead);
+            Pair<Long,Long> section;
+            while ((section = pendingFile.currentSection()) != null)
+            {
+                long length = Math.min(FileStreamTask.CHUNK_SIZE, section.right - section.left);
+                long bytesRead = fc.transferFrom(socketChannel, offset, length);
+                // offset in the remote file
+                pendingFile.update(section.left + bytesRead);
+                // offset in the local file
+                offset += bytesRead;
             }
-            logger.debug("Receiving stream: finished reading chunk, awaiting more");
         }
         catch (IOException ex)
         {
+            logger.debug("Receiving stream: recovering from IO error");
             /* Ask the source node to re-stream this file. */
             streamStatus.setAction(FileStatus.Action.STREAM);
             handleFileStatus(remoteAddress.getAddress());
             /* Delete the orphaned file. */
             File file = new File(pendingFile.getFilename());
             file.delete();
-            logger.debug("Receiving stream: recovering from IO error");
+            /* Reset our state. */
+            pendingFile.update(0);
             throw ex;
         }
         finally
         {
+            fc.close();
             StreamInManager.activeStreams.remove(remoteAddress.getAddress(), pendingFile);
         }
 
-        if (bytesRead == pendingFile.getExpectedBytes())
-        {
-            if (logger.isDebugEnabled())
-                logger.debug("Removing stream context " + pendingFile);
-            fc.close();
-            streamStatus.setAction(FileStatus.Action.DELETE);
-            handleFileStatus(remoteAddress.getAddress());
-        }
+        if (logger.isDebugEnabled())
+            logger.debug("Removing stream context " + pendingFile);
+        streamStatus.setAction(FileStatus.Action.DELETE);
+        handleFileStatus(remoteAddress.getAddress());
     }
 
     private void handleFileStatus(InetAddress remoteHost) throws IOException

@@ -26,6 +26,9 @@ import java.util.Map;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.utils.Pair;
+
+import java.util.Arrays;
 
 import org.junit.Test;
 
@@ -35,7 +38,7 @@ public class BootstrapTest extends SchemaLoader
     public void testGetNewNames() throws IOException
     {
         Descriptor desc = Descriptor.fromFilename(new File("Keyspace1", "Standard1-500-Data.db").toString());
-        PendingFile[] pendingFiles = new PendingFile[]{ new PendingFile(desc, "Data.db", 100) };
+        PendingFile[] pendingFiles = new PendingFile[]{ new PendingFile(desc, "Data.db", Arrays.asList(new Pair<Long,Long>(0L, 1L))) };
         StreamInitiateVerbHandler bivh = new StreamInitiateVerbHandler();
 
         // map the input (remote) contexts to output (local) contexts

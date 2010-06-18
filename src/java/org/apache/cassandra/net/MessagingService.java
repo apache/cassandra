@@ -27,6 +27,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.io.SerializerType;
 import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.PendingFile;
 import org.apache.cassandra.utils.ExpiringMap;
 import org.apache.cassandra.utils.GuidGenerator;
 import org.apache.cassandra.utils.SimpleCondition;
@@ -325,15 +326,14 @@ public class MessagingService implements IFailureDetectionEventListener
     /**
      * Stream a file from source to destination. This is highly optimized
      * to not hold any of the contents of the file in memory.
-     * @param file name of file to stream.
+     * @param file file to stream.
      * @param to endpoint to which we need to stream the file.
     */
 
-    public void stream(String file, InetAddress to)
+    public void stream(PendingFile file, InetAddress to)
     {
         /* Streaming asynchronously on streamExector_ threads. */
-        Runnable streamingTask = new FileStreamTask(file, to);
-        streamExecutor_.execute(streamingTask);
+        streamExecutor_.execute(new FileStreamTask(file, to));
     }
     
     /** blocks until the processing pools are empty and done. */

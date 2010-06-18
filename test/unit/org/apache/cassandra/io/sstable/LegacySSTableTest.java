@@ -102,7 +102,7 @@ public class LegacySSTableTest extends CleanupHelper
         for (byte[] key : keys)
         {
             // confirm that the bloom filter does not reject any keys
-            file.seek(reader.getPosition(reader.partitioner.decorateKey(key)));
+            file.seek(reader.getPosition(reader.partitioner.decorateKey(key), SSTableReader.Operator.EQ));
             assert Arrays.equals(key, FBUtilities.readShortByteArray(file));
         }
     }

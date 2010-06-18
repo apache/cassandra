@@ -24,17 +24,23 @@ package org.apache.cassandra.streaming;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.utils.Pair;
 
-class PendingFile
+/**
+ * Represents portions of a file to be streamed between nodes.
+ */
+public class PendingFile
 {
     private static ICompactSerializer<PendingFile> serializer_;
 
     static
     {
-        serializer_ = new InitiatedFileSerializer();
+        serializer_ = new PendingFileSerializer();
     }
 
     public static ICompactSerializer<PendingFile> serializer()
@@ -42,16 +48,21 @@ class PendingFile
         return serializer_;
     }
 
-    private Descriptor desc;
-    private String component;
-    private long expectedBytes;                     
+    private final Descriptor desc;
+    private final String component;
+    private final List<Pair<Long,Long>> sections;
     private long ptr;
 
-    public PendingFile(Descriptor desc, String component, long expectedBytes)
+    public PendingFile(Descriptor desc, PendingFile pf)
+    {
+        this(desc, pf.component, pf.sections);
+    }
+
+    public PendingFile(Descriptor desc, String component, List<Pair<Long,Long>> sections)
     {
         this.desc = desc;
         this.component = component;
-        this.expectedBytes = expectedBytes;         
+        this.sections = sections;
         ptr = 0;
     }
 
@@ -60,9 +71,16 @@ class PendingFile
         this.ptr = ptr;
     }
 
-    public long getPtr()
+    /**
+     * @return The current section of the file, as an (offset,end) pair, or null if nothing left to stream.
+     */
+    public Pair<Long,Long> currentSection()
     {
-        return ptr;
+        // linear search for the first appropriate section
+        for (Pair<Long,Long> section : sections)
+            if (ptr < section.right)
+                return new Pair<Long,Long>(Long.valueOf(Math.max(ptr, section.left)), section.right);
+        return null;
     }
 
     public String getComponent()
@@ -80,11 +98,6 @@ class PendingFile
         return desc.filenameFor(component);
     }
     
-    public long getExpectedBytes()
-    {
-        return expectedBytes;
-    }
-
     public boolean equals(Object o)
     {
         if ( !(o instanceof PendingFile) )
@@ -96,29 +109,36 @@ class PendingFile
 
     public int hashCode()
     {
-        return toString().hashCode();
+        return getFilename().hashCode();
     }
 
     public String toString()
     {
-        return getFilename() + ":" + expectedBytes;
+        return getFilename() + ":" + ptr + "/" + sections;
     }
 
-    private static class InitiatedFileSerializer implements ICompactSerializer<PendingFile>
+    private static class PendingFileSerializer implements ICompactSerializer<PendingFile>
     {
         public void serialize(PendingFile sc, DataOutputStream dos) throws IOException
         {
             dos.writeUTF(sc.desc.filenameFor(sc.component));
             dos.writeUTF(sc.component);
-            dos.writeLong(sc.expectedBytes);            
+            dos.writeInt(sc.sections.size());
+            for (Pair<Long,Long> section : sc.sections)
+            {
+                dos.writeLong(section.left); dos.writeLong(section.right);
+            }
         }
 
         public PendingFile deserialize(DataInputStream dis) throws IOException
         {
             Descriptor desc = Descriptor.fromFilename(dis.readUTF());
             String component = dis.readUTF();
-            long expectedBytes = dis.readLong();           
-            return new PendingFile(desc, component, expectedBytes);
+            int count = dis.readInt();
+            List<Pair<Long,Long>> sections = new ArrayList<Pair<Long,Long>>(count);
+            for (int i = 0; i < count; i++)
+                sections.add(new Pair<Long,Long>(Long.valueOf(dis.readLong()), Long.valueOf(dis.readLong())));
+            return new PendingFile(desc, component, sections);
         }
     }
 }

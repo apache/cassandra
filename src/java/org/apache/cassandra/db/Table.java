@@ -191,40 +191,21 @@ public class Table
             }
         }
     }
-
-    /*
-     * This method is invoked only during a bootstrap process. We basically
-     * do a complete compaction since we can figure out based on the ranges
-     * whether the files need to be split.
-    */
-    public List<SSTableReader> forceAntiCompaction(Collection<Range> ranges, InetAddress target)
-    {
-        List<SSTableReader> allResults = new ArrayList<SSTableReader>();
-        for (ColumnFamilyStore cfStore : columnFamilyStores.values())
-        {
-            try
-            {
-                allResults.addAll(CompactionManager.instance.submitAnticompaction(cfStore, ranges, target).get());
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
-        return allResults;
-    }
     
     /*
      * This method is an ADMIN operation to force compaction
      * of all SSTables on disk. 
-    */
+     */
     public void forceCompaction()
     {
         for (ColumnFamilyStore cfStore : columnFamilyStores.values())
             CompactionManager.instance.submitMajor(cfStore);
     }
 
-    List<SSTableReader> getAllSSTablesOnDisk()
+    /**
+     * @return A list of open SSTableReaders (TODO: ensure that the caller doesn't modify these).
+     */
+    public List<SSTableReader> getAllSSTables()
     {
         List<SSTableReader> list = new ArrayList<SSTableReader>();
         for (ColumnFamilyStore cfStore : columnFamilyStores.values())

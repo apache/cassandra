@@ -77,15 +77,9 @@ class StreamInitiateMessage
         public StreamInitiateMessage deserialize(DataInputStream dis) throws IOException
         {
             int size = dis.readInt();
-            PendingFile[] pendingFiles = new PendingFile[0];
-            if ( size > 0 )
-            {
-                pendingFiles = new PendingFile[size];
-                for ( int i = 0; i < size; ++i )
-                {
-                    pendingFiles[i] = PendingFile.serializer().deserialize(dis);
-                }
-            }
+            PendingFile[] pendingFiles = new PendingFile[size];
+            for (int i = 0; i < size; i++)
+                pendingFiles[i] = PendingFile.serializer().deserialize(dis);
             return new StreamInitiateMessage(pendingFiles);
         }
     }

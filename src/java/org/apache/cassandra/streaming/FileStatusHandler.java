@@ -64,6 +64,7 @@ class FileStatusHandler
         }
         catch (IOException e)
         {
+            logger.error("Failed adding " + pendingFile, e);
             throw new RuntimeException("Not able to add streamed file " + pendingFile.getFilename(), e);
         }
 

@@ -26,6 +26,11 @@ import java.util.*;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableUtils;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
@@ -46,17 +51,28 @@ public class StreamingTest extends CleanupHelper
         // write a temporary SSTable, but don't register it
         Set<String> content = new HashSet<String>();
         content.add("key");
+        content.add("key2");
+        content.add("key3");
         SSTableReader sstable = SSTableUtils.writeSSTable(content);
         String tablename = sstable.getTableName();
         String cfname = sstable.getColumnFamilyName();
 
-        // transfer
-        StreamOut.transferSSTables(LOCAL, Arrays.asList(sstable), tablename);
+        // transfer the first and last key
+        IPartitioner p = StorageService.getPartitioner();
+        List<Range> ranges = new ArrayList<Range>();
+        ranges.add(new Range(p.getMinimumToken(), p.getToken("key".getBytes())));
+        ranges.add(new Range(p.getToken("key2".getBytes()), p.getMinimumToken()));
+        StreamOut.transferSSTables(LOCAL, tablename, Arrays.asList(sstable), ranges);
 
         // confirm that the SSTable was transferred and registered
         ColumnFamilyStore cfstore = Table.open(tablename).getColumnFamilyStore(cfname);
         List<Row> rows = Util.getRangeSlice(cfstore);
-        assert rows.size() == 1;
+        assertEquals(2, rows.size());
         assert Arrays.equals(rows.get(0).key.key, "key".getBytes());
+        assert Arrays.equals(rows.get(1).key.key, "key3".getBytes());
+
+        // and that the index and filter were properly recovered
+        assert null != cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("key"), new QueryPath("Standard1")));
+        assert null != cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("key3"), new QueryPath("Standard1")));
     }
 }

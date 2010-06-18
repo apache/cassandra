@@ -25,8 +25,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import org.apache.cassandra.io.ICompactSerializer2;
 
@@ -71,6 +70,27 @@ public abstract class AbstractBounds implements Serializable
     public abstract Set<AbstractBounds> restrictTo(Range range);
 
     public abstract List<AbstractBounds> unwrap();
+
+    /**
+     * @return A copy of the given list of non-intersecting bounds with all bounds unwrapped, sorted by bound.left.
+     */
+    public static List<AbstractBounds> normalize(Collection<? extends AbstractBounds> bounds)
+    {
+        // unwrap all
+        List<AbstractBounds> output = new ArrayList<AbstractBounds>();
+        for (AbstractBounds bound : bounds)
+            output.addAll(bound.unwrap());
+
+        // sort by left
+        Collections.sort(output, new Comparator<AbstractBounds>()
+        {
+            public int compare(AbstractBounds b1, AbstractBounds b2)
+            {
+                return b1.left.compareTo(b2.left);
+            }
+        });
+        return output;
+    }
 
     private static class AbstractBoundsSerializer implements ICompactSerializer2<AbstractBounds>
     {

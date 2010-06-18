@@ -58,7 +58,7 @@ public class StreamingService implements StreamingServiceMBean
             sb.append(String.format(" %s:\n", source.getHostAddress()));
             for (PendingFile pf : StreamInManager.getIncomingFiles(source))
             {
-                sb.append(String.format("  %s %d/%d\n", pf.getFilename(), pf.getPtr(), pf.getExpectedBytes()));
+                sb.append(String.format("  %s\n", pf.toString()));
             }
         }
         sb.append("Sending to:\n");
@@ -67,7 +67,7 @@ public class StreamingService implements StreamingServiceMBean
             sb.append(String.format(" %s:\n", dest.getHostAddress()));
             for (PendingFile pf : StreamOutManager.getPendingFiles(dest))
             {
-                sb.append(String.format("  %s %d/%d\n", pf.getFilename(), pf.getPtr(), pf.getExpectedBytes()));
+                sb.append(String.format("  %s\n", pf.toString()));
             }
         }
         return sb.toString();
@@ -92,7 +92,7 @@ public class StreamingService implements StreamingServiceMBean
         
         StreamOutManager manager = StreamOutManager.get(dest);
         for (PendingFile f : manager.getFiles())
-            files.add(String.format("%s %d/%d", f.getFilename(), f.getPtr(), f.getExpectedBytes()));
+            files.add(String.format("%s", f.toString()));
         return files;
     }
 
@@ -108,7 +108,7 @@ public class StreamingService implements StreamingServiceMBean
         List<String> files = new ArrayList<String>();
         for (PendingFile pf : StreamInManager.getIncomingFiles(InetAddress.getByName(host)))
         {
-            files.add(String.format("%s: %s %d/%d", pf.getDescriptor().ksname, pf.getFilename(), pf.getPtr(), pf.getExpectedBytes()));
+            files.add(String.format("%s: %s", pf.getDescriptor().ksname, pf.toString()));
         }
         return files;
     }
