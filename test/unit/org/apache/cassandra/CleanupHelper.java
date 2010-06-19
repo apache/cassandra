@@ -45,7 +45,7 @@ public class CleanupHelper extends SchemaLoader
     {
         // clean up commitlog
         String[] directoryNames = {
-                DatabaseDescriptor.getLogFileLocation(),
+                DatabaseDescriptor.getCommitLogLocation(),
         };
         for (String dirName : directoryNames)
         {

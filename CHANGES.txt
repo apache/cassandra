@@ -30,6 +30,8 @@ dev
  * avoid reading large rows into memory during compaction (CASSANDRA-16)
  * added hadoop OutputFormat (CASSANDRA-1101)
  * efficient Streaming (no more anticompaction) (CASSANDRA-579)
+ * split commitlog header into separate file and add size checksum to
+   mutations (CASSANDRA-1179)
 
 
 0.6.3

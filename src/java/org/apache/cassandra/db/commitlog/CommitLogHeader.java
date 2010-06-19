@@ -19,39 +19,30 @@
 package org.apache.cassandra.db.commitlog;
 
 import java.io.*;
-import java.nio.ByteBuffer;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.io.ICompactSerializer2;
 
-class CommitLogHeader
-{    
-    static CommitLogHeaderSerializer serializer = new CommitLogHeaderSerializer();
-
-    static int getLowestPosition(CommitLogHeader clheader)
+public class CommitLogHeader
+{
+    public static String getHeaderPathFromSegment(CommitLogSegment segment)
     {
-        return clheader.lastFlushedAt.size() == 0 ? 0 : Collections.min(clheader.lastFlushedAt.values(), new Comparator<Integer>(){
-            public int compare(Integer o1, Integer o2)
-            {
-                if (o1 == 0)
-                    return 1;
-                else if (o2 == 0)
-                    return -1;
-                else
-                    return o1 - o2;
-            }
-        });
+        return getHeaderPathFromSegmentPath(segment.getPath());
     }
 
-    private Map<Integer, Integer> lastFlushedAt; // position at which each CF was last flushed
+    public static String getHeaderPathFromSegmentPath(String segmentPath)
+    {
+        return segmentPath + ".header";
+    }
+
+    public static CommitLogHeaderSerializer serializer = new CommitLogHeaderSerializer();
+
+    private Map<Integer, Integer> cfDirtiedAt; // position at which each CF was last flushed
     private final int cfCount; // we keep this in case cfcount changes in the interim (size of lastFlushedAt is not a good indication).
     
     CommitLogHeader()
@@ -64,46 +55,37 @@ class CommitLogHeader
      * also builds an index of position to column family
      * Id.
     */
-    private CommitLogHeader(Map<Integer, Integer> lastFlushedAt, int cfCount)
+    private CommitLogHeader(Map<Integer, Integer> cfDirtiedAt, int cfCount)
     {
         this.cfCount = cfCount;
-        this.lastFlushedAt = lastFlushedAt;
-        assert lastFlushedAt.size() <= cfCount;
+        this.cfDirtiedAt = cfDirtiedAt;
+        assert cfDirtiedAt.size() <= cfCount;
     }
         
     boolean isDirty(int cfId)
     {
-        return lastFlushedAt.containsKey(cfId);
+        return cfDirtiedAt.containsKey(cfId);
     } 
     
     int getPosition(int index)
     {
-        Integer x = lastFlushedAt.get(index);
+        Integer x = cfDirtiedAt.get(index);
         return x == null ? 0 : x;
     }
     
     void turnOn(int cfId, long position)
     {
-        lastFlushedAt.put(cfId, (int)position);
+        cfDirtiedAt.put(cfId, (int)position);
     }
 
     void turnOff(int cfId)
     {
-        lastFlushedAt.remove(cfId);
+        cfDirtiedAt.remove(cfId);
     }
 
     boolean isSafeToDelete() throws IOException
     {
-        return lastFlushedAt.isEmpty();
-    }
-
-    byte[] toByteArray() throws IOException
-    {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(bos);
-        serializer.serialize(this, dos);
-        dos.flush();
-        return bos.toByteArray();
+        return cfDirtiedAt.isEmpty();
     }
     
     // we use cf ids. getting the cf names would be pretty pretty expensive.
@@ -111,7 +93,7 @@ class CommitLogHeader
     {
         StringBuilder sb = new StringBuilder("");
         sb.append("CLH(dirty+flushed={");
-        for (Map.Entry<Integer, Integer> entry : lastFlushedAt.entrySet())
+        for (Map.Entry<Integer, Integer> entry : cfDirtiedAt.entrySet())
         {       
             sb.append(entry.getKey()).append(": ").append(entry.getValue()).append(", ");
         }
@@ -122,36 +104,67 @@ class CommitLogHeader
     public String dirtyString()
     {
         StringBuilder sb = new StringBuilder();
-        for (Map.Entry<Integer, Integer> entry : lastFlushedAt.entrySet())
+        for (Map.Entry<Integer, Integer> entry : cfDirtiedAt.entrySet())
             sb.append(entry.getKey()).append(", ");
         return sb.toString();
     }
 
-    static CommitLogHeader readCommitLogHeader(BufferedRandomAccessFile logReader) throws IOException
+    static void writeCommitLogHeader(CommitLogHeader header, String headerFile) throws IOException
     {
-        int statedSize = logReader.readInt();
-        byte[] bytes = new byte[statedSize];
-        logReader.readFully(bytes);
-        ByteArrayInputStream byteStream = new ByteArrayInputStream(bytes);
-        return serializer.deserialize(new DataInputStream(byteStream));
+        DataOutputStream out = null;
+        try
+        {
+            /*
+             * FileOutputStream doesn't sync on flush/close.
+             * As headers are "optional" now there is no reason to sync it.
+             * This provides nearly double the performance of BRAF, more under heavey load.
+             */
+            out = new DataOutputStream(new FileOutputStream(headerFile));
+            serializer.serialize(header, out);
+        }
+        finally
+        {
+            if (out != null)
+                out.close();
+        }
     }
 
-    static class CommitLogHeaderSerializer implements ICompactSerializer<CommitLogHeader>
+    static CommitLogHeader readCommitLogHeader(String headerFile) throws IOException
     {
-        public void serialize(CommitLogHeader clHeader, DataOutputStream dos) throws IOException
+        DataInputStream reader = null;
+        try
         {
-            assert clHeader.lastFlushedAt.size() <= clHeader.cfCount;
+            reader = new DataInputStream(new FileInputStream(headerFile));
+            return serializer.deserialize(reader);
+        }
+        finally
+        {
+            if (reader != null)
+                reader.close();
+        }
+    }
+
+    int getReplayPosition()
+    {
+        return cfDirtiedAt.isEmpty() ? 0 : Collections.min(cfDirtiedAt.values());
+    }
+
+    static class CommitLogHeaderSerializer implements ICompactSerializer2<CommitLogHeader>
+    {
+        public void serialize(CommitLogHeader clHeader, DataOutput dos) throws IOException
+        {
+            assert clHeader.cfDirtiedAt.size() <= clHeader.cfCount;
             Checksum checksum = new CRC32();
 
             // write the first checksum after the fixed-size part, so we won't read garbage lastFlushedAt data.
             dos.writeInt(clHeader.cfCount); // 4
-            dos.writeInt(clHeader.lastFlushedAt.size()); // 4
+            dos.writeInt(clHeader.cfDirtiedAt.size()); // 4
             checksum.update(clHeader.cfCount);
-            checksum.update(clHeader.lastFlushedAt.size());
+            checksum.update(clHeader.cfDirtiedAt.size());
             dos.writeLong(checksum.getValue());
 
             // write the 2nd checksum after the lastflushedat map
-            for (Map.Entry<Integer, Integer> entry : clHeader.lastFlushedAt.entrySet())
+            for (Map.Entry<Integer, Integer> entry : clHeader.cfDirtiedAt.entrySet())
             {
                 dos.writeInt(entry.getKey()); // 4
                 checksum.update(entry.getKey());
@@ -161,14 +174,14 @@ class CommitLogHeader
             dos.writeLong(checksum.getValue());
 
             // keep the size constant by padding for missing flushed-at entries.  these do not affect checksum.
-            for (int i = clHeader.lastFlushedAt.entrySet().size(); i < clHeader.cfCount; i++)
+            for (int i = clHeader.cfDirtiedAt.entrySet().size(); i < clHeader.cfCount; i++)
             {
                 dos.writeInt(0);
                 dos.writeInt(0);
             }
         }
 
-        public CommitLogHeader deserialize(DataInputStream dis) throws IOException
+        public CommitLogHeader deserialize(DataInput dis) throws IOException
         {
             Checksum checksum = new CRC32();
 

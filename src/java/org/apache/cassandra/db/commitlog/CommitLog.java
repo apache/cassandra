@@ -155,9 +155,8 @@ public class CommitLog
 
     public static void recover() throws IOException
     {
-        String directory = DatabaseDescriptor.getLogFileLocation();
-        File file = new File(directory);
-        File[] files = file.listFiles(new FilenameFilter()
+        String directory = DatabaseDescriptor.getCommitLogLocation();
+        File[] files = new File(directory).listFiles(new FilenameFilter()
         {
             public boolean accept(File dir, String name)
             {
@@ -170,7 +169,11 @@ public class CommitLog
         Arrays.sort(files, new FileUtils.FileComparator());
         logger.info("Replaying " + StringUtils.join(files, ", "));
         recover(files);
-        FileUtils.delete(files);
+        for (File f : files)
+        {
+            FileUtils.delete(CommitLogHeader.getHeaderPathFromSegmentPath(f.getAbsolutePath())); // may not actually exist
+            FileUtils.deleteWithConfirm(f);
+        }
         logger.info("Log replay complete");
     }
 
@@ -180,28 +183,24 @@ public class CommitLog
         final AtomicInteger counter = new AtomicInteger(0);
         for (File file : clogs)
         {
+            CommitLogHeader clHeader = null;
             int bufferSize = (int)Math.min(file.length(), 32 * 1024 * 1024);
             BufferedRandomAccessFile reader = new BufferedRandomAccessFile(file.getAbsolutePath(), "r", bufferSize);
 
-            final CommitLogHeader clHeader;
+            int replayPosition = 0;
             try
             {
-                clHeader = CommitLogHeader.readCommitLogHeader(reader);
+                clHeader = CommitLogHeader.readCommitLogHeader(CommitLogHeader.getHeaderPathFromSegmentPath(file.getAbsolutePath()));
+                replayPosition = clHeader.getReplayPosition();
             }
-            catch (EOFException eofe)
+            catch (IOException ioe)
             {
-                logger.info("Attempted to recover an incomplete CommitLogHeader.  Everything is ok, don't panic.");
-                continue;
+                logger.info("Attempted to read an incomplete, missing or corrupt CommitLogHeader.  Everything is ok, don't panic.  CommitLog will be replayed from the beginning", ioe);
             }
+            reader.seek(replayPosition);
 
-            /* seek to the lowest position where any CF has non-flushed data */
-            int lowPos = CommitLogHeader.getLowestPosition(clHeader);
-            if (lowPos == 0)
-                break;
-
-            reader.seek(lowPos);
             if (logger.isDebugEnabled())
-                logger.debug("Replaying " + file + " starting at " + lowPos);
+                logger.debug("Replaying " + file + " starting at " + reader.getFilePointer());
 
             /* read the logs populate RowMutation and apply */
             while (!reader.isEOF())
@@ -211,29 +210,36 @@ public class CommitLog
 
                 long claimedCRC32;
                 byte[] bytes;
+
+                Checksum checksum = new CRC32();
                 try
                 {
-                    bytes = new byte[reader.readInt()]; // readInt can throw EOFException too
+                    // any of the reads may hit EOF
+                    int size = reader.readInt();
+                    long claimedSizeChecksum = reader.readLong();
+                    checksum.update(size);
+                    if (checksum.getValue() != claimedSizeChecksum || size <= 0)
+                        break; // entry wasn't synced correctly/fully.  that's ok.
+
+                    bytes = new byte[size];
                     reader.readFully(bytes);
                     claimedCRC32 = reader.readLong();
                 }
-                catch (EOFException e)
+                catch(EOFException eof)
                 {
-                    // last CL entry didn't get completely written.  that's ok.
-                    break;
+                    break; // last CL entry didn't get completely written.  that's ok.
                 }
 
-                ByteArrayInputStream bufIn = new ByteArrayInputStream(bytes);
-                Checksum checksum = new CRC32();
                 checksum.update(bytes, 0, bytes.length);
                 if (claimedCRC32 != checksum.getValue())
                 {
-                    // this part of the log must not have been fsynced.  probably the rest is bad too,
-                    // but just in case there is no harm in trying them.
+                    // this entry must not have been fsynced.  probably the rest is bad too,
+                    // but just in case there is no harm in trying them (since we still read on an entry boundary)
                     continue;
                 }
 
                 /* deserialize the commit log entry */
+                ByteArrayInputStream bufIn = new ByteArrayInputStream(bytes);
                 final RowMutation rm = RowMutation.serializer().deserialize(new DataInputStream(bufIn));
                 if (logger.isDebugEnabled())
                     logger.debug(String.format("replaying mutation for %s.%s: %s",
@@ -244,6 +250,7 @@ public class CommitLog
                 tablesRecovered.add(table);
                 final Collection<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>(rm.getColumnFamilies());
                 final long entryLocation = reader.getFilePointer();
+                final CommitLogHeader finalHeader = clHeader;
                 Runnable runnable = new WrappedRunnable()
                 {
                     public void runMayThrow() throws IOException
@@ -259,7 +266,7 @@ public class CommitLog
                                 // null means the cf has been dropped
                                 continue;
                             
-                            if (clHeader.isDirty(columnFamily.id()) && entryLocation >= clHeader.getPosition(columnFamily.id()))
+                            if (finalHeader == null || (finalHeader.isDirty(columnFamily.id()) && entryLocation >= finalHeader.getPosition(columnFamily.id())))
                                 newRm.add(columnFamily);
                         }
                         if (!newRm.isEmpty())
@@ -424,6 +431,7 @@ public class CommitLog
             {
                 logger.info("Discarding obsolete commit log:" + segment);
                 segment.close();
+                DeletionService.submitDelete(segment.getHeaderPath());
                 DeletionService.submitDelete(segment.getPath());
                 // usually this will be the first (remaining) segment, but not always, if segment A contains
                 // writes to a CF that is unflushed but is followed by segment B whose CFs are all flushed.

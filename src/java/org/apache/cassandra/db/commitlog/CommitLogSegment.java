@@ -1,6 +1,4 @@
-package org.apache.cassandra.db.commitlog;
 /*
- * 
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -20,6 +18,7 @@ package org.apache.cassandra.db.commitlog;
  * 
  */
 
+package org.apache.cassandra.db.commitlog;
 
 import java.io.File;
 import java.io.IOError;
@@ -27,15 +26,13 @@ import java.io.IOException;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
-import org.apache.cassandra.config.CFMetaData;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 
@@ -49,13 +46,13 @@ public class CommitLogSegment
     public CommitLogSegment()
     {
         this.header = new CommitLogHeader();
-        String logFile = DatabaseDescriptor.getLogFileLocation() + File.separator + "CommitLog-" + System.currentTimeMillis() + ".log";
+        String logFile = DatabaseDescriptor.getCommitLogLocation() + File.separator + "CommitLog-" + System.currentTimeMillis() + ".log";
         logger.info("Creating new commitlog segment " + logFile);
 
         try
         {
             logWriter = createWriter(logFile);
-            writeCommitLogHeader(header.toByteArray());
+            writeHeader();
         }
         catch (IOException e)
         {
@@ -70,25 +67,7 @@ public class CommitLogSegment
 
     public void writeHeader() throws IOException
     {
-        seekAndWriteCommitLogHeader(header.toByteArray());
-    }
-
-    /** writes header at the beginning of the file, then seeks back to current position */
-    void seekAndWriteCommitLogHeader(byte[] bytes) throws IOException
-    {
-        long currentPos = logWriter.getFilePointer();
-        logWriter.seek(0);
-
-        writeCommitLogHeader(bytes);
-
-        logWriter.seek(currentPos);
-    }
-
-    private void writeCommitLogHeader(byte[] bytes) throws IOException
-    {
-        logWriter.writeInt(bytes.length);
-        logWriter.write(bytes);
-        logWriter.sync();
+        CommitLogHeader.writeCommitLogHeader(header, getHeaderPath());
     }
 
     private static BufferedRandomAccessFile createWriter(String file) throws IOException
@@ -121,29 +100,30 @@ public class CommitLogSegment
                     if (!header.isDirty(id))
                     {
                         header.turnOn(id, logWriter.getFilePointer());
-                        seekAndWriteCommitLogHeader(header.toByteArray());
+                        writeHeader();
                     }
                 }
             }
 
-            // write mutation, w/ checksum
-            Checksum checkum = new CRC32();
+            // write mutation, w/ checksum on the size and data
+            byte[] bytes;
+            Checksum checksum = new CRC32();
             if (serializedRow instanceof DataOutputBuffer)
             {
-                DataOutputBuffer buffer = (DataOutputBuffer) serializedRow;
-                logWriter.writeInt(buffer.getLength());
-                logWriter.write(buffer.getData(), 0, buffer.getLength());
-                checkum.update(buffer.getData(), 0, buffer.getLength());
+                bytes = ((DataOutputBuffer) serializedRow).getData();
             }
             else
             {
                 assert serializedRow instanceof byte[];
-                byte[] bytes = (byte[]) serializedRow;
-                logWriter.writeInt(bytes.length);
-                logWriter.write(bytes);
-                checkum.update(bytes, 0, bytes.length);
+                bytes = (byte[]) serializedRow;
             }
-            logWriter.writeLong(checkum.getValue());
+
+            checksum.update(bytes.length);
+            logWriter.writeInt(bytes.length);
+            logWriter.writeLong(checksum.getValue());
+            logWriter.write(bytes);
+            checksum.update(bytes, 0, bytes.length);
+            logWriter.writeLong(checksum.getValue());
 
             return cLogCtx;
         }
@@ -173,6 +153,11 @@ public class CommitLogSegment
     public String getPath()
     {
         return logWriter.getPath();
+    }
+
+    public String getHeaderPath()
+    {
+        return CommitLogHeader.getHeaderPathFromSegment(this);
     }
 
     public long length()

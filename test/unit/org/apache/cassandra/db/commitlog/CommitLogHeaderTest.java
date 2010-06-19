@@ -18,23 +18,13 @@
 
 package org.apache.cassandra.db.commitlog;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
-import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.utils.Pair;
-import org.junit.Before;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+
 import org.junit.Test;
 
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
+import org.apache.cassandra.SchemaLoader;
 
 public class CommitLogHeaderTest extends SchemaLoader
 {
@@ -43,41 +33,42 @@ public class CommitLogHeaderTest extends SchemaLoader
     public void testEmptyHeader()
     {
         CommitLogHeader clh = new CommitLogHeader();
-        assert CommitLogHeader.getLowestPosition(clh) == 0;
+        assert clh.getReplayPosition() == 0;
     }
     
     @Test
     public void lowestPositionWithZero()
     {
-        // zero should never be the lowest position unless all positions are zero.
         CommitLogHeader clh = new CommitLogHeader();
         clh.turnOn(2, 34);
-        assert CommitLogHeader.getLowestPosition(clh) == 34;
+        assert clh.getReplayPosition() == 34;
         clh.turnOn(100, 0);
-        assert CommitLogHeader.getLowestPosition(clh) == 34;
+        assert clh.getReplayPosition() == 0;
         clh.turnOn(65, 2);
-        assert CommitLogHeader.getLowestPosition(clh) == 2;
+        assert clh.getReplayPosition() == 0;
     }
     
     @Test
     public void lowestPositionEmpty()
     {
         CommitLogHeader clh = new CommitLogHeader();
-        assert CommitLogHeader.getLowestPosition(clh) == 0;
+        assert clh.getReplayPosition() == 0;
     }
     
     @Test
     public void constantSize() throws IOException
     {
-        CommitLogHeader clh = new CommitLogHeader();
-        clh.turnOn(2, 34);
-        byte[] one = clh.toByteArray();
-        
-        clh = new CommitLogHeader();
+        CommitLogHeader clh0 = new CommitLogHeader();
+        clh0.turnOn(2, 34);
+        ByteArrayOutputStream out0 = new ByteArrayOutputStream();
+        CommitLogHeader.serializer.serialize(clh0, new DataOutputStream(out0));
+
+        CommitLogHeader clh1 = new CommitLogHeader();
         for (int i = 0; i < 5; i++)
-            clh.turnOn(i, 1000 * i);
-        byte[] two = clh.toByteArray();
-        
-        assert one.length == two.length;
+            clh1.turnOn(i, 1000 * i);
+        ByteArrayOutputStream out1 = new ByteArrayOutputStream();
+        CommitLogHeader.serializer.serialize(clh1, new DataOutputStream(out1));
+
+        assert out0.toByteArray().length == out1.toByteArray().length;
     }
 }

@@ -880,7 +880,7 @@ public class DatabaseDescriptor
         return dataFileDirectory;
     }
 
-    public static String getLogFileLocation()
+    public static String getCommitLogLocation()
     {
         return conf.commitlog_directory;
     }
