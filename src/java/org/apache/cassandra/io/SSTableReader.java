@@ -27,8 +27,6 @@ import java.nio.MappedByteBuffer;
 
 import org.apache.log4j.Logger;
 
-import org.apache.commons.lang.StringUtils;
-
 import org.apache.cassandra.cache.InstrumentedCache;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.BloomFilter;
@@ -41,8 +39,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.MappedFileDataInput;
-
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
  * SSTableReaders are open()ed by Table.onStart; after that they are created by SSTableWriter.renameAndOpen.
@@ -137,6 +133,8 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     private final MappedByteBuffer[] buffers;
 
     private InstrumentedCache<Pair<String, DecoratedKey>, PositionSize> keyCache;
+
+    private BloomFilterTracker bloomFilterTracker = new BloomFilterTracker();
 
     SSTableReader(String filename, IPartitioner partitioner, IndexSummary indexSummary, BloomFilter bloomFilter)
     throws IOException
@@ -326,7 +324,10 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         // next, see if the sampled index says it's impossible for the key to be present
         IndexSummary.KeyPosition sampledPosition = getIndexScanPosition(decoratedKey);
         if (sampledPosition == null)
+        {
+            bloomFilterTracker.addFalsePositive();
             return null;
+        }
 
         // get either a buffered or a mmap'd input for the on-disk index
         long p = sampledPosition.indexPosition;
@@ -350,8 +351,10 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                 // handle exact sampled index hit
                 IndexSummary.KeyPosition kp = indexSummary.getSpannedIndexPosition(input.getAbsolutePosition());
                 if (kp != null && kp.key.equals(decoratedKey))
+                {
+                    bloomFilterTracker.addTruePositive();
                     return indexSummary.getSpannedDataPosition(kp);
-
+                }
                 // if using mmapped i/o, skip to the next mmap buffer if necessary
                 if (input.isEOF() || kp != null)
                 {
@@ -387,10 +390,14 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                     PositionSize info = getDataPositionSize(input, dataPosition);
                     if (keyCache != null && keyCache.getCapacity() > 0)
                         keyCache.put(unifiedKey, info);
+                    bloomFilterTracker.addTruePositive();
                     return info;
                 }
                 if (v > 0)
+                {
+                    bloomFilterTracker.addFalsePositive();
                     return null;
+                }
             } while  (++i < IndexSummary.INDEX_INTERVAL);
         }
         finally
@@ -398,6 +405,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
             if (input != null)
                 input.close();
         }
+        bloomFilterTracker.addFalsePositive();
         return null;
     }
 
@@ -538,5 +546,25 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return DatabaseDescriptor.getColumnFamilyType(getTableName(), getColumnFamilyName()).equals("Standard")
                ? Column.serializer()
                : SuperColumn.serializer(getColumnComparator());
+    }
+
+    public long getBloomFilterFalsePositiveCount()
+    {
+        return bloomFilterTracker.getFalsePositiveCount();
+    }
+
+    public long getRecentBloomFilterFalsePositiveCount()
+    {
+        return bloomFilterTracker.getRecentFalsePositiveCount();
+    }
+
+    public long getBloomFilterTruePositiveCount()
+    {
+        return bloomFilterTracker.getTruePositiveCount();
+    }
+
+    public long getRecentBloomFilterTruePositiveCount()
+    {
+        return bloomFilterTracker.getRecentTruePositiveCount();
     }
 }

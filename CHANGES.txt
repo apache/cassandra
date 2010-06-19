@@ -24,6 +24,7 @@
    sending streams out of order (CASSANDRA-1169)
  * remove inactive stream managers after AES streams files (CASSANDRA-1169)
  * allow removing entire row through batch_mutate Deletion (CASSANDRA-1027)
+ * add JMX metrics for row-level bloom filter false positives (CASSANDRA-1212)
  * added a redhat init script to contrib (CASSANDRA-1201)
 
 

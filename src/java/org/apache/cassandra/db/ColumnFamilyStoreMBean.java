@@ -157,4 +157,12 @@ public interface ColumnFamilyStoreMBean
      * @return
      */
     public long getMeanRowCompactedSize();
+
+    public long getBloomFilterFalsePositives();
+
+    public long getRecentBloomFilterFalsePositives();
+
+    public double getBloomFilterFalseRatio();
+
+    public double getRecentBloomFilterFalseRatio();
 }
