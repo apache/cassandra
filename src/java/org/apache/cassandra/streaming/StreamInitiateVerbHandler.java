@@ -105,7 +105,7 @@ public class StreamInitiateVerbHandler implements IVerbHandler
         LinkedHashMap<PendingFile, PendingFile> mapping = new LinkedHashMap<PendingFile, PendingFile>();
         for (PendingFile remote : remoteFiles)
         {
-            Descriptor remotedesc = remote.getDescriptor();
+            Descriptor remotedesc = remote.desc;
 
             // new local sstable
             Table table = Table.open(remotedesc.ksname);

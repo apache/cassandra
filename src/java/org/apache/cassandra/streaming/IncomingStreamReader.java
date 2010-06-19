@@ -27,6 +27,7 @@ import java.io.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.FileStreamTask;
 import org.apache.cassandra.utils.Pair;
 
@@ -62,15 +63,13 @@ public class IncomingStreamReader
         long offset = 0;
         try
         {
-            Pair<Long,Long> section;
-            while ((section = pendingFile.currentSection()) != null)
+            for (Pair<Long, Long> section : pendingFile.sections)
             {
-                long length = Math.min(FileStreamTask.CHUNK_SIZE, section.right - section.left);
-                long bytesRead = fc.transferFrom(socketChannel, offset, length);
-                // offset in the remote file
-                pendingFile.update(section.left + bytesRead);
-                // offset in the local file
-                offset += bytesRead;
+                long length = section.right - section.left;
+                long bytesRead = 0;
+                while (bytesRead < length)
+                    bytesRead += fc.transferFrom(socketChannel, offset + bytesRead, length - bytesRead);
+                offset += length;
             }
         }
         catch (IOException ex)
@@ -80,10 +79,7 @@ public class IncomingStreamReader
             streamStatus.setAction(FileStatus.Action.STREAM);
             handleFileStatus(remoteAddress.getAddress());
             /* Delete the orphaned file. */
-            File file = new File(pendingFile.getFilename());
-            file.delete();
-            /* Reset our state. */
-            pendingFile.update(0);
+            FileUtils.deleteWithConfirm(new File(pendingFile.getFilename()));
             throw ex;
         }
         finally

@@ -19,7 +19,6 @@
 
 package org.apache.cassandra.streaming;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 
@@ -55,10 +54,10 @@ class FileStatusHandler
             "Unknown stream action: " + streamStatus.getAction();
 
         // file was successfully streamed
-        Descriptor desc = pendingFile.getDescriptor();
+        Descriptor desc = pendingFile.desc;
         try
         {
-            SSTableReader sstable = SSTableWriter.recoverAndOpen(pendingFile.getDescriptor());
+            SSTableReader sstable = SSTableWriter.recoverAndOpen(pendingFile.desc);
             Table.open(desc.ksname).getColumnFamilyStore(desc.cfname).addSSTable(sstable);
             logger.info("Streaming added " + sstable);
         }
@@ -76,7 +75,7 @@ class FileStatusHandler
         // if all files have been received from this host, remove from bootstrap sources
         if (StreamInManager.isDone(host) && StorageService.instance.isBootstrapMode())
         {
-            StorageService.instance.removeBootstrapSource(host, pendingFile.getDescriptor().ksname);
+            StorageService.instance.removeBootstrapSource(host, pendingFile.desc.ksname);
         }
     }
 }

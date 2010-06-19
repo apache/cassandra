@@ -116,19 +116,6 @@ public class StreamOutManager
             fileMap.put(pendingFile.getFilename(), pendingFile);
         }
     }
-
-    /**
-     * An (offset,end) pair representing the current section of the file to stream.
-     */
-    public Pair<Long,Long> currentSection(String path)
-    {
-        return fileMap.get(path).currentSection();
-    }
-
-    public void update(String path, long pos)
-    {
-        fileMap.get(path).update(pos);
-    }
     
     public void startNext()
     {

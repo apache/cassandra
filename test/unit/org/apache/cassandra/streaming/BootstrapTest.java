@@ -51,9 +51,9 @@ public class BootstrapTest extends SchemaLoader
             assert !inContext.getFilename().equals(outContext.getFilename());
 
             // nothing else should
-            assertEquals(inContext.getComponent(), outContext.getComponent());
-            assertEquals(inContext.getDescriptor().ksname, outContext.getDescriptor().ksname);
-            assertEquals(inContext.getDescriptor().cfname, outContext.getDescriptor().cfname);
+            assertEquals(inContext.component, outContext.component);
+            assertEquals(inContext.desc.ksname, outContext.desc.ksname);
+            assertEquals(inContext.desc.cfname, outContext.desc.cfname);
         }
     }
 }

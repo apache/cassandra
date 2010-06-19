@@ -48,10 +48,9 @@ public class PendingFile
         return serializer_;
     }
 
-    private final Descriptor desc;
-    private final String component;
-    private final List<Pair<Long,Long>> sections;
-    private long ptr;
+    public final Descriptor desc;
+    public final String component;
+    public final List<Pair<Long,Long>> sections;
 
     public PendingFile(Descriptor desc, PendingFile pf)
     {
@@ -63,36 +62,8 @@ public class PendingFile
         this.desc = desc;
         this.component = component;
         this.sections = sections;
-        ptr = 0;
     }
 
-    public void update(long ptr)
-    {
-        this.ptr = ptr;
-    }
-
-    /**
-     * @return The current section of the file, as an (offset,end) pair, or null if nothing left to stream.
-     */
-    public Pair<Long,Long> currentSection()
-    {
-        // linear search for the first appropriate section
-        for (Pair<Long,Long> section : sections)
-            if (ptr < section.right)
-                return new Pair<Long,Long>(Long.valueOf(Math.max(ptr, section.left)), section.right);
-        return null;
-    }
-
-    public String getComponent()
-    {
-        return component;
-    }
-
-    public Descriptor getDescriptor()
-    {
-        return desc;
-    }
-    
     public String getFilename()
     {
         return desc.filenameFor(component);
@@ -114,7 +85,7 @@ public class PendingFile
 
     public String toString()
     {
-        return getFilename() + ":" + ptr + "/" + sections;
+        return getFilename() + "/" + sections;
     }
 
     private static class PendingFileSerializer implements ICompactSerializer<PendingFile>

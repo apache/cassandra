@@ -108,7 +108,7 @@ public class StreamingService implements StreamingServiceMBean
         List<String> files = new ArrayList<String>();
         for (PendingFile pf : StreamInManager.getIncomingFiles(InetAddress.getByName(host)))
         {
-            files.add(String.format("%s: %s", pf.getDescriptor().ksname, pf.toString()));
+            files.add(String.format("%s: %s", pf.desc.ksname, pf.toString()));
         }
         return files;
     }

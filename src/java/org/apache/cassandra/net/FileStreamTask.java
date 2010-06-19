@@ -89,14 +89,14 @@ public class FileStreamTask extends WrappedRunnable
             assert buffer.remaining() == 0;
             
             // stream sections of the file as returned by PendingFile.currentSection
-            Pair<Long,Long> section;
-            while ((section = file.currentSection()) != null)
+            for (Pair<Long, Long> section : file.sections)
             {
-                long length = Math.min(CHUNK_SIZE, section.right - section.left);
-                long bytesTransferred = fc.transferTo(section.left, length, channel);
+                long length = section.right - section.left;
+                long bytesTransferred = 0;
+                while (bytesTransferred < length)
+                    bytesTransferred += fc.transferTo(section.left + bytesTransferred, length - bytesTransferred, channel);
                 if (logger.isDebugEnabled())
                     logger.debug("Bytes transferred " + bytesTransferred);
-                file.update(section.left + bytesTransferred);
             }
         }
         finally
