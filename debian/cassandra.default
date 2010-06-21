@@ -10,7 +10,7 @@ JVM_MAX_MEM="1G"
 # Specifies the initial size (in bytes) of memory allocation. Must be
 # a multiple of 1024 greater than 1MB. You can append the letters K or
 # M to indicate kilobytes or megabytes respectively. 
-JVM_START_MEM="128M"
+JVM_START_MEM="256"
 
 # Specifies any additional arguments to the JVM.
-JVM_EXTRA_OPTS="-XX:SurvivorRatio=128 -XX:TargetSurvivorRatio=90 -XX:+AggressiveOpts -XX:+UseParNewGC -XX:+UseConcMarkSweepGC -XX:+CMSParallelRemarkEnabled -XX:+HeapDumpOnOutOfMemoryError -XX:MaxTenuringThreshold=0"
+JVM_EXTRA_OPTS="-XX:+UseParNewGC -XX:+UseConcMarkSweepGC -XX:+CMSParallelRemarkEnabled -XX:SurvivorRatio=8 -XX:MaxTenuringThreshold=1 -XX:+HeapDumpOnOutOfMemoryError"
