@@ -188,14 +188,16 @@ public class CommitLog
             BufferedRandomAccessFile reader = new BufferedRandomAccessFile(file.getAbsolutePath(), "r", bufferSize);
 
             int replayPosition = 0;
+            String headerPath = CommitLogHeader.getHeaderPathFromSegmentPath(file.getAbsolutePath());
             try
             {
-                clHeader = CommitLogHeader.readCommitLogHeader(CommitLogHeader.getHeaderPathFromSegmentPath(file.getAbsolutePath()));
+                clHeader = CommitLogHeader.readCommitLogHeader(headerPath);
                 replayPosition = clHeader.getReplayPosition();
             }
             catch (IOException ioe)
             {
-                logger.info("Attempted to read an incomplete, missing or corrupt CommitLogHeader.  Everything is ok, don't panic.  CommitLog will be replayed from the beginning", ioe);
+                logger.info(headerPath + " incomplete, missing or corrupt.  Everything is ok, don't panic.  CommitLog will be replayed from the beginning");
+                logger.debug("exception was", ioe);
             }
             reader.seek(replayPosition);
 
