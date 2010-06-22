@@ -35,6 +35,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -112,14 +113,14 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
                 ranges.add(indexInfo);
             }
 
-            file.mark();
+            FileMark mark = file.mark();
             for (IndexHelper.IndexInfo indexInfo : ranges)
             {
-                file.reset();
+                file.reset(mark);
                 long curOffsert = file.skipBytes((int) indexInfo.offset);
                 assert curOffsert == indexInfo.offset;
                 // TODO only completely deserialize columns we are interested in
-                while (file.bytesPastMark() < indexInfo.offset + indexInfo.width)
+                while (file.bytesPastMark(mark) < indexInfo.offset + indexInfo.width)
                 {
                     final IColumn column = cf.getColumnSerializer().deserialize(file);
                     // we check vs the original Set, not the filtered List, for efficiency

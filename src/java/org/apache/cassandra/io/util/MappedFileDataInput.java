@@ -29,7 +29,6 @@ public class MappedFileDataInput extends InputStream implements FileDataInput
     private final MappedByteBuffer buffer;
     private final String filename;
     private int position;
-    private int markedPosition;
 
     public MappedFileDataInput(MappedByteBuffer buffer, String filename, int position)
     {
@@ -48,30 +47,26 @@ public class MappedFileDataInput extends InputStream implements FileDataInput
     @Override
     public boolean markSupported()
     {
-        return true;
+        return false;
     }
 
     @Override
-    public void mark(int ignored)
+    public void reset(FileMark mark) throws IOException
     {
-        markedPosition = position;
+        assert mark instanceof MappedFileDataInputMark;
+        seekInternal(((MappedFileDataInputMark) mark).position);
     }
 
-    @Override
-    public void reset() throws IOException
+    public FileMark mark()
     {
-        seekInternal(markedPosition);
+        return new MappedFileDataInputMark(position);
     }
 
-    public void mark()
+    public int bytesPastMark(FileMark mark)
     {
-        mark(-1);
-    }
-
-    public int bytesPastMark()
-    {
-        assert position >= markedPosition;
-        return position - markedPosition;
+        assert mark instanceof MappedFileDataInputMark;
+        assert position >= ((MappedFileDataInputMark) mark).position;
+        return position - ((MappedFileDataInputMark) mark).position;
     }
 
     public boolean isEOF() throws IOException
@@ -422,5 +417,15 @@ public class MappedFileDataInput extends InputStream implements FileDataInput
      */
     public final String readUTF() throws IOException {
         return DataInputStream.readUTF(this);
+    }
+
+    private static class MappedFileDataInputMark implements FileMark
+    {
+        int position;
+
+        MappedFileDataInputMark(int position)
+        {
+            this.position = position;
+        }
     }
 }

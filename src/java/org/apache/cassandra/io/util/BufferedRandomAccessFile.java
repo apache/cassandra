@@ -56,7 +56,6 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     private long maxHi_; // this.lo + this.buff.length
     private boolean hitEOF_; // buffer contains last file block?
     private long diskPos_; // disk position
-    private long markedPointer;
     private long fileLength = -1; // cache for file size
 
     /*
@@ -408,22 +407,34 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
         return length() - getFilePointer();
     }
 
-    public void mark()
+    public FileMark mark()
     {
-        markedPointer = getFilePointer();
+        return new BufferedRandomAccessFileMark(getFilePointer());
     }
 
-    public void reset() throws IOException
+    public void reset(FileMark mark) throws IOException
     {
-        seek(markedPointer);
+        assert mark instanceof BufferedRandomAccessFileMark;
+        seek(((BufferedRandomAccessFileMark) mark).pointer);
     }
 
-    public int bytesPastMark()
+    public int bytesPastMark(FileMark mark)
     {
-        long bytes = getFilePointer() - markedPointer;
+        assert mark instanceof BufferedRandomAccessFileMark;
+        long bytes = getFilePointer() - ((BufferedRandomAccessFileMark) mark).pointer;
         assert bytes >= 0;
         if (bytes > Integer.MAX_VALUE)
             throw new UnsupportedOperationException("Overflow: " + bytes);
         return (int) bytes;
+    }
+
+    private static class BufferedRandomAccessFileMark implements FileMark
+    {
+        long pointer;
+
+        BufferedRandomAccessFileMark(long pointer)
+        {
+            this.pointer = pointer;
+        }
     }
 }

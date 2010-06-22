@@ -33,6 +33,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.FileMark;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.AbstractIterator;
@@ -172,6 +173,7 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements IColumnI
 
         private int curRangeIndex;
         private Deque<IColumn> blockColumns = new ArrayDeque<IColumn>();
+        private final FileMark mark;
 
         public ColumnGroupReader(SSTableReader ssTable, FileDataInput input)
         {
@@ -188,7 +190,7 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements IColumnI
             {
                 throw new IOError(e);
             }
-            file.mark();
+            this.mark = file.mark();
             curRangeIndex = IndexHelper.indexFor(startColumn, indexes, comparator, reversed);
             if (reversed && curRangeIndex == indexes.size())
                 curRangeIndex--;
@@ -241,10 +243,10 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements IColumnI
 
             boolean outOfBounds = false;
 
-            file.reset();
+            file.reset(mark);
             long curOffset = file.skipBytes((int) curColPosition.offset); 
             assert curOffset == curColPosition.offset;
-            while (file.bytesPastMark() < curColPosition.offset + curColPosition.width && !outOfBounds)
+            while (file.bytesPastMark(mark) < curColPosition.offset + curColPosition.width && !outOfBounds)
             {
                 IColumn column = emptyColumnFamily.getColumnSerializer().deserialize(file);
                 if (reversed)
