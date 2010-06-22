@@ -1,4 +1,4 @@
-package org.apache.cassandra.io;
+package org.apache.cassandra.io.sstable;
 
 import java.util.concurrent.atomic.AtomicLong;
 

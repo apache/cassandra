@@ -3,6 +3,7 @@ package org.apache.cassandra.io;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.io.sstable.BloomFilterTracker;
 
 import static org.junit.Assert.assertEquals;
 
