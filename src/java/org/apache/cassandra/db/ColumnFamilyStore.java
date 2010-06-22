@@ -32,9 +32,11 @@ import java.util.regex.Pattern;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
 import org.apache.commons.collections.IteratorUtils;
 
-import com.google.common.collect.Iterables;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.StageManager;
@@ -1168,6 +1170,53 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         };
 
         return commitLogUpdater_.submit(runnable);
-     }
+    }
 
+    public long getBloomFilterFalsePositives()
+    {
+        long count = 0L;
+        for (SSTableReader sstable: getSSTables())
+        {
+            count += sstable.getBloomFilterFalsePositiveCount();
+        }
+        return count;
+    }
+
+    public long getRecentBloomFilterFalsePositives()
+    {
+        long count = 0L;
+        for (SSTableReader sstable: getSSTables())
+        {
+            count += sstable.getRecentBloomFilterFalsePositiveCount();
+        }
+        return count;
+    }
+
+    public double getBloomFilterFalseRatio()
+    {
+        Long falseCount = 0L;
+        Long trueCount = 0L;
+        for (SSTableReader sstable: getSSTables())
+        {
+            falseCount += sstable.getBloomFilterFalsePositiveCount();
+            trueCount += sstable.getBloomFilterTruePositiveCount();
+        }
+        if (falseCount.equals(0L) && trueCount.equals(0L))
+            return 0d;
+        return falseCount.doubleValue() / (trueCount.doubleValue() + falseCount.doubleValue());
+    }
+
+    public double getRecentBloomFilterFalseRatio()
+    {
+        Long falseCount = 0L;
+        Long trueCount = 0L;
+        for (SSTableReader sstable: getSSTables())
+        {
+            falseCount += sstable.getRecentBloomFilterFalsePositiveCount();
+            trueCount += sstable.getRecentBloomFilterTruePositiveCount();
+        }
+        if (falseCount.equals(0L) && trueCount.equals(0L))
+            return 0d;
+        return falseCount.doubleValue() / (trueCount.doubleValue() + falseCount.doubleValue());
+    }
 }

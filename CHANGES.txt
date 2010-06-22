@@ -52,6 +52,7 @@ dev
  * force anti-entropy service to stream files on the stream stage to avoid
    sending streams out of order (CASSANDRA-1169)
  * remove inactive stream managers after AES streams files (CASSANDRA-1169)
+ * add JMX metrics for row-level bloom filter false positives (CASSANDRA-1212)
  * added a redhat init script to contrib (CASSANDRA-1201)
 
 
