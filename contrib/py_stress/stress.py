@@ -142,7 +142,7 @@ def get_client(host='127.0.0.1', port=9160, framed=False):
 
 def make_keyspaces():
     cfams = [CfDef('Keyspace1', 'Standard1'),
-             CfDef('Keyspace1', 'Super1', 'Super', 'BytesType', 'BytesType')]
+             CfDef('Keyspace1', 'Super1', 'Super')]
     keyspace = KsDef('Keyspace1', 'org.apache.cassandra.locator.RackUnawareStrategy', 1, cfams)
     client = get_client(nodes[0], options.port, options.framed)
     client.transport.open()
