@@ -59,4 +59,9 @@ public interface CompactionManagerMBean
      * @return estimated number of compactions remaining to perform
      */
     public int getPendingTasks();
+
+    /**
+     * @return number of completed compactions since server [re]start
+     */
+    public long getCompletedTasks();
 }

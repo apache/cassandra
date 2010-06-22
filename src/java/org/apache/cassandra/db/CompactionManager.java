@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.*;
 import org.apache.cassandra.io.sstable.*;
@@ -625,7 +626,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         public CompactionExecutor()
         {
-            super("COMPACTION-POOL");
+            super("CompactionExecutor");
         }
 
         @Override
@@ -681,5 +682,10 @@ public class CompactionManager implements CompactionManagerMBean
             n += i;
         }
         return n;
+    }
+
+    public long getCompletedTasks()
+    {
+        return executor.getTaskCount() - executor.getCompletedTaskCount();
     }
 }
