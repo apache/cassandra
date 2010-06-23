@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOError;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
@@ -92,6 +93,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                new LinkedBlockingQueue<Runnable>(DatabaseDescriptor.getFlushWriters()),
                                                new NamedThreadFactory("FLUSH-WRITER-POOL"));
     private static ExecutorService commitLogUpdater_ = new JMXEnabledThreadPoolExecutor("MEMTABLE-POST-FLUSHER");
+    
+    private static final FilenameFilter DB_NAME_FILTER = new FilenameFilter()
+    {
+        public boolean accept(File dir, String name)
+        {
+            return name.matches("[^\\.][\\S]+?[\\.db]");
+        }
+    };
 
     private Set<Memtable> memtablesPendingFlush = new ConcurrentSkipListSet<Memtable>();
 
@@ -242,7 +251,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (String directory : dataFileDirectories)
         {
             File fileDir = new File(directory);
-            File[] files = fileDir.listFiles();
+            File[] files = fileDir.listFiles(DB_NAME_FILTER);
             
             for (File file : files)
             {
@@ -283,7 +292,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Set<File> fileSet = new HashSet<File>();
         for (String directory : DatabaseDescriptor.getAllDataFileLocationsForTable(table_))
         {
-            File[] files = new File(directory).listFiles();
+            File[] files = new File(directory).listFiles(DB_NAME_FILTER);
             for (File file : files)
             {
                 if (file.isDirectory())
