@@ -380,7 +380,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     public long getPosition(DecoratedKey decoratedKey, Operator op)
     {
         // first, check bloom filter
-        if (op == Operator.EQ && !bf.isPresent(decoratedKey.key))
+        if (op == Operator.EQ && !bf.isPresent(partitioner.convertToDiskFormat(decoratedKey)))
             return -1;
 
         // next, the key cache

@@ -294,9 +294,10 @@ public class SSTableWriter extends SSTable
 
         public void afterAppend(DecoratedKey key, long dataPosition) throws IOException
         {
-            bf.add(key.key);
+            byte[] diskKey = partitioner.convertToDiskFormat(key);
+            bf.add(diskKey);
             long indexPosition = indexFile.getFilePointer();
-            FBUtilities.writeShortByteArray(key.key, indexFile);
+            FBUtilities.writeShortByteArray(diskKey, indexFile);
             indexFile.writeLong(dataPosition);
             if (logger.isTraceEnabled())
                 logger.trace("wrote index of " + key + " at " + indexPosition);
