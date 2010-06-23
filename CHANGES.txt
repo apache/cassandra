@@ -32,6 +32,7 @@ dev
  * efficient Streaming (no more anticompaction) (CASSANDRA-579)
  * split commitlog header into separate file and add size checksum to
    mutations (CASSANDRA-1179)
+ * avoid allocating a new byte[] for each mutation on replay (CASSANDRA-1219)
 
 
 0.6.3

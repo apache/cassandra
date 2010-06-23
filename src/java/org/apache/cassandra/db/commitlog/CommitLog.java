@@ -181,6 +181,8 @@ public class CommitLog
     {
         Set<Table> tablesRecovered = new HashSet<Table>();
         final AtomicInteger counter = new AtomicInteger(0);
+        byte[] bytes = new byte[4096];
+
         for (File file : clogs)
         {
             CommitLogHeader clHeader = null;
@@ -211,20 +213,21 @@ public class CommitLog
                     logger.debug("Reading mutation at " + reader.getFilePointer());
 
                 long claimedCRC32;
-                byte[] bytes;
 
                 Checksum checksum = new CRC32();
+                int serializedSize;
                 try
                 {
                     // any of the reads may hit EOF
-                    int size = reader.readInt();
+                    serializedSize = reader.readInt();
                     long claimedSizeChecksum = reader.readLong();
-                    checksum.update(size);
-                    if (checksum.getValue() != claimedSizeChecksum || size <= 0)
+                    checksum.update(serializedSize);
+                    if (checksum.getValue() != claimedSizeChecksum || serializedSize <= 0)
                         break; // entry wasn't synced correctly/fully.  that's ok.
 
-                    bytes = new byte[size];
-                    reader.readFully(bytes);
+                    if (serializedSize > bytes.length)
+                        bytes = new byte[(int) (1.2 * serializedSize)];
+                    reader.readFully(bytes, 0, serializedSize);
                     claimedCRC32 = reader.readLong();
                 }
                 catch(EOFException eof)
@@ -232,7 +235,7 @@ public class CommitLog
                     break; // last CL entry didn't get completely written.  that's ok.
                 }
 
-                checksum.update(bytes, 0, bytes.length);
+                checksum.update(bytes, 0, serializedSize);
                 if (claimedCRC32 != checksum.getValue())
                 {
                     // this entry must not have been fsynced.  probably the rest is bad too,
@@ -241,7 +244,7 @@ public class CommitLog
                 }
 
                 /* deserialize the commit log entry */
-                ByteArrayInputStream bufIn = new ByteArrayInputStream(bytes);
+                ByteArrayInputStream bufIn = new ByteArrayInputStream(bytes, 0, serializedSize);
                 final RowMutation rm = RowMutation.serializer().deserialize(new DataInputStream(bufIn));
                 if (logger.isDebugEnabled())
                     logger.debug(String.format("replaying mutation for %s.%s: %s",
