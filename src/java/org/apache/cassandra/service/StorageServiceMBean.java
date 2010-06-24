@@ -52,6 +52,20 @@ public interface StorageServiceMBean
     public Set<String> getUnreachableNodes();
 
     /**
+     * Retrieve the list of nodes currently bootstrapping into the ring.
+     *
+     * @return set of IP addresses, as Strings
+     */
+    public Set<String> getJoiningNodes();
+
+    /**
+     * Retrieve the list of nodes currently leaving the ring.
+     *
+     * @return set of IP addresses, as Strings
+     */
+    public Set<String> getLeavingNodes();
+
+    /**
      * Fetch a string representation of the token.
      *
      * @return a string token
@@ -65,6 +79,13 @@ public interface StorageServiceMBean
      * @return mapping of ranges to end points
      */
     public Map<Range, List<String>> getRangeToEndpointMap(String keyspace);
+
+    /**
+     * Retrieve a map of pending ranges to endpoints that describe the ring topology
+     * @param keyspace the keyspace to get the pending range map for.
+     * @return a map of pending ranges to endpoints
+     */
+    public Map<Range, List<String>> getPendingRangeToEndpointMap(String keyspace);
 
     /**
      * Numeric load value.

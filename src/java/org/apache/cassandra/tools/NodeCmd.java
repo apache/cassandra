@@ -43,7 +43,6 @@ import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.dht.Range;
 
 import org.apache.commons.cli.*;
-import org.apache.commons.lang.StringUtils;
 
 public class NodeCmd {
     private static final String HOST_OPT_LONG = "host";
@@ -93,67 +92,58 @@ public class NodeCmd {
     public void printRing(PrintStream outs)
     {
         Map<Range, List<String>> rangeMap = probe.getRangeToEndpointMap(null);
-        List<Range> ranges = new ArrayList<Range>(rangeMap.keySet());
+        Map<Range, List<String>> pendingRangeMap = probe.getPendingRangeToEndpoingMap(null);
+        Map<Range, List<String>> rangesToIterate = new HashMap<Range, List<String>>();
+
+        rangesToIterate.putAll(pendingRangeMap);
+        rangesToIterate.putAll(rangeMap);
+
+        List<Range> ranges = new ArrayList<Range>(rangesToIterate.keySet());
         Collections.sort(ranges);
         Set<String> liveNodes = probe.getLiveNodes();
         Set<String> deadNodes = probe.getUnreachableNodes();
+        Set<String> joiningNodes = probe.getJoiningNodes();
+        Set<String> leavingNodes = probe.getLeavingNodes();
         Map<String, String> loadMap = probe.getLoadMap();
 
-        // Print range-to-endpoint mapping
-        int counter = 0;
-        outs.print(String.format("%-14s", "Address"));
-        outs.print(String.format("%-11s", "Status"));
-        outs.print(String.format("%-14s", "Load"));
-        outs.print(String.format("%-43s", "Range"));
-        outs.println("Ring");
-        // emphasize that we're showing the right part of each range
+        outs.print(String.format("%-16s", "Address"));
+        outs.print(String.format("%-7s", "Status"));
+        outs.print(String.format("%-8s", "State"));
+        outs.print(String.format("%-16s", "Load"));
+        outs.print(String.format("%-44s", "Token"));
+        outs.println();
+        
+        // show pre-wrap token twice so you can always read a node's range as
+        // (previous line token, current line token]
         if (ranges.size() > 1)
-        {
             outs.println(String.format("%-14s%-11s%-14s%-43s", "", "", "", ranges.get(0).left));
-        }
-        // normal range & node info
+
         for (Range range : ranges) {
-            List<String> endpoints = rangeMap.get(range);
-            String primaryEndpoint = endpoints.get(0);
-
-            outs.print(String.format("%-14s", primaryEndpoint));
-
-            String status = liveNodes.contains(primaryEndpoint)
-                          ? "Up"
-                          : deadNodes.contains(primaryEndpoint)
-                            ? "Down"
-                            : "?";
-            outs.print(String.format("%-11s", status));
-
-            String load = loadMap.containsKey(primaryEndpoint) ? loadMap.get(primaryEndpoint) : "?";
-            outs.print(String.format("%-14s", load));
-
-            outs.print(String.format("%-43s", range.right));
-
-            String asciiRingArt;
-            if (counter == 0)
-            {
-                asciiRingArt = "|<--|";
-            }
-            else if (counter == (rangeMap.size() - 1))
-            {
-                asciiRingArt = "|-->|";
-            }
-            else
-            {
-                if ((rangeMap.size() > 4) && ((counter % 2) == 0))
-                    asciiRingArt = "v   |";
-                else if ((rangeMap.size() > 4) && ((counter % 2) != 0))
-                    asciiRingArt = "|   ^";
-                else
-                    asciiRingArt = "|   |";
-            }
-            outs.println(asciiRingArt);
+            List<String> endpoints = rangesToIterate.get(range);
             
-            counter++;
+            String primaryEndpoint = endpoints.get(0);
+            outs.print(String.format("%-16s", primaryEndpoint));
+
+            String status =
+                    liveNodes.contains(primaryEndpoint) ? "Up" :
+                    deadNodes.contains(primaryEndpoint) ? "Down" :
+                    "?";
+            outs.print(String.format("%-7s", status));
+
+            String state =
+                    joiningNodes.contains(primaryEndpoint) ? "Joining" :
+                    leavingNodes.contains(primaryEndpoint) ? "Leaving" :
+                    "Normal";
+            outs.print(String.format("%-8s", state));
+
+            outs.print(String.format("%-16s", loadMap.containsKey(primaryEndpoint) ? loadMap.get(primaryEndpoint) : "?"));
+
+            outs.print(String.format("%-44s", range.right));
+
+            outs.println();
         }
     }
-    
+
     public void printThreadPoolStats(PrintStream outs)
     {
         outs.print(String.format("%-25s", "Pool Name"));

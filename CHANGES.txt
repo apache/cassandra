@@ -35,6 +35,7 @@ dev
  * avoid allocating a new byte[] for each mutation on replay (CASSANDRA-1219)
  * revise HH schema to be per-endpoint (CASSANDRA-1142)
  * remove gossip message size limit (CASSANDRA-1138)
+ * add joining/leaving status to nodetool ring (CASSANDRA-1115)
 
 
 0.6.3

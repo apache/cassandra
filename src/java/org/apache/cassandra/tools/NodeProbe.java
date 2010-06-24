@@ -159,79 +159,25 @@ public class NodeProbe
     {
         return ssProxy.getRangeToEndpointMap(tableName);
     }
-    
+
+    public Map<Range, List<String>> getPendingRangeToEndpoingMap(String tableName)
+    {
+        return ssProxy.getPendingRangeToEndpointMap(tableName);
+    }
+
     public Set<String> getLiveNodes()
     {
         return ssProxy.getLiveNodes();
     }
 
-    /**
-     * Write a textual representation of the Cassandra ring.
-     * 
-     * @param outs the stream to write to
-     */
-    public void printRing(PrintStream outs)
+    public Set<String> getJoiningNodes()
     {
-        Map<Range, List<String>> rangeMap = ssProxy.getRangeToEndpointMap(null);
-        List<Range> ranges = new ArrayList<Range>(rangeMap.keySet());
-        Collections.sort(ranges);
-        Set<String> liveNodes = ssProxy.getLiveNodes();
-        Set<String> deadNodes = ssProxy.getUnreachableNodes();
-        Map<String, String> loadMap = ssProxy.getLoadMap();
+        return ssProxy.getJoiningNodes();
+    }
 
-        // Print range-to-endpoint mapping
-        int counter = 0;
-        outs.print(String.format("%-14s", "Address"));
-        outs.print(String.format("%-11s", "Status"));
-        outs.print(String.format("%-14s", "Load"));
-        outs.print(String.format("%-43s", "Range"));
-        outs.println("Ring");
-        // emphasize that we're showing the right part of each range
-        if (ranges.size() > 1)
-        {
-            outs.println(String.format("%-14s%-11s%-14s%-43s", "", "", "", ranges.get(0).left));
-        }
-        // normal range & node info
-        for (Range range : ranges) {
-            List<String> endpoints = rangeMap.get(range);
-            String primaryEndpoint = endpoints.get(0);
-
-            outs.print(String.format("%-14s", primaryEndpoint));
-
-            String status = liveNodes.contains(primaryEndpoint)
-                          ? "Up"
-                          : deadNodes.contains(primaryEndpoint)
-                            ? "Down"
-                            : "?";
-            outs.print(String.format("%-11s", status));
-
-            String load = loadMap.containsKey(primaryEndpoint) ? loadMap.get(primaryEndpoint) : "?";
-            outs.print(String.format("%-14s", load));
-
-            outs.print(String.format("%-43s", range.right));
-
-            String asciiRingArt;
-            if (counter == 0)
-            {
-                asciiRingArt = "|<--|";
-            }
-            else if (counter == (rangeMap.size() - 1))
-            {
-                asciiRingArt = "|-->|";
-            }
-            else
-            {
-                if ((rangeMap.size() > 4) && ((counter % 2) == 0))
-                    asciiRingArt = "v   |";
-                else if ((rangeMap.size() > 4) && ((counter % 2) != 0))
-                    asciiRingArt = "|   ^";
-                else
-                    asciiRingArt = "|   |";
-            }
-            outs.println(asciiRingArt);
-            
-            counter++;
-        }
+    public Set<String> getLeavingNodes()
+    {
+        return ssProxy.getLeavingNodes();
     }
     
     public Set<String> getUnreachableNodes()

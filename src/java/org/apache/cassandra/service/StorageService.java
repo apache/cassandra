@@ -495,6 +495,22 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return map;
     }
 
+    public Map<Range, List<String>> getPendingRangeToEndpointMap(String keyspace)
+    {
+        // some people just want to get a visual representation of things. Allow null and set it to the first
+        // non-system table.
+        if (keyspace == null)
+            keyspace = DatabaseDescriptor.getNonSystemTables().get(0);
+
+        Map<Range, List<String>> map = new HashMap<Range, List<String>>();
+        for (Map.Entry<Range, Collection<InetAddress>> entry : tokenMetadata_.getPendingRanges(keyspace).entrySet())
+        {
+            List<InetAddress> l = new ArrayList<InetAddress>(entry.getValue());
+            map.put(entry.getKey(), stringify(l));
+        }
+        return map;
+    }
+
     public Map<Range, List<InetAddress>> getRangeToAddressMap(String keyspace)
     {
         List<Range> ranges = getAllRanges(tokenMetadata_.sortedTokens());
@@ -981,6 +997,16 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return getLocalToken().toString();
     }
 
+    public Set<String> getLeavingNodes()
+    {
+        return stringify(tokenMetadata_.getLeavingEndpoints());
+    }
+
+    public Set<String> getJoiningNodes()
+    {
+        return stringify(tokenMetadata_.getBootstrapTokens().values());
+    }
+
     public Set<String> getLiveNodes()
     {
         return stringify(Gossiper.instance.getLiveMembers());
@@ -991,7 +1017,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return stringify(Gossiper.instance.getUnreachableMembers());
     }
 
-    private Set<String> stringify(Set<InetAddress> endpoints)
+    private Set<String> stringify(Collection<InetAddress> endpoints)
     {
         Set<String> stringEndpoints = new HashSet<String>();
         for (InetAddress ep : endpoints)
@@ -1475,7 +1501,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (logger_.isDebugEnabled())
             logger_.debug("Leaving: old token was " + getLocalToken());
         startLeaving();
-         setMode("Leaving: sleeping " + RING_DELAY + " ms for pending range setup", true);
+        setMode("Leaving: sleeping " + RING_DELAY + " ms for pending range setup", true);
         Thread.sleep(RING_DELAY);
 
         Runnable finishMoving = new WrappedRunnable()
@@ -1483,11 +1509,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             public void runMayThrow() throws IOException
             {
                 Token bootstrapToken = token;
-		if (bootstrapToken == null)
-		{
-		    StorageLoadBalancer.instance.waitForLoadInfo();
-		    bootstrapToken = BootStrapper.getBalancedToken(tokenMetadata_, StorageLoadBalancer.instance.getLoadInfo());
-		}
+                if (bootstrapToken == null)
+                {
+                    StorageLoadBalancer.instance.waitForLoadInfo();
+                    bootstrapToken = BootStrapper.getBalancedToken(tokenMetadata_, StorageLoadBalancer.instance.getLoadInfo());
+                }
                 logger_.info("re-bootstrapping to new token {}", bootstrapToken);
                 startBootstrap(bootstrapToken);
             }
