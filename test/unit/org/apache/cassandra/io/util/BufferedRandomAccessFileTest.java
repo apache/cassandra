@@ -21,12 +21,15 @@ package org.apache.cassandra.io.util;
  */
 
 
-import static org.junit.Assert.*;
-
+import java.io.EOFException;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
 
 public class BufferedRandomAccessFileTest
 {
@@ -64,6 +67,47 @@ public class BufferedRandomAccessFileTest
         BufferedRandomAccessFile r = new BufferedRandomAccessFile(tmpFile, "r");
         assertEquals(lessThenBuffer.length + biggerThenBuffer.length, r.length());
         r.close();
+    }
+
+    protected void expectException(int size, int offset, int len, BufferedRandomAccessFile braf)
+    {
+        boolean threw = false;
+        try
+        {
+            braf.readFully(new byte[size], offset, len);
+        }
+        catch(Throwable t)
+        {
+            assert t.getClass().equals(EOFException.class) : t.getClass().getName() + " is not " + EOFException.class.getName();
+            threw = true;
+        }
+        assert threw : EOFException.class.getName() + " not received";
+    }
+
+    @Test
+    public void testEOF() throws Exception
+    {
+        for (String mode : Arrays.asList("r", "rw")) // read, read+write
+        {
+            for (int buf : Arrays.asList(8, 16, 32, 0))  // smaller, equal, bigger, zero
+            {
+                for (int off : Arrays.asList(0, 8))
+                {
+                    expectException(32, off, 17, new BufferedRandomAccessFile(writeTemporaryFile(new byte[16]), mode, buf));
+                }
+            }
+        }
+    }
+
+    protected File writeTemporaryFile(byte[] data) throws Exception
+    {
+        File f = File.createTempFile("BRAFTestFile", null);
+        f.deleteOnExit();
+        FileOutputStream fout = new FileOutputStream(f);
+        fout.write(data);
+        fout.getFD().sync();
+        fout.close();
+        return f;
     }
 
 }
