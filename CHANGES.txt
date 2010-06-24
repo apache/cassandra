@@ -33,6 +33,7 @@ dev
  * split commitlog header into separate file and add size checksum to
    mutations (CASSANDRA-1179)
  * avoid allocating a new byte[] for each mutation on replay (CASSANDRA-1219)
+ * revise HH schema to be per-endpoint (CASSANDRA-1142)
 
 
 0.6.3

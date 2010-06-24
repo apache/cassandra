@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 
 import java.net.UnknownHostException;
 import java.util.Collection;
-import java.util.Arrays;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.ExecutorService;
 import java.io.IOException;
@@ -49,14 +48,19 @@ import org.apache.cassandra.utils.WrappedRunnable;
 
 
 /**
- * For each table (keyspace), there is a row in the system hints CF.
+ * For each endpoint for which we have hints, there is a row in the system hints CF.
  * SuperColumns in that row are keys for which we have hinted data.
- * Subcolumns names within that supercolumn are host IPs. Subcolumn values are always empty.
- * Instead, we store the row data "normally" in the application table it belongs in.
+ * Subcolumns names within that supercolumn are keyspace+CF, concatenated with SEPARATOR.
+ * Subcolumn values are always empty; instead, we store the row data "normally"
+ * in the application table it belongs in.
  *
- * So when we deliver hints we look up endpoints that need data delivered
- * on a per-key basis, then read that entire row out and send it over.
+ * When FailureDetector signals that a node that was down is back up, we read its
+ * hints row to see what rows we need to forward data for, then reach each row in its
+ * entirety and send it over.
  * (TODO handle rows that have incrementally grown too large for a single message.)
+ *
+ * deliverHints is also exposed to JMX so it can be run manually if FD ever misses
+ * its cue somehow.
  *
  * HHM never deletes the row from Application tables; there is no way to distinguish that
  * from hinted tombstones!  instead, rely on cleanup compactions to remove data
@@ -69,14 +73,6 @@ import org.apache.cassandra.utils.WrappedRunnable;
  * in a HHData (non-super) CF, modifying the above to store a UUID value in the
  * HH subcolumn value, which we use as a key to a [standard] HHData system CF
  * that would contain the message bytes.
- *
- * There are two ways hinted data gets delivered to the intended nodes.
- *
- * runHints() runs periodically and pushes the hinted data on this node to
- * every intended node.
- *
- * runDelieverHints() is called when some other node starts up (potentially
- * from a failure) and delivers the hinted data just to that node.
  */
 
 public class HintedHandOffManager
@@ -86,10 +82,11 @@ public class HintedHandOffManager
     private static final Logger logger_ = LoggerFactory.getLogger(HintedHandOffManager.class);
     public static final String HINTS_CF = "HintsColumnFamily";
     private static final int PAGE_SIZE = 10000;
+    private static final String SEPARATOR = "-";
 
     private final ExecutorService executor_ = new JMXEnabledThreadPoolExecutor("HINTED-HANDOFF-POOL");
 
-    private static boolean sendMessage(InetAddress endpoint, String tableName, byte[] key) throws IOException
+    private static boolean sendMessage(InetAddress endpoint, String tableName, String cfName, byte[] key) throws IOException
     {
         if (!Gossiper.instance.isKnownEndpoint(endpoint))
         {
@@ -104,12 +101,10 @@ public class HintedHandOffManager
         Table table = Table.open(tableName);
         RowMutation rm = new RowMutation(tableName, key);
         DecoratedKey dkey = StorageService.getPartitioner().decorateKey(key);
-        for (ColumnFamilyStore cfstore : table.getColumnFamilyStores())
-        {
-            ColumnFamily cf = cfstore.getColumnFamily(QueryFilter.getIdentityFilter(dkey, new QueryPath(cfstore.getColumnFamilyName())));
-            if (cf != null)
-                rm.add(cf);
-        }
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(dkey, new QueryPath(cfs.getColumnFamilyName())));
+        if (cf != null)
+            rm.add(cf);
         Message message = rm.makeRowMutationMessage();
         WriteResponseHandler responseHandler = new WriteResponseHandler(endpoint);
         MessagingService.instance.sendRR(message, new InetAddress[] { endpoint }, responseHandler);
@@ -125,18 +120,28 @@ public class HintedHandOffManager
         return true;
     }
 
-    private static void deleteEndpoint(byte[] endpointAddress, String tableName, byte[] key, long timestamp) throws IOException
+    private static void deleteHintKey(byte[] endpointAddress, byte[] key, byte[] tableCF) throws IOException
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, tableName.getBytes(UTF8));
-        rm.delete(new QueryPath(HINTS_CF, key, endpointAddress), new TimestampClock(timestamp));
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, endpointAddress);
+        rm.delete(new QueryPath(HINTS_CF, key, tableCF), new TimestampClock(System.currentTimeMillis()));
         rm.apply();
     }
 
-    private static void deleteHintKey(String tableName, byte[] key) throws IOException
+    public static void deleteHintsForEndPoint(InetAddress endpoint)
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, tableName.getBytes(UTF8));
-        rm.delete(new QueryPath(HINTS_CF, key, null), new TimestampClock(System.currentTimeMillis()));
-        rm.apply();
+        ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, endpoint.getAddress());
+        rm.delete(new QueryPath(HINTS_CF), new TimestampClock(System.currentTimeMillis()));
+        try {
+            logger_.info("Deleting any stored hints for " + endpoint);
+            rm.apply();
+            hintStore.forceFlush();
+            CompactionManager.instance.submitMajor(hintStore, 0, Integer.MAX_VALUE).get();
+        }
+        catch (Exception e)
+        {
+            logger_.warn("Could not delete hints for " + endpoint + ": " + e);
+        }
     }
 
     private static boolean pagingFinished(ColumnFamily hintColumnFamily, byte[] startColumn)
@@ -146,47 +151,54 @@ public class HintedHandOffManager
                || (hintColumnFamily.getSortedColumns().size() == 1 && hintColumnFamily.getColumn(startColumn) != null);
     }
 
+    public static byte[] makeCombinedName(String tableName, String columnFamily)
+    {
+        byte[] withsep = ArrayUtils.addAll(tableName.getBytes(FBUtilities.UTF8), SEPARATOR.getBytes());
+        return ArrayUtils.addAll(withsep, columnFamily.getBytes(FBUtilities.UTF8));
+    }
+
+    private static String[] getTableAndCFNames(byte[] joined)
+    {
+        int index;
+        index = ArrayUtils.lastIndexOf(joined, SEPARATOR.getBytes()[0]);
+        if (index < 1)
+            throw new RuntimeException("Corrupted hint name " + joined.toString());
+        String[] parts = new String[2];
+        parts[0] = new String(ArrayUtils.subarray(joined, 0, index));
+        parts[1] = new String(ArrayUtils.subarray(joined, index+1, joined.length));
+        return parts;
+
+    }
+            
     private static void deliverHintsToEndpoint(InetAddress endpoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException
     {
         if (logger_.isDebugEnabled())
           logger_.debug("Started hinted handoff for endpoint " + endpoint);
 
-        byte[] targetEPBytes = endpoint.getAddress();
-        // 1. Scan through all the keys that we need to handoff
-        // 2. For each key read the list of recipients if the endpoint matches send
-        // 3. Delete that recipient from the key if write was successful
-        // 4. Now force a flush
+        // 1. Get the key of the endpoint we need to handoff
+        // 2. For each column read the list of rows: subcolumns are KS + SEPARATOR + CF
+        // 3. Delete the subcolumn if the write was successful
+        // 4. Force a flush
         // 5. Do major compaction to clean up all deletes etc.
+        DecoratedKey epkey =  StorageService.getPartitioner().decorateKey(endpoint.getAddress());
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
-        for (String tableName : DatabaseDescriptor.getTables())
+        byte[] startColumn = ArrayUtils.EMPTY_BYTE_ARRAY;
+        while (true)
         {
-            DecoratedKey tableNameKey = StorageService.getPartitioner().decorateKey(tableName.getBytes(UTF8));
-            byte[] startColumn = ArrayUtils.EMPTY_BYTE_ARRAY;
-            while (true)
+            QueryFilter filter = QueryFilter.getSliceFilter(epkey, new QueryPath(HINTS_CF), startColumn, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, PAGE_SIZE);
+            ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
+            if (pagingFinished(hintColumnFamily, startColumn))
+                break;
+            Collection<IColumn> keyColumns = hintColumnFamily.getSortedColumns();
+            for (IColumn keyColumn : keyColumns)
             {
-                QueryFilter filter = QueryFilter.getSliceFilter(tableNameKey, new QueryPath(HINTS_CF), startColumn, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, PAGE_SIZE);
-                ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
-                if (pagingFinished(hintColumnFamily, startColumn))
-                    break;
-                Collection<IColumn> keys = hintColumnFamily.getSortedColumns();
-
-                for (IColumn keyColumn : keys)
+                startColumn = keyColumn.name();
+                Collection<IColumn> tableCFs = keyColumn.getSubColumns();
+                for (IColumn tableCF : tableCFs)
                 {
-                    byte[] keyBytes = keyColumn.name();
-                    Collection<IColumn> endpoints = keyColumn.getSubColumns();
-                    for (IColumn hintEndpoint : endpoints)
-                    {
-                        if (Arrays.equals(hintEndpoint.name(), targetEPBytes) && sendMessage(endpoint, tableName, keyBytes))
-                        {
-                            if (endpoints.size() == 1)
-                                deleteHintKey(tableName, keyColumn.name());
-                            else
-                                deleteEndpoint(hintEndpoint.name(), tableName, keyColumn.name(), System.currentTimeMillis());
-                            break;
-                        }
-                    }
-
-                    startColumn = keyColumn.name();
+                    String[] parts = getTableAndCFNames(tableCF.name());
+                    if (sendMessage(endpoint, parts[0], parts[1], keyColumn.name()))
+                        deleteHintKey(endpoint.getAddress(), keyColumn.name(), tableCF.name());
                 }
             }
         }

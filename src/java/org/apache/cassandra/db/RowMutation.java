@@ -97,10 +97,14 @@ public class RowMutation
         return modifications_.values();
     }
 
-    void addHints(byte[] key, byte[] host) throws IOException
+    void addHints(RowMutation rm) throws IOException
     {
-        QueryPath path = new QueryPath(HintedHandOffManager.HINTS_CF, key, host);
-        add(path, ArrayUtils.EMPTY_BYTE_ARRAY, new TimestampClock(System.currentTimeMillis()));
+        for (ColumnFamily cf : rm.getColumnFamilies())
+        {
+            byte[] combined = HintedHandOffManager.makeCombinedName(rm.getTable(), cf.metadata().cfName);
+            QueryPath path = new QueryPath(HintedHandOffManager.HINTS_CF, rm.key(), combined);
+            add(path, ArrayUtils.EMPTY_BYTE_ARRAY, new TimestampClock(System.currentTimeMillis()));
+        }
     }
 
     /*

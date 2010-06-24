@@ -668,6 +668,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 if (!tokenMetadata_.getToken(endpoint).equals(token))
                     logger_.warn("Node " + endpoint + " 'left' token mismatch. Long network partition?");
                 tokenMetadata_.removeEndpoint(endpoint);
+                HintedHandOffManager.deleteHintsForEndPoint(endpoint);
             }
         }
         else
@@ -698,13 +699,14 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     /**
      * endpoint was completely removed from ring (as a result of removetoken command). Remove it
-     * from token metadata and gossip and restore replica count.
+     * from token metadata and gossip and restore replica count.  Also delete any hints for it.
      */
     private void removeEndpointLocally(InetAddress endpoint)
     {
         restoreReplicaCount(endpoint);
         Gossiper.instance.removeEndpoint(endpoint);
         tokenMetadata_.removeEndpoint(endpoint);
+        HintedHandOffManager.deleteHintsForEndPoint(endpoint);
     }
 
     /**
