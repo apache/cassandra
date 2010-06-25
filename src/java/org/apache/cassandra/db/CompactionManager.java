@@ -181,13 +181,13 @@ public class CompactionManager implements CompactionManagerMBean
         return executor.submit(callable);
     }
 
-    public Future submitReadonly(final ColumnFamilyStore cfStore, final InetAddress initiator)
+    public Future submitValidation(final ColumnFamilyStore cfStore, final AntiEntropyService.Validator validator)
     {
         Callable<Object> callable = new Callable<Object>()
         {
             public Object call() throws IOException
             {
-                doReadonlyCompaction(cfStore, initiator);
+                doValidationCompaction(cfStore, validator);
                 return this;
             }
         };
@@ -292,17 +292,12 @@ public class CompactionManager implements CompactionManagerMBean
 
             String newFilename = new File(compactionFileLocation, cfs.getTempSSTableFileName()).getAbsolutePath();
             writer = new SSTableWriter(newFilename, expectedBloomFilterSize, StorageService.getPartitioner());
-
-            // validate the CF as we iterate over it
-            AntiEntropyService.IValidator validator = AntiEntropyService.instance.getValidator(table.name, cfs.getColumnFamilyName(), null, major);
-            validator.prepare();
             while (nni.hasNext())
             {
                 CompactionIterator.CompactedRow row = nni.next();
                 long prevpos = writer.getFilePointer();
 
                 writer.append(row.key, row.buffer);
-                validator.add(row);
                 totalkeysWritten++;
 
                 long rowsize = writer.getFilePointer() - prevpos;
@@ -310,7 +305,6 @@ public class CompactionManager implements CompactionManagerMBean
                     logger.warn("Large row " + row.key.key + " in " + cfs.getColumnFamilyName() + " " + rowsize + " bytes");
                 cfs.addToCompactedRowStats(rowsize);
             }
-            validator.complete();
         }
         finally
         {
@@ -425,7 +419,7 @@ public class CompactionManager implements CompactionManagerMBean
      * Performs a readonly "compaction" of all sstables in order to validate complete rows,
      * but without writing the merge result
      */
-    private void doReadonlyCompaction(ColumnFamilyStore cfs, InetAddress initiator) throws IOException
+    private void doValidationCompaction(ColumnFamilyStore cfs, AntiEntropyService.Validator validator) throws IOException
     {
         Collection<SSTableReader> sstables = cfs.getSSTables();
         CompactionIterator ci = new CompactionIterator(sstables, getDefaultGCBefore(), true);
@@ -435,8 +429,7 @@ public class CompactionManager implements CompactionManagerMBean
             Iterator<CompactionIterator.CompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
 
             // validate the CF as we iterate over it
-            AntiEntropyService.IValidator validator = AntiEntropyService.instance.getValidator(cfs.getTable().name, cfs.getColumnFamilyName(), initiator, true);
-            validator.prepare();
+            validator.prepare(cfs);
             while (nni.hasNext())
             {
                 CompactionIterator.CompactedRow row = nni.next();

@@ -29,6 +29,9 @@
  * use midpoint when bootstrapping a new machine into range with not
    much data yet instead of random token (CASSANDRA-1112)
  * kill server on OOM in executor stage as well as Thrift (CASSANDRA-1226)
+ * remove opportunistic repairs, when two machines with overlapping replica
+   responsibilities happen to finish major compactions of the same CF near
+   the same time.  repairs are now fully manual (CASSANDRA-1190)
 
 
 0.6.2
