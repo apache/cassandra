@@ -1,6 +1,5 @@
 0.6.3
  * retry to make streaming connections up to 8 times. (CASSANDRA-1019)
- * fix potential for duplicate rows seen by Hadoop jobs (CASSANDRA-1042)
  * reject describe_ring() calls on invalid keyspaces (CASSANDRA-1111)
  * fix cache size calculation for size of 100% (CASSANDRA-1129)
  * fix cache capacity only being recalculated once (CASSANDRA-1129)
