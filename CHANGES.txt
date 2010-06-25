@@ -36,6 +36,7 @@ dev
  * revise HH schema to be per-endpoint (CASSANDRA-1142)
  * remove gossip message size limit (CASSANDRA-1138)
  * add joining/leaving status to nodetool ring (CASSANDRA-1115)
+ * allow multiple repair sessions per node (CASSANDRA-1190)
 
 
 0.6.3

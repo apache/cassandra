@@ -53,6 +53,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
 
     public static String tablename;
     public static String cfname;
+    public static TreeRequest request;
     public static ColumnFamilyStore store;
     public static InetAddress LOCAL, REMOTE;
 
@@ -77,6 +78,9 @@ public class AntiEntropyServiceTest extends CleanupHelper
         tmd.updateNormalToken(StorageService.getPartitioner().getRandomToken(), LOCAL);
         tmd.updateNormalToken(StorageService.getPartitioner().getMinimumToken(), REMOTE);
         assert tmd.isMember(REMOTE);
+        
+        // random session id for each test
+        request = new TreeRequest(UUID.randomUUID().toString(), LOCAL, new CFPair(tablename, cfname));
     }
 
     @After
@@ -87,13 +91,6 @@ public class AntiEntropyServiceTest extends CleanupHelper
         {
             public void run() { /* no-op */ }
         }).get();
-    }
-
-    @Test
-    public void testInstance() throws Throwable
-    {
-        assert null != aes;
-        assert aes == AntiEntropyService.instance;
     }
 
     @Test
@@ -110,7 +107,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
         Util.writeColumnFamily(rms);
 
         // sample
-        validator = new Validator(new CFPair(tablename, cfname));
+        validator = new Validator(request);
         validator.prepare(store);
 
         // and confirm that the tree was split
@@ -120,7 +117,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
     @Test
     public void testValidatorComplete() throws Throwable
     {
-        Validator validator = new Validator(new CFPair(tablename, cfname));
+        Validator validator = new Validator(request);
         validator.prepare(store);
         validator.complete();
 
@@ -135,7 +132,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
     @Test
     public void testValidatorAdd() throws Throwable
     {
-        Validator validator = new Validator(new CFPair(tablename, cfname));
+        Validator validator = new Validator(request);
         IPartitioner part = validator.tree.partitioner();
         Token min = part.getMinimumToken();
         Token mid = part.midpoint(min, min);
@@ -154,31 +151,6 @@ public class AntiEntropyServiceTest extends CleanupHelper
         assert null != validator.tree.hash(new Range(min, min));
     }
 
-    /**
-     * Build a column family with 2 or more SSTables, and then force a major compaction
-     */
-    @Test
-    public void testTreeStore() throws Throwable
-    {
-        // populate column family
-        List<RowMutation> rms = new LinkedList<RowMutation>();
-        RowMutation rm = new RowMutation(tablename, "key".getBytes());
-        rm.add(new QueryPath(cfname, null, "Column1".getBytes()), "asdf".getBytes(), new TimestampClock(0));
-        rms.add(rm);
-        // with two SSTables
-        Util.writeColumnFamily(rms);
-        Util.writeColumnFamily(rms);
-        
-        TreePair old = aes.getRendezvousPair_TestsOnly(tablename, cfname, REMOTE);
-        // force a readonly compaction, and wait for it to finish
-        Validator validator = new Validator(new CFPair(tablename, cfname));
-        CompactionManager.instance.submitValidation(store, validator).get(5000, TimeUnit.MILLISECONDS);
-
-        // check that a tree was created and stored
-        flushAES().get(5000, TimeUnit.MILLISECONDS);
-        assert old != aes.getRendezvousPair_TestsOnly(tablename, cfname, REMOTE);
-    }
-
     @Test
     public void testManualRepair() throws Throwable
     {
@@ -190,32 +162,11 @@ public class AntiEntropyServiceTest extends CleanupHelper
         sess.join(100);
         assert sess.isAlive();
 
-        // deliver fake responses from LOCAL and REMOTE
-        AntiEntropyService.instance.completedRequest(new CFPair(tablename, cfname), LOCAL);
-        AntiEntropyService.instance.completedRequest(new CFPair(tablename, cfname), REMOTE);
+        // deliver a fake response from REMOTE
+        AntiEntropyService.instance.completedRequest(new TreeRequest(sess.getName(), REMOTE, request.cf));
 
         // block until the repair has completed
         sess.join();
-    }
-
-    @Test
-    public void testNotifyNeighbors() throws Throwable
-    {
-        // generate empty tree
-        Validator validator = new Validator(new CFPair(tablename, cfname));
-        validator.prepare(store);
-        validator.complete();
-
-        // grab reference to the tree
-        MerkleTree tree = validator.tree;
-
-        // notify ourself (should immediately be delivered into AE_STAGE)
-        aes.notifyNeighbors(validator, LOCAL, Arrays.asList(LOCAL));
-        flushAES().get(5, TimeUnit.SECONDS);
-        
-        // confirm that our reference is not equal to the original due
-        // to (de)serialization
-        assert tree != aes.getRendezvousPair_TestsOnly(tablename, cfname, REMOTE).left;
     }
 
     @Test
@@ -248,13 +199,13 @@ public class AntiEntropyServiceTest extends CleanupHelper
     public void testDifferencer() throws Throwable
     {
         // generate a tree
-        Validator validator = new Validator(new CFPair(tablename, cfname));
+        Validator validator = new Validator(request);
         validator.prepare(store);
         validator.complete();
         MerkleTree ltree = validator.tree;
 
         // and a clone
-        validator = new Validator(new CFPair(tablename, cfname));
+        validator = new Validator(request);
         validator.prepare(store);
         validator.complete();
         MerkleTree rtree = validator.tree;
@@ -266,8 +217,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
         changed.hash("non-empty hash!".getBytes());
 
         // difference the trees
-        Differencer diff = new Differencer(new CFPair(tablename, cfname),
-                                           LOCAL, LOCAL, ltree, rtree);
+        Differencer diff = new Differencer(request, ltree, rtree);
         diff.run();
         
         // ensure that the changed range was recorded
