@@ -73,7 +73,7 @@ public class CassandraServiceDataCleaner {
         for (String s : DatabaseDescriptor.getAllDataFileLocations()) {
             dirs.add(s);
         }
-        dirs.add(DatabaseDescriptor.getLogFileLocation());
+        dirs.add(DatabaseDescriptor.getCommitLogLocation());
         return dirs;
     }
     /**
