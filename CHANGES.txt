@@ -34,6 +34,8 @@
    the same time.  repairs are now fully manual (CASSANDRA-1190)
  * avoid queuing multiple hint deliveries for the same endpoint
    (CASSANDRA-1229)
+ * add ability to lower compaction priority (default is no change from 0.6.2)
+   (CASSANDRA-1181)
 
 
 0.6.2

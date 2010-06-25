@@ -566,7 +566,9 @@ public class CompactionManager implements CompactionManagerMBean
 
         public CompactionExecutor()
         {
-            super("COMPACTION-POOL");
+            super("COMPACTION-POOL", System.getProperty("cassandra.compaction.priority") == null
+                                     ? Thread.NORM_PRIORITY
+                                     : Integer.parseInt(System.getProperty("cassandra.compaction.priority")));
         }
 
         @Override
