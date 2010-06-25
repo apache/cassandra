@@ -28,6 +28,7 @@
  * added a redhat init script to contrib (CASSANDRA-1201)
  * use midpoint when bootstrapping a new machine into range with not
    much data yet instead of random token (CASSANDRA-1112)
+ * kill server on OOM in executor stage as well as Thrift (CASSANDRA-1226)
 
 
 0.6.2
