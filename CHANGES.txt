@@ -32,6 +32,8 @@
  * remove opportunistic repairs, when two machines with overlapping replica
    responsibilities happen to finish major compactions of the same CF near
    the same time.  repairs are now fully manual (CASSANDRA-1190)
+ * avoid queuing multiple hint deliveries for the same endpoint
+   (CASSANDRA-1229)
 
 
 0.6.2

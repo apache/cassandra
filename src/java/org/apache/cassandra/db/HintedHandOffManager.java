@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Arrays;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.ExecutorService;
 import java.io.IOException;
@@ -45,6 +46,7 @@ import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
 
 /**
@@ -85,6 +87,8 @@ public class HintedHandOffManager
     private static final Logger logger_ = Logger.getLogger(HintedHandOffManager.class);
     public static final String HINTS_CF = "HintsColumnFamily";
     private static final int PAGE_SIZE = 10000;
+
+    private final NonBlockingHashSet<InetAddress> queuedDeliveries = new NonBlockingHashSet<InetAddress>();
 
     private final ExecutorService executor_ = new JMXEnabledThreadPoolExecutor("HINTED-HANDOFF-POOL");
 
@@ -144,9 +148,10 @@ public class HintedHandOffManager
                || (hintColumnFamily.getSortedColumns().size() == 1 && hintColumnFamily.getColumn(startColumn) != null);
     }
 
-    private static void deliverHintsToEndpoint(InetAddress endPoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException
+    private void deliverHintsToEndpoint(InetAddress endPoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException
     {
         logger_.info("Started hinted handoff for endPoint " + endPoint);
+        queuedDeliveries.remove(endPoint);
 
         byte[] targetEPBytes = endPoint.getAddress();
         // 1. Scan through all the keys that we need to handoff
@@ -213,6 +218,9 @@ public class HintedHandOffManager
     */
     public void deliverHints(final InetAddress to)
     {
+        if (queuedDeliveries.contains(to))
+            return;
+
         Runnable r = new WrappedRunnable()
         {
             public void runMayThrow() throws Exception
