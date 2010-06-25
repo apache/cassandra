@@ -79,7 +79,7 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
         {
             public void uncaughtException(Thread t, Throwable e)
             {
-                logger.error("Fatal exception in thread " + t, e);
+                logger.error("Uncaught exception in thread " + t, e);
                 if (e instanceof OutOfMemoryError)
                 {
                     System.exit(100);

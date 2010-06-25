@@ -1354,7 +1354,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         FBUtilities.sortSampledKeys(keys, range);
 
         if (keys.size() < 3)
-            return partitioner_.getRandomToken();
+            return partitioner_.midpoint(range.left, range.right);
         else
             return keys.get(keys.size() / 2).token;
     }

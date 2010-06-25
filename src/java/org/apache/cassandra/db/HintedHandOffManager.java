@@ -172,8 +172,7 @@ public class HintedHandOffManager
             
     private static void deliverHintsToEndpoint(InetAddress endpoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException
     {
-        if (logger_.isDebugEnabled())
-          logger_.debug("Started hinted handoff for endpoint " + endpoint);
+        logger_.info("Started hinted handoff for endpoint " + endpoint);
 
         // 1. Get the key of the endpoint we need to handoff
         // 2. For each column read the list of rows: subcolumns are KS + SEPARATOR + CF
@@ -181,6 +180,7 @@ public class HintedHandOffManager
         // 4. Force a flush
         // 5. Do major compaction to clean up all deletes etc.
         DecoratedKey epkey =  StorageService.getPartitioner().decorateKey(endpoint.getAddress());
+        int rowsReplayed = 0;
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
         byte[] startColumn = ArrayUtils.EMPTY_BYTE_ARRAY;
         while (true)
@@ -198,22 +198,31 @@ public class HintedHandOffManager
                 {
                     String[] parts = getTableAndCFNames(tableCF.name());
                     if (sendMessage(endpoint, parts[0], parts[1], keyColumn.name()))
+                    {
                         deleteHintKey(endpoint.getAddress(), keyColumn.name(), tableCF.name());
+                        rowsReplayed++;
+                    }
+
+                    startColumn = keyColumn.name();
                 }
             }
         }
-        hintStore.forceFlush();
-        try
+
+        if (rowsReplayed > 0)
         {
-            CompactionManager.instance.submitMajor(hintStore, 0, Integer.MAX_VALUE).get();
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
+            hintStore.forceFlush();
+            try
+            {
+                CompactionManager.instance.submitMajor(hintStore, 0, Integer.MAX_VALUE).get();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
         }
 
-        if (logger_.isDebugEnabled())
-          logger_.debug("Finished hinted handoff for endpoint " + endpoint);
+        logger_.info(String.format("Finished hinted handoff of %s rows to endpoint %s",
+                                   rowsReplayed, endpoint));
     }
 
     /** called when a keyspace is dropped or rename. newTable==null in the case of a drop. */

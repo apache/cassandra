@@ -180,7 +180,8 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 
     public String toString()
     {
-        return "Memtable(" + cfs.getColumnFamilyName() + ")@" + hashCode();
+        return String.format("Memtable-%s@%s(%s bytes, %s operations)",
+                             cfs.getColumnFamilyName(), hashCode(), currentThroughput, currentOperations);
     }
 
     /**

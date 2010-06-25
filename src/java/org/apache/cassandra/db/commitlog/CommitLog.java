@@ -285,6 +285,7 @@ public class CommitLog
                 StageManager.getStage(StageManager.MUTATION_STAGE).submit(runnable);
             }
             reader.close();
+            logger.info("Finished reading " + file);
         }
 
         // wait for all the writes to finish on the mutation stage

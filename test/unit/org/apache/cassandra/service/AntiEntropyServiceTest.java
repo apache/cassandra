@@ -97,14 +97,8 @@ public class AntiEntropyServiceTest extends CleanupHelper
     @Test
     public void testGetValidator() throws Throwable
     {
-        aes.clearNaturalRepairs_TestsOnly();
-
         // not major
         assert aes.getValidator(tablename, cfname, null, false) instanceof NoopValidator;
-        // adds entry to naturalRepairs
-        assert aes.getValidator(tablename, cfname, null, true) instanceof Validator;
-        // blocked by entry in naturalRepairs
-        assert aes.getValidator(tablename, cfname, null, true) instanceof NoopValidator;
         // triggered manually
         assert aes.getValidator(tablename, cfname, REMOTE, true) instanceof Validator;
     }

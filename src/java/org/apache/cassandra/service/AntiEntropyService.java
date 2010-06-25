@@ -90,16 +90,9 @@ public class AntiEntropyService
 
     // millisecond lifetime to store trees before they become stale
     public final static long TREE_STORE_TIMEOUT = 600000;
-    // max millisecond frequency that natural (automatic) repairs should run at
-    public final static long NATURAL_REPAIR_FREQUENCY = 3600000;
 
     // singleton enforcement
     public static final AntiEntropyService instance = new AntiEntropyService();
-
-    /**
-     * Map of CFPair to timestamp of the beginning of the last natural repair.
-     */
-    private final ConcurrentMap<CFPair, Long> naturalRepairs;
 
     /**
      * Map of column families to remote endpoints that need to rendezvous. The
@@ -121,7 +114,6 @@ public class AntiEntropyService
      */
     protected AntiEntropyService()
     {
-        naturalRepairs = new ConcurrentHashMap<CFPair, Long>();
         trees = new HashMap<CFPair, ExpiringMap<InetAddress, TreePair>>();
         sessions = new ConcurrentHashMap<String, BlockingQueue<TreeRequest>>();
     }
@@ -283,34 +275,6 @@ public class AntiEntropyService
     }
 
     /**
-     * Should only be used for testing.
-     */
-    void clearNaturalRepairs_TestsOnly()
-    {
-        naturalRepairs.clear();
-    }
-
-    /**
-     * @param cf The column family.
-     * @return True if enough time has elapsed since the beginning of the last natural repair.
-     */
-    private boolean shouldRunNaturally(CFPair cf)
-    {
-        Long curtime = System.currentTimeMillis();
-        Long pretime = naturalRepairs.putIfAbsent(cf, curtime);
-        if (pretime != null)
-        {
-            if (pretime < (curtime - NATURAL_REPAIR_FREQUENCY))
-                // replace pretime with curtime, unless someone beat us to it
-                return naturalRepairs.replace(cf, pretime, curtime);
-            // need to wait longer
-            logger.debug("Skipping natural repair: last occurred " + (curtime - pretime) + "ms ago.");
-            return false;
-        }
-        return true;
-    }
-
-    /**
      * Return a Validator object which can be used to collect hashes for a column family.
      * A Validator must be prepared() before use, and completed() afterward.
      *
@@ -331,7 +295,7 @@ public class AntiEntropyService
         if (DatabaseDescriptor.getReplicationFactor(table) < 2)
             return new NoopValidator();
         CFPair cfpair = new CFPair(table, cf);
-        if (initiator == null && !shouldRunNaturally(cfpair))
+        if (initiator == null)
             return new NoopValidator();
         return new Validator(cfpair);
     }
