@@ -154,6 +154,7 @@ public class HintedHandOffManager
         // 3. Delete that recipient from the key if write was successful
         // 4. Now force a flush
         // 5. Do major compaction to clean up all deletes etc.
+        int rowsReplayed = 0;
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
         for (String tableName : DatabaseDescriptor.getTables())
         {
@@ -174,6 +175,7 @@ public class HintedHandOffManager
                     {
                         if (Arrays.equals(hintEndPoint.name(), targetEPBytes) && sendMessage(endPoint, tableName, keyStr))
                         {
+                            rowsReplayed++;
                             if (endpoints.size() == 1)
                                 deleteHintKey(tableName, keyColumn.name());
                             else
@@ -186,17 +188,22 @@ public class HintedHandOffManager
                 }
             }
         }
-        hintStore.forceFlush();
-        try
+
+        if (rowsReplayed > 0)
         {
-            CompactionManager.instance.submitMajor(hintStore, 0, Integer.MAX_VALUE).get();
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
+            hintStore.forceFlush();
+            try
+            {
+                CompactionManager.instance.submitMajor(hintStore, 0, Integer.MAX_VALUE).get();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
         }
 
-        logger_.info("Finished hinted handoff for endpoint " + endPoint);
+        logger_.info(String.format("Finished hinted handoff of %s rows to endpoint %s",
+                                   rowsReplayed, endPoint));
     }
 
     /*
