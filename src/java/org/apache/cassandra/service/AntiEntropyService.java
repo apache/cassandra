@@ -59,37 +59,31 @@ import org.slf4j.LoggerFactory;
  * Tree comparison and repair triggering occur in the single threaded AE_SERVICE_STAGE.
  *
  * The steps taken to enact a repair are as follows:
- * 1. A major compaction is triggered either via nodeprobe, or automatically:
+ * 1. A major compaction is triggered via nodeprobe:
  *   * Nodeprobe sends TreeRequest messages to all neighbors of the target node: when a node
  *     receives a TreeRequest, it will perform a readonly compaction to immediately validate
  *     the column family.
- *   * Automatic compactions will also validate a column family and broadcast TreeResponses, but
- *     since TreeRequest messages are not sent to neighboring nodes, repairs will only occur if two
- *     nodes happen to perform automatic compactions within TREE_STORE_TIMEOUT of one another.
  * 2. The compaction process validates the column family by:
- *   * Calling getValidator(), which can return a NoopValidator if validation should not be performed,
- *   * Calling IValidator.prepare(), which samples the column family to determine key distribution,
- *   * Calling IValidator.add() in order for every row in the column family,
- *   * Calling IValidator.complete() to indicate that all rows have been added.
- *     * If getValidator decided that the column family should be validated, calling complete()
- *       indicates that a valid MerkleTree has been created for the column family.
- *     * The valid tree is broadcast to neighboring nodes via TreeResponse, and stored locally.
+ *   * Calling Validator.prepare(), which samples the column family to determine key distribution,
+ *   * Calling Validator.add() in order for every row in the column family,
+ *   * Calling Validator.complete() to indicate that all rows have been added.
+ *     * Calling complete() indicates that a valid MerkleTree has been created for the column family.
+ *     * The valid tree is returned to the requesting node via a TreeResponse.
  * 3. When a node receives a TreeResponse, it passes the tree to rendezvous(), which checks for trees to
  *    rendezvous with / compare to:
  *   * If the tree is local, it is cached, and compared to any trees that were received from neighbors.
  *   * If the tree is remote, it is immediately compared to a local tree if one is cached. Otherwise,
  *     the remote tree is stored until a local tree can be generated.
  *   * A Differencer object is enqueued for each comparison.
- * 4. Differencers are executed in AE_SERVICE_STAGE, to compare the two trees.
- *   * Based on the fraction of disagreement between the trees, the differencer will
- *     either perform repair via the io.Streaming api, or via RangeCommand read repairs.
+ * 4. Differencers are executed in AE_SERVICE_STAGE, to compare the two trees, and perform repair via the
+ *    streaming api.
  */
 public class AntiEntropyService
 {
     private static final Logger logger = LoggerFactory.getLogger(AntiEntropyService.class);
 
-    // millisecond lifetime to store trees before they become stale
-    public final static long TREE_STORE_TIMEOUT = 600000;
+    // timeout for outstanding requests (48 hours)
+    public final static long REQUEST_TIMEOUT = 48*60*60*1000;
 
     // singleton enforcement
     public static final AntiEntropyService instance = new AntiEntropyService();
@@ -153,7 +147,7 @@ public class AntiEntropyService
         ExpiringMap<InetAddress, TreePair> ctrees = trees.get(cf);
         if (ctrees == null)
         {
-            ctrees = new ExpiringMap<InetAddress, TreePair>(TREE_STORE_TIMEOUT);
+            ctrees = new ExpiringMap<InetAddress, TreePair>(REQUEST_TIMEOUT);
             trees.put(cf, ctrees);
         }
         return ctrees;
@@ -275,32 +269,6 @@ public class AntiEntropyService
     }
 
     /**
-     * Return a Validator object which can be used to collect hashes for a column family.
-     * A Validator must be prepared() before use, and completed() afterward.
-     *
-     * @param table The table name containing the column family.
-     * @param cf The column family name.
-     * @param initiator Endpoint that initially triggered this validation, or null if
-     * the validation is occuring due to a natural major compaction.
-     * @param major True if the validator will see all of the data contained in the column family.
-     * @return A Validator.
-     */
-    public IValidator getValidator(String table, String cf, InetAddress initiator, boolean major)
-    {
-        if (!major || table.equals(Table.SYSTEM_TABLE))
-            return new NoopValidator();
-        if (StorageService.instance.getTokenMetadata().sortedTokens().size()  < 1)
-            // gossiper isn't started
-            return new NoopValidator();
-        if (DatabaseDescriptor.getReplicationFactor(table) < 2)
-            return new NoopValidator();
-        CFPair cfpair = new CFPair(table, cf);
-        if (initiator == null)
-            return new NoopValidator();
-        return new Validator(cfpair);
-    }
-
-    /**
      * A Strategy to handle building and validating a merkle tree for a column family.
      *
      * Lifecycle:
@@ -308,17 +276,7 @@ public class AntiEntropyService
      * 2. add() - 0 or more times, to add hashes to the tree.
      * 3. complete() - Enqueues any operations that were blocked waiting for a valid tree.
      */
-    public static interface IValidator
-    {
-        public void prepare();
-        public void add(AbstractCompactedRow row);
-        public void complete();
-    }
-
-    /**
-     * The IValidator to be used in normal operation.
-     */
-    public static class Validator implements IValidator, Callable<Object>
+    public static class Validator implements Callable<Object>
     {
         public final CFPair cf; // TODO keep a CFS reference as a field instead of its string representation
         public final MerkleTree tree;
@@ -353,16 +311,11 @@ public class AntiEntropyService
             ranges = null;
         }
         
-        public void prepare()
+        public void prepare(ColumnFamilyStore cfs)
         {
             List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
-            ColumnFamilyStore cfs;
-            cfs = Table.open(cf.left).getColumnFamilyStore(cf.right);
-            if (cfs != null) // TODO test w/ valid CF definitions, this if{} shouldn't be necessary
-            {
-                for (DecoratedKey sample : cfs.allKeySamples())
-                    keys.add(sample);
-            }
+            for (DecoratedKey sample : cfs.allKeySamples())
+                keys.add(sample);
 
             if (keys.isEmpty())
             {
@@ -494,37 +447,6 @@ public class AntiEntropyService
 
             // return any old object
             return AntiEntropyService.class;
-        }
-    }
-
-    /**
-     * The IValidator to be used before a cluster has stabilized, or when repairs
-     * are disabled.
-     */
-    public static class NoopValidator implements IValidator
-    {
-        /**
-         * Does nothing.
-         */
-        public void prepare()
-        {
-            // noop
-        }
-
-        /**
-         * Does nothing.
-         */
-        public void add(AbstractCompactedRow row)
-        {
-            // noop
-        }
-
-        /**
-         * Does nothing.
-         */
-        public void complete()
-        {
-            // noop
         }
     }
 
@@ -683,7 +605,7 @@ public class AntiEntropyService
         }
 
         /**
-         * Trigger a readonly compaction which will broadcast the tree upon completion.
+         * Trigger a validation compaction which will return the tree upon completion.
          */
         public void doVerb(Message message)
         { 
@@ -692,13 +614,17 @@ public class AntiEntropyService
             ByteArrayInputStream buffer = new ByteArrayInputStream(bytes);
             try
             {
-                CFPair request = this.deserialize(new DataInputStream(buffer));
+                CFPair cf = this.deserialize(new DataInputStream(buffer));
+                TreeRequest request = new TreeRequest(cf, message.getFrom());
+                // FIXME: 0.7 should send the actual RepairSession id across with the request
+                String sessionid = request.toString();
 
                 // trigger readonly-compaction
-                logger.debug("Queueing readonly compaction for request from " + message.getFrom() + " for " + request);
-                Table table = Table.open(request.left);
-                CompactionManager.instance.submitReadonly(table.getColumnFamilyStore(request.right),
-                                                          message.getFrom());
+                logger.debug("Queueing validation compaction for session " + sessionid + " request " + request);
+                ColumnFamilyStore store = Table.open(cf.left).getColumnFamilyStore(cf.right);
+                // FIXME: should take session id and request
+                Validator validator = new Validator(request.left);
+                CompactionManager.instance.submitValidation(store, validator);
             }
             catch (IOException e)
             {

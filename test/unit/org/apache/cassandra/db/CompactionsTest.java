@@ -76,29 +76,4 @@ public class CompactionsTest extends CleanupHelper
         }
         assertEquals(inserted.size(), Util.getRangeSlice(store).size());
     }
-
-    @Test
-    public void testCompactionReadonly() throws IOException, ExecutionException, InterruptedException
-    {
-        CompactionManager.instance.disableAutoCompaction();
-
-        Table table = Table.open(TABLE2);
-        ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
-
-        final int ROWS_PER_SSTABLE = 10;
-        for (int j = 0; j < (SSTableReader.indexInterval() * 3) / ROWS_PER_SSTABLE; j++) {
-            for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
-                byte[] key = String.valueOf(i % 2).getBytes();
-                RowMutation rm = new RowMutation(TABLE2, key);
-                rm.add(new QueryPath("Standard1", null, String.valueOf(i / 2).getBytes()), new byte[0], new TimestampClock(j * ROWS_PER_SSTABLE + i));
-                rm.apply();
-            }
-            store.forceBlockingFlush();
-        }
-
-        // perform readonly compaction and confirm that no sstables changed
-        ArrayList<SSTableReader> oldsstables = new ArrayList<SSTableReader>(store.getSSTables());
-        CompactionManager.instance.submitReadonly(store, LOCAL).get();
-        assertEquals(oldsstables, new ArrayList<SSTableReader>(store.getSSTables()));
-    }
 }

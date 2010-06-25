@@ -53,6 +53,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
 
     public static String tablename;
     public static String cfname;
+    public static ColumnFamilyStore store;
     public static InetAddress LOCAL, REMOTE;
 
     @BeforeClass
@@ -63,7 +64,8 @@ public class AntiEntropyServiceTest extends CleanupHelper
         StorageService.instance.initServer();
         // generate a fake endpoint for which we can spoof receiving/sending trees
         REMOTE = InetAddress.getByName("127.0.0.2");
-        cfname = Table.open(tablename).getColumnFamilyStores().iterator().next().columnFamily_;
+        store = Table.open(tablename).getColumnFamilyStores().iterator().next();
+        cfname = store.columnFamily_;
     }
 
     @Before
@@ -95,15 +97,6 @@ public class AntiEntropyServiceTest extends CleanupHelper
     }
 
     @Test
-    public void testGetValidator() throws Throwable
-    {
-        // not major
-        assert aes.getValidator(tablename, cfname, null, false) instanceof NoopValidator;
-        // triggered manually
-        assert aes.getValidator(tablename, cfname, REMOTE, true) instanceof Validator;
-    }
-
-    @Test
     public void testValidatorPrepare() throws Throwable
     {
         Validator validator;
@@ -118,7 +111,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
 
         // sample
         validator = new Validator(new CFPair(tablename, cfname));
-        validator.prepare();
+        validator.prepare(store);
 
         // and confirm that the tree was split
         assertTrue(validator.tree.size() > 1);
@@ -128,7 +121,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
     public void testValidatorComplete() throws Throwable
     {
         Validator validator = new Validator(new CFPair(tablename, cfname));
-        validator.prepare();
+        validator.prepare(store);
         validator.complete();
 
         // confirm that the tree was validated
@@ -146,7 +139,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
         IPartitioner part = validator.tree.partitioner();
         Token min = part.getMinimumToken();
         Token mid = part.midpoint(min, min);
-        validator.prepare();
+        validator.prepare(store);
 
         // add a row with the minimum token
         validator.add(new PrecompactedRow(new DecoratedKey(min, "nonsense!".getBytes(FBUtilities.UTF8)),
@@ -174,11 +167,12 @@ public class AntiEntropyServiceTest extends CleanupHelper
         rms.add(rm);
         // with two SSTables
         Util.writeColumnFamily(rms);
-        ColumnFamilyStore store = Util.writeColumnFamily(rms);
+        Util.writeColumnFamily(rms);
         
         TreePair old = aes.getRendezvousPair_TestsOnly(tablename, cfname, REMOTE);
         // force a readonly compaction, and wait for it to finish
-        CompactionManager.instance.submitReadonly(store, REMOTE).get(5000, TimeUnit.MILLISECONDS);
+        Validator validator = new Validator(new CFPair(tablename, cfname));
+        CompactionManager.instance.submitValidation(store, validator).get(5000, TimeUnit.MILLISECONDS);
 
         // check that a tree was created and stored
         flushAES().get(5000, TimeUnit.MILLISECONDS);
@@ -209,7 +203,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
     {
         // generate empty tree
         Validator validator = new Validator(new CFPair(tablename, cfname));
-        validator.prepare();
+        validator.prepare(store);
         validator.complete();
 
         // grab reference to the tree
@@ -255,13 +249,13 @@ public class AntiEntropyServiceTest extends CleanupHelper
     {
         // generate a tree
         Validator validator = new Validator(new CFPair(tablename, cfname));
-        validator.prepare();
+        validator.prepare(store);
         validator.complete();
         MerkleTree ltree = validator.tree;
 
         // and a clone
         validator = new Validator(new CFPair(tablename, cfname));
-        validator.prepare();
+        validator.prepare(store);
         validator.complete();
         MerkleTree rtree = validator.tree;
 

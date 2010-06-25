@@ -60,6 +60,21 @@ Other
       e.g. BytesType has a variable called 'instance' and an empty constructor
       with default access
 
+
+0.6.1
+=====
+
+Upgrading
+---------
+    - We try to keep minor versions 100% compatible (data format,
+      commitlog format, network format) within the major series, but
+      we introduced a network-level incompatibility in this 0.6.1.
+      Thus, if you are upgrading from 0.6.0 to any higher version
+      (0.6.1, 0.6.2, etc.) then you will need to restart your entire
+      cluster with the new version, instead of being able to do a
+      rolling restart.
+
+
 0.6.0
 =====
 
