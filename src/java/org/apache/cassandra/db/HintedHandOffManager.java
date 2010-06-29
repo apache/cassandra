@@ -218,7 +218,7 @@ public class HintedHandOffManager
     */
     public void deliverHints(final InetAddress to)
     {
-        if (queuedDeliveries.contains(to))
+        if (!queuedDeliveries.add(to))
             return;
 
         Runnable r = new WrappedRunnable()
