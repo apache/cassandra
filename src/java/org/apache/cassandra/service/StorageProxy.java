@@ -557,7 +557,7 @@ public class StorageProxy implements StorageProxyMBean
         final String table = command.keyspace;
         int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(table), consistency_level);
 
-        List<AbstractBounds> ranges = getRestrictedRanges(command.range, command.keyspace, responseCount);
+        List<AbstractBounds> ranges = getRestrictedRanges(command.range, command.keyspace);
 
         // now scan until we have enough results
         List<Row> rows = new ArrayList<Row>(command.max_keys);
@@ -659,7 +659,7 @@ public class StorageProxy implements StorageProxyMBean
      *     D, but we don't want any other results from it until after the (D, T] range.  Unwrapping so that
      *     the ranges we consider are (D, T], (T, MIN], (MIN, D] fixes this.
      */
-    private static List<AbstractBounds> getRestrictedRanges(AbstractBounds queryRange, String keyspace, int responseCount)
+    private static List<AbstractBounds> getRestrictedRanges(AbstractBounds queryRange, String keyspace)
     throws UnavailableException
     {
         TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
