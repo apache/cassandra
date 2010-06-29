@@ -1,3 +1,7 @@
+0.6.4
+ * avoid queuing multiple hint deliveries for the same endpoint
+   (CASSANDRA-1229)
+
 0.6.3
  * retry to make streaming connections up to 8 times. (CASSANDRA-1019)
  * reject describe_ring() calls on invalid keyspaces (CASSANDRA-1111)
@@ -31,8 +35,6 @@
  * remove opportunistic repairs, when two machines with overlapping replica
    responsibilities happen to finish major compactions of the same CF near
    the same time.  repairs are now fully manual (CASSANDRA-1190)
- * avoid queuing multiple hint deliveries for the same endpoint
-   (CASSANDRA-1229)
  * add ability to lower compaction priority (default is no change from 0.6.2)
    (CASSANDRA-1181)
 
