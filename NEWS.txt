@@ -17,6 +17,7 @@ Features
     - Hadoop OutputFormat support
     - Streaming data for repair or node movement no longer requires 
       anticompaction step first
+    - keyspace is per-connection in the thrift API instead of per-call
 
 Configuraton
 ------------
@@ -38,7 +39,6 @@ Configuraton
       schema updates on startup from the seed node you updated manually. 
     - EndPointSnitch was renamed to RackInferringSnitch.  A new SimpleSnitch
       has been added.
-    - auto_bootstrap now defaults to true
     - row_warning_threshold_in_mb replaced with in_memory_compaction_limit_in_mb
 
 JMX
