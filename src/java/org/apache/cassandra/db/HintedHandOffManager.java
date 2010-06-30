@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import java.net.UnknownHostException;
 import java.util.Collection;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.ExecutorService;
 import java.io.IOException;
@@ -45,6 +46,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.utils.FBUtilities.UTF8;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
 
 /**
@@ -83,6 +85,8 @@ public class HintedHandOffManager
     public static final String HINTS_CF = "HintsColumnFamily";
     private static final int PAGE_SIZE = 10000;
     private static final String SEPARATOR = "-";
+
+    private final NonBlockingHashSet<InetAddress> queuedDeliveries = new NonBlockingHashSet<InetAddress>();
 
     private final ExecutorService executor_ = new JMXEnabledThreadPoolExecutor("HINTED-HANDOFF-POOL");
 
@@ -170,9 +174,10 @@ public class HintedHandOffManager
 
     }
             
-    private static void deliverHintsToEndpoint(InetAddress endpoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException
+    private void deliverHintsToEndpoint(InetAddress endpoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException
     {
         logger_.info("Started hinted handoff for endpoint " + endpoint);
+        queuedDeliveries.remove(endpoint);
 
         // 1. Get the key of the endpoint we need to handoff
         // 2. For each column read the list of rows: subcolumns are KS + SEPARATOR + CF
@@ -263,6 +268,9 @@ public class HintedHandOffManager
     */
     public void deliverHints(final InetAddress to)
     {
+        if (!queuedDeliveries.add(to))
+            return;
+
         Runnable r = new WrappedRunnable()
         {
             public void runMayThrow() throws Exception

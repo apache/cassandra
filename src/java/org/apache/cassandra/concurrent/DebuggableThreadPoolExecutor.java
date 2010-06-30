@@ -30,9 +30,9 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
 {
     protected static Logger logger = LoggerFactory.getLogger(JMXEnabledThreadPoolExecutor.class);
 
-    public DebuggableThreadPoolExecutor(String threadPoolName)
+    public DebuggableThreadPoolExecutor(String threadPoolName, int priority)
     {
-        this(1, 1, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory(threadPoolName));
+        this(1, 1, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory(threadPoolName, priority));
     }
 
     public DebuggableThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory)

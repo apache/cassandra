@@ -45,7 +45,7 @@
     <property name="test.unit.src" value="${test.dir}/unit"/>
     <property name="test.long.src" value="${test.dir}/long"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
-    <property name="version" value="0.6.2"/>
+    <property name="version" value="0.6.3"/>
     <property name="final.name" value="${ant.project.name}-${version}"/>
     <property name="ivy.version" value="2.1.0" />
     <property name="ivy.url"

@@ -501,22 +501,24 @@ public class StorageProxy implements StorageProxyMBean
         long startTime = System.nanoTime();
 
         final String table = command.keyspace;
-        List<Pair<AbstractBounds, List<InetAddress>>> ranges = getRestrictedRanges(command.range, command.keyspace);
 
+        List<AbstractBounds> ranges = getRestrictedRanges(command.range);
         // now scan until we have enough results
         List<Row> rows = new ArrayList<Row>(command.max_keys);
-        for (Pair<AbstractBounds, List<InetAddress>> pair : getRangeIterator(ranges, command.range.left))
+        for (AbstractBounds range : getRangeIterator(ranges, command.range.left))
         {
-            AbstractBounds range = pair.left;
-            List<InetAddress> endpoints = pair.right;
+            List<InetAddress> liveEndpoints = StorageService.instance.getLiveNaturalEndpoints(command.keyspace, range.right);
+            DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), liveEndpoints);
+
             RangeSliceCommand c2 = new RangeSliceCommand(command.keyspace, command.column_family, command.super_column, command.predicate, range, command.max_keys);
             Message message = c2.getMessage();
 
             // collect replies and resolve according to consistency level
-            RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, endpoints);
+            RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, liveEndpoints);
             AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(table);
             QuorumResponseHandler<List<Row>> handler = rs.getQuorumResponseHandler(resolver, consistency_level, table);
-            for (InetAddress endpoint : endpoints)
+	    // TODO bail early if live endpoints can't satisfy requested consistency level
+            for (InetAddress endpoint : liveEndpoints)
             {
                 MessagingService.instance.sendRR(message, endpoint, handler);
                 if (logger.isDebugEnabled())
@@ -621,30 +623,30 @@ public class StorageProxy implements StorageProxyMBean
     /**
      * returns an iterator that will return ranges in ring order, starting with the one that contains the start token
      */
-    private static Iterable<Pair<AbstractBounds, List<InetAddress>>> getRangeIterator(final List<Pair<AbstractBounds, List<InetAddress>>> ranges, Token start)
+    private static Iterable<AbstractBounds> getRangeIterator(final List<AbstractBounds> ranges, Token start)
     {
         // find the one to start with
         int i;
         for (i = 0; i < ranges.size(); i++)
         {
-            AbstractBounds range = ranges.get(i).left;
+            AbstractBounds range = ranges.get(i);
             if (range.contains(start) || range.left.equals(start))
                 break;
         }
-        AbstractBounds range = ranges.get(i).left;
+        AbstractBounds range = ranges.get(i);
         assert range.contains(start) || range.left.equals(start); // make sure the loop didn't just end b/c ranges were exhausted
 
         // return an iterable that starts w/ the correct range and iterates the rest in ring order
         final int begin = i;
-        return new Iterable<Pair<AbstractBounds, List<InetAddress>>>()
+        return new Iterable<AbstractBounds>()
         {
-            public Iterator<Pair<AbstractBounds, List<InetAddress>>> iterator()
+            public Iterator<AbstractBounds> iterator()
             {
-                return new AbstractIterator<Pair<AbstractBounds, List<InetAddress>>>()
+                return new AbstractIterator<AbstractBounds>()
                 {
                     int n = 0;
 
-                    protected Pair<AbstractBounds, List<InetAddress>> computeNext()
+                    protected AbstractBounds computeNext()
                     {
                         if (n == ranges.size())
                             return endOfData();
@@ -669,30 +671,38 @@ public class StorageProxy implements StorageProxyMBean
      *     D, but we don't want any other results from it until after the (D, T] range.  Unwrapping so that
      *     the ranges we consider are (D, T], (T, MIN], (MIN, D] fixes this.
      */
-    private static List<Pair<AbstractBounds, List<InetAddress>>> getRestrictedRanges(AbstractBounds queryRange, String keyspace)
-    throws UnavailableException
+    private static List<AbstractBounds> getRestrictedRanges(AbstractBounds queryRange)
     {
         TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
-        Iterator<Token> iter = TokenMetadata.ringIterator(tokenMetadata.sortedTokens(), queryRange.left);
-        List<Pair<AbstractBounds, List<InetAddress>>> ranges = new ArrayList<Pair<AbstractBounds, List<InetAddress>>>();
-        while (iter.hasNext())
-        {
-            Token nodeToken = iter.next();
-            Range nodeRange = new Range(tokenMetadata.getPredecessor(nodeToken), nodeToken);
-            List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(keyspace, nodeToken);
 
-            DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), endpoints);
-            Set<AbstractBounds> restrictedRanges = queryRange.restrictTo(nodeRange);
-            for (AbstractBounds range : restrictedRanges)
+        List<AbstractBounds> ranges = new ArrayList<AbstractBounds>();
+        // for each node, compute its intersection with the query range, and add its unwrapped components to our list
+        for (Token nodeToken : tokenMetadata.sortedTokens())
+        {
+            Range nodeRange = new Range(tokenMetadata.getPredecessor(nodeToken), nodeToken);
+            for (AbstractBounds range : queryRange.restrictTo(nodeRange))
             {
                 for (AbstractBounds unwrapped : range.unwrap())
                 {
                     if (logger.isDebugEnabled())
                         logger.debug("Adding to restricted ranges " + unwrapped + " for " + nodeRange);
-                    ranges.add(new Pair<AbstractBounds, List<InetAddress>>(unwrapped, endpoints));
+                    ranges.add(unwrapped);
                 }
             }
         }
+
+        // re-sort ranges in ring order, post-unwrapping
+        Comparator<AbstractBounds> comparator = new Comparator<AbstractBounds>()
+        {
+            public int compare(AbstractBounds o1, AbstractBounds o2)
+            {
+                // no restricted ranges will overlap so we don't need to worry about inclusive vs exclusive left,
+                // just sort by raw token position.
+                return o1.left.compareTo(o2.left);
+            }
+        };
+        Collections.sort(ranges, comparator);
+
         return ranges;
     }
     

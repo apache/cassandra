@@ -39,9 +39,13 @@ dev
  * allow multiple repair sessions per node (CASSANDRA-1190)
 
 
+0.6.4
+ * avoid queuing multiple hint deliveries for the same endpoint
+   (CASSANDRA-1229)
+
+
 0.6.3
  * retry to make streaming connections up to 8 times. (CASSANDRA-1019)
- * fix potential for duplicate rows seen by Hadoop jobs (CASSANDRA-1042)
  * reject describe_ring() calls on invalid keyspaces (CASSANDRA-1111)
  * don't reject reads at CL.ALL (CASSANDRA-1152)
  * reject deletions to supercolumns in CFs containing only standard
@@ -65,6 +69,8 @@ dev
  * remove opportunistic repairs, when two machines with overlapping replica
    responsibilities happen to finish major compactions of the same CF near
    the same time.  repairs are now fully manual (CASSANDRA-1190)
+ * add ability to lower compaction priority (default is no change from 0.6.2)
+   (CASSANDRA-1181)
 
 
 0.6.2
