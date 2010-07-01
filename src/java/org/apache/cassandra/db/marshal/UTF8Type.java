@@ -29,14 +29,11 @@ import java.util.Arrays;
 
 public class UTF8Type extends BytesType
 {
-    private static final CharsetDecoder utf8Decoder;
-    static
-    {
-        utf8Decoder = Charset.forName("UTF-8").newDecoder();
-    }
+    private static final Charset UTF_8 = Charset.forName("UTF-8");
 
     public String getString(byte[] bytes)
     {
+        CharsetDecoder utf8Decoder = UTF_8.newDecoder();
         try
         {
             return utf8Decoder.decode(ByteBuffer.wrap(bytes)).toString();
