@@ -72,6 +72,9 @@ public class DefsTable
         Collection<KSMetaData> tables = new ArrayList<KSMetaData>();
         for (IColumn col : cf.getSortedColumns())
         {
+            //  don't allow deleted columns.
+            if (col instanceof DeletedColumn)
+                continue;
             KSMetaData ks = KSMetaData.deserialize(new ByteArrayInputStream(col.value()));
             tables.add(ks);
         }

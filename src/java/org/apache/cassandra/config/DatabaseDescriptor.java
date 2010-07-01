@@ -438,8 +438,15 @@ public class DatabaseDescriptor
                 Table.open(def.name);
             }
             
-            // since we loaded definitions from local storage, log a warning if definitions exist in yaml.
+            // happens when someone manually deletes all tables and restarts.
+            if (tableDefs.size() == 0)
+            {
+                logger.warn("No schema definitions were found in local storage.");
+                // set defsVersion so that migrations leading up to emptiness aren't replayed.
+                defsVersion = uuid;
+            }
             
+            // since we loaded definitions from local storage, log a warning if definitions exist in yaml.
             if (conf.keyspaces != null && conf.keyspaces.size() > 0)
                 logger.warn("Schema definitions were defined both locally and in " + STORAGE_CONF_FILE +
                     ". Definitions in " + STORAGE_CONF_FILE + " were ignored.");
