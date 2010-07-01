@@ -28,7 +28,6 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.security.MessageDigest;
 import java.util.Arrays;
@@ -66,7 +65,6 @@ public class FBUtilities
     private static volatile InetAddress localInetAddress_;
 
     public static final int MAX_UNSIGNED_SHORT = 0xFFFF;
-    public static final CharsetDecoder utf8Decoder = Charsets.UTF_8.newDecoder();
 
     /**
      * Parses a string representing either a fraction, absolute value or percentage.
@@ -473,7 +471,7 @@ public class FBUtilities
 
     public static String decodeToUTF8(byte[] bytes) throws CharacterCodingException
     {
-        return utf8Decoder.decode(ByteBuffer.wrap(bytes)).toString();
+        return Charsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString();
     }
 
     /**

@@ -42,6 +42,8 @@ dev
 0.6.4
  * avoid queuing multiple hint deliveries for the same endpoint
    (CASSANDRA-1229)
+ * better performance for and stricter checking of UTF8 column names
+   (CASSANDRA-1232)
 
 
 0.6.3
