@@ -54,29 +54,32 @@ public class BootStrapperTest extends CleanupHelper
     {
         StorageService ss = StorageService.instance;
 
-        generateFakeEndpoints(3);
+        generateFakeEndpoints(5);
 
-        InetAddress one = InetAddress.getByName("127.0.0.2");
-        InetAddress two = InetAddress.getByName("127.0.0.3");
-        InetAddress three = InetAddress.getByName("127.0.0.4");
+        InetAddress two = InetAddress.getByName("127.0.0.2");
+        InetAddress three = InetAddress.getByName("127.0.0.3");
+        InetAddress four = InetAddress.getByName("127.0.0.4");
+        InetAddress five = InetAddress.getByName("127.0.0.5");
+
         Map<InetAddress, Double> load = new HashMap<InetAddress, Double>();
-        load.put(one, 1.0);
         load.put(two, 2.0);
         load.put(three, 3.0);
+        load.put(four, 4.0);
+        load.put(five, 5.0);
 
         TokenMetadata tmd = ss.getTokenMetadata();
         InetAddress source = BootStrapper.getBootstrapSource(tmd, load);
-        assert three.equals(source);
+        assert five.equals(source) : five + " != " + source;
 
         InetAddress myEndpoint = InetAddress.getByName("127.0.0.1");
-        Range range3 = ss.getPrimaryRangeForEndpoint(three);
-        Token fakeToken = ((IPartitioner)StorageService.getPartitioner()).midpoint(range3.left, range3.right);
-        assert range3.contains(fakeToken);
+        Range range5 = ss.getPrimaryRangeForEndpoint(five);
+        Token fakeToken = ((IPartitioner)StorageService.getPartitioner()).midpoint(range5.left, range5.right);
+        assert range5.contains(fakeToken);
         ss.onChange(myEndpoint, StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_BOOTSTRAPPING + StorageService.Delimiter + ss.getPartitioner().getTokenFactory().toString(fakeToken)));
         tmd = ss.getTokenMetadata();
 
-        InetAddress source2 = BootStrapper.getBootstrapSource(tmd, load);
-        assert two.equals(source2) : source2;
+        InetAddress source4 = BootStrapper.getBootstrapSource(tmd, load);
+        assert four.equals(source4) : four + " != " + source4;
     }
 
     @Test

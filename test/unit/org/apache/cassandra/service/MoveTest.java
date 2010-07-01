@@ -36,6 +36,7 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.RackUnawareStrategy;
 import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.utils.Pair;
 
 public class MoveTest extends CleanupHelper
 {
@@ -48,17 +49,16 @@ public class MoveTest extends CleanupHelper
         return replacements;
     }
 
-
     /**
      * Test whether write endpoints is correct when the node is leaving. Uses
      * StorageService.onChange and does not manipulate token metadata directly.
      */
     @Test
-    public void testWriteEndpointsDuringLeave() throws UnknownHostException
+    public void newTestWriteEndpointsDuringLeave() throws Exception
     {
         StorageService ss = StorageService.instance;
-        final int RING_SIZE = 5;
-        final int LEAVING_NODE = 2;
+        final int RING_SIZE = 6;
+        final int LEAVING_NODE = 3;
 
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
@@ -74,52 +74,47 @@ public class MoveTest extends CleanupHelper
 
         createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, RING_SIZE);
 
-        final Map<String, List<Range>> deadNodesRanges = new HashMap<String, List<Range>>();
+        final Map<Pair<String, Token>, List<InetAddress>> expectedEndpoints = new HashMap<Pair<String, Token>, List<InetAddress>>();
         for (String table : DatabaseDescriptor.getNonSystemTables())
         {
-            List<Range> list = new ArrayList<Range>();
-            list.addAll(testStrategy.getAddressRanges(table).get(hosts.get(LEAVING_NODE)));
-            Collections.sort(list);
-            deadNodesRanges.put(table, list);
+            for (Token token : keyTokens)
+            {
+                List<InetAddress> endpoints = new ArrayList<InetAddress>();
+                Pair<String, Token> key = new Pair<String, Token>(table, token);
+                Iterator<Token> tokenIter = TokenMetadata.ringIterator(tmd.sortedTokens(), token);
+                while (tokenIter.hasNext())
+                {
+                    endpoints.add(tmd.getEndpoint(tokenIter.next()));
+                }
+                expectedEndpoints.put(key, endpoints);
+            }
         }
-        
+
         // Third node leaves
         ss.onChange(hosts.get(LEAVING_NODE), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(LEAVING_NODE))));
-
-        // check that it is correctly marked as leaving in tmd
         assertTrue(tmd.isLeaving(hosts.get(LEAVING_NODE)));
 
-        // check that pending ranges are correct (primary range should go to 1st node, first
-        // replica range to 4th node and 2nd replica range to 5th node)
         for (String table : DatabaseDescriptor.getNonSystemTables())
         {
-            int replicationFactor = DatabaseDescriptor.getReplicationFactor(table);
-
-            // if the ring minus the leaving node leaves us with less than RF, we're hosed.
-            if (hosts.size()-1 < replicationFactor)
-                continue;
-            
-            // verify that the replicationFactor nodes after the leaving node are gatherings it's pending ranges.
-            // in the case where rf==5, we're screwed because we basically just lost data.
-            for (int i = 0; i < replicationFactor; i++)
+            for (Token token : keyTokens)
             {
-                assertTrue(tmd.getPendingRanges(table, hosts.get((LEAVING_NODE + 1 + i) % RING_SIZE)).size() > 0);
-                assertEquals(tmd.getPendingRanges(table, hosts.get((LEAVING_NODE + 1 + i) % RING_SIZE)).get(0), deadNodesRanges.get(table).get(i));
-            }
+                Pair<String, Token> key = new Pair<String, Token>(table, token);
+                int replicationFactor = DatabaseDescriptor.getReplicationFactor(table);
 
-            // note that we're iterating over nodes and sample tokens.
-            final int replicaStart = (LEAVING_NODE-replicationFactor+RING_SIZE)%RING_SIZE;
-            for (int i=0; i<keyTokens.size(); ++i)
-            {
-                Collection<InetAddress> endpoints = tmd.getWriteEndpoints(keyTokens.get(i), table, testStrategy.getNaturalEndpoints(keyTokens.get(i), table));
-                // figure out if this node is one of the nodes previous to the failed node (2).
-                boolean isReplica = (i - replicaStart + RING_SIZE) % RING_SIZE < replicationFactor;
-                // the preceeding leaving_node-replication_factor nodes should have and additional ep (replication_factor+1);
-                if (isReplica)
-                    assertTrue(endpoints.size() == replicationFactor + 1);
-                else
-                    assertTrue(endpoints.size() == replicationFactor);
+                HashSet<InetAddress> actual = new HashSet<InetAddress>(tmd.getWriteEndpoints(token, table, testStrategy.calculateNaturalEndpoints(token, tmd, table)));
+                HashSet<InetAddress> expected = new HashSet<InetAddress>();
 
+                for (int i = 0; i < replicationFactor; i++)
+                {
+                    expected.add(expectedEndpoints.get(key).get(i));
+                }
+
+                // if the leaving node is in the endpoint list,
+                // then we should expect it plus one extra for when it's gone
+                if (expected.contains(hosts.get(LEAVING_NODE)))
+                    expected.add(expectedEndpoints.get(key).get(replicationFactor));
+
+                assertEquals("mismatched endpoint sets", expected, actual);
             }
         }
 
@@ -152,7 +147,7 @@ public class MoveTest extends CleanupHelper
         createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, RING_SIZE);
 
         // nodes 6, 8 and 9 leave
-        final int[] LEAVING = new int[] { 6, 8, 9};
+        final int[] LEAVING = new int[] {6, 8, 9};
         for (int leaving : LEAVING)
             ss.onChange(hosts.get(leaving), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(leaving))));
         
@@ -163,6 +158,9 @@ public class MoveTest extends CleanupHelper
         ss.onChange(boot2, StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_BOOTSTRAPPING + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(7))));
 
         Collection<InetAddress> endpoints = null;
+
+        /* don't require test update every time a new keyspace is added to test/conf/cassandra.yaml */
+        List<String> tables = Arrays.asList("Keyspace1", "Keyspace2", "Keyspace3", "Keyspace4");
 
         // pre-calculate the results.
         Map<String, Multimap<Token, InetAddress>> expectedEndpoints = new HashMap<String, Multimap<Token, InetAddress>>();
@@ -211,7 +209,7 @@ public class MoveTest extends CleanupHelper
         expectedEndpoints.get("Keyspace4").putAll(new BigIntegerToken("85"), makeAddrs("127.0.0.10", "127.0.0.1", "127.0.0.2", "127.0.0.3"));
         expectedEndpoints.get("Keyspace4").putAll(new BigIntegerToken("95"), makeAddrs("127.0.0.1", "127.0.0.2", "127.0.0.3"));
 
-        for (String table : DatabaseDescriptor.getNonSystemTables())
+        for (String table : tables)
         {
             for (int i = 0; i < keyTokens.size(); i++)
             {
@@ -326,7 +324,7 @@ public class MoveTest extends CleanupHelper
         expectedEndpoints.get("Keyspace4").get(new BigIntegerToken("75")).removeAll(makeAddrs("127.0.0.10"));
         expectedEndpoints.get("Keyspace4").get(new BigIntegerToken("85")).removeAll(makeAddrs("127.0.0.10"));
 
-        for (String table : DatabaseDescriptor.getNonSystemTables())
+        for (String table : tables)
         {
             for (int i = 0; i < keyTokens.size(); i++)
             {
@@ -425,7 +423,7 @@ public class MoveTest extends CleanupHelper
         List<InetAddress> hosts = new ArrayList<InetAddress>();
 
         // create a ring or 5 nodes
-        createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 5);
+        createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 7);
 
         // node 2 leaves
         ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(2))));
@@ -494,7 +492,7 @@ public class MoveTest extends CleanupHelper
         List<InetAddress> hosts = new ArrayList<InetAddress>();
 
         // create a ring or 5 nodes
-        createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 5);
+        createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 6);
 
         // node 2 leaves
         ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(2))));
@@ -538,7 +536,7 @@ public class MoveTest extends CleanupHelper
         List<InetAddress> hosts = new ArrayList<InetAddress>();
 
         // create a ring or 5 nodes
-        createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 5);
+        createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 6);
 
         // node 2 leaves with _different_ token
         ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(0))));
@@ -587,8 +585,8 @@ public class MoveTest extends CleanupHelper
         ArrayList<Token> keyTokens = new ArrayList<Token>();
         List<InetAddress> hosts = new ArrayList<InetAddress>();
 
-        // create a ring or 5 nodes
-        createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 5);
+        // create a ring of 6 nodes
+        createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 7);
 
         // node hosts.get(2) goes jumps to left
         ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEFT + StorageService.Delimiter + StorageService.LEFT_NORMALLY + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(2))));

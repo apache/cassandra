@@ -20,7 +20,10 @@
 package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,9 +71,11 @@ public abstract class AbstractReplicationStrategy
      * @param searchToken the token the natural endpoints are requested for
      * @param table the table the natural endpoints are requested for
      * @return a copy of the natural endpoints for the given token and table
+     * @throws IllegalStateException if the number of requested replicas is greater than the number of known endpints
      */
-    public ArrayList<InetAddress> getNaturalEndpoints(Token searchToken, String table)
+    public ArrayList<InetAddress> getNaturalEndpoints(Token searchToken, String table) throws IllegalStateException
     {
+        int replicas = getReplicationFactor(table);
         Token keyToken = TokenMetadata.firstToken(tokenMetadata.sortedTokens(), searchToken);
         EndpointCacheKey cacheKey = new EndpointCacheKey(table, keyToken);
         ArrayList<InetAddress> endpoints = cachedEndpoints.get(cacheKey);
@@ -83,10 +88,23 @@ public abstract class AbstractReplicationStrategy
             cachedEndpoints.put(cacheKey, endpoints);
         }
 
+        // calculateNaturalEndpoints should have checked this already, this is a safety
+        assert replicas <= endpoints.size();
+
         return new ArrayList<InetAddress>(endpoints);
     }
 
-    public abstract Set<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata, String table);
+    /**
+     * calculate the natural endpionts for the given token, for the given table.
+     *
+     * @see #getNaturalEndpoints(org.apache.cassandra.dht.Token, String)
+     *
+     * @param searchToken the token the natural endpoints are requested for
+     * @param table the table the natural endpoints are requested for
+     * @return a copy of the natural endpoints for the given token and table
+     * @throws IllegalStateException if the number of requested replicas is greater than the number of known endpoints
+     */
+    public abstract Set<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata, String table) throws IllegalStateException;
 
     public AbstractWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints,
                                                                 Multimap<InetAddress, InetAddress> hintedEndpoints,
@@ -95,7 +113,13 @@ public abstract class AbstractReplicationStrategy
     {
         return new WriteResponseHandler(writeEndpoints, hintedEndpoints, consistencyLevel, table);
     }
-    
+
+    // instance method so test subclasses can override it
+    int getReplicationFactor(String table)
+    {
+       return DatabaseDescriptor.getReplicationFactor(table);
+    }
+
     /**
      * returns <tt>Multimap</tt> of {live destination: ultimate targets}, where if target is not the same
      * as the destination, it is a "hinted" write, and will need to be sent to

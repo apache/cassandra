@@ -48,6 +48,12 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
 
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(10)), InetAddress.getByName("127.0.0.1"));
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(20)), InetAddress.getByName("127.0.0.2"));
+        tmd.updateNormalToken(new BigIntegerToken(String.valueOf(30)), InetAddress.getByName("127.0.0.3"));
+        tmd.updateNormalToken(new BigIntegerToken(String.valueOf(40)), InetAddress.getByName("127.0.0.4"));
+        //tmd.updateNormalToken(new BigIntegerToken(String.valueOf(50)), InetAddress.getByName("127.0.0.5"));
+        tmd.updateNormalToken(new BigIntegerToken(String.valueOf(60)), InetAddress.getByName("127.0.0.6"));
+        tmd.updateNormalToken(new BigIntegerToken(String.valueOf(70)), InetAddress.getByName("127.0.0.7"));
+        tmd.updateNormalToken(new BigIntegerToken(String.valueOf(80)), InetAddress.getByName("127.0.0.8"));
     }
 
     @Test
@@ -74,30 +80,35 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
 
     public void runCacheRespectsTokenChangesTest(Class stratClass) throws Exception
     {
-        // TODO DSS is asked to provide a total of 6 replicas, but we never give it 6 endpoints.
-        // thus we are testing undefined behavior, at best.
         setup(stratClass);
+        ArrayList<InetAddress> initial;
         ArrayList<InetAddress> endpoints;
 
         endpoints = strategy.getNaturalEndpoints(searchToken, "Keyspace3");
-        assert endpoints.size() == 2 : StringUtils.join(endpoints, ",");
+        assert endpoints.size() == 5 : StringUtils.join(endpoints, ",");
 
-        // test token addition
-        tmd.updateNormalToken(new BigIntegerToken(String.valueOf(30)), InetAddress.getByName("127.0.0.3"));
+        // test token addition, in DC2 before existing token
+        initial = strategy.getNaturalEndpoints(searchToken, "Keyspace3");
+        tmd.updateNormalToken(new BigIntegerToken(String.valueOf(35)), InetAddress.getByName("127.0.0.5"));
         endpoints = strategy.getNaturalEndpoints(searchToken, "Keyspace3");
-        assert endpoints.size() == 3 : StringUtils.join(endpoints, ",");
+        assert endpoints.size() == 5 : StringUtils.join(endpoints, ",");
+        assert !endpoints.equals(initial);
 
-        // test token removal
-        tmd.removeEndpoint(InetAddress.getByName("127.0.0.2"));
+        // test token removal, newly created token
+        initial = strategy.getNaturalEndpoints(searchToken, "Keyspace3");
+        tmd.removeEndpoint(InetAddress.getByName("127.0.0.5"));
         endpoints = strategy.getNaturalEndpoints(searchToken, "Keyspace3");
-        assert endpoints.size() == 2 : StringUtils.join(endpoints, ",");
+        assert endpoints.size() == 5 : StringUtils.join(endpoints, ",");
+        assert !endpoints.contains(InetAddress.getByName("127.0.0.5"));
+        assert !endpoints.equals(initial);
 
         // test token change
-        tmd.updateNormalToken(new BigIntegerToken(String.valueOf(30)), InetAddress.getByName("127.0.0.5"));
+        initial = strategy.getNaturalEndpoints(searchToken, "Keyspace3");
+        //move .8 after search token but before other DC3
+        tmd.updateNormalToken(new BigIntegerToken(String.valueOf(25)), InetAddress.getByName("127.0.0.8"));
         endpoints = strategy.getNaturalEndpoints(searchToken, "Keyspace3");
-        assert endpoints.size() == 2 : StringUtils.join(endpoints, ",");
-        assert endpoints.contains(InetAddress.getByName("127.0.0.5"));
-        assert !endpoints.contains(InetAddress.getByName("127.0.0.3"));
+        assert endpoints.size() == 5 : StringUtils.join(endpoints, ",");
+        assert !endpoints.equals(initial);        
     }
 
     protected static class FakeRackUnawareStrategy extends RackUnawareStrategy

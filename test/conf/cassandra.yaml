@@ -100,3 +100,10 @@ keyspaces:
         - name: Super4
           column_type: Super
           compare_subcolumns_with: TimeUUIDType
+
+    - name: Keyspace5
+      replica_placement_strategy: org.apache.cassandra.locator.RackUnawareStrategy
+      replication_factor: 2
+      column_families:
+
+        - name: Standard1

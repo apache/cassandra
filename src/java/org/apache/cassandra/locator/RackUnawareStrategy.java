@@ -31,7 +31,7 @@ import org.apache.cassandra.dht.Token;
 /**
  * This class returns the nodes responsible for a given
  * key but does not respect rack awareness. Basically
- * returns the 3 nodes that lie right next to each other
+ * returns the RF nodes that lie right next to each other
  * on the ring.
  */
 public class RackUnawareStrategy extends AbstractReplicationStrategy
@@ -43,7 +43,7 @@ public class RackUnawareStrategy extends AbstractReplicationStrategy
 
     public Set<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata, String table)
     {
-        int replicas = DatabaseDescriptor.getReplicationFactor(table);
+        int replicas = getReplicationFactor(table);
         ArrayList<Token> tokens = metadata.sortedTokens();
         Set<InetAddress> endpoints = new HashSet<InetAddress>(replicas);
 
@@ -57,6 +57,9 @@ public class RackUnawareStrategy extends AbstractReplicationStrategy
             endpoints.add(metadata.getEndpoint(iter.next()));
         }
 
+        if (endpoints.size() < replicas)
+            throw new IllegalStateException(String.format("replication factor (%s) exceeds number of endpoints (%s)", replicas, endpoints.size()));
+        
         return endpoints;
     }
 }

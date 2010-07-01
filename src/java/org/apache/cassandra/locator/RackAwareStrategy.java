@@ -46,7 +46,7 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
 
     public Set<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata, String table)
     {
-        int replicas = DatabaseDescriptor.getReplicationFactor(table);
+        int replicas = getReplicationFactor(table);
         Set<InetAddress> endpoints = new HashSet<InetAddress>(replicas);
         ArrayList<Token> tokens = metadata.sortedTokens();
 
@@ -100,6 +100,9 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
                 if (!endpoints.contains(metadata.getEndpoint(t)))
                     endpoints.add(metadata.getEndpoint(t));
             }
+
+            if (endpoints.size() < replicas)
+                throw new IllegalStateException(String.format("replication factor (%s) exceeds number of endpoints (%s)", replicas, endpoints.size()));
         }
 
         return endpoints;

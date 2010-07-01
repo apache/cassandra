@@ -94,7 +94,7 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
 
     public Set<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata, String table)
     {
-        int totalReplicas = getReplicationfactor(table);
+        int totalReplicas = getReplicationFactor(table);
         Map<String, Integer> remainingReplicas = new HashMap<String, Integer>(datacenters.get(table));
         Map<String, Set<String>> dcUsedRacks = new HashMap<String, Set<String>>();
         Set<InetAddress> endpoints = new HashSet<InetAddress>(totalReplicas);
@@ -125,7 +125,7 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
             }
         }
 
-        // 2nd pass: if replica count has not been achieved from unique racks, add nodes from the same racks
+        // second pass: if replica count has not been achieved from unique racks, add nodes from the same racks
         for (Iterator<Token> iter = TokenMetadata.ringIterator(tokenMetadata.sortedTokens(), searchToken);
              endpoints.size() < totalReplicas && iter.hasNext();)
         {
@@ -143,10 +143,16 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
             }
         }
 
+        for (Map.Entry<String, Integer> entry : remainingReplicas.entrySet())
+        {
+            if (entry.getValue() > 0)
+                throw new IllegalStateException(String.format("datacenter (%s) has no more endpoints, (%s) replicas still needed", entry.getKey(), entry.getValue()));
+        }
+
         return endpoints;
     }
 
-    public int getReplicationfactor(String table)
+    public int getReplicationFactor(String table)
     {
         int total = 0;
         for (int repFactor : datacenters.get(table).values())
