@@ -586,13 +586,13 @@ public class DatabaseDescriptor
         }
         catch (NoSuchFieldException e)
         {
-            ConfigurationException ex = new ConfigurationException(e.getMessage());
+            ConfigurationException ex = new ConfigurationException("Invalid comparator: must define a public static instance field.");
             ex.initCause(e);
             throw ex;
         }
         catch (IllegalAccessException e)
         {
-            ConfigurationException ex = new ConfigurationException(e.getMessage());
+            ConfigurationException ex = new ConfigurationException("Invalid comparator: must define a public static instance field.");
             ex.initCause(e);
             throw ex;
         }
