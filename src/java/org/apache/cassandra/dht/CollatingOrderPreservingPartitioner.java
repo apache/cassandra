@@ -19,6 +19,7 @@
 package org.apache.cassandra.dht;
 
 import java.math.BigInteger;
+import java.nio.charset.CharacterCodingException;
 import java.text.Collator;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -39,7 +40,16 @@ public class CollatingOrderPreservingPartitioner extends AbstractByteOrderedPart
     {
         if (key.length == 0)
             return MINIMUM;
-        String skey = new String(key, FBUtilities.UTF8);
+
+        String skey;
+        try
+        {
+            skey = FBUtilities.decodeToUTF8(key);
+        }
+        catch (CharacterCodingException e)
+        {
+            throw new RuntimeException("The provided key was not UTF8 encoded.", e);
+        }
         return new BytesToken(collator.getCollationKey(skey).toByteArray());
     }
 }

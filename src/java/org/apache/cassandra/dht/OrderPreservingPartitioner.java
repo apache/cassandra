@@ -20,6 +20,7 @@ package org.apache.cassandra.dht;
 
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
+import java.nio.charset.CharacterCodingException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Random;
@@ -163,6 +164,15 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
 
     public StringToken getToken(byte[] key)
     {
-        return new StringToken(new String(key, FBUtilities.UTF8));
+        String skey;
+        try
+        {
+            skey = FBUtilities.decodeToUTF8(key);
+        }
+        catch (CharacterCodingException e)
+        {
+            throw new RuntimeException("The provided key was not UTF8 encoded.", e);
+        }
+        return new StringToken(skey);
     }
 }

@@ -21,6 +21,8 @@ package org.apache.cassandra.utils;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
+import java.io.IOException;
+import java.nio.charset.CharacterCodingException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.cassandra.db.IClock;
@@ -79,5 +81,12 @@ public class FBUtilitiesTest
         atomicClock.set(new TimestampClock(9L));
         FBUtilities.atomicSetMax(atomicClock, new TimestampClock(3L));
         assert ((TimestampClock)atomicClock.get()).timestamp() == 9L;
+    } 
+
+    @Test(expected=CharacterCodingException.class)
+    public void testDecode() throws IOException
+    {
+        byte[] bytes = new byte[]{(byte)0xff, (byte)0xfe};
+        FBUtilities.decodeToUTF8(bytes);
     } 
 }
