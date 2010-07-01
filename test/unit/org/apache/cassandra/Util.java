@@ -21,28 +21,28 @@ package org.apache.cassandra;
  */
 
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.commons.lang.ArrayUtils;
-
-import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.dht.*;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.SliceRange;
-import static org.apache.cassandra.utils.FBUtilities.UTF8;
+
+import static com.google.common.base.Charsets.UTF_8;
 
 public class Util
 {
     public static DecoratedKey dk(String key)
     {
-        return StorageService.getPartitioner().decorateKey(key.getBytes(UTF8));
+        return StorageService.getPartitioner().decorateKey(key.getBytes(UTF_8));
     }
 
     public static Column column(String name, String value, IClock clock)

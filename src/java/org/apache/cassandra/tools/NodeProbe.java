@@ -25,18 +25,14 @@ import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
 import java.lang.management.RuntimeMXBean;
 import java.net.InetAddress;
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
-
-import javax.management.*;
+import javax.management.JMX;
+import javax.management.MBeanServerConnection;
+import javax.management.MalformedObjectNameException;
+import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
@@ -52,7 +48,7 @@ import org.apache.cassandra.streaming.StreamingService;
 import org.apache.cassandra.streaming.StreamingServiceMBean;
 import org.apache.cassandra.thrift.UnavailableException;
 
-import static org.apache.cassandra.utils.FBUtilities.UTF8;
+import static com.google.common.base.Charsets.UTF_8;
 
 /**
  * JMX client operations for Cassandra.
@@ -359,7 +355,7 @@ public class NodeProbe
     public List<InetAddress> getEndpoints(String keyspace, String key)
     {
         // FIXME: string key
-        return ssProxy.getNaturalEndpoints(keyspace, key.getBytes(UTF8));
+        return ssProxy.getNaturalEndpoints(keyspace, key.getBytes(UTF_8));
     }
 
     public Set<InetAddress> getStreamDestinations()

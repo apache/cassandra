@@ -68,19 +68,6 @@ public class FBUtilities
     public static final int MAX_UNSIGNED_SHORT = 0xFFFF;
     public static final CharsetDecoder utf8Decoder = Charsets.UTF_8.newDecoder();
 
-    public static Charset UTF8;
-    static
-    {
-        try
-        {
-            UTF8 = Charset.forName("UTF-8");
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
     /**
      * Parses a string representing either a fraction, absolute value or percentage.
      */

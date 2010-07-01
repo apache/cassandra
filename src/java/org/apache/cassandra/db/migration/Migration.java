@@ -18,17 +18,22 @@
 
 package org.apache.cassandra.db.migration;
 
+import java.io.*;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CompactionManager;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.TimestampClock;
-import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.gms.ApplicationState;
@@ -37,23 +42,8 @@ import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.UUIDGen;
-import static org.apache.cassandra.utils.FBUtilities.UTF8;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
+import static com.google.common.base.Charsets.UTF_8;
 
 /**
  * A migration represents a single metadata mutation (cf dropped, added, etc.).  Migrations can be applied locally, or
@@ -79,8 +69,8 @@ public abstract class Migration
     
     public static final String MIGRATIONS_CF = "Migrations";
     public static final String SCHEMA_CF = "Schema";
-    public static final byte[] MIGRATIONS_KEY = "Migrations Key".getBytes(UTF8);
-    public static final byte[] LAST_MIGRATION_KEY = "Last Migration".getBytes(UTF8);
+    public static final byte[] MIGRATIONS_KEY = "Migrations Key".getBytes(UTF_8);
+    public static final byte[] LAST_MIGRATION_KEY = "Last Migration".getBytes(UTF_8);
     
     protected RowMutation rm;
     protected final UUID newVersion;
@@ -277,6 +267,6 @@ public abstract class Migration
     
     public static byte[] toBytes(UUID version)
     {
-        return version.toString().getBytes(UTF8);
+        return version.toString().getBytes(UTF_8);
     }
 }

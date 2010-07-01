@@ -20,45 +20,43 @@ package org.apache.cassandra.db;
 
 import java.io.File;
 import java.io.FilenameFilter;
-import java.io.IOException;
 import java.io.IOError;
-
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.utils.FBUtilities;
-import static org.apache.cassandra.utils.FBUtilities.UTF8;
-
-import org.apache.commons.lang.ArrayUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.config.DatabaseDescriptor;
-
+import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collection;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
+
+import org.apache.commons.lang.ArrayUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
+
+import static com.google.common.base.Charsets.UTF_8;
 
 public class SystemTable
 {
     private static Logger logger = LoggerFactory.getLogger(SystemTable.class);
     public static final String STATUS_CF = "LocationInfo"; // keep the old CF string for backwards-compatibility
-    private static final byte[] LOCATION_KEY = "L".getBytes(UTF8);
-    private static final byte[] BOOTSTRAP_KEY = "Bootstrap".getBytes(UTF8);
-    private static final byte[] GRAVEYARD_KEY = "Graveyard".getBytes(UTF8);
-    private static final byte[] BOOTSTRAP = "B".getBytes(UTF8);
-    private static final byte[] TOKEN = "Token".getBytes(UTF8);
-    private static final byte[] GENERATION = "Generation".getBytes(UTF8);
-    private static final byte[] CLUSTERNAME = "ClusterName".getBytes(UTF8);
-    private static final byte[] PARTITIONER = "Partioner".getBytes(UTF8);
+    private static final byte[] LOCATION_KEY = "L".getBytes(UTF_8);
+    private static final byte[] BOOTSTRAP_KEY = "Bootstrap".getBytes(UTF_8);
+    private static final byte[] GRAVEYARD_KEY = "Graveyard".getBytes(UTF_8);
+    private static final byte[] BOOTSTRAP = "B".getBytes(UTF_8);
+    private static final byte[] TOKEN = "Token".getBytes(UTF_8);
+    private static final byte[] GENERATION = "Generation".getBytes(UTF_8);
+    private static final byte[] CLUSTERNAME = "ClusterName".getBytes(UTF_8);
+    private static final byte[] PARTITIONER = "Partioner".getBytes(UTF_8);
     private static StorageMetadata metadata;
 
     private static DecoratedKey decorate(byte[] key)
@@ -162,7 +160,7 @@ public class SystemTable
         if (cf.getColumnCount() > 0 && (cf.getColumn(GENERATION) == null || cf.getColumn(TOKEN) == null))
             throw new ConfigurationException("Couldn't read system generation or token. Did you change the partitioner?");
         IColumn partitionerCol = cf.getColumn(PARTITIONER);
-        if (partitionerCol != null && !DatabaseDescriptor.getPartitioner().getClass().getName().equals(new String(partitionerCol.value(), UTF8)))
+        if (partitionerCol != null && !DatabaseDescriptor.getPartitioner().getClass().getName().equals(new String(partitionerCol.value(), UTF_8)))
             throw new ConfigurationException("Detected partitioner mismatch! Did you change the partitioner?");
         if (partitionerCol == null)
             logger.info("Did not see a partitioner in system storage.");
@@ -214,7 +212,7 @@ public class SystemTable
             cf.addColumn(new Column(TOKEN, p.getTokenFactory().toByteArray(token), TimestampClock.ZERO_VALUE));
             cf.addColumn(new Column(GENERATION, FBUtilities.toByteArray(generation), TimestampClock.ZERO_VALUE));
             cf.addColumn(new Column(CLUSTERNAME, DatabaseDescriptor.getClusterName().getBytes(), TimestampClock.ZERO_VALUE));
-            cf.addColumn(new Column(PARTITIONER, partitioner.getBytes(UTF8), TimestampClock.ZERO_VALUE));
+            cf.addColumn(new Column(PARTITIONER, partitioner.getBytes(UTF_8), TimestampClock.ZERO_VALUE));
             rm.add(cf);
             rm.apply();
             try
@@ -269,7 +267,7 @@ public class SystemTable
         
         if (partitionerColumn == null)
         {
-            Column c = new Column(PARTITIONER, partitioner.getBytes(UTF8), TimestampClock.ZERO_VALUE);
+            Column c = new Column(PARTITIONER, partitioner.getBytes(UTF_8), TimestampClock.ZERO_VALUE);
             cf.addColumn(c);
             logger.info("Saved partitioner not found. Using " + partitioner);
         }

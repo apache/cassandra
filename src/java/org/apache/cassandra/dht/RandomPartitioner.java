@@ -20,14 +20,13 @@ package org.apache.cassandra.dht;
 
 import java.math.BigInteger;
 import java.util.Arrays;
-import java.util.Comparator;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.DBConstants;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.GuidGenerator;
 import org.apache.cassandra.utils.Pair;
+
+import static com.google.common.base.Charsets.UTF_8;
 
 /**
  * This class generates a BigIntegerToken using MD5 hash.
@@ -60,7 +59,7 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
         assert splitPoint != -1;
 
         // and decode the token and key
-        String token = new String(fromdisk, 0, splitPoint, FBUtilities.UTF8);
+        String token = new String(fromdisk, 0, splitPoint, UTF_8);
         byte[] key = Arrays.copyOfRange(fromdisk, splitPoint + 1, fromdisk.length);
         return new DecoratedKey<BigIntegerToken>(new BigIntegerToken(token), key);
     }
@@ -68,7 +67,7 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
     public byte[] convertToDiskFormat(DecoratedKey<BigIntegerToken> key)
     {
         // encode token prefix and calculate final length (with delimiter)
-        byte[] prefix = key.token.toString().getBytes(FBUtilities.UTF8);
+        byte[] prefix = key.token.toString().getBytes(UTF_8);
         int length = prefix.length + 1 + key.key.length;
         assert length <= FBUtilities.MAX_UNSIGNED_SHORT;
 
