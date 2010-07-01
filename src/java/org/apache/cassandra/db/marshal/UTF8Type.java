@@ -20,36 +20,27 @@ package org.apache.cassandra.db.marshal;
  * 
  */
 
+import java.io.IOException;
+import java.nio.charset.CharacterCodingException;
+import java.util.Arrays;
 
-import java.io.UnsupportedEncodingException;
+import org.apache.cassandra.utils.FBUtilities;
 
-public class UTF8Type extends AbstractType
+public class UTF8Type extends BytesType
 {
     public static final UTF8Type instance = new UTF8Type();
 
     UTF8Type() {} // singleton
 
-    public int compare(byte[] o1, byte[] o2)
-    {
-        try
-        {
-            return new String(o1, "UTF-8").compareTo(new String(o2, "UTF-8"));
-        }
-        catch (UnsupportedEncodingException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
     public String getString(byte[] bytes)
     {
         try
         {
-            return new String(bytes, "UTF-8");
+            return FBUtilities.decodeToUTF8(bytes);
         }
-        catch (UnsupportedEncodingException e)
+        catch (CharacterCodingException e)
         {
-            throw new RuntimeException(e);
+            throw new MarshalException("invalid UTF8 bytes " + Arrays.toString(bytes));
         }
     }
 }
