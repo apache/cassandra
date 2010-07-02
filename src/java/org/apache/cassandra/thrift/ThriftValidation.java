@@ -20,28 +20,28 @@ package org.apache.cassandra.thrift;
  * 
  */
 
-import java.util.Comparator;
 import java.util.Arrays;
-import org.apache.commons.lang.ArrayUtils;
+import java.util.Comparator;
 
-import org.apache.cassandra.db.KeyspaceNotDefinedException;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.db.IClock;
-import org.apache.cassandra.db.TimestampClock;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.MarshalException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.DatacenterShardStrategy;
+import org.apache.cassandra.service.ColumnValidator;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class ThriftValidation
 {
+    private static final Logger logger = LoggerFactory.getLogger(DatacenterShardStrategy.class);
+
     static void validateKey(byte[] key) throws InvalidRequestException
     {
         if (key == null || key.length == 0)
@@ -302,10 +302,31 @@ public class ThriftValidation
             validateColumns(keyspace, cfName, scName, predicate.column_names);
     }
 
+    public static void runExternalColumnVerifier(String keyspace, ColumnParent column_parent, Column column) throws InvalidRequestException
+    {
+        try
+        {
+            ColumnValidator validator = null;
+            validator = DatabaseDescriptor.getColumnValidator(keyspace, column_parent.column_family, column.name);
+            if (validator != null)
+                validator.validate(keyspace, column_parent, column);
+        }
+        catch (MarshalException me)
+        {
+            String msg = String.format("[%s][%s][md5(byte[])=%s] = [md5(byte[])=%s] failed validation (%s)",
+                    keyspace, column_parent.getColumn_family(),
+                    FBUtilities.hexHash("MD5", column.name),
+                    FBUtilities.hexHash("MD5", column.value),
+                    me.getMessage());
+            throw new InvalidRequestException(msg); //why doesn't IRE except a caused_by argument?
+        }
+    }
+
     public static void validateColumn(String keyspace, ColumnParent column_parent, Column column) throws InvalidRequestException
     {
         validateTtl(column);
         validateColumns(keyspace, column_parent, Arrays.asList(column.name));
+        runExternalColumnVerifier(keyspace, column_parent, column);
     }
 
     public static void validatePredicate(String keyspace, ColumnParent column_parent, SlicePredicate predicate)

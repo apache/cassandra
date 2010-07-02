@@ -59,6 +59,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
   private static final TField PRELOAD_ROW_CACHE_FIELD_DESC = new TField("preload_row_cache", TType.BOOL, (short)10);
   private static final TField KEY_CACHE_SIZE_FIELD_DESC = new TField("key_cache_size", TType.DOUBLE, (short)11);
   private static final TField READ_REPAIR_CHANCE_FIELD_DESC = new TField("read_repair_chance", TType.DOUBLE, (short)12);
+  private static final TField COLUMN_METADATA_FIELD_DESC = new TField("column_metadata", TType.LIST, (short)13);
 
   public String table;
   public String name;
@@ -72,6 +73,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
   public boolean preload_row_cache;
   public double key_cache_size;
   public double read_repair_chance;
+  public List<ColumnDef> column_metadata;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
@@ -86,7 +88,8 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     ROW_CACHE_SIZE((short)9, "row_cache_size"),
     PRELOAD_ROW_CACHE((short)10, "preload_row_cache"),
     KEY_CACHE_SIZE((short)11, "key_cache_size"),
-    READ_REPAIR_CHANCE((short)12, "read_repair_chance");
+    READ_REPAIR_CHANCE((short)12, "read_repair_chance"),
+    COLUMN_METADATA((short)13, "column_metadata");
 
     private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
@@ -171,6 +174,9 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
         new FieldValueMetaData(TType.DOUBLE)));
     put(_Fields.READ_REPAIR_CHANCE, new FieldMetaData("read_repair_chance", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.DOUBLE)));
+    put(_Fields.COLUMN_METADATA, new FieldMetaData("column_metadata", TFieldRequirementType.OPTIONAL, 
+        new ListMetaData(TType.LIST, 
+            new StructMetaData(TType.STRUCT, ColumnDef.class))));
   }});
 
   static {
@@ -243,6 +249,13 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     this.preload_row_cache = other.preload_row_cache;
     this.key_cache_size = other.key_cache_size;
     this.read_repair_chance = other.read_repair_chance;
+    if (other.isSetColumn_metadata()) {
+      List<ColumnDef> __this__column_metadata = new ArrayList<ColumnDef>();
+      for (ColumnDef other_element : other.column_metadata) {
+        __this__column_metadata.add(new ColumnDef(other_element));
+      }
+      this.column_metadata = __this__column_metadata;
+    }
   }
 
   public CfDef deepCopy() {
@@ -538,6 +551,45 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     __isset_bit_vector.set(__READ_REPAIR_CHANCE_ISSET_ID, value);
   }
 
+  public int getColumn_metadataSize() {
+    return (this.column_metadata == null) ? 0 : this.column_metadata.size();
+  }
+
+  public java.util.Iterator<ColumnDef> getColumn_metadataIterator() {
+    return (this.column_metadata == null) ? null : this.column_metadata.iterator();
+  }
+
+  public void addToColumn_metadata(ColumnDef elem) {
+    if (this.column_metadata == null) {
+      this.column_metadata = new ArrayList<ColumnDef>();
+    }
+    this.column_metadata.add(elem);
+  }
+
+  public List<ColumnDef> getColumn_metadata() {
+    return this.column_metadata;
+  }
+
+  public CfDef setColumn_metadata(List<ColumnDef> column_metadata) {
+    this.column_metadata = column_metadata;
+    return this;
+  }
+
+  public void unsetColumn_metadata() {
+    this.column_metadata = null;
+  }
+
+  /** Returns true if field column_metadata is set (has been asigned a value) and false otherwise */
+  public boolean isSetColumn_metadata() {
+    return this.column_metadata != null;
+  }
+
+  public void setColumn_metadataIsSet(boolean value) {
+    if (!value) {
+      this.column_metadata = null;
+    }
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case TABLE:
@@ -636,6 +688,14 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
       }
       break;
 
+    case COLUMN_METADATA:
+      if (value == null) {
+        unsetColumn_metadata();
+      } else {
+        setColumn_metadata((List<ColumnDef>)value);
+      }
+      break;
+
     }
   }
 
@@ -681,6 +741,9 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     case READ_REPAIR_CHANCE:
       return new Double(getRead_repair_chance());
 
+    case COLUMN_METADATA:
+      return getColumn_metadata();
+
     }
     throw new IllegalStateException();
   }
@@ -716,6 +779,8 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
       return isSetKey_cache_size();
     case READ_REPAIR_CHANCE:
       return isSetRead_repair_chance();
+    case COLUMN_METADATA:
+      return isSetColumn_metadata();
     }
     throw new IllegalStateException();
   }
@@ -845,6 +910,15 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
         return false;
     }
 
+    boolean this_present_column_metadata = true && this.isSetColumn_metadata();
+    boolean that_present_column_metadata = true && that.isSetColumn_metadata();
+    if (this_present_column_metadata || that_present_column_metadata) {
+      if (!(this_present_column_metadata && that_present_column_metadata))
+        return false;
+      if (!this.column_metadata.equals(that.column_metadata))
+        return false;
+    }
+
     return true;
   }
 
@@ -969,6 +1043,15 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetColumn_metadata()).compareTo(typedOther.isSetColumn_metadata());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetColumn_metadata()) {      lastComparison = TBaseHelper.compareTo(column_metadata, typedOther.column_metadata);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -1070,6 +1153,24 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 13: // COLUMN_METADATA
+          if (field.type == TType.LIST) {
+            {
+              TList _list25 = iprot.readListBegin();
+              this.column_metadata = new ArrayList<ColumnDef>(_list25.size);
+              for (int _i26 = 0; _i26 < _list25.size; ++_i26)
+              {
+                ColumnDef _elem27;
+                _elem27 = new ColumnDef();
+                _elem27.read(iprot);
+                this.column_metadata.add(_elem27);
+              }
+              iprot.readListEnd();
+            }
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           TProtocolUtil.skip(iprot, field.type);
       }
@@ -1156,6 +1257,20 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
       oprot.writeFieldBegin(READ_REPAIR_CHANCE_FIELD_DESC);
       oprot.writeDouble(this.read_repair_chance);
       oprot.writeFieldEnd();
+    }
+    if (this.column_metadata != null) {
+      if (isSetColumn_metadata()) {
+        oprot.writeFieldBegin(COLUMN_METADATA_FIELD_DESC);
+        {
+          oprot.writeListBegin(new TList(TType.STRUCT, this.column_metadata.size()));
+          for (ColumnDef _iter28 : this.column_metadata)
+          {
+            _iter28.write(oprot);
+          }
+          oprot.writeListEnd();
+        }
+        oprot.writeFieldEnd();
+      }
     }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
@@ -1263,6 +1378,16 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
       if (!first) sb.append(", ");
       sb.append("read_repair_chance:");
       sb.append(this.read_repair_chance);
+      first = false;
+    }
+    if (isSetColumn_metadata()) {
+      if (!first) sb.append(", ");
+      sb.append("column_metadata:");
+      if (this.column_metadata == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.column_metadata);
+      }
       first = false;
     }
     sb.append(")");

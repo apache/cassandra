@@ -229,6 +229,11 @@ public class FBUtilities
         return hash.abs();        
     }
 
+    public static String hexHash(String type, byte[]... data)
+    {
+        return bytesToHex(hash(type, data));
+    }
+
     public static byte[] hash(String type, byte[]... data)
     {
     	byte[] result;

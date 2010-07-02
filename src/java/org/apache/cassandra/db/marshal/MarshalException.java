@@ -27,4 +27,9 @@ public class MarshalException extends RuntimeException
     {
         super(message);
     }
+
+    public MarshalException(String message, Throwable cause)
+    {
+        super(message, cause);
+    }
 }

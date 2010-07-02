@@ -167,8 +167,8 @@ def _verify_super(supercf='Super1', key='key1'):
 def _expect_exception(fn, type_):
     try:
         r = fn()
-    except type_:
-        pass
+    except type_, t:
+        return t
     else:
         raise Exception('expected %s; got %s' % (type_.__name__, r))
     
@@ -1090,11 +1090,45 @@ class TestMutations(ThriftTester):
             client.describe_keyspace('RenameKeyspace')
         _expect_exception(get_second_ks, NotFoundException)
 
+    def test_column_validators(self):
+        ks = 'Keyspace1'
+        _set_keyspace(ks)
+        cd = ColumnDef('col', 'org.apache.cassandra.service.ExampleColumnValidator', None, None)
+        cf = CfDef('Keyspace1', 'ValidatorColumnFamily', column_metadata=[cd])
+        client.system_add_column_family(cf)
+        dks = client.describe_keyspace(ks)
+        assert 'ValidatorColumnFamily' in dks
+
+        cp = ColumnParent('ValidatorColumnFamily')
+        col0 = Column('col', 'valuegood', Clock(0))
+        col1 = Column('col', 'valuebad', Clock(0))
+        client.insert('key0', cp, col0, ConsistencyLevel.ONE)
+        e = _expect_exception(lambda: client.insert('key1', cp, col1, ConsistencyLevel.ONE), InvalidRequestException)
+        assert e.why.find("failed validation") >= 0
+        assert e.why.find("column.value.length is even") >= 0
+
+    def test_super_column_validators(self):
+        ks = 'Keyspace1'
+        _set_keyspace(ks)
+        cd = ColumnDef('col', 'org.apache.cassandra.service.ExampleColumnValidator', None, None)
+        cf = CfDef('Keyspace1', 'SuperValidatorColumnFamily', 'Super', column_metadata=[cd])
+        client.system_add_column_family(cf)
+        dks = client.describe_keyspace('Keyspace1')
+        assert 'SuperValidatorColumnFamily' in dks
+
+        cp = ColumnParent('SuperValidatorColumnFamily', 'a subcolumn')
+        col0 = Column('col', 'valuegood', Clock(0))
+        col1 = Column('col', 'valuebad', Clock(0))
+        client.insert('key0', cp, col0, ConsistencyLevel.ONE)
+        e = _expect_exception(lambda: client.insert('key1', cp, col1, ConsistencyLevel.ONE), InvalidRequestException)
+        assert e.why.find("failed validation") >= 0
+        assert e.why.find("column.value.length is even") >= 0
+
     def test_system_column_family_operations(self):
-        """ Test cf (add, drop, rename) operations """
         _set_keyspace('Keyspace1')
         # create
-        newcf = CfDef('Keyspace1', 'NewColumnFamily')
+        cd = ColumnDef('ValidationColumn', 'randomclass', None, None)
+        newcf = CfDef('Keyspace1', 'NewColumnFamily', column_metadata=[cd])
         client.system_add_column_family(newcf)
         ks1 = client.describe_keyspace('Keyspace1')
         assert 'NewColumnFamily' in ks1
@@ -1113,11 +1147,11 @@ class TestMutations(ThriftTester):
         assert 'Standard1' in ks1
 
     def test_system_super_column_family_operations(self):
-        """test cf (add, drop, rename) operations"""
         _set_keyspace('Keyspace1')
         
         # create
-        newcf = CfDef('Keyspace1', 'NewSuperColumnFamily', 'Super')
+        cd = ColumnDef('ValidationColumn', 'randomclass', None, None)
+        newcf = CfDef('Keyspace1', 'NewSuperColumnFamily', 'Super', column_metadata=[cd])
         client.system_add_column_family(newcf)
         ks1 = client.describe_keyspace('Keyspace1')
         assert 'NewSuperColumnFamily' in ks1
@@ -1134,7 +1168,7 @@ class TestMutations(ThriftTester):
         assert 'RenameSuperColumnFamily' not in ks1
         assert 'NewSuperColumnFamily' not in ks1
         assert 'Standard1' in ks1
-        
+
     def test_insert_ttl(self):
         """ Test simple insertion of a column with ttl """
         _set_keyspace('Keyspace1')
