@@ -886,7 +886,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         
         // If switching, invalidate previous access level; force a new login.
-        if (keySpace.get() != null && !keySpace.get().equals(keyspace));
+        if (keySpace.get() != null && !keySpace.get().equals(keyspace))
             loginDone.set(AccessLevel.NONE);
         
         keySpace.set(keyspace); 
