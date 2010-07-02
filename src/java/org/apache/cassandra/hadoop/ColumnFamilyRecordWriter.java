@@ -106,7 +106,7 @@ final class ColumnFamilyRecordWriter extends RecordWriter<byte[],List<IColumn>>
     {
         this.context = context;
         this.mutationsByEndpoint = new HashMap<InetAddress,Map<byte[],Map<String,List<Mutation>>>>();
-        this.ringCache = new RingCache(ConfigHelper.getKeyspace(context.getConfiguration()));
+        this.ringCache = new RingCache(ConfigHelper.getOutputKeyspace(context.getConfiguration()));
         this.batchThreshold = context.getConfiguration().getLong(ColumnFamilyOutputFormat.BATCH_THRESHOLD, Long.MAX_VALUE);
     }
     
@@ -161,7 +161,7 @@ final class ColumnFamilyRecordWriter extends RecordWriter<byte[],List<IColumn>>
 
         Clock clock = new Clock(System.currentTimeMillis());
         List<Mutation> mutationList = new ArrayList<Mutation>();
-        cfMutation.put(ConfigHelper.getColumnFamily(context.getConfiguration()), mutationList);
+        cfMutation.put(ConfigHelper.getOutputColumnFamily(context.getConfiguration()), mutationList);
 
         if (value == null)
         {

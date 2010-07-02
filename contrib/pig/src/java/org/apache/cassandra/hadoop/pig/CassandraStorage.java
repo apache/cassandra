@@ -133,8 +133,8 @@ public class CassandraStorage extends LoadFunc
         SliceRange range = new SliceRange(BOUND, BOUND, false, LIMIT);
         SlicePredicate predicate = new SlicePredicate().setSlice_range(range);
         conf = job.getConfiguration();
-        ConfigHelper.setSlicePredicate(conf, predicate);
-        ConfigHelper.setColumnFamily(conf, ksname, cfname);
+        ConfigHelper.setInputSlicePredicate(conf, predicate);
+        ConfigHelper.setInputColumnFamily(conf, ksname, cfname);
     }
 
     @Override

@@ -27,15 +27,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.auth.SimpleAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.AuthenticationRequest;
 import org.apache.cassandra.thrift.AuthorizationException;
@@ -55,6 +51,8 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The <code>ColumnFamilyOutputFormat</code> acts as a Hadoop-specific
@@ -108,9 +106,9 @@ public class ColumnFamilyOutputFormat extends OutputFormat<byte[],List<IColumn>>
     public void checkOutputSpecs(JobContext context) throws IOException, InterruptedException
     {
         validateConfiguration(context.getConfiguration());
-        String keyspace = ConfigHelper.getKeyspace(context.getConfiguration());
-        String columnFamily = ConfigHelper.getColumnFamily(context.getConfiguration());
-        SlicePredicate slicePredicate = ConfigHelper.getSlicePredicate(context.getConfiguration());
+        String keyspace = ConfigHelper.getOutputKeyspace(context.getConfiguration());
+        String columnFamily = ConfigHelper.getOutputColumnFamily(context.getConfiguration());
+        SlicePredicate slicePredicate = ConfigHelper.getOutputSlicePredicate(context.getConfiguration());
         assert slicePredicate != null;
         if (slicePredicate.column_names == null && slicePredicate.slice_range == null)
             slicePredicate = slicePredicate.setColumn_names(new ArrayList<byte[]>());
@@ -130,10 +128,8 @@ public class ColumnFamilyOutputFormat extends OutputFormat<byte[],List<IColumn>>
         }
         if (keySlices.size() > 0)
         {
-            throw new IOException("The column family " + columnFamily
-                                  + " in the keyspace " + keyspace + " already has "
-                                  + keySlices.size() + " keys in the slice predicate "
-                                  + slicePredicate);
+            throw new IOException(String.format("The column family %s in the keyspace %s already has %d keys in the slice predicate %s", 
+                                                columnFamily, keyspace, keySlices.size(), slicePredicate));
         }
     }
     
@@ -188,15 +184,14 @@ public class ColumnFamilyOutputFormat extends OutputFormat<byte[],List<IColumn>>
      */
     public void validateConfiguration(Configuration conf)
     {
-        if (ConfigHelper.getKeyspace(conf) == null || ConfigHelper.getColumnFamily(conf) == null)
+        if (ConfigHelper.getOutputKeyspace(conf) == null || ConfigHelper.getOutputColumnFamily(conf) == null)
         {
             throw new UnsupportedOperationException("you must set the keyspace and columnfamily with setColumnFamily()");
         }
-        if (ConfigHelper.getSlicePredicate(conf) == null)
+        if (ConfigHelper.getOutputSlicePredicate(conf) == null)
         {
-            System.out.println("Since no slice predicate was specified, all columns in "
-                               + ConfigHelper.getColumnFamily(conf)
-                               + " will be overwritten");
+            System.err.printf("Since no slice predicate was specified, all columns in %s will be overwritten%n",
+                              ConfigHelper.getOutputColumnFamily(conf));
         }
     }
 
@@ -218,10 +213,10 @@ public class ColumnFamilyOutputFormat extends OutputFormat<byte[],List<IColumn>>
         TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket, false, false);
         Cassandra.Client client = new Cassandra.Client(binaryProtocol);
         socket.open();
-        client.set_keyspace(ConfigHelper.getKeyspace(context.getConfiguration()));
+        client.set_keyspace(ConfigHelper.getOutputKeyspace(context.getConfiguration()));
         Map<String, String> creds = new HashMap<String, String>();
-        creds.put(SimpleAuthenticator.USERNAME_KEY, ConfigHelper.getKeyspaceUserName(context.getConfiguration()));
-        creds.put(SimpleAuthenticator.PASSWORD_KEY, ConfigHelper.getKeyspacePassword(context.getConfiguration()));
+        creds.put(SimpleAuthenticator.USERNAME_KEY, ConfigHelper.getOutputKeyspaceUserName(context.getConfiguration()));
+        creds.put(SimpleAuthenticator.PASSWORD_KEY, ConfigHelper.getOutputKeyspacePassword(context.getConfiguration()));
         AuthenticationRequest authRequest = new AuthenticationRequest(creds);
         if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
             client.login(authRequest);

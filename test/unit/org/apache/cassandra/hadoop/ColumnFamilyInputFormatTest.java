@@ -21,16 +21,14 @@ package org.apache.cassandra.hadoop;
  */
 
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.junit.Test;
-
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.hadoop.conf.Configuration;
+import org.junit.Test;
 
 public class ColumnFamilyInputFormatTest
 {
@@ -45,9 +43,9 @@ public class ColumnFamilyInputFormatTest
         SlicePredicate originalPredicate = new SlicePredicate().setColumn_names(columnNames);
 
         Configuration conf = new Configuration();
-        ConfigHelper.setSlicePredicate(conf, originalPredicate);
+        ConfigHelper.setInputSlicePredicate(conf, originalPredicate);
 
-        SlicePredicate rtPredicate = ConfigHelper.getSlicePredicate(conf);
+        SlicePredicate rtPredicate = ConfigHelper.getInputSlicePredicate(conf);
         assert rtPredicate.column_names.size() == 1;
         assert Arrays.equals(originalPredicate.column_names.get(0), rtPredicate.column_names.get(0));
     }

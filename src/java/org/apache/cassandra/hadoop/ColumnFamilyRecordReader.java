@@ -91,15 +91,15 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
     {
         this.split = (ColumnFamilySplit) split;
         Configuration conf = context.getConfiguration();
-        predicate = ConfigHelper.getSlicePredicate(conf);
+        predicate = ConfigHelper.getInputSlicePredicate(conf);
         totalRowCount = ConfigHelper.getInputSplitSize(conf);
         batchRowCount = ConfigHelper.getRangeBatchSize(conf);
-        cfName = ConfigHelper.getColumnFamily(conf);
-        keyspace = ConfigHelper.getKeyspace(conf);
+        cfName = ConfigHelper.getInputColumnFamily(conf);
+        keyspace = ConfigHelper.getInputKeyspace(conf);
         
         Map<String, String> creds = new HashMap<String, String>();
-        creds.put(SimpleAuthenticator.USERNAME_KEY, ConfigHelper.getKeyspaceUserName(conf));
-        creds.put(SimpleAuthenticator.PASSWORD_KEY, ConfigHelper.getKeyspacePassword(conf));
+        creds.put(SimpleAuthenticator.USERNAME_KEY, ConfigHelper.getInputKeyspaceUserName(conf));
+        creds.put(SimpleAuthenticator.PASSWORD_KEY, ConfigHelper.getInputKeyspacePassword(conf));
         authRequest = new AuthenticationRequest(creds);
         
         iter = new RowIterator();
@@ -214,7 +214,7 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
                 Map<String,String> ksProps = desc.get(cfName);
                 String compClass = ksProps.get("CompareWith");
                 // Get the singleton instance of the AbstractType subclass
-                Class c = Class.forName(compClass);
+                Class<?> c = Class.forName(compClass);
                 comparator = (AbstractType) c.getField("instance").get(c);
             }
         }

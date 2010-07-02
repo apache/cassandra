@@ -21,7 +21,6 @@ package org.apache.cassandra.hadoop;
  */
 
 
-import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.hadoop.conf.Configuration;
@@ -32,24 +31,29 @@ import org.apache.thrift.protocol.TBinaryProtocol;
 
 public class ConfigHelper
 {
-    private static final String KEYSPACE_CONFIG = "cassandra.input.keyspace";
-    private static final String KEYSPACE_USERNAME_CONFIG = "cassandra.input.keyspace.username";
-    private static final String KEYSPACE_PASSWD_CONFIG = "cassandra.input.keyspace.passwd";
-    private static final String COLUMNFAMILY_CONFIG = "cassandra.input.columnfamily";
-    private static final String PREDICATE_CONFIG = "cassandra.input.predicate";
+    private static final String INPUT_KEYSPACE_CONFIG = "cassandra.input.keyspace";
+    private static final String OUTPUT_KEYSPACE_CONFIG = "cassandra.output.keyspace";
+    private static final String INPUT_KEYSPACE_USERNAME_CONFIG = "cassandra.input.keyspace.username";
+    private static final String INPUT_KEYSPACE_PASSWD_CONFIG = "cassandra.input.keyspace.passwd";
+    private static final String OUTPUT_KEYSPACE_USERNAME_CONFIG = "cassandra.output.keyspace.username";
+    private static final String OUTPUT_KEYSPACE_PASSWD_CONFIG = "cassandra.output.keyspace.passwd";
+    private static final String INPUT_COLUMNFAMILY_CONFIG = "cassandra.input.columnfamily";
+    private static final String OUTPUT_COLUMNFAMILY_CONFIG = "cassandra.output.columnfamily";
+    private static final String INPUT_PREDICATE_CONFIG = "cassandra.input.predicate";
+    private static final String OUTPUT_PREDICATE_CONFIG = "cassandra.output.predicate";
     private static final String INPUT_SPLIT_SIZE_CONFIG = "cassandra.input.split.size";
     private static final int DEFAULT_SPLIT_SIZE = 64*1024;
     private static final String RANGE_BATCH_SIZE_CONFIG = "cassandra.range.batch.size";
     private static final int DEFAULT_RANGE_BATCH_SIZE = 4096;
 
     /**
-     * Set the keyspace and column family for this job.
+     * Set the keyspace and column family for the input of this job.
      *
      * @param conf Job configuration you are about to run
      * @param keyspace
      * @param columnFamily
      */
-    public static void setColumnFamily(Configuration conf, String keyspace, String columnFamily)
+    public static void setInputColumnFamily(Configuration conf, String keyspace, String columnFamily)
     {
         if (keyspace == null)
         {
@@ -60,8 +64,30 @@ public class ConfigHelper
             throw new UnsupportedOperationException("columnfamily may not be null");
         }
 
-        conf.set(KEYSPACE_CONFIG, keyspace);
-        conf.set(COLUMNFAMILY_CONFIG, columnFamily);
+        conf.set(INPUT_KEYSPACE_CONFIG, keyspace);
+        conf.set(INPUT_COLUMNFAMILY_CONFIG, columnFamily);
+    }
+
+    /**
+     * Set the keyspace and column family for the output of this job.
+     *
+     * @param conf Job configuration you are about to run
+     * @param keyspace
+     * @param columnFamily
+     */
+    public static void setOutputColumnFamily(Configuration conf, String keyspace, String columnFamily)
+    {
+        if (keyspace == null)
+        {
+            throw new UnsupportedOperationException("keyspace may not be null");
+        }
+        if (columnFamily == null)
+        {
+            throw new UnsupportedOperationException("columnfamily may not be null");
+        }
+
+        conf.set(OUTPUT_KEYSPACE_CONFIG, keyspace);
+        conf.set(OUTPUT_COLUMNFAMILY_CONFIG, columnFamily);
     }
 
     /**
@@ -116,14 +142,30 @@ public class ConfigHelper
      * @param conf Job configuration you are about to run
      * @param predicate
      */
-    public static void setSlicePredicate(Configuration conf, SlicePredicate predicate)
+    public static void setInputSlicePredicate(Configuration conf, SlicePredicate predicate)
     {
-        conf.set(PREDICATE_CONFIG, predicateToString(predicate));
+        conf.set(INPUT_PREDICATE_CONFIG, predicateToString(predicate));
     }
 
-    public static SlicePredicate getSlicePredicate(Configuration conf)
+    public static SlicePredicate getInputSlicePredicate(Configuration conf)
     {
-        return predicateFromString(conf.get(PREDICATE_CONFIG));
+        return predicateFromString(conf.get(INPUT_PREDICATE_CONFIG));
+    }
+
+    /**
+     * Set the predicate that determines what columns will be selected from each row.
+     *
+     * @param conf Job configuration you are about to run
+     * @param predicate
+     */
+    public static void setOutputSlicePredicate(Configuration conf, SlicePredicate predicate)
+    {
+        conf.set(OUTPUT_PREDICATE_CONFIG, predicateToString(predicate));
+    }
+
+    public static SlicePredicate getOutputSlicePredicate(Configuration conf)
+    {
+        return predicateFromString(conf.get(OUTPUT_PREDICATE_CONFIG));
     }
 
     private static String predicateToString(SlicePredicate predicate)
@@ -157,23 +199,43 @@ public class ConfigHelper
         return predicate;
     }
 
-    public static String getKeyspace(Configuration conf)
+    public static String getInputKeyspace(Configuration conf)
     {
-        return conf.get(KEYSPACE_CONFIG);
+        return conf.get(INPUT_KEYSPACE_CONFIG);
     }
     
-    public static String getKeyspaceUserName(Configuration conf)
+    public static String getOutputKeyspace(Configuration conf)
     {
-    	return conf.get(KEYSPACE_USERNAME_CONFIG);
+        return conf.get(OUTPUT_KEYSPACE_CONFIG);
     }
     
-    public static String getKeyspacePassword(Configuration conf)
+    public static String getInputKeyspaceUserName(Configuration conf)
     {
-    	return conf.get(KEYSPACE_PASSWD_CONFIG);
+    	return conf.get(INPUT_KEYSPACE_USERNAME_CONFIG);
+    }
+    
+    public static String getInputKeyspacePassword(Configuration conf)
+    {
+    	return conf.get(INPUT_KEYSPACE_PASSWD_CONFIG);
     }
 
-    public static String getColumnFamily(Configuration conf)
+    public static String getOutputKeyspaceUserName(Configuration conf)
     {
-        return conf.get(COLUMNFAMILY_CONFIG);
+    	return conf.get(OUTPUT_KEYSPACE_USERNAME_CONFIG);
+    }
+    
+    public static String getOutputKeyspacePassword(Configuration conf)
+    {
+    	return conf.get(OUTPUT_KEYSPACE_PASSWD_CONFIG);
+    }
+
+    public static String getInputColumnFamily(Configuration conf)
+    {
+        return conf.get(INPUT_COLUMNFAMILY_CONFIG);
+    }
+
+    public static String getOutputColumnFamily(Configuration conf)
+    {
+        return conf.get(OUTPUT_COLUMNFAMILY_CONFIG);
     }
 }

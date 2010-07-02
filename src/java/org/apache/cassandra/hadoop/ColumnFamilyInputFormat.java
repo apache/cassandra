@@ -70,11 +70,11 @@ public class ColumnFamilyInputFormat extends InputFormat<byte[], SortedMap<byte[
 
     private void validateConfiguration(Configuration conf)
     {
-        if (ConfigHelper.getKeyspace(conf) == null || ConfigHelper.getColumnFamily(conf) == null)
+        if (ConfigHelper.getInputKeyspace(conf) == null || ConfigHelper.getInputColumnFamily(conf) == null)
         {
             throw new UnsupportedOperationException("you must set the keyspace and columnfamily with setColumnFamily()");
         }
-        if (ConfigHelper.getSlicePredicate(conf) == null)
+        if (ConfigHelper.getInputSlicePredicate(conf) == null)
         {
             throw new UnsupportedOperationException("you must set the predicate with setPredicate");
         }
@@ -87,11 +87,11 @@ public class ColumnFamilyInputFormat extends InputFormat<byte[], SortedMap<byte[
         validateConfiguration(conf);
 
         // cannonical ranges and nodes holding replicas
-        List<TokenRange> masterRangeNodes = getRangeMap(ConfigHelper.getKeyspace(conf));
+        List<TokenRange> masterRangeNodes = getRangeMap(ConfigHelper.getInputKeyspace(conf));
 
         splitsize = ConfigHelper.getInputSplitSize(context.getConfiguration());
-        keyspace = ConfigHelper.getKeyspace(context.getConfiguration());
-        cfName = ConfigHelper.getColumnFamily(context.getConfiguration());
+        keyspace = ConfigHelper.getInputKeyspace(context.getConfiguration());
+        cfName = ConfigHelper.getInputColumnFamily(context.getConfiguration());
         
         // cannonical ranges, split into pieces, fetching the splits in parallel 
         ExecutorService executor = Executors.newCachedThreadPool();

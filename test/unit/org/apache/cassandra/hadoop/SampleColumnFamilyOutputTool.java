@@ -57,10 +57,10 @@ public class SampleColumnFamilyOutputTool extends Configured implements Tool
         // In case your job runs out of memory, use this setting 
         // (provided you're on Hadoop 0.20.1 or later)
         // job.getConfiguration().setInt(JobContext.IO_SORT_MB, 1);
-        ConfigHelper.setColumnFamily(job.getConfiguration(),
+        ConfigHelper.setOutputColumnFamily(job.getConfiguration(),
                                      ColumnFamilyOutputFormatTest.KEYSPACE,
                                      ColumnFamilyOutputFormatTest.COLUMN_FAMILY);
-        ConfigHelper.setSlicePredicate(job.getConfiguration(), new SlicePredicate());
+        ConfigHelper.setOutputSlicePredicate(job.getConfiguration(), new SlicePredicate());
 
         SequenceFileInputFormat.addInputPath(job, inputdir);
         
