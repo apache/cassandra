@@ -107,7 +107,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private final String table_;
     public final String columnFamily_;
 
-    private volatile Integer memtableSwitchCount = 0;
+    private volatile int memtableSwitchCount = 0;
 
     /* This is used to generate the next index for a SSTable */
     private AtomicInteger fileIndexGenerator_ = new AtomicInteger(0);
@@ -210,7 +210,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ssTables_.add(sstables);
     }
 
-    public void addToCompactedRowStats(Long rowsize)
+    public void addToCompactedRowStats(long rowsize)
     {
         if (minRowCompactedSize < 1 || rowsize < minRowCompactedSize)
             minRowCompactedSize = rowsize;
@@ -379,7 +379,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     {
                         // if we're not writing to the commit log, we are replaying the log, so marking
                         // the log header with "you can discard anything written before the context" is not valid
-                        final int cfId = DatabaseDescriptor.getTableMetaData(table_).get(columnFamily_).cfId;
+                        final Integer cfId = DatabaseDescriptor.getTableMetaData(table_).get(columnFamily_).cfId;
                         logger_.debug("Discarding {}", cfId);
                         CommitLog.instance().discardCompletedSegments(cfId, ctx);
                     }
@@ -1203,29 +1203,29 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public double getBloomFilterFalseRatio()
     {
-        Long falseCount = 0L;
-        Long trueCount = 0L;
+        long falseCount = 0L;
+        long trueCount = 0L;
         for (SSTableReader sstable: getSSTables())
         {
             falseCount += sstable.getBloomFilterFalsePositiveCount();
             trueCount += sstable.getBloomFilterTruePositiveCount();
         }
-        if (falseCount.equals(0L) && trueCount.equals(0L))
+        if (falseCount == 0L && trueCount == 0L)
             return 0d;
-        return falseCount.doubleValue() / (trueCount.doubleValue() + falseCount.doubleValue());
+        return (double) falseCount / (trueCount + falseCount);
     }
 
     public double getRecentBloomFilterFalseRatio()
     {
-        Long falseCount = 0L;
-        Long trueCount = 0L;
+        long falseCount = 0L;
+        long trueCount = 0L;
         for (SSTableReader sstable: getSSTables())
         {
             falseCount += sstable.getRecentBloomFilterFalsePositiveCount();
             trueCount += sstable.getRecentBloomFilterTruePositiveCount();
         }
-        if (falseCount.equals(0L) && trueCount.equals(0L))
+        if (falseCount == 0L && trueCount == 0L)
             return 0d;
-        return falseCount.doubleValue() / (trueCount.doubleValue() + falseCount.doubleValue());
+        return (double) falseCount / (trueCount + falseCount);
     }
 }

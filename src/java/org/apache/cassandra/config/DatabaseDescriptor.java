@@ -761,9 +761,9 @@ public class DatabaseDescriptor
         return ksm.cfMetaData().get(cfName);
     }
     
-    public static CFMetaData getCFMetaData(int cfid)
+    public static CFMetaData getCFMetaData(Integer cfId)
     {
-        Pair<String,String> cf = CFMetaData.getCF(cfid);
+        Pair<String,String> cf = CFMetaData.getCF(cfId);
         if (cf == null)
             return null;
         return getCFMetaData(cf.left, cf.right);

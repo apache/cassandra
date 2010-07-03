@@ -46,9 +46,9 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
         return serializer;
     }
 
-    public static ColumnFamily create(int cfid)
+    public static ColumnFamily create(Integer cfId)
     {
-        return create(DatabaseDescriptor.getCFMetaData(cfid));
+        return create(DatabaseDescriptor.getCFMetaData(cfId));
     }
 
     public static ColumnFamily create(String tableName, String cfName)
@@ -63,7 +63,7 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
         return new ColumnFamily(cfm.cfType, cfm.clockType, cfm.comparator, cfm.subcolumnComparator, cfm.reconciler, cfm.cfId);
     }
 
-    private final int cfid;
+    private final Integer cfid;
     private final ColumnFamilyType type;
     private final ClockType clockType;
     private final AbstractReconciler reconciler;
@@ -73,7 +73,7 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
     final AtomicInteger localDeletionTime = new AtomicInteger(Integer.MIN_VALUE);
     private ConcurrentSkipListMap<byte[], IColumn> columns;
 
-    public ColumnFamily(ColumnFamilyType type, ClockType clockType, AbstractType comparator, AbstractType subcolumnComparator, AbstractReconciler reconciler, int cfid)
+    public ColumnFamily(ColumnFamilyType type, ClockType clockType, AbstractType comparator, AbstractType subcolumnComparator, AbstractReconciler reconciler, Integer cfid)
     {
         this.type = type;
         this.clockType = clockType;
@@ -119,7 +119,7 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
         return cf;
     }
 
-    public int id()
+    public Integer id()
     {
         return cfid;
     }

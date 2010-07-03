@@ -257,7 +257,7 @@ public class Table
     }
     
     /** removes a cf from internal structures (doesn't change disk files). */
-    public void dropCf(int cfId) throws IOException
+    public void dropCf(Integer cfId) throws IOException
     {
         assert columnFamilyStores.containsKey(cfId);
         ColumnFamilyStore cfs = columnFamilyStores.remove(cfId);
@@ -279,14 +279,14 @@ public class Table
     }
     
     /** adds a cf to internal structures, ends up creating disk files). */
-    public void initCf(int cfId, String cfName)
+    public void initCf(Integer cfId, String cfName)
     {
         assert !columnFamilyStores.containsKey(cfId) : cfId;
         columnFamilyStores.put(cfId, ColumnFamilyStore.createColumnFamilyStore(name, cfName));
     }
     
     /** basically a combined drop and add */
-    public void renameCf(int cfId, String newName) throws IOException
+    public void renameCf(Integer cfId, String newName) throws IOException
     {
         dropCf(cfId);
         initCf(cfId, newName);

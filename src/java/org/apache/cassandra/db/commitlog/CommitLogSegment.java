@@ -96,7 +96,7 @@ public class CommitLogSegment
                 }
                 else
                 {
-                    int id = cfm.cfId;
+                    Integer id = cfm.cfId;
                     if (!header.isDirty(id))
                     {
                         header.turnOn(id, logWriter.getFilePointer());

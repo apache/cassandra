@@ -62,7 +62,7 @@ public class EstimatedHistogram
         buckets.incrementAndGet(index);
     }
 
-    public long[] get(Boolean reset)
+    public long[] get(boolean reset)
     {
         long[] rv = new long[numBuckets];
         for (int i = 0; i < numBuckets; i++)

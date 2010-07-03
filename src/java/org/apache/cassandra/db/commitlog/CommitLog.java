@@ -366,7 +366,7 @@ public class CommitLog
      * The bit flag associated with this column family is set in the
      * header and this is used to decide if the log file can be deleted.
     */
-    public void discardCompletedSegments(final int cfId, final CommitLogSegment.CommitLogContext context) throws IOException
+    public void discardCompletedSegments(final Integer cfId, final CommitLogSegment.CommitLogContext context) throws IOException
     {
         Callable task = new Callable()
         {
@@ -397,7 +397,7 @@ public class CommitLog
      * param @ id id of the columnFamily being flushed to disk.
      *
     */
-    private void discardCompletedSegmentsInternal(CommitLogSegment.CommitLogContext context, int id) throws IOException
+    private void discardCompletedSegmentsInternal(CommitLogSegment.CommitLogContext context, Integer id) throws IOException
     {
         if (logger.isDebugEnabled())
             logger.debug("discard completed log segments for " + context + ", column family " + id + ".");

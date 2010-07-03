@@ -47,7 +47,7 @@ public class RenameColumnFamily extends Migration
     private String tableName;
     private String oldName;
     private String newName;
-    private int cfId;
+    private Integer cfId;
     
     RenameColumnFamily(DataInputStream din) throws IOException
     {

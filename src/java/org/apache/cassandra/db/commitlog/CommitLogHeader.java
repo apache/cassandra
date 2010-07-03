@@ -62,23 +62,24 @@ public class CommitLogHeader
         assert cfDirtiedAt.size() <= cfCount;
     }
         
-    boolean isDirty(int cfId)
+    boolean isDirty(Integer cfId)
     {
         return cfDirtiedAt.containsKey(cfId);
     } 
     
-    int getPosition(int index)
+    int getPosition(Integer cfId)
     {
-        Integer x = cfDirtiedAt.get(index);
+        Integer x = cfDirtiedAt.get(cfId);
         return x == null ? 0 : x;
     }
     
-    void turnOn(int cfId, long position)
+    void turnOn(Integer cfId, long position)
     {
+        assert position >= 0 && position <= Integer.MAX_VALUE;
         cfDirtiedAt.put(cfId, (int)position);
     }
 
-    void turnOff(int cfId)
+    void turnOff(Integer cfId)
     {
         cfDirtiedAt.remove(cfId);
     }

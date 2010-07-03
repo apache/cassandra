@@ -83,9 +83,9 @@ public final class CFMetaData
     /**
      * @return The (ksname,cfname) pair for the given id, or null if it has been dropped.
      */
-    public static final Pair<String,String> getCF(int id)
+    public static final Pair<String,String> getCF(Integer cfId)
     {
-        return cfIdMap.inverse().get(Integer.valueOf(id));
+        return cfIdMap.inverse().get(cfId);
     }
     
     /**
@@ -114,13 +114,13 @@ public final class CFMetaData
     public final double rowCacheSize; // default 0
     public final double keyCacheSize; // default 0.01
     public final double readRepairChance; //chance 0 to 1, of doing a read repair; defaults 1.0 (always)
-    public final int cfId;
+    public final Integer cfId;
     public boolean preloadRowCache;
 
     // BytesToken because byte[].hashCode|equals is inherited from Object.  gggrrr...
     public final Map<ByteArrayKey, ColumnDefinition> column_metadata;
 
-    private CFMetaData(String tableName, String cfName, ColumnFamilyType cfType, ClockType clockType, AbstractType comparator, AbstractType subcolumnComparator, AbstractReconciler reconciler, String comment, double rowCacheSize, boolean preloadRowCache, double keyCacheSize, double readRepairChance, int cfId, Map<ByteArrayKey, ColumnDefinition> column_metadata)
+    private CFMetaData(String tableName, String cfName, ColumnFamilyType cfType, ClockType clockType, AbstractType comparator, AbstractType subcolumnComparator, AbstractReconciler reconciler, String comment, double rowCacheSize, boolean preloadRowCache, double keyCacheSize, double readRepairChance, Integer cfId, Map<ByteArrayKey, ColumnDefinition> column_metadata)
     {
         assert column_metadata != null;
         this.tableName = tableName;
@@ -283,7 +283,7 @@ public final class CFMetaData
             .append(rowCacheSize, rhs.rowCacheSize)
             .append(keyCacheSize, rhs.keyCacheSize)
             .append(readRepairChance, rhs.readRepairChance)
-            .append(cfId, rhs.cfId)
+            .append(cfId.intValue(), rhs.cfId.intValue())
             .append(column_metadata, rhs.column_metadata)
             .isEquals();
     }
