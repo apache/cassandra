@@ -55,7 +55,6 @@ import org.apache.cassandra.db.migration.AddKeyspace;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.ByteArrayKey;
 
 import static org.apache.cassandra.avro.AvroRecordFactory.*;
 import static org.apache.cassandra.avro.ErrorFactory.*;
@@ -599,7 +598,7 @@ public class CassandraServer implements Cassandra {
                         cfDef.preload_row_cache == null ? CFMetaData.DEFAULT_PRELOAD_ROW_CACHE : cfDef.preload_row_cache,
                         cfDef.key_cache_size == null ? CFMetaData.DEFAULT_KEY_CACHE_SIZE : cfDef.key_cache_size,
                         cfDef.read_repair_chance == null ? CFMetaData.DEFAULT_READ_REPAIR_CHANCE : cfDef.read_repair_chance,
-                        Collections.<ByteArrayKey, ColumnDefinition>emptyMap());
+                        Collections.<byte[], ColumnDefinition>emptyMap());
                 cfDefs.add(cfmeta);
             }
             

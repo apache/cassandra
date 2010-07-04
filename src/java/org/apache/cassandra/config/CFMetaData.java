@@ -19,9 +19,7 @@
 package org.apache.cassandra.config;
 
 import java.io.*;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang.builder.EqualsBuilder;
@@ -39,7 +37,7 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.locator.DatacenterShardStrategy;
 import org.apache.cassandra.service.ColumnValidator;
-import org.apache.cassandra.utils.ByteArrayKey;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 
@@ -59,10 +57,10 @@ public final class CFMetaData
     
     private static final BiMap<Pair<String, String>, Integer> cfIdMap = HashBiMap.<Pair<String, String>, Integer>create();
     
-    public static final CFMetaData StatusCf = new CFMetaData(Table.SYSTEM_TABLE, SystemTable.STATUS_CF, ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, new TimestampReconciler(), "persistent metadata for the local node", 0, false, 0.01, 0, Collections.<ByteArrayKey,ColumnDefinition>emptyMap());
-    public static final CFMetaData HintsCf = new CFMetaData(Table.SYSTEM_TABLE, HintedHandOffManager.HINTS_CF, ColumnFamilyType.Super, ClockType.Timestamp, UTF8Type.instance, BytesType.instance, new TimestampReconciler(), "hinted handoff data", 0, false, 0.01, 1, Collections.<ByteArrayKey, ColumnDefinition>emptyMap());
-    public static final CFMetaData MigrationsCf = new CFMetaData(Table.SYSTEM_TABLE, Migration.MIGRATIONS_CF, ColumnFamilyType.Standard, ClockType.Timestamp, TimeUUIDType.instance, null, new TimestampReconciler(), "individual schema mutations", 0, false, 0.01, 2, Collections.<ByteArrayKey, ColumnDefinition>emptyMap());
-    public static final CFMetaData SchemaCf = new CFMetaData(Table.SYSTEM_TABLE, Migration.SCHEMA_CF, ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, new TimestampReconciler(), "current state of the schema", 0, false, 0.01, 3, Collections. <ByteArrayKey, ColumnDefinition>emptyMap());
+    public static final CFMetaData StatusCf = new CFMetaData(Table.SYSTEM_TABLE, SystemTable.STATUS_CF, ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, new TimestampReconciler(), "persistent metadata for the local node", 0, false, 0.01, 0, Collections.<byte[],ColumnDefinition>emptyMap());
+    public static final CFMetaData HintsCf = new CFMetaData(Table.SYSTEM_TABLE, HintedHandOffManager.HINTS_CF, ColumnFamilyType.Super, ClockType.Timestamp, UTF8Type.instance, BytesType.instance, new TimestampReconciler(), "hinted handoff data", 0, false, 0.01, 1, Collections.<byte[], ColumnDefinition>emptyMap());
+    public static final CFMetaData MigrationsCf = new CFMetaData(Table.SYSTEM_TABLE, Migration.MIGRATIONS_CF, ColumnFamilyType.Standard, ClockType.Timestamp, TimeUUIDType.instance, null, new TimestampReconciler(), "individual schema mutations", 0, false, 0.01, 2, Collections.<byte[], ColumnDefinition>emptyMap());
+    public static final CFMetaData SchemaCf = new CFMetaData(Table.SYSTEM_TABLE, Migration.SCHEMA_CF, ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, new TimestampReconciler(), "current state of the schema", 0, false, 0.01, 3, Collections. <byte[], ColumnDefinition>emptyMap());
 
     /**
      * @return An immutable mapping of (ksname,cfname) to id.
@@ -118,9 +116,22 @@ public final class CFMetaData
     public boolean preloadRowCache;
 
     // BytesToken because byte[].hashCode|equals is inherited from Object.  gggrrr...
-    public final Map<ByteArrayKey, ColumnDefinition> column_metadata;
+    public final Map<byte[], ColumnDefinition> column_metadata;
 
-    private CFMetaData(String tableName, String cfName, ColumnFamilyType cfType, ClockType clockType, AbstractType comparator, AbstractType subcolumnComparator, AbstractReconciler reconciler, String comment, double rowCacheSize, boolean preloadRowCache, double keyCacheSize, double readRepairChance, Integer cfId, Map<ByteArrayKey, ColumnDefinition> column_metadata)
+    private CFMetaData(String tableName,
+                       String cfName,
+                       ColumnFamilyType cfType,
+                       ClockType clockType,
+                       AbstractType comparator,
+                       AbstractType subcolumnComparator,
+                       AbstractReconciler reconciler,
+                       String comment,
+                       double rowCacheSize,
+                       boolean preloadRowCache,
+                       double keyCacheSize,
+                       double readRepairChance,
+                       Integer cfId,
+                       Map<byte[], ColumnDefinition> column_metadata)
     {
         assert column_metadata != null;
         this.tableName = tableName;
@@ -154,7 +165,7 @@ public final class CFMetaData
         }
     }
 
-    public CFMetaData(String tableName, String cfName, ColumnFamilyType cfType, ClockType clockType, AbstractType comparator, AbstractType subcolumnComparator, AbstractReconciler reconciler, String comment, double rowCacheSize, boolean preloadRowCache, double keyCacheSize, double readRepairChance, Map<ByteArrayKey, ColumnDefinition> column_metadata)
+    public CFMetaData(String tableName, String cfName, ColumnFamilyType cfType, ClockType clockType, AbstractType comparator, AbstractType subcolumnComparator, AbstractReconciler reconciler, String comment, double rowCacheSize, boolean preloadRowCache, double keyCacheSize, double readRepairChance, Map<byte[], ColumnDefinition> column_metadata)
     {
         this(tableName, cfName, cfType, clockType, comparator, subcolumnComparator, reconciler, comment, rowCacheSize, preloadRowCache, keyCacheSize, readRepairChance, nextId(), column_metadata);
     }
@@ -246,7 +257,7 @@ public final class CFMetaData
         double readRepairChance = din.readDouble();
         int cfId = din.readInt();
         int columnMetadataSize = din.readInt();
-        Map<ByteArrayKey, ColumnDefinition> column_metadata = new HashMap<ByteArrayKey, ColumnDefinition>(columnMetadataSize);
+        Map<byte[], ColumnDefinition> column_metadata = new TreeMap<byte[], ColumnDefinition>(FBUtilities.byteArrayComparator);
         while (columnMetadataSize > 0)
         {
             int cdSize = din.readInt();
@@ -254,7 +265,7 @@ public final class CFMetaData
             if (in.read(cdBytes) != cdSize)
                 throw new IOException("short read of ColumnDefinition");
             ColumnDefinition cd = ColumnDefinition.deserialize(cdBytes);
-            column_metadata.put(new ByteArrayKey(cd.name), cd);
+            column_metadata.put(cd.name, cd);
         }
         return new CFMetaData(tableName, cfName, cfType, clockType, comparator, subcolumnComparator, reconciler, comment, rowCacheSize, preloadRowCache, keyCacheSize, readRepairChance, cfId, column_metadata);
     }
@@ -315,7 +326,7 @@ public final class CFMetaData
     public ColumnValidator getColumnValidator(byte[] column)
     {
         ColumnValidator validator = null;
-        ColumnDefinition columnDefinition = column_metadata.get(new ByteArrayKey(column));
+        ColumnDefinition columnDefinition = column_metadata.get(column);
 
         if (columnDefinition != null)
         {

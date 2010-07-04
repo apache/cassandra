@@ -1,16 +1,13 @@
 package org.apache.cassandra.config;
 
 import java.io.*;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
 import org.apache.cassandra.thrift.ColumnDef;
-import org.apache.cassandra.utils.ByteArrayKey;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class ColumnDefinition {
     public byte[] name;
@@ -124,18 +121,17 @@ public class ColumnDefinition {
         return cd;
     }
 
-    public static Map<ByteArrayKey, ColumnDefinition> fromColumnDef(List<ColumnDef> thriftDefs)
+    public static Map<byte[], ColumnDefinition> fromColumnDef(List<ColumnDef> thriftDefs)
     {
         if (thriftDefs == null)
-            return Collections.<ByteArrayKey, ColumnDefinition>emptyMap();
+            return Collections.emptyMap();
 
-        //where are my simple map/reduce/lambda constructs!? gggrrr...
-        Map<ByteArrayKey, ColumnDefinition> cds = new HashMap<ByteArrayKey, ColumnDefinition>();
+        Map<byte[], ColumnDefinition> cds = new TreeMap<byte[], ColumnDefinition>(FBUtilities.byteArrayComparator);
         for (ColumnDef thriftColumnDef : thriftDefs)
         {
-            cds.put(new ByteArrayKey(thriftColumnDef.name), fromColumnDef(thriftColumnDef));
+            cds.put(thriftColumnDef.name, fromColumnDef(thriftColumnDef));
         }
 
-        return Collections.<ByteArrayKey, ColumnDefinition>unmodifiableMap(cds);
+        return Collections.unmodifiableMap(cds);
     }
 }
