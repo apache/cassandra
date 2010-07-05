@@ -835,20 +835,19 @@ public class CassandraServer implements Cassandra.Iface
 
         }
 
-        return new CFMetaData(
-                    cf_def.table,
-                    cf_def.name,
-                    cfType,
-                    clockType,
-                    DatabaseDescriptor.getComparator(cf_def.comparator_type),
-                    cf_def.subcomparator_type.length() == 0 ? null : DatabaseDescriptor.getComparator(cf_def.subcomparator_type),
-                    reconciler,
-                    cf_def.comment,
-                    cf_def.row_cache_size,
-                    cf_def.preload_row_cache,
-                    cf_def.key_cache_size,
-                    cf_def.read_repair_chance,
-                    ColumnDefinition.fromColumnDef(cf_def.column_metadata));
+        return new CFMetaData(cf_def.table,
+                              cf_def.name,
+                              cfType,
+                              clockType,
+                              DatabaseDescriptor.getComparator(cf_def.comparator_type),
+                              cf_def.subcomparator_type.length() == 0 ? null : DatabaseDescriptor.getComparator(cf_def.subcomparator_type),
+                              reconciler,
+                              cf_def.comment,
+                              cf_def.row_cache_size,
+                              cf_def.preload_row_cache,
+                              cf_def.key_cache_size,
+                              cf_def.read_repair_chance,
+                              ColumnDefinition.fromColumnDef(cf_def.column_metadata));
     }
 
     public void truncate(String cfname) throws InvalidRequestException, UnavailableException, TException

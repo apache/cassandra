@@ -584,21 +584,20 @@ public class CassandraServer implements Cassandra {
                         throw new ConfigurationException("No reconciler specified for column family " + cfDef.name.toString());
 
                 }
-                
-                CFMetaData cfmeta = new CFMetaData(
-                        cfDef.keyspace.toString(),
-                        cfDef.name.toString(),
-                        ColumnFamilyType.create(cfType),
-                        clockType,
-                        DatabaseDescriptor.getComparator(compare),
-                        subCompare.length() == 0 ? null : DatabaseDescriptor.getComparator(subCompare),
-                        reconciler,
-                        cfDef.comment == null ? "" : cfDef.comment.toString(), 
-                        cfDef.row_cache_size == null ? CFMetaData.DEFAULT_ROW_CACHE_SIZE : cfDef.row_cache_size,
-                        cfDef.preload_row_cache == null ? CFMetaData.DEFAULT_PRELOAD_ROW_CACHE : cfDef.preload_row_cache,
-                        cfDef.key_cache_size == null ? CFMetaData.DEFAULT_KEY_CACHE_SIZE : cfDef.key_cache_size,
-                        cfDef.read_repair_chance == null ? CFMetaData.DEFAULT_READ_REPAIR_CHANCE : cfDef.read_repair_chance,
-                        Collections.<byte[], ColumnDefinition>emptyMap());
+
+                CFMetaData cfmeta = new CFMetaData(cfDef.keyspace.toString(),
+                                                   cfDef.name.toString(),
+                                                   ColumnFamilyType.create(cfType),
+                                                   clockType,
+                                                   DatabaseDescriptor.getComparator(compare),
+                                                   subCompare.length() == 0 ? null : DatabaseDescriptor.getComparator(subCompare),
+                                                   reconciler,
+                                                   cfDef.comment == null ? "" : cfDef.comment.toString(),
+                                                   cfDef.row_cache_size == null ? CFMetaData.DEFAULT_ROW_CACHE_SIZE : cfDef.row_cache_size,
+                                                   cfDef.preload_row_cache == null ? CFMetaData.DEFAULT_PRELOAD_ROW_CACHE : cfDef.preload_row_cache,
+                                                   cfDef.key_cache_size == null ? CFMetaData.DEFAULT_KEY_CACHE_SIZE : cfDef.key_cache_size,
+                                                   cfDef.read_repair_chance == null ? CFMetaData.DEFAULT_READ_REPAIR_CHANCE : cfDef.read_repair_chance,
+                                                   Collections.<byte[], ColumnDefinition>emptyMap());
                 cfDefs.add(cfmeta);
             }
             
