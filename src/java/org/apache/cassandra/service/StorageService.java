@@ -1687,7 +1687,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return old;
     }
 
-    @Override
     public void truncate(String keyspace, String columnFamily) throws UnavailableException, TimeoutException, IOException
     {
         StorageProxy.truncateBlocking(keyspace, columnFamily);

@@ -58,7 +58,6 @@ public class Table
     static final ReentrantReadWriteLock flusherLock = new ReentrantReadWriteLock(true);
 
     private static Timer flushTimer = new Timer("FLUSH-TIMER");
-    private final boolean waitForCommitLog;
 
     // This is a result of pushing down the point in time when storage directories get created.  It used to happen in
     // CassandraDaemon, but it is possible to call Table.open without a running daemon, so it made sense to ensure
@@ -216,7 +215,6 @@ public class Table
     private Table(String table)
     {
         name = table;
-        waitForCommitLog = DatabaseDescriptor.getCommitLogSync() == Config.CommitLogSync.batch;
         // create data directories.
         for (String dataDir : DatabaseDescriptor.getAllDataFileLocations())
         {
