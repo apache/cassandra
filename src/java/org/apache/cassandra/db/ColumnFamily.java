@@ -403,17 +403,6 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
         return localDeletionTime.get();
     }
 
-    String getComparatorName()
-    {
-        return getComparator().getClass().getCanonicalName();
-    }
-
-    String getSubComparatorName()
-    {
-        AbstractType subcolumnComparator = getSubComparator();
-        return subcolumnComparator == null ? "" : subcolumnComparator.getClass().getCanonicalName();
-    }
-
     public static AbstractType getComparatorFor(String table, String columnFamilyName, byte[] superColumnName)
     {
         return superColumnName == null
