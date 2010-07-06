@@ -8,15 +8,16 @@ import org.apache.commons.lang.builder.HashCodeBuilder;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.thrift.ColumnDef;
+import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class ColumnDefinition {
     public final byte[] name;
     public final AbstractType validator;
-    public final String index_type;
+    public final IndexType index_type;
     public final String index_name;
 
-    public ColumnDefinition(byte[] name, String validation_class, String index_type, String index_name) throws ConfigurationException
+    public ColumnDefinition(byte[] name, String validation_class, IndexType index_type, String index_name) throws ConfigurationException
     {
         this.name = name;
         this.index_type = index_type;
@@ -62,7 +63,7 @@ public class ColumnDefinition {
 
         out.writeBoolean(cd.index_type != null);
         if (cd.index_type != null)
-            out.writeUTF(cd.index_type);
+            out.writeInt(cd.index_type.ordinal());
 
         out.writeBoolean(cd.index_name != null);
         if (cd.index_name != null)
@@ -80,9 +81,9 @@ public class ColumnDefinition {
         in.readFully(name);
         String validation_class = in.readUTF();
 
-        String index_type = null;
+        IndexType index_type = null;
         if (in.readBoolean())
-            index_type = in.readUTF();
+            index_type = IndexType.values()[in.readInt()];
 
         String index_name = null;
         if (in.readBoolean())

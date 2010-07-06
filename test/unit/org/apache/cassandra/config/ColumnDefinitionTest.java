@@ -2,6 +2,8 @@ package org.apache.cassandra.config;
 
 import org.junit.Test;
 
+import org.apache.cassandra.thrift.IndexType;
+
 public class ColumnDefinitionTest
 {
     @Test
@@ -9,7 +11,7 @@ public class ColumnDefinitionTest
     {
         ColumnDefinition cd0 = new ColumnDefinition("TestColumnDefinitionName0".getBytes("UTF8"),
                                                     "BytesType",
-                                                    "random index type 0",
+                                                    IndexType.KEYS,
                                                     "random index name 0");
 
         ColumnDefinition cd1 = new ColumnDefinition("TestColumnDefinition1".getBytes("UTF8"),

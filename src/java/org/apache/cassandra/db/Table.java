@@ -80,7 +80,7 @@ public class Table
     /* Table name. */
     public final String name;
     /* ColumnFamilyStore per column family */
-    private final Map<Integer, ColumnFamilyStore> columnFamilyStores = new HashMap<Integer, ColumnFamilyStore>();
+    public final Map<Integer, ColumnFamilyStore> columnFamilyStores = new HashMap<Integer, ColumnFamilyStore>(); // TODO make private again
     // cache application CFs since Range queries ask for them a _lot_
     private SortedSet<String> applicationColumnFamilies;
     private final TimerTask flushTask;
@@ -279,7 +279,8 @@ public class Table
     /** adds a cf to internal structures, ends up creating disk files). */
     public void initCf(Integer cfId, String cfName)
     {
-        assert !columnFamilyStores.containsKey(cfId) : cfId;
+        assert !columnFamilyStores.containsKey(cfId) : String.format("tried to init %s as %s, but already used by %s",
+                                                                     cfName, cfId, columnFamilyStores.get(cfId));
         columnFamilyStores.put(cfId, ColumnFamilyStore.createColumnFamilyStore(name, cfName));
     }
     

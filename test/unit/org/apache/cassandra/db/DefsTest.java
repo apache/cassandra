@@ -76,7 +76,7 @@ public class DefsTest extends CleanupHelper
             throw new AssertionError("Unexpected exception.");
         }
     }
-    
+
     @Test
     public void testMigrations() throws IOException, ConfigurationException
     {
@@ -85,7 +85,7 @@ public class DefsTest extends CleanupHelper
         UUID ver0 = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
         DefsTable.dumpToStorage(ver0);
         assert DatabaseDescriptor.getDefsVersion().equals(prior);
-        
+
         // add a cf.
         CFMetaData newCf1 = new CFMetaData("Keyspace1", "MigrationCf_1", ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, new TimestampReconciler(), "Migration CF ", 0, false, 1.0, 0, Collections.<byte[], ColumnDefinition>emptyMap());
         Migration m1 = new AddColumnFamily(newCf1);

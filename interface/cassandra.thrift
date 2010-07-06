@@ -314,10 +314,14 @@ struct AuthenticationRequest {
     1: required map<string, string> credentials
 }
 
+enum IndexType {
+    KEYS,
+}
+
 struct ColumnDef {
     1: required binary name,
     2: required string validation_class,
-    3: optional string index_type,
+    3: optional IndexType index_type,
     4: optional string index_name
 }
 

@@ -49,18 +49,26 @@ public class ColumnDef implements TBase<ColumnDef._Fields>, java.io.Serializable
 
   private static final TField NAME_FIELD_DESC = new TField("name", TType.STRING, (short)1);
   private static final TField VALIDATION_CLASS_FIELD_DESC = new TField("validation_class", TType.STRING, (short)2);
-  private static final TField INDEX_TYPE_FIELD_DESC = new TField("index_type", TType.STRING, (short)3);
+  private static final TField INDEX_TYPE_FIELD_DESC = new TField("index_type", TType.I32, (short)3);
   private static final TField INDEX_NAME_FIELD_DESC = new TField("index_name", TType.STRING, (short)4);
 
   public byte[] name;
   public String validation_class;
-  public String index_type;
+  /**
+   * 
+   * @see IndexType
+   */
+  public IndexType index_type;
   public String index_name;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
     NAME((short)1, "name"),
     VALIDATION_CLASS((short)2, "validation_class"),
+    /**
+     * 
+     * @see IndexType
+     */
     INDEX_TYPE((short)3, "index_type"),
     INDEX_NAME((short)4, "index_name");
 
@@ -123,7 +131,7 @@ public class ColumnDef implements TBase<ColumnDef._Fields>, java.io.Serializable
     put(_Fields.VALIDATION_CLASS, new FieldMetaData("validation_class", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.STRING)));
     put(_Fields.INDEX_TYPE, new FieldMetaData("index_type", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
+        new EnumMetaData(TType.ENUM, IndexType.class)));
     put(_Fields.INDEX_NAME, new FieldMetaData("index_name", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
   }});
@@ -220,11 +228,19 @@ public class ColumnDef implements TBase<ColumnDef._Fields>, java.io.Serializable
     }
   }
 
-  public String getIndex_type() {
+  /**
+   * 
+   * @see IndexType
+   */
+  public IndexType getIndex_type() {
     return this.index_type;
   }
 
-  public ColumnDef setIndex_type(String index_type) {
+  /**
+   * 
+   * @see IndexType
+   */
+  public ColumnDef setIndex_type(IndexType index_type) {
     this.index_type = index_type;
     return this;
   }
@@ -290,7 +306,7 @@ public class ColumnDef implements TBase<ColumnDef._Fields>, java.io.Serializable
       if (value == null) {
         unsetIndex_type();
       } else {
-        setIndex_type((String)value);
+        setIndex_type((IndexType)value);
       }
       break;
 
@@ -479,8 +495,8 @@ public class ColumnDef implements TBase<ColumnDef._Fields>, java.io.Serializable
           }
           break;
         case 3: // INDEX_TYPE
-          if (field.type == TType.STRING) {
-            this.index_type = iprot.readString();
+          if (field.type == TType.I32) {
+            this.index_type = IndexType.findByValue(iprot.readI32());
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -520,7 +536,7 @@ public class ColumnDef implements TBase<ColumnDef._Fields>, java.io.Serializable
     if (this.index_type != null) {
       if (isSetIndex_type()) {
         oprot.writeFieldBegin(INDEX_TYPE_FIELD_DESC);
-        oprot.writeString(this.index_type);
+        oprot.writeI32(this.index_type.getValue());
         oprot.writeFieldEnd();
       }
     }
