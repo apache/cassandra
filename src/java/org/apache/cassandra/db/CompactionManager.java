@@ -362,9 +362,12 @@ public class CompactionManager implements CompactionManagerMBean
         cfs.replaceCompactedSSTables(sstables, Arrays.asList(ssTable));
         submitMinorIfNeeded(cfs);
 
-        String format = "Compacted to %s.  %d/%d bytes for %d keys.  Time: %dms.";
+        String format = "Compacted to %s.  %,d to %,d (~%d%% of original) bytes for %,d keys.  Time: %,dms.";
         long dTime = System.currentTimeMillis() - startTime;
-        logger.info(String.format(format, writer.getFilename(), SSTable.getTotalBytes(sstables), ssTable.length(), totalkeysWritten, dTime));
+        long startsize = SSTable.getTotalBytes(sstables);
+        long endsize = ssTable.length();
+        double ratio = (double)endsize / (double)startsize;
+        logger.info(String.format(format, writer.getFilename(), startsize, endsize, (int) (ratio * 100), totalkeysWritten, dTime));
         return sstables.size();
     }
 
@@ -444,9 +447,13 @@ public class CompactionManager implements CompactionManagerMBean
         if (writer != null)
         {
             results.add(writer.closeAndOpenReader(getMaxDataAge(sstables)));
-            String format = "AntiCompacted to %s.  %d/%d bytes for %d keys.  Time: %dms.";
+
+            String format = "AntiCompacted to %s.  %,d to %,d (~%d%% of original) bytes for %,d keys.  Time: %,dms.";
             long dTime = System.currentTimeMillis() - startTime;
-            logger.info(String.format(format, writer.getFilename(), SSTable.getTotalBytes(sstables), results.get(0).length(), totalkeysWritten, dTime));
+            long startsize = SSTable.getTotalBytes(sstables);
+            long endsize = results.get(0).length();
+            double ratio = (double)endsize / (double)startsize;
+            logger.info(String.format(format, writer.getFilename(), startsize, endsize, (int)(ratio*100), totalkeysWritten, dTime));
         }
 
         return results;
