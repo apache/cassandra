@@ -115,11 +115,14 @@ public class DatabaseDescriptor
             InputStream input = new FileInputStream(new File(configFileName));
             org.yaml.snakeyaml.constructor.Constructor constructor = new org.yaml.snakeyaml.constructor.Constructor(Config.class);
             TypeDescription desc = new TypeDescription(Config.class);
+            desc.putListPropertyType("keyspaces", Keyspace.class);
             TypeDescription ksDesc = new TypeDescription(Keyspace.class);
             ksDesc.putListPropertyType("column_families", ColumnFamily.class);
-            desc.putListPropertyType("keyspaces", Keyspace.class);
+            TypeDescription cfDesc = new TypeDescription(ColumnFamily.class);
+            cfDesc.putListPropertyType("column_metadata", RawColumnDefinition.class);
             constructor.addTypeDescription(desc);
             constructor.addTypeDescription(ksDesc);
+            constructor.addTypeDescription(cfDesc);
             Yaml yaml = new Yaml(new Loader(constructor));
             conf = (Config)yaml.load(input);
             
@@ -536,7 +539,34 @@ public class DatabaseDescriptor
                 {                        
                     throw new ConfigurationException("read_repair_chance must be between 0.0 and 1.0");
                 }
-                cfDefs[j++] = new CFMetaData(keyspace.name, cf.name, cfType, cf.clock_type, comparator, subcolumnComparator, reconciler, cf.comment, cf.rows_cached, cf.preload_row_cache, cf.keys_cached, cf.read_repair_chance, cf.column_metata);
+                
+                Map<byte[], ColumnDefinition> metadata = new TreeMap<byte[], ColumnDefinition>(FBUtilities.byteArrayComparator);
+                for (RawColumnDefinition rcd : cf.column_metadata)
+                {
+                    try
+                    {
+                        byte[] columnName = rcd.name.getBytes("UTF-8");
+                        metadata.put(columnName, new ColumnDefinition(columnName, rcd.validator_class, rcd.index_type, rcd.index_name));
+                    }
+                    catch (UnsupportedEncodingException e)
+                    {
+                        throw new AssertionError(e);
+                    }
+                }
+
+                cfDefs[j++] = new CFMetaData(keyspace.name, 
+                                             cf.name, 
+                                             cfType, 
+                                             cf.clock_type, 
+                                             comparator, 
+                                             subcolumnComparator, 
+                                             reconciler, 
+                                             cf.comment, 
+                                             cf.rows_cached,
+                                             cf.preload_row_cache, 
+                                             cf.keys_cached, 
+                                             cf.read_repair_chance, 
+                                             metadata);
             }
             defs.add(new KSMetaData(keyspace.name, strategyClass, keyspace.replication_factor, cfDefs));
             

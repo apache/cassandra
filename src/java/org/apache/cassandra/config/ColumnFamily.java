@@ -18,5 +18,5 @@ public class ColumnFamily {
     public double keys_cached = CFMetaData.DEFAULT_KEY_CACHE_SIZE; 
     public double read_repair_chance = CFMetaData.DEFAULT_READ_REPAIR_CHANCE;
     public boolean preload_row_cache = CFMetaData.DEFAULT_PRELOAD_ROW_CACHE;
-    public Map<byte[], ColumnDefinition> column_metata = Collections.emptyMap();
+    public RawColumnDefinition[] column_metadata = new RawColumnDefinition[0];
 }

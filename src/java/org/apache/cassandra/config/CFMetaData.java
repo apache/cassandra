@@ -255,14 +255,13 @@ public final class CFMetaData
         double keyCacheSize = din.readDouble();
         double readRepairChance = din.readDouble();
         int cfId = din.readInt();
-        int columnMetadataSize = din.readInt();
+        int columnMetadataEntries = din.readInt();
         Map<byte[], ColumnDefinition> column_metadata = new TreeMap<byte[], ColumnDefinition>(FBUtilities.byteArrayComparator);
-        while (columnMetadataSize > 0)
+        for (int i = 0; i < columnMetadataEntries; i++)
         {
             int cdSize = din.readInt();
             byte[] cdBytes = new byte[cdSize];
-            if (in.read(cdBytes) != cdSize)
-                throw new IOException("short read of ColumnDefinition");
+            din.readFully(cdBytes);
             ColumnDefinition cd = ColumnDefinition.deserialize(cdBytes);
             column_metadata.put(cd.name, cd);
         }
