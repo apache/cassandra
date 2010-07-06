@@ -1093,41 +1093,23 @@ class TestMutations(ThriftTester):
     def test_column_validators(self):
         ks = 'Keyspace1'
         _set_keyspace(ks)
-        cd = ColumnDef('col', 'org.apache.cassandra.service.ExampleColumnValidator', None, None)
+        cd = ColumnDef('col', 'LongType', None, None)
         cf = CfDef('Keyspace1', 'ValidatorColumnFamily', column_metadata=[cd])
         client.system_add_column_family(cf)
         dks = client.describe_keyspace(ks)
         assert 'ValidatorColumnFamily' in dks
 
         cp = ColumnParent('ValidatorColumnFamily')
-        col0 = Column('col', 'valuegood', Clock(0))
-        col1 = Column('col', 'valuebad', Clock(0))
+        col0 = Column('col', _i64(42), Clock(0))
+        col1 = Column('col', "ceci n'est pas 64bit", Clock(0))
         client.insert('key0', cp, col0, ConsistencyLevel.ONE)
         e = _expect_exception(lambda: client.insert('key1', cp, col1, ConsistencyLevel.ONE), InvalidRequestException)
         assert e.why.find("failed validation") >= 0
-        assert e.why.find("column.value.length is even") >= 0
-
-    def test_super_column_validators(self):
-        ks = 'Keyspace1'
-        _set_keyspace(ks)
-        cd = ColumnDef('col', 'org.apache.cassandra.service.ExampleColumnValidator', None, None)
-        cf = CfDef('Keyspace1', 'SuperValidatorColumnFamily', 'Super', column_metadata=[cd])
-        client.system_add_column_family(cf)
-        dks = client.describe_keyspace('Keyspace1')
-        assert 'SuperValidatorColumnFamily' in dks
-
-        cp = ColumnParent('SuperValidatorColumnFamily', 'a subcolumn')
-        col0 = Column('col', 'valuegood', Clock(0))
-        col1 = Column('col', 'valuebad', Clock(0))
-        client.insert('key0', cp, col0, ConsistencyLevel.ONE)
-        e = _expect_exception(lambda: client.insert('key1', cp, col1, ConsistencyLevel.ONE), InvalidRequestException)
-        assert e.why.find("failed validation") >= 0
-        assert e.why.find("column.value.length is even") >= 0
 
     def test_system_column_family_operations(self):
         _set_keyspace('Keyspace1')
         # create
-        cd = ColumnDef('ValidationColumn', 'randomclass', None, None)
+        cd = ColumnDef('ValidationColumn', 'BytesType', None, None)
         newcf = CfDef('Keyspace1', 'NewColumnFamily', column_metadata=[cd])
         client.system_add_column_family(newcf)
         ks1 = client.describe_keyspace('Keyspace1')
@@ -1150,7 +1132,7 @@ class TestMutations(ThriftTester):
         _set_keyspace('Keyspace1')
         
         # create
-        cd = ColumnDef('ValidationColumn', 'randomclass', None, None)
+        cd = ColumnDef('ValidationColumn', 'BytesType', None, None)
         newcf = CfDef('Keyspace1', 'NewSuperColumnFamily', 'Super', column_metadata=[cd])
         client.system_add_column_family(newcf)
         ks1 = client.describe_keyspace('Keyspace1')

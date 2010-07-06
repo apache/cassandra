@@ -36,7 +36,6 @@ import org.apache.cassandra.db.clock.TimestampReconciler;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.locator.DatacenterShardStrategy;
-import org.apache.cassandra.service.ColumnValidator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -323,34 +322,11 @@ public final class CFMetaData
         return idGen.getAndIncrement();
     }
 
-    public ColumnValidator getColumnValidator(byte[] column)
+    public AbstractType getValueValidator(byte[] column)
     {
-        ColumnValidator validator = null;
         ColumnDefinition columnDefinition = column_metadata.get(column);
-
-        if (columnDefinition != null)
-        {
-            String className = columnDefinition.validation_class;
-            if (className != null && className.trim().length() > 0)
-            {
-                try
-                {
-                    validator = (ColumnValidator) Class.forName(className).newInstance();
-                }
-                catch (ClassNotFoundException cnfe)
-                {
-                    throw new MarshalException("could not find validation class + " + className, cnfe);
-                }
-                catch (InstantiationException ie)
-                {
-                    throw new MarshalException("could not instantiate validation class " + className, ie);
-                }
-                catch (IllegalAccessException iae)
-                {
-                    throw new MarshalException("IllegalAccessException instantiating validation class " + className, iae);
-                }
-            }
-        }
-        return validator;
+        if (columnDefinition == null)
+            return null;
+        return columnDefinition.validator;
     }
 }

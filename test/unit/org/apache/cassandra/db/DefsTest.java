@@ -169,43 +169,6 @@ public class DefsTest extends CleanupHelper
     }
 
     @Test
-    public void testCanAddColumnDefinitionsInColumnMetaData() throws Exception
-    {
-        String ks = "Keyspace1";
-        String cf = "ValidatorColumnFamily";
-        KSMetaData original = DatabaseDescriptor.getTableDefinition(ks);
-
-        Map<byte[], ColumnDefinition> column_metadata = new TreeMap<byte[], ColumnDefinition>(FBUtilities.byteArrayComparator);
-
-        ColumnDefinition cd0 = new ColumnDefinition();
-        cd0.name = "TestColumn1".getBytes("UTF8");
-        cd0.validation_class = "random class one";
-        cd0.index_name = null;
-        cd0.index_type = null;
-
-        ColumnDefinition cd1 = new ColumnDefinition();
-        cd1.name = "*".getBytes("UTF8");
-        cd1.validation_class = "random class two";
-        cd1.index_name = "some name";
-        cd1.index_type = "some type";
-
-        column_metadata.put(cd0.name, cd0);
-        column_metadata.put(cd1.name, cd1);
-
-        CFMetaData newCf = new CFMetaData(original.name, cf, ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, new TimestampReconciler(), "A New Column Family", 0, false, 1.0, 0, column_metadata);
-        assert !DatabaseDescriptor.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
-        new AddColumnFamily(newCf).apply();
-
-        assert DatabaseDescriptor.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
-        assert DatabaseDescriptor.getTableDefinition(ks).cfMetaData().get(newCf.cfName).equals(newCf);
-
-        ColumnFamilyStore store = Table.open(ks).getColumnFamilyStore(cf);
-        assert store != null;
-        store.forceBlockingFlush();
-    }
-
-
-    @Test
     public void dropCf() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
         DecoratedKey dk = Util.dk("dropCf");

@@ -6,58 +6,50 @@ import java.util.*;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class ColumnDefinition {
-    public byte[] name;
-    public String validation_class;
-    public String index_type;
-    public String index_name;
+    public final byte[] name;
+    public final AbstractType validator;
+    public final String index_type;
+    public final String index_name;
 
-    public ColumnDefinition()
-    {
-        this(null, null, null, null);
-    }
-
-    public ColumnDefinition(byte[] name, String validation_class, String index_type, String index_name)
+    public ColumnDefinition(byte[] name, String validation_class, String index_type, String index_name) throws ConfigurationException
     {
         this.name = name;
-        this.validation_class = validation_class;
         this.index_type = index_type;
         this.index_name = index_name;
+        this.validator = DatabaseDescriptor.getComparator(validation_class);
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+
+        ColumnDefinition that = (ColumnDefinition) o;
+        if (index_name != null ? !index_name.equals(that.index_name) : that.index_name != null)
+            return false;
+        if (index_type != null ? !index_type.equals(that.index_type) : that.index_type != null)
+            return false;
+        if (!Arrays.equals(name, that.name))
+            return false;
+        return !(validator != null ? !validator.equals(that.validator) : that.validator != null);
     }
 
     @Override
     public int hashCode()
     {
-        return new HashCodeBuilder()
-                .append(name)
-                .append(validation_class)
-                .append(index_type)
-                .append(index_name)
-                .toHashCode();
-    }
-
-    @Override
-    public boolean equals(Object obj)
-    {
-        if (obj == this)
-        {
-            return true;
-        }
-        else if (obj == null || obj.getClass() != getClass())
-        {
-            return false;
-        }
-
-        ColumnDefinition rhs = (ColumnDefinition) obj;
-        return new EqualsBuilder()
-                .append(name, rhs.name)
-                .append(validation_class, rhs.validation_class)
-                .append(index_name, rhs.index_name)
-                .append(index_type, rhs.index_type)
-                .isEquals();
+        int result = name != null ? Arrays.hashCode(name) : 0;
+        result = 31 * result + (validator != null ? validator.hashCode() : 0);
+        result = 31 * result + (index_type != null ? index_type.hashCode() : 0);
+        result = 31 * result + (index_name != null ? index_name.hashCode() : 0);
+        return result;
     }
 
     public static byte[] serialize(ColumnDefinition cd) throws IOException
@@ -66,24 +58,15 @@ public class ColumnDefinition {
         DataOutputStream out = new DataOutputStream(bout);
         out.writeInt(cd.name.length);
         out.write(cd.name);
-
-        out.writeBoolean(cd.validation_class != null);
-        if (cd.validation_class != null)
-        {
-            out.writeUTF(cd.validation_class);
-        }
+        out.writeUTF(cd.validator.getClass().getName());
 
         out.writeBoolean(cd.index_type != null);
         if (cd.index_type != null)
-        {
             out.writeUTF(cd.index_type);
-        }
 
         out.writeBoolean(cd.index_name != null);
         if (cd.index_name != null)
-        {
             out.writeUTF(cd.index_name);
-        }
 
         out.close();
         return bout.toByteArray();
@@ -91,37 +74,36 @@ public class ColumnDefinition {
 
     public static ColumnDefinition deserialize(byte[] bytes) throws IOException
     {
-        ColumnDefinition cd = new ColumnDefinition();
         DataInputStream in = new DataInputStream(new ByteArrayInputStream(bytes));
         int nameSize = in.readInt();
-        cd.name = new byte[nameSize];
-        if (in.read(cd.name, 0, nameSize) != nameSize)
-            throw new IOException("short read of ColumnDefinition name");
+        byte[] name = new byte[nameSize];
+        in.readFully(name);
+        String validation_class = in.readUTF();
 
+        String index_type = null;
         if (in.readBoolean())
-            cd.validation_class = in.readUTF();
+            index_type = in.readUTF();
 
+        String index_name = null;
         if (in.readBoolean())
-            cd.index_type = in.readUTF();
+            index_name = in.readUTF();
 
-        if (in.readBoolean())
-            cd.index_name = in.readUTF();
-
-        return cd;
+        try
+        {
+            return new ColumnDefinition(name, validation_class, index_type, index_name);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
-    public static ColumnDefinition fromColumnDef(ColumnDef thriftColumnDef)
+    public static ColumnDefinition fromColumnDef(ColumnDef cd) throws ConfigurationException
     {
-        assert thriftColumnDef != null;
-        ColumnDefinition cd = new ColumnDefinition();
-        cd.name = thriftColumnDef.name;
-        cd.validation_class = thriftColumnDef.validation_class;
-        cd.index_type = thriftColumnDef.index_type;
-        cd.index_name = thriftColumnDef.index_name;
-        return cd;
+        return new ColumnDefinition(cd.name, cd.validation_class, cd.index_type, cd.index_name);
     }
 
-    public static Map<byte[], ColumnDefinition> fromColumnDef(List<ColumnDef> thriftDefs)
+    public static Map<byte[], ColumnDefinition> fromColumnDef(List<ColumnDef> thriftDefs) throws ConfigurationException
     {
         if (thriftDefs == null)
             return Collections.emptyMap();

@@ -46,7 +46,6 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.IEndpointSnitch;
-import org.apache.cassandra.service.ColumnValidator;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -1081,8 +1080,8 @@ public class DatabaseDescriptor
         return conf.hinted_handoff_enabled;
     }
 
-    public static ColumnValidator getColumnValidator(String keyspace, String cf, byte[] column)
+    public static AbstractType getValueValidator(String keyspace, String cf, byte[] column)
     {
-        return getCFMetaData(keyspace, cf).getColumnValidator(column);
+        return getCFMetaData(keyspace, cf).getValueValidator(column);
     }
 }
