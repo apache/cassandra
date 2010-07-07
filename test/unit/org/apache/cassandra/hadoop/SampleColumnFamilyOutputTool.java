@@ -60,7 +60,6 @@ public class SampleColumnFamilyOutputTool extends Configured implements Tool
         ConfigHelper.setOutputColumnFamily(job.getConfiguration(),
                                      ColumnFamilyOutputFormatTest.KEYSPACE,
                                      ColumnFamilyOutputFormatTest.COLUMN_FAMILY);
-        ConfigHelper.setOutputSlicePredicate(job.getConfiguration(), new SlicePredicate());
 
         SequenceFileInputFormat.addInputPath(job, inputdir);
         

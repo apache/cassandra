@@ -152,22 +152,6 @@ public class ConfigHelper
         return predicateFromString(conf.get(INPUT_PREDICATE_CONFIG));
     }
 
-    /**
-     * Set the predicate that determines what columns will be selected from each row.
-     *
-     * @param conf Job configuration you are about to run
-     * @param predicate
-     */
-    public static void setOutputSlicePredicate(Configuration conf, SlicePredicate predicate)
-    {
-        conf.set(OUTPUT_PREDICATE_CONFIG, predicateToString(predicate));
-    }
-
-    public static SlicePredicate getOutputSlicePredicate(Configuration conf)
-    {
-        return predicateFromString(conf.get(OUTPUT_PREDICATE_CONFIG));
-    }
-
     private static String predicateToString(SlicePredicate predicate)
     {
         assert predicate != null;
