@@ -56,7 +56,7 @@ import org.slf4j.LoggerFactory;
  * 
  * <p>
  * As is the case with the {@link ColumnFamilyInputFormat}, you need to set the
- * CF and predicate (description of columns to extract from each row) in your
+ * Keyspace and ColumnFamily in your
  * Hadoop job Configuration. The {@link ConfigHelper} class, through its
  * {@link ConfigHelper#setOutputColumnFamily} method, is provided to make this
  * simple.
@@ -68,8 +68,6 @@ import org.slf4j.LoggerFactory;
  * reduce's inputs (in a task-specific map). When the writer is closed, then it
  * makes the changes official by sending a batch mutate request to Cassandra.
  * </p>
- * 
- * @author Karthick Sankarachary
  */
 public class ColumnFamilyOutputFormat extends OutputFormat<byte[],List<IColumn>>
 {
