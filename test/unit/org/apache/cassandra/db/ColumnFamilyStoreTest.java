@@ -168,7 +168,19 @@ public class ColumnFamilyStoreTest extends CleanupHelper
     public void testIndexScan() throws IOException
     {
         RowMutation rm;
-        rm = new RowMutation("Keyspace1", "k".getBytes());
+
+        rm = new RowMutation("Keyspace1", "k1".getBytes());
+        rm.add(new QueryPath("Indexed1", null, "notbirthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), new TimestampClock(0));
+        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), new TimestampClock(0));
+        rm.apply();
+
+        rm = new RowMutation("Keyspace1", "k2".getBytes());
+        rm.add(new QueryPath("Indexed1", null, "notbirthdate".getBytes("UTF8")), FBUtilities.toByteArray(2L), new TimestampClock(0));
+        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(2L), new TimestampClock(0));
+        rm.apply();
+
+        rm = new RowMutation("Keyspace1", "k3".getBytes());
+        rm.add(new QueryPath("Indexed1", null, "notbirthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), new TimestampClock(0));
         rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), new TimestampClock(0));
         rm.apply();
 
@@ -176,7 +188,13 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         IndexClause clause = new IndexClause(Arrays.asList(expr), 100);
         IFilter filter = new IdentityQueryFilter();
         List<Row> rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").scan(clause, filter);
-        assert rows != null && rows.size() > 0;
+
+        assert rows != null;
+        assert rows.size() == 2;
+        assert Arrays.equals("k1".getBytes(), rows.get(0).key.key);
+        assert Arrays.equals("k3".getBytes(), rows.get(1).key.key);
+        assert Arrays.equals(FBUtilities.toByteArray(1L), rows.get(0).cf.getColumn("birthdate".getBytes("UTF8")).value());
+        assert Arrays.equals(FBUtilities.toByteArray(1L), rows.get(1).cf.getColumn("birthdate".getBytes("UTF8")).value());
     }
 
     private ColumnFamilyStore insertKey1Key2() throws IOException, ExecutionException, InterruptedException
