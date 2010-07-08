@@ -84,11 +84,16 @@ snapshot_before_compaction: false
 # The threshold size in megabytes the binary memtable must grow to,
 # before it's submitted for flushing to disk.
 binary_memtable_throughput_in_mb: 256
-# Number of minutes to keep a memtable in memory
+# The maximum time to leave a dirty memtable unflushed.
+# (While any affected columnfamilies have unflushed data from a
+# commit log segment, that segment cannot be deleted.)
+# This needs to be large enough that it won't cause a flush storm
+# of all your memtables flushing at once because none has hit
+# the size or count thresholds yet.
 memtable_flush_after_mins: 60
-# Size of the memtable in memory before it is dumped
+# Size of the memtable in memory before it is flushed
 memtable_throughput_in_mb: 64
-# Number of objects in millions in the memtable before it is dumped
+# Number of objects in millions in the memtable before it is flushed
 memtable_operations_in_millions: 0.3
 # Buffer size to use when flushing !memtables to disk.
 flush_data_buffer_size_in_mb: 32
