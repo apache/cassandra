@@ -26,22 +26,37 @@ package org.apache.cassandra.thrift;
  */
 
 
-import java.util.List;
-import java.util.ArrayList;
+
 import java.util.Map;
 import java.util.HashMap;
-import java.util.EnumMap;
-import java.util.Set;
-import java.util.HashSet;
-import java.util.EnumSet;
-import java.util.Collections;
-import java.util.BitSet;
-import java.util.Arrays;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.thrift.TEnum;
 
-public class Constants {
+public enum IndexOperator implements TEnum {
+  EQ(0);
 
-  public static final String VERSION = "8.3.0";
+  private final int value;
 
+  private IndexOperator(int value) {
+    this.value = value;
+  }
+
+  /**
+   * Get the integer value of this enum value, as defined in the Thrift IDL.
+   */
+  public int getValue() {
+    return value;
+  }
+
+  /**
+   * Find a the enum type by its integer value, as defined in the Thrift IDL.
+   * @return null if the value is not found.
+   */
+  public static IndexOperator findByValue(int value) { 
+    switch (value) {
+      case 0:
+        return EQ;
+      default:
+        return null;
+    }
+  }
 }

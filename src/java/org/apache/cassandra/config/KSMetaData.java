@@ -48,7 +48,7 @@ public final class KSMetaData
         Map<String, CFMetaData> cfmap = new HashMap<String, CFMetaData>();
         for (CFMetaData cfm : cfDefs)
             cfmap.put(cfm.cfName, cfm);
-        this.cfMetaData = Collections.<String, CFMetaData>unmodifiableMap(cfmap);
+        this.cfMetaData = Collections.unmodifiableMap(cfmap);
     }
     
     public boolean equals(Object obj)

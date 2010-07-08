@@ -28,19 +28,19 @@ import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.Multimap;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.collect.AbstractIterator;
-import com.google.common.collect.Multimap;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
@@ -54,7 +54,6 @@ import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LatencyTracker;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 public class StorageProxy implements StorageProxyMBean
@@ -755,6 +754,28 @@ public class StorageProxy implements StorageProxyMBean
     public double getRecentWriteLatencyMicros()
     {
         return writeStats.getRecentLatencyMicros();
+    }
+
+    public static List<Row> scan(IndexScanCommand command, ConsistencyLevel consistency_level)
+    throws IOException, TimeoutException
+    {
+        IPartitioner p = StorageService.getPartitioner();
+        Token startToken = command.index_clause.start_key == null ? p.getMinimumToken() : p.getToken(command.index_clause.start_key);
+        List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.keyspace, startToken);
+        // TODO iterate through endpoints in token order like getRangeSlice
+        Message message = command.getMessage();
+        RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, endpoints);
+        AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(command.keyspace);
+        QuorumResponseHandler<List<Row>> handler = rs.getQuorumResponseHandler(resolver, consistency_level, command.keyspace);
+        MessagingService.instance.sendRR(message, endpoints.get(0), handler);
+        try
+        {
+            return handler.get();
+        }
+        catch (DigestMismatchException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     static class weakReadLocalCallable implements Callable<Object>

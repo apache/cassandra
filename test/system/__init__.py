@@ -151,7 +151,8 @@ class ThriftTester(BaseTester):
             Cassandra.CfDef('Keyspace1', 'Super1', column_type='Super', subcomparator_type='LongType', row_cache_size=1000, key_cache_size=0), 
             Cassandra.CfDef('Keyspace1', 'Super2', column_type='Super', subcomparator_type='LongType'), 
             Cassandra.CfDef('Keyspace1', 'Super3', column_type='Super', subcomparator_type='LongType'), 
-            Cassandra.CfDef('Keyspace1', 'Super4', column_type='Super', subcomparator_type='UTF8Type')
+            Cassandra.CfDef('Keyspace1', 'Super4', column_type='Super', subcomparator_type='UTF8Type'),
+            Cassandra.CfDef('Keyspace1', 'Indexed1', column_metadata=[Cassandra.ColumnDef('birthdate', 'LongType', Cassandra.IndexType.KEYS, 'birthdate')]),
         ])
 
         keyspace2 = Cassandra.KsDef('Keyspace2', 'org.apache.cassandra.locator.RackUnawareStrategy', 1,
@@ -174,10 +175,8 @@ class ThriftTester(BaseTester):
             Cassandra.CfDef('Keyspace4', 'Super3', column_type='Super', subcomparator_type='BytesType'),
             Cassandra.CfDef('Keyspace4', 'Super4', column_type='Super', subcomparator_type='TimeUUIDType')
         ])
-        self.client.system_add_keyspace(keyspace1)
-        self.client.system_add_keyspace(keyspace2)
-        self.client.system_add_keyspace(keyspace3)
-        self.client.system_add_keyspace(keyspace4)
+        for ks in [keyspace1, keyspace2, keyspace3, keyspace4]:
+            self.client.system_add_keyspace(ks)
 
 class AvroTester(BaseTester):
     client = None

@@ -31,9 +31,13 @@ import org.apache.cassandra.utils.ReducingIterator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.IClock.ClockRelationship;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class QueryFilter
 {
+    private static Logger logger = LoggerFactory.getLogger(QueryFilter.class);
+
     public final DecoratedKey key;
     public final QueryPath path;
     private final IFilter filter;

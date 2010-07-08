@@ -115,7 +115,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         DEFINITIONS_UPDATE_RESPONSE,
         TRUNCATE,
         SCHEMA_CHECK,
-        ;
+        INDEX_SCAN;
         // remember to add new verbs at the end, since we serialize by ordinal
     }
     public static final Verb[] VERBS = Verb.values();
@@ -223,6 +223,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         MessagingService.instance.registerVerbHandlers(Verb.READ_REPAIR, new ReadRepairVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.READ, new ReadVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.RANGE_SLICE, new RangeSliceVerbHandler());
+        MessagingService.instance.registerVerbHandlers(Verb.INDEX_SCAN, new IndexScanVerbHandler());
         // see BootStrapper for a summary of how the bootstrap verbs interact
         MessagingService.instance.registerVerbHandlers(Verb.BOOTSTRAP_TOKEN, new BootStrapper.BootstrapTokenVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.STREAM_REQUEST, new StreamRequestVerbHandler() );

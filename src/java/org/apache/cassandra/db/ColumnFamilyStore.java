@@ -22,7 +22,6 @@ import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOError;
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -30,34 +29,40 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Condition;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
 
-import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
 import org.apache.commons.collections.IteratorUtils;
+import org.apache.commons.lang.ArrayUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.IClock.ClockRelationship;
+import org.apache.cassandra.db.clock.TimestampReconciler;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Bounds;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.LocalByPartionerType;
+import org.apache.cassandra.dht.*;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.SSTableTracker;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.cassandra.thrift.IndexClause;
+import org.apache.cassandra.thrift.IndexExpression;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.LatencyTracker;
+import org.apache.cassandra.utils.SimpleCondition;
+import org.apache.cassandra.utils.WrappedRunnable;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
@@ -106,6 +111,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private final String table_;
     public final String columnFamily_;
+    private final IPartitioner partitioner_;
 
     private volatile int memtableSwitchCount = 0;
 
@@ -114,6 +120,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     /* active memtable associated with this ColumnFamilyStore. */
     private Memtable memtable_;
+
+    private final Map<byte[], ColumnFamilyStore> indexedColumns_;
 
     // TODO binarymemtable ops are not threadsafe (do they need to be?)
     private AtomicReference<BinaryMemtable> binaryMemtable_;
@@ -128,13 +136,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private long maxRowCompactedSize = 0L;
     private long rowsCompactedTotalSize = 0L;
     private long rowsCompactedCount = 0L;
-    
-    ColumnFamilyStore(String table, String columnFamilyName, int indexValue)
+    final CFMetaData metadata;
+
+    ColumnFamilyStore(String table, String columnFamilyName, IPartitioner partitioner, int generation, CFMetaData metadata)
     {
+        assert metadata != null : "null metadata for " + table + ":" + columnFamilyName;
         table_ = table;
         columnFamily_ = columnFamilyName;
-        fileIndexGenerator_.set(indexValue);
-        memtable_ = new Memtable(this);
+        this.metadata = metadata;
+        this.partitioner_ = partitioner;
+        fileIndexGenerator_.set(generation);
+        memtable_ = new Memtable(this, partitioner_);
         binaryMemtable_ = new AtomicReference<BinaryMemtable>(new BinaryMemtable(this));
 
         if (logger_.isDebugEnabled())
@@ -197,7 +209,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             SSTableReader sstable;
             try
             {
-                sstable = SSTableReader.open(filename);
+                sstable = SSTableReader.open(filename, partitioner_);
             }
             catch (IOException ex)
             {
@@ -208,6 +220,39 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         ssTables_ = new SSTableTracker(table, columnFamilyName);
         ssTables_.add(sstables);
+
+        indexedColumns_ = new TreeMap<byte[], ColumnFamilyStore>(BytesType.instance);
+        for (Map.Entry<byte[], ColumnDefinition> entry : metadata.column_metadata.entrySet())
+        {
+            byte[] column = entry.getKey();
+            ColumnDefinition info = entry.getValue();
+            if (info.index_type == null)
+                continue;
+
+            String indexedCfName = columnFamily_ + "." + (info.index_name == null ? FBUtilities.bytesToHex(column) : info.index_name);
+            IPartitioner rowPartitioner = StorageService.getPartitioner();
+            AbstractType columnComparator = (rowPartitioner instanceof OrderPreservingPartitioner || rowPartitioner instanceof ByteOrderedPartitioner)
+                                            ? BytesType.instance
+                                            : new LocalByPartionerType(StorageService.getPartitioner());
+            CFMetaData indexedCfMetadata = new CFMetaData(table,
+                                                          indexedCfName,
+                                                          ColumnFamilyType.Standard,
+                                                          ClockType.Timestamp,
+                                                          columnComparator,
+                                                          null,
+                                                          new TimestampReconciler(),
+                                                          "",
+                                                          0,
+                                                          false,
+                                                          0,
+                                                          0,
+                                                          Collections.<byte[], ColumnDefinition>emptyMap());
+            ColumnFamilyStore indexedCfs = ColumnFamilyStore.createColumnFamilyStore(table, 
+                                                                                     indexedCfName,
+                                                                                     new LocalPartitioner(metadata.column_metadata.get(column).validator),
+                                                                                     indexedCfMetadata);
+            indexedColumns_.put(column, indexedCfs);
+        }
     }
 
     public void addToCompactedRowStats(long rowsize)
@@ -240,6 +285,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public static ColumnFamilyStore createColumnFamilyStore(String table, String columnFamily)
     {
+        return createColumnFamilyStore(table, columnFamily, StorageService.getPartitioner(), DatabaseDescriptor.getCFMetaData(table, columnFamily));
+    }
+
+    public static ColumnFamilyStore createColumnFamilyStore(String table, String columnFamily, IPartitioner partitioner, CFMetaData metadata)
+    {
         /*
          * Get all data files associated with old Memtables for this table.
          * These files are named as follows <Table>-1.db, ..., <Table>-n.db. Get
@@ -269,22 +319,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Collections.sort(generations);
         int value = (generations.size() > 0) ? (generations.get(generations.size() - 1)) : 0;
 
-        ColumnFamilyStore cfs = new ColumnFamilyStore(table, columnFamily, value);
-
-        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-        try
-        {
-            ObjectName mbeanName = new ObjectName("org.apache.cassandra.db:type=ColumnFamilyStores,keyspace=" + table + ",columnfamily=" + columnFamily);
-            if (mbs.isRegistered(mbeanName))
-                mbs.unregisterMBean(mbeanName);
-            mbs.registerMBean(cfs, mbeanName);
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
-
-        return cfs;
+        return new ColumnFamilyStore(table, columnFamily, partitioner, value, metadata);
     }
 
     private Set<File> files()
@@ -367,7 +402,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             final CommitLogSegment.CommitLogContext ctx = writeCommitLog ? CommitLog.instance().getContext() : null;
             logger_.info(columnFamily_ + " has reached its threshold; switching in a fresh Memtable at " + ctx);
             final Condition condition = submitFlush(oldMemtable);
-            memtable_ = new Memtable(this);
+            memtable_ = new Memtable(this, partitioner_);
             // a second executor that makes sure the onMemtableFlushes get called in the right order,
             // while keeping the wait-for-flush (future.get) out of anything latency-sensitive.
             return commitLogUpdater_.submit(new WrappedRunnable()
@@ -379,9 +414,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     {
                         // if we're not writing to the commit log, we are replaying the log, so marking
                         // the log header with "you can discard anything written before the context" is not valid
-                        final Integer cfId = DatabaseDescriptor.getTableMetaData(table_).get(columnFamily_).cfId;
-                        logger_.debug("Discarding {}", cfId);
-                        CommitLog.instance().discardCompletedSegments(cfId, ctx);
+                        logger_.debug("Discarding {}", metadata.cfId);
+                        CommitLog.instance().discardCompletedSegments(metadata.cfId, ctx);
                     }
                 }
             });
@@ -800,7 +834,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         // we are querying top-level columns, do a merging fetch with indexes.
         List<IColumnIterator> iterators = new ArrayList<IColumnIterator>();
-        final ColumnFamily returnCF = ColumnFamily.create(table_, columnFamily_);
+        final ColumnFamily returnCF = ColumnFamily.create(metadata);
         try
         {
             IColumnIterator iter;
@@ -947,7 +981,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         else
         {
             // wrapped range
-            Token min = StorageService.getPartitioner().getMinimumToken();
+            Token min = partitioner_.getMinimumToken();
             Range first = new Range(range.left, min);
             completed = getRangeRows(rows, super_column, first, keyMax, columnFilter);
             if (!completed && min.compareTo(range.right) < 0)
@@ -960,9 +994,42 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return rows;
     }
 
+    public List<Row> scan(IndexClause indexClause, IFilter dataFilter)
+    {
+        // TODO: use statistics to pick clause w/ highest selectivity
+        // TODO even later: allow merge join instead of just one index + loop
+        IndexExpression first = indexClause.expressions.get(0);
+        ColumnFamilyStore indexCFS = getIndexedColumnFamilyStore(first.column_name);
+        assert indexCFS != null;
+        DecoratedKey indexKey = indexCFS.partitioner_.decorateKey(first.value);
+        QueryFilter indexFilter = QueryFilter.getSliceFilter(indexKey,
+                                                             new QueryPath(indexCFS.getColumnFamilyName()),
+                                                             ArrayUtils.EMPTY_BYTE_ARRAY,
+                                                             ArrayUtils.EMPTY_BYTE_ARRAY,
+                                                             null,
+                                                             false,
+                                                             indexClause.count);
+
+        List<Row> rows = new ArrayList<Row>();
+        ColumnFamily indexRow = indexCFS.getColumnFamily(indexFilter);
+        if (indexRow == null)
+            return rows;
+
+        for (byte[] dataKey : indexRow.getColumnNames())
+        {
+            DecoratedKey dk = partitioner_.decorateKey(dataKey);
+            ColumnFamily data = getColumnFamily(new QueryFilter(dk, new QueryPath(columnFamily_), dataFilter));
+            rows.add(new Row(dk, data));
+        }
+
+        // TODO apply remaining expressions
+
+        return rows;
+    }
+
     public AbstractType getComparator()
     {
-        return DatabaseDescriptor.getComparator(table_, columnFamily_);
+        return metadata.comparator;
     }
 
     /**
@@ -1020,13 +1087,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void loadRowCache()
     {
-        CFMetaData metadata = DatabaseDescriptor.getTableMetaData(table_).get(columnFamily_);
-        assert metadata != null;
         if (metadata.preloadRowCache)
         {
             logger_.debug(String.format("Loading cache for keyspace/columnfamily %s/%s", table_, columnFamily_));
             int ROWS = 4096;
-            Token min = StorageService.getPartitioner().getMinimumToken();
+            Token min = partitioner_.getMinimumToken();
             Token start = min;
             long i = 0;
             while (i < ssTables_.getRowCache().getCapacity())
@@ -1047,7 +1112,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 if (result.size() < ROWS)
                     break;
 
-                start = DatabaseDescriptor.getPartitioner().getToken(result.get(ROWS - 1).key.key);
+                start = partitioner_.getToken(result.get(ROWS - 1).key.key);
             }
             logger_.info(String.format("Loaded %s rows into the %s cache", i, columnFamily_));
         }
@@ -1227,5 +1292,34 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (falseCount == 0L && trueCount == 0L)
             return 0d;
         return (double) falseCount / (trueCount + falseCount);
+    }
+
+    public Set<byte[]> getIndexedColumns()
+    {
+        return indexedColumns_.keySet();
+    }
+
+    public ColumnFamilyStore getIndexedColumnFamilyStore(byte[] column)
+    {
+        return indexedColumns_.get(column);
+    }
+
+    public ColumnFamily newIndexedColumnFamily(byte[] column)
+    {
+        return ColumnFamily.create(indexedColumns_.get(column).metadata);
+    }
+
+    public DecoratedKey getIndexKeyFor(byte[] name, byte[] value)
+    {
+        return indexedColumns_.get(name).partitioner_.decorateKey(value);
+    }
+
+    @Override
+    public String toString()
+    {
+        return "ColumnFamilyStore(" +
+               "table='" + table_ + '\'' +
+               ", columnFamily='" + columnFamily_ + '\'' +
+               ')';
     }
 }

@@ -511,4 +511,11 @@ public class FBUtilities
 
         return scpurl.getFile();
     }
+
+    public static long timestampMicros()
+    {
+        // we use microsecond resolution for compatibility with other client libraries, even though
+        // we can't actually get microsecond precision.
+        return System.currentTimeMillis() * 1000;
+    }
 }

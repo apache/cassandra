@@ -30,14 +30,20 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.IClock.ClockRelationship;
 import org.apache.cassandra.db.clock.AbstractReconciler;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.BytesToken;
+import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.IIterableColumns;
 import org.apache.cassandra.utils.FBUtilities;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ColumnFamily implements IColumnContainer, IIterableColumns
 {
+    private static Logger logger = LoggerFactory.getLogger(ColumnFamily.class);
+
     /* The column serializer for this Column Family. Create based on config. */
     private static ColumnFamilySerializer serializer = new ColumnFamilySerializer();
 
@@ -58,8 +64,7 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
 
     public static ColumnFamily create(CFMetaData cfm)
     {
-        if (cfm == null)
-            throw new IllegalArgumentException("Unknown column family.");
+        assert cfm != null;
         return new ColumnFamily(cfm.cfType, cfm.clockType, cfm.comparator, cfm.subcolumnComparator, cfm.reconciler, cfm.cfId);
     }
 
@@ -183,6 +188,11 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
         else
             column = new Column(path.columnName, value, clock);
         addColumn(path.superColumnName, column);
+    }
+
+    public void deleteColumn(byte[] column, int localDeletionTime, IClock clock)
+    {
+        addColumn(null, new DeletedColumn(column, localDeletionTime, clock));
     }
 
     public void deleteColumn(QueryPath path, int localDeletionTime, IClock clock)

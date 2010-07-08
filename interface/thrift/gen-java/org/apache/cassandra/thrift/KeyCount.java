@@ -44,26 +44,19 @@ import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
-/**
- * A KeySlice is key followed by the data it maps to. A collection of KeySlice is returned by the get_range_slice operation.
- * 
- * @param key. a row key
- * @param columns. List of data represented by the key. Typically, the list is pared down to only the columns specified by
- *                 a SlicePredicate.
- */
-public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, Cloneable, Comparable<KeySlice> {
-  private static final TStruct STRUCT_DESC = new TStruct("KeySlice");
+public class KeyCount implements TBase<KeyCount._Fields>, java.io.Serializable, Cloneable, Comparable<KeyCount> {
+  private static final TStruct STRUCT_DESC = new TStruct("KeyCount");
 
   private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)1);
-  private static final TField COLUMNS_FIELD_DESC = new TField("columns", TType.LIST, (short)2);
+  private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)2);
 
   public byte[] key;
-  public List<ColumnOrSuperColumn> columns;
+  public int count;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
     KEY((short)1, "key"),
-    COLUMNS((short)2, "columns");
+    COUNT((short)2, "count");
 
     private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
@@ -117,62 +110,60 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
   }
 
   // isset id assignments
+  private static final int __COUNT_ISSET_ID = 0;
+  private BitSet __isset_bit_vector = new BitSet(1);
 
   public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
     put(_Fields.KEY, new FieldMetaData("key", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.STRING)));
-    put(_Fields.COLUMNS, new FieldMetaData("columns", TFieldRequirementType.REQUIRED, 
-        new ListMetaData(TType.LIST, 
-            new StructMetaData(TType.STRUCT, ColumnOrSuperColumn.class))));
+    put(_Fields.COUNT, new FieldMetaData("count", TFieldRequirementType.REQUIRED, 
+        new FieldValueMetaData(TType.I32)));
   }});
 
   static {
-    FieldMetaData.addStructMetaDataMap(KeySlice.class, metaDataMap);
+    FieldMetaData.addStructMetaDataMap(KeyCount.class, metaDataMap);
   }
 
-  public KeySlice() {
+  public KeyCount() {
   }
 
-  public KeySlice(
+  public KeyCount(
     byte[] key,
-    List<ColumnOrSuperColumn> columns)
+    int count)
   {
     this();
     this.key = key;
-    this.columns = columns;
+    this.count = count;
+    setCountIsSet(true);
   }
 
   /**
    * Performs a deep copy on <i>other</i>.
    */
-  public KeySlice(KeySlice other) {
+  public KeyCount(KeyCount other) {
+    __isset_bit_vector.clear();
+    __isset_bit_vector.or(other.__isset_bit_vector);
     if (other.isSetKey()) {
       this.key = new byte[other.key.length];
       System.arraycopy(other.key, 0, key, 0, other.key.length);
     }
-    if (other.isSetColumns()) {
-      List<ColumnOrSuperColumn> __this__columns = new ArrayList<ColumnOrSuperColumn>();
-      for (ColumnOrSuperColumn other_element : other.columns) {
-        __this__columns.add(new ColumnOrSuperColumn(other_element));
-      }
-      this.columns = __this__columns;
-    }
+    this.count = other.count;
   }
 
-  public KeySlice deepCopy() {
-    return new KeySlice(this);
+  public KeyCount deepCopy() {
+    return new KeyCount(this);
   }
 
   @Deprecated
-  public KeySlice clone() {
-    return new KeySlice(this);
+  public KeyCount clone() {
+    return new KeyCount(this);
   }
 
   public byte[] getKey() {
     return this.key;
   }
 
-  public KeySlice setKey(byte[] key) {
+  public KeyCount setKey(byte[] key) {
     this.key = key;
     return this;
   }
@@ -192,43 +183,27 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
     }
   }
 
-  public int getColumnsSize() {
-    return (this.columns == null) ? 0 : this.columns.size();
+  public int getCount() {
+    return this.count;
   }
 
-  public java.util.Iterator<ColumnOrSuperColumn> getColumnsIterator() {
-    return (this.columns == null) ? null : this.columns.iterator();
-  }
-
-  public void addToColumns(ColumnOrSuperColumn elem) {
-    if (this.columns == null) {
-      this.columns = new ArrayList<ColumnOrSuperColumn>();
-    }
-    this.columns.add(elem);
-  }
-
-  public List<ColumnOrSuperColumn> getColumns() {
-    return this.columns;
-  }
-
-  public KeySlice setColumns(List<ColumnOrSuperColumn> columns) {
-    this.columns = columns;
+  public KeyCount setCount(int count) {
+    this.count = count;
+    setCountIsSet(true);
     return this;
   }
 
-  public void unsetColumns() {
-    this.columns = null;
+  public void unsetCount() {
+    __isset_bit_vector.clear(__COUNT_ISSET_ID);
   }
 
-  /** Returns true if field columns is set (has been asigned a value) and false otherwise */
-  public boolean isSetColumns() {
-    return this.columns != null;
+  /** Returns true if field count is set (has been asigned a value) and false otherwise */
+  public boolean isSetCount() {
+    return __isset_bit_vector.get(__COUNT_ISSET_ID);
   }
 
-  public void setColumnsIsSet(boolean value) {
-    if (!value) {
-      this.columns = null;
-    }
+  public void setCountIsSet(boolean value) {
+    __isset_bit_vector.set(__COUNT_ISSET_ID, value);
   }
 
   public void setFieldValue(_Fields field, Object value) {
@@ -241,11 +216,11 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
       }
       break;
 
-    case COLUMNS:
+    case COUNT:
       if (value == null) {
-        unsetColumns();
+        unsetCount();
       } else {
-        setColumns((List<ColumnOrSuperColumn>)value);
+        setCount((Integer)value);
       }
       break;
 
@@ -261,8 +236,8 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
     case KEY:
       return getKey();
 
-    case COLUMNS:
-      return getColumns();
+    case COUNT:
+      return new Integer(getCount());
 
     }
     throw new IllegalStateException();
@@ -277,8 +252,8 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
     switch (field) {
     case KEY:
       return isSetKey();
-    case COLUMNS:
-      return isSetColumns();
+    case COUNT:
+      return isSetCount();
     }
     throw new IllegalStateException();
   }
@@ -291,12 +266,12 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
   public boolean equals(Object that) {
     if (that == null)
       return false;
-    if (that instanceof KeySlice)
-      return this.equals((KeySlice)that);
+    if (that instanceof KeyCount)
+      return this.equals((KeyCount)that);
     return false;
   }
 
-  public boolean equals(KeySlice that) {
+  public boolean equals(KeyCount that) {
     if (that == null)
       return false;
 
@@ -309,12 +284,12 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
         return false;
     }
 
-    boolean this_present_columns = true && this.isSetColumns();
-    boolean that_present_columns = true && that.isSetColumns();
-    if (this_present_columns || that_present_columns) {
-      if (!(this_present_columns && that_present_columns))
+    boolean this_present_count = true;
+    boolean that_present_count = true;
+    if (this_present_count || that_present_count) {
+      if (!(this_present_count && that_present_count))
         return false;
-      if (!this.columns.equals(that.columns))
+      if (this.count != that.count)
         return false;
     }
 
@@ -326,13 +301,13 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
     return 0;
   }
 
-  public int compareTo(KeySlice other) {
+  public int compareTo(KeyCount other) {
     if (!getClass().equals(other.getClass())) {
       return getClass().getName().compareTo(other.getClass().getName());
     }
 
     int lastComparison = 0;
-    KeySlice typedOther = (KeySlice)other;
+    KeyCount typedOther = (KeyCount)other;
 
     lastComparison = Boolean.valueOf(isSetKey()).compareTo(typedOther.isSetKey());
     if (lastComparison != 0) {
@@ -343,11 +318,11 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
         return lastComparison;
       }
     }
-    lastComparison = Boolean.valueOf(isSetColumns()).compareTo(typedOther.isSetColumns());
+    lastComparison = Boolean.valueOf(isSetCount()).compareTo(typedOther.isSetCount());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetColumns()) {      lastComparison = TBaseHelper.compareTo(columns, typedOther.columns);
+    if (isSetCount()) {      lastComparison = TBaseHelper.compareTo(count, typedOther.count);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -372,20 +347,10 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 2: // COLUMNS
-          if (field.type == TType.LIST) {
-            {
-              TList _list20 = iprot.readListBegin();
-              this.columns = new ArrayList<ColumnOrSuperColumn>(_list20.size);
-              for (int _i21 = 0; _i21 < _list20.size; ++_i21)
-              {
-                ColumnOrSuperColumn _elem22;
-                _elem22 = new ColumnOrSuperColumn();
-                _elem22.read(iprot);
-                this.columns.add(_elem22);
-              }
-              iprot.readListEnd();
-            }
+        case 2: // COUNT
+          if (field.type == TType.I32) {
+            this.count = iprot.readI32();
+            setCountIsSet(true);
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -398,6 +363,9 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
     iprot.readStructEnd();
 
     // check for required fields of primitive type, which can't be checked in the validate method
+    if (!isSetCount()) {
+      throw new TProtocolException("Required field 'count' was not found in serialized data! Struct: " + toString());
+    }
     validate();
   }
 
@@ -410,25 +378,16 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
       oprot.writeBinary(this.key);
       oprot.writeFieldEnd();
     }
-    if (this.columns != null) {
-      oprot.writeFieldBegin(COLUMNS_FIELD_DESC);
-      {
-        oprot.writeListBegin(new TList(TType.STRUCT, this.columns.size()));
-        for (ColumnOrSuperColumn _iter23 : this.columns)
-        {
-          _iter23.write(oprot);
-        }
-        oprot.writeListEnd();
-      }
-      oprot.writeFieldEnd();
-    }
+    oprot.writeFieldBegin(COUNT_FIELD_DESC);
+    oprot.writeI32(this.count);
+    oprot.writeFieldEnd();
     oprot.writeFieldStop();
     oprot.writeStructEnd();
   }
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder("KeySlice(");
+    StringBuilder sb = new StringBuilder("KeyCount(");
     boolean first = true;
 
     sb.append("key:");
@@ -444,12 +403,8 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
     }
     first = false;
     if (!first) sb.append(", ");
-    sb.append("columns:");
-    if (this.columns == null) {
-      sb.append("null");
-    } else {
-      sb.append(this.columns);
-    }
+    sb.append("count:");
+    sb.append(this.count);
     first = false;
     sb.append(")");
     return sb.toString();
@@ -460,9 +415,7 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
     if (key == null) {
       throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
     }
-    if (columns == null) {
-      throw new TProtocolException("Required field 'columns' was not present! Struct: " + toString());
-    }
+    // alas, we cannot check 'count' because it's a primitive and you chose the non-beans generator.
   }
 
 }

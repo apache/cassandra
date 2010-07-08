@@ -316,7 +316,7 @@ public final class CFMetaData
             .toHashCode();
     }
 
-    private static int nextId() 
+    private static int nextId()
     {
         return idGen.getAndIncrement();
     }

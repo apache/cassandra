@@ -110,7 +110,7 @@ public class DatabaseDescriptor
             configFileName = getStorageConfigPath();
             
             if (logger.isDebugEnabled())
-                logger.debug("Loading settings from " + configFileName);
+                logger.info("Loading settings from " + configFileName);
             
             InputStream input = new FileInputStream(new File(configFileName));
             org.yaml.snakeyaml.constructor.Constructor constructor = new org.yaml.snakeyaml.constructor.Constructor(Config.class);

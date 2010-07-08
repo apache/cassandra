@@ -195,17 +195,18 @@ public class DefsTest extends CleanupHelper
         
         // any write should fail.
         rm = new RowMutation(ks.name, dk.key);
+        boolean success = true;
         try
         {
             rm.add(new QueryPath("Standard1", null, "col0".getBytes()), "value0".getBytes(), new TimestampClock(1L));
             rm.apply();
-            assert false : "This mutation should have failed since the CF no longer exists.";
         }
         catch (Throwable th)
         {
-            assert th instanceof IllegalArgumentException;
+            success = false;
         }
-        
+        assert !success : "This mutation should have failed since the CF no longer exists.";
+
         // verify that the files are gone.
         assert DefsTable.getFiles(cfm.tableName, cfm.cfName).size() == 0;
     }    
@@ -308,17 +309,18 @@ public class DefsTest extends CleanupHelper
         
         // write should fail.
         rm = new RowMutation(ks.name, dk.key);
+        boolean success = true;
         try
         {
             rm.add(new QueryPath("Standard1", null, "col0".getBytes()), "value0".getBytes(), new TimestampClock(1L));
             rm.apply();
-            throw new AssertionError("This mutation should have failed since the CF no longer exists.");
         }
         catch (Throwable th)
         {
-            assert th instanceof IllegalArgumentException;
+            success = false;
         }
-        
+        assert !success : "This mutation should have failed since the CF no longer exists.";
+
         // reads should fail too.
         try
         {
@@ -375,16 +377,17 @@ public class DefsTest extends CleanupHelper
         
         // write on old should fail.
         rm = new RowMutation(oldKs.name, "any key will do".getBytes());
+        boolean success = true;
         try
         {
             rm.add(new QueryPath(cfName, null, "col0".getBytes()), "value0".getBytes(), new TimestampClock(1L));
             rm.apply();
-            throw new AssertionError("This mutation should have failed since the CF/Table no longer exists.");
         }
         catch (Throwable th)
         {
-            assert th instanceof IllegalArgumentException;
+            success = false;
         }
+        assert !success : "This mutation should have failed since the CF/Table no longer exists.";
         
         // write on new should work.
         rm = new RowMutation(newKsName, dk.key);

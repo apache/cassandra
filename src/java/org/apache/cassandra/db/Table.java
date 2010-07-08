@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.io.IOError;
+import java.lang.management.ManagementFactory;
 import java.util.*;
 import java.io.IOException;
 import java.io.File;
@@ -28,17 +29,17 @@ import java.util.concurrent.Future;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Config;
+
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.commitlog.CommitLogSegment;
-import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.sstable.SSTableDeletingReference;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 
-import java.net.InetAddress;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
+
+import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.db.filter.*;
@@ -48,7 +49,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class Table 
+public class Table
 {
     public static final String SYSTEM_TABLE = "system";
 
@@ -84,6 +85,7 @@ public class Table
     // cache application CFs since Range queries ask for them a _lot_
     private SortedSet<String> applicationColumnFamilies;
     private final TimerTask flushTask;
+    private final Object[] indexLocks;
     
     public static Table open(String table)
     {
@@ -215,6 +217,9 @@ public class Table
     private Table(String table)
     {
         name = table;
+        indexLocks = new Object[DatabaseDescriptor.getConcurrentWriters() * 8];
+        for (int i = 0; i < indexLocks.length; i++)
+            indexLocks[i] = new Object();
         // create data directories.
         for (String dataDir : DatabaseDescriptor.getAllDataFileLocations())
         {
@@ -233,11 +238,25 @@ public class Table
                 throw new IOError(ex);
             }
         }
-      
-        for (CFMetaData cfm : DatabaseDescriptor.getTableDefinition(table).cfMetaData().values())
+
+        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+        for (CFMetaData cfm : new ArrayList<CFMetaData>(DatabaseDescriptor.getTableDefinition(table).cfMetaData().values()))
         {
-            columnFamilyStores.put(cfm.cfId, ColumnFamilyStore.createColumnFamilyStore(table, cfm.cfName));
-         }
+            ColumnFamilyStore cfs = ColumnFamilyStore.createColumnFamilyStore(table, cfm.cfName);
+            columnFamilyStores.put(cfm.cfId, cfs);
+            try
+            {
+                ObjectName mbeanName = new ObjectName("org.apache.cassandra.db:type=ColumnFamilyStores,keyspace=" + table + ",columnfamily=" + cfm.cfName);
+                if (mbs.isRegistered(mbeanName))
+                    mbs.unregisterMBean(mbeanName);
+                mbs.registerMBean(cfs, mbeanName);
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+
+        }
 
         // check 10x as often as the lifetime, so we can exceed lifetime by 10% at most
         int checkMs = DatabaseDescriptor.getMemtableLifetimeMS() / 10;
@@ -312,28 +331,76 @@ public class Table
         try
         {
             if (writeCommitLog)
-            {
                 CommitLog.instance().add(mutation, serializedMutation);
-            }
         
             DecoratedKey key = StorageService.getPartitioner().decorateKey(mutation.key());
             for (ColumnFamily columnFamily : mutation.getColumnFamilies())
             {
-                Memtable memtableToFlush;
                 ColumnFamilyStore cfs = columnFamilyStores.get(columnFamily.id());
                 if (cfs == null)
                 {
                     logger.error("Attempting to mutate non-existant column family " + columnFamily.id());
+                    continue;
+                }
+
+                ColumnFamily oldIndexedColumns;
+                SortedSet<byte[]> mutatedIndexedColumns = null;
+                for (byte[] column : cfs.getIndexedColumns())
+                {
+                    if (columnFamily.getColumnNames().contains(column))
+                    {
+                        if (mutatedIndexedColumns == null)
+                            mutatedIndexedColumns = new TreeSet<byte[]>(FBUtilities.byteArrayComparator);
+                        mutatedIndexedColumns.add(column);
+                    }
+                }
+
+                if (mutatedIndexedColumns == null)
+                {
+                    // just update the actual value, no extra synchronization
+                    applyCF(cfs, key, columnFamily, memtablesToFlush);
                 }
                 else
                 {
-                    if ((memtableToFlush=cfs.apply(key, columnFamily)) != null)
-                        memtablesToFlush.put(cfs, memtableToFlush);
-    
-                    ColumnFamily cachedRow = cfs.getRawCachedRow(key);
-                    if (cachedRow != null)
-                        cachedRow.addAll(columnFamily);
+                    synchronized (indexLocks[Arrays.hashCode(mutation.key()) % indexLocks.length])
+                    {
+                        // read old indexed values
+                        QueryFilter filter = QueryFilter.getNamesFilter(key, new QueryPath(cfs.getColumnFamilyName()), mutatedIndexedColumns);
+                        oldIndexedColumns = cfs.getColumnFamily(filter);
+
+                        // apply the mutation
+                        applyCF(cfs, key, columnFamily, memtablesToFlush);
+
+                        // add new index entries
+                        for (byte[] columnName : mutatedIndexedColumns)
+                        {
+                            IColumn column = columnFamily.getColumn(columnName);
+                            DecoratedKey valueKey = cfs.getIndexKeyFor(columnName, column.value());
+                            ColumnFamily cf = cfs.newIndexedColumnFamily(columnName);
+                            cf.addColumn(new Column(mutation.key(), ArrayUtils.EMPTY_BYTE_ARRAY, column.clock()));
+                            applyCF(cfs.getIndexedColumnFamilyStore(columnName), valueKey, cf, memtablesToFlush);
+                        }
+
+                        // remove the old index entries
+                        if (oldIndexedColumns != null)
+                        {
+                            int localDeletionTime = (int)(System.currentTimeMillis() / 1000);
+                            for (Map.Entry<byte[], IColumn> entry : oldIndexedColumns.getColumnsMap().entrySet())
+                            {
+                                byte[] columnName = entry.getKey();
+                                IColumn column = entry.getValue();
+                                DecoratedKey valueKey = cfs.getIndexKeyFor(columnName, column.value());
+                                ColumnFamily cf = cfs.newIndexedColumnFamily(columnName);
+                                cf.deleteColumn(mutation.key(), localDeletionTime, column.clock());
+                                applyCF(cfs, valueKey, cf, memtablesToFlush);
+                            }
+                        }
+                    }
                 }
+
+                ColumnFamily cachedRow = cfs.getRawCachedRow(key);
+                if (cachedRow != null)
+                    cachedRow.addAll(columnFamily);
             }
         }
         finally
@@ -344,6 +411,13 @@ public class Table
         // flush memtables that got filled up.  usually mTF will be empty and this will be a no-op
         for (Map.Entry<ColumnFamilyStore, Memtable> entry : memtablesToFlush.entrySet())
             entry.getKey().maybeSwitchMemtable(entry.getValue(), writeCommitLog);
+    }
+
+    private static void applyCF(ColumnFamilyStore cfs, DecoratedKey key, ColumnFamily columnFamily, HashMap<ColumnFamilyStore, Memtable> memtablesToFlush)
+    {
+        Memtable memtableToFlush = cfs.apply(key, columnFamily);
+        if (memtableToFlush != null)
+            memtablesToFlush.put(cfs, memtableToFlush);
     }
 
     public List<Future<?>> flush() throws IOException

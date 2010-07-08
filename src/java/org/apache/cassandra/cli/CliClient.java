@@ -22,6 +22,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.thrift.*;
 
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.*;
 
 import org.antlr.runtime.tree.*;
@@ -229,17 +230,10 @@ public class CliClient
             columnName = CliCompiler.getColumn(columnFamilySpec, 1).getBytes("UTF-8");
         }
 
-        Clock thrift_clock = new Clock().setTimestamp(timestampMicros());
+        Clock thrift_clock = new Clock().setTimestamp(FBUtilities.timestampMicros());
         thriftClient_.remove(key.getBytes(), new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnName),
                              thrift_clock, ConsistencyLevel.ONE);
         css_.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "column"));
-    }
-
-    private static long timestampMicros()
-    {
-        // we use microsecond resolution for compatibility with other client libraries, even though
-        // we can't actually get microsecond precision.
-        return System.currentTimeMillis() * 1000;
     }
 
     private void doSlice(String keyspace, String key, String columnFamily, byte[] superColumnName)
@@ -414,7 +408,7 @@ public class CliClient
         }
         
         // do the insert
-        Clock thrift_clock = new Clock().setTimestamp(timestampMicros());
+        Clock thrift_clock = new Clock().setTimestamp(FBUtilities.timestampMicros());
         thriftClient_.insert(key.getBytes(), new ColumnParent(columnFamily).setSuper_column(superColumnName),
                              new Column(columnName, value.getBytes(), thrift_clock), ConsistencyLevel.ONE);
         

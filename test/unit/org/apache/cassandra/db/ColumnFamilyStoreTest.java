@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
@@ -31,6 +32,10 @@ import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.thrift.IndexClause;
+import org.apache.cassandra.thrift.IndexExpression;
+import org.apache.cassandra.thrift.IndexOperator;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 import java.net.InetAddress;
@@ -157,6 +162,21 @@ public class ColumnFamilyStoreTest extends CleanupHelper
                                              new NamesQueryFilter("asdf".getBytes()));
         assertEquals(1, result.size());
         assert Arrays.equals(result.get(0).key.key, "key2".getBytes());
+    }
+
+    @Test
+    public void testIndexScan() throws IOException
+    {
+        RowMutation rm;
+        rm = new RowMutation("Keyspace1", "k".getBytes());
+        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), new TimestampClock(0));
+        rm.apply();
+
+        IndexExpression expr = new IndexExpression("birthdate".getBytes("UTF8"), IndexOperator.EQ, FBUtilities.toByteArray(1L));
+        IndexClause clause = new IndexClause(Arrays.asList(expr), 100);
+        IFilter filter = new IdentityQueryFilter();
+        List<Row> rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").scan(clause, filter);
+        assert rows != null && rows.size() > 0;
     }
 
     private ColumnFamilyStore insertKey1Key2() throws IOException, ExecutionException, InterruptedException

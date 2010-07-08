@@ -22,6 +22,7 @@ package org.apache.cassandra.thrift;
 
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -368,6 +369,19 @@ public class ThriftValidation
         if (range.count <= 0)
         {
             throw new InvalidRequestException("maxRows must be positive");
+        }
+    }
+
+    public static void validateIndexClauses(String keyspace, String columnFamily, IndexClause index_clause)
+    throws InvalidRequestException
+    {
+        if (index_clause.expressions.isEmpty())
+            throw new InvalidRequestException("index clause list may not be empty");
+        Set<byte[]> indexedColumns = Table.open(keyspace).getColumnFamilyStore(columnFamily).getIndexedColumns();
+        for (IndexExpression expression : index_clause.expressions)
+        {
+            if (!indexedColumns.contains(expression.column_name))
+                throw new InvalidRequestException("Unable to scan unindexed column");
         }
     }
 }

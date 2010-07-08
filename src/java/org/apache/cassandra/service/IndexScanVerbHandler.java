@@ -18,10 +18,7 @@
 
 package org.apache.cassandra.service;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.RangeSliceCommand;
-import org.apache.cassandra.db.RangeSliceReply;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -29,21 +26,17 @@ import org.apache.cassandra.net.MessagingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class RangeSliceVerbHandler implements IVerbHandler
+public class IndexScanVerbHandler implements IVerbHandler
 {
-
     private static final Logger logger = LoggerFactory.getLogger(IndexScanVerbHandler.class);
 
     public void doVerb(Message message)
     {
         try
         {
-            RangeSliceCommand command = RangeSliceCommand.read(message);
+            IndexScanCommand command = IndexScanCommand.read(message);
             ColumnFamilyStore cfs = Table.open(command.keyspace).getColumnFamilyStore(command.column_family);
-            RangeSliceReply reply = new RangeSliceReply(cfs.getRangeSlice(command.super_column,
-                                                                          command.range,
-                                                                          command.max_keys,
-                                                                          QueryFilter.getFilter(command.predicate, cfs.getComparator())));
+            RangeSliceReply reply = new RangeSliceReply(cfs.scan(command.index_clause, QueryFilter.getFilter(command.predicate, cfs.getComparator())));
             Message response = reply.getReply(message);
             if (logger.isDebugEnabled())
                 logger.debug("Sending " + reply+ " to " + message.getMessageId() + "@" + message.getFrom());

@@ -1054,7 +1054,7 @@ class TestMutations(ThriftTester):
         kspaces = client.describe_keyspaces()
         assert len(kspaces) == 5, kspaces # ['system', 'Keyspace2', 'Keyspace3', 'Keyspace1', 'Keyspace4']
         ks1 = client.describe_keyspace("Keyspace1")
-        assert set(ks1.keys()) == set(['Super1', 'Standard1', 'Standard2', 'StandardLong1', 'StandardLong2', 'Super3', 'Super2', 'Super4'])
+        assert set(ks1.keys()) == set(['Super1', 'Standard1', 'Standard2', 'StandardLong1', 'StandardLong2', 'Super3', 'Super2', 'Super4', 'Indexed1'])
         sysks = client.describe_keyspace("system")
 
     def test_describe(self):
@@ -1205,7 +1205,26 @@ class TestMutations(ThriftTester):
         def req():
             client.describe_ring('system')
         _expect_exception(req, InvalidRequestException)
+
+    def test_index_scan(self):
+        _set_keyspace('Keyspace1')
+        client.insert('key1', ColumnParent('Indexed1'), Column('birthdate', _i64(1), Clock(0)), ConsistencyLevel.ONE)
+        client.insert('key2', ColumnParent('Indexed1'), Column('birthdate', _i64(2), Clock(0)), ConsistencyLevel.ONE)
+        client.insert('key3', ColumnParent('Indexed1'), Column('b', _i64(3), Clock(0)), ConsistencyLevel.ONE)
+
+        cp = ColumnParent('Indexed1')
+        expr = IndexExpression('birthdate', IndexOperator.EQ, _i64(1))
+        rp = RowPredicate(index_clause=IndexClause([expr]))
+        sp = SlicePredicate(slice_range=SliceRange('', ''))
+        result = client.scan(cp, rp, sp, ConsistencyLevel.ONE)
+        assert len(result) == 1, result
+        assert result[0].key == 'key1'
+        assert len(result[0].columns) == 1, result[0].columns
+
+        expr.column_name = 'b'
+        _expect_exception(lambda: client.scan(cp, rp, sp, ConsistencyLevel.ONE), InvalidRequestException)
         
+
 class TestTruncate(ThriftTester):
     def test_truncate(self):
         _set_keyspace('Keyspace1')

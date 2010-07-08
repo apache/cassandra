@@ -92,10 +92,11 @@ public class AddColumnFamily extends Migration
         {
             throw new IOException(ex);
         }
+        Table.open(cfm.tableName); // make sure it's init-ed w/ the old definitions first, since we're going to call initCf on the new one manually
+        DatabaseDescriptor.setTableDefinition(ksm, newVersion);
         if (!clientMode)
             Table.open(ksm.name).initCf(cfm.cfId, cfm.cfName);
-        DatabaseDescriptor.setTableDefinition(ksm, newVersion);
-        
+
         if (!clientMode)
             // force creation of a new commit log segment.
             CommitLog.instance().forceNewSegment();

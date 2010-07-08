@@ -46,7 +46,8 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "8.2.0"
+const string VERSION = "8.3.0"
+
 
 #
 # data structures
@@ -243,6 +244,22 @@ struct SlicePredicate {
     2: optional SliceRange   slice_range,
 }
 
+enum IndexOperator {
+    EQ,
+}
+
+struct IndexExpression {
+    1: required binary column_name,
+    2: required IndexOperator op,
+    3: required binary value,
+}
+
+struct IndexClause {
+    1: required list<IndexExpression> expressions
+    2: required i32 count=100,
+    3: optional binary start_key,
+}
+
 /**
 The semantics of start keys and tokens are slightly different.
 Keys are start-inclusive; tokens are start-exclusive.  Token
@@ -259,6 +276,12 @@ struct KeyRange {
     5: required i32 count=100
 }
 
+struct RowPredicate {
+    1: optional list<binary> keys,
+    2: optional KeyRange key_range,
+    3: optional IndexClause index_clause
+}
+
 /**
     A KeySlice is key followed by the data it maps to. A collection of KeySlice is returned by the get_range_slice operation.
 
@@ -269,6 +292,11 @@ struct KeyRange {
 struct KeySlice {
     1: required binary key,
     2: required list<ColumnOrSuperColumn> columns,
+}
+
+struct KeyCount {
+    1: required binary key,
+    2: required i32 count
 }
 
 struct Deletion {
@@ -381,6 +409,7 @@ service Cassandra {
 
   /**
     Performs a get_slice for column_parent and predicate for the given keys in parallel.
+    @Deprecated; use `scan`
   */
   map<binary,list<ColumnOrSuperColumn>> multiget_slice(1:required list<binary> keys, 
                                                        2:required ColumnParent column_parent, 
@@ -410,12 +439,27 @@ service Cassandra {
 
   /**
    returns a subset of columns for a range of keys.
+   @Deprecated; use `scan`
   */
   list<KeySlice> get_range_slices(1:required ColumnParent column_parent, 
                                   2:required SlicePredicate predicate,
                                   3:required KeyRange range,
                                   4:required ConsistencyLevel consistency_level=ONE)
                  throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
+
+  /** Returns the subset of columns specified in SlicePredicate for the rows requested in RowsPredicate */
+  list<KeySlice> scan(1:required ColumnParent column_parent,
+                      2:required RowPredicate row_predicate,
+                      3:required SlicePredicate column_predicate,
+                      4:required ConsistencyLevel consistency_level=ONE)
+                 throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
+
+  /** Counts the subset of columns specified in SlicePredicate for the rows requested in RowsPredicate */
+  list<KeyCount> scan_count(1:required ColumnParent column_parent,
+                           2:required RowPredicate row_predicate,
+                           3:required SlicePredicate column_predicate,
+                           4:required ConsistencyLevel consistency_level=ONE)
+      throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   # modification methods
 
