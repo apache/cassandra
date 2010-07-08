@@ -45,7 +45,11 @@
     <property name="test.unit.src" value="${test.dir}/unit"/>
     <property name="test.long.src" value="${test.dir}/long"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
-    <property name="version" value="0.6.3"/>
+    <property name="base.version" value="0.7.0"/>
+    <condition property="version" value="${base.version}">
+      <isset property="release"/>
+    </condition>
+    <property name="version" value="${base.version}-SNAPSHOT"/>
     <property name="final.name" value="${ant.project.name}-${version}"/>
     <property name="ivy.version" value="2.1.0" />
     <property name="ivy.url"
@@ -234,6 +238,14 @@
       </exec>
     </target>
 
+    <!-- create properties file with C version -->
+    <target name="createVersionPropFile"> 
+      <taskdef name="propertyfile" classname="org.apache.tools.ant.taskdefs.optional.PropertyFile"/>
+      <propertyfile file="${build.classes}/org/apache/cassandra/config/version.properties">
+	<entry key="CassandraVersion" value="${version}"/>
+      </propertyfile>
+    </target>
+
     <!--
 	The build target builds all the .class files
     -->
@@ -252,8 +264,10 @@
             <classpath refid="cassandra.classpath"/>
         </javac>
 
-        <paranamer sourceDirectory="${interface.avro.dir}"
-               outputDirectory="${build.classes}"/>
+	<paranamer sourceDirectory="${interface.avro.dir}"
+		   outputDirectory="${build.classes}"/>
+
+	<antcall target="createVersionPropFile"/>
     </target>
 
     <!--

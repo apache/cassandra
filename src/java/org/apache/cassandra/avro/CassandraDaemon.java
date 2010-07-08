@@ -127,7 +127,7 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
             logger.debug(String.format("Binding avro service to %s:%s", listenAddr, listenPort));
         SpecificResponder responder = new SpecificResponder(Cassandra.class, new CassandraServer());
         
-        logger.info("Cassandra starting up...");
+        logger.info("Listening for avro clients...");
         Mx4jTool.maybeLoad();
         // FIXME: This isn't actually binding to listenAddr (it should).
         server = new HttpServer(responder, listenPort);

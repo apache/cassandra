@@ -202,7 +202,7 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
     /** hook for JSVC */
     public void start()
     {
-        logger.info("Cassandra starting up...");
+        logger.info("Listening for thrift clients...");
         Mx4jTool.maybeLoad();
         serverEngine.serve();
     }

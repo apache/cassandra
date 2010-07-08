@@ -62,6 +62,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ResponseVerbHandler;
 import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
 import org.apache.cassandra.streaming.*;
+import org.apache.cassandra.thrift.Constants;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -330,6 +331,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public synchronized void initServer() throws IOException
     {
+        logger_.info("Cassandra version: " + FBUtilities.getCassandraVersionString());
+        logger_.info("Thrift API version: " + Constants.VERSION);
+
         if (initialized)
         {
             if (isClientMode)
