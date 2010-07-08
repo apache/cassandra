@@ -334,8 +334,7 @@
    ~ commit log segment, that segment cannot be deleted.)
    ~ This needs to be large enough that it won't cause a flush storm
    ~ of all your memtables flushing at once because none has hit
-   ~ the size or count thresholds yet.  For production, a larger
-   ~ value such as 1440 is recommended.
+   ~ the size or count thresholds yet.
   -->
   <MemtableFlushAfterMinutes>60</MemtableFlushAfterMinutes>
 
