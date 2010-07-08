@@ -352,7 +352,7 @@ public class CassandraServer implements Cassandra.Iface
         {
             throw new InvalidRequestException(e.getMessage());
         }
-        doInsert(consistency_level, rm);
+        doInsert(consistency_level, Arrays.asList(rm));
     }
 
     public void batch_mutate(Map<byte[],Map<String,List<Mutation>>> mutation_map, ConsistencyLevel consistency_level)
@@ -399,21 +399,8 @@ public class CassandraServer implements Cassandra.Iface
             }
             rowMutations.add(RowMutation.getRowMutationFromMutations(keySpace.get(), key, columnFamilyToMutations));
         }
-        if (consistency_level == ConsistencyLevel.ZERO)
-        {
-            StorageProxy.mutate(rowMutations);
-        }
-        else
-        {
-            try 
-            {
-            	StorageProxy.mutateBlocking(rowMutations, consistency_level);
-            } 
-            catch (TimeoutException e) 
-            {
-            	throw new TimedOutException();
-            }
-        }
+
+        doInsert(consistency_level, rowMutations);
     }
 
     public void remove(byte[] key, ColumnPath column_path, Clock clock, ConsistencyLevel consistency_level)
@@ -432,25 +419,25 @@ public class CassandraServer implements Cassandra.Iface
         RowMutation rm = new RowMutation(keySpace.get(), key);
         rm.delete(new QueryPath(column_path), cassandra_clock);
 
-        doInsert(consistency_level, rm);
+        doInsert(consistency_level, Arrays.asList(rm));
     }
 
-    private void doInsert(ConsistencyLevel consistency_level, RowMutation rm) throws UnavailableException, TimedOutException
+    private void doInsert(ConsistencyLevel consistency_level, List<RowMutation> mutations) throws UnavailableException, TimedOutException
     {
-        if (consistency_level != ConsistencyLevel.ZERO)
+        if (consistency_level == ConsistencyLevel.ZERO)
         {
-            try 
+            StorageProxy.mutate(mutations);
+        }
+        else
+        {
+            try
             {
-            	StorageProxy.mutateBlocking(Arrays.asList(rm), consistency_level);
+            	StorageProxy.mutateBlocking(mutations, consistency_level);
             }
             catch (TimeoutException e)
             {
             	throw new TimedOutException();
             }
-        }
-        else
-        {
-            StorageProxy.mutate(Arrays.asList(rm));
         }
     }
 
