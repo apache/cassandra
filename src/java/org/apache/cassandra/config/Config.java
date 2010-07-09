@@ -71,6 +71,7 @@ public class Config {
     public Integer commitlog_sync_period_in_ms;
     
     public String endpoint_snitch;
+    public Boolean dynamic_snitch = false;
     
     public String request_scheduler;
     public RequestSchedulerId request_scheduler_id;

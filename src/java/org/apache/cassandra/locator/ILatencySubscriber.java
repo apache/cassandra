@@ -19,35 +19,8 @@
 package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 
-import org.apache.commons.lang.NotImplementedException;
-
-/**
- * A simple endpoint snitch implementation does not sort addresses by
- * proximity.
- */
-public class SimpleSnitch extends AbstractEndpointSnitch
+public interface ILatencySubscriber
 {
-    public String getRack(InetAddress endpoint)
-    {
-        throw new NotImplementedException();
-    }
-
-    public String getDatacenter(InetAddress endpoint)
-    {
-        throw new NotImplementedException();
-    }
-    
-    public List<InetAddress> getSortedListByProximity(final InetAddress address, Collection<InetAddress> addresses)
-    {
-        return new ArrayList<InetAddress>(addresses);
-    }
-
-    public List<InetAddress> sortByProximity(final InetAddress address, List<InetAddress> addresses)
-    {
-        return addresses;
-    }
+    public void receiveTiming(InetAddress address, Double latency);
 }

@@ -400,6 +400,16 @@ public class MessagingService implements IFailureDetectionEventListener
         return taskCompletionMap_.remove(key);
     }
 
+    public static long getRegisteredCallbackAge(String key)
+    {
+        return callbackMap_.getAge(key);
+    }
+
+    public static long getAsyncResultAge(String key)
+    {
+        return taskCompletionMap_.getAge(key);
+    }
+
     public static ExecutorService getDeserializationExecutor()
     {
         return messageDeserializerExecutor_;

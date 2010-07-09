@@ -129,6 +129,17 @@ public class ExpiringMap<K, V>
         return result;
     }
 
+    public long getAge(K key)
+    {
+        long age = 0;
+        CacheableObject<V> co = cache.get(key);
+        if (co != null)
+        {
+            age = co.age;
+        }
+        return age;
+    }
+
     public int size()
     {
         return cache.size();

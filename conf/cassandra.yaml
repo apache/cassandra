@@ -170,6 +170,12 @@ request_scheduler: org.apache.cassandra.scheduler.NoScheduler
 # the request scheduling. The current supported option is "keyspace"
 request_scheduler_id: keyspace
 
+# dynamic_snitch -- This boolean controls whether the above snitch is
+# wrapped with a dynamic snitch, which will monitor read latencies
+# and avoid reading from hosts that have slowed (due to compaction,
+# for instance)
+dynamic_snitch: false
+
 # A ColumnFamily is the Cassandra concept closest to a relational table. 
 #
 # Keyspaces are separate groups of ColumnFamilies.  Except in very

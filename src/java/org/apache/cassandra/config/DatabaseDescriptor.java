@@ -27,6 +27,7 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.*;
 
+import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -415,10 +416,10 @@ public class DatabaseDescriptor
                 throw (ConfigurationException)e.getCause();
             throw new ConfigurationException("Error instantiating " + endpointSnitchClassName + " " + e.getMessage());
         }
-        return snitch;
+        return conf.dynamic_snitch ? new DynamicEndpointSnitch(snitch) : snitch;
     }
     
-    public static void loadSchemas() throws IOException
+    public static void loadSchemas() throws IOException                         
     {
         // we can load tables from local storage if a version is set in the system table and that acutally maps to
         // real data in the definitions table.  If we do end up loading from xml, store the defintions so that we
