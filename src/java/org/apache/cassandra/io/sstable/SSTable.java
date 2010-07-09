@@ -60,7 +60,6 @@ public abstract class SSTable
 
     public static final String TEMPFILE_MARKER = "tmp";
 
-    // TODO streaming relies on the -Data (getFilename) file to be last, this is clunky
     public static List<String> components = Collections.unmodifiableList(Arrays.asList(COMPONENT_FILTER, COMPONENT_INDEX, COMPONENT_DATA));
 
     protected SSTable(String filename, IPartitioner partitioner)
