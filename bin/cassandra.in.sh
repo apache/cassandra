@@ -42,6 +42,7 @@ JVM_OPTS=" \
         \
         -Xms256M \
         -Xmx1G \
+        -Xss128k \
         \
         -XX:+UseParNewGC \
         -XX:+UseConcMarkSweepGC \
