@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package src.java.org.apache.cassandra.locator;
+package org.apache.cassandra.locator;
 
 import java.io.FileNotFoundException;
 import java.io.FileReader;
