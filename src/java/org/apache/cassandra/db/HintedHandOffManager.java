@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 
+import org.apache.cassandra.db.IClock;
 import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -121,12 +122,12 @@ public class HintedHandOffManager
         return true;
     }
 
-    private static void deleteHintKey(byte[] endpointAddress, byte[] key, byte[] tableCF) throws IOException
+    private static void deleteHintKey(byte[] endpointAddress, byte[] key, byte[] tableCF, IClock clock) throws IOException
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, endpointAddress);
-        rm.delete(new QueryPath(HINTS_CF, key, tableCF), new TimestampClock(System.currentTimeMillis()));
+        rm.delete(new QueryPath(HINTS_CF, key, tableCF), clock);
         rm.apply();
-    }
+    }                                                         
 
     public static void deleteHintsForEndPoint(InetAddress endpoint)
     {
@@ -185,30 +186,36 @@ public class HintedHandOffManager
         int rowsReplayed = 0;
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
         byte[] startColumn = ArrayUtils.EMPTY_BYTE_ARRAY;
-        while (true)
-        {
-            QueryFilter filter = QueryFilter.getSliceFilter(epkey, new QueryPath(HINTS_CF), startColumn, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, PAGE_SIZE);
-            ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
-            if (pagingFinished(hintColumnFamily, startColumn))
-                break;
-            Collection<IColumn> keyColumns = hintColumnFamily.getSortedColumns();
-            for (IColumn keyColumn : keyColumns)
+        delivery:
+            while (true)
             {
-                startColumn = keyColumn.name();
-                Collection<IColumn> tableCFs = keyColumn.getSubColumns();
-                for (IColumn tableCF : tableCFs)
+                QueryFilter filter = QueryFilter.getSliceFilter(epkey, new QueryPath(HINTS_CF), startColumn, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, PAGE_SIZE);
+                ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
+                if (pagingFinished(hintColumnFamily, startColumn))
+                    break;
+                Collection<IColumn> keyColumns = hintColumnFamily.getSortedColumns();
+                for (IColumn keyColumn : keyColumns)
                 {
-                    String[] parts = getTableAndCFNames(tableCF.name());
-                    if (sendMessage(endpoint, parts[0], parts[1], keyColumn.name()))
-                    {
-                        deleteHintKey(endpoint.getAddress(), keyColumn.name(), tableCF.name());
-                        rowsReplayed++;
-                    }
-
                     startColumn = keyColumn.name();
+                    Collection<IColumn> tableCFs = keyColumn.getSubColumns();
+                    for (IColumn tableCF : tableCFs)
+                    {
+                        String[] parts = getTableAndCFNames(tableCF.name());
+                        if (sendMessage(endpoint, parts[0], parts[1], keyColumn.name()))
+                        {
+                            deleteHintKey(endpoint.getAddress(), keyColumn.name(), tableCF.name(), tableCF.clock());
+                            rowsReplayed++;
+                        }
+                        else
+                        {
+                            logger_.info("Could not complete hinted handoff to " + endpoint);
+                            break delivery;
+                        }
+
+                        startColumn = keyColumn.name();
+                    }
                 }
             }
-        }
 
         if (rowsReplayed > 0)
         {
