@@ -18,6 +18,8 @@ Features
     - Streaming data for repair or node movement no longer requires 
       anticompaction step first
     - keyspace is per-connection in the thrift API instead of per-call
+    - optional round-robin scheduling between keyspaces for multitenant
+      clusters
 
 Configuraton
 ------------

@@ -27,6 +27,15 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.db.migration.AddColumnFamily;
+import org.apache.cassandra.db.migration.AddKeyspace;
+import org.apache.cassandra.db.migration.DropColumnFamily;
+import org.apache.cassandra.db.migration.DropKeyspace;
+import org.apache.cassandra.db.migration.RenameColumnFamily;
+import org.apache.cassandra.db.migration.RenameKeyspace;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.ColumnFamily;
@@ -34,9 +43,12 @@ import org.apache.cassandra.db.clock.AbstractReconciler;
 import org.apache.cassandra.db.clock.TimestampReconciler;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
-import org.apache.cassandra.db.migration.*;
-import org.apache.cassandra.dht.*;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.thrift.TException;
@@ -64,6 +76,16 @@ public class CassandraServer implements Cassandra.Iface
     private ThreadLocal<String> keySpace = new ThreadLocal<String>();
 
     /*
+     * An associated Id for scheduling the requests
+     */
+    private ThreadLocal<String> requestSchedulerId = new ThreadLocal<String>();
+
+    /*
+     * RequestScheduler to perform the scheduling of incoming requests
+     */
+    private final IRequestScheduler requestScheduler;
+
+    /*
       * Handle to the storage service to interact with the other machines in the
       * cluster.
       */
@@ -72,6 +94,7 @@ public class CassandraServer implements Cassandra.Iface
     public CassandraServer()
     {
         storageService = StorageService.instance;
+        requestScheduler = DatabaseDescriptor.getRequestScheduler();
     }
     
     protected Map<DecoratedKey, ColumnFamily> readColumnFamily(List<ReadCommand> commands, ConsistencyLevel consistency_level)
@@ -92,7 +115,15 @@ public class CassandraServer implements Cassandra.Iface
         List<Row> rows;
         try
         {
-            rows = StorageProxy.readProtocol(commands, consistency_level);
+            try
+            {
+                schedule();
+                rows = StorageProxy.readProtocol(commands, consistency_level);
+            }
+            finally
+            {
+                release();
+            }
         }
         catch (TimeoutException e) 
         {
@@ -424,20 +455,29 @@ public class CassandraServer implements Cassandra.Iface
 
     private void doInsert(ConsistencyLevel consistency_level, List<RowMutation> mutations) throws UnavailableException, TimedOutException
     {
-        if (consistency_level == ConsistencyLevel.ZERO)
+        try
         {
-            StorageProxy.mutate(mutations);
+            schedule();
+
+            if (consistency_level == ConsistencyLevel.ZERO)
+            {
+                StorageProxy.mutate(mutations);
+            }
+            else
+            {
+                try
+                {
+                    StorageProxy.mutateBlocking(mutations, consistency_level);
+                }
+                catch (TimeoutException e)
+                {
+                    throw new TimedOutException();
+                }
+            }
         }
-        else
+        finally
         {
-            try
-            {
-            	StorageProxy.mutateBlocking(mutations, consistency_level);
-            }
-            catch (TimeoutException e)
-            {
-            	throw new TimedOutException();
-            }
+            release();
         }
     }
 
@@ -503,7 +543,15 @@ public class CassandraServer implements Cassandra.Iface
             {
                 bounds = new Bounds(p.getToken(range.start_key), p.getToken(range.end_key));
             }
-            rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, predicate, bounds, range.count), consistency_level);
+            try
+            {
+                schedule();
+                rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, predicate, bounds, range.count), consistency_level);
+            }
+            finally
+            {
+                release();
+            }
             assert rows != null;
         }
         catch (TimeoutException e)
@@ -679,6 +727,22 @@ public class CassandraServer implements Cassandra.Iface
             if (loginDone.get().getValue() < level.getValue())
                 throw new InvalidRequestException("Your credentials are not sufficient to perform " + level + " operations");
         }
+    }
+
+    /**
+     * Schedule the current thread for access to the required services
+     */
+    private void schedule()
+    {
+        requestScheduler.queue(Thread.currentThread(), requestSchedulerId.get());
+    }
+
+    /**
+     * Release count for the used up resources
+     */
+    private void release()
+    {
+        requestScheduler.release();
     }
 
     public String system_add_column_family(CfDef cf_def) throws InvalidRequestException, TException
@@ -919,6 +983,7 @@ public class CassandraServer implements Cassandra.Iface
         checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
         try
         {
+            schedule();
             StorageProxy.truncateBlocking(keySpace.get(), cfname);
         }
         catch (TimeoutException e)
@@ -929,9 +994,14 @@ public class CassandraServer implements Cassandra.Iface
         {
             throw (UnavailableException) new UnavailableException().initCause(e);
         }
+        finally
+        {
+            release();
+        }
     }
 
-    public void set_keyspace(String keyspace) throws InvalidRequestException, TException {
+    public void set_keyspace(String keyspace) throws InvalidRequestException, TException
+    {
         if (DatabaseDescriptor.getTableDefinition(keyspace) == null)
         {
             throw new InvalidRequestException("Keyspace does not exist");
@@ -941,7 +1011,8 @@ public class CassandraServer implements Cassandra.Iface
         if (keySpace.get() != null && !keySpace.get().equals(keyspace))
             loginDone.set(AccessLevel.NONE);
         
-        keySpace.set(keyspace); 
+        keySpace.set(keyspace);
+        requestSchedulerId.set(keyspace);
     }
 
     public Map<String, List<String>> check_schema_agreement() throws TException, InvalidRequestException

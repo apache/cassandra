@@ -72,6 +72,10 @@ public class Config {
     
     public String endpoint_snitch;
     
+    public String request_scheduler;
+    public RequestSchedulerId request_scheduler_id;
+    public RequestSchedulerOptions request_scheduler_options;
+
     public List<Keyspace> keyspaces;
     
     public static enum CommitLogSync {
@@ -86,4 +90,8 @@ public class Config {
         standard,
     }
     
+    public static enum RequestSchedulerId
+    {
+        keyspace
+    }
 }

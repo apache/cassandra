@@ -19,6 +19,8 @@ memtable_operations_in_millions: 0.00002
 seeds:
     - 127.0.0.2
 endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
+request_scheduler: org.apache.cassandra.scheduler.RoundRobinScheduler
+request_scheduler_id: keyspace
 keyspaces:
     - name: Keyspace1
       replica_placement_strategy: org.apache.cassandra.locator.RackUnawareStrategy

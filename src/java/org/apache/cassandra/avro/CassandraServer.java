@@ -43,6 +43,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
@@ -53,6 +54,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.migration.AddKeyspace;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 
@@ -84,12 +86,27 @@ public class CassandraServer implements Cassandra {
     // Session keyspace.
     private ThreadLocal<String> curKeyspace = new ThreadLocal<String>();
 
+    /*
+     * An associated Id for scheduling the requests
+     */
+    private ThreadLocal<String> requestSchedulerId = new ThreadLocal<String>();
+
+    /*
+     * RequestScheduler to perform the scheduling of incoming requests
+     */
+    private final IRequestScheduler requestScheduler;
+
+    public CassandraServer()
+    {
+        requestScheduler = DatabaseDescriptor.getRequestScheduler();
+    }
+
     @Override
     public ColumnOrSuperColumn get(ByteBuffer key, ColumnPath columnPath, ConsistencyLevel consistencyLevel)
     throws AvroRemoteException, InvalidRequestException, NotFoundException, UnavailableException, TimedOutException {
         if (logger.isDebugEnabled())
             logger.debug("get");
-        
+
         AvroValidation.validateColumnPath(curKeyspace.get(), columnPath);
         
         // FIXME: This is repetitive.
@@ -129,6 +146,7 @@ public class CassandraServer implements Cassandra {
         List<Row> rows;
         try
         {
+            schedule();
             rows = StorageProxy.readProtocol(commands, thriftConsistencyLevel(consistency));
         }
         catch (TimeoutException e) 
@@ -144,6 +162,10 @@ public class CassandraServer implements Cassandra {
         catch (org.apache.cassandra.thrift.UnavailableException e)
         {
             throw new UnavailableException();
+        }
+        finally
+        {
+            release();
         }
 
         for (Row row: rows)
@@ -398,6 +420,7 @@ public class CassandraServer implements Cassandra {
         {
             try
             {
+                schedule();
                 StorageProxy.mutateBlocking(Arrays.asList(rm), thriftConsistencyLevel(consistency));
             }
             catch (TimeoutException e)
@@ -408,10 +431,22 @@ public class CassandraServer implements Cassandra {
             {
                 throw new UnavailableException();
             }
+            finally
+            {
+                release();
+            }
         }
         else
         {
-            StorageProxy.mutate(Arrays.asList(rm));
+            try
+            {
+                schedule();
+                StorageProxy.mutate(Arrays.asList(rm));
+            }
+            finally
+            {
+                release();
+            }
         }
     }
 
@@ -441,12 +476,21 @@ public class CassandraServer implements Cassandra {
         
         if (consistencyLevel == ConsistencyLevel.ZERO)
         {
-            StorageProxy.mutate(rowMutations);
+            try
+            {
+                schedule();
+                StorageProxy.mutate(rowMutations);
+            }
+            finally
+            {
+                release();
+            }
         }
         else
         {
             try
             {
+                schedule();
                 StorageProxy.mutateBlocking(rowMutations, thriftConsistencyLevel(consistencyLevel));
             }
             catch (TimeoutException te)
@@ -457,6 +501,10 @@ public class CassandraServer implements Cassandra {
             catch (org.apache.cassandra.thrift.UnavailableException ue)
             {
                 throw newUnavailableException();
+            }
+            finally
+            {
+                release();
             }
         }
         
@@ -553,7 +601,11 @@ public class CassandraServer implements Cassandra {
             loginDone.set(AccessLevel.NONE);
         
         this.curKeyspace.set(keyspaceStr);
-        
+
+        if (DatabaseDescriptor.getRequestSchedulerId().equals(Config.RequestSchedulerId.keyspace)) {
+            requestSchedulerId.set(curKeyspace.get());
+        }
+
         return null;
     }
 
@@ -662,5 +714,21 @@ public class CassandraServer implements Cassandra {
     {
         logger.debug("checking schema agreement");      
         return StorageProxy.checkSchemaAgreement();
+    }
+
+    /**
+     * Schedule the current thread for access to the required services
+     */
+    private void schedule()
+    {
+        requestScheduler.queue(Thread.currentThread(), requestSchedulerId.get());
+    }
+
+    /**
+     * Release a count of resources used to the request scheduler
+     */
+    private void release()
+    {
+        requestScheduler.release();
     }
 }

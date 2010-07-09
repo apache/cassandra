@@ -141,6 +141,35 @@ gc_grace_seconds: 864000
 # org.apache.cassandra.locator.PropertyFileSnitch.
 endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
 
+# request_scheduler -- Set this to a class that implements
+# RequestScheduler, which will schedule incoming client requests
+# according to the specific policy. This is useful for multi-tenancy
+# with a single Cassandra cluster.
+# NOTE: This is specifically for requests from the client and does
+# not affect inter node communication.
+# org.apache.cassandra.scheduler.NoScheduler - No scheduling takes place
+# org.apache.cassandra.scheduler.RoundRobinScheduler - Round robin of
+# client requests to a node with a sepearte queue for each
+# reques_scheduler_id. The requests are throttled based on the limit set
+# in throttle_limit in the requeset_scheduler_options
+request_scheduler: org.apache.cassandra.scheduler.NoScheduler
+
+# Scheduler Options vary based on the type of scheduler
+# NoScheduler - Has no options
+# RoundRobin
+#  - throttle_limit -- The throttle_limit is the number of in-flight
+#                      requests per client.  Requests beyond 
+#                      that limit are queued up until
+#                      running requests can complete.
+#                      The value of 80 here is twice the number of
+#                      concurrent_reads + concurrent_writes.
+# request_scheduler_options:
+#    throttle_limit: 80
+
+# request_scheduler_id -- An identifer based on which to perform
+# the request scheduling. The current supported option is "keyspace"
+request_scheduler_id: keyspace
+
 # A ColumnFamily is the Cassandra concept closest to a relational table. 
 #
 # Keyspaces are separate groups of ColumnFamilies.  Except in very
