@@ -44,6 +44,8 @@ dev
    (CASSANDRA-1229)
  * better performance for and stricter checking of UTF8 column names
    (CASSANDRA-1232)
+ * extend option to lower compaction priority to hinted handoff
+   as well (CASSANDRA-1260)
 
 
 0.6.3
