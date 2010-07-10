@@ -67,7 +67,7 @@ parser.add_option('-c', '--columns', type="int", dest="columns",
                   help="Number of columns per key", default=5)
 parser.add_option('-d', '--nodes', type="string", dest="nodes",
                   help="Host nodes (comma separated)", default="localhost")
-parser.add_option('-s', '--stdev', type="int", dest="stdev", default=0.1,
+parser.add_option('-s', '--stdev', type="float", dest="stdev", default=0.1,
                   help="standard deviation factor")
 parser.add_option('-r', '--random', action="store_true", dest="random",
                   help="use random key generator (stdev will have no effect)")
