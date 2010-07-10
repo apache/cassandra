@@ -20,6 +20,7 @@ Features
     - keyspace is per-connection in the thrift API instead of per-call
     - optional round-robin scheduling between keyspaces for multitenant
       clusters
+    - dynamic endpoint snitch mitigates the impact of impaired nodes
 
 Configuraton
 ------------

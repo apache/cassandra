@@ -37,6 +37,8 @@ dev
  * remove gossip message size limit (CASSANDRA-1138)
  * add joining/leaving status to nodetool ring (CASSANDRA-1115)
  * allow multiple repair sessions per node (CASSANDRA-1190)
+ * add dynamic endpoint snitch (CASSANDRA-981)
+ * optimize away MessagingService for local range queries (CASSANDRA-1261)
 
 
 0.6.4
