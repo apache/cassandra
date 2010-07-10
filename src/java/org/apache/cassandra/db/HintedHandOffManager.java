@@ -90,7 +90,15 @@ public class HintedHandOffManager
 
     private final NonBlockingHashSet<InetAddress> queuedDeliveries = new NonBlockingHashSet<InetAddress>();
 
-    private final ExecutorService executor_ = new JMXEnabledThreadPoolExecutor("HINTED-HANDOFF-POOL");
+    private final ExecutorService executor_;
+
+    public HintedHandOffManager()
+    {
+        int hhPriority = System.getProperty("cassandra.compaction.priority") == null
+                         ? Thread.NORM_PRIORITY
+                         : Integer.parseInt(System.getProperty("cassandra.compaction.priority"));
+        executor_ = new JMXEnabledThreadPoolExecutor("HINTED-HANDOFF-POOL", hhPriority);
+    }
 
     private static boolean sendMessage(InetAddress endPoint, String tableName, String key) throws IOException
     {
