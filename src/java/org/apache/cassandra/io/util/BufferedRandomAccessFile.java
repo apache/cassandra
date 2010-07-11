@@ -40,7 +40,6 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
 {
     static final int LogBuffSz_ = 16; // 64K buffer
     public static final int BuffSz_ = (1 << LogBuffSz_);
-    static final long BuffMask_ = ~(((long) BuffSz_) - 1L);
 
     private String path_;
     
@@ -84,22 +83,22 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     *
     * V3. Any (possibly) unflushed characters are stored in "f.buff":
     *
-    * (forall i in [f.lo, f.curr): c(f)[i] == f.buff[i - f.lo])
+    * (forall i in [f.lo, f.hi): c(f)[i] == f.buff[i - f.lo])
     *
     * V4. For all characters not covered by V3, c(f) and disk(f) agree:
     *
-    * (forall i in [f.lo, len(f)): i not in [f.lo, f.curr) => c(f)[i] ==
+    * (forall i in [f.lo, len(f)): i not in [f.lo, f.hi) => c(f)[i] ==
     * disk(f)[i])
     *
     * V5. "f.dirty" is true iff the buffer contains bytes that should be
     * flushed to the file; by V3 and V4, only part of the buffer can be dirty.
     *
-    * f.dirty == (exists i in [f.lo, f.curr): c(f)[i] != f.buff[i - f.lo])
+    * f.dirty == (exists i in [f.lo, f.hi): c(f)[i] != f.buff[i - f.lo])
     *
     * V6. this.maxHi == this.lo + this.buff.length
     *
     * Note that "f.buff" can be "null" in a valid file, since the range of
-    * characters in V3 is empty when "f.lo == f.curr".
+    * characters in V3 is empty when "f.lo == f.hi".
     *
     * A file is said to be *ready* if the buffer contains the current position,
     * i.e., when:
@@ -189,9 +188,9 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
         {
             if (this.diskPos_ != this.lo_)
                 super.seek(this.lo_);
-            int len = (int) (this.curr_ - this.lo_);
+            int len = (int) (this.hi_ - this.lo_);
             super.write(this.buff_, 0, len);
-            this.diskPos_ = this.curr_;             
+            this.diskPos_ = this.hi_;
             this.dirty_ = false;
         }
     }
@@ -203,60 +202,43 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
      */
     private int fillBuffer() throws IOException
     {
-        int cnt = 0;
-        int rem = this.buff_.length;
-        while (rem > 0)
+        int count = 0;
+        int remainder = this.buff_.length;
+        while (remainder > 0)
         {
-            int n = super.read(this.buff_, cnt, rem);
+            int n = super.read(this.buff_, count, remainder);
             if (n < 0)
                 break;
-            cnt += n;
-            rem -= n;
+            count += n;
+            remainder -= n;
         }
-        if ( (cnt < 0) && (this.hitEOF_ = (cnt < this.buff_.length)) )
-        {
-            // make sure buffer that wasn't read is initialized with -1
-            Arrays.fill(this.buff_, cnt, this.buff_.length, (byte) 0xff);
-        }
-        this.diskPos_ += cnt;
-        return cnt;
+        this.hitEOF_ = (count < this.buff_.length);
+        this.diskPos_ += count;
+        return count;
     }
     
+    public void seek(long pos) throws IOException
+    {
+        this.curr_ = pos;
+    }
+
     /*
-     * This method positions <code>this.curr</code> at position <code>pos</code>.
-     * If <code>pos</code> does not fall in the current buffer, it flushes the
-     * current buffer and loads the correct one.<p>
-     * 
      * On exit from this routine <code>this.curr == this.hi</code> iff <code>pos</code>
      * is at or past the end-of-file, which can only happen if the file was
      * opened in read-only mode.
      */
-    public void seek(long pos) throws IOException
+    private void reBuffer() throws IOException
     {
-        if (pos >= this.hi_ || pos < this.lo_)
+        this.flushBuffer();
+        this.lo_ = this.curr_;
+        this.maxHi_ = this.lo_ + (long) this.buff_.length;
+        if (this.diskPos_ != this.lo_)
         {
-            // seeking outside of current buffer -- flush and read             
-            this.flushBuffer();
-            this.lo_ = pos & BuffMask_; // start at BuffSz boundary
-            this.maxHi_ = this.lo_ + (long) this.buff_.length;
-            if (this.diskPos_ != this.lo_)
-            {
-                super.seek(this.lo_);
-                this.diskPos_ = this.lo_;
-            }
-            int n = this.fillBuffer();
-            this.hi_ = this.lo_ + (long) n;
+            super.seek(this.lo_);
+            this.diskPos_ = this.lo_;
         }
-        else
-        {
-            // seeking inside current buffer -- no read required
-            if (pos < this.curr_)
-            {
-                // if seeking backwards, we must flush to maintain V4
-                this.flushBuffer();
-            }
-        }
-        this.curr_ = pos;
+        int n = this.fillBuffer();
+        this.hi_ = this.lo_ + (long) n;
     }
 
     public long getFilePointer()
@@ -280,16 +262,10 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
 
     public int read() throws IOException
     {
-        if (this.curr_ >= this.hi_)
+        if (this.lo_ > this.curr_ || this.curr_ >= this.hi_)
         {
-            // test for EOF
-            // if (this.hi < this.maxHi) return -1;
-            if (this.hitEOF_)
-                return -1;
-            
-            // slow path -- read another buffer
-            this.seek(this.curr_);
-            if (this.curr_ == this.hi_)
+            this.reBuffer();
+            if (this.curr_ == this.hi_ && this.hitEOF_)
                 return -1;
         }
         byte res = this.buff_[(int) (this.curr_ - this.lo_)];
@@ -304,16 +280,10 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     
     public int read(byte[] b, int off, int len) throws IOException
     {
-        if (this.curr_ >= this.hi_)
+        if (this.lo_ > this.curr_ || this.curr_ >= this.hi_)
         {
-            // test for EOF
-            // if (this.hi < this.maxHi) return -1;
-            if (this.hitEOF_)
-                return -1;
-            
-            // slow path -- read another buffer
-            this.seek(this.curr_);
-            if (this.curr_ == this.hi_)
+            this.reBuffer();
+            if (this.curr_ == this.hi_ && this.hitEOF_)
                 return -1;
         }
         len = Math.min(len, (int) (this.hi_ - this.curr_));
@@ -325,26 +295,14 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     
     public void write(int b) throws IOException
     {
-        if (this.curr_ >= this.hi_)
+        if (this.lo_ > this.curr_ || this.curr_ > this.hi_ || this.curr_ >= maxHi_)
         {
-            if (this.hitEOF_ && this.hi_ < this.maxHi_)
-            {
-                // at EOF -- bump "hi"
-                this.hi_++;
-            }
-            else
-            {
-                // slow path -- write current buffer; read next one
-                this.seek(this.curr_);
-                if (this.curr_ == this.hi_)
-                {
-                    // appending to EOF -- bump "hi"
-                    this.hi_++;
-                }
-            }
+            this.reBuffer();
         }
         this.buff_[(int) (this.curr_ - this.lo_)] = (byte) b;
         this.curr_++;
+        if (this.curr_ > this.hi_)
+            this.hi_ = this.curr_;
         this.dirty_ = true;
         syncNeeded_ = true;
     }
@@ -368,32 +326,20 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     
     /*
      * Write at most "len" bytes to "b" starting at position "off", and return
-     * the number of bytes written.
+     * the number of bytes written. caller is responsible for setting dirty, syncNeeded.
      */
     private int writeAtMost(byte[] b, int off, int len) throws IOException
-    {        
-        if (this.curr_ >= this.hi_)
+    {
+        if (this.lo_ > this.curr_ || this.curr_ > this.hi_ || this.curr_ >= maxHi_)
         {
-            if (this.hitEOF_ && this.hi_ < this.maxHi_)
-            {
-                // at EOF -- bump "hi"
-                this.hi_ = this.maxHi_;
-            }
-            else
-            {                                
-                // slow path -- write current buffer; read next one                
-                this.seek(this.curr_);
-                if (this.curr_ == this.hi_)
-                {
-                    // appending to EOF -- bump "hi"
-                    this.hi_ = this.maxHi_;
-                }
-            }
+            this.reBuffer();
         }
-        len = Math.min(len, (int) (this.hi_ - this.curr_));
+        len = Math.min(len, (int) (this.maxHi_ - this.curr_));
         int buffOff = (int) (this.curr_ - this.lo_);
         System.arraycopy(b, off, this.buff_, buffOff, len);
         this.curr_ += len;
+        if (this.curr_ > this.hi_)
+            this.hi_ = this.curr_;
         return len;
     }
 

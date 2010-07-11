@@ -150,15 +150,8 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         logger.info("Writing " + this);
         SSTableWriter writer = new SSTableWriter(cfs.getFlushPath(), columnFamilies.size(), partitioner);
 
-        DataOutputBuffer buffer = new DataOutputBuffer();
         for (Map.Entry<DecoratedKey, ColumnFamily> entry : columnFamilies.entrySet())
-        {
-            buffer.reset();
-            /* serialize the cf with column indexes */
-            ColumnFamily.serializer().serializeWithIndexes(entry.getValue(), buffer);
-            /* Now write the key and value to disk */
-            writer.append(entry.getKey(), buffer);
-        }
+            writer.append(entry.getKey(), entry.getValue());
 
         SSTableReader ssTable = writer.closeAndOpenReader();
         logger.info("Completed flushing " + ssTable.getFilename());

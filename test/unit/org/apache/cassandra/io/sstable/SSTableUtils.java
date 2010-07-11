@@ -85,28 +85,16 @@ public class SSTableUtils
 
     public static SSTableReader writeRawSSTable(String tablename, String cfname, Map<byte[], byte[]> entries) throws IOException
     {
-        return writeRawSSTable(null, tablename, cfname, entries);
-    }
-
-    public static SSTableReader writeRawSSTable(File datafile, String tablename, String cfname, Map<byte[], byte[]> entries) throws IOException
-    {
-        boolean temporary = false;
-        if (datafile == null)
-        {
-            datafile = tempSSTableFile(tablename, cfname);
-            temporary = true;
-        }
+        File datafile = tempSSTableFile(tablename, cfname);
         SSTableWriter writer = new SSTableWriter(datafile.getAbsolutePath(), entries.size(), StorageService.getPartitioner());
         SortedMap<DecoratedKey, byte[]> sortedEntries = new TreeMap<DecoratedKey, byte[]>();
         for (Map.Entry<byte[], byte[]> entry : entries.entrySet())
             sortedEntries.put(writer.partitioner.decorateKey(entry.getKey()), entry.getValue());
         for (Map.Entry<DecoratedKey, byte[]> entry : sortedEntries.entrySet())
             writer.append(entry.getKey(), entry.getValue());
-        if (temporary)
-        {
-            new File(writer.indexFilename()).deleteOnExit();
-            new File(writer.filterFilename()).deleteOnExit();
-        }
+        new File(writer.indexFilename()).deleteOnExit();
+        new File(writer.filterFilename()).deleteOnExit();
         return writer.closeAndOpenReader();
     }
+
 }

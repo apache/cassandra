@@ -1,6 +1,5 @@
 cluster_name: Test Cluster
-flush_data_buffer_size_in_mb: 1
-flush_index_buffer_size_in_mb: 8
+in_memory_compaction_limit_in_mb: 1
 commitlog_sync: batch
 commitlog_sync_batch_window_in_ms: 1.0
 partitioner: org.apache.cassandra.dht.CollatingOrderPreservingPartitioner

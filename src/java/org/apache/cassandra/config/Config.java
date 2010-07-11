@@ -36,9 +36,6 @@ public class Config {
     
     public Integer memtable_flush_writers = null; // will get set to the length of data dirs in DatabaseDescriptor
     
-    public Double flush_data_buffer_size_in_mb = new Double(32);
-    public Double flush_index_buffer_size_in_mb = new Double(8);
-    
     public Integer sliced_buffer_size_in_kb = 64;
     
     public Integer storage_port = 7000;

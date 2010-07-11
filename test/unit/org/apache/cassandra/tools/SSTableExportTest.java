@@ -60,21 +60,16 @@ public class SSTableExportTest extends SchemaLoader
         File tempSS = tempSSTableFile("Keyspace1", "Standard1");
         ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Standard1");
         IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();
-        DataOutputBuffer dob = new DataOutputBuffer();
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2, partitioner);
         
         // Add rowA
         cfamily.addColumn(new QueryPath("Standard1", null, "colA".getBytes()), "valA".getBytes(), new TimestampClock(1));
-        ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
-        writer.append(Util.dk("rowA"), dob);
-        dob.reset();
+        writer.append(Util.dk("rowA"), cfamily);
         cfamily.clear();
         
         // Add rowB
         cfamily.addColumn(new QueryPath("Standard1", null, "colB".getBytes()), "valB".getBytes(), new TimestampClock(1));
-        ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
-        writer.append(Util.dk("rowB"), dob);
-        dob.reset();
+        writer.append(Util.dk("rowB"), cfamily);
         cfamily.clear();
      
         writer.closeAndOpenReader();
@@ -98,28 +93,21 @@ public class SSTableExportTest extends SchemaLoader
         File tempSS = tempSSTableFile("Keyspace1", "Standard1");
         ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Standard1");
         IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();
-        DataOutputBuffer dob = new DataOutputBuffer();
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2, partitioner);
         
         // Add rowA
         cfamily.addColumn(new QueryPath("Standard1", null, "colA".getBytes()), "valA".getBytes(), new TimestampClock(1));
-        ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
-        writer.append(Util.dk("rowA"), dob);
-        dob.reset();
+        writer.append(Util.dk("rowA"), cfamily);
         cfamily.clear();
         
         // Add rowB
         cfamily.addColumn(new QueryPath("Standard1", null, "colB".getBytes()), "valB".getBytes(), new TimestampClock(1));
-        ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
-        writer.append(Util.dk("rowB"), dob);
-        dob.reset();
+        writer.append(Util.dk("rowB"), cfamily);
         cfamily.clear();
 
         // Add rowExclude
         cfamily.addColumn(new QueryPath("Standard1", null, "colX".getBytes()), "valX".getBytes(), new TimestampClock(1));
-        ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
-        writer.append(Util.dk("rowExclude"), dob);
-        dob.reset();
+        writer.append(Util.dk("rowExclude"), cfamily);
         cfamily.clear();
 
         SSTableReader reader = writer.closeAndOpenReader();
@@ -148,28 +136,21 @@ public class SSTableExportTest extends SchemaLoader
         File tempSS = tempSSTableFile("Keyspace1", "Super4");
         ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Super4");
         IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();
-        DataOutputBuffer dob = new DataOutputBuffer();
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2, partitioner);
         
         // Add rowA
         cfamily.addColumn(new QueryPath("Super4", "superA".getBytes(), "colA".getBytes()), "valA".getBytes(), new TimestampClock(1));
-        ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
-        writer.append(Util.dk("rowA"), dob);
-        dob.reset();
+        writer.append(Util.dk("rowA"), cfamily);
         cfamily.clear();
         
         // Add rowB
         cfamily.addColumn(new QueryPath("Super4", "superB".getBytes(), "colB".getBytes()), "valB".getBytes(), new TimestampClock(1));
-        ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
-        writer.append(Util.dk("rowB"), dob);
-        dob.reset();
+        writer.append(Util.dk("rowB"), cfamily);
         cfamily.clear();
 
         // Add rowExclude
         cfamily.addColumn(new QueryPath("Super4", "superX".getBytes(), "colX".getBytes()), "valX".getBytes(), new TimestampClock(1));
-        ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
-        writer.append(Util.dk("rowExclude"), dob);
-        dob.reset();
+        writer.append(Util.dk("rowExclude"), cfamily);
         cfamily.clear();
 
         SSTableReader reader = writer.closeAndOpenReader();
@@ -196,21 +177,16 @@ public class SSTableExportTest extends SchemaLoader
         File tempSS = tempSSTableFile("Keyspace1", "Standard1");
         ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Standard1");
         IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();
-        DataOutputBuffer dob = new DataOutputBuffer();
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2, partitioner);
         
         // Add rowA
         cfamily.addColumn(new QueryPath("Standard1", null, "name".getBytes()), "val".getBytes(), new TimestampClock(1));
-        ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
-        writer.append(Util.dk("rowA"), dob);
-        dob.reset();
+        writer.append(Util.dk("rowA"), cfamily);
         cfamily.clear();
 
         // Add rowExclude
         cfamily.addColumn(new QueryPath("Standard1", null, "name".getBytes()), "val".getBytes(), new TimestampClock(1));
-        ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
-        writer.append(Util.dk("rowExclude"), dob);
-        dob.reset();
+        writer.append(Util.dk("rowExclude"), cfamily);
         cfamily.clear();
 
         SSTableReader reader = writer.closeAndOpenReader();

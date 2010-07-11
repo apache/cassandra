@@ -95,14 +95,13 @@ memtable_flush_after_mins: 60
 memtable_throughput_in_mb: 64
 # Number of objects in millions in the memtable before it is flushed
 memtable_operations_in_millions: 0.3
-# Buffer size to use when flushing !memtables to disk.
-flush_data_buffer_size_in_mb: 32
 # Increase (decrease) the index buffer size relative to the data
 # buffer if you have few (many) columns per key.
 flush_index_buffer_size_in_mb: 8
 
 column_index_size_in_kb: 64
-in_memory_compaction_limit_in_mb: 128
+
+in_memory_compaction_limit_in_mb: 64
 
 # commit log
 commitlog_directory: /var/lib/cassandra/commitlog

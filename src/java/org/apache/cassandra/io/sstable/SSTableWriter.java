@@ -43,11 +43,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.AbstractCompactedRow;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.SegmentedFile;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilter;
@@ -67,7 +67,7 @@ public class SSTableWriter extends SSTable
         super(filename, partitioner);
         iwriter = new IndexWriter(desc, partitioner, keyCount);
         dbuilder = SegmentedFile.getBuilder();
-        dataFile = new BufferedRandomAccessFile(getFilename(), "rw", (int)(DatabaseDescriptor.getFlushDataBufferSizeInMB() * 1024 * 1024));
+        dataFile = new BufferedRandomAccessFile(getFilename(), "rw", DatabaseDescriptor.getInMemoryCompactionLimit());
     }
 
     private long beforeAppend(DecoratedKey decoratedKey) throws IOException
@@ -104,16 +104,22 @@ public class SSTableWriter extends SSTable
         afterAppend(row.key, currentPosition);
     }
 
-    // TODO make this take a DataOutputStream and wrap the byte[] version to combine them
-    public void append(DecoratedKey decoratedKey, DataOutputBuffer buffer) throws IOException
+    public void append(DecoratedKey decoratedKey, ColumnFamily cf) throws IOException
     {
-        long currentPosition = beforeAppend(decoratedKey);
+        long startPosition = beforeAppend(decoratedKey);
         FBUtilities.writeShortByteArray(partitioner.convertToDiskFormat(decoratedKey), dataFile);
-        int length = buffer.getLength();
-        assert length > 0;
-        dataFile.writeLong(length);
-        dataFile.write(buffer.getData(), 0, length);
-        afterAppend(decoratedKey, currentPosition);
+        // write placeholder for the row size, since we don't know it yet
+        long sizePosition = dataFile.getFilePointer();
+        dataFile.writeLong(-1);
+        // write out row data
+        ColumnFamily.serializer().serializeWithIndexes(cf, dataFile);
+        // seek back and write the row size (not including the size Long itself)
+        long endPosition = dataFile.getFilePointer();
+        dataFile.seek(sizePosition);
+        dataFile.writeLong(endPosition - (sizePosition + 8));
+        // finally, reset for next row
+        dataFile.seek(endPosition);
+        afterAppend(decoratedKey, startPosition);
     }
 
     public void append(DecoratedKey decoratedKey, byte[] value) throws IOException
@@ -209,7 +215,7 @@ public class SSTableWriter extends SSTable
         ffile.delete();
 
         // open the data file for input, and an IndexWriter for output
-        BufferedRandomAccessFile dfile = new BufferedRandomAccessFile(desc.filenameFor(SSTable.COMPONENT_DATA), "r", (int)(DatabaseDescriptor.getFlushDataBufferSizeInMB() * 1024 * 1024));
+        BufferedRandomAccessFile dfile = new BufferedRandomAccessFile(desc.filenameFor(SSTable.COMPONENT_DATA), "r", 8 * 1024 * 1024);
         IndexWriter iwriter;
         long estimatedRows;
         try
@@ -285,8 +291,7 @@ public class SSTableWriter extends SSTable
         {
             this.desc = desc;
             this.partitioner = part;
-            int bufferbytes = (int)(DatabaseDescriptor.getFlushIndexBufferSizeInMB() * 1024 * 1024);
-            indexFile = new BufferedRandomAccessFile(desc.filenameFor(SSTable.COMPONENT_INDEX), "rw", bufferbytes);
+            indexFile = new BufferedRandomAccessFile(desc.filenameFor(SSTable.COMPONENT_INDEX), "rw", 8 * 1024 * 1024);
             builder = SegmentedFile.getBuilder();
             summary = new IndexSummary();
             bf = BloomFilter.getFilter(keyCount, 15);

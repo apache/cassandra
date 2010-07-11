@@ -935,7 +935,7 @@ public class DatabaseDescriptor
             return conf.memtable_flush_writers;
     }
 
-    public static long getInMemoryCompactionLimit()
+    public static int getInMemoryCompactionLimit()
     {
         return conf.in_memory_compaction_limit_in_mb * 1024 * 1024;
     }
@@ -1124,16 +1124,6 @@ public class DatabaseDescriptor
     public static Config.DiskAccessMode getIndexAccessMode()
     {
         return indexAccessMode;
-    }
-
-    public static double getFlushDataBufferSizeInMB()
-    {
-        return conf.flush_data_buffer_size_in_mb;
-    }
-
-    public static double getFlushIndexBufferSizeInMB()
-    {
-        return conf.flush_index_buffer_size_in_mb;
     }
 
     public static int getIndexedReadBufferSizeInKB()
