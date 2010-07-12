@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.List;
 import java.util.ArrayList;
 import java.util.Set;
 import java.util.HashSet;
@@ -34,6 +35,7 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import static junit.framework.Assert.assertEquals;
 
 public class CompactionsTest extends CleanupHelper
@@ -76,4 +78,61 @@ public class CompactionsTest extends CleanupHelper
         }
         assertEquals(inserted.size(), Util.getRangeSlice(store).size());
     }
+
+    @Test
+    public void testGetBuckets()
+    {
+        List<Pair<String, Long>> pairs = new ArrayList<Pair<String, Long>>();
+        String[] strings = { "a", "bbbb", "cccccccc", "cccccccc", "bbbb", "a" };
+        for (String st : strings)
+        {
+            Pair<String, Long> pair = new Pair<String, Long>(st, new Long(st.length()));
+            pairs.add(pair);
+        }
+
+        Set<List<String>> buckets = CompactionManager.getBuckets(pairs, 2);
+        assertEquals(3, buckets.size());
+
+        for (List<String> bucket : buckets)
+        {
+            assertEquals(2, bucket.size());
+            assertEquals(bucket.get(0).length(), bucket.get(1).length());
+            assertEquals(bucket.get(0).charAt(0), bucket.get(1).charAt(0));
+        }
+
+        pairs.clear();
+        buckets.clear();
+
+        String[] strings2 = { "aaa", "bbbbbbbb", "aaa", "bbbbbbbb", "bbbbbbbb", "aaa" };
+        for (String st : strings2)
+        {
+            Pair<String, Long> pair = new Pair<String, Long>(st, new Long(st.length()));
+            pairs.add(pair);
+        }
+
+        buckets = CompactionManager.getBuckets(pairs, 2);
+        assertEquals(2, buckets.size());
+
+        for (List<String> bucket : buckets)
+        {
+            assertEquals(3, bucket.size());
+            assertEquals(bucket.get(0).charAt(0), bucket.get(1).charAt(0));
+            assertEquals(bucket.get(1).charAt(0), bucket.get(2).charAt(0));
+        }
+
+        // Test the "min" functionality
+        pairs.clear();
+        buckets.clear();
+
+        String[] strings3 = { "aaa", "bbbbbbbb", "aaa", "bbbbbbbb", "bbbbbbbb", "aaa" };
+        for (String st : strings3)
+        {
+            Pair<String, Long> pair = new Pair<String, Long>(st, new Long(st.length()));
+            pairs.add(pair);
+        }
+
+        buckets = CompactionManager.getBuckets(pairs, 10); // notice the min is 10
+        assertEquals(1, buckets.size());
+    }
+
 }
