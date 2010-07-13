@@ -502,6 +502,7 @@ public class CassandraServer implements Cassandra.Iface
             if (columnFamilyMetaData.cfType == ColumnFamilyType.Super)
             {
                 columnMap.put("CompareSubcolumnsWith", columnFamilyMetaData.subcolumnComparator.getClass().getName());
+                columnMap.put("Reconciler", columnFamilyMetaData.reconciler.getClass().getName());
             }
             columnFamiliesMap.put(columnFamilyMetaData.cfName, columnMap);
         }
