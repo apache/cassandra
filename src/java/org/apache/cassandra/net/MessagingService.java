@@ -46,7 +46,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.ServerSocketChannel;
 import java.security.MessageDigest;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -92,7 +92,7 @@ public class MessagingService implements IFailureDetectionEventListener
     protected MessagingService()
     {
         listenGate = new SimpleCondition();
-        verbHandlers_ = new HashMap<StorageService.Verb, IVerbHandler>();
+        verbHandlers_ = new EnumMap<StorageService.Verb, IVerbHandler>(StorageService.Verb.class);
         /*
          * Leave callbacks in the cachetable long enough that any related messages will arrive
          * before the callback is evicted from the table. The concurrency level is set at 128
