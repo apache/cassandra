@@ -225,20 +225,24 @@ public class DatabaseDescriptor
             {
                 throw new ConfigurationException("DiskAccessMode must be either 'auto', 'mmap', 'mmap_index_only', or 'standard'");
             }
+
+            /* evaluate the DiskAccessMode conf directive, which also affects indexAccessMode selection */
             if (diskAccessMode == DiskAccessMode.auto)
             {
                 diskAccessMode = System.getProperty("os.arch").contains("64") ? DiskAccessMode.mmap : DiskAccessMode.standard;
                 indexAccessMode = diskAccessMode;
-                logger.info("Auto DiskAccessMode determined to be " + diskAccessMode);
+                logger.info("DiskAccessMode 'auto' determined to be " + diskAccessMode + ", indexAccessMode is " + indexAccessMode );
             }
             else if (diskAccessMode == DiskAccessMode.mmap_index_only)
             {
                 diskAccessMode = DiskAccessMode.standard;
                 indexAccessMode = DiskAccessMode.mmap;
+                logger.info("DiskAccessMode is" + diskAccessMode + ", indexAccessMode is " + indexAccessMode );
             }
             else
             {
                 indexAccessMode = diskAccessMode;
+                logger.info("DiskAccessMode is" + diskAccessMode + ", indexAccessMode is " + indexAccessMode );
             }
 
             /* Authentication and authorization backend, implementing IAuthenticator */
