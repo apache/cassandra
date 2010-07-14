@@ -92,6 +92,11 @@ parser.add_option('-i', '--progress-interval', type="int", default=10,
 parser.add_option('-g', '--get-range-slice-count', type="int", default=1000,
                   dest="rangecount",
                   help="amount of keys to get_range_slices per call")
+parser.add_option('-l', '--replication-factor', type="int", default=1,
+                  dest="replication",
+                  help="replication factor to use when creating needed column families")
+parser.add_option('-e', '--consistency-level', type="str", default='ONE',
+                  dest="consistency", help="consistency level to use")
 
 (options, args) = parser.parse_args()
  
@@ -110,6 +115,11 @@ nodes = options.nodes.split(',')
 # about 95% within 2*stdev.
 stdev = total_keys * options.stdev
 mean = total_keys / 2
+
+consistency = getattr(ConsistencyLevel, options.consistency, None)
+if consistency is None:
+    print "%s is not a valid consistency level" % options.consistency
+    sys.exit(3)
 
 def key_generator_gauss():
     fmt = '%0' + str(len(str(total_keys))) + 'd'
@@ -143,7 +153,7 @@ def get_client(host='127.0.0.1', port=9160, framed=False):
 def make_keyspaces():
     cfams = [CfDef('Keyspace1', 'Standard1'),
              CfDef('Keyspace1', 'Super1', 'Super')]
-    keyspace = KsDef('Keyspace1', 'org.apache.cassandra.locator.RackUnawareStrategy', 1, cfams)
+    keyspace = KsDef('Keyspace1', 'org.apache.cassandra.locator.RackUnawareStrategy', options.replication, cfams)
     client = get_client(nodes[0], options.port, options.framed)
     client.transport.open()
     try:
@@ -189,7 +199,7 @@ class Inserter(Operation):
                 cfmap = {key: {'Standard1': [Mutation(ColumnOrSuperColumn(column=c)) for c in columns]}}
             start = time.time()
             try:
-                self.cclient.batch_mutate(cfmap, ConsistencyLevel.ONE)
+                self.cclient.batch_mutate(cfmap, consistency)
             except KeyboardInterrupt:
                 raise
             except Exception, e:
@@ -212,7 +222,7 @@ class Reader(Operation):
                     parent = ColumnParent('Super1', 'S' + str(j))
                     start = time.time()
                     try:
-                        r = self.cclient.get_slice(key, parent, p, ConsistencyLevel.ONE)
+                        r = self.cclient.get_slice(key, parent, p, consistency)
                         if not r: raise RuntimeError("Key %s not found" % key)
                     except KeyboardInterrupt:
                         raise
@@ -230,7 +240,7 @@ class Reader(Operation):
                 key = key_generator()
                 start = time.time()
                 try:
-                    r = self.cclient.get_slice(key, parent, p, ConsistencyLevel.ONE)
+                    r = self.cclient.get_slice(key, parent, p, consistency)
                     if not r: raise RuntimeError("Key %s not found" % key)
                 except KeyboardInterrupt:
                     raise
@@ -259,7 +269,7 @@ class RangeSlicer(Operation):
                     parent = ColumnParent('Super1', chr(ord('A') + j)) 
                     begin = time.time()
                     try:
-                        res = self.cclient.get_range_slices(parent, p, keyrange, ConsistencyLevel.ONE)
+                        res = self.cclient.get_range_slices(parent, p, keyrange, consistency)
                         if not res: raise RuntimeError("Key %s not found" % key)
                     except KeyboardInterrupt:
                         raise
@@ -281,7 +291,7 @@ class RangeSlicer(Operation):
                 keyrange = KeyRange(start, finish, count = options.rangecount)
                 begin = time.time()
                 try:
-                    r = self.cclient.get_range_slices(parent, p, keyrange, ConsistencyLevel.ONE)
+                    r = self.cclient.get_range_slices(parent, p, keyrange, consistency)
                     if not r: raise RuntimeError("Range not found:", start, finish)
                 except KeyboardInterrupt:
                     raise
