@@ -19,7 +19,6 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
@@ -30,7 +29,6 @@ import org.junit.Test;
 import static junit.framework.Assert.assertEquals;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.WrappedRunnable;
 
@@ -140,60 +138,44 @@ public class ColumnFamilyStoreTest extends CleanupHelper
     @Test
     public void testWrappedRangeQuery() throws IOException, ExecutionException, InterruptedException
     {
-        ColumnFamilyStore cfs = insert("key1", "key2", "key3", "key4", "key5");
+        ColumnFamilyStore cfs = insertKey1Key2();
+
         IPartitioner p = StorageService.getPartitioner();
-        RangeSliceReply result;
-
-        result = getRangeSlice(cfs, p.getToken("key15"), p.getToken("key1"));
-        assertKeys(result.rows, Arrays.asList("key2", "key3", "key4", "key5", "key1"));
-
-        result = getRangeSlice(cfs, p.getToken("key3"), p.getToken("key3"));
-        assertKeys(result.rows, Arrays.asList("key4", "key5", "key1", "key2", "key3"));
-
-        result = getRangeSlice(cfs, p.getToken("key25"), p.getToken("key25"));
-        assertKeys(result.rows, Arrays.asList("key3", "key4", "key5", "key1", "key2"));
-    }
-
-    private RangeSliceReply getRangeSlice(ColumnFamilyStore cfs, Token start, Token end) throws IOException, ExecutionException, InterruptedException
-    {
-        return cfs.getRangeSlice(ArrayUtils.EMPTY_BYTE_ARRAY,
-                                 new Range(start, end),
-                                 10,
-                                 null,
-                                 Arrays.asList("asdf".getBytes()));
-    }
-
-    private void assertKeys(List<Row> rows, List<String> keys) throws UnsupportedEncodingException
-    {
-        assertEquals(keys.size(), rows.size());
-        for (int i = 0; i < keys.size(); i++)
-        {
-            assertEquals(keys.get(i), rows.get(i).key);
-        }
+        RangeSliceReply result = cfs.getRangeSlice(ArrayUtils.EMPTY_BYTE_ARRAY,
+                                                   new Range(p.getToken("key15"), p.getToken("key1")),
+                                                   10,
+                                                   null,
+                                                   Arrays.asList("asdf".getBytes()));
+        assertEquals(2, result.rows.size());
     }
 
     @Test
     public void testSkipStartKey() throws IOException, ExecutionException, InterruptedException
     {
-        ColumnFamilyStore cfs = insert("key1", "key2");
-        IPartitioner p = StorageService.getPartitioner();
+        ColumnFamilyStore cfs = insertKey1Key2();
 
-        RangeSliceReply result = getRangeSlice(cfs, p.getToken("key1"), p.getToken("key2"));
-        assertKeys(result.rows, Arrays.asList("key2"));
+        IPartitioner p = StorageService.getPartitioner();
+        RangeSliceReply result = cfs.getRangeSlice(ArrayUtils.EMPTY_BYTE_ARRAY,
+                                                   new Range(p.getToken("key1"), p.getToken("key2")),
+                                                   10,
+                                                   null,
+                                                   Arrays.asList("asdf".getBytes()));
+        assertEquals(1, result.rows.size());
+        assert result.rows.get(0).key.equals("key2");
     }
 
-    private ColumnFamilyStore insert(String... keys) throws IOException, ExecutionException, InterruptedException
+    private ColumnFamilyStore insertKey1Key2() throws IOException, ExecutionException, InterruptedException
     {
         List<RowMutation> rms = new LinkedList<RowMutation>();
         RowMutation rm;
-        for (String key : keys)
-        {
-            rm = new RowMutation("Keyspace2", key);
-            rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
-            rms.add(rm);
-        }
+        rm = new RowMutation("Keyspace2", "key1");
+        rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
+        rms.add(rm);
+        Util.writeColumnFamily(rms);
 
+        rm = new RowMutation("Keyspace2", "key2");
+        rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
+        rms.add(rm);
         return Util.writeColumnFamily(rms);
     }
-
 }
