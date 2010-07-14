@@ -41,7 +41,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.*;
+import org.apache.thrift.async.*;
 import org.apache.thrift.meta_data.*;
+import org.apache.thrift.transport.*;
 import org.apache.thrift.protocol.*;
 
 /**
@@ -54,7 +56,7 @@ import org.apache.thrift.protocol.*;
  * @param super_column. The super column name.
  * @param column. The column name.
  */
-public class ColumnPath implements TBase<ColumnPath._Fields>, java.io.Serializable, Cloneable, Comparable<ColumnPath> {
+public class ColumnPath implements TBase<ColumnPath, ColumnPath._Fields>, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("ColumnPath");
 
   private static final TField COLUMN_FAMILY_FIELD_DESC = new TField("column_family", TType.STRING, (short)3);
@@ -71,12 +73,10 @@ public class ColumnPath implements TBase<ColumnPath._Fields>, java.io.Serializab
     SUPER_COLUMN((short)4, "super_column"),
     COLUMN((short)5, "column");
 
-    private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
     static {
       for (_Fields field : EnumSet.allOf(_Fields.class)) {
-        byId.put((int)field._thriftId, field);
         byName.put(field.getFieldName(), field);
       }
     }
@@ -85,7 +85,16 @@ public class ColumnPath implements TBase<ColumnPath._Fields>, java.io.Serializab
      * Find the _Fields constant that matches fieldId, or null if its not found.
      */
     public static _Fields findByThriftId(int fieldId) {
-      return byId.get(fieldId);
+      switch(fieldId) {
+        case 3: // COLUMN_FAMILY
+          return COLUMN_FAMILY;
+        case 4: // SUPER_COLUMN
+          return SUPER_COLUMN;
+        case 5: // COLUMN
+          return COLUMN;
+        default:
+          return null;
+      }
     }
 
     /**
@@ -124,16 +133,16 @@ public class ColumnPath implements TBase<ColumnPath._Fields>, java.io.Serializab
 
   // isset id assignments
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
-    put(_Fields.COLUMN_FAMILY, new FieldMetaData("column_family", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
-    put(_Fields.SUPER_COLUMN, new FieldMetaData("super_column", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
-    put(_Fields.COLUMN, new FieldMetaData("column", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
-  }});
-
+  public static final Map<_Fields, FieldMetaData> metaDataMap;
   static {
+    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.COLUMN_FAMILY, new FieldMetaData("column_family", TFieldRequirementType.REQUIRED, 
+        new FieldValueMetaData(TType.STRING)));
+    tmpMap.put(_Fields.SUPER_COLUMN, new FieldMetaData("super_column", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.STRING)));
+    tmpMap.put(_Fields.COLUMN, new FieldMetaData("column", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.STRING)));
+    metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(ColumnPath.class, metaDataMap);
   }
 
@@ -374,7 +383,7 @@ public class ColumnPath implements TBase<ColumnPath._Fields>, java.io.Serializab
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetColumn_family()) {      lastComparison = TBaseHelper.compareTo(column_family, typedOther.column_family);
+    if (isSetColumn_family()) {      lastComparison = TBaseHelper.compareTo(this.column_family, typedOther.column_family);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -383,7 +392,7 @@ public class ColumnPath implements TBase<ColumnPath._Fields>, java.io.Serializab
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetSuper_column()) {      lastComparison = TBaseHelper.compareTo(super_column, typedOther.super_column);
+    if (isSetSuper_column()) {      lastComparison = TBaseHelper.compareTo(this.super_column, typedOther.super_column);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -392,7 +401,7 @@ public class ColumnPath implements TBase<ColumnPath._Fields>, java.io.Serializab
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetColumn()) {      lastComparison = TBaseHelper.compareTo(column, typedOther.column);
+    if (isSetColumn()) {      lastComparison = TBaseHelper.compareTo(this.column, typedOther.column);
       if (lastComparison != 0) {
         return lastComparison;
       }

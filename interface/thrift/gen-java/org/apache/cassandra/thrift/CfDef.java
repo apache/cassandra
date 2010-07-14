@@ -41,10 +41,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.*;
+import org.apache.thrift.async.*;
 import org.apache.thrift.meta_data.*;
+import org.apache.thrift.transport.*;
 import org.apache.thrift.protocol.*;
 
-public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Cloneable, Comparable<CfDef> {
+public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("CfDef");
 
   private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
@@ -91,12 +93,10 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     READ_REPAIR_CHANCE((short)12, "read_repair_chance"),
     COLUMN_METADATA((short)13, "column_metadata");
 
-    private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
     static {
       for (_Fields field : EnumSet.allOf(_Fields.class)) {
-        byId.put((int)field._thriftId, field);
         byName.put(field.getFieldName(), field);
       }
     }
@@ -105,7 +105,36 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
      * Find the _Fields constant that matches fieldId, or null if its not found.
      */
     public static _Fields findByThriftId(int fieldId) {
-      return byId.get(fieldId);
+      switch(fieldId) {
+        case 1: // TABLE
+          return TABLE;
+        case 2: // NAME
+          return NAME;
+        case 3: // COLUMN_TYPE
+          return COLUMN_TYPE;
+        case 4: // CLOCK_TYPE
+          return CLOCK_TYPE;
+        case 5: // COMPARATOR_TYPE
+          return COMPARATOR_TYPE;
+        case 6: // SUBCOMPARATOR_TYPE
+          return SUBCOMPARATOR_TYPE;
+        case 7: // RECONCILER
+          return RECONCILER;
+        case 8: // COMMENT
+          return COMMENT;
+        case 9: // ROW_CACHE_SIZE
+          return ROW_CACHE_SIZE;
+        case 10: // PRELOAD_ROW_CACHE
+          return PRELOAD_ROW_CACHE;
+        case 11: // KEY_CACHE_SIZE
+          return KEY_CACHE_SIZE;
+        case 12: // READ_REPAIR_CHANCE
+          return READ_REPAIR_CHANCE;
+        case 13: // COLUMN_METADATA
+          return COLUMN_METADATA;
+        default:
+          return null;
+      }
     }
 
     /**
@@ -149,37 +178,37 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
   private static final int __READ_REPAIR_CHANCE_ISSET_ID = 3;
   private BitSet __isset_bit_vector = new BitSet(4);
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
-    put(_Fields.TABLE, new FieldMetaData("table", TFieldRequirementType.REQUIRED, 
+  public static final Map<_Fields, FieldMetaData> metaDataMap;
+  static {
+    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.TABLE, new FieldMetaData("table", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.STRING)));
-    put(_Fields.NAME, new FieldMetaData("name", TFieldRequirementType.REQUIRED, 
+    tmpMap.put(_Fields.NAME, new FieldMetaData("name", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.STRING)));
-    put(_Fields.COLUMN_TYPE, new FieldMetaData("column_type", TFieldRequirementType.OPTIONAL, 
+    tmpMap.put(_Fields.COLUMN_TYPE, new FieldMetaData("column_type", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
-    put(_Fields.CLOCK_TYPE, new FieldMetaData("clock_type", TFieldRequirementType.OPTIONAL, 
+    tmpMap.put(_Fields.CLOCK_TYPE, new FieldMetaData("clock_type", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
-    put(_Fields.COMPARATOR_TYPE, new FieldMetaData("comparator_type", TFieldRequirementType.OPTIONAL, 
+    tmpMap.put(_Fields.COMPARATOR_TYPE, new FieldMetaData("comparator_type", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
-    put(_Fields.SUBCOMPARATOR_TYPE, new FieldMetaData("subcomparator_type", TFieldRequirementType.OPTIONAL, 
+    tmpMap.put(_Fields.SUBCOMPARATOR_TYPE, new FieldMetaData("subcomparator_type", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
-    put(_Fields.RECONCILER, new FieldMetaData("reconciler", TFieldRequirementType.OPTIONAL, 
+    tmpMap.put(_Fields.RECONCILER, new FieldMetaData("reconciler", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
-    put(_Fields.COMMENT, new FieldMetaData("comment", TFieldRequirementType.OPTIONAL, 
+    tmpMap.put(_Fields.COMMENT, new FieldMetaData("comment", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
-    put(_Fields.ROW_CACHE_SIZE, new FieldMetaData("row_cache_size", TFieldRequirementType.OPTIONAL, 
+    tmpMap.put(_Fields.ROW_CACHE_SIZE, new FieldMetaData("row_cache_size", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.DOUBLE)));
-    put(_Fields.PRELOAD_ROW_CACHE, new FieldMetaData("preload_row_cache", TFieldRequirementType.OPTIONAL, 
+    tmpMap.put(_Fields.PRELOAD_ROW_CACHE, new FieldMetaData("preload_row_cache", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.BOOL)));
-    put(_Fields.KEY_CACHE_SIZE, new FieldMetaData("key_cache_size", TFieldRequirementType.OPTIONAL, 
+    tmpMap.put(_Fields.KEY_CACHE_SIZE, new FieldMetaData("key_cache_size", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.DOUBLE)));
-    put(_Fields.READ_REPAIR_CHANCE, new FieldMetaData("read_repair_chance", TFieldRequirementType.OPTIONAL, 
+    tmpMap.put(_Fields.READ_REPAIR_CHANCE, new FieldMetaData("read_repair_chance", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.DOUBLE)));
-    put(_Fields.COLUMN_METADATA, new FieldMetaData("column_metadata", TFieldRequirementType.OPTIONAL, 
+    tmpMap.put(_Fields.COLUMN_METADATA, new FieldMetaData("column_metadata", TFieldRequirementType.OPTIONAL, 
         new ListMetaData(TType.LIST, 
             new StructMetaData(TType.STRUCT, ColumnDef.class))));
-  }});
-
-  static {
+    metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(CfDef.class, metaDataMap);
   }
 
@@ -939,7 +968,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetTable()) {      lastComparison = TBaseHelper.compareTo(table, typedOther.table);
+    if (isSetTable()) {      lastComparison = TBaseHelper.compareTo(this.table, typedOther.table);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -948,7 +977,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetName()) {      lastComparison = TBaseHelper.compareTo(name, typedOther.name);
+    if (isSetName()) {      lastComparison = TBaseHelper.compareTo(this.name, typedOther.name);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -957,7 +986,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetColumn_type()) {      lastComparison = TBaseHelper.compareTo(column_type, typedOther.column_type);
+    if (isSetColumn_type()) {      lastComparison = TBaseHelper.compareTo(this.column_type, typedOther.column_type);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -966,7 +995,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetClock_type()) {      lastComparison = TBaseHelper.compareTo(clock_type, typedOther.clock_type);
+    if (isSetClock_type()) {      lastComparison = TBaseHelper.compareTo(this.clock_type, typedOther.clock_type);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -975,7 +1004,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetComparator_type()) {      lastComparison = TBaseHelper.compareTo(comparator_type, typedOther.comparator_type);
+    if (isSetComparator_type()) {      lastComparison = TBaseHelper.compareTo(this.comparator_type, typedOther.comparator_type);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -984,7 +1013,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetSubcomparator_type()) {      lastComparison = TBaseHelper.compareTo(subcomparator_type, typedOther.subcomparator_type);
+    if (isSetSubcomparator_type()) {      lastComparison = TBaseHelper.compareTo(this.subcomparator_type, typedOther.subcomparator_type);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -993,7 +1022,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetReconciler()) {      lastComparison = TBaseHelper.compareTo(reconciler, typedOther.reconciler);
+    if (isSetReconciler()) {      lastComparison = TBaseHelper.compareTo(this.reconciler, typedOther.reconciler);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1002,7 +1031,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetComment()) {      lastComparison = TBaseHelper.compareTo(comment, typedOther.comment);
+    if (isSetComment()) {      lastComparison = TBaseHelper.compareTo(this.comment, typedOther.comment);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1011,7 +1040,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetRow_cache_size()) {      lastComparison = TBaseHelper.compareTo(row_cache_size, typedOther.row_cache_size);
+    if (isSetRow_cache_size()) {      lastComparison = TBaseHelper.compareTo(this.row_cache_size, typedOther.row_cache_size);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1020,7 +1049,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetPreload_row_cache()) {      lastComparison = TBaseHelper.compareTo(preload_row_cache, typedOther.preload_row_cache);
+    if (isSetPreload_row_cache()) {      lastComparison = TBaseHelper.compareTo(this.preload_row_cache, typedOther.preload_row_cache);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1029,7 +1058,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetKey_cache_size()) {      lastComparison = TBaseHelper.compareTo(key_cache_size, typedOther.key_cache_size);
+    if (isSetKey_cache_size()) {      lastComparison = TBaseHelper.compareTo(this.key_cache_size, typedOther.key_cache_size);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1038,7 +1067,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetRead_repair_chance()) {      lastComparison = TBaseHelper.compareTo(read_repair_chance, typedOther.read_repair_chance);
+    if (isSetRead_repair_chance()) {      lastComparison = TBaseHelper.compareTo(this.read_repair_chance, typedOther.read_repair_chance);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1047,7 +1076,7 @@ public class CfDef implements TBase<CfDef._Fields>, java.io.Serializable, Clonea
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetColumn_metadata()) {      lastComparison = TBaseHelper.compareTo(column_metadata, typedOther.column_metadata);
+    if (isSetColumn_metadata()) {      lastComparison = TBaseHelper.compareTo(this.column_metadata, typedOther.column_metadata);
       if (lastComparison != 0) {
         return lastComparison;
       }

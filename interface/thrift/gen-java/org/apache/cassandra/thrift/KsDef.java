@@ -41,10 +41,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.*;
+import org.apache.thrift.async.*;
 import org.apache.thrift.meta_data.*;
+import org.apache.thrift.transport.*;
 import org.apache.thrift.protocol.*;
 
-public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Cloneable, Comparable<KsDef> {
+public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("KsDef");
 
   private static final TField NAME_FIELD_DESC = new TField("name", TType.STRING, (short)1);
@@ -64,12 +66,10 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
     REPLICATION_FACTOR((short)3, "replication_factor"),
     CF_DEFS((short)5, "cf_defs");
 
-    private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
     static {
       for (_Fields field : EnumSet.allOf(_Fields.class)) {
-        byId.put((int)field._thriftId, field);
         byName.put(field.getFieldName(), field);
       }
     }
@@ -78,7 +78,18 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
      * Find the _Fields constant that matches fieldId, or null if its not found.
      */
     public static _Fields findByThriftId(int fieldId) {
-      return byId.get(fieldId);
+      switch(fieldId) {
+        case 1: // NAME
+          return NAME;
+        case 2: // STRATEGY_CLASS
+          return STRATEGY_CLASS;
+        case 3: // REPLICATION_FACTOR
+          return REPLICATION_FACTOR;
+        case 5: // CF_DEFS
+          return CF_DEFS;
+        default:
+          return null;
+      }
     }
 
     /**
@@ -119,19 +130,19 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
   private static final int __REPLICATION_FACTOR_ISSET_ID = 0;
   private BitSet __isset_bit_vector = new BitSet(1);
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
-    put(_Fields.NAME, new FieldMetaData("name", TFieldRequirementType.REQUIRED, 
+  public static final Map<_Fields, FieldMetaData> metaDataMap;
+  static {
+    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.NAME, new FieldMetaData("name", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.STRING)));
-    put(_Fields.STRATEGY_CLASS, new FieldMetaData("strategy_class", TFieldRequirementType.REQUIRED, 
+    tmpMap.put(_Fields.STRATEGY_CLASS, new FieldMetaData("strategy_class", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.STRING)));
-    put(_Fields.REPLICATION_FACTOR, new FieldMetaData("replication_factor", TFieldRequirementType.REQUIRED, 
+    tmpMap.put(_Fields.REPLICATION_FACTOR, new FieldMetaData("replication_factor", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.I32)));
-    put(_Fields.CF_DEFS, new FieldMetaData("cf_defs", TFieldRequirementType.REQUIRED, 
+    tmpMap.put(_Fields.CF_DEFS, new FieldMetaData("cf_defs", TFieldRequirementType.REQUIRED, 
         new ListMetaData(TType.LIST, 
             new StructMetaData(TType.STRUCT, CfDef.class))));
-  }});
-
-  static {
+    metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(KsDef.class, metaDataMap);
   }
 
@@ -444,7 +455,7 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetName()) {      lastComparison = TBaseHelper.compareTo(name, typedOther.name);
+    if (isSetName()) {      lastComparison = TBaseHelper.compareTo(this.name, typedOther.name);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -453,7 +464,7 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetStrategy_class()) {      lastComparison = TBaseHelper.compareTo(strategy_class, typedOther.strategy_class);
+    if (isSetStrategy_class()) {      lastComparison = TBaseHelper.compareTo(this.strategy_class, typedOther.strategy_class);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -462,7 +473,7 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetReplication_factor()) {      lastComparison = TBaseHelper.compareTo(replication_factor, typedOther.replication_factor);
+    if (isSetReplication_factor()) {      lastComparison = TBaseHelper.compareTo(this.replication_factor, typedOther.replication_factor);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -471,7 +482,7 @@ public class KsDef implements TBase<KsDef._Fields>, java.io.Serializable, Clonea
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetCf_defs()) {      lastComparison = TBaseHelper.compareTo(cf_defs, typedOther.cf_defs);
+    if (isSetCf_defs()) {      lastComparison = TBaseHelper.compareTo(this.cf_defs, typedOther.cf_defs);
       if (lastComparison != 0) {
         return lastComparison;
       }

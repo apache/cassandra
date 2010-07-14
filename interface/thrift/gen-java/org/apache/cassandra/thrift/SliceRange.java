@@ -41,7 +41,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.*;
+import org.apache.thrift.async.*;
 import org.apache.thrift.meta_data.*;
+import org.apache.thrift.transport.*;
 import org.apache.thrift.protocol.*;
 
 /**
@@ -61,7 +63,7 @@ import org.apache.thrift.protocol.*;
  *               of the next instead of increasing 'count' arbitrarily large.
  * @param bitmasks. A list of OR-ed binary AND masks applied to the result set.
  */
-public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializable, Cloneable, Comparable<SliceRange> {
+public class SliceRange implements TBase<SliceRange, SliceRange._Fields>, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("SliceRange");
 
   private static final TField START_FIELD_DESC = new TField("start", TType.STRING, (short)1);
@@ -84,12 +86,10 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
     COUNT((short)4, "count"),
     BITMASKS((short)5, "bitmasks");
 
-    private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
     static {
       for (_Fields field : EnumSet.allOf(_Fields.class)) {
-        byId.put((int)field._thriftId, field);
         byName.put(field.getFieldName(), field);
       }
     }
@@ -98,7 +98,20 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
      * Find the _Fields constant that matches fieldId, or null if its not found.
      */
     public static _Fields findByThriftId(int fieldId) {
-      return byId.get(fieldId);
+      switch(fieldId) {
+        case 1: // START
+          return START;
+        case 2: // FINISH
+          return FINISH;
+        case 3: // REVERSED
+          return REVERSED;
+        case 4: // COUNT
+          return COUNT;
+        case 5: // BITMASKS
+          return BITMASKS;
+        default:
+          return null;
+      }
     }
 
     /**
@@ -140,21 +153,21 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
   private static final int __COUNT_ISSET_ID = 1;
   private BitSet __isset_bit_vector = new BitSet(2);
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
-    put(_Fields.START, new FieldMetaData("start", TFieldRequirementType.REQUIRED, 
+  public static final Map<_Fields, FieldMetaData> metaDataMap;
+  static {
+    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.START, new FieldMetaData("start", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.STRING)));
-    put(_Fields.FINISH, new FieldMetaData("finish", TFieldRequirementType.REQUIRED, 
+    tmpMap.put(_Fields.FINISH, new FieldMetaData("finish", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.STRING)));
-    put(_Fields.REVERSED, new FieldMetaData("reversed", TFieldRequirementType.REQUIRED, 
+    tmpMap.put(_Fields.REVERSED, new FieldMetaData("reversed", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.BOOL)));
-    put(_Fields.COUNT, new FieldMetaData("count", TFieldRequirementType.REQUIRED, 
+    tmpMap.put(_Fields.COUNT, new FieldMetaData("count", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.I32)));
-    put(_Fields.BITMASKS, new FieldMetaData("bitmasks", TFieldRequirementType.OPTIONAL, 
+    tmpMap.put(_Fields.BITMASKS, new FieldMetaData("bitmasks", TFieldRequirementType.OPTIONAL, 
         new ListMetaData(TType.LIST, 
             new FieldValueMetaData(TType.STRING))));
-  }});
-
-  static {
+    metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(SliceRange.class, metaDataMap);
   }
 
@@ -522,7 +535,7 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetStart()) {      lastComparison = TBaseHelper.compareTo(start, typedOther.start);
+    if (isSetStart()) {      lastComparison = TBaseHelper.compareTo(this.start, typedOther.start);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -531,7 +544,7 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetFinish()) {      lastComparison = TBaseHelper.compareTo(finish, typedOther.finish);
+    if (isSetFinish()) {      lastComparison = TBaseHelper.compareTo(this.finish, typedOther.finish);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -540,7 +553,7 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetReversed()) {      lastComparison = TBaseHelper.compareTo(reversed, typedOther.reversed);
+    if (isSetReversed()) {      lastComparison = TBaseHelper.compareTo(this.reversed, typedOther.reversed);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -549,7 +562,7 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetCount()) {      lastComparison = TBaseHelper.compareTo(count, typedOther.count);
+    if (isSetCount()) {      lastComparison = TBaseHelper.compareTo(this.count, typedOther.count);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -558,7 +571,7 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetBitmasks()) {      lastComparison = TBaseHelper.compareTo(bitmasks, typedOther.bitmasks);
+    if (isSetBitmasks()) {      lastComparison = TBaseHelper.compareTo(this.bitmasks, typedOther.bitmasks);
       if (lastComparison != 0) {
         return lastComparison;
       }

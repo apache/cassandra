@@ -41,10 +41,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.*;
+import org.apache.thrift.async.*;
 import org.apache.thrift.meta_data.*;
+import org.apache.thrift.transport.*;
 import org.apache.thrift.protocol.*;
 
-public class IndexExpression implements TBase<IndexExpression._Fields>, java.io.Serializable, Cloneable, Comparable<IndexExpression> {
+public class IndexExpression implements TBase<IndexExpression, IndexExpression._Fields>, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("IndexExpression");
 
   private static final TField COLUMN_NAME_FIELD_DESC = new TField("column_name", TType.STRING, (short)1);
@@ -69,12 +71,10 @@ public class IndexExpression implements TBase<IndexExpression._Fields>, java.io.
     OP((short)2, "op"),
     VALUE((short)3, "value");
 
-    private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
     static {
       for (_Fields field : EnumSet.allOf(_Fields.class)) {
-        byId.put((int)field._thriftId, field);
         byName.put(field.getFieldName(), field);
       }
     }
@@ -83,7 +83,16 @@ public class IndexExpression implements TBase<IndexExpression._Fields>, java.io.
      * Find the _Fields constant that matches fieldId, or null if its not found.
      */
     public static _Fields findByThriftId(int fieldId) {
-      return byId.get(fieldId);
+      switch(fieldId) {
+        case 1: // COLUMN_NAME
+          return COLUMN_NAME;
+        case 2: // OP
+          return OP;
+        case 3: // VALUE
+          return VALUE;
+        default:
+          return null;
+      }
     }
 
     /**
@@ -122,16 +131,16 @@ public class IndexExpression implements TBase<IndexExpression._Fields>, java.io.
 
   // isset id assignments
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
-    put(_Fields.COLUMN_NAME, new FieldMetaData("column_name", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
-    put(_Fields.OP, new FieldMetaData("op", TFieldRequirementType.REQUIRED, 
-        new EnumMetaData(TType.ENUM, IndexOperator.class)));
-    put(_Fields.VALUE, new FieldMetaData("value", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
-  }});
-
+  public static final Map<_Fields, FieldMetaData> metaDataMap;
   static {
+    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.COLUMN_NAME, new FieldMetaData("column_name", TFieldRequirementType.REQUIRED, 
+        new FieldValueMetaData(TType.STRING)));
+    tmpMap.put(_Fields.OP, new FieldMetaData("op", TFieldRequirementType.REQUIRED, 
+        new EnumMetaData(TType.ENUM, IndexOperator.class)));
+    tmpMap.put(_Fields.VALUE, new FieldMetaData("value", TFieldRequirementType.REQUIRED, 
+        new FieldValueMetaData(TType.STRING)));
+    metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(IndexExpression.class, metaDataMap);
   }
 
@@ -384,7 +393,7 @@ public class IndexExpression implements TBase<IndexExpression._Fields>, java.io.
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetColumn_name()) {      lastComparison = TBaseHelper.compareTo(column_name, typedOther.column_name);
+    if (isSetColumn_name()) {      lastComparison = TBaseHelper.compareTo(this.column_name, typedOther.column_name);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -393,7 +402,7 @@ public class IndexExpression implements TBase<IndexExpression._Fields>, java.io.
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetOp()) {      lastComparison = TBaseHelper.compareTo(op, typedOther.op);
+    if (isSetOp()) {      lastComparison = TBaseHelper.compareTo(this.op, typedOther.op);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -402,7 +411,7 @@ public class IndexExpression implements TBase<IndexExpression._Fields>, java.io.
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetValue()) {      lastComparison = TBaseHelper.compareTo(value, typedOther.value);
+    if (isSetValue()) {      lastComparison = TBaseHelper.compareTo(this.value, typedOther.value);
       if (lastComparison != 0) {
         return lastComparison;
       }

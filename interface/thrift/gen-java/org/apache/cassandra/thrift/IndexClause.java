@@ -41,10 +41,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.*;
+import org.apache.thrift.async.*;
 import org.apache.thrift.meta_data.*;
+import org.apache.thrift.transport.*;
 import org.apache.thrift.protocol.*;
 
-public class IndexClause implements TBase<IndexClause._Fields>, java.io.Serializable, Cloneable, Comparable<IndexClause> {
+public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("IndexClause");
 
   private static final TField EXPRESSIONS_FIELD_DESC = new TField("expressions", TType.LIST, (short)1);
@@ -61,12 +63,10 @@ public class IndexClause implements TBase<IndexClause._Fields>, java.io.Serializ
     COUNT((short)2, "count"),
     START_KEY((short)3, "start_key");
 
-    private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
     static {
       for (_Fields field : EnumSet.allOf(_Fields.class)) {
-        byId.put((int)field._thriftId, field);
         byName.put(field.getFieldName(), field);
       }
     }
@@ -75,7 +75,16 @@ public class IndexClause implements TBase<IndexClause._Fields>, java.io.Serializ
      * Find the _Fields constant that matches fieldId, or null if its not found.
      */
     public static _Fields findByThriftId(int fieldId) {
-      return byId.get(fieldId);
+      switch(fieldId) {
+        case 1: // EXPRESSIONS
+          return EXPRESSIONS;
+        case 2: // COUNT
+          return COUNT;
+        case 3: // START_KEY
+          return START_KEY;
+        default:
+          return null;
+      }
     }
 
     /**
@@ -116,17 +125,17 @@ public class IndexClause implements TBase<IndexClause._Fields>, java.io.Serializ
   private static final int __COUNT_ISSET_ID = 0;
   private BitSet __isset_bit_vector = new BitSet(1);
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
-    put(_Fields.EXPRESSIONS, new FieldMetaData("expressions", TFieldRequirementType.REQUIRED, 
+  public static final Map<_Fields, FieldMetaData> metaDataMap;
+  static {
+    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.EXPRESSIONS, new FieldMetaData("expressions", TFieldRequirementType.REQUIRED, 
         new ListMetaData(TType.LIST, 
             new StructMetaData(TType.STRUCT, IndexExpression.class))));
-    put(_Fields.COUNT, new FieldMetaData("count", TFieldRequirementType.REQUIRED, 
+    tmpMap.put(_Fields.COUNT, new FieldMetaData("count", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.I32)));
-    put(_Fields.START_KEY, new FieldMetaData("start_key", TFieldRequirementType.OPTIONAL, 
+    tmpMap.put(_Fields.START_KEY, new FieldMetaData("start_key", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
-  }});
-
-  static {
+    metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(IndexClause.class, metaDataMap);
   }
 
@@ -389,7 +398,7 @@ public class IndexClause implements TBase<IndexClause._Fields>, java.io.Serializ
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetExpressions()) {      lastComparison = TBaseHelper.compareTo(expressions, typedOther.expressions);
+    if (isSetExpressions()) {      lastComparison = TBaseHelper.compareTo(this.expressions, typedOther.expressions);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -398,7 +407,7 @@ public class IndexClause implements TBase<IndexClause._Fields>, java.io.Serializ
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetCount()) {      lastComparison = TBaseHelper.compareTo(count, typedOther.count);
+    if (isSetCount()) {      lastComparison = TBaseHelper.compareTo(this.count, typedOther.count);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -407,7 +416,7 @@ public class IndexClause implements TBase<IndexClause._Fields>, java.io.Serializ
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetStart_key()) {      lastComparison = TBaseHelper.compareTo(start_key, typedOther.start_key);
+    if (isSetStart_key()) {      lastComparison = TBaseHelper.compareTo(this.start_key, typedOther.start_key);
       if (lastComparison != 0) {
         return lastComparison;
       }

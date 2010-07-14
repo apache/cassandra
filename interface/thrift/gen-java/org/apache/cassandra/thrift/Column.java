@@ -41,7 +41,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.*;
+import org.apache.thrift.async.*;
 import org.apache.thrift.meta_data.*;
+import org.apache.thrift.transport.*;
 import org.apache.thrift.protocol.*;
 
 /**
@@ -51,7 +53,7 @@ import org.apache.thrift.protocol.*;
  * @param clock. The clock is used for conflict detection/resolution when two columns with same name need to be compared.
  * @param ttl. An optional, positive delay (in seconds) after which the column will be automatically deleted.
  */
-public class Column implements TBase<Column._Fields>, java.io.Serializable, Cloneable, Comparable<Column> {
+public class Column implements TBase<Column, Column._Fields>, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("Column");
 
   private static final TField NAME_FIELD_DESC = new TField("name", TType.STRING, (short)1);
@@ -71,12 +73,10 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
     CLOCK((short)3, "clock"),
     TTL((short)4, "ttl");
 
-    private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
     static {
       for (_Fields field : EnumSet.allOf(_Fields.class)) {
-        byId.put((int)field._thriftId, field);
         byName.put(field.getFieldName(), field);
       }
     }
@@ -85,7 +85,18 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
      * Find the _Fields constant that matches fieldId, or null if its not found.
      */
     public static _Fields findByThriftId(int fieldId) {
-      return byId.get(fieldId);
+      switch(fieldId) {
+        case 1: // NAME
+          return NAME;
+        case 2: // VALUE
+          return VALUE;
+        case 3: // CLOCK
+          return CLOCK;
+        case 4: // TTL
+          return TTL;
+        default:
+          return null;
+      }
     }
 
     /**
@@ -126,18 +137,18 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
   private static final int __TTL_ISSET_ID = 0;
   private BitSet __isset_bit_vector = new BitSet(1);
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
-    put(_Fields.NAME, new FieldMetaData("name", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
-    put(_Fields.VALUE, new FieldMetaData("value", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
-    put(_Fields.CLOCK, new FieldMetaData("clock", TFieldRequirementType.REQUIRED, 
-        new StructMetaData(TType.STRUCT, Clock.class)));
-    put(_Fields.TTL, new FieldMetaData("ttl", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.I32)));
-  }});
-
+  public static final Map<_Fields, FieldMetaData> metaDataMap;
   static {
+    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.NAME, new FieldMetaData("name", TFieldRequirementType.REQUIRED, 
+        new FieldValueMetaData(TType.STRING)));
+    tmpMap.put(_Fields.VALUE, new FieldMetaData("value", TFieldRequirementType.REQUIRED, 
+        new FieldValueMetaData(TType.STRING)));
+    tmpMap.put(_Fields.CLOCK, new FieldMetaData("clock", TFieldRequirementType.REQUIRED, 
+        new StructMetaData(TType.STRUCT, Clock.class)));
+    tmpMap.put(_Fields.TTL, new FieldMetaData("ttl", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.I32)));
+    metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(Column.class, metaDataMap);
   }
 
@@ -430,7 +441,7 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetName()) {      lastComparison = TBaseHelper.compareTo(name, typedOther.name);
+    if (isSetName()) {      lastComparison = TBaseHelper.compareTo(this.name, typedOther.name);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -439,7 +450,7 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetValue()) {      lastComparison = TBaseHelper.compareTo(value, typedOther.value);
+    if (isSetValue()) {      lastComparison = TBaseHelper.compareTo(this.value, typedOther.value);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -448,7 +459,7 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetClock()) {      lastComparison = TBaseHelper.compareTo(clock, typedOther.clock);
+    if (isSetClock()) {      lastComparison = TBaseHelper.compareTo(this.clock, typedOther.clock);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -457,7 +468,7 @@ public class Column implements TBase<Column._Fields>, java.io.Serializable, Clon
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetTtl()) {      lastComparison = TBaseHelper.compareTo(ttl, typedOther.ttl);
+    if (isSetTtl()) {      lastComparison = TBaseHelper.compareTo(this.ttl, typedOther.ttl);
       if (lastComparison != 0) {
         return lastComparison;
       }

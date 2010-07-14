@@ -41,7 +41,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.*;
+import org.apache.thrift.async.*;
 import org.apache.thrift.meta_data.*;
+import org.apache.thrift.transport.*;
 import org.apache.thrift.protocol.*;
 
 /**
@@ -52,7 +54,7 @@ import org.apache.thrift.protocol.*;
  * one-element range, but a range from tokenY to tokenY is the
  * full ring.
  */
-public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, Cloneable, Comparable<KeyRange> {
+public class KeyRange implements TBase<KeyRange, KeyRange._Fields>, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("KeyRange");
 
   private static final TField START_KEY_FIELD_DESC = new TField("start_key", TType.STRING, (short)1);
@@ -75,12 +77,10 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
     END_TOKEN((short)4, "end_token"),
     COUNT((short)5, "count");
 
-    private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
     static {
       for (_Fields field : EnumSet.allOf(_Fields.class)) {
-        byId.put((int)field._thriftId, field);
         byName.put(field.getFieldName(), field);
       }
     }
@@ -89,7 +89,20 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
      * Find the _Fields constant that matches fieldId, or null if its not found.
      */
     public static _Fields findByThriftId(int fieldId) {
-      return byId.get(fieldId);
+      switch(fieldId) {
+        case 1: // START_KEY
+          return START_KEY;
+        case 2: // END_KEY
+          return END_KEY;
+        case 3: // START_TOKEN
+          return START_TOKEN;
+        case 4: // END_TOKEN
+          return END_TOKEN;
+        case 5: // COUNT
+          return COUNT;
+        default:
+          return null;
+      }
     }
 
     /**
@@ -130,20 +143,20 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
   private static final int __COUNT_ISSET_ID = 0;
   private BitSet __isset_bit_vector = new BitSet(1);
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
-    put(_Fields.START_KEY, new FieldMetaData("start_key", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
-    put(_Fields.END_KEY, new FieldMetaData("end_key", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
-    put(_Fields.START_TOKEN, new FieldMetaData("start_token", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
-    put(_Fields.END_TOKEN, new FieldMetaData("end_token", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
-    put(_Fields.COUNT, new FieldMetaData("count", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.I32)));
-  }});
-
+  public static final Map<_Fields, FieldMetaData> metaDataMap;
   static {
+    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.START_KEY, new FieldMetaData("start_key", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.STRING)));
+    tmpMap.put(_Fields.END_KEY, new FieldMetaData("end_key", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.STRING)));
+    tmpMap.put(_Fields.START_TOKEN, new FieldMetaData("start_token", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.STRING)));
+    tmpMap.put(_Fields.END_TOKEN, new FieldMetaData("end_token", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.STRING)));
+    tmpMap.put(_Fields.COUNT, new FieldMetaData("count", TFieldRequirementType.REQUIRED, 
+        new FieldValueMetaData(TType.I32)));
+    metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(KeyRange.class, metaDataMap);
   }
 
@@ -484,7 +497,7 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetStart_key()) {      lastComparison = TBaseHelper.compareTo(start_key, typedOther.start_key);
+    if (isSetStart_key()) {      lastComparison = TBaseHelper.compareTo(this.start_key, typedOther.start_key);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -493,7 +506,7 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetEnd_key()) {      lastComparison = TBaseHelper.compareTo(end_key, typedOther.end_key);
+    if (isSetEnd_key()) {      lastComparison = TBaseHelper.compareTo(this.end_key, typedOther.end_key);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -502,7 +515,7 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetStart_token()) {      lastComparison = TBaseHelper.compareTo(start_token, typedOther.start_token);
+    if (isSetStart_token()) {      lastComparison = TBaseHelper.compareTo(this.start_token, typedOther.start_token);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -511,7 +524,7 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetEnd_token()) {      lastComparison = TBaseHelper.compareTo(end_token, typedOther.end_token);
+    if (isSetEnd_token()) {      lastComparison = TBaseHelper.compareTo(this.end_token, typedOther.end_token);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -520,7 +533,7 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetCount()) {      lastComparison = TBaseHelper.compareTo(count, typedOther.count);
+    if (isSetCount()) {      lastComparison = TBaseHelper.compareTo(this.count, typedOther.count);
       if (lastComparison != 0) {
         return lastComparison;
       }

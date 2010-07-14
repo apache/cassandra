@@ -41,13 +41,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.*;
+import org.apache.thrift.async.*;
 import org.apache.thrift.meta_data.*;
+import org.apache.thrift.transport.*;
 import org.apache.thrift.protocol.*;
 
 /**
  * A specific column was requested that does not exist.
  */
-public class NotFoundException extends Exception implements TBase<NotFoundException._Fields>, java.io.Serializable, Cloneable, Comparable<NotFoundException> {
+public class NotFoundException extends Exception implements TBase<NotFoundException, NotFoundException._Fields>, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("NotFoundException");
 
 
@@ -56,12 +58,10 @@ public class NotFoundException extends Exception implements TBase<NotFoundExcept
   public enum _Fields implements TFieldIdEnum {
 ;
 
-    private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
     static {
       for (_Fields field : EnumSet.allOf(_Fields.class)) {
-        byId.put((int)field._thriftId, field);
         byName.put(field.getFieldName(), field);
       }
     }
@@ -70,7 +70,10 @@ public class NotFoundException extends Exception implements TBase<NotFoundExcept
      * Find the _Fields constant that matches fieldId, or null if its not found.
      */
     public static _Fields findByThriftId(int fieldId) {
-      return byId.get(fieldId);
+      switch(fieldId) {
+        default:
+          return null;
+      }
     }
 
     /**
@@ -106,10 +109,10 @@ public class NotFoundException extends Exception implements TBase<NotFoundExcept
       return _fieldName;
     }
   }
-  public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
-  }});
-
+  public static final Map<_Fields, FieldMetaData> metaDataMap;
   static {
+    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
+    metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(NotFoundException.class, metaDataMap);
   }
 

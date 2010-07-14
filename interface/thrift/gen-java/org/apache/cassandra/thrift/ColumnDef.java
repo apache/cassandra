@@ -41,10 +41,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.*;
+import org.apache.thrift.async.*;
 import org.apache.thrift.meta_data.*;
+import org.apache.thrift.transport.*;
 import org.apache.thrift.protocol.*;
 
-public class ColumnDef implements TBase<ColumnDef._Fields>, java.io.Serializable, Cloneable, Comparable<ColumnDef> {
+public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("ColumnDef");
 
   private static final TField NAME_FIELD_DESC = new TField("name", TType.STRING, (short)1);
@@ -72,12 +74,10 @@ public class ColumnDef implements TBase<ColumnDef._Fields>, java.io.Serializable
     INDEX_TYPE((short)3, "index_type"),
     INDEX_NAME((short)4, "index_name");
 
-    private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
     static {
       for (_Fields field : EnumSet.allOf(_Fields.class)) {
-        byId.put((int)field._thriftId, field);
         byName.put(field.getFieldName(), field);
       }
     }
@@ -86,7 +86,18 @@ public class ColumnDef implements TBase<ColumnDef._Fields>, java.io.Serializable
      * Find the _Fields constant that matches fieldId, or null if its not found.
      */
     public static _Fields findByThriftId(int fieldId) {
-      return byId.get(fieldId);
+      switch(fieldId) {
+        case 1: // NAME
+          return NAME;
+        case 2: // VALIDATION_CLASS
+          return VALIDATION_CLASS;
+        case 3: // INDEX_TYPE
+          return INDEX_TYPE;
+        case 4: // INDEX_NAME
+          return INDEX_NAME;
+        default:
+          return null;
+      }
     }
 
     /**
@@ -125,18 +136,18 @@ public class ColumnDef implements TBase<ColumnDef._Fields>, java.io.Serializable
 
   // isset id assignments
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
-    put(_Fields.NAME, new FieldMetaData("name", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
-    put(_Fields.VALIDATION_CLASS, new FieldMetaData("validation_class", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
-    put(_Fields.INDEX_TYPE, new FieldMetaData("index_type", TFieldRequirementType.OPTIONAL, 
-        new EnumMetaData(TType.ENUM, IndexType.class)));
-    put(_Fields.INDEX_NAME, new FieldMetaData("index_name", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
-  }});
-
+  public static final Map<_Fields, FieldMetaData> metaDataMap;
   static {
+    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.NAME, new FieldMetaData("name", TFieldRequirementType.REQUIRED, 
+        new FieldValueMetaData(TType.STRING)));
+    tmpMap.put(_Fields.VALIDATION_CLASS, new FieldMetaData("validation_class", TFieldRequirementType.REQUIRED, 
+        new FieldValueMetaData(TType.STRING)));
+    tmpMap.put(_Fields.INDEX_TYPE, new FieldMetaData("index_type", TFieldRequirementType.OPTIONAL, 
+        new EnumMetaData(TType.ENUM, IndexType.class)));
+    tmpMap.put(_Fields.INDEX_NAME, new FieldMetaData("index_name", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.STRING)));
+    metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(ColumnDef.class, metaDataMap);
   }
 
@@ -435,7 +446,7 @@ public class ColumnDef implements TBase<ColumnDef._Fields>, java.io.Serializable
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetName()) {      lastComparison = TBaseHelper.compareTo(name, typedOther.name);
+    if (isSetName()) {      lastComparison = TBaseHelper.compareTo(this.name, typedOther.name);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -444,7 +455,7 @@ public class ColumnDef implements TBase<ColumnDef._Fields>, java.io.Serializable
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetValidation_class()) {      lastComparison = TBaseHelper.compareTo(validation_class, typedOther.validation_class);
+    if (isSetValidation_class()) {      lastComparison = TBaseHelper.compareTo(this.validation_class, typedOther.validation_class);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -453,7 +464,7 @@ public class ColumnDef implements TBase<ColumnDef._Fields>, java.io.Serializable
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetIndex_type()) {      lastComparison = TBaseHelper.compareTo(index_type, typedOther.index_type);
+    if (isSetIndex_type()) {      lastComparison = TBaseHelper.compareTo(this.index_type, typedOther.index_type);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -462,7 +473,7 @@ public class ColumnDef implements TBase<ColumnDef._Fields>, java.io.Serializable
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetIndex_name()) {      lastComparison = TBaseHelper.compareTo(index_name, typedOther.index_name);
+    if (isSetIndex_name()) {      lastComparison = TBaseHelper.compareTo(this.index_name, typedOther.index_name);
       if (lastComparison != 0) {
         return lastComparison;
       }

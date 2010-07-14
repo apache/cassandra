@@ -41,10 +41,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.*;
+import org.apache.thrift.async.*;
 import org.apache.thrift.meta_data.*;
+import org.apache.thrift.transport.*;
 import org.apache.thrift.protocol.*;
 
-public class RowPredicate implements TBase<RowPredicate._Fields>, java.io.Serializable, Cloneable, Comparable<RowPredicate> {
+public class RowPredicate implements TBase<RowPredicate, RowPredicate._Fields>, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("RowPredicate");
 
   private static final TField KEYS_FIELD_DESC = new TField("keys", TType.LIST, (short)1);
@@ -61,12 +63,10 @@ public class RowPredicate implements TBase<RowPredicate._Fields>, java.io.Serial
     KEY_RANGE((short)2, "key_range"),
     INDEX_CLAUSE((short)3, "index_clause");
 
-    private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
     static {
       for (_Fields field : EnumSet.allOf(_Fields.class)) {
-        byId.put((int)field._thriftId, field);
         byName.put(field.getFieldName(), field);
       }
     }
@@ -75,7 +75,16 @@ public class RowPredicate implements TBase<RowPredicate._Fields>, java.io.Serial
      * Find the _Fields constant that matches fieldId, or null if its not found.
      */
     public static _Fields findByThriftId(int fieldId) {
-      return byId.get(fieldId);
+      switch(fieldId) {
+        case 1: // KEYS
+          return KEYS;
+        case 2: // KEY_RANGE
+          return KEY_RANGE;
+        case 3: // INDEX_CLAUSE
+          return INDEX_CLAUSE;
+        default:
+          return null;
+      }
     }
 
     /**
@@ -114,17 +123,17 @@ public class RowPredicate implements TBase<RowPredicate._Fields>, java.io.Serial
 
   // isset id assignments
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
-    put(_Fields.KEYS, new FieldMetaData("keys", TFieldRequirementType.OPTIONAL, 
+  public static final Map<_Fields, FieldMetaData> metaDataMap;
+  static {
+    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.KEYS, new FieldMetaData("keys", TFieldRequirementType.OPTIONAL, 
         new ListMetaData(TType.LIST, 
             new FieldValueMetaData(TType.STRING))));
-    put(_Fields.KEY_RANGE, new FieldMetaData("key_range", TFieldRequirementType.OPTIONAL, 
+    tmpMap.put(_Fields.KEY_RANGE, new FieldMetaData("key_range", TFieldRequirementType.OPTIONAL, 
         new StructMetaData(TType.STRUCT, KeyRange.class)));
-    put(_Fields.INDEX_CLAUSE, new FieldMetaData("index_clause", TFieldRequirementType.OPTIONAL, 
+    tmpMap.put(_Fields.INDEX_CLAUSE, new FieldMetaData("index_clause", TFieldRequirementType.OPTIONAL, 
         new StructMetaData(TType.STRUCT, IndexClause.class)));
-  }});
-
-  static {
+    metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(RowPredicate.class, metaDataMap);
   }
 
@@ -377,7 +386,7 @@ public class RowPredicate implements TBase<RowPredicate._Fields>, java.io.Serial
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetKeys()) {      lastComparison = TBaseHelper.compareTo(keys, typedOther.keys);
+    if (isSetKeys()) {      lastComparison = TBaseHelper.compareTo(this.keys, typedOther.keys);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -386,7 +395,7 @@ public class RowPredicate implements TBase<RowPredicate._Fields>, java.io.Serial
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetKey_range()) {      lastComparison = TBaseHelper.compareTo(key_range, typedOther.key_range);
+    if (isSetKey_range()) {      lastComparison = TBaseHelper.compareTo(this.key_range, typedOther.key_range);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -395,7 +404,7 @@ public class RowPredicate implements TBase<RowPredicate._Fields>, java.io.Serial
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetIndex_clause()) {      lastComparison = TBaseHelper.compareTo(index_clause, typedOther.index_clause);
+    if (isSetIndex_clause()) {      lastComparison = TBaseHelper.compareTo(this.index_clause, typedOther.index_clause);
       if (lastComparison != 0) {
         return lastComparison;
       }

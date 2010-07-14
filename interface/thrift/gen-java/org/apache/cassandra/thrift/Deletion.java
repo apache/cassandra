@@ -41,10 +41,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.*;
+import org.apache.thrift.async.*;
 import org.apache.thrift.meta_data.*;
+import org.apache.thrift.transport.*;
 import org.apache.thrift.protocol.*;
 
-public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, Cloneable, Comparable<Deletion> {
+public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("Deletion");
 
   private static final TField CLOCK_FIELD_DESC = new TField("clock", TType.STRUCT, (short)1);
@@ -61,12 +63,10 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
     SUPER_COLUMN((short)2, "super_column"),
     PREDICATE((short)3, "predicate");
 
-    private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
     static {
       for (_Fields field : EnumSet.allOf(_Fields.class)) {
-        byId.put((int)field._thriftId, field);
         byName.put(field.getFieldName(), field);
       }
     }
@@ -75,7 +75,16 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
      * Find the _Fields constant that matches fieldId, or null if its not found.
      */
     public static _Fields findByThriftId(int fieldId) {
-      return byId.get(fieldId);
+      switch(fieldId) {
+        case 1: // CLOCK
+          return CLOCK;
+        case 2: // SUPER_COLUMN
+          return SUPER_COLUMN;
+        case 3: // PREDICATE
+          return PREDICATE;
+        default:
+          return null;
+      }
     }
 
     /**
@@ -114,16 +123,16 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
 
   // isset id assignments
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
-    put(_Fields.CLOCK, new FieldMetaData("clock", TFieldRequirementType.REQUIRED, 
-        new StructMetaData(TType.STRUCT, Clock.class)));
-    put(_Fields.SUPER_COLUMN, new FieldMetaData("super_column", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
-    put(_Fields.PREDICATE, new FieldMetaData("predicate", TFieldRequirementType.OPTIONAL, 
-        new StructMetaData(TType.STRUCT, SlicePredicate.class)));
-  }});
-
+  public static final Map<_Fields, FieldMetaData> metaDataMap;
   static {
+    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.CLOCK, new FieldMetaData("clock", TFieldRequirementType.REQUIRED, 
+        new StructMetaData(TType.STRUCT, Clock.class)));
+    tmpMap.put(_Fields.SUPER_COLUMN, new FieldMetaData("super_column", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.STRING)));
+    tmpMap.put(_Fields.PREDICATE, new FieldMetaData("predicate", TFieldRequirementType.OPTIONAL, 
+        new StructMetaData(TType.STRUCT, SlicePredicate.class)));
+    metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(Deletion.class, metaDataMap);
   }
 
@@ -363,7 +372,7 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetClock()) {      lastComparison = TBaseHelper.compareTo(clock, typedOther.clock);
+    if (isSetClock()) {      lastComparison = TBaseHelper.compareTo(this.clock, typedOther.clock);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -372,7 +381,7 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetSuper_column()) {      lastComparison = TBaseHelper.compareTo(super_column, typedOther.super_column);
+    if (isSetSuper_column()) {      lastComparison = TBaseHelper.compareTo(this.super_column, typedOther.super_column);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -381,7 +390,7 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetPredicate()) {      lastComparison = TBaseHelper.compareTo(predicate, typedOther.predicate);
+    if (isSetPredicate()) {      lastComparison = TBaseHelper.compareTo(this.predicate, typedOther.predicate);
       if (lastComparison != 0) {
         return lastComparison;
       }
