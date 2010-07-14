@@ -29,7 +29,6 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 import com.google.common.collect.AbstractIterator;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
@@ -55,6 +54,7 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
     private int batchRowCount; // fetch this many per batch
     private String cfName;
     private String keyspace;
+    private Configuration conf;
 
     public void close() 
     {
@@ -81,7 +81,7 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
     public void initialize(InputSplit split, TaskAttemptContext context) throws IOException
     {
         this.split = (ColumnFamilySplit) split;
-        Configuration conf = context.getConfiguration();
+        conf = context.getConfiguration();
         predicate = ConfigHelper.getSlicePredicate(conf);
         totalRowCount = ConfigHelper.getInputSplitSize(conf);
         batchRowCount = ConfigHelper.getRangeBatchSize(conf);
@@ -100,12 +100,13 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
 
     private class RowIterator extends AbstractIterator<Pair<String, SortedMap<byte[], IColumn>>>
     {
-
         private List<KeySlice> rows;
         private String startToken;
         private int totalRead = 0;
         private int i = 0;
-        private AbstractType comparator = DatabaseDescriptor.getComparator(keyspace, cfName);
+        private AbstractType comparator = ConfigHelper.getComparator(conf);
+        private AbstractType subComparator = ConfigHelper.getSubComparator(conf);
+        private IPartitioner partitioner = ConfigHelper.getPartitioner(conf);
         private TSocket socket;
 
         private void maybeInit()
@@ -120,8 +121,7 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
             // close previous connection if one is open
             close();
             
-            socket = new TSocket(getLocation(),
-                                         DatabaseDescriptor.getThriftPort());
+            socket = new TSocket(getLocation(), ConfigHelper.getThriftPort(conf));
             TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket, false, false);
             Cassandra.Client client = new Cassandra.Client(binaryProtocol);
             try
@@ -166,8 +166,7 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
                 
                 // prepare for the next slice to be read
                 KeySlice lastRow = rows.get(rows.size() - 1);
-                IPartitioner p = DatabaseDescriptor.getPartitioner();
-                startToken = p.getTokenFactory().toString(p.getToken(lastRow.getKey()));
+                startToken = partitioner.getTokenFactory().toString(partitioner.getToken(lastRow.getKey()));
             }
             catch (Exception e)
             {
@@ -243,28 +242,27 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
                 socket.close();
             }
         }
-    }
 
-    private IColumn unthriftify(ColumnOrSuperColumn cosc)
-    {
-        if (cosc.column == null)
-            return unthriftifySuper(cosc.super_column);
-        return unthriftifySimple(cosc.column);
-    }
-
-    private IColumn unthriftifySuper(SuperColumn super_column)
-    {
-        AbstractType subComparator = DatabaseDescriptor.getSubComparator(keyspace, cfName);
-        org.apache.cassandra.db.SuperColumn sc = new org.apache.cassandra.db.SuperColumn(super_column.name, subComparator);
-        for (Column column : super_column.columns)
+        private IColumn unthriftify(ColumnOrSuperColumn cosc)
         {
-            sc.addColumn(unthriftifySimple(column));
+            if (cosc.column == null)
+                return unthriftifySuper(cosc.super_column);
+            return unthriftifySimple(cosc.column);
         }
-        return sc;
-    }
 
-    private IColumn unthriftifySimple(Column column)
-    {
-        return new org.apache.cassandra.db.Column(column.name, column.value, column.timestamp);
+        private IColumn unthriftifySuper(SuperColumn super_column)
+        {
+            org.apache.cassandra.db.SuperColumn sc = new org.apache.cassandra.db.SuperColumn(super_column.name, subComparator);
+            for (Column column : super_column.columns)
+            {
+                sc.addColumn(unthriftifySimple(column));
+            }
+            return sc;
+        }
+
+        private IColumn unthriftifySimple(Column column)
+        {
+            return new org.apache.cassandra.db.Column(column.name, column.value, column.timestamp);
+        }
     }
 }

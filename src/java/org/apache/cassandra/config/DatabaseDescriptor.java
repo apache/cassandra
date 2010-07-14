@@ -268,10 +268,9 @@ public class DatabaseDescriptor
             }
             try
             {
-                Class cls = Class.forName(partitionerClassName);
-                partitioner = (IPartitioner) cls.getConstructor().newInstance();
+                partitioner = newPartitioner(partitionerClassName);
             }
-            catch (ClassNotFoundException e)
+            catch (Exception e)
             {
                 throw new ConfigurationException("Invalid partitioner class " + partitionerClassName);
             }
@@ -544,6 +543,22 @@ public class DatabaseDescriptor
         }
     }
 
+    public static IPartitioner newPartitioner(String partitionerClassName)
+    {
+        if (!partitionerClassName.contains("."))
+            partitionerClassName = "org.apache.cassandra.dht." + partitionerClassName;
+
+        try
+        {
+            Class cls = Class.forName(partitionerClassName);
+            return (IPartitioner) cls.getConstructor().newInstance();
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Invalid partitioner class " + partitionerClassName);
+        }
+    }
+
     private static void readTablesFromXml() throws ConfigurationException
     {
         XMLUtils xmlUtils = null;
@@ -752,9 +767,7 @@ public class DatabaseDescriptor
     }
 
     private static AbstractType getComparator(Node columnFamily, String attr) throws ConfigurationException
-//    throws ConfigurationException, TransformerException, NoSuchMethodException, InvocationTargetException, IllegalAccessException, InstantiationException
     {
-        Class<? extends AbstractType> typeClass;
         String compareWith = null;
         try
         {
@@ -766,49 +779,38 @@ public class DatabaseDescriptor
             ex.initCause(e);
             throw ex;
         }
-        if (compareWith == null)
-        {
-            typeClass = BytesType.class;
-        }
-        else
-        {
-            String className = compareWith.contains(".") ? compareWith : "org.apache.cassandra.db.marshal." + compareWith;
-            try
-            {
-                typeClass = (Class<? extends AbstractType>)Class.forName(className);
-            }
-            catch (ClassNotFoundException e)
-            {
-                throw new ConfigurationException("Unable to load class " + className + " for " + attr + " attribute");
-            }
-        }
+
         try
         {
-        return typeClass.getConstructor().newInstance();
+            return getComparator(compareWith);
+        }
+        catch (Exception e)
+        {
+            ConfigurationException ex = new ConfigurationException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
     }
-        catch (InstantiationException e)
+
+    public static AbstractType getComparator(String compareWith)
+    {
+        Class<? extends AbstractType> typeClass;
+        try
         {
-            ConfigurationException ex = new ConfigurationException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
+            if (compareWith == null)
+            {
+                typeClass = BytesType.class;
+            }
+            else
+            {
+                String className = compareWith.contains(".") ? compareWith : "org.apache.cassandra.db.marshal." + compareWith;
+                typeClass = (Class<? extends AbstractType>)Class.forName(className);
+            }
+            return typeClass.getConstructor().newInstance();
         }
-        catch (IllegalAccessException e)
+        catch (Exception e)
         {
-            ConfigurationException ex = new ConfigurationException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
-        catch (InvocationTargetException e)
-        {
-            ConfigurationException ex = new ConfigurationException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
-        catch (NoSuchMethodException e)
-        {
-            ConfigurationException ex = new ConfigurationException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
+            throw new RuntimeException(e);
         }
     }
 
