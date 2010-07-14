@@ -163,21 +163,24 @@ public class DatabaseDescriptor
                 }
                 logger.debug("Syncing log with a period of " + conf.commitlog_sync_period_in_ms);
             }
-            
+
+            /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */           
             if (conf.disk_access_mode == Config.DiskAccessMode.auto)
             {
                 conf.disk_access_mode = System.getProperty("os.arch").contains("64") ? Config.DiskAccessMode.mmap : Config.DiskAccessMode.standard;
                 indexAccessMode = conf.disk_access_mode;
-                logger.info("Auto DiskAccessMode determined to be " + conf.disk_access_mode);
+                logger.info("DiskAccessMode 'auto' determined to be " + conf.disk_access_mode + ", indexAccessMode is " + indexAccessMode );
             }
             else if (conf.disk_access_mode == Config.DiskAccessMode.mmap_index_only)
             {
                 conf.disk_access_mode = Config.DiskAccessMode.standard;
                 indexAccessMode = Config.DiskAccessMode.mmap;
+                logger.info("DiskAccessMode is" + conf.disk_access_mode + ", indexAccessMode is " + indexAccessMode );
             }
             else
             {
                 indexAccessMode = conf.disk_access_mode;
+                logger.info("DiskAccessMode is" + conf.disk_access_mode + ", indexAccessMode is " + indexAccessMode );
             }
 
             /* Authentication and authorization backend, implementing IAuthenticator */
