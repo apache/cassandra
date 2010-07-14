@@ -27,12 +27,16 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.concurrent.IExecutorMBean;
+import org.apache.cassandra.db.CompactionManagerMBean;
 
 import com.sun.management.GarbageCollectorMXBean;
 import com.sun.management.GcInfo;
 import java.lang.management.MemoryUsage;
 import java.lang.management.ManagementFactory;
+import javax.management.JMX;
 import javax.management.MBeanServer;
+import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 
 public class GCInspector
@@ -42,8 +46,10 @@ public class GCInspector
     private static final Logger logger = LoggerFactory.getLogger(GCInspector.class);
     final static long INTERVAL_IN_MS = 1000;
     final static long MIN_DURATION = 200;
+    final static long MIN_DURATION_TPSTATS = 1000;
 
     private HashMap<String, Long> gctimes = new HashMap<String, Long>();
+    private final MBeanServer server = ManagementFactory.getPlatformMBeanServer();
 
     List<GarbageCollectorMXBean> beans = new ArrayList<GarbageCollectorMXBean>();
 
@@ -110,6 +116,35 @@ public class GCInspector
                 logger.info(st);
             else if (logger.isDebugEnabled())
                 logger.debug(st);
+            if (gci.getDuration() > MIN_DURATION_TPSTATS)
+            {
+                try
+                {
+                    logThreadPoolStats();
+                }
+                catch (MalformedObjectNameException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }
         }
+    }
+
+    private void logThreadPoolStats() throws MalformedObjectNameException
+    {
+        ObjectName query = new ObjectName("org.apache.cassandra.concurrent:type=*");
+        Iterator<ObjectName> tpiter = server.queryNames(query, null).iterator();
+        logger.info(String.format("%-25s%10s%10s", "Pool Name", "Active", "Pending"));
+        while(tpiter.hasNext())
+        {
+            ObjectName objectName = tpiter.next();
+            String poolName = objectName.getKeyProperty("type");
+            IExecutorMBean threadPoolProxy = JMX.newMBeanProxy(server, objectName, IExecutorMBean.class);
+            logger.info(String.format("%-25s%10d%10d", poolName, threadPoolProxy.getActiveCount(), threadPoolProxy.getPendingTasks()));
+        }
+        // one off for compaction
+        ObjectName cm = new ObjectName("org.apache.cassandra.db:type=CompactionManager");
+        CompactionManagerMBean cmProxy = JMX.newMBeanProxy(server, cm, CompactionManagerMBean.class);
+        logger.info(String.format("%-25s%10s%10s", "CompactionManager", "n/a", cmProxy.getPendingTasks()));
     }
 }

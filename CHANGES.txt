@@ -50,6 +50,7 @@ dev
    (CASSANDRA-1232)
  * extend option to lower compaction priority to hinted handoff
    as well (CASSANDRA-1260)
+ * log thread pool stats when GC is excessive (CASSANDRA-1275)
 
 
 0.6.3
