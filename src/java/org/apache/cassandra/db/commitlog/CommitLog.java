@@ -28,6 +28,7 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.DeletionService;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -72,6 +73,7 @@ import java.util.zip.Checksum;
  */
 public class CommitLog
 {
+    private static final int MAX_OUTSTANDING_REPLAY_COUNT = 1024;
     private static volatile int SEGMENT_SIZE = 128*1024*1024; // roll after log gets this big
 
     static final Logger logger = LoggerFactory.getLogger(CommitLog.class);
@@ -180,7 +182,7 @@ public class CommitLog
     public static void recover(File[] clogs) throws IOException
     {
         Set<Table> tablesRecovered = new HashSet<Table>();
-        final AtomicInteger counter = new AtomicInteger(0);
+        List<Future<?>> futures = new ArrayList<Future<?>>();
         byte[] bytes = new byte[4096];
 
         for (File file : clogs)
@@ -278,47 +280,29 @@ public class CommitLog
                         {
                             Table.open(newRm.getTable()).apply(newRm, null, false);
                         }
-                        counter.decrementAndGet();
                     }
                 };
-                counter.incrementAndGet();
-                StageManager.getStage(StageManager.MUTATION_STAGE).submit(runnable);
+                futures.add(StageManager.getStage(StageManager.MUTATION_STAGE).submit(runnable));
+                if (futures.size() > MAX_OUTSTANDING_REPLAY_COUNT)
+                {
+                    FBUtilities.waitOnFutures(futures);
+                    futures.clear();
+                }
             }
             reader.close();
-            logger.info("Finished reading " + file);
+            logger.info("Finished reading " + file + " for recovery");
         }
 
         // wait for all the writes to finish on the mutation stage
-        while (counter.get() > 0)
-        {
-            try
-            {
-                Thread.sleep(10);
-            }
-            catch (InterruptedException e)
-            {
-                throw new AssertionError(e);
-            }
-        }
+        FBUtilities.waitOnFutures(futures);
+        logger.debug("Finished waiting on mutations from recovery");
 
         // flush replayed tables
-        List<Future<?>> futures = new ArrayList<Future<?>>();
+        futures.clear();
         for (Table table : tablesRecovered)
-        {
             futures.addAll(table.flush());
-        }
-        // wait for flushes to finish
-        for (Future<?> future : futures)
-        {
-            try
-            {
-                future.get();
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
+        FBUtilities.waitOnFutures(futures);
+        logger.info("Recovery complete");
     }
 
     private CommitLogSegment currentSegment()

@@ -22,39 +22,36 @@ import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 
-import org.apache.cassandra.net.sink.SinkManager;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class MessageDeserializationTask implements Runnable
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.net.sink.SinkManager;
+import org.apache.cassandra.utils.WrappedRunnable;
+
+class MessageDeserializationTask extends WrappedRunnable
 {
-    private static Logger logger_ = LoggerFactory.getLogger(MessageDeserializationTask.class);
+    private static Logger logger = LoggerFactory.getLogger(MessageDeserializationTask.class);
     
-    private ByteArrayInputStream bytes;
+    private final ByteArrayInputStream bytes;
+    private final long constructionTime = System.currentTimeMillis();
     
     MessageDeserializationTask(ByteArrayInputStream bytes)
     {
         this.bytes = bytes;
     }
-    
-    public void run()
+
+    public void runMayThrow() throws IOException
     {
-        Message message = null;
-        try
+        if (System.currentTimeMillis() >  constructionTime + DatabaseDescriptor.getRpcTimeout())
         {
-            message = Message.serializer().deserialize(new DataInputStream(bytes));
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
+            logger.warn(String.format("dropping message (%,dms past timeout)",
+                                      System.currentTimeMillis() - (constructionTime + DatabaseDescriptor.getRpcTimeout())));
+            return;
         }
 
-        if ( message != null )
-        {
-            message = SinkManager.processServerMessageSink(message);
-            MessagingService.receive(message);
-        }
+        Message message = Message.serializer().deserialize(new DataInputStream(bytes));
+        message = SinkManager.processServerMessageSink(message);
+        MessagingService.receive(message);
     }
-
 }

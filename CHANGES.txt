@@ -39,6 +39,8 @@ dev
  * allow multiple repair sessions per node (CASSANDRA-1190)
  * add dynamic endpoint snitch (CASSANDRA-981)
  * optimize away MessagingService for local range queries (CASSANDRA-1261)
+ * pre-emptively drop requests that cannot be processed within RPCTimeout
+   (CASSANDRA-685)
 
 
 0.6.4

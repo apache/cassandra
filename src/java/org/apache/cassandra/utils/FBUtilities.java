@@ -28,6 +28,8 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetDecoder;
 import java.security.MessageDigest;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -526,5 +528,24 @@ public class FBUtilities
         // we use microsecond resolution for compatibility with other client libraries, even though
         // we can't actually get microsecond precision.
         return System.currentTimeMillis() * 1000;
+    }
+
+    public static void waitOnFutures(Collection<Future<?>> futures)
+    {
+        for (Future f : futures)
+        {
+            try
+            {
+                f.get();
+            }
+            catch (ExecutionException ee)
+            {
+                throw new RuntimeException(ee);
+            }
+            catch (InterruptedException ie)
+            {
+                throw new AssertionError(ie);
+            }
+        }
     }
 }
