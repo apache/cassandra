@@ -61,57 +61,6 @@ public final class CFMetaData
                + "Columns Sorted By: " + comparator + "\n";
     }
 
-    public static byte[] serialize(CFMetaData cfm) throws IOException
-    {
-        ByteArrayOutputStream bout = new ByteArrayOutputStream();
-        DataOutputStream dout = new DataOutputStream(bout);
-        dout.writeUTF(cfm.tableName);
-        dout.writeUTF(cfm.cfName);
-        dout.writeUTF(cfm.columnType);
-        dout.writeUTF(cfm.comparator.getClass().getName());
-        dout.writeBoolean(cfm.subcolumnComparator != null);
-        if (cfm.subcolumnComparator != null)
-            dout.writeUTF(cfm.subcolumnComparator.getClass().getName());
-        dout.writeBoolean(cfm.comment != null);
-        if (cfm.comment != null)
-            dout.writeUTF(cfm.comment);
-        dout.writeDouble(cfm.rowCacheSize);
-        dout.writeDouble(cfm.keyCacheSize);
-        dout.close();
-        return bout.toByteArray();
-}
-
-    public static CFMetaData deserialize(InputStream in) throws IOException
-    {
-
-        DataInputStream din = new DataInputStream(in);
-        String tableName = din.readUTF();
-        String cfName = din.readUTF();
-        String columnType = din.readUTF();
-        AbstractType comparator = null;
-        try
-        {
-            comparator = (AbstractType)Class.forName(din.readUTF()).newInstance();
-        }
-        catch (Exception ex)
-        {
-            throw new IOException(ex);
-        }
-        AbstractType subcolumnComparator = null;
-        try
-        {
-            subcolumnComparator = din.readBoolean() ? (AbstractType)Class.forName(din.readUTF()).newInstance() : null;
-        }
-        catch (Exception ex)
-        {
-
-        }
-        String comment = din.readBoolean() ? din.readUTF() : null;
-        double rowCacheSize = din.readDouble();
-        double keyCacheSize = din.readDouble();
-        return new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize);
-    }
-
     public boolean equals(Object obj)
     {
         if (!(obj instanceof CFMetaData))

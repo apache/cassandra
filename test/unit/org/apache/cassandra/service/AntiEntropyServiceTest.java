@@ -38,7 +38,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 
 import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.config.DatabaseDescriptorTest;
 import org.apache.cassandra.Util;
 
 import org.junit.Before;
