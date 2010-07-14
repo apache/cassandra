@@ -594,7 +594,6 @@ public class StorageProxy implements StorageProxyMBean
         // an empty message acts as a request to the SchemaCheckVerbHandler.
         MessagingService.instance.sendRR(msg, liveHosts.toArray(new InetAddress[]{}), new IAsyncCallback() 
         {
-            @Override
             public void response(Message msg)
             {
                 // record the response from the remote node.
