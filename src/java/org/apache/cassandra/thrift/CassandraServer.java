@@ -633,6 +633,11 @@ public class CassandraServer implements Cassandra.Iface
         return ranges;
     }
 
+    public String describe_partitioner() throws TException
+    {
+        return StorageService.getPartitioner().getClass().getName();
+    }
+
     public List<String> describe_splits(String start_token, String end_token, int keys_per_split) throws TException
     {
         Token.TokenFactory tf = StorageService.getPartitioner().getTokenFactory();
@@ -668,6 +673,5 @@ public class CassandraServer implements Cassandra.Iface
         if (!loginDone.get()) throw new InvalidRequestException("Login is required before any other API calls");
     }
 
-    
     // main method moved to CassandraDaemon
 }

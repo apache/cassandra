@@ -25,10 +25,13 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
+import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
 import com.google.common.collect.AbstractIterator;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
@@ -40,9 +43,9 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
-import org.apache.thrift.transport.TTransportException;
 
 public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byte[], IColumn>>
 {
@@ -104,10 +107,35 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
         private String startToken;
         private int totalRead = 0;
         private int i = 0;
-        private AbstractType comparator = ConfigHelper.getComparator(conf);
-        private AbstractType subComparator = ConfigHelper.getSubComparator(conf);
-        private IPartitioner partitioner = ConfigHelper.getPartitioner(conf);
+        private final AbstractType comparator;
+        private final AbstractType subComparator;
+        private final IPartitioner partitioner;
         private TSocket socket;
+        private Cassandra.Client client;
+
+        private RowIterator()
+        {
+            socket = new TSocket(getLocation(), ConfigHelper.getThriftPort(conf));
+            TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket, false, false);
+            client = new Cassandra.Client(binaryProtocol);
+
+            try
+            {
+                socket.open();
+                partitioner = DatabaseDescriptor.newPartitioner(client.describe_partitioner());
+                Map<String, String> info = client.describe_keyspace(keyspace).get(cfName);
+                comparator = DatabaseDescriptor.getComparator(info.get("CompareWith"));
+                subComparator = DatabaseDescriptor.getComparator(info.get("CompareSubcolumnsWith"));
+            }
+            catch (TException e)
+            {
+                throw new RuntimeException("error communicating via Thrift", e);
+            }
+            catch (NotFoundException e)
+            {
+                throw new RuntimeException("server reports no such keyspace " + keyspace, e);
+            }
+        }
 
         private void maybeInit()
         {
@@ -117,21 +145,6 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
             
             if (rows != null)
                 return;
-            
-            // close previous connection if one is open
-            close();
-            
-            socket = new TSocket(getLocation(), ConfigHelper.getThriftPort(conf));
-            TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket, false, false);
-            Cassandra.Client client = new Cassandra.Client(binaryProtocol);
-            try
-            {
-                socket.open();
-            }
-            catch (TTransportException e)
-            {
-                throw new RuntimeException(e);
-            }
             
             if (startToken == null)
             {

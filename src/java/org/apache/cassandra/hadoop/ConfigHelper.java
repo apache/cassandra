@@ -51,22 +51,6 @@ public class ConfigHelper
     private static final String PARTITIONER = "cassandra.partitioner";
 
     /**
-     * Set the keyspace, column family, column comparator, and row partitioner for this job.
-     *
-     * @param conf         Job configuration you are about to run
-     * @param keyspace
-     * @param columnFamily
-     * @param comparator
-     * @param partitioner
-     */
-    public static void setColumnFamily(Configuration conf, String keyspace, String columnFamily, String comparator, String partitioner)
-    {
-        setColumnFamily(conf, keyspace, columnFamily);
-        conf.set(COMPARATOR, comparator);
-        conf.set(PARTITIONER, partitioner);
-    }
-
-    /**
      * Set the keyspace and column family for this job.
      * Comparator and Partitioner types will be read from storage-conf.xml.
      *
@@ -94,18 +78,6 @@ public class ConfigHelper
         }
         conf.set(KEYSPACE_CONFIG, keyspace);
         conf.set(COLUMNFAMILY_CONFIG, columnFamily);
-    }
-
-    /**
-     * Set the subcomparator to use in the configured ColumnFamily [of SuperColumns].
-     * Optional when storage-conf.xml is provided.
-     *
-     * @param conf
-     * @param subComparator
-     */
-    public static void setSubComparator(Configuration conf, String subComparator)
-    {
-        conf.set(SUB_COMPARATOR, subComparator);
     }
 
     /**
@@ -236,27 +208,5 @@ public class ConfigHelper
     {
         String v = conf.get(INITIAL_THRIFT_ADDRESS);
         return v == null ? DatabaseDescriptor.getSeeds().iterator().next().getHostAddress() : v;
-    }
-
-    public static AbstractType getComparator(Configuration conf)
-    {
-        String v = conf.get(COMPARATOR);
-        return v == null
-               ? DatabaseDescriptor.getComparator(getKeyspace(conf), getColumnFamily(conf))
-               : DatabaseDescriptor.getComparator(v);
-    }
-
-    public static AbstractType getSubComparator(Configuration conf)
-    {
-        String v = conf.get(SUB_COMPARATOR);
-        return v == null
-               ? DatabaseDescriptor.getSubComparator(getKeyspace(conf), getColumnFamily(conf))
-               : DatabaseDescriptor.getComparator(v);
-    }
-
-    public static IPartitioner getPartitioner(Configuration conf)
-    {
-        String v = conf.get(PARTITIONER);
-        return v == null ? DatabaseDescriptor.getPartitioner() : DatabaseDescriptor.newPartitioner(v);
     }
 }
