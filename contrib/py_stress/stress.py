@@ -75,7 +75,7 @@ parser.add_option('-f', '--file', type="string", dest="file",
                   help="write output to file")
 parser.add_option('-p', '--port', type="int", default=9160, dest="port",
                   help="thrift port")
-parser.add_option('-m', '--framed', action="store_true", dest="framed",
+parser.add_option('-m', '--unframed', action="store_false", dest="framed",
                   help="use framed transport")
 parser.add_option('-o', '--operation', type="choice", dest="operation",
                   default="insert", choices=('insert', 'read', 'rangeslice'),
@@ -139,7 +139,7 @@ if options.random:
     key_generator = key_generator_random
 
 
-def get_client(host='127.0.0.1', port=9160, framed=False):
+def get_client(host='127.0.0.1', port=9160, framed=True):
     socket = TSocket.TSocket(host, port)
     if framed:
         transport = TTransport.TFramedTransport(socket)

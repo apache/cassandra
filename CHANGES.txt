@@ -41,6 +41,8 @@ dev
  * optimize away MessagingService for local range queries (CASSANDRA-1261)
  * pre-emptively drop requests that cannot be processed within RPCTimeout
    (CASSANDRA-685)
+ * make framed transport the default so malformed requests can't OOM the 
+   server (CASSANDRA-475)
 
 
 0.6.4

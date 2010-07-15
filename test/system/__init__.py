@@ -37,7 +37,7 @@ import Cassandra
 
 def get_thrift_client(host='127.0.0.1', port=9170):
     socket = TSocket.TSocket(host, port)
-    transport = TTransport.TBufferedTransport(socket)
+    transport = TTransport.TFramedTransport(socket)
     protocol = TBinaryProtocol.TBinaryProtocolAccelerated(transport)
     client = Cassandra.Client(protocol)
     client.transport = transport

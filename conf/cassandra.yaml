@@ -77,8 +77,15 @@ listen_address: localhost
 rpc_address: localhost
 # port for Thrift to listen on
 rpc_port: 9160
-# Whether or not to use a framed transport for Thrift.
-thrift_framed_transport: false
+
+# Frame size for thrift (maximum field length).
+# 0 disables TFramedTransport in favor of TSocket. 
+thrift_framed_transport_size_in_mb: 15
+
+# The max length of a thrift message, including all fields and
+# internal thrift overhead.
+thrift_max_message_length_in_mb: 16
+
 snapshot_before_compaction: false
 
 # The threshold size in megabytes the binary memtable must grow to,

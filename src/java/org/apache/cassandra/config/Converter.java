@@ -185,9 +185,10 @@ public class Converter {
                 conf.rpc_port = Integer.parseInt(port);
             
             String framedRaw = xmlUtils.getNodeValue("/Storage/ThriftFramedTransport");
-            if (framedRaw != null)
+            if (framedRaw != null && Boolean.valueOf(framedRaw))
             {
-                conf.thrift_framed_transport = Boolean.valueOf(framedRaw);
+                conf.thrift_framed_transport_size_in_mb = 15;
+                System.out.println("TFramedTransport will have a maximum frame size of 15MB");
             }
             
             conf.endpoint_snitch = xmlUtils.getNodeValue("/Storage/EndpointSnitch");

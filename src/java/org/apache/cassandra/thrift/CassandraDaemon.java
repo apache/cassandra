@@ -153,14 +153,18 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
         logger.info(String.format("Binding thrift service to %s:%s", listenAddr, listenPort));
 
         // Protocol factory
-        TProtocolFactory tProtocolFactory = new TBinaryProtocol.Factory();
+        TProtocolFactory tProtocolFactory = new TBinaryProtocol.Factory(false, 
+                                                                        true, 
+                                                                        DatabaseDescriptor.getThriftMaxMessageLength());
         
         // Transport factory
         TTransportFactory inTransportFactory, outTransportFactory;
         if (DatabaseDescriptor.isThriftFramed())
         {
-            inTransportFactory = new TFramedTransport.Factory();
-            outTransportFactory = new TFramedTransport.Factory();
+            int tFramedTransportSize = DatabaseDescriptor.getThriftFramedTransportSize();
+            inTransportFactory = new TFramedTransport.Factory(tFramedTransportSize);
+            outTransportFactory = new TFramedTransport.Factory(tFramedTransportSize);
+            logger.info("Using TFramedTransport with a max frame size of {} bytes.", tFramedTransportSize);
             
         }
         else
