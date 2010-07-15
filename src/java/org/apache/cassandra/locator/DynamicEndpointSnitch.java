@@ -221,7 +221,7 @@ class AdaptiveLatencyTracker extends AbstractStatsDeque
     {
         double mean = mean();
         double exponent = (-1) * (t) / mean;
-        return 1 - ( 1 - Math.pow( Math.E, exponent) );
+        return Math.pow( Math.E, exponent);
     }
 
     double score()
