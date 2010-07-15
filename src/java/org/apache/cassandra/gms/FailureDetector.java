@@ -266,7 +266,7 @@ class ArrivalWindow
     {
         double mean = mean();
         double exponent = (-1)*(t)/mean;
-        return 1 - ( 1 - Math.pow(Math.E, exponent) );
+        return Math.pow(Math.E, exponent);
     }
     
     double phi(long tnow)
