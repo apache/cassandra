@@ -48,7 +48,7 @@ public class LegacySSTableTest extends CleanupHelper
     {
         String scp = System.getProperty(LEGACY_SSTABLE_PROP);
         assert scp != null;
-        LEGACY_SSTABLE_ROOT = new File(scp);
+        LEGACY_SSTABLE_ROOT = new File(scp).getAbsoluteFile();
         assert LEGACY_SSTABLE_ROOT.isDirectory();
 
         TEST_DATA = new HashMap<byte[],byte[]>();
@@ -75,7 +75,7 @@ public class LegacySSTableTest extends CleanupHelper
     public void buildTestSSTable() throws IOException
     {
         // write the output in a version specific directory
-        SSTable.Descriptor dest = getDescriptor(SSTable.Descriptor.CURRENT_VERSION);
+        Descriptor dest = getDescriptor(Descriptor.CURRENT_VERSION);
         assert dest.directory.mkdirs() : "Could not create " + dest.directory + ". Might it already exist?";
 
         SSTableReader ssTable = SSTableUtils.writeRawSSTable(new File(dest.filenameFor(SSTable.COMPONENT_DATA)),
@@ -88,22 +88,33 @@ public class LegacySSTableTest extends CleanupHelper
     }
     */
 
-    /**
-     * Between version b and c, on disk bloom filters became incompatible, and needed to be regenerated.
-     */
     @Test
-    public void testVerB() throws IOException
+    public void testVersions() throws IOException
     {
-        SSTableReader reader = SSTableReader.open(getDescriptor("b"));
+        for (File version : LEGACY_SSTABLE_ROOT.listFiles())
+            testVersion(version.getName());
+    }
 
-        List<byte[]> keys = new ArrayList<byte[]>(TEST_DATA.keySet());
-        Collections.shuffle(keys);
-        BufferedRandomAccessFile file = new BufferedRandomAccessFile(reader.getFilename(), "r");
-        for (byte[] key : keys)
+    public void testVersion(String version)
+    {
+        try
         {
-            // confirm that the bloom filter does not reject any keys
-            file.seek(reader.getPosition(reader.partitioner.decorateKey(key), SSTableReader.Operator.EQ));
-            assert Arrays.equals(key, FBUtilities.readShortByteArray(file));
+            SSTableReader reader = SSTableReader.open(getDescriptor(version));
+
+            List<byte[]> keys = new ArrayList<byte[]>(TEST_DATA.keySet());
+            Collections.shuffle(keys);
+            BufferedRandomAccessFile file = new BufferedRandomAccessFile(reader.getFilename(), "r");
+            for (byte[] key : keys)
+            {
+                // confirm that the bloom filter does not reject any keys
+                file.seek(reader.getPosition(reader.partitioner.decorateKey(key), SSTableReader.Operator.EQ));
+                assert Arrays.equals(key, FBUtilities.readShortByteArray(file));
+            }
+        }
+        catch (Throwable e)
+        {
+            System.err.println("Failed to read " + version);
+            e.printStackTrace(System.err);
         }
     }
 }

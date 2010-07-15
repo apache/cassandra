@@ -266,7 +266,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                 if (indexPosition == indexSize)
                     break;
 
-                DecoratedKey decoratedKey = partitioner.convertFromDiskFormat(FBUtilities.readShortByteArray(input));
+                DecoratedKey decoratedKey = decodeKey(partitioner, desc, FBUtilities.readShortByteArray(input));
                 if (recreatebloom)
                     bf.add(decoratedKey.key);
                 long dataPosition = input.readLong();
@@ -414,7 +414,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                 while (!input.isEOF())
                 {
                     // read key & data position from index entry
-                    DecoratedKey indexDecoratedKey = partitioner.convertFromDiskFormat(FBUtilities.readShortByteArray(input));
+                    DecoratedKey indexDecoratedKey = decodeKey(partitioner, desc, FBUtilities.readShortByteArray(input));
                     long dataPosition = input.readLong();
 
                     int comparison = indexDecoratedKey.compareTo(decoratedKey);
@@ -554,6 +554,16 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         if (d.hasIntRowSize())
             return in.readInt();
         return in.readLong();
+    }
+
+    /**
+     * Conditionally use the deprecated 'IPartitioner.convertFromDiskFormat' method.
+     */
+    public static DecoratedKey decodeKey(IPartitioner p, Descriptor d, byte[] bytes)
+    {
+        if (d.hasEncodedKeys())
+            return p.convertFromDiskFormat(bytes);
+        return p.decorateKey(bytes);
     }
 
     /**

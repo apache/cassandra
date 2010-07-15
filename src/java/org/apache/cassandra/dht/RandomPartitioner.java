@@ -64,21 +64,6 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
         return new DecoratedKey<BigIntegerToken>(new BigIntegerToken(token), key);
     }
 
-    public byte[] convertToDiskFormat(DecoratedKey<BigIntegerToken> key)
-    {
-        // encode token prefix and calculate final length (with delimiter)
-        byte[] prefix = key.token.toString().getBytes(UTF_8);
-        int length = prefix.length + 1 + key.key.length;
-        assert length <= FBUtilities.MAX_UNSIGNED_SHORT;
-
-        // copy into output bytes
-        byte[] todisk = new byte[length];
-        System.arraycopy(prefix, 0, todisk, 0, prefix.length);
-        todisk[prefix.length] = DELIMITER_BYTE;
-        System.arraycopy(key.key, 0, todisk, prefix.length + 1, key.key.length);
-        return todisk;
-    }
-
     public BigIntegerToken midpoint(BigIntegerToken ltoken, BigIntegerToken rtoken)
     {
         Pair<BigInteger,Boolean> midpair = FBUtilities.midpoint(ltoken.token, rtoken.token, 127);

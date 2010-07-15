@@ -101,15 +101,6 @@ public abstract class PartitionerTestCase<T extends Token>
     }
     
     @Test
-    public void testDiskFormat()
-    {
-        byte[] key = "key".getBytes();
-        DecoratedKey<T> decKey = partitioner.decorateKey(key);
-        DecoratedKey<T> result = partitioner.convertFromDiskFormat(partitioner.convertToDiskFormat(decKey));
-        assertEquals(decKey, result);
-    }
-    
-    @Test
     public void testTokenFactoryBytes()
     {
         Token.TokenFactory factory = partitioner.getTokenFactory();

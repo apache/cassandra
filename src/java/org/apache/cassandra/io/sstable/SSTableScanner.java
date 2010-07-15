@@ -168,7 +168,9 @@ public class SSTableScanner implements Iterator<IColumnIterator>, Closeable
                     file.seek(finishedAt);
                 assert !file.isEOF();
 
-                DecoratedKey key = StorageService.getPartitioner().convertFromDiskFormat(FBUtilities.readShortByteArray(file));
+                DecoratedKey key = SSTableReader.decodeKey(sstable.getPartitioner(),
+                                                           sstable.getDescriptor(),
+                                                           FBUtilities.readShortByteArray(file));
                 long dataSize = SSTableReader.readRowSize(file, sstable.getDescriptor());
                 dataStart = file.getFilePointer();
                 finishedAt = dataStart + dataSize;

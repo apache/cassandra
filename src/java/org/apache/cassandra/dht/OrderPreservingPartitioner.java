@@ -46,11 +46,6 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
         return new DecoratedKey<StringToken>(getToken(key), key);
     }
 
-    public byte[] convertToDiskFormat(DecoratedKey<StringToken> key)
-    {
-        return key.key;
-    }
-
     public StringToken midpoint(StringToken ltoken, StringToken rtoken)
     {
         int sigchars = Math.max(ltoken.token.length(), rtoken.token.length());

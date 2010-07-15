@@ -47,11 +47,6 @@ public abstract class AbstractByteOrderedPartitioner implements IPartitioner<Byt
         return new DecoratedKey<BytesToken>(getToken(key), key);
     }
 
-    public byte[] convertToDiskFormat(DecoratedKey<BytesToken> key)
-    {
-        return key.key;
-    }
-
     public BytesToken midpoint(BytesToken ltoken, BytesToken rtoken)
     {
         int sigbytes = Math.max(ltoken.token.length, rtoken.token.length);

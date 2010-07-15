@@ -19,11 +19,6 @@ public class LocalPartitioner implements IPartitioner<LocalToken>
         return decorateKey(key);
     }
 
-    public byte[] convertToDiskFormat(DecoratedKey<LocalToken> key)
-    {
-        return key.token.token;
-    }
-
     public DecoratedKey<LocalToken> decorateKey(byte[] key)
     {
         return new DecoratedKey<LocalToken>(getToken(key), key);

@@ -31,6 +31,7 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.TimestampClock;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -157,10 +158,13 @@ public class SSTableExport
     throws IOException
     {
         IPartitioner partitioner = StorageService.getPartitioner();
+        Descriptor desc = Descriptor.fromFilename(ssTableFile);
         BufferedRandomAccessFile input = new BufferedRandomAccessFile(SSTable.indexFilename(ssTableFile), "r");
         while (!input.isEOF())
         {
-            DecoratedKey decoratedKey = partitioner.convertFromDiskFormat(FBUtilities.readShortByteArray(input));
+            DecoratedKey decoratedKey = SSTableReader.decodeKey(partitioner,
+                                                                desc,
+                                                                FBUtilities.readShortByteArray(input));
             long dataPosition = input.readLong();
             outs.println(bytesToHex(decoratedKey.key));
         }

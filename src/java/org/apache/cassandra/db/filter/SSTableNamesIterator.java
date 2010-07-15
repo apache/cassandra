@@ -70,7 +70,9 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
                 file = ssTable.getFileDataInput(decoratedKey, DatabaseDescriptor.getIndexedReadBufferSizeInKB() * 1024);
                 if (file == null)
                     return;
-                DecoratedKey keyInDisk = ssTable.getPartitioner().convertFromDiskFormat(FBUtilities.readShortByteArray(file));
+                DecoratedKey keyInDisk = SSTableReader.decodeKey(ssTable.getPartitioner(),
+                                                                 ssTable.getDescriptor(),
+                                                                 FBUtilities.readShortByteArray(file));
                 assert keyInDisk.equals(decoratedKey)
                        : String.format("%s != %s in %s", keyInDisk, decoratedKey, file.getPath());
                 SSTableReader.readRowSize(file, ssTable.getDescriptor());

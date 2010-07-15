@@ -25,19 +25,13 @@ import org.apache.cassandra.db.DecoratedKey;
 public interface IPartitioner<T extends Token>
 {
     /**
+     * @Deprecated: Used by SSTables before version 'e'.
+     *
      * Convert the on disk representation to a DecoratedKey object
      * @param key On disk representation 
      * @return DecoratedKey object
      */
     public DecoratedKey<T> convertFromDiskFormat(byte[] key);
-    
-    /**
-     * Convert the DecoratedKey to the on disk format used for
-     * this partitioner.
-     * @param key The DecoratedKey in question
-     * @return
-     */
-    public byte[] convertToDiskFormat(DecoratedKey<T> key);    
     
     /**
      * Transform key to object representation of the on-disk format.

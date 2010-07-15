@@ -1,3 +1,7 @@
+#
+# Warning!
+# Consider the effects on 'o.a.c.i.s.LegacySSTableTest' before changing schemas in this file.
+#
 cluster_name: Test Cluster
 in_memory_compaction_limit_in_mb: 1
 commitlog_sync: batch

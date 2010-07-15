@@ -99,7 +99,7 @@ public class SSTableWriter extends SSTable
     public void append(AbstractCompactedRow row) throws IOException
     {
         long currentPosition = beforeAppend(row.key);
-        FBUtilities.writeShortByteArray(partitioner.convertToDiskFormat(row.key), dataFile);
+        FBUtilities.writeShortByteArray(row.key.key, dataFile);
         row.write(dataFile);
         afterAppend(row.key, currentPosition);
     }
@@ -107,7 +107,7 @@ public class SSTableWriter extends SSTable
     public void append(DecoratedKey decoratedKey, ColumnFamily cf) throws IOException
     {
         long startPosition = beforeAppend(decoratedKey);
-        FBUtilities.writeShortByteArray(partitioner.convertToDiskFormat(decoratedKey), dataFile);
+        FBUtilities.writeShortByteArray(decoratedKey.key, dataFile);
         // write placeholder for the row size, since we don't know it yet
         long sizePosition = dataFile.getFilePointer();
         dataFile.writeLong(-1);
@@ -125,7 +125,7 @@ public class SSTableWriter extends SSTable
     public void append(DecoratedKey decoratedKey, byte[] value) throws IOException
     {
         long currentPosition = beforeAppend(decoratedKey);
-        FBUtilities.writeShortByteArray(partitioner.convertToDiskFormat(decoratedKey), dataFile);
+        FBUtilities.writeShortByteArray(decoratedKey.key, dataFile);
         assert value.length > 0;
         dataFile.writeLong(value.length);
         dataFile.write(value);
@@ -237,7 +237,7 @@ public class SSTableWriter extends SSTable
             long dataPosition = 0;
             while (dataPosition < dfile.length())
             {
-                key = StorageService.getPartitioner().convertFromDiskFormat(FBUtilities.readShortByteArray(dfile));
+                key = SSTableReader.decodeKey(StorageService.getPartitioner(), desc, FBUtilities.readShortByteArray(dfile));
                 long dataSize = SSTableReader.readRowSize(dfile, desc);
                 iwriter.afterAppend(key, dataPosition);
                 dataPosition = dfile.getFilePointer() + dataSize;
@@ -301,7 +301,7 @@ public class SSTableWriter extends SSTable
         {
             bf.add(key.key);
             long indexPosition = indexFile.getFilePointer();
-            FBUtilities.writeShortByteArray(partitioner.convertToDiskFormat(key), indexFile);
+            FBUtilities.writeShortByteArray(key.key, indexFile);
             indexFile.writeLong(dataPosition);
             if (logger.isTraceEnabled())
                 logger.trace("wrote index of " + key + " at " + indexPosition);

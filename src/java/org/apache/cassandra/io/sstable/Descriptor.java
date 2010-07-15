@@ -15,7 +15,7 @@ import com.google.common.base.Objects;
 public class Descriptor
 {
     public static final String LEGACY_VERSION = "a";
-    public static final String CURRENT_VERSION = "d";
+    public static final String CURRENT_VERSION = "e";
 
     public final File directory;
     public final String version;
@@ -158,6 +158,11 @@ public class Descriptor
     public boolean hasIntRowSize()
     {
         return version.compareTo("d") < 0;
+    }
+
+    public boolean hasEncodedKeys()
+    {
+        return version.compareTo("e") < 0;
     }
 
     public boolean isLatestVersion()
