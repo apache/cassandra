@@ -45,6 +45,7 @@ import org.apache.hadoop.mapreduce.OutputFormat;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
+import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.junit.After;
@@ -125,8 +126,7 @@ public class ColumnFamilyOutputFormatTest extends EmbeddedServer
     {
         /* Establish a thrift connection to the cassandra instance */
         TSocket socket = new TSocket(DatabaseDescriptor.getListenAddress().getHostName(), DatabaseDescriptor.getRpcPort());
-        TTransport transport;
-        transport = socket;
+        TTransport transport = new TFramedTransport(socket);
         TBinaryProtocol binaryProtocol = new TBinaryProtocol(transport, false, false);
         Cassandra.Client cassandraClient = new Cassandra.Client(binaryProtocol);
         transport.open();
