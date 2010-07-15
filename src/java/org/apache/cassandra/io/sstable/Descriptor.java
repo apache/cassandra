@@ -25,6 +25,11 @@ public class Descriptor
     public final boolean temporary;
     private final int hashCode;
 
+    public final boolean hasStringsInBloomFilter;
+    public final boolean hasIntRowSize;
+    public final boolean hasEncodedKeys;
+    public final boolean isLatestVersion;
+
     /**
      * A descriptor that assumes CURRENT_VERSION.
      */
@@ -43,6 +48,11 @@ public class Descriptor
         this.generation = generation;
         temporary = temp;
         hashCode = Objects.hashCode(directory, generation, ksname, cfname);
+
+        hasStringsInBloomFilter = version.compareTo("c") < 0;
+        hasIntRowSize = version.compareTo("d") < 0;
+        hasEncodedKeys = version.compareTo("e") < 0;
+        isLatestVersion = version.compareTo(CURRENT_VERSION) == 0;
     }
 
     /**
@@ -148,25 +158,5 @@ public class Descriptor
     public int hashCode()
     {
         return hashCode;
-    }
-
-    public boolean hasStringsInBloomFilter()
-    {
-        return version.compareTo("c") < 0;
-    }
-
-    public boolean hasIntRowSize()
-    {
-        return version.compareTo("d") < 0;
-    }
-
-    public boolean hasEncodedKeys()
-    {
-        return version.compareTo("e") < 0;
-    }
-
-    public boolean isLatestVersion()
-    {
-        return version.compareTo(CURRENT_VERSION) == 0;
     }
 }

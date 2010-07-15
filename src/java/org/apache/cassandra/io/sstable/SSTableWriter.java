@@ -267,7 +267,9 @@ public class SSTableWriter extends SSTable
      */
     public static SSTableReader recoverAndOpen(Descriptor desc) throws IOException
     {
-        if (!desc.isLatestVersion())
+        if (!desc.isLatestVersion)
+            // TODO: streaming between different versions will fail: need support for
+            // recovering other versions to provide a stable streaming api
             throw new RuntimeException(String.format("Cannot recover SSTable with version %s (current version %s).",
                                                      desc.version, Descriptor.CURRENT_VERSION));
 

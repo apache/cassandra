@@ -182,7 +182,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         SSTableReader sstable = new SSTableReader(desc, partitioner, null, null, null, null, System.currentTimeMillis());
 
         // versions before 'c' encoded keys as utf-16 before hashing to the filter
-        if (desc.hasStringsInBloomFilter())
+        if (desc.hasStringsInBloomFilter)
         {
             sstable.load(true);
         }
@@ -551,7 +551,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     public static long readRowSize(DataInput in, Descriptor d) throws IOException
     {
-        if (d.hasIntRowSize())
+        if (d.hasIntRowSize)
             return in.readInt();
         return in.readLong();
     }
@@ -561,7 +561,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
      */
     public static DecoratedKey decodeKey(IPartitioner p, Descriptor d, byte[] bytes)
     {
-        if (d.hasEncodedKeys())
+        if (d.hasEncodedKeys)
             return p.convertFromDiskFormat(bytes);
         return p.decorateKey(bytes);
     }
