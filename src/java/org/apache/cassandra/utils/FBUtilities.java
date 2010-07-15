@@ -25,7 +25,6 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.nio.charset.CharsetDecoder;
 import java.security.MessageDigest;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
@@ -508,7 +507,7 @@ public class FBUtilities
         return scpurl.getFile();
     }
 
-    public static String getCassandraVersionString()
+    public static String getReleaseVersionString()
     {
         try
         {

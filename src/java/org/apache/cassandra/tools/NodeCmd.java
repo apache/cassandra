@@ -75,7 +75,7 @@ public class NodeCmd {
     {
         HelpFormatter hf = new HelpFormatter();
         String header = String.format(
-                "%nAvailable commands: ring, info, cleanup, compact, cfstats, snapshot [snapshotname], clearsnapshot, " +
+                "%nAvailable commands: ring, info, version, cleanup, compact, cfstats, snapshot [snapshotname], clearsnapshot, " +
                 "tpstats, flush, drain, repair, decommission, move, loadbalance, removetoken, " +
                 "setcachecapacity <keyspace> <cfname> <keycachecapacity> <rowcachecapacity>, " +
                 "getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold]), " +
@@ -187,6 +187,11 @@ public class NodeCmd {
         double memUsed = (double)heapUsage.getUsed() / (1024 * 1024);
         double memMax = (double)heapUsage.getMax() / (1024 * 1024);
         outs.println(String.format("%-17s: %.2f / %.2f", "Heap Memory (MB)", memUsed, memMax));
+    }
+
+    public void printReleaseVersion(PrintStream outs)
+    {
+        outs.println("ReleaseVersion: " + probe.getReleaseVersion());
     }
 
     public void printStreamInfo(final InetAddress addr, PrintStream outs)
@@ -555,6 +560,10 @@ public class NodeCmd {
         {
             String otherHost = arguments.length > 1 ? arguments[1] : null;
             nodeCmd.printStreamInfo(otherHost == null ? null : InetAddress.getByName(otherHost), System.out);
+        }
+        else if (cmdName.equals("version"))
+        {
+            nodeCmd.printReleaseVersion(System.out);
         }
         else
         {

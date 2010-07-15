@@ -73,6 +73,12 @@ public interface StorageServiceMBean
     public String getToken();
 
     /**
+     * Fetch a string representation of the Cassandra version.
+     * @return A string representation of the Cassandra version.
+     */
+    public String getReleaseVersion();
+
+    /**
      * Retrieve a map of range to end points that describe the ring topology
      * of a Cassandra cluster.
      *

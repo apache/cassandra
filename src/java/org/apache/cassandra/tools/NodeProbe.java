@@ -237,7 +237,12 @@ public class NodeProbe
     {
         return ssProxy.getLoadString();
     }
-    
+
+    public String getReleaseVersion()
+    {
+        return ssProxy.getReleaseVersion();
+    }
+
     public int getCurrentGenerationNumber()
     {
         return ssProxy.getCurrentGenerationNumber();

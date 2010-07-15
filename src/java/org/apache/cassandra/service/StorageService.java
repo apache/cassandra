@@ -331,7 +331,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public synchronized void initServer() throws IOException
     {
-        logger_.info("Cassandra version: " + FBUtilities.getCassandraVersionString());
+        logger_.info("Cassandra version: " + FBUtilities.getReleaseVersionString());
         logger_.info("Thrift API version: " + Constants.VERSION);
 
         if (initialized)
@@ -995,11 +995,16 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return storageMetadata_.getToken();
     }
 
-    /* This methods belong to the MBean interface */
+    /* These methods belong to the MBean interface */
 
     public String getToken()
     {
         return getLocalToken().toString();
+    }
+
+    public String getReleaseVersion()
+    {
+        return FBUtilities.getReleaseVersionString();
     }
 
     public Set<String> getLeavingNodes()
