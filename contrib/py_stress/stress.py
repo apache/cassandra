@@ -75,8 +75,8 @@ parser.add_option('-f', '--file', type="string", dest="file",
                   help="write output to file")
 parser.add_option('-p', '--port', type="int", default=9160, dest="port",
                   help="thrift port")
-parser.add_option('-m', '--unframed', action="store_false", dest="framed",
-                  help="use framed transport")
+parser.add_option('-m', '--unframed', action="store_true", dest="unframed",
+                  help="use unframed transport")
 parser.add_option('-o', '--operation', type="choice", dest="operation",
                   default="insert", choices=('insert', 'read', 'rangeslice'),
                   help="operation to perform")
@@ -139,12 +139,12 @@ if options.random:
     key_generator = key_generator_random
 
 
-def get_client(host='127.0.0.1', port=9160, framed=True):
+def get_client(host='127.0.0.1', port=9160):
     socket = TSocket.TSocket(host, port)
-    if framed:
-        transport = TTransport.TFramedTransport(socket)
-    else:
+    if options.unframed:
         transport = TTransport.TBufferedTransport(socket)
+    else:
+        transport = TTransport.TFramedTransport(socket)
     protocol = TBinaryProtocol.TBinaryProtocolAccelerated(transport)
     client = Cassandra.Client(protocol)
     client.transport = transport
@@ -154,7 +154,7 @@ def make_keyspaces():
     cfams = [CfDef('Keyspace1', 'Standard1'),
              CfDef('Keyspace1', 'Super1', 'Super')]
     keyspace = KsDef('Keyspace1', 'org.apache.cassandra.locator.RackUnawareStrategy', options.replication, cfams)
-    client = get_client(nodes[0], options.port, options.framed)
+    client = get_client(nodes[0], options.port)
     client.transport.open()
     try:
         client.system_add_keyspace(keyspace)
@@ -180,7 +180,7 @@ class Operation(Thread):
         # random host for pseudo-load-balancing
         [hostname] = random.sample(nodes, 1)
         # open client
-        self.cclient = get_client(hostname, options.port, options.framed)
+        self.cclient = get_client(hostname, options.port)
         self.cclient.transport.open()
         self.cclient.set_keyspace('Keyspace1')
 
