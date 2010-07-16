@@ -32,7 +32,7 @@ public class CliOptions {
     // Command line options
     private static final String HOST_OPTION = "host";
     private static final String PORT_OPTION = "port";
-    private static final String FRAME_OPTION = "framed";
+    private static final String UNFRAME_OPTION = "unframed";
     private static final String DEBUG_OPTION = "debug";
     private static final String USERNAME_OPTION = "username";
     private static final String PASSWORD_OPTION = "password";
@@ -48,7 +48,7 @@ public class CliOptions {
         options = new Options();
         options.addOption(HOST_OPTION, true, "cassandra server's host name");
         options.addOption(PORT_OPTION, true, "cassandra server's thrift port");  
-        options.addOption(FRAME_OPTION, false, "cassandra server's framed transport");  
+        options.addOption(UNFRAME_OPTION, false, "cassandra server's framed transport");
         options.addOption(DEBUG_OPTION, false, "display stack traces");  
         options.addOption(USERNAME_OPTION, true, "username for cassandra authentication");
         options.addOption(PASSWORD_OPTION, true, "password for cassandra authentication");
@@ -58,7 +58,7 @@ public class CliOptions {
     private static void printUsage()
     {
         System.err.println("");
-        System.err.println("Usage: cassandra-cli --host hostname [--port <portname>] [--framed] [--debug] [--username username] [--password password] [--keyspace keyspace]");
+        System.err.println("Usage: cassandra-cli --host hostname [--port <portname>] [--unframed] [--debug] [--username username] [--password password] [--keyspace keyspace]");
         System.err.println("");
     }
 
@@ -94,9 +94,9 @@ public class CliOptions {
         }
 
         // Look to see if frame has been specified
-        if (cmd.hasOption(FRAME_OPTION))
+        if (cmd.hasOption(UNFRAME_OPTION))
         {
-            css.framed = true;
+            css.framed = false;
         }
 
         // Look to see if frame has been specified
