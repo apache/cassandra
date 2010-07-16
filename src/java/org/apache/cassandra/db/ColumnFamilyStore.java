@@ -528,7 +528,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (byte[] cname : cf.getColumnNames())
         {
             IColumn c = cf.getColumnsMap().get(cname);
-            // we split the test to avoid comparing if not necessary
+            // remove columns if
+            // (a) the column itself is tombstoned or
+            // (b) the CF is tombstoned and the column is not newer than it
+            // (we split the test to avoid computing ClockRelationship if not necessary)
             if ((c.isMarkedForDelete() && c.getLocalDeletionTime() <= gcBefore))
             {
                 cf.remove(cname);
@@ -556,7 +559,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             IClock minClock = c.getMarkedForDeleteAt().getSuperset(clocks);
             for (IColumn subColumn : c.getSubColumns())
             {
-                // we split the test to avoid comparing if not necessary
+                // remove subcolumns if
+                // (a) the subcolumn itself is tombstoned or
+                // (b) the supercolumn is tombstoned and the subcolumn is not newer than it
+                // (we split the test to avoid computing ClockRelationship if not necessary)
                 if (subColumn.isMarkedForDelete() && subColumn.getLocalDeletionTime() <= gcBefore)
                 {
                     ((SuperColumn)c).remove(subColumn.name());
