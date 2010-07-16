@@ -48,9 +48,12 @@ import java.nio.channels.ServerSocketChannel;
 import java.security.MessageDigest;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.TimerTask;
+import java.util.Timer;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class MessagingService implements IFailureDetectionEventListener
 {
@@ -77,11 +80,13 @@ public class MessagingService implements IFailureDetectionEventListener
     private static NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool> connectionManagers_ = new NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool>();
     
     private static Logger logger_ = LoggerFactory.getLogger(MessagingService.class);
-    
+    private static int LOG_DROPPED_INTERVAL_IN_MS = 1000;
+
     public static final MessagingService instance = new MessagingService();
 
     private SocketThread socketThread;
     private SimpleCondition listenGate;
+    private static AtomicInteger droppedMessages = new AtomicInteger();
 
     public Object clone() throws CloneNotSupportedException
     {
@@ -111,6 +116,15 @@ public class MessagingService implements IFailureDetectionEventListener
                                                                         new NamedThreadFactory("MESSAGE-DESERIALIZER-POOL"));
 
         streamExecutor_ = new JMXEnabledThreadPoolExecutor("MESSAGE-STREAMING-POOL");
+        TimerTask logDropped = new TimerTask()
+        {
+            public void run()
+            {
+                logDroppedMessages();
+            }
+        };
+        Timer timer = new Timer("DroppedMessagesLogger");
+        timer.schedule(logDropped, LOG_DROPPED_INTERVAL_IN_MS, LOG_DROPPED_INTERVAL_IN_MS);
     }
 
     public byte[] hash(String type, byte data[])
@@ -486,7 +500,19 @@ public class MessagingService implements IFailureDetectionEventListener
         buffer.flip();
         return buffer;
     }
-    
+
+    public static int incrementDroppedMessages()
+    {
+        return droppedMessages.incrementAndGet();
+    }
+               
+    private static void logDroppedMessages()
+    {
+        if (droppedMessages.get() > 0)
+            logger_.warn("Dropped " + droppedMessages + " messages in the last " + LOG_DROPPED_INTERVAL_IN_MS + "ms");
+        droppedMessages.set(0);
+    }
+
     private class SocketThread extends Thread
     {
         private final ServerSocket server;

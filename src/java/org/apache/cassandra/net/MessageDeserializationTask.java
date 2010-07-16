@@ -45,8 +45,7 @@ class MessageDeserializationTask extends WrappedRunnable
     {
         if (System.currentTimeMillis() >  constructionTime + DatabaseDescriptor.getRpcTimeout())
         {
-            logger.warn(String.format("dropping message (%,dms past timeout)",
-                                      System.currentTimeMillis() - (constructionTime + DatabaseDescriptor.getRpcTimeout())));
+            MessagingService.incrementDroppedMessages();
             return;
         }
 
