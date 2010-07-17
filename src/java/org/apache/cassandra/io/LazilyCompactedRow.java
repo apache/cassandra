@@ -117,7 +117,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
 
     public boolean isEmpty()
     {
-        boolean cfIrrelevant = ColumnFamilyStore.removeDeleted(emptyColumnFamily, gcBefore) == null;
+        boolean cfIrrelevant = ColumnFamilyStore.removeDeletedCF(emptyColumnFamily, gcBefore) == null;
         return cfIrrelevant && columnCount == 0;
     }
 

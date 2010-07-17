@@ -496,6 +496,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         writeStats_.addNano(System.nanoTime() - start);
     }
 
+    public static ColumnFamily removeDeletedCF(ColumnFamily cf, int gcBefore)
+    {
+        // in case of a timestamp tie, tombstones get priority over non-tombstones.
+        // (we want this to be deterministic to avoid confusion.)
+        if (cf.getColumnCount() == 0 && cf.getLocalDeletionTime() <= gcBefore)
+            return null;
+        return cf;
+    }
+
     /*
      This is complicated because we need to preserve deleted columns, supercolumns, and columnfamilies
      until they have been deleted for at least GC_GRACE_IN_SECONDS.  But, we do not need to preserve
@@ -509,25 +518,24 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             return null;
         }
 
+        removeDeletedColumnsOnly(cf, gcBefore);
+        return removeDeletedCF(cf, gcBefore);
+    }
+
+    private static void removeDeletedColumnsOnly(ColumnFamily cf, int gcBefore)
+    {
         if (cf.isSuper())
             removeDeletedSuper(cf, gcBefore);
         else
             removeDeletedStandard(cf, gcBefore);
-
-        // in case of a timestamp tie, tombstones get priority over non-tombstones.
-        // (we want this to be deterministic to avoid confusion.)
-        if (cf.getColumnCount() == 0 && cf.getLocalDeletionTime() <= gcBefore)
-        {
-            return null;
-        }
-        return cf;
     }
 
     private static void removeDeletedStandard(ColumnFamily cf, int gcBefore)
     {
-        for (byte[] cname : cf.getColumnNames())
+        for (Map.Entry<byte[], IColumn> entry : cf.getColumnsMap().entrySet())
         {
-            IColumn c = cf.getColumnsMap().get(cname);
+            byte[] cname = entry.getKey();
+            IColumn c = entry.getValue();
             // remove columns if
             // (a) the column itself is tombstoned or
             // (b) the CF is tombstoned and the column is not newer than it
@@ -552,9 +560,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // TODO assume deletion means "most are deleted?" and add to clone, instead of remove from original?
         // this could be improved by having compaction, or possibly even removeDeleted, r/m the tombstone
         // once gcBefore has passed, so if new stuff is added in it doesn't used the wrong algorithm forever
-        for (byte[] cname : cf.getColumnNames())
+        for (Map.Entry<byte[], IColumn> entry : cf.getColumnsMap().entrySet())
         {
-            IColumn c = cf.getColumnsMap().get(cname);
+            SuperColumn c = (SuperColumn) entry.getValue();
             List<IClock> clocks = Arrays.asList(cf.getMarkedForDeleteAt());
             IClock minClock = c.getMarkedForDeleteAt().getSuperset(clocks);
             for (IColumn subColumn : c.getSubColumns())
@@ -565,14 +573,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 // (we split the test to avoid computing ClockRelationship if not necessary)
                 if (subColumn.isMarkedForDelete() && subColumn.getLocalDeletionTime() <= gcBefore)
                 {
-                    ((SuperColumn)c).remove(subColumn.name());
+                    c.remove(subColumn.name());
                 }
                 else
                 {
                     ClockRelationship subRel = subColumn.clock().compare(minClock);
                     if ((ClockRelationship.LESS_THAN == subRel) || (ClockRelationship.EQUAL == subRel))
                     {
-                        ((SuperColumn)c).remove(subColumn.name());
+                        c.remove(subColumn.name());
                     }
                 }
             }
@@ -783,6 +791,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return getColumnFamily(QueryFilter.getSliceFilter(key, path, start, finish, null, reversed, limit));
     }
 
+    /**
+     * get a list of columns starting from a given column, in a specified order.
+     * only the latest version of a column is returned.
+     * @return null if there is no data and no tombstones; otherwise a ColumnFamily
+     */
     public ColumnFamily getColumnFamily(QueryFilter filter)
     {
         return getColumnFamily(filter, CompactionManager.getDefaultGCBefore());
@@ -801,12 +814,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return cached;
     }
 
-    /**
-     * get a list of columns starting from a given column, in a specified order.
-     * only the latest version of a column is returned.
-     * @return null if there is no data and no tombstones; otherwise a ColumnFamily
-     */
-    public ColumnFamily getColumnFamily(QueryFilter filter, int gcBefore)
+    private ColumnFamily getColumnFamily(QueryFilter filter, int gcBefore)
     {
         assert columnFamily_.equals(filter.getColumnFamilyName());
 
@@ -814,17 +822,37 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         try
         {
             if (ssTables_.getRowCache().getCapacity() == 0)
-                return removeDeleted(getTopLevelColumns(filter, gcBefore), gcBefore);
+            {
+                ColumnFamily cf = getTopLevelColumns(filter, gcBefore);
+                // TODO this is necessary because when we collate supercolumns together, we don't check
+                // their subcolumns for relevance, so we need to do a second prune post facto here.
+                return cf.isSuper() ? removeDeleted(cf, gcBefore) : removeDeletedCF(cf, gcBefore);
+            }
 
             ColumnFamily cached = cacheRow(filter.key);
             if (cached == null)
                 return null;
+            
+            // special case slicing the entire row:
+            // we can skip the filter step entirely, and we can help out removeDeleted by re-caching the result
+            // if any tombstones have aged out since last time.  (This means that the row cache will treat gcBefore as
+            // max(gcBefore, all previous gcBefore), which is fine for correctness.)
+            if (filter.filter instanceof SliceQueryFilter)
+            {
+                SliceQueryFilter sliceFilter = (SliceQueryFilter) filter.filter;
+                if (sliceFilter.start.length == 0 && sliceFilter.finish.length == 0 && sliceFilter.count > cached.getColumnCount())
+                {
+                    removeDeletedColumnsOnly(cached, gcBefore);
+                    return removeDeletedCF(cached, gcBefore);
+                }
+            }
+            
             IColumnIterator ci = filter.getMemtableColumnIterator(cached, null, getComparator());
-            ColumnFamily returnCF = ci.getColumnFamily().cloneMeShallow();
-            filter.collectCollatedColumns(returnCF, ci, gcBefore);
+            ColumnFamily cf = ci.getColumnFamily().cloneMeShallow();
+            filter.collectCollatedColumns(cf, ci, gcBefore);
             // TODO this is necessary because when we collate supercolumns together, we don't check
             // their subcolumns for relevance, so we need to do a second prune post facto here.
-            return removeDeleted(returnCF, gcBefore);
+            return cf.isSuper() ? removeDeleted(cf, gcBefore) : removeDeletedCF(cf, gcBefore);
         }
         catch (IOException e)
         {
@@ -878,7 +906,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             Comparator<IColumn> comparator = QueryFilter.getColumnComparator(getComparator());
             Iterator collated = IteratorUtils.collatedIterator(comparator, iterators);
             filter.collectCollatedColumns(returnCF, collated, gcBefore);
-            return returnCF; // caller is responsible for final removeDeleted
+            // Caller is responsible for final removeDeletedCF.  This is important for cacheRow to work correctly:
+            // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)
+            // and "there used to be data, but it's gone now" (we should cache the empty CF so we don't need to rebuild that slower)
+            return returnCF;
         }
         catch (IOException e)
         {

@@ -81,7 +81,6 @@ public class SliceQueryFilter implements IFilter
                : getBitmaskMatchColumnPredicate();
     }
 
-
     public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore)
     {
         // we clone shallow, then add, under the theory that generally we're interested in a relatively small number of subcolumns.

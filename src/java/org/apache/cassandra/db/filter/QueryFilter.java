@@ -40,7 +40,7 @@ public class QueryFilter
 
     public final DecoratedKey key;
     public final QueryPath path;
-    private final IFilter filter;
+    public final IFilter filter;
     private final IFilter superFilter;
 
     public QueryFilter(DecoratedKey key, QueryPath path, IFilter filter)

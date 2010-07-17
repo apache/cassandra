@@ -238,9 +238,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 
             public IColumn next()
             {
-                // clone supercolumns so caller can freely removeDeleted or otherwise mutate it
-                // TODO can't the callers that wish to mutate it clone it themselves?
-                return isSuper ? ((SuperColumn) filteredIter.next()).cloneMe() : filteredIter.next();
+                return filteredIter.next();
             }
         };
     }

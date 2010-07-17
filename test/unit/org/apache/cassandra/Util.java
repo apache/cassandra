@@ -105,4 +105,9 @@ public class Util
         assert cfStore != null : "Column family " + cfName + " has not been defined";
         return cfStore.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName)));
     }
+
+    public static ColumnFamily cloneAndRemoveDeleted(ColumnFamily cf, int gcBefore)
+    {
+        return ColumnFamilyStore.removeDeleted(cf.cloneMe(), gcBefore);
+    }
 }
