@@ -21,6 +21,7 @@ Features
     - optional round-robin scheduling between keyspaces for multitenant
       clusters
     - dynamic endpoint snitch mitigates the impact of impaired nodes
+    - significantly faster reads from row cache
 
 Configuraton
 ------------

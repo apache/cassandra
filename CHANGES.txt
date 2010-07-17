@@ -43,6 +43,7 @@ dev
    (CASSANDRA-685)
  * make framed transport the default so malformed requests can't OOM the 
    server (CASSANDRA-475)
+ * significantly faster reads from row cache (CASSANDRA-1267)
 
 
 0.6.4
