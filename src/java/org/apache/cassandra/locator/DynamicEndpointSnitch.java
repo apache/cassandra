@@ -45,9 +45,9 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILatencySubscriber, DynamicEndpointSnitchMBean
 {
-    private static int UPDATES_PER_INTERVAL = 100;
-    private static int UPDATE_INTERVAL_IN_MS = 1000;
-    private static int RESET_INTERVAL_IN_MS = 60000;
+    private static int UPDATES_PER_INTERVAL = 10000;
+    private static int UPDATE_INTERVAL_IN_MS = 100;
+    private static int RESET_INTERVAL_IN_MS = 60000 * 10;
     private static int WINDOW_SIZE = 100;
     private boolean registered = false;
 
@@ -199,7 +199,11 @@ class AdaptiveLatencyTracker extends AbstractStatsDeque
 
     public void add(double i)
     {
-        latencies.offer(i);
+        if (!latencies.offer(i))
+        {
+            latencies.remove();
+            latencies.offer(i);
+        }
     }
 
     public void clear()

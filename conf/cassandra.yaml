@@ -148,7 +148,7 @@ endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
 # wrapped with a dynamic snitch, which will monitor read latencies
 # and avoid reading from hosts that have slowed (due to compaction,
 # for instance)
-dynamic_snitch: false
+dynamic_snitch: true
 
 # request_scheduler -- Set this to a class that implements
 # RequestScheduler, which will schedule incoming client requests
