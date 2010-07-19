@@ -10,6 +10,8 @@
    (CASSANDRA-1280, CASSANDRA-1047)
  * log thread pool stats when GC is excessive (CASSANDRA-1275)
  * log errors in gossip instead of re-throwing (CASSANDRA-1289)
+ * avoid aborting commitlog replay prematurely if a flushed-but-
+   not-removed commitlog segment is encountered (CASSANDRA-1297)
 
 
 0.6.3

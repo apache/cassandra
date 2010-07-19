@@ -197,7 +197,7 @@ public class CommitLog
             /* seek to the lowest position where any CF has non-flushed data */
             int lowPos = CommitLogHeader.getLowestPosition(clHeader);
             if (lowPos == 0)
-                break;
+                continue;
 
             reader.seek(lowPos);
             if (logger.isDebugEnabled())
