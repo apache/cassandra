@@ -21,12 +21,11 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.File;
 import java.io.IOException;
-
 import java.util.*;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.service.StorageService;
 
 public class SSTableUtils
 {
@@ -78,7 +77,7 @@ public class SSTableUtils
         {
             DataOutputBuffer buffer = new DataOutputBuffer();
             ColumnFamily.serializer().serializeWithIndexes(entry.getValue(), buffer);
-            map.put(entry.getKey().getBytes(), buffer.getData());
+            map.put(entry.getKey().getBytes(), Arrays.copyOf(buffer.getData(), buffer.getLength()));
         }
         return writeRawSSTable(TABLENAME, CFNAME, map);
     }
