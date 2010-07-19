@@ -131,10 +131,10 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
      */
     public Set<Range> intersectionWith(Range that)
     {
-        if (this.contains(that))
-            return rangeSet(that);
         if (that.contains(this))
             return rangeSet(this);
+        if (this.contains(that))
+            return rangeSet(that);
 
         boolean thiswraps = isWrapAround(left, right);
         boolean thatwraps = isWrapAround(that.left, that.right);

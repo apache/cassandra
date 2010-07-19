@@ -895,7 +895,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
        range_slice.  still opens one randomaccessfile per key, which sucks.  something like compactioniterator
        would be better.
      */
-    private boolean getKeyRange(List<String> keys, final AbstractBounds range, int maxResults)
+    private void getKeyRange(List<String> keys, final AbstractBounds range, int maxResults)
     throws IOException, ExecutionException, InterruptedException
     {
         final DecoratedKey startWith = new DecoratedKey(range.left, null);
@@ -974,21 +974,22 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 if (!stopAt.isEmpty() && stopAt.compareTo(current) < 0)
                 {
-                    return true;
+                    return;
                 }
 
                 if (range instanceof Bounds || !first || !current.equals(startWith))
                 {
+                    if (logger_.isDebugEnabled())
+                        logger_.debug("scanned " + current.key + " with token of " + StorageService.getPartitioner().getToken(current.key));
                     keys.add(current.key);
                 }
                 first = false;
 
                 if (keys.size() >= maxResults)
                 {
-                    return true;
+                    return;
                 }
             }
-            return false;
         }
         finally
         {
@@ -1017,23 +1018,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     throws IOException, ExecutionException, InterruptedException
     {
         List<String> keys = new ArrayList<String>();
-        boolean completed;
-        if ((range instanceof Bounds || !((Range)range).isWrapAround()))
-        {
-            completed = getKeyRange(keys, range, keyMax);
-        }
-        else
-        {
-            // wrapped range
-            Token min = StorageService.getPartitioner().getMinimumToken();
-            Range first = new Range(range.left, min);
-            completed = getKeyRange(keys, first, keyMax);
-            if (!completed && min.compareTo(range.right) < 0)
-            {
-                Range second = new Range(min, range.right);
-                getKeyRange(keys, second, keyMax);
-            }
-        }
+        assert range instanceof Bounds
+               || (!((Range)range).isWrapAround() || range.right.equals(StorageService.getPartitioner().getMinimumToken()))
+               : range;
+        getKeyRange(keys, range, keyMax);
         List<Row> rows = new ArrayList<Row>(keys.size());
         final QueryPath queryPath =  new QueryPath(columnFamily_, super_column, null);
         final SortedSet<byte[]> columnNameSet = new TreeSet<byte[]>(getComparator());

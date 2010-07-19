@@ -12,6 +12,7 @@
  * log errors in gossip instead of re-throwing (CASSANDRA-1289)
  * avoid aborting commitlog replay prematurely if a flushed-but-
    not-removed commitlog segment is encountered (CASSANDRA-1297)
+ * fix duplicate rows being read during mapreduce (CASSANDRA-1142)
 
 
 0.6.3
