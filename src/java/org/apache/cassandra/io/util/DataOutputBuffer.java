@@ -97,10 +97,4 @@ public class DataOutputBuffer extends DataOutputStream
         buffer.reset();
         return this;
     }
-    
-    /** Writes bytes from a DataInput directly into the buffer. */
-    public void write(DataInput in, int length) throws IOException
-    {
-        buffer.write(in, length);
-    }   
 }
