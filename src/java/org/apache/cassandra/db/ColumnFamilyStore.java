@@ -980,7 +980,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 if (range instanceof Bounds || !first || !current.equals(startWith))
                 {
                     if (logger_.isDebugEnabled())
-                        logger_.debug("scanned " + current.key + " with token of " + StorageService.getPartitioner().getToken(current.key));
+                        logger_.debug("scanned " + current);
                     keys.add(current.key);
                 }
                 first = false;
