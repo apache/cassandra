@@ -97,7 +97,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndpointStateC
             }
             catch (Exception e)
             {
-                throw new RuntimeException(e);
+                logger_.error("Gossip error", e);
             }
         }
     }
