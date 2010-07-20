@@ -55,7 +55,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class MessagingService implements IFailureDetectionEventListener
+public class MessagingService
 {
     private static int version_ = 1;
     //TODO: make this parameter dynamic somehow.  Not sure if config is appropriate.
@@ -142,7 +142,7 @@ public class MessagingService implements IFailureDetectionEventListener
         return result;
     }
 
-    /** called by failure detection code to notify that housekeeping should be performed on downed sockets. */
+    /** called from gossiper when it notices a node is not responding. */
     public void convict(InetAddress ep)
     {
         logger_.trace("Resetting pool for " + ep);

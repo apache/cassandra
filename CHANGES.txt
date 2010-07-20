@@ -61,6 +61,7 @@ dev
  * log errors in gossip instead of re-throwing (CASSANDRA-1289)
  * avoid aborting commitlog replay prematurely if a flushed-but-
    not-removed commitlog segment is encountered (CASSANDRA-1297)
+ * failure detection wasn't closing command sockets (CASSANDRA-1221)
 
 
 0.6.3
