@@ -123,4 +123,9 @@ public class RoundRobinScheduler implements IRequestScheduler
         // another thread created the queue
         return queue;
     }
+
+    Semaphore getTaskCount()
+    {
+        return taskCount;
+    }
 }

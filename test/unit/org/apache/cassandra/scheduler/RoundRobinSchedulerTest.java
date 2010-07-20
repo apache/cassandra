@@ -39,7 +39,7 @@ import org.junit.Test;
 public class RoundRobinSchedulerTest
 {
     ExecutorService executor;
-    IRequestScheduler scheduler;
+    RoundRobinScheduler scheduler;
     AtomicInteger counter = new AtomicInteger(0);
     static final String KS1 = "TestKeyspace";
     static final String KS2 = "DevKeyspace";
@@ -51,7 +51,8 @@ public class RoundRobinSchedulerTest
     public void setUp()
     {
         RequestSchedulerOptions options = new RequestSchedulerOptions();
-        options.throttle_limit = 5;
+        // Block the scheduler from running initially
+        options.throttle_limit = -1;
         scheduler = new RoundRobinScheduler(options);
         SynchronousQueue<Runnable> queue = new SynchronousQueue<Runnable>();
 
@@ -66,7 +67,9 @@ public class RoundRobinSchedulerTest
         runKs1(1, 10);
         runKs2(11, 13);
         runKs3(14, 15);
-
+        // Release some tasks for the scheduler to run, now that the requests
+        // are queued in their various buckets, behavior will be more predictable
+        scheduler.getTaskCount().release(2);
         try
         {
             Thread.sleep(3000);
