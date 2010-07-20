@@ -147,7 +147,7 @@ public class CommitLogHeader
 
     int getReplayPosition()
     {
-        return cfDirtiedAt.isEmpty() ? 0 : Collections.min(cfDirtiedAt.values());
+        return cfDirtiedAt.isEmpty() ? -1 : Collections.min(cfDirtiedAt.values());
     }
 
     static class CommitLogHeaderSerializer implements ICompactSerializer2<CommitLogHeader>

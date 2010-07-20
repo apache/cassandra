@@ -33,7 +33,7 @@ public class CommitLogHeaderTest extends SchemaLoader
     public void testEmptyHeader()
     {
         CommitLogHeader clh = new CommitLogHeader();
-        assert clh.getReplayPosition() == 0;
+        assert clh.getReplayPosition() < 0;
     }
     
     @Test
@@ -47,14 +47,7 @@ public class CommitLogHeaderTest extends SchemaLoader
         clh.turnOn(65, 2);
         assert clh.getReplayPosition() == 0;
     }
-    
-    @Test
-    public void lowestPositionEmpty()
-    {
-        CommitLogHeader clh = new CommitLogHeader();
-        assert clh.getReplayPosition() == 0;
-    }
-    
+        
     @Test
     public void constantSize() throws IOException
     {
