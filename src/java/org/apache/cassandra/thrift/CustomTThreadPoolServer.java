@@ -164,7 +164,11 @@ private class WorkerProcess implements Runnable {
 		outputProtocol = outputProtocolFactory_.getProtocol(outputTransport);
 		// we check stopped_ first to make sure we're not supposed to be shutting
 		// down. this is necessary for graceful shutdown.
-		while (!stopped_ && processor.process(inputProtocol, outputProtocol)) {}
+		while (!stopped_ && processor.process(inputProtocol, outputProtocol)) 
+		{
+		    inputProtocol = inputProtocolFactory_.getProtocol(inputTransport);
+		    outputProtocol = outputProtocolFactory_.getProtocol(outputTransport);
+		}
 	} catch (TTransportException ttx) {
 		// Assume the client died and continue silently
 	} catch (TException tx) {
