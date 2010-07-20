@@ -874,7 +874,10 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
             deliverHints(endpoint);
     }
 
-    public void onDead(InetAddress endpoint, EndPointState state) {}
+    public void onDead(InetAddress endpoint, EndPointState state) 
+    {
+        MessagingService.instance.convict(endpoint);
+    }
 
     /** raw load value */
     public double getLoad()

@@ -84,6 +84,9 @@ public class OutboundTcpConnection extends Thread
             }
             if (socket != null || connect())
                 writeConnected(bb);
+            else
+                // clear out the queue, else gossip messages back up.
+                queue.clear();            
         }
     }
 

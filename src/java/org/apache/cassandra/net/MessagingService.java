@@ -50,7 +50,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-public class MessagingService implements IFailureDetectionEventListener
+public class MessagingService
 {
     private static int version_ = 1;
     //TODO: make this parameter dynamic somehow.  Not sure if config is appropriate.
@@ -129,7 +129,7 @@ public class MessagingService implements IFailureDetectionEventListener
     /** called by failure detection code to notify that housekeeping should be performed on downed sockets. */
     public void convict(InetAddress ep)
     {
-        logger_.trace("Resetting pool for " + ep);
+        logger_.debug("Resetting pool for " + ep);
         getConnectionPool(ep).reset();
     }
 
