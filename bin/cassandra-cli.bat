@@ -25,7 +25,7 @@ REM Ensure that any user defined CLASSPATH variables are not used on startup
 set CLASSPATH=
 
 REM For each jar in the CASSANDRA_HOME lib directory call append to build the CLASSPATH variable.
-for %%i in (%CASSANDRA_HOME%\lib\*.jar) do call :append %%~fi
+for %%i in ("%CASSANDRA_HOME%\lib\*.jar") do call :append "%%i"
 goto okClasspath
 
 :append
@@ -34,12 +34,12 @@ goto :eof
 
 :okClasspath
 REM Include the build\classes directory so it works in development
-set CASSANDRA_CLASSPATH=%CLASSPATH%;%CASSANDRA_HOME%\build\classes
+set CASSANDRA_CLASSPATH=%CLASSPATH%;"%CASSANDRA_HOME%\build\classes"
 goto runCli
 
 :runCli
 echo Starting Cassandra Client
-"%JAVA_HOME%\bin\java" -cp "%CASSANDRA_CLASSPATH%" org.apache.cassandra.cli.CliMain %*
+"%JAVA_HOME%\bin\java" -cp %CASSANDRA_CLASSPATH% org.apache.cassandra.cli.CliMain %*
 goto finally
 
 :err
