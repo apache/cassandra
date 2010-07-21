@@ -62,8 +62,6 @@ public class DatabaseDescriptor
 {
     private static Logger logger = LoggerFactory.getLogger(DatabaseDescriptor.class);
 
-    public static final String random = "RANDOM";
-    public static final String ophf = "OPHF";
     private static IEndpointSnitch snitch;
     private static InetAddress listenAddress; // leave null so we can fall through to getLocalHost
     private static InetAddress rpcAddress;

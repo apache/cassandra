@@ -20,9 +20,13 @@ package org.apache.cassandra.config;
 
 import static org.junit.Assert.assertNotNull;
 
+import org.apache.avro.specific.SpecificRecord;
+
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.migration.AddKeyspace;
 import org.apache.cassandra.locator.RackUnawareStrategy;
+import org.apache.cassandra.io.SerDeUtils;
+import org.apache.cassandra.io.util.OutputBuffer;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -31,6 +35,13 @@ import java.util.UUID;
 
 public class DatabaseDescriptorTest
 {
+    protected <D extends SpecificRecord> D serDe(D record) throws IOException
+    {
+        D actual = SerDeUtils.<D>deserialize(record.getSchema(), SerDeUtils.serialize(record));
+        assert actual.equals(record) : actual + " != " + record;
+        return actual;
+    }
+
     @Test
     public void testShouldHaveConfigFileNameAvailable()
     {
@@ -45,22 +56,19 @@ public class DatabaseDescriptorTest
         {
             for (CFMetaData cfm : DatabaseDescriptor.getTableMetaData(table).values())
             {
-                byte[] ser = CFMetaData.serialize(cfm);
-                CFMetaData cfmDupe = CFMetaData.deserialize(new ByteArrayInputStream(ser));
+                CFMetaData cfmDupe = CFMetaData.inflate(serDe(cfm.deflate()));
                 assert cfmDupe != null;
                 assert cfmDupe.equals(cfm);
             }
         }
-
     }
 
     @Test
-    public void testKSMetaDataSerialization() throws IOException 
+    public void testKSMetaDataSerialization() throws IOException, ConfigurationException
     {
         for (KSMetaData ksm : DatabaseDescriptor.tables.values())
         {
-            byte[] ser = KSMetaData.serialize(ksm);
-            KSMetaData ksmDupe = KSMetaData.deserialize(new ByteArrayInputStream(ser));
+            KSMetaData ksmDupe = KSMetaData.inflate(serDe(ksm.deflate()));
             assert ksmDupe != null;
             assert ksmDupe.equals(ksm);
         }

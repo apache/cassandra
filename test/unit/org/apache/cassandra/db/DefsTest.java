@@ -58,7 +58,7 @@ public class DefsTest extends CleanupHelper
             assert defined.equals(loaded);
         }
     }
-     
+    
     @Test
     public void addNewCfToBogusTable() throws InterruptedException
     {

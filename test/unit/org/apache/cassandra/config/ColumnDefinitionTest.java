@@ -25,7 +25,7 @@ public class ColumnDefinitionTest
 
     protected void testSerializeDeserialize(ColumnDefinition cd) throws Exception
     {
-        ColumnDefinition newCd = ColumnDefinition.deserialize(ColumnDefinition.serialize(cd));
+        ColumnDefinition newCd = ColumnDefinition.inflate(cd.deflate());
         assert cd != newCd;
         assert cd.hashCode() == newCd.hashCode();
         assert cd.equals(newCd);

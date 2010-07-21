@@ -19,18 +19,17 @@
 package org.apache.cassandra.config;
 
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.RackUnawareStrategy;
+import org.apache.cassandra.io.SerDeUtils;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.avro.util.Utf8;
 import org.apache.commons.lang.ObjectUtils;
 
 public final class KSMetaData
@@ -43,7 +42,7 @@ public final class KSMetaData
     public KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, int replicationFactor, CFMetaData... cfDefs)
     {
         this.name = name;
-        this.strategyClass = strategyClass;
+        this.strategyClass = strategyClass == null ? RackUnawareStrategy.class : strategyClass;
         this.replicationFactor = replicationFactor;
         Map<String, CFMetaData> cfmap = new HashMap<String, CFMetaData>();
         for (CFMetaData cfm : cfDefs)
@@ -70,50 +69,35 @@ public final class KSMetaData
         return cfMetaData;
     }
         
-    public static byte[] serialize(KSMetaData ksm) throws IOException
+    public org.apache.cassandra.avro.KsDef deflate()
     {
-        ByteArrayOutputStream bout = new ByteArrayOutputStream();
-        DataOutputStream dout = new DataOutputStream(bout);
-        dout.writeUTF(ksm.name);
-        dout.writeBoolean(ksm.strategyClass != null);
-        if (ksm.strategyClass != null)
-            dout.writeUTF(ksm.strategyClass.getName());
-        dout.writeInt(ksm.replicationFactor);
-        dout.writeInt(ksm.cfMetaData.size());
-        for (CFMetaData cfm : ksm.cfMetaData.values())
-            dout.write(CFMetaData.serialize(cfm));
-        dout.close();
-        return bout.toByteArray();
+        org.apache.cassandra.avro.KsDef ks = new org.apache.cassandra.avro.KsDef();
+        ks.name = new Utf8(name);
+        ks.strategy_class = new Utf8(strategyClass.getName());
+        ks.replication_factor = replicationFactor;
+        ks.cf_defs = SerDeUtils.createArray(cfMetaData.size(), org.apache.cassandra.avro.CfDef.SCHEMA$);
+        for (CFMetaData cfm : cfMetaData.values())
+            ks.cf_defs.add(cfm.deflate());
+        return ks;
     }
 
-    public static KSMetaData deserialize(InputStream in) throws IOException
+    public static KSMetaData inflate(org.apache.cassandra.avro.KsDef ks) throws ConfigurationException
     {
-        DataInputStream din = new DataInputStream(in);
-        String name = din.readUTF();
         Class<AbstractReplicationStrategy> repStratClass = null;
         try
         {
-            repStratClass = din.readBoolean() ? (Class<AbstractReplicationStrategy>)Class.forName(din.readUTF()) : null;
+            repStratClass = (Class<AbstractReplicationStrategy>)Class.forName(ks.strategy_class.toString());
         }
         catch (Exception ex)
         {
-            throw new IOException(ex);
+            throw new ConfigurationException("Could not create ReplicationStrategy of type " + ks.strategy_class, ex);
         }
-        int replicationFactor = din.readInt();
-        int cfsz = din.readInt();
+        int cfsz = (int)ks.cf_defs.size();
         CFMetaData[] cfMetaData = new CFMetaData[cfsz];
+        Iterator<org.apache.cassandra.avro.CfDef> cfiter = ks.cf_defs.iterator();
         for (int i = 0; i < cfsz; i++)
-        {
-            try
-            {
-                cfMetaData[i] = CFMetaData.deserialize(din);
-            }
-            catch (ConfigurationException e)
-            {
-                throw new IOException(e);
-            }
-        }
+            cfMetaData[i] = CFMetaData.inflate(cfiter.next());
 
-        return new KSMetaData(name, repStratClass, replicationFactor, cfMetaData);
+        return new KSMetaData(ks.name.toString(), repStratClass, ks.replication_factor, cfMetaData);
     }
 }

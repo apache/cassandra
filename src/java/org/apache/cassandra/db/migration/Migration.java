@@ -39,6 +39,8 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.SerDeUtils;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.UUIDGen;
@@ -111,12 +113,12 @@ public abstract class Migration
             migration.add(new QueryPath(MIGRATIONS_CF, null, UUIDGen.decompose(newVersion)), buf, new TimestampClock(now));
             migration.apply();
             
-            // note that we storing this in the system table, which is not replicated, instead of the definitions table, which is.
+            // note that we're storing this in the system table, which is not replicated
             logger.debug("Applying migration " + newVersion.toString());
             migration = new RowMutation(Table.SYSTEM_TABLE, LAST_MIGRATION_KEY);
             migration.add(new QueryPath(SCHEMA_CF, null, LAST_MIGRATION_KEY), UUIDGen.decompose(newVersion), new TimestampClock(now));
             migration.apply();
-            
+
             // if we fail here, there will be schema changes in the CL that will get replayed *AFTER* the schema is loaded.
             // CassandraDaemon checks for this condition (the stored version will be greater than the loaded version)
             // and calls MigrationManager.applyMigrations(loaded version, stored version).
@@ -131,6 +133,9 @@ public abstract class Migration
                 flushes.add(cfs.forceFlush());
             for (Future f : flushes)
             {
+                if (f == null)
+                    // applying the migration triggered a flush independently
+                    continue;
                 try
                 {
                     f.get();
@@ -194,23 +199,36 @@ public abstract class Migration
         return newVersion;
     }
 
+    /**
+     * Definitions are serialized as a row with a UUID key, with a magical column named DEFINITION_SCHEMA_COLUMN_NAME
+     * (containing the Avro Schema) and a column per keyspace. Each keyspace column contains a avro.KsDef object
+     * encoded with the Avro schema.
+     */
     static RowMutation makeDefinitionMutation(KSMetaData add, KSMetaData remove, UUID versionId) throws IOException
     {
-        final long now = System.currentTimeMillis();
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, toBytes(versionId));
-        if (remove != null)
-            rm.delete(new QueryPath(SCHEMA_CF, null, remove.name.getBytes()), new TimestampClock(System.currentTimeMillis()));
-        if (add != null)
-            rm.add(new QueryPath(SCHEMA_CF, null, add.name.getBytes()), KSMetaData.serialize(add), new TimestampClock(now));
-        
-        // include all other key spaces.
+        // collect all keyspaces, while removing 'remove' and adding 'add'
+        List<KSMetaData> ksms = new ArrayList<KSMetaData>();
         for (String tableName : DatabaseDescriptor.getNonSystemTables())
         {
-            if (add != null && add.name.equals(tableName) || remove != null && remove.name.equals(tableName))
+            if (remove != null && remove.name.equals(tableName) || add != null && add.name.equals(tableName))
                 continue;
-            KSMetaData ksm = DatabaseDescriptor.getTableDefinition(tableName);
-            rm.add(new QueryPath(SCHEMA_CF, null, ksm.name.getBytes()), KSMetaData.serialize(ksm), new TimestampClock(now));
+            ksms.add(DatabaseDescriptor.getTableDefinition(tableName));
         }
+        if (add != null)
+            ksms.add(add);
+
+        // wrap in mutation
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, toUTF8Bytes(versionId));
+        TimestampClock now = new TimestampClock(System.currentTimeMillis());
+        // add a column for each keyspace
+        for (KSMetaData ksm : ksms)
+            rm.add(new QueryPath(SCHEMA_CF, null, ksm.name.getBytes(UTF_8)), SerDeUtils.serialize(ksm.deflate()), now);
+        // add the schema
+        rm.add(new QueryPath(SCHEMA_CF,
+                             null,
+                             DefsTable.DEFINITION_SCHEMA_COLUMN_NAME),
+                             org.apache.cassandra.avro.KsDef.SCHEMA$.toString().getBytes(UTF_8),
+                             now);
         return rm;
     }
     
@@ -265,7 +283,7 @@ public abstract class Migration
         return cf.getSortedColumns();
     }
     
-    public static byte[] toBytes(UUID version)
+    public static byte[] toUTF8Bytes(UUID version)
     {
         return version.toString().getBytes(UTF_8);
     }

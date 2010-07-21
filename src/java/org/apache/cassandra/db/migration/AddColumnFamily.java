@@ -1,5 +1,8 @@
 package org.apache.cassandra.db.migration;
 
+import org.apache.avro.Schema;
+import org.apache.avro.io.BinaryDecoder;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -8,6 +11,7 @@ import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -45,9 +49,11 @@ public class AddColumnFamily extends Migration
     {
         super(UUIDGen.makeType1UUID(din), UUIDGen.makeType1UUID(din));
         rm = RowMutation.serializer().deserialize(din);
+
+        // deserialize cf
         try
         {
-            cfm = CFMetaData.deserialize(din);
+            cfm = CFMetaData.inflate(SerDeUtils.<org.apache.cassandra.avro.CfDef>deserializeWithSchema(FBUtilities.readShortByteArray(din)));
         }
         catch (ConfigurationException e)
         {
@@ -115,7 +121,9 @@ public class AddColumnFamily extends Migration
             dos.write(UUIDGen.decompose(addColumnFamily.newVersion));
             dos.write(UUIDGen.decompose(addColumnFamily.lastVersion));
             RowMutation.serializer().serialize(addColumnFamily.rm, dos);
-            dos.write(CFMetaData.serialize(addColumnFamily.cfm));
+            // serialize the added cf
+            // TODO: sloppy, but migrations should be converted to Avro soon anyway
+            FBUtilities.writeShortByteArray(SerDeUtils.serializeWithSchema(addColumnFamily.cfm.deflate()), dos);
         }
 
         public AddColumnFamily deserialize(DataInputStream dis) throws IOException

@@ -1,8 +1,9 @@
 package org.apache.cassandra.config;
 
-import java.io.*;
+import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.avro.util.Utf8;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
@@ -53,45 +54,27 @@ public class ColumnDefinition {
         return result;
     }
 
-    public static byte[] serialize(ColumnDefinition cd) throws IOException
+    public org.apache.cassandra.avro.ColumnDef deflate()
     {
-        ByteArrayOutputStream bout = new ByteArrayOutputStream();
-        DataOutputStream out = new DataOutputStream(bout);
-        out.writeInt(cd.name.length);
-        out.write(cd.name);
-        out.writeUTF(cd.validator.getClass().getName());
-
-        out.writeBoolean(cd.index_type != null);
-        if (cd.index_type != null)
-            out.writeInt(cd.index_type.ordinal());
-
-        out.writeBoolean(cd.index_name != null);
-        if (cd.index_name != null)
-            out.writeUTF(cd.index_name);
-
-        out.close();
-        return bout.toByteArray();
+        org.apache.cassandra.avro.ColumnDef cd = new org.apache.cassandra.avro.ColumnDef();
+        cd.name = ByteBuffer.wrap(name);
+        cd.validation_class = new Utf8(validator.getClass().getName());
+        cd.index_type = index_type == null ? null :
+            Enum.valueOf(org.apache.cassandra.avro.IndexType.class, index_type.name());
+        cd.index_name = index_name == null ? null : new Utf8(index_name);
+        return cd;
     }
 
-    public static ColumnDefinition deserialize(byte[] bytes) throws IOException
+    public static ColumnDefinition inflate(org.apache.cassandra.avro.ColumnDef cd) throws ConfigurationException
     {
-        DataInputStream in = new DataInputStream(new ByteArrayInputStream(bytes));
-        int nameSize = in.readInt();
-        byte[] name = new byte[nameSize];
-        in.readFully(name);
-        String validation_class = in.readUTF();
-
-        IndexType index_type = null;
-        if (in.readBoolean())
-            index_type = IndexType.values()[in.readInt()];
-
-        String index_name = null;
-        if (in.readBoolean())
-            index_name = in.readUTF();
-
+        byte[] name = new byte[cd.name.remaining()];
+        cd.name.get(name, 0, name.length);
+        IndexType index_type = cd.index_type == null ? null :
+            Enum.valueOf(IndexType.class, cd.index_type.name());
+        String index_name = cd.index_name == null ? null : cd.index_name.toString();
         try
         {
-            return new ColumnDefinition(name, validation_class, index_type, index_name);
+            return new ColumnDefinition(name, cd.validation_class.toString(), index_type, index_name);
         }
         catch (ConfigurationException e)
         {

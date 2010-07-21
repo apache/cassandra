@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.config;
 
-import java.io.IOException;
-
 public class ConfigurationException extends Exception
 {
     public ConfigurationException(String message)
@@ -27,8 +25,8 @@ public class ConfigurationException extends Exception
         super(message);
     }
 
-    public ConfigurationException(String message, IOException ioe)
+    public ConfigurationException(String message, Exception e)
     {
-        super(message, ioe);
+        super(message, e);
     }
 }
