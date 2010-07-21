@@ -167,18 +167,17 @@
     <!--
        Generate avro code
     -->
-    <taskdef name="avro-protocol" classname="org.apache.avro.specific.ProtocolTask">
-      <classpath refid="cassandra.classpath" />
-    </taskdef>
-    <taskdef name="avro-schema" classname="org.apache.avro.specific.SchemaTask">
-      <classpath refid="cassandra.classpath" />
-    </taskdef>
-    <taskdef name="paranamer" classname="com.thoughtworks.paranamer.ant.ParanamerGeneratorTask">
-      <classpath refid="cassandra.classpath" />
-    </taskdef>
-
     <target name="check-avro-generate">
-        <uptodate property="avroInterfaceUpToDate" srcfile="${interface.dir}/cassandra.genavro"
+      <taskdef name="avro-protocol" classname="org.apache.avro.specific.ProtocolTask">
+        <classpath refid="cassandra.classpath" />
+      </taskdef>
+      <taskdef name="avro-schema" classname="org.apache.avro.specific.SchemaTask">
+        <classpath refid="cassandra.classpath" />
+      </taskdef>
+      <taskdef name="paranamer" classname="com.thoughtworks.paranamer.ant.ParanamerGeneratorTask">
+        <classpath refid="cassandra.classpath" />
+      </taskdef>
+      <uptodate property="avroInterfaceUpToDate" srcfile="${interface.dir}/cassandra.genavro"
                   targetfile="${interface.avro.dir}/cassandra.avpr" />
     </target>
 
