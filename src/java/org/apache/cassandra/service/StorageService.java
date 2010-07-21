@@ -228,7 +228,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         MessagingService.instance.registerVerbHandlers(Verb.GOSSIP_DIGEST_ACK2, new GossipDigestAck2VerbHandler());
 
         replicationStrategies = new HashMap<String, AbstractReplicationStrategy>();
-        for (String table : DatabaseDescriptor.getTables())
+        for (String table : DatabaseDescriptor.getNonSystemTables())
         {
             AbstractReplicationStrategy strat = getReplicationStrategy(tokenMetadata_, table);
             replicationStrategies.put(table, strat);

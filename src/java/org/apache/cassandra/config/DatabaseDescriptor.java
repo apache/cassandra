@@ -29,7 +29,6 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.locator.IEndPointSnitch;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.locator.RackUnawareStrategy;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.XMLUtils;
 import org.apache.log4j.Logger;
@@ -501,7 +500,7 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("No keyspaces configured");
 
             // Hardcoded system tables
-            KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE, RackUnawareStrategy.class, 1, null);
+            KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE, null, -1, null);
             tables.put(Table.SYSTEM_TABLE, systemMeta);
             systemMeta.cfMetaData.put(SystemTable.STATUS_CF, new CFMetaData(Table.SYSTEM_TABLE,
                                                                             SystemTable.STATUS_CF,

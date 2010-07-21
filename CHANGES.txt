@@ -15,7 +15,6 @@
  * fix duplicate rows being read during mapreduce (CASSANDRA-1142)
  * failure detection wasn't closing command sockets (CASSANDRA-1221)
  * cassandra-cli.bat works on windows (CASSANDRA-1236)
- * enable querying system keyspace through CLI (CASSANDRA-1307)
 
 
 0.6.3
