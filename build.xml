@@ -35,7 +35,7 @@
     <property name="interface.dir" value="${basedir}/interface"/>
     <property name="interface.thrift.dir" value="${interface.dir}/thrift"/>
     <property name="interface.thrift.gen-java" value="${interface.thrift.dir}/gen-java"/>
-    <property name="interface.avro.dir" value="${interface.dir}/avro/gen-java"/>
+    <property name="interface.avro.dir" value="${interface.dir}/avro"/>
     <property name="test.dir" value="${basedir}/test"/>
     <property name="test.resources" value="${test.dir}/resources"/>
     <property name="test.classes" value="${build.dir}/test/classes"/>
@@ -167,46 +167,50 @@
     <!--
        Generate avro code
     -->
-    <target name="check-avro-generate">
-        <uptodate property="avroUpToDate"
-                  srcfile="${interface.dir}/cassandra.genavro"
-                  targetfile="${interface.avro.dir}/org/apache/cassandra/avro/Cassandra.java" />
-      <taskdef name="protocol"
-               classname="org.apache.avro.specific.ProtocolTask">
-        <classpath refid="cassandra.classpath" />
-      </taskdef>
-      <taskdef name="schema" classname="org.apache.avro.specific.SchemaTask">
-        <classpath refid="cassandra.classpath" />
-      </taskdef>
-      <taskdef name="paranamer" 
-          classname="com.thoughtworks.paranamer.ant.ParanamerGeneratorTask">
-        <classpath refid="cassandra.classpath" />
-      </taskdef>
-    </target>
-    <target name="avro-generate" unless="avroUpToDate"
-            depends="init,check-avro-generate">
-      <echo>Generating avro code...</echo>
-      <!-- Generate json schema from genavro IDL -->
-      <java classname="org.apache.avro.tool.Main" fork="true">
-        <classpath refid="cassandra.classpath" />
-        <arg value="genavro" />
-        <arg value="interface/cassandra.genavro" />
-        <arg value="interface/cassandra.avpr" />
-      </java>
+    <taskdef name="avro-protocol" classname="org.apache.avro.specific.ProtocolTask">
+      <classpath refid="cassandra.classpath" />
+    </taskdef>
+    <taskdef name="avro-schema" classname="org.apache.avro.specific.SchemaTask">
+      <classpath refid="cassandra.classpath" />
+    </taskdef>
+    <taskdef name="paranamer" classname="com.thoughtworks.paranamer.ant.ParanamerGeneratorTask">
+      <classpath refid="cassandra.classpath" />
+    </taskdef>
 
-      <!-- Generate java code from json protocol schema -->
-      <protocol destdir="${interface.avro.dir}">
-        <fileset dir="${interface.dir}">
-          <include name="**/*.avpr" />
-        </fileset>
-      </protocol>
-  
-      <schema destdir="${interface.avro.dir}">
-        <fileset dir="${interface.dir}">
-          <include name="**/*.avsc" />
-        </fileset>
-      </schema>
+    <target name="check-avro-generate">
+        <uptodate property="avroInterfaceUpToDate" srcfile="${interface.dir}/cassandra.genavro"
+                  targetfile="${interface.avro.dir}/cassandra.avpr" />
     </target>
+
+    <target name="avro-generate" depends="avro-interface-generate"
+            description="Generates Java Avro classes for client and internal use." />
+
+    <target name="avro-interface-generate" unless="avroInterfaceUpToDate"
+            depends="init,check-avro-generate">
+            <avromacro protocolname="client" inputfile="${interface.dir}/cassandra.genavro" outputdir="${interface.avro.dir}" />
+    </target>
+
+    <macrodef name="avromacro">
+      <attribute name="protocolname" />
+      <attribute name="inputfile" />
+      <attribute name="outputdir" />
+      <sequential>
+        <echo message="Generating Avro @{protocolname} code..." />
+        <mkdir dir="@{outputdir}" />
+        <!-- Generate json schema from genavro IDL -->
+        <java classname="org.apache.avro.tool.Main" fork="true">
+          <classpath refid="cassandra.classpath" />
+          <arg value="genavro" />
+          <arg value="@{inputfile}" />
+          <arg value="@{outputdir}/cassandra.avpr" />
+        </java>
+    
+        <!-- Generate java code from json protocol schema -->
+        <avro-protocol destdir="@{outputdir}/gen-java">
+            <fileset file="@{outputdir}/cassandra.avpr" />
+        </avro-protocol>
+      </sequential>
+    </macrodef>
 
 
     <!--
@@ -264,11 +268,12 @@
             <classpath refid="cassandra.classpath"/>
         </javac>
 
-	<paranamer sourceDirectory="${interface.avro.dir}"
-		   outputDirectory="${build.classes}"/>
+        <paranamer sourceDirectory="${interface.avro.dir}"
+               outputDirectory="${build.classes}"/>
 
-	<antcall target="createVersionPropFile"/>
+        <antcall target="createVersionPropFile"/>
     </target>
+
 
     <!--
 	The jar target makes cassandra.jar output.

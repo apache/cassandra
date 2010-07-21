@@ -17,7 +17,7 @@
  */
 
 /**
- * Cassandra protocol
+ * Cassandra client interface
  */
 @namespace("org.apache.cassandra.avro")
 
