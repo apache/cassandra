@@ -82,6 +82,22 @@ protocol Cassandra {
         union { Deletion, null } deletion;
     }
 
+    enum IndexType {
+        KEYS
+    }
+
+    /* describes a column in a column family. */
+    record ColumnDef {
+        bytes name;
+        string validation_class;
+        union { IndexType, null } index_type;
+        union { string, null } index_name;
+    }
+
+    /**
+     * describes a keyspace:
+     * NB: the id field is ignored during column family creation: the server will choose an appropriate value.
+     */
     record CfDef {
         string keyspace;
         string name;
@@ -95,8 +111,11 @@ protocol Cassandra {
         union { boolean, null } preload_row_cache;
         union { double, null } key_cache_size;
         union { double, null } read_repair_chance;
+        union { array<ColumnDef>, null } column_metadata;
+        union { int, null } id;
     }
 
+    /* describes a keyspace. */
     record KsDef {
         string name;
         string strategy_class;

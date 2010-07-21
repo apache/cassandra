@@ -637,6 +637,9 @@ public class CassandraServer implements Cassandra {
 
                 }
 
+                if (cfDef.id != null)
+                    logger.warn("Ignoring 'id' field specified for new column family (%s, %s)", cfDef.keyspace, cfDef.name);
+
                 CFMetaData cfmeta = new CFMetaData(cfDef.keyspace.toString(),
                                                    cfDef.name.toString(),
                                                    ColumnFamilyType.create(cfType),

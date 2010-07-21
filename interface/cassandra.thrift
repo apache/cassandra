@@ -346,6 +346,7 @@ enum IndexType {
     KEYS,
 }
 
+/* describes a column in a column family. */
 struct ColumnDef {
     1: required binary name,
     2: required string validation_class,
