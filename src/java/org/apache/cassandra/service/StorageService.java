@@ -245,7 +245,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         MessagingService.instance.registerVerbHandlers(Verb.SCHEMA_CHECK, new SchemaCheckVerbHandler());
 
         replicationStrategies = new HashMap<String, AbstractReplicationStrategy>();
-        for (String table : DatabaseDescriptor.getNonSystemTables())
+        for (String table : DatabaseDescriptor.getTables())
             initReplicationStrategy(table);
 
         // spin up the streaming serivice so it is available for jmx tools.
