@@ -25,15 +25,19 @@ import org.yaml.snakeyaml.nodes.NodeTuple;
 import org.yaml.snakeyaml.nodes.Tag;
 import org.yaml.snakeyaml.representer.Representer;
 
-public class Converter {
+/**
+ * @deprecated Yaml configuration for Keyspaces and ColumnFamilies is deprecated in 0.7
+ */
+public class Converter
+{
 
     private static Config conf = new Config();
     private final static String PREVIOUS_CONF_FILE = "cassandra.xml";
     
-    private static List<Keyspace> readTablesFromXml(XMLUtils xmlUtils) throws ConfigurationException
+    private static List<RawKeyspace> readTablesFromXml(XMLUtils xmlUtils) throws ConfigurationException
     {
 
-        List<Keyspace> keyspaces = new ArrayList<Keyspace>();
+        List<RawKeyspace> keyspaces = new ArrayList<RawKeyspace>();
         /* Read the table related stuff from config */
         try
         {
@@ -42,7 +46,7 @@ public class Converter {
             for ( int i = 0; i < size; ++i )
             {
                 String value;
-                Keyspace ks = new Keyspace();
+                RawKeyspace ks = new RawKeyspace();
                 Node table = tablesxml.item(i);
                 /* parsing out the table ksName */
                 ks.name = XMLUtils.getAttributeValue(table, "Name");
@@ -61,11 +65,11 @@ public class Converter {
                 NodeList columnFamilies = xmlUtils.getRequestedNodeList(xqlTable + "ColumnFamily");
 
                 int size2 = columnFamilies.getLength();
-                ks.column_families = new ColumnFamily[size2];
+                ks.column_families = new RawColumnFamily[size2];
                 for ( int j = 0; j < size2; ++j )
                 {
                     Node columnFamily = columnFamilies.item(j);
-                    ks.column_families[j] = new ColumnFamily();
+                    ks.column_families[j] = new RawColumnFamily();
                     ks.column_families[j].name = XMLUtils.getAttributeValue(columnFamily, "Name");
                     String xqlCF = xqlTable + "ColumnFamily[@Name='" + ks.column_families[j].name + "']/";
                     ks.column_families[j].column_type = ColumnFamilyType.create(XMLUtils.getAttributeValue(columnFamily, "ColumnType"));
@@ -259,7 +263,7 @@ public class Converter {
         SkipNullRepresenter representer = new SkipNullRepresenter();
         /* Use Tag.MAP to avoid the class name being included as global tag */
         representer.addClassTag(Config.class, Tag.MAP);
-        representer.addClassTag(ColumnFamily.class, Tag.MAP);
+        representer.addClassTag(RawColumnFamily.class, Tag.MAP);
         Dumper dumper = new Dumper(representer, options);
         Yaml yaml = new Yaml(dumper);
         String output = yaml.dump(conf);
@@ -285,7 +289,7 @@ public class Converter {
             if (scpurl != null)
                 configname = scpurl.getFile();
             else 
-                throw new ConfigurationException("Error finding previuos configuration file.");
+                throw new ConfigurationException("Error finding previous configuration file.");
             
             System.out.println("Found previous configuration: " + configname);
             

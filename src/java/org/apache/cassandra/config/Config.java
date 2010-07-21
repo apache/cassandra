@@ -2,7 +2,8 @@ package org.apache.cassandra.config;
 import java.util.List;
 
 
-public class Config {
+public class Config
+{
     public String cluster_name = "Test Cluster";
     public String authenticator;
     
@@ -76,7 +77,7 @@ public class Config {
     public RequestSchedulerId request_scheduler_id;
     public RequestSchedulerOptions request_scheduler_options;
 
-    public List<Keyspace> keyspaces;
+    public List<RawKeyspace> keyspaces;
     
     public static enum CommitLogSync {
         periodic,

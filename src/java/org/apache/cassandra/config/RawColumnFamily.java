@@ -6,7 +6,11 @@ import java.util.Map;
 import org.apache.cassandra.db.ClockType;
 import org.apache.cassandra.db.ColumnFamilyType;
 
-public class ColumnFamily {
+/**
+ * @deprecated Yaml configuration for Keyspaces and ColumnFamilies is deprecated in 0.7
+ */
+public class RawColumnFamily
+{
     public String name;            
     public ColumnFamilyType column_type;
     public ClockType clock_type;

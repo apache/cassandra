@@ -123,10 +123,10 @@ public class DatabaseDescriptor
             InputStream input = new FileInputStream(new File(configFileName));
             org.yaml.snakeyaml.constructor.Constructor constructor = new org.yaml.snakeyaml.constructor.Constructor(Config.class);
             TypeDescription desc = new TypeDescription(Config.class);
-            desc.putListPropertyType("keyspaces", Keyspace.class);
-            TypeDescription ksDesc = new TypeDescription(Keyspace.class);
-            ksDesc.putListPropertyType("column_families", ColumnFamily.class);
-            TypeDescription cfDesc = new TypeDescription(ColumnFamily.class);
+            desc.putListPropertyType("keyspaces", RawKeyspace.class);
+            TypeDescription ksDesc = new TypeDescription(RawKeyspace.class);
+            ksDesc.putListPropertyType("column_families", RawColumnFamily.class);
+            TypeDescription cfDesc = new TypeDescription(RawColumnFamily.class);
             cfDesc.putListPropertyType("column_metadata", RawColumnDefinition.class);
             constructor.addTypeDescription(desc);
             constructor.addTypeDescription(ksDesc);
@@ -512,7 +512,7 @@ public class DatabaseDescriptor
         
         
         /* Read the table related stuff from config */
-        for (Keyspace keyspace : conf.keyspaces)
+        for (RawKeyspace keyspace : conf.keyspaces)
         {
             /* parsing out the table name */
             if (keyspace.name == null)
@@ -549,7 +549,7 @@ public class DatabaseDescriptor
             int size2 = keyspace.column_families.length;
             CFMetaData[] cfDefs = new CFMetaData[size2];
             int j = 0;
-            for (ColumnFamily cf : keyspace.column_families)
+            for (RawColumnFamily cf : keyspace.column_families)
             {
                 if (cf.name == null)
                 {
