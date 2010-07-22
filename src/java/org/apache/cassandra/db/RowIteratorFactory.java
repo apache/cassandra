@@ -71,6 +71,7 @@ public class RowIteratorFactory
                                           final DecoratedKey stopAt,
                                           final QueryFilter filter,
                                           final AbstractType comparator,
+                                          final ColumnFamilyStore cfs,
                                           final int gcBefore)
     {
         // fetch data from current memtable, historical memtables, and SSTables in the correct order.
@@ -128,20 +129,32 @@ public class RowIteratorFactory
                 Comparator<IColumn> colComparator = QueryFilter.getColumnComparator(comparator);
                 Iterator<IColumn> colCollated = IteratorUtils.collatedIterator(colComparator, colIters);
 
-                ColumnFamily returnCF = firstMemtable.getColumnFamily(key);
-                // TODO this is a little subtle: the Memtable ColumnIterator has to be a shallow clone of the source CF,
-                // with deletion times set correctly, so we can use it as the "base" CF to add query results to.
-                // (for sstable ColumnIterators we do not care if it is a shallow clone or not.)
-                returnCF = returnCF == null ? ColumnFamily.create(firstMemtable.getTableName(), filter.getColumnFamilyName())
-                                            : returnCF.cloneMeShallow();
-
-                if (colCollated.hasNext())
+                ColumnFamily returnCF = null;
+                
+                // First check if this row is in the rowCache. If it is we can skip the rest
+                ColumnFamily cached = cfs.getRawCachedRow(key);
+                if (cached != null)
                 {
-                    filter.collectCollatedColumns(returnCF, colCollated, gcBefore);
+                    QueryFilter keyFilter = new QueryFilter(key, filter.path, filter.filter);
+                    returnCF = cfs.filterColumnFamily(cached, keyFilter, CompactionManager.getDefaultGCBefore());
                 }
                 else
                 {
-                    returnCF = null;
+                    returnCF = firstMemtable.getColumnFamily(key);            
+                    // TODO this is a little subtle: the Memtable ColumnIterator has to be a shallow clone of the source CF,
+                    // with deletion times set correctly, so we can use it as the "base" CF to add query results to.
+                    // (for sstable ColumnIterators we do not care if it is a shallow clone or not.)
+                    returnCF = returnCF == null ? ColumnFamily.create(firstMemtable.getTableName(), filter.getColumnFamilyName())
+                            : returnCF.cloneMeShallow();
+
+                    if (colCollated.hasNext())
+                    {
+                        filter.collectCollatedColumns(returnCF, colCollated, gcBefore);
+                    }
+                    else
+                    {
+                        returnCF = null;
+                    }
                 }
 
                 Row rv = new Row(key, returnCF);

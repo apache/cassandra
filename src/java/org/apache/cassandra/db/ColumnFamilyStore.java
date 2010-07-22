@@ -832,58 +832,69 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             ColumnFamily cached = cacheRow(filter.key);
             if (cached == null)
                 return null;
-            
-            // special case slicing the entire row:
-            // we can skip the filter step entirely, and we can help out removeDeleted by re-caching the result
-            // if any tombstones have aged out since last time.  (This means that the row cache will treat gcBefore as
-            // max(gcBefore, all previous gcBefore), which is fine for correctness.)
-            //
-            // But, if the filter is asking for less columns than we have cached, we fall back to the slow path
-            // since we have to copy out a subset.
-            if (filter.filter instanceof SliceQueryFilter)
-            {
-                SliceQueryFilter sliceFilter = (SliceQueryFilter) filter.filter;
-                if (sliceFilter.start.length == 0 && sliceFilter.finish.length == 0)
-                {
-                    if (cached.isSuper() && filter.path.superColumnName != null)
-                    {
-                        // subcolumns from named supercolumn
-                        IColumn sc = cached.getColumn(filter.path.superColumnName);
-                        if (sc == null || sliceFilter.count >= sc.getSubColumns().size())
-                        {
-                            ColumnFamily cf = cached.cloneMeShallow();
-                            if (sc != null)
-                                cf.addColumn(sc);
-                            return removeDeleted(cf, gcBefore);
-                        }
-                    }
-                    else
-                    {
-                        // top-level columns
-                        if (sliceFilter.count >= cached.getColumnCount())
-                        {
-                            removeDeletedColumnsOnly(cached, gcBefore);
-                            return removeDeletedCF(cached, gcBefore);
-                        }
-                    }
-                }
-            }
-            
-            IColumnIterator ci = filter.getMemtableColumnIterator(cached, null, getComparator());
-            ColumnFamily cf = ci.getColumnFamily().cloneMeShallow();
-            filter.collectCollatedColumns(cf, ci, gcBefore);
-            // TODO this is necessary because when we collate supercolumns together, we don't check
-            // their subcolumns for relevance, so we need to do a second prune post facto here.
-            return cf.isSuper() ? removeDeleted(cf, gcBefore) : removeDeletedCF(cf, gcBefore);
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
+
+            return filterColumnFamily(cached, filter, gcBefore);
         }
         finally
         {
             readStats_.addNano(System.nanoTime() - start);
         }
+    }
+
+    /** filter a cached row, which will not be modified by the filter, but may be modified by throwing out
+     *  tombstones that are no longer relevant. */
+    ColumnFamily filterColumnFamily(ColumnFamily cached, QueryFilter filter, int gcBefore)
+    {
+        // special case slicing the entire row:
+        // we can skip the filter step entirely, and we can help out removeDeleted by re-caching the result
+        // if any tombstones have aged out since last time.  (This means that the row cache will treat gcBefore as
+        // max(gcBefore, all previous gcBefore), which is fine for correctness.)
+        //
+        // But, if the filter is asking for less columns than we have cached, we fall back to the slow path
+        // since we have to copy out a subset.
+        if (filter.filter instanceof SliceQueryFilter)
+        {
+            SliceQueryFilter sliceFilter = (SliceQueryFilter) filter.filter;
+            if (sliceFilter.start.length == 0 && sliceFilter.finish.length == 0)
+            {
+                if (cached.isSuper() && filter.path.superColumnName != null)
+                {
+                    // subcolumns from named supercolumn
+                    IColumn sc = cached.getColumn(filter.path.superColumnName);
+                    if (sc == null || sliceFilter.count >= sc.getSubColumns().size())
+                    {
+                        ColumnFamily cf = cached.cloneMeShallow();
+                        if (sc != null)
+                            cf.addColumn(sc);
+                        return removeDeleted(cf, gcBefore);
+                    }
+                }
+                else
+                {
+                    // top-level columns
+                    if (sliceFilter.count >= cached.getColumnCount())
+                    {
+                        removeDeletedColumnsOnly(cached, gcBefore);
+                        return removeDeletedCF(cached, gcBefore);
+                    }
+                }
+            }
+        }
+
+        IColumnIterator ci = filter.getMemtableColumnIterator(cached, null, getComparator());
+        ColumnFamily cf = null;
+        try
+        {
+            cf = ci.getColumnFamily().cloneMeShallow();
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+        filter.collectCollatedColumns(cf, ci, gcBefore);
+        // TODO this is necessary because when we collate supercolumns together, we don't check
+        // their subcolumns for relevance, so we need to do a second prune post facto here.
+        return cf.isSuper() ? removeDeleted(cf, gcBefore) : removeDeletedCF(cf, gcBefore);
     }
 
     private ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore)
@@ -982,7 +993,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Collection<SSTableReader> sstables = new ArrayList<SSTableReader>();
         Iterables.addAll(sstables, ssTables_);
 
-        RowIterator iterator = RowIteratorFactory.getIterator(memtables, sstables, startWith, stopAt, filter, getComparator(), gcBefore);
+        RowIterator iterator = RowIteratorFactory.getIterator(memtables, sstables, startWith, stopAt, filter, getComparator(), this, gcBefore);
 
         try
         {
