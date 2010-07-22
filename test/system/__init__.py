@@ -45,7 +45,7 @@ def get_thrift_client(host='127.0.0.1', port=9170):
 thrift_client = get_thrift_client()
 
 def get_avro_client(host='127.0.0.1', port=9170):
-    schema = os.path.join(root, 'interface', 'cassandra.avpr')
+    schema = os.path.join(root, 'interface/avro', 'cassandra.avpr')
     proto = protocol.parse(open(schema).read())
     client = ipc.HTTPTransceiver(host, port)
     return ipc.Requestor(proto, client)
