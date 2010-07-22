@@ -15,7 +15,9 @@
  * fix duplicate rows being read during mapreduce (CASSANDRA-1142)
  * failure detection wasn't closing command sockets (CASSANDRA-1221)
  * cassandra-cli.bat works on windows (CASSANDRA-1236)
-
+ * create a local replication strategy for system keyspace 
+   (CASSANDRA-1307)
+ 
 
 0.6.3
  * retry to make streaming connections up to 8 times. (CASSANDRA-1019)
