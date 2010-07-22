@@ -29,7 +29,7 @@ for %%i in ("%CASSANDRA_HOME%\lib\*.jar") do call :append "%%i"
 goto okClasspath
 
 :append
-set CLASSPATH=%CLASSPATH%;%1%2
+set CLASSPATH=%CLASSPATH%;%1
 goto :eof
 
 :okClasspath

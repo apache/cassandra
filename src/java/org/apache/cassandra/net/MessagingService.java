@@ -145,7 +145,7 @@ public class MessagingService
     /** called from gossiper when it notices a node is not responding. */
     public void convict(InetAddress ep)
     {
-        logger_.trace("Resetting pool for " + ep);
+        logger_.debug("Resetting pool for " + ep);
         getConnectionPool(ep).reset();
     }
 

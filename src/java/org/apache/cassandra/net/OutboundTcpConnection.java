@@ -87,7 +87,7 @@ public class OutboundTcpConnection extends Thread
                 writeConnected(bb);
             else
                 // clear out the queue, else gossip messages back up.
-                queue.clear();
+                queue.clear();            
         }
     }
 
