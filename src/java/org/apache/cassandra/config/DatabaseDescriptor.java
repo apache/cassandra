@@ -47,6 +47,7 @@ import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.scheduler.NoScheduler;
@@ -344,7 +345,7 @@ public class DatabaseDescriptor
                 CommitLog.setSegmentSize(conf.commitlog_rotation_threshold_in_mb * 1024 * 1024);
 
             // Hardcoded system tables
-            KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE, null, -1, new CFMetaData[]{CFMetaData.StatusCf,
+            KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE, LocalStrategy.class, 1, new CFMetaData[]{CFMetaData.StatusCf,
                                                                                                   CFMetaData.HintsCf,
                                                                                                   CFMetaData.MigrationsCf,
                                                                                                   CFMetaData.SchemaCf
