@@ -160,9 +160,6 @@ class EndPointStateSerializer implements ICompactSerializer<EndPointState>
     
     public void serialize(EndPointState epState, DataOutputStream dos) throws IOException
     {
-        /* These are for estimating whether we overshoot the MTU limit */
-        int estimate = 0;
-
         /* serialize the HeartBeatState */
         HeartBeatState hbState = epState.getHeartBeatState();
         HeartBeatState.serializer().serialize(hbState, dos);
@@ -170,26 +167,13 @@ class EndPointStateSerializer implements ICompactSerializer<EndPointState>
         /* serialize the map of ApplicationState objects */
         int size = epState.applicationState_.size();
         dos.writeInt(size);
-        if ( size > 0 )
-        {   
-            Set<String> keys = epState.applicationState_.keySet();
-            for( String key : keys )
+        for (String key : epState.applicationState_.keySet())
+        {
+            ApplicationState appState = epState.applicationState_.get(key);
+            if (appState != null)
             {
-                if ( Gossiper.MAX_GOSSIP_PACKET_SIZE - dos.size() < estimate )
-                {
-                    logger_.info("@@@@ Breaking out to respect the MTU size in EndPointState serializer. Estimate is " + estimate + " @@@@");
-                    break;
-                }
-            
-                ApplicationState appState = epState.applicationState_.get(key);
-                if ( appState != null )
-                {
-                    int pre = dos.size();
-                    dos.writeUTF(key);
-                    ApplicationState.serializer().serialize(appState, dos);                    
-                    int post = dos.size();
-                    estimate = post - pre;
-                }                
+                dos.writeUTF(key);
+                ApplicationState.serializer().serialize(appState, dos);
             }
         }
     }

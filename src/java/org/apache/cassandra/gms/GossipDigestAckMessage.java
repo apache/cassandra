@@ -75,26 +75,16 @@ class GossipDigestAckMessageSerializer implements ICompactSerializer<GossipDiges
 {
     public void serialize(GossipDigestAckMessage gDigestAckMessage, DataOutputStream dos) throws IOException
     {
-        /* Use the helper to serialize the GossipDigestList */
-        boolean bContinue = GossipDigestSerializationHelper.serialize(gDigestAckMessage.gDigestList_, dos);
-        dos.writeBoolean(bContinue);
-        /* Use the EndPointState */
-        if ( bContinue )
-        {
-            EndPointStatesSerializationHelper.serialize(gDigestAckMessage.epStateMap_, dos);            
-        }
+        GossipDigestSerializationHelper.serialize(gDigestAckMessage.gDigestList_, dos);
+        dos.writeBoolean(true); // 0.6 compatibility
+        EndPointStatesSerializationHelper.serialize(gDigestAckMessage.epStateMap_, dos);
     }
 
     public GossipDigestAckMessage deserialize(DataInputStream dis) throws IOException
     {
-        Map<InetAddress, EndPointState> epStateMap = new HashMap<InetAddress, EndPointState>();
-        List<GossipDigest> gDigestList = GossipDigestSerializationHelper.deserialize(dis);                
-        boolean bContinue = dis.readBoolean();
-
-        if ( bContinue )
-        {
-            epStateMap = EndPointStatesSerializationHelper.deserialize(dis);                                    
-        }
+        List<GossipDigest> gDigestList = GossipDigestSerializationHelper.deserialize(dis);
+        dis.readBoolean(); // 0.6 compatibility
+        Map<InetAddress, EndPointState> epStateMap = EndPointStatesSerializationHelper.deserialize(dis);
         return new GossipDigestAckMessage(gDigestList, epStateMap);
     }
 }

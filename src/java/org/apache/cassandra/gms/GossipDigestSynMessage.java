@@ -67,44 +67,24 @@ class GossipDigestSerializationHelper
 {
     private static Logger logger_ = Logger.getLogger(GossipDigestSerializationHelper.class);
     
-    static boolean serialize(List<GossipDigest> gDigestList, DataOutputStream dos) throws IOException
+    static void serialize(List<GossipDigest> gDigestList, DataOutputStream dos) throws IOException
     {
-        boolean bVal = true;
-        int size = gDigestList.size();                        
-        dos.writeInt(size);
-        
-        int estimate = 0;            
+        dos.writeInt(gDigestList.size());
         for ( GossipDigest gDigest : gDigestList )
         {
-            if ( Gossiper.MAX_GOSSIP_PACKET_SIZE - dos.size() < estimate )
-            {
-                logger_.info("@@@@ Breaking out to respect the MTU size in GD @@@@");
-                bVal = false;
-                break;
-            }
-            int pre = dos.size();               
             GossipDigest.serializer().serialize( gDigest, dos );
-            int post = dos.size();
-            estimate = post - pre;
         }
-        return bVal;
     }
 
     static List<GossipDigest> deserialize(DataInputStream dis) throws IOException
     {
         int size = dis.readInt();            
-        List<GossipDigest> gDigests = new ArrayList<GossipDigest>();
+        List<GossipDigest> gDigests = new ArrayList<GossipDigest>(size);
         
         for ( int i = 0; i < size; ++i )
         {
-            if ( dis.available() == 0 )
-            {
-                logger_.info("Remaining bytes zero. Stopping deserialization of GossipDigests.");
-                break;
-            }
-                            
-            GossipDigest gDigest = GossipDigest.serializer().deserialize(dis);                
-            gDigests.add( gDigest );                
+            assert dis.available() > 0;
+            gDigests.add(GossipDigest.serializer().deserialize(dis));                
         }        
         return gDigests;
     }
@@ -114,45 +94,25 @@ class EndPointStatesSerializationHelper
 {
     private static final Logger logger_ = Logger.getLogger(EndPointStatesSerializationHelper.class);
 
-    static boolean serialize(Map<InetAddress, EndPointState> epStateMap, DataOutputStream dos) throws IOException
+    static void serialize(Map<InetAddress, EndPointState> epStateMap, DataOutputStream dos) throws IOException
     {
-        boolean bVal = true;
-        int estimate = 0;                
-        int size = epStateMap.size();
-        dos.writeInt(size);
-
+        dos.writeInt(epStateMap.size());
         for (Entry<InetAddress, EndPointState> entry : epStateMap.entrySet())
         {
             InetAddress ep = entry.getKey();
-            if ( Gossiper.MAX_GOSSIP_PACKET_SIZE - dos.size() < estimate )
-            {
-                logger_.info("@@@@ Breaking out to respect the MTU size in EPS. Estimate is " + estimate + " @@@@");
-                bVal = false;
-                break;
-            }
-    
-            int pre = dos.size();
             CompactEndPointSerializationHelper.serialize(ep, dos);
             EndPointState.serializer().serialize(entry.getValue(), dos);
-            int post = dos.size();
-            estimate = post - pre;
         }
-        return bVal;
     }
 
     static Map<InetAddress, EndPointState> deserialize(DataInputStream dis) throws IOException
     {
         int size = dis.readInt();            
-        Map<InetAddress, EndPointState> epStateMap = new HashMap<InetAddress, EndPointState>();
+        Map<InetAddress, EndPointState> epStateMap = new HashMap<InetAddress, EndPointState>(size);
         
         for ( int i = 0; i < size; ++i )
         {
-            if ( dis.available() == 0 )
-            {
-                logger_.info("Remaining bytes zero. Stopping deserialization in EndPointState.");
-                break;
-            }
-            // int length = dis.readInt();            
+            assert dis.available() > 0;
             InetAddress ep = CompactEndPointSerializationHelper.deserialize(dis);
             EndPointState epState = EndPointState.serializer().deserialize(dis);            
             epStateMap.put(ep, epState);
