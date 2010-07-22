@@ -975,7 +975,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
       * @param columnFilter description of the columns we're interested in for each row
       * @return true if we found all keys we were looking for, otherwise false
      */
-    private boolean getRangeRows(List<Row> rows, byte[] superColumn, final AbstractBounds range, int maxResults, IFilter columnFilter)
+    private void getRangeRows(List<Row> rows, byte[] superColumn, final AbstractBounds range, int maxResults, IFilter columnFilter)
     throws ExecutionException, InterruptedException
     {
         final DecoratedKey startWith = new DecoratedKey(range.left, (byte[])null);
@@ -1005,17 +1005,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 DecoratedKey key = current.key;
 
                 if (!stopAt.isEmpty() && stopAt.compareTo(key) < 0)
-                    return true;
+                    return;
 
                 // skip first one
                 if(range instanceof Bounds || !first || !key.equals(startWith))
+                {
                     rows.add(current);
+                    if (logger_.isDebugEnabled())
+                        logger_.debug("scanned " + key);
+                }
                 first = false;
 
                 if (rows.size() >= maxResults)
-                    return true;
+                    return;
             }
-            return false;
         }
         finally
         {
@@ -1043,24 +1046,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     throws ExecutionException, InterruptedException
     {
         List<Row> rows = new ArrayList<Row>();
-        boolean completed;
-        if ((range instanceof Bounds || !((Range)range).isWrapAround()))
-        {
-            completed = getRangeRows(rows, super_column, range, keyMax, columnFilter);
-        }
-        else
-        {
-            // wrapped range
-            Token min = partitioner_.getMinimumToken();
-            Range first = new Range(range.left, min);
-            completed = getRangeRows(rows, super_column, first, keyMax, columnFilter);
-            if (!completed && min.compareTo(range.right) < 0)
-            {
-                Range second = new Range(min, range.right);
-                getRangeRows(rows, super_column, second, keyMax, columnFilter);
-            }
-        }
-
+        assert range instanceof Bounds
+               || (!((Range)range).isWrapAround() || range.right.equals(StorageService.getPartitioner().getMinimumToken()))
+               : range;
+        getRangeRows(rows, super_column, range, keyMax, columnFilter);
         return rows;
     }
 

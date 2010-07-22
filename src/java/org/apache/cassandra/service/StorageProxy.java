@@ -697,9 +697,12 @@ public class StorageProxy implements StorageProxyMBean
      *     D, but we don't want any other results from it until after the (D, T] range.  Unwrapping so that
      *     the ranges we consider are (D, T], (T, MIN], (MIN, D] fixes this.
      */
-    private static List<AbstractBounds> getRestrictedRanges(AbstractBounds queryRange)
+    private static List<AbstractBounds> getRestrictedRanges(final AbstractBounds queryRange)
     {
         TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
+
+        if (logger.isDebugEnabled())
+            logger.debug("computing restricted ranges for query " + queryRange);
 
         List<AbstractBounds> ranges = new ArrayList<AbstractBounds>();
         // for each node, compute its intersection with the query range, and add its unwrapped components to our list
@@ -720,14 +723,23 @@ public class StorageProxy implements StorageProxyMBean
         // re-sort ranges in ring order, post-unwrapping
         Comparator<AbstractBounds> comparator = new Comparator<AbstractBounds>()
         {
+            // no restricted ranges will overlap so we don't need to worry about inclusive vs exclusive left,
+            // just sort by raw token position.
             public int compare(AbstractBounds o1, AbstractBounds o2)
             {
-                // no restricted ranges will overlap so we don't need to worry about inclusive vs exclusive left,
-                // just sort by raw token position.
-                return o1.left.compareTo(o2.left);
+                // sort in order that the original query range would see them.
+                int queryOrder1 = queryRange.left.compareTo(o1.left);
+                int queryOrder2 = queryRange.left.compareTo(o2.left);
+                if (queryOrder1 < queryOrder2)
+                    return -1; // o1 comes after query start, o2 wraps to after
+                if (queryOrder1 > queryOrder2)
+                    return 1; // o2 comes after query start, o1 wraps to after
+                return o1.left.compareTo(o2.left); // o1 and o2 are on the same side of query start
             }
         };
         Collections.sort(ranges, comparator);
+        if (logger.isDebugEnabled())
+            logger.debug("Sorted ranges are [" + StringUtils.join(ranges, ", ") + "]");
 
         return ranges;
     }

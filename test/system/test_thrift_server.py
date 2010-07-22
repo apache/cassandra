@@ -970,6 +970,29 @@ class TestMutations(ThriftTester):
         assert result[1].columns[0].column.name == 'col1'
         
     
+    def test_wrapped_range_slices(self):
+        _set_keyspace('Keyspace1')
+
+        def copp_token(key):
+            # I cheated and generated this from Java
+            return {'a': '00530000000100000001', 
+                    'b': '00540000000100000001', 
+                    'c': '00550000000100000001',
+                    'd': '00560000000100000001', 
+                    'e': '00580000000100000001'}[key]
+
+        for key in ['a', 'b', 'c', 'd', 'e']:
+            for cname in ['col1', 'col2', 'col3', 'col4', 'col5']:
+                client.insert(key, ColumnParent('Standard1'), Column(cname, 'v-' + cname, Clock(0)), ConsistencyLevel.ONE)
+        cp = ColumnParent('Standard1')
+
+        result = client.get_range_slices(cp, SlicePredicate(column_names=['col1', 'col3']), KeyRange(start_token=copp_token('e'), end_token=copp_token('e')), ConsistencyLevel.ONE)
+        assert [row.key for row in result] == ['a', 'b', 'c', 'd', 'e',], [row.key for row in result]
+
+        result = client.get_range_slices(cp, SlicePredicate(column_names=['col1', 'col3']), KeyRange(start_token=copp_token('c'), end_token=copp_token('c')), ConsistencyLevel.ONE)
+        assert [row.key for row in result] == ['d', 'e', 'a', 'b', 'c',], [row.key for row in result]
+        
+
     def test_get_slice_by_names(self):
         _set_keyspace('Keyspace1')
         _insert_range()

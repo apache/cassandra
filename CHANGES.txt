@@ -63,6 +63,7 @@ dev
  * avoid aborting commitlog replay prematurely if a flushed-but-
    not-removed commitlog segment is encountered (CASSANDRA-1297)
  * failure detection wasn't closing command sockets (CASSANDRA-1221)
+ * fix duplicate rows being read during mapreduce (CASSANDRA-1142)
 
 
 0.6.3
