@@ -138,19 +138,6 @@ public class ColumnFamilyStoreTest extends CleanupHelper
     }
 
     @Test
-    public void testWrappedRangeQuery() throws IOException, ExecutionException, InterruptedException
-    {
-        ColumnFamilyStore cfs = insertKey1Key2();
-
-        IPartitioner p = StorageService.getPartitioner();
-        List<Row> result = cfs.getRangeSlice(ArrayUtils.EMPTY_BYTE_ARRAY,
-                                             Util.range(p, "key15", "key1"),
-                                             10,
-                                             new NamesQueryFilter("asdf".getBytes()));
-        assertEquals(2, result.size());
-    }
-
-    @Test
     public void testSkipStartKey() throws IOException, ExecutionException, InterruptedException
     {
         ColumnFamilyStore cfs = insertKey1Key2();
