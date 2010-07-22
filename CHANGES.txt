@@ -12,7 +12,7 @@
  * log errors in gossip instead of re-throwing (CASSANDRA-1289)
  * avoid aborting commitlog replay prematurely if a flushed-but-
    not-removed commitlog segment is encountered (CASSANDRA-1297)
- * fix duplicate rows being read during mapreduce (CASSANDRA-1142)
+ * fix duplicate rows being read during mapreduce (CASSANDRA-1042)
  * failure detection wasn't closing command sockets (CASSANDRA-1221)
  * cassandra-cli.bat works on windows (CASSANDRA-1236)
 
