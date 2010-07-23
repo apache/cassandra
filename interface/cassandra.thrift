@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "8.4.0"
+const string VERSION = "8.5.0"
 
 
 #
@@ -357,7 +357,7 @@ struct ColumnDef {
 
 /* describes a column family. */
 struct CfDef {
-    1: required string table,
+    1: required string keyspace,
     2: required string name,
     3: optional string column_type="Standard",
     4: optional string clock_type="Timestamp",

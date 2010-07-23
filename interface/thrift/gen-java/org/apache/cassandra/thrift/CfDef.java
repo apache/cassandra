@@ -49,7 +49,7 @@ import org.apache.thrift.protocol.*;
 public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("CfDef");
 
-  private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
+  private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
   private static final TField NAME_FIELD_DESC = new TField("name", TType.STRING, (short)2);
   private static final TField COLUMN_TYPE_FIELD_DESC = new TField("column_type", TType.STRING, (short)3);
   private static final TField CLOCK_TYPE_FIELD_DESC = new TField("clock_type", TType.STRING, (short)4);
@@ -64,7 +64,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   private static final TField COLUMN_METADATA_FIELD_DESC = new TField("column_metadata", TType.LIST, (short)13);
   private static final TField GC_GRACE_SECONDS_FIELD_DESC = new TField("gc_grace_seconds", TType.I32, (short)14);
 
-  public String table;
+  public String keyspace;
   public String name;
   public String column_type;
   public String clock_type;
@@ -81,7 +81,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
-    TABLE((short)1, "table"),
+    KEYSPACE((short)1, "keyspace"),
     NAME((short)2, "name"),
     COLUMN_TYPE((short)3, "column_type"),
     CLOCK_TYPE((short)4, "clock_type"),
@@ -109,8 +109,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
      */
     public static _Fields findByThriftId(int fieldId) {
       switch(fieldId) {
-        case 1: // TABLE
-          return TABLE;
+        case 1: // KEYSPACE
+          return KEYSPACE;
         case 2: // NAME
           return NAME;
         case 3: // COLUMN_TYPE
@@ -187,7 +187,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   public static final Map<_Fields, FieldMetaData> metaDataMap;
   static {
     Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
-    tmpMap.put(_Fields.TABLE, new FieldMetaData("table", TFieldRequirementType.REQUIRED, 
+    tmpMap.put(_Fields.KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.STRING)));
     tmpMap.put(_Fields.NAME, new FieldMetaData("name", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.STRING)));
@@ -244,11 +244,11 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   }
 
   public CfDef(
-    String table,
+    String keyspace,
     String name)
   {
     this();
-    this.table = table;
+    this.keyspace = keyspace;
     this.name = name;
   }
 
@@ -258,8 +258,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   public CfDef(CfDef other) {
     __isset_bit_vector.clear();
     __isset_bit_vector.or(other.__isset_bit_vector);
-    if (other.isSetTable()) {
-      this.table = other.table;
+    if (other.isSetKeyspace()) {
+      this.keyspace = other.keyspace;
     }
     if (other.isSetName()) {
       this.name = other.name;
@@ -305,27 +305,27 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     return new CfDef(this);
   }
 
-  public String getTable() {
-    return this.table;
+  public String getKeyspace() {
+    return this.keyspace;
   }
 
-  public CfDef setTable(String table) {
-    this.table = table;
+  public CfDef setKeyspace(String keyspace) {
+    this.keyspace = keyspace;
     return this;
   }
 
-  public void unsetTable() {
-    this.table = null;
+  public void unsetKeyspace() {
+    this.keyspace = null;
   }
 
-  /** Returns true if field table is set (has been asigned a value) and false otherwise */
-  public boolean isSetTable() {
-    return this.table != null;
+  /** Returns true if field keyspace is set (has been asigned a value) and false otherwise */
+  public boolean isSetKeyspace() {
+    return this.keyspace != null;
   }
 
-  public void setTableIsSet(boolean value) {
+  public void setKeyspaceIsSet(boolean value) {
     if (!value) {
-      this.table = null;
+      this.keyspace = null;
     }
   }
 
@@ -653,11 +653,11 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
 
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
-    case TABLE:
+    case KEYSPACE:
       if (value == null) {
-        unsetTable();
+        unsetKeyspace();
       } else {
-        setTable((String)value);
+        setKeyspace((String)value);
       }
       break;
 
@@ -774,8 +774,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
 
   public Object getFieldValue(_Fields field) {
     switch (field) {
-    case TABLE:
-      return getTable();
+    case KEYSPACE:
+      return getKeyspace();
 
     case NAME:
       return getName();
@@ -827,8 +827,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
     switch (field) {
-    case TABLE:
-      return isSetTable();
+    case KEYSPACE:
+      return isSetKeyspace();
     case NAME:
       return isSetName();
     case COLUMN_TYPE:
@@ -876,12 +876,12 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (that == null)
       return false;
 
-    boolean this_present_table = true && this.isSetTable();
-    boolean that_present_table = true && that.isSetTable();
-    if (this_present_table || that_present_table) {
-      if (!(this_present_table && that_present_table))
+    boolean this_present_keyspace = true && this.isSetKeyspace();
+    boolean that_present_keyspace = true && that.isSetKeyspace();
+    if (this_present_keyspace || that_present_keyspace) {
+      if (!(this_present_keyspace && that_present_keyspace))
         return false;
-      if (!this.table.equals(that.table))
+      if (!this.keyspace.equals(that.keyspace))
         return false;
     }
 
@@ -1018,11 +1018,11 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     int lastComparison = 0;
     CfDef typedOther = (CfDef)other;
 
-    lastComparison = Boolean.valueOf(isSetTable()).compareTo(typedOther.isSetTable());
+    lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(typedOther.isSetKeyspace());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetTable()) {      lastComparison = TBaseHelper.compareTo(this.table, typedOther.table);
+    if (isSetKeyspace()) {      lastComparison = TBaseHelper.compareTo(this.keyspace, typedOther.keyspace);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1157,9 +1157,9 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         break;
       }
       switch (field.id) {
-        case 1: // TABLE
+        case 1: // KEYSPACE
           if (field.type == TType.STRING) {
-            this.table = iprot.readString();
+            this.keyspace = iprot.readString();
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -1286,9 +1286,9 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
-    if (this.table != null) {
-      oprot.writeFieldBegin(TABLE_FIELD_DESC);
-      oprot.writeString(this.table);
+    if (this.keyspace != null) {
+      oprot.writeFieldBegin(KEYSPACE_FIELD_DESC);
+      oprot.writeString(this.keyspace);
       oprot.writeFieldEnd();
     }
     if (this.name != null) {
@@ -1386,11 +1386,11 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     StringBuilder sb = new StringBuilder("CfDef(");
     boolean first = true;
 
-    sb.append("table:");
-    if (this.table == null) {
+    sb.append("keyspace:");
+    if (this.keyspace == null) {
       sb.append("null");
     } else {
-      sb.append(this.table);
+      sb.append(this.keyspace);
     }
     first = false;
     if (!first) sb.append(", ");
@@ -1507,8 +1507,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
 
   public void validate() throws TException {
     // check for required fields
-    if (table == null) {
-      throw new TProtocolException("Required field 'table' was not present! Struct: " + toString());
+    if (keyspace == null) {
+      throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
     }
     if (name == null) {
       throw new TProtocolException("Required field 'name' was not present! Struct: " + toString());

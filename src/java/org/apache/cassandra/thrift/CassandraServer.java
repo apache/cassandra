@@ -963,7 +963,7 @@ public class CassandraServer implements Cassandra.Iface
 
         }
 
-        return new CFMetaData(cf_def.table,
+        return new CFMetaData(cf_def.keyspace,
                               cf_def.name,
                               cfType,
                               clockType,
