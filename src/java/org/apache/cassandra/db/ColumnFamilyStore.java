@@ -974,16 +974,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /**
       * Fetch a range of rows and columns from memtables/sstables.
       * 
-      * @param rows The resulting rows fetched during this operation 
-      * @param superColumn Super column to filter by
+      * @param superColumn optional SuperColumn to slice subcolumns of; null to slice top-level columns
       * @param range Either a Bounds, which includes start key, or a Range, which does not.
       * @param maxResults Maximum rows to return
       * @param columnFilter description of the columns we're interested in for each row
       * @return true if we found all keys we were looking for, otherwise false
      */
-    private void getRangeRows(List<Row> rows, byte[] superColumn, final AbstractBounds range, int maxResults, IFilter columnFilter)
+    public List<Row> getRangeSlice(byte[] superColumn, final AbstractBounds range, int maxResults, IFilter columnFilter)
     throws ExecutionException, InterruptedException
     {
+        assert range instanceof Bounds
+               || (!((Range)range).isWrapAround() || range.right.equals(StorageService.getPartitioner().getMinimumToken()))
+               : range;
+
+        List<Row> rows = new ArrayList<Row>();
         final DecoratedKey startWith = new DecoratedKey(range.left, (byte[])null);
         final DecoratedKey stopAt = new DecoratedKey(range.right, (byte[])null);
         
@@ -1011,7 +1015,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 DecoratedKey key = current.key;
 
                 if (!stopAt.isEmpty() && stopAt.compareTo(key) < 0)
-                    return;
+                    return rows;
 
                 // skip first one
                 if(range instanceof Bounds || !first || !key.equals(startWith))
@@ -1023,7 +1027,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 first = false;
 
                 if (rows.size() >= maxResults)
-                    return;
+                    return rows;
             }
         }
         finally
@@ -1037,25 +1041,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 throw new IOError(e);
             }
         }
-    }
 
-    /**
-     *
-     * @param super_column
-     * @param range: either a Bounds, which includes start key, or a Range, which does not.
-     * @param keyMax maximum number of keys to process, regardless of startKey/finishKey
-     * @param columnFilter description of the columns we're interested in for each row
-     * @throws ExecutionException
-     * @throws InterruptedException
-     */
-    public List<Row> getRangeSlice(byte[] super_column, final AbstractBounds range, int keyMax, IFilter columnFilter)
-    throws ExecutionException, InterruptedException
-    {
-        List<Row> rows = new ArrayList<Row>();
-        assert range instanceof Bounds
-               || (!((Range)range).isWrapAround() || range.right.equals(StorageService.getPartitioner().getMinimumToken()))
-               : range;
-        getRangeRows(rows, super_column, range, keyMax, columnFilter);
         return rows;
     }
 
