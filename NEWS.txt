@@ -50,6 +50,8 @@ JMX
 ---
     - StreamingService moved from o.a.c.streaming to o.a.c.service
     - GMFD renamed to GOSSIP_STAGE
+    - {Min,Mean,Max}RowCompactedSize renamed to {Min,Mean,Max}RowSize
+      since it no longer has to wait til compaction to be computed
 
 Thrift API
 ----------

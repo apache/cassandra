@@ -144,19 +144,19 @@ public interface ColumnFamilyStoreMBean
      * return the size of the smallest compacted row
      * @return
      */
-    public long getMinRowCompactedSize();
+    public long getMinRowSize();
 
     /**
      * return the size of the largest compacted row
      * @return
      */
-    public long getMaxRowCompactedSize();
+    public long getMaxRowSize();
 
     /**
      * return the mean size of the rows compacted
      * @return
      */
-    public long getMeanRowCompactedSize();
+    public long getMeanRowSize();
 
     public long getBloomFilterFalsePositives();
 

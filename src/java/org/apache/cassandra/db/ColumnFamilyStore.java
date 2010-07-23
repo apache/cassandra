@@ -253,7 +253,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    public long getMinRowCompactedSize()
+    public long getMinRowSize()
     {
         long min = 0;
         for (SSTableReader sstable : ssTables_)
@@ -264,7 +264,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return min;
     }
 
-    public long getMaxRowCompactedSize()
+    public long getMaxRowSize()
     {
         long max = 0;
         for (SSTableReader sstable : ssTables_)
@@ -275,7 +275,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return max;
     }
 
-    public long getMeanRowCompactedSize()
+    public long getMeanRowSize()
     {
         long sum = 0;
         long count = 0;

@@ -3,7 +3,6 @@ package org.apache.cassandra.io.sstable;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 import java.util.ArrayList;
-import java.util.Map;
 import java.util.List;
 
 import org.junit.Test;
@@ -14,7 +13,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.MmappedSegmentedFile;
 import org.apache.cassandra.service.StorageService;
@@ -126,6 +124,6 @@ public class SSTableReaderTest extends CleanupHelper
             rm.apply();
         }
         store.forceBlockingFlush();
-        assert store.getMaxRowCompactedSize() != 0;
+        assert store.getMaxRowSize() != 0;
     }
 }
