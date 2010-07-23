@@ -26,11 +26,13 @@ import java.lang.ref.Reference;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
+import org.apache.cassandra.db.StatisticsTable;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.SegmentedFile;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.EstimatedHistogram;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -140,6 +142,22 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return count;
     }
 
+    private void loadStatistics(Descriptor desc) throws IOException
+    {
+        // skip loading stats for the system table, or we will infinitely recurse
+        if (desc.ksname.equals(Table.SYSTEM_TABLE))
+            return;
+        if (logger.isDebugEnabled())
+            logger.debug("Load statistics for " + desc);
+        long[] rowsizes = StatisticsTable.getSSTableRowSizeStatistics(desc.filenameFor(SSTable.COMPONENT_DATA));
+        long[] colcounts = StatisticsTable.getSSTableColumnCountStatistics(desc.filenameFor(SSTable.COMPONENT_DATA));
+        if (rowsizes.length > 0)
+        {
+            estimatedRowSize = new EstimatedHistogram(rowsizes);
+            estimatedColumnCount = new EstimatedHistogram(colcounts);
+        }
+    }
+
     public static SSTableReader open(String dataFileName) throws IOException
     {
         return open(Descriptor.fromFilename(dataFileName));
@@ -191,17 +209,38 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
             sstable.load(false);
             sstable.loadBloomFilter();
         }
+        sstable.loadStatistics(desc);
 
         return sstable;
+    }
+
+    SSTableReader(Descriptor desc,
+                  IPartitioner partitioner,
+                  SegmentedFile ifile,
+                  SegmentedFile dfile,
+                  IndexSummary indexSummary,
+                  BloomFilter bloomFilter,
+                  long maxDataAge)
+            throws IOException
+    {
+        super(desc, partitioner);
+        this.maxDataAge = maxDataAge;
+
+
+        this.ifile = ifile;
+        this.dfile = dfile;
+        this.indexSummary = indexSummary;
+        this.bf = bloomFilter;
     }
 
     /**
      * Open a RowIndexedReader which already has its state initialized (by SSTableWriter).
      */
-    static SSTableReader internalOpen(Descriptor desc, IPartitioner partitioner, SegmentedFile ifile, SegmentedFile dfile, IndexSummary isummary, BloomFilter bf, long maxDataAge) throws IOException
+    static SSTableReader internalOpen(Descriptor desc, IPartitioner partitioner, SegmentedFile ifile, SegmentedFile dfile, IndexSummary isummary, BloomFilter bf, long maxDataAge, EstimatedHistogram rowsize,
+                                      EstimatedHistogram columncount) throws IOException
     {
         assert desc != null && partitioner != null && ifile != null && dfile != null && isummary != null && bf != null;
-        return new SSTableReader(desc, partitioner, ifile, dfile, isummary, bf, maxDataAge);
+        return new SSTableReader(desc, partitioner, ifile, dfile, isummary, bf, maxDataAge, rowsize, columncount);
     }
 
     SSTableReader(Descriptor desc,
@@ -210,7 +249,9 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                      SegmentedFile dfile,
                      IndexSummary indexSummary,
                      BloomFilter bloomFilter,
-                     long maxDataAge)
+                     long maxDataAge,
+                     EstimatedHistogram rowsize,
+                     EstimatedHistogram columncount)
     throws IOException
     {
         super(desc, partitioner);
@@ -221,6 +262,8 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         this.dfile = dfile;
         this.indexSummary = indexSummary;
         this.bf = bloomFilter;
+        estimatedRowSize = rowsize;
+        estimatedColumnCount = columncount;
     }
 
     public void setTrackedBy(SSTableTracker tracker)

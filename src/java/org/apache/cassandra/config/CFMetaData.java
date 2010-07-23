@@ -35,6 +35,7 @@ import org.apache.cassandra.db.clock.AbstractReconciler;
 import org.apache.cassandra.db.clock.TimestampReconciler;
 import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.StatisticsTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -64,6 +65,7 @@ public final class CFMetaData
     public static final CFMetaData HintsCf = new CFMetaData(Table.SYSTEM_TABLE, HintedHandOffManager.HINTS_CF, ColumnFamilyType.Super, ClockType.Timestamp, UTF8Type.instance, BytesType.instance, new TimestampReconciler(), "hinted handoff data", 0, false, 0.01, DEFAULT_GC_GRACE_SECONDS, 1, Collections.<byte[], ColumnDefinition>emptyMap());
     public static final CFMetaData MigrationsCf = new CFMetaData(Table.SYSTEM_TABLE, Migration.MIGRATIONS_CF, ColumnFamilyType.Standard, ClockType.Timestamp, TimeUUIDType.instance, null, new TimestampReconciler(), "individual schema mutations", 0, false, 0.01, DEFAULT_GC_GRACE_SECONDS, 2, Collections.<byte[], ColumnDefinition>emptyMap());
     public static final CFMetaData SchemaCf = new CFMetaData(Table.SYSTEM_TABLE, Migration.SCHEMA_CF, ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, new TimestampReconciler(), "current state of the schema", 0, false, 0.01, DEFAULT_GC_GRACE_SECONDS, 3, Collections. <byte[], ColumnDefinition>emptyMap());
+    public static final CFMetaData StatisticsCf = new CFMetaData(Table.SYSTEM_TABLE, StatisticsTable.STATISTICS_CF, ColumnFamilyType.Super, ClockType.Timestamp, UTF8Type.instance, BytesType.instance, new TimestampReconciler(), "persistent CF statistics for the local node", 0, false, 0.01, DEFAULT_GC_GRACE_SECONDS, 4, Collections.<byte[], ColumnDefinition>emptyMap());
 
     /**
      * @return An immutable mapping of (ksname,cfname) to id.

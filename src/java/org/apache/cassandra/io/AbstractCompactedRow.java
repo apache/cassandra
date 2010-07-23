@@ -25,4 +25,6 @@ public abstract class AbstractCompactedRow
     public abstract void update(MessageDigest digest);
 
     public abstract boolean isEmpty();
+
+    public abstract int columnCount();
 }

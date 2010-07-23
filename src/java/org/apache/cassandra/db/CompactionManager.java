@@ -348,9 +348,6 @@ public class CompactionManager implements CompactionManagerMBean
 
                 writer.append(row);
                 totalkeysWritten++;
-
-                long rowsize = writer.getFilePointer() - prevpos;
-                cfs.addToCompactedRowStats(rowsize);
             }
         }
         finally

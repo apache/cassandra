@@ -69,18 +69,20 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
         serializeForSSTable(columnFamily, dos);
     }
 
-    public void serializeForSSTable(ColumnFamily columnFamily, DataOutput dos)
+    public int serializeForSSTable(ColumnFamily columnFamily, DataOutput dos)
     {
         try
         {
             serializeCFInfo(columnFamily, dos);
 
             Collection<IColumn> columns = columnFamily.getSortedColumns();
-            dos.writeInt(columns.size());
+            int count = columns.size();
+            dos.writeInt(count);
             for (IColumn column : columns)
             {
                 columnFamily.getColumnSerializer().serialize(column, dos);
             }
+            return count;
         }
         catch (IOException e)
         {
@@ -95,10 +97,10 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
         columnFamily.getClockType().serializer().serialize(_markedForDeleteAt, dos);
     }
 
-    public void serializeWithIndexes(ColumnFamily columnFamily, DataOutput dos)
+    public int serializeWithIndexes(ColumnFamily columnFamily, DataOutput dos)
     {
         ColumnIndexer.serialize(columnFamily, dos);
-        serializeForSSTable(columnFamily, dos);
+        return serializeForSSTable(columnFamily, dos);
     }
 
     public ColumnFamily deserialize(DataInput dis) throws IOException

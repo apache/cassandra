@@ -26,7 +26,9 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.StatisticsTable;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.AbstractCompactedRow;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
@@ -34,6 +36,7 @@ import org.apache.cassandra.io.util.SegmentedFile;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.WrappedRunnable;
 
 public class SSTableWriter extends SSTable
 {
@@ -83,6 +86,8 @@ public class SSTableWriter extends SSTable
         long currentPosition = beforeAppend(row.key);
         FBUtilities.writeShortByteArray(row.key.key, dataFile);
         row.write(dataFile);
+        estimatedRowSize.add(dataFile.getFilePointer() - currentPosition);
+        estimatedColumnCount.add(row.columnCount());
         afterAppend(row.key, currentPosition);
     }
 
@@ -94,7 +99,7 @@ public class SSTableWriter extends SSTable
         long sizePosition = dataFile.getFilePointer();
         dataFile.writeLong(-1);
         // write out row data
-        ColumnFamily.serializer().serializeWithIndexes(cf, dataFile);
+        int columnCount = ColumnFamily.serializer().serializeWithIndexes(cf, dataFile);
         // seek back and write the row size (not including the size Long itself)
         long endPosition = dataFile.getFilePointer();
         dataFile.seek(sizePosition);
@@ -102,6 +107,8 @@ public class SSTableWriter extends SSTable
         // finally, reset for next row
         dataFile.seek(endPosition);
         afterAppend(decoratedKey, startPosition);
+        estimatedRowSize.add(endPosition - startPosition);
+        estimatedColumnCount.add(columnCount);
     }
 
     public void append(DecoratedKey decoratedKey, byte[] value) throws IOException
@@ -128,12 +135,21 @@ public class SSTableWriter extends SSTable
         dataFile.close(); // calls force
 
         // remove the 'tmp' marker from all components
-        Descriptor newdesc = rename(desc);
+        final Descriptor newdesc = rename(desc);
+
+        Runnable runnable = new WrappedRunnable()
+        {
+            protected void runMayThrow() throws IOException
+            {
+                StatisticsTable.persistSSTableStatistics(newdesc, estimatedRowSize, estimatedColumnCount);
+            }
+        };
+        ColumnFamilyStore.submitPostFlush(runnable);
 
         // finalize in-memory state for the reader
         SegmentedFile ifile = iwriter.builder.complete(newdesc.filenameFor(SSTable.COMPONENT_INDEX));
         SegmentedFile dfile = dbuilder.complete(newdesc.filenameFor(SSTable.COMPONENT_DATA));
-        SSTableReader sstable = SSTableReader.internalOpen(newdesc, partitioner, ifile, dfile, iwriter.summary, iwriter.bf, maxDataAge);
+        SSTableReader sstable = SSTableReader.internalOpen(newdesc, partitioner, ifile, dfile, iwriter.summary, iwriter.bf, maxDataAge, estimatedRowSize, estimatedColumnCount);
         iwriter = null;
         dbuilder = null;
         return sstable;

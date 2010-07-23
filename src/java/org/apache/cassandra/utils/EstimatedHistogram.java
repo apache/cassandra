@@ -25,27 +25,58 @@ public class EstimatedHistogram
 {
 
     /**
-     * This series starts at 1 and grows by 1.2 each time (rounding down and removing duplicates). It goes from 1
-     * to around 30M, which will give us timing resolution from microseconds to 30 seconds, with less precision
-     * as the numbers get larger.
+     * The series of values to which the counts in `buckets` correspond:
+     * 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 18, 22, etc.
+     * Thus, a `buckets` of [0, 0, 1, 10] would mean we had seen one value of 3 and 10 values of 4.
+     *
+     * The series starts at 1 and grows by 1.2 each time (rounding and removing duplicates). It goes from 1
+     * to around 36M by default (creating 90+1 buckets), which will give us timing resolution from microseconds to
+     * 36 seconds, with less precision as the numbers get larger.
      */
-    private static final long[] bucketOffsets = {
-            1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 18, 22, 26, 31, 38, 46, 55, 66, 79, 95, 114, 137, 164, 197, 237, 284, 341, 410, 492, 590,
-            708, 850, 1020, 1224, 1469, 1763, 2116, 2539, 3047, 3657, 4388, 5266, 6319, 7583, 9100, 10920, 13104, 15725, 18870, 22644,
-            27173, 32608, 39130, 46956, 56347, 67617, 81140, 97368, 116842, 140210, 168252, 201903, 242283, 290740, 348888, 418666,
-            502400, 602880, 723456, 868147, 1041776, 1250132, 1500158, 1800190, 2160228, 2592274, 3110728, 3732874, 4479449, 5375339,
-            6450407, 7740489, 9288586, 11146304, 13375565, 16050678, 19260813, 23112976, 27735572, 33282686
-    };
-
-    private static final int numBuckets = bucketOffsets.length + 1;
+    private long[] bucketOffsets;
+    private int numBuckets;
 
     final AtomicLongArray buckets;
 
     public EstimatedHistogram()
     {
+        makeOffsets(90);
         buckets = new AtomicLongArray(numBuckets);
     }
 
+    public EstimatedHistogram(int bucketCount)
+    {
+        makeOffsets(bucketCount);
+        buckets = new AtomicLongArray(numBuckets);
+    }
+
+    public EstimatedHistogram(long[] bucketData)
+    {
+        makeOffsets(bucketData.length - 1);
+        buckets = new AtomicLongArray(bucketData);
+    }
+
+    private void makeOffsets(int size)
+    {
+        bucketOffsets = new long[size];
+        long last = 1;
+        bucketOffsets[0] = last;
+        for(int i = 1; i < size; i++)
+        {
+            long next = Math.round(last * 1.2);
+            if (next == last)
+                next++;
+            bucketOffsets[i] = next;
+            last = next;
+        }
+        numBuckets = bucketOffsets.length + 1;
+    }
+
+    public long[] getBucketOffsets()
+    {
+        return bucketOffsets;
+    }
+    
     public void add(long n)
     {
         int index = Arrays.binarySearch(bucketOffsets, n);
@@ -73,5 +104,41 @@ public class EstimatedHistogram
                 buckets.set(i, 0L);
 
         return rv;
+    }
+
+    public long min()
+    {
+        for (int i = 0; i < numBuckets; i++)
+        {
+            if (buckets.get(i) > 0)
+                return bucketOffsets[i == 0 ? 0 : i - 1];
+        }
+        return 0;
+    }
+
+    public long max()
+    {
+        for (int i = numBuckets - 1; i >= 0; i--)
+        {
+            if (buckets.get(i) > 0)
+                return bucketOffsets[i == 0 ? 0 : i - 1];
+        }
+        return 0;
+    }
+
+    public long median()
+    {
+        long max = 0;
+        long median = 0;
+        for (int i = 0; i < numBuckets; i++)
+        {
+            if (max < 1 || buckets.get(i) > max)
+            {
+                max = buckets.get(i);
+                if (max > 0)
+                    median = bucketOffsets[i == 0 ? 0 : i - 1];
+            }
+        }
+        return median;
     }
 }

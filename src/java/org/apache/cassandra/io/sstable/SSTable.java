@@ -31,6 +31,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.db.StatisticsTable;
+import org.apache.cassandra.utils.EstimatedHistogram;
 
 /**
  * This class is built on top of the SequenceFile. It stores
@@ -61,6 +63,8 @@ public abstract class SSTable
     public static final String TEMPFILE_MARKER = "tmp";
 
     public static List<String> components = Collections.unmodifiableList(Arrays.asList(COMPONENT_FILTER, COMPONENT_INDEX, COMPONENT_DATA));
+    protected EstimatedHistogram estimatedRowSize = new EstimatedHistogram(130);
+    protected EstimatedHistogram estimatedColumnCount = new EstimatedHistogram(112);
 
     protected SSTable(String filename, IPartitioner partitioner)
     {
@@ -73,6 +77,16 @@ public abstract class SSTable
     {
         this.desc = desc;
         this.partitioner = partitioner;
+    }
+
+    public EstimatedHistogram getEstimatedRowSize()
+    {
+        return estimatedRowSize;
+    }
+
+    public EstimatedHistogram getEstimatedColumnCount()
+    {
+        return estimatedColumnCount;
     }
 
     public IPartitioner getPartitioner()
@@ -119,6 +133,7 @@ public abstract class SSTable
                 FileUtils.deleteWithConfirm(new File(SSTable.indexFilename(dataFilename)));
                 FileUtils.deleteWithConfirm(new File(SSTable.filterFilename(dataFilename)));
                 FileUtils.deleteWithConfirm(new File(SSTable.compactedFilename(dataFilename)));
+                StatisticsTable.deleteSSTableStatistics(dataFilename);
             }
             catch (IOException e)
             {

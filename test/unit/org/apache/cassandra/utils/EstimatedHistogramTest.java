@@ -31,20 +31,23 @@ public class EstimatedHistogramTest
         EstimatedHistogram histogram = new EstimatedHistogram();
 
         histogram.add(0L);
-        assertEquals(1, histogram.get(true)[0]);
+        assertEquals(1, histogram.get(false)[0]);
 
         histogram.add(33282687);
-        assertEquals(1, histogram.get(true)[histogram.buckets.length()-1]);
+        assertEquals(1, histogram.get(false)[histogram.buckets.length()-1]);
 
         histogram.add(1);
-        assertEquals(1, histogram.get(true)[1]);
+        assertEquals(1, histogram.get(false)[1]);
 
         histogram.add(9);
-        assertEquals(1, histogram.get(true)[8]);
+        assertEquals(1, histogram.get(false)[8]);
 
-        histogram.add(23);
-        histogram.add(24);
-        histogram.add(25);
-        assertEquals(3, histogram.get(true)[13]);
+        histogram.add(20);
+        histogram.add(21);
+        histogram.add(22);
+        assertEquals(3, histogram.get(false)[13]);
+        assertEquals(1, histogram.min());
+        assertEquals(25109160, histogram.max());
+        assertEquals(20, histogram.median());
     }
 }

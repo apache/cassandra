@@ -151,6 +151,11 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         return Iterators.filter(iter, Predicates.notNull());
     }
 
+    public int columnCount()
+    {
+        return columnCount;
+    }
+
     private class LazyColumnIterator extends ReducingIterator<IColumn, IColumn>
     {
         ColumnFamily container = emptyColumnFamily.cloneMeShallow();

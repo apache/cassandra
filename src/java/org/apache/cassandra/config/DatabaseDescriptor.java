@@ -348,12 +348,14 @@ public class DatabaseDescriptor
             KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE, LocalStrategy.class, 1, new CFMetaData[]{CFMetaData.StatusCf,
                                                                                                   CFMetaData.HintsCf,
                                                                                                   CFMetaData.MigrationsCf,
-                                                                                                  CFMetaData.SchemaCf
+                                                                                                  CFMetaData.SchemaCf,
+                                                                                                  CFMetaData.StatisticsCf
             });
             CFMetaData.map(CFMetaData.StatusCf);
             CFMetaData.map(CFMetaData.HintsCf);
             CFMetaData.map(CFMetaData.MigrationsCf);
             CFMetaData.map(CFMetaData.SchemaCf);
+            CFMetaData.map(CFMetaData.StatisticsCf);
             tables.put(Table.SYSTEM_TABLE, systemMeta);
             
             /* Load the seeds for node contact points */

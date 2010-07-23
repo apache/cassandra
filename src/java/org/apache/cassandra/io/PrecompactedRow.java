@@ -22,6 +22,7 @@ public class PrecompactedRow extends AbstractCompactedRow
     private static Logger logger = LoggerFactory.getLogger(PrecompactedRow.class);
 
     private final DataOutputBuffer buffer;
+    private int columnCount = 0;
 
     public PrecompactedRow(DecoratedKey key, DataOutputBuffer buffer)
     {
@@ -61,7 +62,7 @@ public class PrecompactedRow extends AbstractCompactedRow
             ColumnFamily cfPurged = major ? ColumnFamilyStore.removeDeleted(cf, gcBefore) : cf;
             if (cfPurged == null)
                 return;
-            ColumnFamily.serializer().serializeWithIndexes(cfPurged, buffer);
+            columnCount = ColumnFamily.serializer().serializeWithIndexes(cfPurged, buffer);
         }
         else
         {
@@ -69,6 +70,7 @@ public class PrecompactedRow extends AbstractCompactedRow
             try
             {
                 rows.get(0).echoData(buffer);
+                columnCount = rows.get(0).getColumnCount();
             }
             catch (IOException e)
             {
@@ -91,5 +93,10 @@ public class PrecompactedRow extends AbstractCompactedRow
     public boolean isEmpty()
     {
         return buffer.getLength() == 0;
+    }
+
+    public int columnCount()
+    {
+        return columnCount;
     }
 }

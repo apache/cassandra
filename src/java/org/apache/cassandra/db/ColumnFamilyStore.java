@@ -98,7 +98,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                TimeUnit.SECONDS,
                                                new LinkedBlockingQueue<Runnable>(DatabaseDescriptor.getFlushWriters()),
                                                new NamedThreadFactory("FLUSH-WRITER-POOL"));
-    private static ExecutorService commitLogUpdater_ = new JMXEnabledThreadPoolExecutor("MEMTABLE-POST-FLUSHER");
+    private static ExecutorService postFlushExecutor_ = new JMXEnabledThreadPoolExecutor("MEMTABLE-POST-FLUSHER");
     
     private static final FilenameFilter DB_NAME_FILTER = new FilenameFilter()
     {
@@ -133,10 +133,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private LatencyTracker readStats_ = new LatencyTracker();
     private LatencyTracker writeStats_ = new LatencyTracker();
 
-    private long minRowCompactedSize = 0L;
-    private long maxRowCompactedSize = 0L;
-    private long rowsCompactedTotalSize = 0L;
-    private long rowsCompactedCount = 0L;
     final CFMetaData metadata;
 
     ColumnFamilyStore(String table, String columnFamilyName, IPartitioner partitioner, int generation, CFMetaData metadata)
@@ -257,32 +253,41 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    public void addToCompactedRowStats(long rowsize)
-    {
-        if (minRowCompactedSize < 1 || rowsize < minRowCompactedSize)
-            minRowCompactedSize = rowsize;
-        if (rowsize > maxRowCompactedSize)
-            maxRowCompactedSize = rowsize;
-        rowsCompactedCount++;
-        rowsCompactedTotalSize += rowsize;
-    }
-
     public long getMinRowCompactedSize()
     {
-        return minRowCompactedSize;
+        long min = 0;
+        for (SSTableReader sstable : ssTables_)
+        {
+           if (min == 0 || sstable.getEstimatedRowSize().min() < min)
+               min = sstable.getEstimatedRowSize().min();
+        }
+        return min;
     }
 
     public long getMaxRowCompactedSize()
     {
-        return maxRowCompactedSize;
+        long max = 0;
+        for (SSTableReader sstable : ssTables_)
+        {
+            if (sstable.getEstimatedRowSize().max() > max)
+                max = sstable.getEstimatedRowSize().max();
+        }
+        return max;
     }
 
     public long getMeanRowCompactedSize()
     {
-        if (rowsCompactedCount > 0)
-            return rowsCompactedTotalSize / rowsCompactedCount;
-        else
-            return 0L;
+        long sum = 0;
+        long count = 0;
+        for (SSTableReader sstable : ssTables_)
+        {
+            if (sstable.getEstimatedRowSize().median() > 0)
+            {
+                sum += sstable.getEstimatedRowSize().median();
+                count++;
+            }
+        }
+        return count > 0 ? sum / count : 0;
     }
 
     public static ColumnFamilyStore createColumnFamilyStore(String table, String columnFamily)
@@ -414,7 +419,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // when all the memtables have been written, including for indexes, mark the flush in the commitlog header.
             // a second executor makes sure the onMemtableFlushes get called in the right order,
             // while keeping the wait-for-flush (future.get) out of anything latency-sensitive.
-            return commitLogUpdater_.submit(new WrappedRunnable()
+            return postFlushExecutor_.submit(new WrappedRunnable()
             {
                 public void runMayThrow() throws InterruptedException, IOException
                 {
@@ -1295,7 +1300,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
         };
 
-        return commitLogUpdater_.submit(runnable);
+        return postFlushExecutor_.submit(runnable);
+    }
+
+    public static Future<?> submitPostFlush(Runnable runnable)
+    {
+        return postFlushExecutor_.submit(runnable);
     }
 
     public long getBloomFilterFalsePositives()
