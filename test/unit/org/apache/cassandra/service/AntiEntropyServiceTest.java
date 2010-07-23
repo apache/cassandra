@@ -23,6 +23,7 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ThreadPoolExecutor;
 
 import org.junit.After;
 import org.junit.Before;
@@ -90,11 +91,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
     @After
     public void teardown() throws Exception
     {
-        // block for AES to clear before we teardown the token metadata for the next test.
-        StageManager.getStage(StageManager.AE_SERVICE_STAGE).submit(new Runnable()
-        {
-            public void run() { /* no-op */ }
-        }).get();
+        flushAES();
     }
 
     @Test
@@ -130,7 +127,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
         assert null != validator.tree.hash(new Range(min, min));
 
         // wait for queued operations to be flushed
-        flushAES().get(5000, TimeUnit.MILLISECONDS);
+        flushAES();
     }
 
     @Test
@@ -242,14 +239,20 @@ public class AntiEntropyServiceTest extends CleanupHelper
         return endpoints;
     }
 
-    Future<Object> flushAES()
+    void flushAES() throws Exception
     {
-        return StageManager.getStage(StageManager.AE_SERVICE_STAGE).submit(new Callable<Object>()
+        final ThreadPoolExecutor stage = StageManager.getStage(StageManager.AE_SERVICE_STAGE);
+        final Callable noop = new Callable<Object>()
         {
             public Boolean call()
             {
                 return true;
             }
-        });
+        };
+        
+        // send two tasks through the stage: one to follow existing tasks and a second to follow tasks created by
+        // those existing tasks: tasks won't recursively create more tasks
+        stage.submit(noop).get(5000, TimeUnit.MILLISECONDS);
+        stage.submit(noop).get(5000, TimeUnit.MILLISECONDS);
     }
 }
