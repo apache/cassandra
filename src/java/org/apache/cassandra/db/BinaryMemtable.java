@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
@@ -78,7 +79,7 @@ public class BinaryMemtable implements IFlushable
                 if (!isFrozen)
                 {
                     isFrozen = true;
-                    cfs.submitFlush(this);
+                    cfs.submitFlush(this, new CountDownLatch(1));
                     cfs.switchBinaryMemtable(key, buffer);
                 }
                 else
@@ -134,7 +135,7 @@ public class BinaryMemtable implements IFlushable
         return sstable;
     }
 
-    public void flushAndSignal(final Condition condition, ExecutorService sorter, final ExecutorService writer)
+    public void flushAndSignal(final CountDownLatch latch, ExecutorService sorter, final ExecutorService writer)
     {
         sorter.submit(new Runnable()
         {
@@ -146,7 +147,7 @@ public class BinaryMemtable implements IFlushable
                     public void runMayThrow() throws IOException
                     {
                         cfs.addSSTable(writeSortedContents(sortedKeys));
-                        condition.signalAll();
+                        latch.countDown();
                     }
                 });
             }
