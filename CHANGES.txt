@@ -2,8 +2,6 @@ dev
  * sstable versioning (CASSANDRA-389)
  * bitmask matching in SliceRange queries (CASSANDRA-764)
  * switched to slf4j logging (CASSANDRA-625)
- * drain method to flush memtables and purge commit log prior to shutdown. 
-   (CASSANDRA-880)
  * access levels for authentication/authorization (CASSANDRA-900)
  * add ReadRepairChance to CF definition (CASSANDRA-930)
  * fix heisenbug in system tests, especially common on OS X (CASSANDRA-944)
