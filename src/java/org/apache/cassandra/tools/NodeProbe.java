@@ -39,6 +39,7 @@ import javax.management.remote.JMXServiceURL;
 
 import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
 import org.apache.cassandra.concurrent.IExecutorMBean;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.db.CompactionManagerMBean;
@@ -406,6 +407,17 @@ public class NodeProbe
         {
             throw new RuntimeException("Error while executing truncate", e);
         }
+    }
+    
+    @Deprecated
+    public void loadSchemaFromYAML() throws ConfigurationException, IOException
+    {
+        ssProxy.loadSchemaFromYAML();
+    }
+    
+    public String exportSchemaToYAML() throws IOException
+    {
+        return ssProxy.exportSchema();
     }
 }
 

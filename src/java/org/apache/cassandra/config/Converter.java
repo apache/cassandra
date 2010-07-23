@@ -12,6 +12,7 @@ import javax.xml.transform.TransformerException;
 import javax.xml.xpath.XPathExpressionException;
 
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.SkipNullRepresenter;
 import org.apache.cassandra.utils.XMLUtils;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.w3c.dom.NodeList;
@@ -319,18 +320,4 @@ public class Converter
         }
 
     }
-    
-    /* used to prevent null values from being included in generated YAML */
-    private static class SkipNullRepresenter extends Representer {
-        protected NodeTuple representJavaBeanProperty(Object javaBean, Property property,
-                Object propertyValue, Tag customTag) {
-            if (propertyValue == null) {
-                return null;
-            } else {
-                return super.representJavaBeanProperty(javaBean, property, propertyValue, customTag);
-            }
-        }
-
-    }
-
 }

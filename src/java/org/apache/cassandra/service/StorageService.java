@@ -29,6 +29,13 @@ import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.RawColumnDefinition;
+import org.apache.cassandra.config.RawColumnFamily;
+import org.apache.cassandra.config.RawKeyspace;
+import org.apache.cassandra.utils.SkipNullRepresenter;
 import org.apache.commons.lang.StringUtils;
 
 import org.slf4j.Logger;
@@ -67,6 +74,13 @@ import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.log4j.Level;
+import org.yaml.snakeyaml.Dumper;
+import org.yaml.snakeyaml.DumperOptions;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.introspector.Property;
+import org.yaml.snakeyaml.nodes.NodeTuple;
+import org.yaml.snakeyaml.nodes.Tag;
+import org.yaml.snakeyaml.representer.Representer;
 
 /*
  * This abstraction contains the token/identifier of this node
@@ -1677,6 +1691,71 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         
     }
 
+    public String exportSchema() throws IOException
+    {
+        List<RawKeyspace> keyspaces = new ArrayList<RawKeyspace>();
+        for (String ksname : DatabaseDescriptor.getNonSystemTables())
+        {
+            KSMetaData ksm = DatabaseDescriptor.getTableDefinition(ksname);
+            RawKeyspace rks = new RawKeyspace();
+            rks.name = ksm.name;
+            rks.replica_placement_strategy = ksm.strategyClass.getName();
+            rks.replication_factor = ksm.replicationFactor;
+            rks.column_families = new RawColumnFamily[ksm.cfMetaData().size()];
+            int i = 0;
+            for (CFMetaData cfm : ksm.cfMetaData().values())
+            {
+                RawColumnFamily rcf = new RawColumnFamily();
+                rcf.name = cfm.cfName;
+                rcf.compare_with = cfm.comparator.getClass().getName();
+                rcf.compare_subcolumns_with = cfm.subcolumnComparator == null ? null : cfm.subcolumnComparator.getClass().getName();
+                rcf.clock_type = cfm.clockType;
+                rcf.column_type = cfm.cfType;
+                rcf.comment = cfm.comment;
+                rcf.keys_cached = cfm.keyCacheSize;
+                rcf.preload_row_cache = cfm.preloadRowCache;
+                rcf.read_repair_chance = cfm.readRepairChance;
+                rcf.reconciler = cfm.reconciler.getClass().getName();
+                rcf.rows_cached = cfm.rowCacheSize;
+                rcf.column_metadata = new RawColumnDefinition[cfm.column_metadata.size()];
+                int j = 0;
+                for (ColumnDefinition cd : cfm.column_metadata.values())
+                {
+                    RawColumnDefinition rcd = new RawColumnDefinition();
+                    rcd.index_name = cd.index_name;
+                    rcd.index_type = cd.index_type;
+                    rcd.name = new String(cd.name, "UTF8");
+                    rcd.validator_class = cd.validator.getClass().getName();
+                    rcf.column_metadata[j++] = rcd;
+                }
+                if (j == 0)
+                    rcf.column_metadata = null;
+                rks.column_families[i++] = rcf;
+            }
+            // whew.
+            keyspaces.add(rks);
+        }
+        
+        DumperOptions options = new DumperOptions();
+        /* Use a block YAML arrangement */
+        options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        SkipNullRepresenter representer = new SkipNullRepresenter();
+        /* Use Tag.MAP to avoid the class name being included as global tag */
+        representer.addClassTag(RawColumnFamily.class, Tag.MAP);
+        representer.addClassTag(Keyspaces.class, Tag.MAP);
+        representer.addClassTag(ColumnDefinition.class, Tag.MAP);
+        Dumper dumper = new Dumper(representer, options);
+        Yaml yaml = new Yaml(dumper);
+        Keyspaces ks = new Keyspaces();
+        ks.keyspaces = keyspaces;
+        return yaml.dump(ks);
+    }
+    
+    public class Keyspaces
+    {
+        public List<RawKeyspace> keyspaces;
+    }
+    
     // Never ever do this at home. Used by tests.
     Map<String, AbstractReplicationStrategy> setReplicationStrategyUnsafe(Map<String, AbstractReplicationStrategy> replacement)
     {
