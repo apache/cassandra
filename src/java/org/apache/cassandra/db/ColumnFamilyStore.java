@@ -110,7 +110,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private Set<Memtable> memtablesPendingFlush = new ConcurrentSkipListSet<Memtable>();
 
-    private final String table_;
+    public final String table_;
     public final String columnFamily_;
     private final IPartitioner partitioner_;
 
@@ -247,6 +247,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                           false,
                                                           0,
                                                           0,
+                                                          CFMetaData.DEFAULT_GC_GRACE_SECONDS,
                                                           Collections.<byte[], ColumnDefinition>emptyMap());
             ColumnFamilyStore indexedCfs = ColumnFamilyStore.createColumnFamilyStore(table, 
                                                                                      indexedCfName,
@@ -804,7 +805,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public ColumnFamily getColumnFamily(QueryFilter filter)
     {
-        return getColumnFamily(filter, CompactionManager.getDefaultGCBefore());
+        return getColumnFamily(filter, (int) (System.currentTimeMillis() / 1000) - metadata.gcGraceSeconds);
     }
 
     private ColumnFamily cacheRow(DecoratedKey key)
@@ -990,8 +991,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         List<Row> rows = new ArrayList<Row>();
         final DecoratedKey startWith = new DecoratedKey(range.left, (byte[])null);
         final DecoratedKey stopAt = new DecoratedKey(range.right, (byte[])null);
-        
-        final int gcBefore = CompactionManager.getDefaultGCBefore();
+
+        final int gcBefore = (int) (System.currentTimeMillis() / 1000) - metadata.gcGraceSeconds;
 
         final QueryPath queryPath =  new QueryPath(columnFamily_, superColumn, null);
 

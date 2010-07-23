@@ -975,6 +975,7 @@ public class CassandraServer implements Cassandra.Iface
                               cf_def.preload_row_cache,
                               cf_def.key_cache_size,
                               cf_def.read_repair_chance,
+                              cf_def.isSetGc_grace_seconds() ? cf_def.gc_grace_seconds : CFMetaData.DEFAULT_GC_GRACE_SECONDS,
                               ColumnDefinition.fromColumnDef(cf_def.column_metadata));
     }
 

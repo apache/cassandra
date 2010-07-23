@@ -613,7 +613,8 @@ public class DatabaseDescriptor
                                              cf.rows_cached,
                                              cf.preload_row_cache, 
                                              cf.keys_cached, 
-                                             cf.read_repair_chance, 
+                                             cf.read_repair_chance,
+                                             cf.gc_grace_seconds,
                                              metadata);
             }
             defs.add(new KSMetaData(keyspace.name, strategyClass, keyspace.replication_factor, cfDefs));
@@ -757,11 +758,6 @@ public class DatabaseDescriptor
             System.err.println("Bad configuration; unable to start server");
             System.exit(1);
         }
-    }
-
-    public static int getGcGraceInSeconds()
-    {
-        return conf.gc_grace_seconds;
     }
 
     public static IPartitioner getPartitioner()

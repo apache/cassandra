@@ -62,6 +62,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   private static final TField KEY_CACHE_SIZE_FIELD_DESC = new TField("key_cache_size", TType.DOUBLE, (short)11);
   private static final TField READ_REPAIR_CHANCE_FIELD_DESC = new TField("read_repair_chance", TType.DOUBLE, (short)12);
   private static final TField COLUMN_METADATA_FIELD_DESC = new TField("column_metadata", TType.LIST, (short)13);
+  private static final TField GC_GRACE_SECONDS_FIELD_DESC = new TField("gc_grace_seconds", TType.I32, (short)14);
 
   public String table;
   public String name;
@@ -76,6 +77,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   public double key_cache_size;
   public double read_repair_chance;
   public List<ColumnDef> column_metadata;
+  public int gc_grace_seconds;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
@@ -91,7 +93,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     PRELOAD_ROW_CACHE((short)10, "preload_row_cache"),
     KEY_CACHE_SIZE((short)11, "key_cache_size"),
     READ_REPAIR_CHANCE((short)12, "read_repair_chance"),
-    COLUMN_METADATA((short)13, "column_metadata");
+    COLUMN_METADATA((short)13, "column_metadata"),
+    GC_GRACE_SECONDS((short)14, "gc_grace_seconds");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -132,6 +135,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
           return READ_REPAIR_CHANCE;
         case 13: // COLUMN_METADATA
           return COLUMN_METADATA;
+        case 14: // GC_GRACE_SECONDS
+          return GC_GRACE_SECONDS;
         default:
           return null;
       }
@@ -176,7 +181,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   private static final int __PRELOAD_ROW_CACHE_ISSET_ID = 1;
   private static final int __KEY_CACHE_SIZE_ISSET_ID = 2;
   private static final int __READ_REPAIR_CHANCE_ISSET_ID = 3;
-  private BitSet __isset_bit_vector = new BitSet(4);
+  private static final int __GC_GRACE_SECONDS_ISSET_ID = 4;
+  private BitSet __isset_bit_vector = new BitSet(5);
 
   public static final Map<_Fields, FieldMetaData> metaDataMap;
   static {
@@ -208,6 +214,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     tmpMap.put(_Fields.COLUMN_METADATA, new FieldMetaData("column_metadata", TFieldRequirementType.OPTIONAL, 
         new ListMetaData(TType.LIST, 
             new StructMetaData(TType.STRUCT, ColumnDef.class))));
+    tmpMap.put(_Fields.GC_GRACE_SECONDS, new FieldMetaData("gc_grace_seconds", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.I32)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(CfDef.class, metaDataMap);
   }
@@ -285,6 +293,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       }
       this.column_metadata = __this__column_metadata;
     }
+    this.gc_grace_seconds = other.gc_grace_seconds;
   }
 
   public CfDef deepCopy() {
@@ -619,6 +628,29 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     }
   }
 
+  public int getGc_grace_seconds() {
+    return this.gc_grace_seconds;
+  }
+
+  public CfDef setGc_grace_seconds(int gc_grace_seconds) {
+    this.gc_grace_seconds = gc_grace_seconds;
+    setGc_grace_secondsIsSet(true);
+    return this;
+  }
+
+  public void unsetGc_grace_seconds() {
+    __isset_bit_vector.clear(__GC_GRACE_SECONDS_ISSET_ID);
+  }
+
+  /** Returns true if field gc_grace_seconds is set (has been asigned a value) and false otherwise */
+  public boolean isSetGc_grace_seconds() {
+    return __isset_bit_vector.get(__GC_GRACE_SECONDS_ISSET_ID);
+  }
+
+  public void setGc_grace_secondsIsSet(boolean value) {
+    __isset_bit_vector.set(__GC_GRACE_SECONDS_ISSET_ID, value);
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case TABLE:
@@ -725,6 +757,14 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       }
       break;
 
+    case GC_GRACE_SECONDS:
+      if (value == null) {
+        unsetGc_grace_seconds();
+      } else {
+        setGc_grace_seconds((Integer)value);
+      }
+      break;
+
     }
   }
 
@@ -773,6 +813,9 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     case COLUMN_METADATA:
       return getColumn_metadata();
 
+    case GC_GRACE_SECONDS:
+      return new Integer(getGc_grace_seconds());
+
     }
     throw new IllegalStateException();
   }
@@ -810,6 +853,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return isSetRead_repair_chance();
     case COLUMN_METADATA:
       return isSetColumn_metadata();
+    case GC_GRACE_SECONDS:
+      return isSetGc_grace_seconds();
     }
     throw new IllegalStateException();
   }
@@ -948,6 +993,15 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         return false;
     }
 
+    boolean this_present_gc_grace_seconds = true && this.isSetGc_grace_seconds();
+    boolean that_present_gc_grace_seconds = true && that.isSetGc_grace_seconds();
+    if (this_present_gc_grace_seconds || that_present_gc_grace_seconds) {
+      if (!(this_present_gc_grace_seconds && that_present_gc_grace_seconds))
+        return false;
+      if (this.gc_grace_seconds != that.gc_grace_seconds)
+        return false;
+    }
+
     return true;
   }
 
@@ -1081,6 +1135,15 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetGc_grace_seconds()).compareTo(typedOther.isSetGc_grace_seconds());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetGc_grace_seconds()) {      lastComparison = TBaseHelper.compareTo(this.gc_grace_seconds, typedOther.gc_grace_seconds);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -1200,6 +1263,14 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 14: // GC_GRACE_SECONDS
+          if (field.type == TType.I32) {
+            this.gc_grace_seconds = iprot.readI32();
+            setGc_grace_secondsIsSet(true);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           TProtocolUtil.skip(iprot, field.type);
       }
@@ -1300,6 +1371,11 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         }
         oprot.writeFieldEnd();
       }
+    }
+    if (isSetGc_grace_seconds()) {
+      oprot.writeFieldBegin(GC_GRACE_SECONDS_FIELD_DESC);
+      oprot.writeI32(this.gc_grace_seconds);
+      oprot.writeFieldEnd();
     }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
@@ -1417,6 +1493,12 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       } else {
         sb.append(this.column_metadata);
       }
+      first = false;
+    }
+    if (isSetGc_grace_seconds()) {
+      if (!first) sb.append(", ");
+      sb.append("gc_grace_seconds:");
+      sb.append(this.gc_grace_seconds);
       first = false;
     }
     sb.append(")");

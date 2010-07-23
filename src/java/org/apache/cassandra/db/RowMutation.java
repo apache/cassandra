@@ -103,7 +103,7 @@ public class RowMutation
         {
             byte[] combined = HintedHandOffManager.makeCombinedName(rm.getTable(), cf.metadata().cfName);
             QueryPath path = new QueryPath(HintedHandOffManager.HINTS_CF, rm.key(), combined);
-            add(path, ArrayUtils.EMPTY_BYTE_ARRAY, new TimestampClock(System.currentTimeMillis()), DatabaseDescriptor.getGcGraceInSeconds());
+            add(path, ArrayUtils.EMPTY_BYTE_ARRAY, new TimestampClock(System.currentTimeMillis()), cf.metadata().gcGraceSeconds);
         }
     }
 

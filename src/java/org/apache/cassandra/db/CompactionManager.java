@@ -33,7 +33,6 @@ import org.slf4j.LoggerFactory;
 
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.*;
 import org.apache.cassandra.io.sstable.*;
@@ -149,7 +148,7 @@ public class CompactionManager implements CompactionManagerMBean
                         // if we have too many to compact all at once, compact older ones first -- this avoids
                         // re-compacting files we just created.
                         Collections.sort(sstables);
-                        return doCompaction(cfs, sstables.subList(0, Math.min(sstables.size(), maximumCompactionThreshold)), getDefaultGCBefore());
+                        return doCompaction(cfs, sstables.subList(0, Math.min(sstables.size(), maximumCompactionThreshold)), (int) (System.currentTimeMillis() / 1000) - cfs.metadata.gcGraceSeconds);
                     }
                 }
                 return 0;
@@ -198,7 +197,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public Future submitMajor(final ColumnFamilyStore cfStore)
     {
-        return submitMajor(cfStore, 0, getDefaultGCBefore());
+        return submitMajor(cfStore, 0, (int) (System.currentTimeMillis() / 1000) - cfStore.metadata.gcGraceSeconds);
     }
 
     public Future submitMajor(final ColumnFamilyStore cfStore, final long skip, final int gcBefore)
@@ -416,7 +415,7 @@ public class CompactionManager implements CompactionManagerMBean
           logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
         SSTableWriter writer = null;
-        CompactionIterator ci = new AntiCompactionIterator(sstables, ranges, getDefaultGCBefore(), cfs.isCompleteSSTables(sstables));
+        CompactionIterator ci = new AntiCompactionIterator(sstables, ranges, (int) (System.currentTimeMillis() / 1000) - cfs.metadata.gcGraceSeconds, cfs.isCompleteSSTables(sstables));
         Iterator<AbstractCompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
         executor.beginCompaction(cfs, ci);
 
@@ -483,7 +482,7 @@ public class CompactionManager implements CompactionManagerMBean
     private void doValidationCompaction(ColumnFamilyStore cfs, AntiEntropyService.Validator validator) throws IOException
     {
         Collection<SSTableReader> sstables = cfs.getSSTables();
-        CompactionIterator ci = new CompactionIterator(sstables, getDefaultGCBefore(), true);
+        CompactionIterator ci = new CompactionIterator(sstables, (int) (System.currentTimeMillis() / 1000) - cfs.metadata.gcGraceSeconds, true);
         executor.beginCompaction(cfs, ci);
         try
         {
@@ -566,11 +565,6 @@ public class CompactionManager implements CompactionManagerMBean
             tablePairs.add(new Pair<SSTableReader, Long>(table, table.length()));
         }
         return tablePairs;
-    }
-
-    public static int getDefaultGCBefore()
-    {
-        return (int)(System.currentTimeMillis() / 1000) - DatabaseDescriptor.getGcGraceInSeconds();
     }
 
     private static class AntiCompactionIterator extends CompactionIterator

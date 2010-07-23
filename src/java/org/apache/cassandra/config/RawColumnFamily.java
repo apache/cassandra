@@ -22,5 +22,6 @@ public class RawColumnFamily
     public double keys_cached = CFMetaData.DEFAULT_KEY_CACHE_SIZE; 
     public double read_repair_chance = CFMetaData.DEFAULT_READ_REPAIR_CHANCE;
     public boolean preload_row_cache = CFMetaData.DEFAULT_PRELOAD_ROW_CACHE;
+    public int gc_grace_seconds = CFMetaData.DEFAULT_GC_GRACE_SECONDS;
     public RawColumnDefinition[] column_metadata = new RawColumnDefinition[0];
 }

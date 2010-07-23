@@ -132,9 +132,6 @@ rpc_timeout_in_ms: 10000
 # most users should never need to adjust this.
 # phi_convict_threshold: 8
 
-# time to wait before garbage collecting tombstones (deletion markers)
-gc_grace_seconds: 864000
-
 # endpoint_snitch -- Set this to a class that implements
 # IEndpointSnitch, which will let Cassandra know enough
 # about your network topology to route requests efficiently.
@@ -238,6 +235,9 @@ request_scheduler_id: keyspace
 #   and 1. defaults to 1.0 (always read repair).
 # - preload_row_cache: If true, will populate row cache on startup.
 #   Defaults to false.
+# - gc_grace_seconds: specifies the time to wait before garbage 
+#   collecting tombstones (deletion markers). defaults to 864000 (10 
+#   days). See http://wiki.apache.org/cassandra/DistributedDeletes
 #
 # NOTE: this keyspace definition is for demonstration purposes only.
 #       Cassandra will not load these definitions during startup. See
@@ -254,6 +254,7 @@ keyspaces:
           compare_with: UTF8Type
           read_repair_chance: 0.1
           keys_cached: 100
+          gc_grace_seconds: 0
 
         - name: StandardByUUID1
           compare_with: TimeUUIDType

@@ -652,6 +652,7 @@ public class CassandraServer implements Cassandra {
                                                    cfDef.preload_row_cache == null ? CFMetaData.DEFAULT_PRELOAD_ROW_CACHE : cfDef.preload_row_cache,
                                                    cfDef.key_cache_size == null ? CFMetaData.DEFAULT_KEY_CACHE_SIZE : cfDef.key_cache_size,
                                                    cfDef.read_repair_chance == null ? CFMetaData.DEFAULT_READ_REPAIR_CHANCE : cfDef.read_repair_chance,
+                                                   cfDef.gc_grace_seconds == null ? CFMetaData.DEFAULT_GC_GRACE_SECONDS : cfDef.gc_grace_seconds,
                                                    Collections.<byte[], ColumnDefinition>emptyMap());
                 cfDefs.add(cfmeta);
             }

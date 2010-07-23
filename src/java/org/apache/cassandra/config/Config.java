@@ -22,9 +22,6 @@ public class Config
     /* Job Jar Location */
     public String job_jar_file_location;
     
-    /* time to wait before garbage collecting tombstones (deletion markers) */
-    public Integer gc_grace_seconds = 10 * 24 * 3600; // 10 days
-    
     /* initial token in the ring */
     public String initial_token;
     

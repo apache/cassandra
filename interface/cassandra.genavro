@@ -111,6 +111,7 @@ protocol Cassandra {
         union { boolean, null } preload_row_cache;
         union { double, null } key_cache_size;
         union { double, null } read_repair_chance;
+        union { int, null } gc_grace_seconds;
         union { array<ColumnDef>, null } column_metadata;
         union { int, null } id;
     }

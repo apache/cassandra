@@ -25,6 +25,7 @@ import java.util.concurrent.ExecutionException;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -79,7 +80,7 @@ public class CompactionsPurgeTest extends CleanupHelper
         rm.add(new QueryPath(cfName, null, "0".getBytes()), new byte[0], new TimestampClock(0));
         rm.apply();
         cfs.forceBlockingFlush();
-        CompactionManager.instance.doCompaction(cfs, sstablesIncomplete, CompactionManager.getDefaultGCBefore());
+        CompactionManager.instance.doCompaction(cfs, sstablesIncomplete, (int) (System.currentTimeMillis() / 1000) - cfs.metadata.gcGraceSeconds);
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName)));
         assert cf.getColumnCount() == 10;
 

@@ -136,7 +136,7 @@ public class RowIteratorFactory
                 if (cached != null)
                 {
                     QueryFilter keyFilter = new QueryFilter(key, filter.path, filter.filter);
-                    returnCF = cfs.filterColumnFamily(cached, keyFilter, CompactionManager.getDefaultGCBefore());
+                    returnCF = cfs.filterColumnFamily(cached, keyFilter, cfs.metadata.gcGraceSeconds);
                 }
                 else
                 {

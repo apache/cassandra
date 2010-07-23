@@ -45,6 +45,7 @@ dev
    server (CASSANDRA-475)
  * significantly faster reads from row cache (CASSANDRA-1267)
  * take advantage of row cache during range queries (CASSANDRA-1302)
+ * make GCGraceSeconds a per-ColumnFamily value (CASSANDRA-1276)
 
 
 0.6.4

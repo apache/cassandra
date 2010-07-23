@@ -18,20 +18,17 @@
 */
 package org.apache.cassandra.db;
 
-import java.io.IOException;
 import java.net.InetAddress;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.*;
 
 import org.apache.cassandra.Util;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableUtils;
 import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.FBUtilities;
 import static junit.framework.Assert.assertEquals;
 
@@ -98,7 +95,7 @@ public class LongCompactionSpeedTest extends CleanupHelper
         Thread.sleep(1000);
 
         long start = System.currentTimeMillis();
-        CompactionManager.instance.doCompaction(store, sstables, CompactionManager.getDefaultGCBefore());
+        CompactionManager.instance.doCompaction(store, sstables, (int) (System.currentTimeMillis() / 1000) - DatabaseDescriptor.getCFMetaData(TABLE1, "Standard1").gcGraceSeconds);
         System.out.println(String.format("%s: sstables=%d rowsper=%d colsper=%d: %d ms",
                                          this.getClass().getName(),
                                          sstableCount,
