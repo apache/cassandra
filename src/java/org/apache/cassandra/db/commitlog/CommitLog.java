@@ -295,7 +295,7 @@ public class CommitLog
                 }
             }
             reader.close();
-            logger.info("Finished reading " + file + " for recovery");
+            logger.info("Finished reading " + file);
         }
 
         // wait for all the writes to finish on the mutation stage
