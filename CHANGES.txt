@@ -15,6 +15,8 @@
  * fix duplicate rows being read during mapreduce (CASSANDRA-1042)
  * failure detection wasn't closing command sockets (CASSANDRA-1221)
  * cassandra-cli.bat works on windows (CASSANDRA-1236)
+ * pre-emptively drop requests that cannot be processed within RPCTimeout
+   (CASSANDRA-685)
 
 
 0.6.3

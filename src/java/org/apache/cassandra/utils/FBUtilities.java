@@ -25,6 +25,8 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.DataFormatException;
@@ -486,5 +488,24 @@ public class FBUtilities
         byte[] bytes = new byte[8];
         ByteBuffer.wrap(bytes).putLong(n);
         return bytes;
+    }
+
+    public static void waitOnFutures(Collection<Future<?>> futures)
+    {
+        for (Future f : futures)
+        {
+            try
+            {
+                f.get();
+            }
+            catch (ExecutionException ee)
+            {
+                throw new RuntimeException(ee);
+            }
+            catch (InterruptedException ie)
+            {
+                throw new AssertionError(ie);
+            }
+        }
     }
 }
