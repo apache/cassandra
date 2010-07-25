@@ -281,13 +281,22 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long count = 0;
         for (SSTableReader sstable : ssTables_)
         {
-            if (sstable.getEstimatedRowSize().median() > 0)
-            {
-                sum += sstable.getEstimatedRowSize().median();
-                count++;
-            }
+            sum += sstable.getEstimatedRowSize().median();
+            count++;
         }
         return count > 0 ? sum / count : 0;
+    }
+
+    public int getMeanColumns()
+    {
+        long sum = 0;
+        int count = 0;
+        for (SSTableReader sstable : ssTables_)
+        {
+            sum += sstable.getEstimatedColumnCount().median();
+            count++;
+        }
+        return count > 0 ? (int) (sum / count) : 0;
     }
 
     public static ColumnFamilyStore createColumnFamilyStore(String table, String columnFamily)
@@ -1053,9 +1062,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public List<Row> scan(IndexClause indexClause, IFilter dataFilter)
     {
-        // TODO: use statistics to pick clause w/ highest selectivity
-        // TODO even later: allow merge join instead of just one index + loop
-        IndexExpression first = indexClause.expressions.get(0);
+        // TODO: allow merge join instead of just one index + loop
+        IndexExpression first = highestSelectivityPredicate(indexClause);
         ColumnFamilyStore indexCFS = getIndexedColumnFamilyStore(first.column_name);
         assert indexCFS != null;
         DecoratedKey indexKey = indexCFS.partitioner_.decorateKey(first.value);
@@ -1076,12 +1084,46 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             DecoratedKey dk = partitioner_.decorateKey(dataKey);
             ColumnFamily data = getColumnFamily(new QueryFilter(dk, new QueryPath(columnFamily_), dataFilter));
-            rows.add(new Row(dk, data));
+            boolean accepted = true;
+            for (IndexExpression expression : indexClause.expressions)
+            {
+                // (we can skip "first" since we already know it's satisfied)
+                if (expression != first && !satisfies(data, expression))
+                {
+                    accepted = false;
+                    break;
+                }
+            }
+            if (accepted)
+                rows.add(new Row(dk, data));
         }
 
-        // TODO apply remaining expressions
-
         return rows;
+    }
+
+    private IndexExpression highestSelectivityPredicate(IndexClause clause)
+    {
+        IndexExpression best = null;
+        int bestMeanCount = Integer.MAX_VALUE;
+        for (IndexExpression expression : clause.expressions)
+        {
+            ColumnFamilyStore cfs = getIndexedColumnFamilyStore(expression.column_name);
+            if (cfs == null)
+                continue;
+            int columns = cfs.getMeanColumns();
+            if (columns < bestMeanCount)
+            {
+                best = expression;
+                bestMeanCount = columns;
+            }
+        }
+        return best;
+    }
+
+    private static boolean satisfies(ColumnFamily data, IndexExpression expression)
+    {
+        IColumn column = data.getColumn(expression.column_name);
+        return column != null && Arrays.equals(column.value(), expression.value);
     }
 
     public AbstractType getComparator()

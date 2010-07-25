@@ -1233,19 +1233,31 @@ class TestMutations(ThriftTester):
         _set_keyspace('Keyspace1')
         client.insert('key1', ColumnParent('Indexed1'), Column('birthdate', _i64(1), Clock(0)), ConsistencyLevel.ONE)
         client.insert('key2', ColumnParent('Indexed1'), Column('birthdate', _i64(2), Clock(0)), ConsistencyLevel.ONE)
+        client.insert('key2', ColumnParent('Indexed1'), Column('b', _i64(2), Clock(0)), ConsistencyLevel.ONE)
+        client.insert('key3', ColumnParent('Indexed1'), Column('birthdate', _i64(3), Clock(0)), ConsistencyLevel.ONE)
         client.insert('key3', ColumnParent('Indexed1'), Column('b', _i64(3), Clock(0)), ConsistencyLevel.ONE)
 
+        # simple query on one index expression
         cp = ColumnParent('Indexed1')
-        expr = IndexExpression('birthdate', IndexOperator.EQ, _i64(1))
-        rp = RowPredicate(index_clause=IndexClause([expr]))
         sp = SlicePredicate(slice_range=SliceRange('', ''))
-        result = client.scan(cp, rp, sp, ConsistencyLevel.ONE)
+        clause = IndexClause([IndexExpression('birthdate', IndexOperator.EQ, _i64(1))])
+        result = client.scan(cp, RowPredicate(index_clause=clause), sp, ConsistencyLevel.ONE)
         assert len(result) == 1, result
         assert result[0].key == 'key1'
         assert len(result[0].columns) == 1, result[0].columns
 
-        expr.column_name = 'b'
-        _expect_exception(lambda: client.scan(cp, rp, sp, ConsistencyLevel.ONE), InvalidRequestException)
+        # solo unindexed expression is invalid
+        clause = IndexClause([IndexExpression('b', IndexOperator.EQ, _i64(1))])
+        _expect_exception(lambda: client.scan(cp, RowPredicate(index_clause=clause), sp, ConsistencyLevel.ONE), InvalidRequestException)
+
+        # but unindexed expression added to indexed one is ok
+        clause = IndexClause([IndexExpression('b', IndexOperator.EQ, _i64(3)),
+                              IndexExpression('birthdate', IndexOperator.EQ, _i64(3))])
+        result = client.scan(cp, RowPredicate(index_clause=clause), sp, ConsistencyLevel.ONE)
+        assert len(result) == 1, result
+        assert result[0].key == 'key3'
+        assert len(result[0].columns) == 2, result[0].columns
+        
         
 
 class TestTruncate(ThriftTester):
