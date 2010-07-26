@@ -21,13 +21,8 @@ package org.apache.cassandra.hadoop;
  */
 
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.SlicePredicate;
-import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.thrift.TDeserializer;
@@ -46,9 +41,6 @@ public class ConfigHelper
     private static final int DEFAULT_RANGE_BATCH_SIZE = 4096;
     private static final String THRIFT_PORT = "cassandra.thrift.port";
     private static final String INITIAL_THRIFT_ADDRESS = "cassandra.thrift.address";
-    private static final String COMPARATOR = "cassandra.input.comparator";
-    private static final String SUB_COMPARATOR = "cassandra.input.subcomparator";
-    private static final String PARTITIONER = "cassandra.partitioner";
 
     /**
      * Set the keyspace and column family for this job.
@@ -67,14 +59,6 @@ public class ConfigHelper
         if (columnFamily == null)
         {
             throw new UnsupportedOperationException("columnfamily may not be null");
-        }
-        try
-        {
-            ThriftValidation.validateColumnFamily(keyspace, columnFamily);
-        }
-        catch (InvalidRequestException e)
-        {
-            throw new RuntimeException(e);
         }
         conf.set(KEYSPACE_CONFIG, keyspace);
         conf.set(COLUMNFAMILY_CONFIG, columnFamily);

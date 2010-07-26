@@ -268,7 +268,7 @@ public class DatabaseDescriptor
             }
             try
             {
-                partitioner = newPartitioner(partitionerClassName);
+                partitioner = FBUtilities.newPartitioner(partitionerClassName);
             }
             catch (Exception e)
             {
@@ -543,22 +543,6 @@ public class DatabaseDescriptor
         }
     }
 
-    public static IPartitioner newPartitioner(String partitionerClassName)
-    {
-        if (!partitionerClassName.contains("."))
-            partitionerClassName = "org.apache.cassandra.dht." + partitionerClassName;
-
-        try
-        {
-            Class cls = Class.forName(partitionerClassName);
-            return (IPartitioner) cls.getConstructor().newInstance();
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException("Invalid partitioner class " + partitionerClassName);
-        }
-    }
-
     private static void readTablesFromXml() throws ConfigurationException
     {
         XMLUtils xmlUtils = null;
@@ -782,35 +766,13 @@ public class DatabaseDescriptor
 
         try
         {
-            return getComparator(compareWith);
+            return FBUtilities.getComparator(compareWith);
         }
         catch (Exception e)
         {
             ConfigurationException ex = new ConfigurationException(e.getMessage());
             ex.initCause(e);
             throw ex;
-        }
-    }
-
-    public static AbstractType getComparator(String compareWith)
-    {
-        Class<? extends AbstractType> typeClass;
-        try
-        {
-            if (compareWith == null)
-            {
-                typeClass = BytesType.class;
-            }
-            else
-            {
-                String className = compareWith.contains(".") ? compareWith : "org.apache.cassandra.db.marshal." + compareWith;
-                typeClass = (Class<? extends AbstractType>)Class.forName(className);
-            }
-            return typeClass.getConstructor().newInstance();
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
         }
     }
 

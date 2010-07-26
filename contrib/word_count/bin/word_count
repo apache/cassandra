@@ -31,7 +31,7 @@ if [ ! -e $cwd/../build/word_count.jar ]; then
 fi
 
 CLASSPATH=$CLASSPATH:$cwd/../build/word_count.jar
-CLASSPATH=$CLASSPATH:.:$cwd/../../../build/classes
+CLASSPATH=$CLASSPATH:$cwd/../../../build/classes
 for jar in $cwd/../build/lib/jars/*.jar; do
     CLASSPATH=$CLASSPATH:$jar
 done

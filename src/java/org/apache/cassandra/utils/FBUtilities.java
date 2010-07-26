@@ -39,6 +39,9 @@ import org.apache.commons.collections.iterators.CollatingIterator;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.thrift.TBase;
@@ -506,6 +509,44 @@ public class FBUtilities
             {
                 throw new AssertionError(ie);
             }
+        }
+    }
+
+    public static IPartitioner newPartitioner(String partitionerClassName)
+    {
+        if (!partitionerClassName.contains("."))
+            partitionerClassName = "org.apache.cassandra.dht." + partitionerClassName;
+
+        try
+        {
+            Class cls = Class.forName(partitionerClassName);
+            return (IPartitioner) cls.getConstructor().newInstance();
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Invalid partitioner class " + partitionerClassName);
+        }
+    }
+
+    public static AbstractType getComparator(String compareWith)
+    {
+        Class<? extends AbstractType> typeClass;
+        try
+        {
+            if (compareWith == null)
+            {
+                typeClass = BytesType.class;
+            }
+            else
+            {
+                String className = compareWith.contains(".") ? compareWith : "org.apache.cassandra.db.marshal." + compareWith;
+                typeClass = (Class<? extends AbstractType>)Class.forName(className);
+            }
+            return typeClass.getConstructor().newInstance();
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
         }
     }
 }

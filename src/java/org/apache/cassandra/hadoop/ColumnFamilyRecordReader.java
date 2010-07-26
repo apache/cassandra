@@ -31,13 +31,13 @@ import java.util.TreeMap;
 
 import com.google.common.collect.AbstractIterator;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.SuperColumn;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputSplit;
@@ -122,10 +122,10 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
             try
             {
                 socket.open();
-                partitioner = DatabaseDescriptor.newPartitioner(client.describe_partitioner());
+                partitioner = FBUtilities.newPartitioner(client.describe_partitioner());
                 Map<String, String> info = client.describe_keyspace(keyspace).get(cfName);
-                comparator = DatabaseDescriptor.getComparator(info.get("CompareWith"));
-                subComparator = DatabaseDescriptor.getComparator(info.get("CompareSubcolumnsWith"));
+                comparator = FBUtilities.getComparator(info.get("CompareWith"));
+                subComparator = FBUtilities.getComparator(info.get("CompareSubcolumnsWith"));
             }
             catch (TException e)
             {
