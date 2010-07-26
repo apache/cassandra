@@ -17,6 +17,8 @@
  * cassandra-cli.bat works on windows (CASSANDRA-1236)
  * pre-emptively drop requests that cannot be processed within RPCTimeout
    (CASSANDRA-685)
+ * add ack to Binary write verb and update CassandraBulkLoader
+   to wait for acks for each row (CASSANDRA-1093)
 
 
 0.6.3
