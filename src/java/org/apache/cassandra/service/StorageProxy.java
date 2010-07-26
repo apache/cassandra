@@ -35,6 +35,7 @@ import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -51,6 +52,7 @@ import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LatencyTracker;
@@ -284,79 +286,20 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     /**
-     * Read the data from one replica.  When we get
-     * the data we perform consistency checks and figure out if any repairs need to be done to the replicas.
-     * @param commands a set of commands to perform reads
-     * @return the row associated with command.key
-     * @throws Exception
-     */
-    private static List<Row> weakReadRemote(List<ReadCommand> commands) throws IOException, UnavailableException, TimeoutException
-    {
-        if (logger.isDebugEnabled())
-            logger.debug("weakreadremote reading " + StringUtils.join(commands, ", "));
-
-        List<Row> rows = new ArrayList<Row>();
-        List<IAsyncResult> iars = new ArrayList<IAsyncResult>();
-
-        for (ReadCommand command: commands)
-        {
-            InetAddress endpoint = StorageService.instance.findSuitableEndpoint(command.table, command.key);
-            Message message = command.makeReadMessage();
-
-            if (logger.isDebugEnabled())
-                logger.debug("weakreadremote reading " + command + " from " + message.getMessageId() + "@" + endpoint);
-            if (randomlyReadRepair(command))
-                message.setHeader(ReadCommand.DO_REPAIR, ReadCommand.DO_REPAIR.getBytes());
-            iars.add(MessagingService.instance.sendRR(message, endpoint));
-        }
-
-        for (IAsyncResult iar: iars)
-        {
-            byte[] body;
-            body = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
-            ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
-            ReadResponse response = ReadResponse.serializer().deserialize(new DataInputStream(bufIn));
-            if (response.row() != null)
-                rows.add(response.row());
-        }
-        return rows;
-    }
-
-    /**
      * Performs the actual reading of a row out of the StorageService, fetching
      * a specific set of column names from a given column family.
      */
     public static List<Row> readProtocol(List<ReadCommand> commands, ConsistencyLevel consistency_level)
-            throws IOException, UnavailableException, TimeoutException
+            throws IOException, UnavailableException, TimeoutException, InvalidRequestException
     {
+        if (StorageService.instance.isBootstrapMode())
+            throw new InvalidRequestException("This node cannot accept reads until it has bootstrapped");
         long startTime = System.nanoTime();
 
-        List<Row> rows = new ArrayList<Row>();
-
+        List<Row> rows;
         if (consistency_level == ConsistencyLevel.ONE)
         {
-            List<ReadCommand> localCommands = new ArrayList<ReadCommand>();
-            List<ReadCommand> remoteCommands = new ArrayList<ReadCommand>();
-
-            for (ReadCommand command: commands)
-            {
-                List<InetAddress> endpoints = StorageService.instance.getNaturalEndpoints(command.table, command.key);
-                boolean foundLocal = endpoints.contains(FBUtilities.getLocalAddress());
-                //TODO: Throw InvalidRequest if we're in bootstrap mode?
-                if (foundLocal && !StorageService.instance.isBootstrapMode())
-                {
-                    localCommands.add(command);
-                }
-                else
-                {
-                    remoteCommands.add(command);
-                }
-            }
-            if (localCommands.size() > 0)
-                rows.addAll(weakReadLocal(localCommands));
-
-            if (remoteCommands.size() > 0)
-                rows.addAll(weakReadRemote(remoteCommands));
+            rows = weakRead(commands);
         }
         else
         {
@@ -365,6 +308,71 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         readStats.addNano(System.nanoTime() - startTime);
+        return rows;
+    }
+
+    private static List<Row> weakRead(List<ReadCommand> commands) throws IOException, UnavailableException, TimeoutException
+    {
+        List<Row> rows = new ArrayList<Row>();
+
+        // send off all the commands asynchronously
+        List<Future<Object>> localFutures = null;
+        List<IAsyncResult> remoteResults = null;
+        for (ReadCommand command: commands)
+        {
+            InetAddress endPoint = StorageService.instance.findSuitableEndpoint(command.table, command.key);
+            if (endPoint.equals(FBUtilities.getLocalAddress()))
+            {
+                if (logger.isDebugEnabled())
+                    logger.debug("weakread reading " + command + " locally");
+
+                if (localFutures == null)
+                    localFutures = new ArrayList<Future<Object>>();
+                Callable<Object> callable = new weakReadLocalCallable(command);
+                localFutures.add(StageManager.getStage(StageManager.READ_STAGE).submit(callable));
+            }
+            else
+            {
+                if (remoteResults == null)
+                    remoteResults = new ArrayList<IAsyncResult>();
+                Message message = command.makeReadMessage();
+                if (logger.isDebugEnabled())
+                    logger.debug("weakread reading " + command + " from " + message.getMessageId() + "@" + endPoint);
+                if (randomlyReadRepair(command))
+                    message.setHeader(ReadCommand.DO_REPAIR, ReadCommand.DO_REPAIR.getBytes());
+                remoteResults.add(MessagingService.instance.sendRR(message, endPoint));
+            }
+        }
+
+        // wait for results
+        if (localFutures != null)
+        {
+            for (Future<Object> future : localFutures)
+            {
+                Row row;
+                try
+                {
+                    row = (Row) future.get();
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException(e);
+                }
+                rows.add(row);
+            }
+        }
+        if (remoteResults != null)
+        {
+            for (IAsyncResult iar: remoteResults)
+            {
+                byte[] body;
+                body = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
+                ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
+                ReadResponse response = ReadResponse.serializer().deserialize(new DataInputStream(bufIn));
+                if (response.row() != null)
+                    rows.add(response.row());
+            }
+        }
 
         return rows;
     }
@@ -467,31 +475,6 @@ public class StorageProxy implements StorageProxyMBean
     /*
     * This function executes the read protocol locally.  Consistency checks are performed in the background.
     */
-    private static List<Row> weakReadLocal(List<ReadCommand> commands)
-    {
-        List<Row> rows = new ArrayList<Row>();
-        List<Future<Object>> futures = new ArrayList<Future<Object>>();
-
-        for (ReadCommand command: commands)
-        {
-            Callable<Object> callable = new weakReadLocalCallable(command);
-            futures.add(StageManager.getStage(StageManager.READ_STAGE).submit(callable));
-        }
-        for (Future<Object> future : futures)
-        {
-            Row row;
-            try
-            {
-                row = (Row) future.get();
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-            rows.add(row);
-        }
-        return rows;
-    }
 
     public static List<Row> getRangeSlice(RangeSliceCommand command, ConsistencyLevel consistency_level)
     throws IOException, UnavailableException, TimeoutException
