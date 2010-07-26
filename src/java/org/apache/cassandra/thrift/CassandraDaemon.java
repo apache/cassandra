@@ -153,7 +153,7 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
         logger.info(String.format("Binding thrift service to %s:%s", listenAddr, listenPort));
 
         // Protocol factory
-        TProtocolFactory tProtocolFactory = new TBinaryProtocol.Factory(false, 
+        TProtocolFactory tProtocolFactory = new TBinaryProtocol.Factory(true, 
                                                                         true, 
                                                                         DatabaseDescriptor.getThriftMaxMessageLength());
         
