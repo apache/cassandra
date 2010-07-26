@@ -31,7 +31,6 @@ dev
    mutations (CASSANDRA-1179)
  * avoid allocating a new byte[] for each mutation on replay (CASSANDRA-1219)
  * revise HH schema to be per-endpoint (CASSANDRA-1142)
- * remove gossip message size limit (CASSANDRA-1138)
  * add joining/leaving status to nodetool ring (CASSANDRA-1115)
  * allow multiple repair sessions per node (CASSANDRA-1190)
  * add dynamic endpoint snitch (CASSANDRA-981)
@@ -59,7 +58,6 @@ dev
  * log errors in gossip instead of re-throwing (CASSANDRA-1289)
  * avoid aborting commitlog replay prematurely if a flushed-but-
    not-removed commitlog segment is encountered (CASSANDRA-1297)
- * failure detection wasn't closing command sockets (CASSANDRA-1221)
  * fix duplicate rows being read during mapreduce (CASSANDRA-1142)
  * failure detection wasn't closing command sockets (CASSANDRA-1221)
  * cassandra-cli.bat works on windows (CASSANDRA-1236)
@@ -70,7 +68,7 @@ dev
  * added describe_partitioner Thrift method (CASSANDRA-1047)
  * Hadoop jobs no longer require the Cassandra storage-conf.xml
    (CASSANDRA-1280, CASSANDRA-1047)
-* log thread pool stats when GC is excessive (CASSANDRA-1275)
+ * log thread pool stats when GC is excessive (CASSANDRA-1275)
 
 
 0.6.3
