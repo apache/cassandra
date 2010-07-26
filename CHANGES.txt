@@ -19,6 +19,7 @@
    (CASSANDRA-685)
  * add ack to Binary write verb and update CassandraBulkLoader
    to wait for acks for each row (CASSANDRA-1093)
+ * remove gossip message size limit (CASSANDRA-1138)
 
 
 0.6.3
