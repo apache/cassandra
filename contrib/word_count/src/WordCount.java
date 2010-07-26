@@ -112,13 +112,12 @@ public class WordCount extends Configured implements Tool
 
     public int run(String[] args) throws Exception
     {
-        Configuration conf = getConf();
 
         for (int i = 0; i < WordCountSetup.TEST_COUNT; i++)
         {
             String columnName = "text" + i;
-            conf.set(CONF_COLUMN_NAME, columnName);
-            Job job = new Job(conf, "wordcount");
+            getConf().set(CONF_COLUMN_NAME, columnName);
+            Job job = new Job(getConf(), "wordcount");
             job.setJarByClass(WordCount.class);
             job.setMapperClass(TokenizerMapper.class);
             job.setCombinerClass(IntSumReducer.class);
@@ -129,7 +128,7 @@ public class WordCount extends Configured implements Tool
             job.setInputFormatClass(ColumnFamilyInputFormat.class);
             FileOutputFormat.setOutputPath(job, new Path(OUTPUT_PATH_PREFIX + i));
 
-            ConfigHelper.setThriftContact(conf, "localhost",  9160);
+            ConfigHelper.setThriftContact(job.getConfiguration(), "localhost",  9160);
             ConfigHelper.setInputColumnFamily(job.getConfiguration(), KEYSPACE, COLUMN_FAMILY);
             SlicePredicate predicate = new SlicePredicate().setColumn_names(Arrays.asList(columnName.getBytes()));
             ConfigHelper.setInputSlicePredicate(job.getConfiguration(), predicate);

@@ -50,11 +50,6 @@ dev
    (CASSANDRA-1232)
  * extend option to lower compaction priority to hinted handoff
    as well (CASSANDRA-1260)
- * log thread pool stats when GC is excessive (CASSANDRA-1275)
- * added describe_partitioner Thrift method (CASSANDRA-1047)
- * Hadoop jobs no longer require the Cassandra storage-conf.xml
-   (CASSANDRA-1280, CASSANDRA-1047)
- * log thread pool stats when GC is excessive (CASSANDRA-1275)
  * log errors in gossip instead of re-throwing (CASSANDRA-1289)
  * avoid aborting commitlog replay prematurely if a flushed-but-
    not-removed commitlog segment is encountered (CASSANDRA-1297)
@@ -69,6 +64,7 @@ dev
  * Hadoop jobs no longer require the Cassandra storage-conf.xml
    (CASSANDRA-1280, CASSANDRA-1047)
  * log thread pool stats when GC is excessive (CASSANDRA-1275)
+ * remove gossip message size limit (CASSANDRA-1138)
 
 
 0.6.3

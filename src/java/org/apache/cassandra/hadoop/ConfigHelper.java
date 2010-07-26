@@ -21,11 +21,7 @@ package org.apache.cassandra.hadoop;
  */
 
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.hadoop.conf.Configuration;
@@ -52,9 +48,6 @@ public class ConfigHelper
     private static final int DEFAULT_RANGE_BATCH_SIZE = 4096;
     private static final String THRIFT_PORT = "cassandra.thrift.port";
     private static final String INITIAL_THRIFT_ADDRESS = "cassandra.thrift.address";
-    private static final String COMPARATOR = "cassandra.input.comparator";
-    private static final String SUB_COMPARATOR = "cassandra.input.subcomparator";
-    private static final String PARTITIONER = "cassandra.partitioner";
 
     /**
      * Set the keyspace and column family for the input of this job.

@@ -19,6 +19,9 @@
 package org.apache.cassandra.utils;
 
 import java.io.*;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.URL;
@@ -43,6 +46,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IClock;
 import org.apache.cassandra.db.IClock.ClockRelationship;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.PropertyFileSnitch;
@@ -545,6 +551,54 @@ public class FBUtilities
             {
                 throw new AssertionError(ie);
             }
+        }
+    }
+
+    public static IPartitioner newPartitioner(String partitionerClassName)
+    {
+        if (!partitionerClassName.contains("."))
+            partitionerClassName = "org.apache.cassandra.dht." + partitionerClassName;
+
+        try
+        {
+            Class cls = Class.forName(partitionerClassName);
+            return (IPartitioner) cls.getConstructor().newInstance();
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Invalid partitioner class " + partitionerClassName);
+        }
+    }
+
+    public static AbstractType getComparator(String compareWith) throws ConfigurationException
+    {
+        String className = compareWith.contains(".") ? compareWith : "org.apache.cassandra.db.marshal." + compareWith;
+	Class<? extends AbstractType> typeClass;
+        try
+        {
+            typeClass = (Class<? extends AbstractType>)Class.forName(className);
+        }
+        catch (ClassNotFoundException e)
+        {
+            throw new ConfigurationException("Unable to load class " + className);
+        }
+
+        try
+        {
+            Field field = typeClass.getDeclaredField("instance");
+            return (AbstractType) field.get(null);
+        }
+        catch (NoSuchFieldException e)
+        {
+            ConfigurationException ex = new ConfigurationException("Invalid comparator: must define a public static instance field.");
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (IllegalAccessException e)
+        {
+            ConfigurationException ex = new ConfigurationException("Invalid comparator: must define a public static instance field.");
+            ex.initCause(e);
+            throw ex;
         }
     }
 }
