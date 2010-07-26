@@ -37,6 +37,7 @@ import org.apache.avro.generic.GenericArray;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.avro.util.Utf8;
+import org.apache.cassandra.thrift.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -162,6 +163,10 @@ public class CassandraServer implements Cassandra {
         catch (org.apache.cassandra.thrift.UnavailableException e)
         {
             throw new UnavailableException();
+        }
+        catch (org.apache.cassandra.thrift.InvalidRequestException e)
+        {
+            throw new InvalidRequestException();
         }
         finally
         {
