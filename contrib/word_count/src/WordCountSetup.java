@@ -73,7 +73,8 @@ public class WordCountSetup
         System.exit(0);
     }
 
-    private static Map<byte[],Map<String,List<Mutation>>> getMutationMap(byte[] key, String cf, Column c) {
+    private static Map<byte[],Map<String,List<Mutation>>> getMutationMap(byte[] key, String cf, Column c)
+    {
         Map<byte[],Map<String,List<Mutation>>> mutationMap = new HashMap<byte[],Map<String,List<Mutation>>>();
         addToMutationMap(mutationMap, key, cf, c);
         return mutationMap;
@@ -104,25 +105,19 @@ public class WordCountSetup
 
     private static Cassandra.Iface createConnection() throws TTransportException
     {
-        if(System.getProperty("cassandra.host") == null || System.getProperty("cassandra.port") == null)
+        if (System.getProperty("cassandra.host") == null || System.getProperty("cassandra.port") == null)
         {
            logger.warn("cassandra.host or cassandra.port is not defined, using default");
         }
         return createConnection( System.getProperty("cassandra.host","localhost"),
                                  Integer.valueOf(System.getProperty("cassandra.port","9160")),
-                                 Boolean.valueOf(System.getProperty("cassandra.framed", "false")) );
+                                 Boolean.valueOf(System.getProperty("cassandra.framed", "true")) );
     }
 
     private static Cassandra.Client createConnection(String host, Integer port, boolean framed) throws TTransportException
     {
         TSocket socket = new TSocket(host, port);
-        TTransport trans;
-
-        if(framed)
-            trans = new TFramedTransport(socket);
-        else
-            trans = socket;
-
+        TTransport trans = framed ? new TFramedTransport(socket) : socket;
         trans.open();
         TProtocol protocol = new TBinaryProtocol(trans);
 
