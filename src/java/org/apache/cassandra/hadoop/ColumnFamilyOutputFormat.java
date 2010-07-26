@@ -26,9 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.auth.SimpleAuthenticator;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.thrift.AuthenticationException;
@@ -44,6 +42,7 @@ import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
+import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -151,16 +150,18 @@ public class ColumnFamilyOutputFormat extends OutputFormat<byte[],List<IColumn>>
     public static Cassandra.Client createAuthenticatedClient(TSocket socket, JobContext context)
     throws InvalidRequestException, TException, AuthenticationException, AuthorizationException
     {
-        TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket, false, false);
+        TBinaryProtocol binaryProtocol = new TBinaryProtocol(new TFramedTransport(socket));
         Cassandra.Client client = new Cassandra.Client(binaryProtocol);
         socket.open();
         client.set_keyspace(ConfigHelper.getOutputKeyspace(context.getConfiguration()));
-        Map<String, String> creds = new HashMap<String, String>();
-        creds.put(SimpleAuthenticator.USERNAME_KEY, ConfigHelper.getOutputKeyspaceUserName(context.getConfiguration()));
-        creds.put(SimpleAuthenticator.PASSWORD_KEY, ConfigHelper.getOutputKeyspacePassword(context.getConfiguration()));
-        AuthenticationRequest authRequest = new AuthenticationRequest(creds);
-        if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
+        if (ConfigHelper.getOutputKeyspaceUserName(context.getConfiguration()) != null)
+        {
+            Map<String, String> creds = new HashMap<String, String>();
+            creds.put(SimpleAuthenticator.USERNAME_KEY, ConfigHelper.getOutputKeyspaceUserName(context.getConfiguration()));
+            creds.put(SimpleAuthenticator.PASSWORD_KEY, ConfigHelper.getOutputKeyspacePassword(context.getConfiguration()));
+            AuthenticationRequest authRequest = new AuthenticationRequest(creds);
             client.login(authRequest);
+        }
         return client;
 
     }

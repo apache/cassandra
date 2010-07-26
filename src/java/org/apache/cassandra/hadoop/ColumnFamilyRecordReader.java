@@ -35,6 +35,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.clock.AbstractReconciler;
+import org.apache.cassandra.db.clock.TimestampReconciler;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.thrift.*;
@@ -48,6 +49,7 @@ import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
+import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 
 public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byte[], IColumn>>
@@ -60,8 +62,6 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
     private int batchRowCount; // fetch this many per batch
     private String cfName;
     private String keyspace;
-    private Configuration conf;
-    private AuthenticationRequest authRequest;
     private TSocket socket;
     private Cassandra.Client client;
 
@@ -94,18 +94,42 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
     public void initialize(InputSplit split, TaskAttemptContext context) throws IOException
     {
         this.split = (ColumnFamilySplit) split;
-        conf = context.getConfiguration();
+        Configuration conf = context.getConfiguration();
         predicate = ConfigHelper.getInputSlicePredicate(conf);
         totalRowCount = ConfigHelper.getInputSplitSize(conf);
         batchRowCount = ConfigHelper.getRangeBatchSize(conf);
         cfName = ConfigHelper.getInputColumnFamily(conf);
         keyspace = ConfigHelper.getInputKeyspace(conf);
         
-        Map<String, String> creds = new HashMap<String, String>();
-        creds.put(SimpleAuthenticator.USERNAME_KEY, ConfigHelper.getInputKeyspaceUserName(conf));
-        creds.put(SimpleAuthenticator.PASSWORD_KEY, ConfigHelper.getInputKeyspacePassword(conf));
-        authRequest = new AuthenticationRequest(creds);
-        
+        try
+        {
+            // only need to connect once
+            if (socket != null && socket.isOpen())
+                return;
+
+            // create connection using thrift
+            String location = getLocation();
+            socket = new TSocket(location, ConfigHelper.getRpcPort(conf));
+            TBinaryProtocol binaryProtocol = new TBinaryProtocol(new TFramedTransport(socket));
+            client = new Cassandra.Client(binaryProtocol);
+            socket.open();
+
+            // log in
+            client.set_keyspace(keyspace);
+            if (ConfigHelper.getInputKeyspaceUserName(conf) != null)
+            {
+                Map<String, String> creds = new HashMap<String, String>();
+                creds.put(SimpleAuthenticator.USERNAME_KEY, ConfigHelper.getInputKeyspaceUserName(conf));
+                creds.put(SimpleAuthenticator.PASSWORD_KEY, ConfigHelper.getInputKeyspacePassword(conf));
+                AuthenticationRequest authRequest = new AuthenticationRequest(creds);
+                client.login(authRequest);
+            }
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+
         iter = new RowIterator();
     }
     
@@ -115,6 +139,41 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
             return false;
         currentRow = iter.next();
         return true;
+    }
+
+    // we don't use endpointsnitch since we are trying to support hadoop nodes that are
+    // not necessarily on Cassandra machines, too.  This should be adequate for single-DC clusters, at least.
+    private String getLocation()
+    {
+        InetAddress[] localAddresses;
+        try
+        {
+            localAddresses = InetAddress.getAllByName(InetAddress.getLocalHost().getHostAddress());
+        }
+        catch (UnknownHostException e)
+        {
+            throw new AssertionError(e);
+        }
+        for (InetAddress address : localAddresses)
+        {
+            for (String location : split.getLocations())
+            {
+                InetAddress locationAddress = null;
+                try
+                {
+                    locationAddress = InetAddress.getByName(location);
+                }
+                catch (UnknownHostException e)
+                {
+                    throw new AssertionError(e);
+                }
+                if (address.equals(locationAddress))
+                {
+                    return location;
+                }
+            }
+        }
+        return split.getLocations()[0];
     }
 
     private class RowIterator extends AbstractIterator<Pair<byte[], SortedMap<byte[], IColumn>>>
@@ -134,7 +193,7 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
                 partitioner = FBUtilities.newPartitioner(client.describe_partitioner());
                 Map<String, String> info = client.describe_keyspace(keyspace).get(cfName);
                 comparator = FBUtilities.getComparator(info.get("CompareWith"));
-                subComparator = FBUtilities.getComparator(info.get("CompareSubcolumnsWith"));
+                subComparator = info.get("CompareSubcolumnsWith") == null ? null : FBUtilities.getComparator(info.get("CompareSubcolumnsWith"));
             }
             catch (ConfigurationException e)
             {
@@ -158,16 +217,7 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
             
             if (rows != null)
                 return;
-            
-            try
-            {
-                maybeConnect();
-            } 
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            } 
-            
+
             if (startToken == null)
             {
                 startToken = split.getStartToken();
@@ -208,68 +258,6 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
                 throw new RuntimeException(e);
             }
         }
-        
-        /**
-         * Connect, log in and set up the correct comparator.
-         */
-        private void maybeConnect() throws InvalidRequestException, TException, AuthenticationException, 
-            AuthorizationException, NotFoundException, InstantiationException, IllegalAccessException, 
-            ClassNotFoundException, NoSuchFieldException
-        {
-            // only need to connect once
-            if (socket != null && socket.isOpen())
-                return;
-
-            // create connection using thrift
-            String location = getLocation();
-            socket = new TSocket(location, DatabaseDescriptor.getRpcPort());
-            TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket, false, false);
-            client = new Cassandra.Client(binaryProtocol);
-            socket.open();
-            
-            // log in
-            client.set_keyspace(keyspace);
-            if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
-            {
-                client.login(authRequest);
-            }
-        }
-
-
-        // we don't use endpointsnitch since we are trying to support hadoop nodes that are
-        // not necessarily on Cassandra machines, too.  This should be adequate for single-DC clusters, at least.
-        private String getLocation()
-        {
-            InetAddress[] localAddresses = new InetAddress[0];
-            try
-            {
-                localAddresses = InetAddress.getAllByName(InetAddress.getLocalHost().getHostAddress());
-            }
-            catch (UnknownHostException e)
-            {
-                throw new AssertionError(e);
-            }
-            for (InetAddress address : localAddresses)
-            {
-                for (String location : split.getLocations())
-                {
-                    InetAddress locationAddress = null;
-                    try
-                    {
-                        locationAddress = InetAddress.getByName(location);
-                    }
-                    catch (UnknownHostException e)
-                    {
-                        throw new AssertionError(e);
-                    }
-                    if (address.equals(locationAddress))
-                    {
-                        return location;
-                    }
-                }
-            }
-            return split.getLocations()[0];
-        }
 
         /**
          * @return total number of rows read by this record reader
@@ -306,8 +294,8 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
 
         private IColumn unthriftifySuper(SuperColumn super_column)
         {
-            ClockType clockType = DatabaseDescriptor.getClockType(keyspace, cfName);
-            AbstractReconciler reconciler = DatabaseDescriptor.getReconciler(keyspace, cfName);
+            ClockType clockType = ClockType.Timestamp; // TODO generalize
+            AbstractReconciler reconciler = new TimestampReconciler(); // TODO generalize
             org.apache.cassandra.db.SuperColumn sc = new org.apache.cassandra.db.SuperColumn(super_column.name, subComparator, clockType, reconciler);
             for (Column column : super_column.columns)
             {

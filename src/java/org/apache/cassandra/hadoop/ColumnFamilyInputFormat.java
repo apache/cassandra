@@ -41,7 +41,10 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.*;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
+import org.apache.thrift.protocol.TProtocol;
+import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 
 /**
@@ -170,18 +173,8 @@ public class ColumnFamilyInputFormat extends InputFormat<byte[], SortedMap<byte[
     private List<String> getSubSplits(String keyspace, String cfName, TokenRange range, Configuration conf) throws IOException
     {
         // TODO handle failure of range replicas & retry
-        TSocket socket = new TSocket(range.endpoints.get(0), ConfigHelper.getThriftPort(conf));
-        TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket, false, false);
-        Cassandra.Client client = new Cassandra.Client(binaryProtocol);
+        Cassandra.Client client = createConnection(range.endpoints.get(0), ConfigHelper.getRpcPort(conf), true);
         int splitsize = ConfigHelper.getInputSplitSize(conf);
-        try
-        {
-            socket.open();
-        }
-        catch (TTransportException e)
-        {
-            throw new IOException(e);
-        }
         List<String> splits;
         try
         {
@@ -194,19 +187,25 @@ public class ColumnFamilyInputFormat extends InputFormat<byte[], SortedMap<byte[
         return splits;
     }
 
-    private List<TokenRange> getRangeMap(Configuration conf) throws IOException
+    private static Cassandra.Client createConnection(String host, Integer port, boolean framed) throws IOException
     {
-        TSocket socket = new TSocket(ConfigHelper.getInitialAddress(conf), ConfigHelper.getThriftPort(conf));
-        TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket, false, false);
-        Cassandra.Client client = new Cassandra.Client(binaryProtocol);
+        TSocket socket = new TSocket(host, port);
+        TTransport trans = framed ? new TFramedTransport(socket) : socket;
         try
         {
-            socket.open();
+            trans.open();
         }
         catch (TTransportException e)
         {
-            throw new IOException(e);
+            throw new IOException("unable to connect to server", e);
         }
+        return new Cassandra.Client(new TBinaryProtocol(trans));
+    }
+
+    private List<TokenRange> getRangeMap(Configuration conf) throws IOException
+    {
+        Cassandra.Client client = createConnection(ConfigHelper.getInitialAddress(conf), ConfigHelper.getRpcPort(conf), true);
+
         List<TokenRange> map;
         try
         {

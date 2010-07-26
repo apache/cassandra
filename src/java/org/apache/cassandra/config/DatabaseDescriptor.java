@@ -113,9 +113,8 @@ public class DatabaseDescriptor
     {
         try
         {
-            
             configFileName = getStorageConfigPath();
-            
+
             if (logger.isDebugEnabled())
                 logger.info("Loading settings from " + configFileName);
             
@@ -647,7 +646,6 @@ public class DatabaseDescriptor
 
     public static AbstractType getComparator(String compareWith) throws ConfigurationException
     {
-        logger.info(compareWith);
         Class<? extends AbstractType> typeClass;
         
         if (compareWith == null)

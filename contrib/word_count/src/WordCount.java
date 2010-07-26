@@ -54,7 +54,6 @@ public class WordCount extends Configured implements Tool
     static final String COLUMN_FAMILY = "Standard1";
     private static final String CONF_COLUMN_NAME = "columnname";
     private static final String OUTPUT_PATH_PREFIX = "/tmp/word_count";
-    static final int RING_DELAY = 3000; // this is enough for testing a single server node; may need more for a real cluster
 
     public static void main(String[] args) throws Exception
     {

@@ -242,7 +242,7 @@ public class ConfigHelper
         return conf.get(OUTPUT_COLUMNFAMILY_CONFIG);
     }
 
-    public static int getThriftPort(Configuration conf)
+    public static int getRpcPort(Configuration conf)
     {
         String v = conf.get(THRIFT_PORT);
         return v == null ? DatabaseDescriptor.getRpcPort() : Integer.valueOf(v);
