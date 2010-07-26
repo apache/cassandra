@@ -425,13 +425,13 @@ public class RowPredicate implements TBase<RowPredicate, RowPredicate._Fields>, 
         case 1: // KEYS
           if (field.type == TType.LIST) {
             {
-              TList _list16 = iprot.readListBegin();
-              this.keys = new ArrayList<byte[]>(_list16.size);
-              for (int _i17 = 0; _i17 < _list16.size; ++_i17)
+              TList _list12 = iprot.readListBegin();
+              this.keys = new ArrayList<byte[]>(_list12.size);
+              for (int _i13 = 0; _i13 < _list12.size; ++_i13)
               {
-                byte[] _elem18;
-                _elem18 = iprot.readBinary();
-                this.keys.add(_elem18);
+                byte[] _elem14;
+                _elem14 = iprot.readBinary();
+                this.keys.add(_elem14);
               }
               iprot.readListEnd();
             }
@@ -475,9 +475,9 @@ public class RowPredicate implements TBase<RowPredicate, RowPredicate._Fields>, 
         oprot.writeFieldBegin(KEYS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.keys.size()));
-          for (byte[] _iter19 : this.keys)
+          for (byte[] _iter15 : this.keys)
           {
-            oprot.writeBinary(_iter19);
+            oprot.writeBinary(_iter15);
           }
           oprot.writeListEnd();
         }

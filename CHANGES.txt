@@ -1,6 +1,5 @@
 dev
  * sstable versioning (CASSANDRA-389)
- * bitmask matching in SliceRange queries (CASSANDRA-764)
  * switched to slf4j logging (CASSANDRA-625)
  * access levels for authentication/authorization (CASSANDRA-900)
  * add ReadRepairChance to CF definition (CASSANDRA-930)

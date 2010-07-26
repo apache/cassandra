@@ -35,7 +35,6 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
 
-import com.google.common.base.Predicate;
 import com.google.common.collect.AbstractIterator;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -44,7 +43,6 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 class SSTableSliceIterator extends AbstractIterator<IColumn> implements IColumnIterator
 {
-    private final Predicate<IColumn> predicate;
     private final boolean reversed;
     private final byte[] startColumn;
     private final byte[] finishColumn;
@@ -53,9 +51,9 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements IColumnI
     private boolean closeFileWhenDone = false;
     private DecoratedKey decoratedKey;
 
-    public SSTableSliceIterator(SSTableReader ssTable, DecoratedKey key, byte[] startColumn, byte[] finishColumn, Predicate<IColumn> predicate, boolean reversed)
+    public SSTableSliceIterator(SSTableReader ssTable, DecoratedKey key, byte[] startColumn, byte[] finishColumn, boolean reversed)
     {
-        this(ssTable, null, key, startColumn, finishColumn, predicate, reversed); 
+        this(ssTable, null, key, startColumn, finishColumn, reversed);
     }
 
     /**
@@ -68,13 +66,11 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements IColumnI
      * @param key The key the requested slice resides under
      * @param startColumn The start of the slice
      * @param finishColumn The end of the slice
-     * @param predicate The predicate used for filtering columns
      * @param reversed Results are returned in reverse order iff reversed is true.
      */
-    public SSTableSliceIterator(SSTableReader ssTable, FileDataInput file, DecoratedKey key, byte[] startColumn, byte[] finishColumn, Predicate<IColumn> predicate, boolean reversed) 
+    public SSTableSliceIterator(SSTableReader ssTable, FileDataInput file, DecoratedKey key, byte[] startColumn, byte[] finishColumn, boolean reversed)
     {
         this.reversed = reversed;
-        this.predicate = predicate;
         this.comparator = ssTable.getColumnComparator();
         this.startColumn = startColumn;
         this.finishColumn = finishColumn;
@@ -110,14 +106,6 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements IColumnI
     }
 
     private boolean isColumnNeeded(IColumn column)
-    {
-        if (!isColumnNeededByRange(column))
-            return false;
-
-        return predicate.apply(column);
-    }
-
-    private boolean isColumnNeededByRange(IColumn column)
     {
         if (startColumn.length == 0 && finishColumn.length == 0)
             return true;

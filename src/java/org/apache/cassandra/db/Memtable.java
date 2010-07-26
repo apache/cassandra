@@ -202,7 +202,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     {
         assert cf != null;
         final boolean isSuper = cf.isSuper();
-        final Collection<IColumn> filteredColumns = filter.reversed ? filter.applyPredicate(cf.getReverseSortedColumns()) : filter.applyPredicate(cf.getSortedColumns());
+        final Collection<IColumn> filteredColumns = filter.reversed ? cf.getReverseSortedColumns() : cf.getSortedColumns();
 
         // ok to not have subcolumnComparator since we won't be adding columns to this object
         IColumn startColumn = isSuper ? new SuperColumn(filter.start, null, cf.getClockType(), cf.getReconciler()) :  new Column(filter.start);

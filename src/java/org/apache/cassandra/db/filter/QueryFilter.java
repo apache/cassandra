@@ -161,7 +161,7 @@ public class QueryFilter
      */
     public static QueryFilter getSliceFilter(DecoratedKey key, QueryPath path, byte[] start, byte[] finish, List<byte[]> bitmasks, boolean reversed, int limit)
     {
-        return new QueryFilter(key, path, new SliceQueryFilter(start, finish, bitmasks, reversed, limit));
+        return new QueryFilter(key, path, new SliceQueryFilter(start, finish, reversed, limit));
     }
 
     /**
@@ -194,7 +194,7 @@ public class QueryFilter
         }
 
         SliceRange range = predicate.slice_range;
-        return new SliceQueryFilter(range.start, range.finish, range.bitmasks, range.reversed, range.count);
+        return new SliceQueryFilter(range.start, range.finish, range.reversed, range.count);
     }
 
     /**

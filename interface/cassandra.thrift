@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "8.5.0"
+const string VERSION = "9.0.0"
 
 
 #
@@ -213,18 +213,16 @@ struct ColumnPath {
                    and can be safely set to an empty byte array to not stop until 'count' results are seen. Otherwise, it
                    must also be a valid value to the ColumnFamily Comparator.
     @param reversed. Whether the results should be ordered in reversed order. Similar to ORDER BY blah DESC in SQL.
-    @param count. How many keys to return. Similar to LIMIT 100 in SQL. May be arbitrarily large, but Thrift will
+    @param count. How many columns to return. Similar to LIMIT in SQL. May be arbitrarily large, but Thrift will
                   materialize the whole result into memory before returning it to the client, so be aware that you may
                   be better served by iterating through slices by passing the last value of one call in as the 'start'
                   of the next instead of increasing 'count' arbitrarily large.
-    @param bitmasks. A list of OR-ed binary AND masks applied to the result set.
  */
 struct SliceRange {
     1: required binary start,
     2: required binary finish,
     3: required bool reversed=0,
     4: required i32 count=100,
-    5: optional list<binary> bitmasks,
 }
 
 /**

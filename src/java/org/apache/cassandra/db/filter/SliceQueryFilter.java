@@ -46,17 +46,15 @@ public class SliceQueryFilter implements IFilter
 
     public final byte[] start;
     public final byte[] finish;
-    public final List<byte[]> bitmasks;
     public final boolean reversed;
     public final int count;
 
-    public SliceQueryFilter(byte[] start, byte[] finish, List<byte[]> bitmasks, boolean reversed, int count)
+    public SliceQueryFilter(byte[] start, byte[] finish, boolean reversed, int count)
     {
         this.start = start;
         this.finish = finish;
         this.reversed = reversed;
         this.count = count;
-        this.bitmasks = bitmasks;
     }
 
     public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key, AbstractType comparator)
@@ -66,19 +64,12 @@ public class SliceQueryFilter implements IFilter
 
     public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey key)
     {
-        return new SSTableSliceIterator(sstable, key, start, finish, getPredicate(), reversed);
+        return new SSTableSliceIterator(sstable, key, start, finish, reversed);
     }
     
     public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, long dataStart)
     {
-        return new SSTableSliceIterator(sstable, file, key, start, finish, getPredicate(), reversed);
-    }
-    
-    private Predicate<IColumn> getPredicate()
-    {
-        return (bitmasks == null || bitmasks.isEmpty())
-               ? Predicates.<IColumn>alwaysTrue()
-               : getBitmaskMatchColumnPredicate();
+        return new SSTableSliceIterator(sstable, file, key, start, finish, reversed);
     }
 
     public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore)
@@ -95,12 +86,6 @@ public class SliceQueryFilter implements IFilter
         else
         {
             subcolumns = superColumn.getSubColumns().iterator();
-        }
-
-        // now apply the predicate
-        if (bitmasks != null && !bitmasks.isEmpty())
-        {
-            subcolumns = Iterators.filter(subcolumns, getBitmaskMatchColumnPredicate());
         }
 
         // iterate until we get to the "real" start column
@@ -156,49 +141,5 @@ public class SliceQueryFilter implements IFilter
             if (QueryFilter.isRelevant(column, container, gcBefore))
                 container.addColumn(column);
         }
-    }
-
-    public Collection<IColumn> applyPredicate(Collection<IColumn> columns)
-    {
-        if (bitmasks == null || bitmasks.isEmpty())
-            return columns;
-
-        return Collections2.filter(columns, getBitmaskMatchColumnPredicate());
-    }
-
-    @SuppressWarnings("unchecked")
-    private Predicate<IColumn> getBitmaskMatchColumnPredicate()
-    {
-        Predicate<IColumn>[] predicates = new Predicate[bitmasks.size()];
-        for (int i = 0; i < bitmasks.size(); i++)
-        {
-            final byte[] bitmask = bitmasks.get(i);
-            predicates[i] = new Predicate<IColumn>()
-            {
-                public boolean apply(IColumn col)
-                {
-                    return matchesBitmask(bitmask, col.name());
-                }
-            };
-        }
-        return Predicates.or(predicates);
-    }
-
-    public static boolean matchesBitmask(byte[] bitmask, byte[] name)
-    {
-        assert name != null;
-        assert bitmask != null;
-
-        int len = Math.min(bitmask.length, name.length);
-
-        for (int i = 0; i < len; i++)
-        {
-            if ((bitmask[i] & name[i]) == 0)
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 }

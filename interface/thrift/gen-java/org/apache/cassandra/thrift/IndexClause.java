@@ -437,14 +437,14 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
         case 1: // EXPRESSIONS
           if (field.type == TType.LIST) {
             {
-              TList _list12 = iprot.readListBegin();
-              this.expressions = new ArrayList<IndexExpression>(_list12.size);
-              for (int _i13 = 0; _i13 < _list12.size; ++_i13)
+              TList _list8 = iprot.readListBegin();
+              this.expressions = new ArrayList<IndexExpression>(_list8.size);
+              for (int _i9 = 0; _i9 < _list8.size; ++_i9)
               {
-                IndexExpression _elem14;
-                _elem14 = new IndexExpression();
-                _elem14.read(iprot);
-                this.expressions.add(_elem14);
+                IndexExpression _elem10;
+                _elem10 = new IndexExpression();
+                _elem10.read(iprot);
+                this.expressions.add(_elem10);
               }
               iprot.readListEnd();
             }
@@ -489,9 +489,9 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
       oprot.writeFieldBegin(EXPRESSIONS_FIELD_DESC);
       {
         oprot.writeListBegin(new TList(TType.STRUCT, this.expressions.size()));
-        for (IndexExpression _iter15 : this.expressions)
+        for (IndexExpression _iter11 : this.expressions)
         {
-          _iter15.write(oprot);
+          _iter11.write(oprot);
         }
         oprot.writeListEnd();
       }

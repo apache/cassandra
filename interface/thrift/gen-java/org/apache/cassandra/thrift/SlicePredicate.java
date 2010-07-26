@@ -372,13 +372,13 @@ public class SlicePredicate implements TBase<SlicePredicate, SlicePredicate._Fie
         case 1: // COLUMN_NAMES
           if (field.type == TType.LIST) {
             {
-              TList _list8 = iprot.readListBegin();
-              this.column_names = new ArrayList<byte[]>(_list8.size);
-              for (int _i9 = 0; _i9 < _list8.size; ++_i9)
+              TList _list4 = iprot.readListBegin();
+              this.column_names = new ArrayList<byte[]>(_list4.size);
+              for (int _i5 = 0; _i5 < _list4.size; ++_i5)
               {
-                byte[] _elem10;
-                _elem10 = iprot.readBinary();
-                this.column_names.add(_elem10);
+                byte[] _elem6;
+                _elem6 = iprot.readBinary();
+                this.column_names.add(_elem6);
               }
               iprot.readListEnd();
             }
@@ -414,9 +414,9 @@ public class SlicePredicate implements TBase<SlicePredicate, SlicePredicate._Fie
         oprot.writeFieldBegin(COLUMN_NAMES_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.column_names.size()));
-          for (byte[] _iter11 : this.column_names)
+          for (byte[] _iter7 : this.column_names)
           {
-            oprot.writeBinary(_iter11);
+            oprot.writeBinary(_iter7);
           }
           oprot.writeListEnd();
         }

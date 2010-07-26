@@ -1248,14 +1248,14 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         case 13: // COLUMN_METADATA
           if (field.type == TType.LIST) {
             {
-              TList _list33 = iprot.readListBegin();
-              this.column_metadata = new ArrayList<ColumnDef>(_list33.size);
-              for (int _i34 = 0; _i34 < _list33.size; ++_i34)
+              TList _list29 = iprot.readListBegin();
+              this.column_metadata = new ArrayList<ColumnDef>(_list29.size);
+              for (int _i30 = 0; _i30 < _list29.size; ++_i30)
               {
-                ColumnDef _elem35;
-                _elem35 = new ColumnDef();
-                _elem35.read(iprot);
-                this.column_metadata.add(_elem35);
+                ColumnDef _elem31;
+                _elem31 = new ColumnDef();
+                _elem31.read(iprot);
+                this.column_metadata.add(_elem31);
               }
               iprot.readListEnd();
             }
@@ -1363,9 +1363,9 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         oprot.writeFieldBegin(COLUMN_METADATA_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.column_metadata.size()));
-          for (ColumnDef _iter36 : this.column_metadata)
+          for (ColumnDef _iter32 : this.column_metadata)
           {
-            _iter36.write(oprot);
+            _iter32.write(oprot);
           }
           oprot.writeListEnd();
         }
