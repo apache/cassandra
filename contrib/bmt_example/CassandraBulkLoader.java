@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,7 +17,7 @@
  */
  
  /**
-  * Cassandra has a backdoor called the Binary Memtable. The purpose of this backdoor is to
+  * Cassandra has a back door called the Binary Memtable. The purpose of this backdoor is to
   * mass import large amounts of data, without using the Thrift interface.
   *
   * Inserting data through the binary memtable, allows you to skip the commit log overhead, and an ack
@@ -35,6 +35,12 @@
   * You should construct your data you want to import as rows delimited by a new line. You end up grouping by <Key>
   * in the mapper, so that the end result generates the data set into a column oriented subset. Once you get to the
   * reduce aspect, you can generate the ColumnFamilies you want inserted, and send it to your nodes.
+  *
+  * For Cassandra 0.6.4, we modified this example to wait for acks from all Cassandra nodes for each row
+  * before proceeding to the next.  This means to keep Cassandra similarly busy you can either
+  * 1) add more reducer tasks,
+  * 2) remove the "wait for acks" block of code,
+  * 3) parallelize the writing of rows to Cassandra, e.g. with an Executor.
   *
   * THIS CANNOT RUN ON THE SAME IP ADDRESS AS A CASSANDRA INSTANCE.
   */
@@ -60,7 +66,10 @@ import org.apache.cassandra.dht.BigIntegerToken;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
+import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
@@ -174,10 +183,24 @@ public class CassandraBulkLoader {
 
             /* Get serialized message to send to cluster */
             message = createMessage(keyspace, key.getBytes(), cfName, columnFamilies);
+            List<IAsyncResult> results = new ArrayList<IAsyncResult>();
             for (InetAddress endpoint: StorageService.instance.getNaturalEndpoints(keyspace, key.getBytes()))
             {
                 /* Send message to end point */
-                MessagingService.instance.sendOneWay(message, endpoint);
+                results.add(MessagingService.instance.sendRR(message, endpoint));
+            }
+            /* wait for acks */
+            for (IAsyncResult result : results)
+            {
+                try
+                {
+                    result.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
+                }
+                catch (TimeoutException e)
+                {
+                    // you should probably add retry logic here
+                    throw new RuntimeException(e);
+                }
             }
             
             output.collect(key, new Text(" inserted into Cassandra node(s)"));

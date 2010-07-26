@@ -23,6 +23,7 @@ import java.io.DataInputStream;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,11 +42,16 @@ public class BinaryVerbHandler implements IVerbHandler
             RowMutationMessage rmMsg = RowMutationMessage.serializer().deserialize(new DataInputStream(buffer));
             RowMutation rm = rmMsg.getRowMutation();
             rm.applyBinary();
+
+            WriteResponse response = new WriteResponse(rm.getTable(), rm.key(), true);
+            Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);
+            if (logger_.isDebugEnabled())
+              logger_.debug("binary " + rm + " applied.  Sending response to " + message.getMessageId() + "@" + message.getFrom());
+            MessagingService.instance.sendOneWay(responseMessage, message.getFrom());
         }
         catch (Exception e)
         {
             throw new RuntimeException(e);
         }
     }
-
 }
