@@ -32,10 +32,11 @@ import java.util.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.thrift.Cassandra;
+import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.thrift.TokenRange;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.*;
 import org.apache.thrift.TException;
@@ -64,11 +65,10 @@ public class ColumnFamilyInputFormat extends InputFormat<byte[], SortedMap<byte[
 {
     private static final Logger logger = LoggerFactory.getLogger(StorageService.class);
     
-    private int splitsize;
     private String keyspace;
     private String cfName;
 
-    private void validateConfiguration(Configuration conf)
+    private static void validateConfiguration(Configuration conf)
     {
         if (ConfigHelper.getInputKeyspace(conf) == null || ConfigHelper.getInputColumnFamily(conf) == null)
         {
@@ -87,9 +87,8 @@ public class ColumnFamilyInputFormat extends InputFormat<byte[], SortedMap<byte[
         validateConfiguration(conf);
 
         // cannonical ranges and nodes holding replicas
-        List<TokenRange> masterRangeNodes = getRangeMap(ConfigHelper.getInputKeyspace(conf));
+        List<TokenRange> masterRangeNodes = getRangeMap(conf);
 
-        splitsize = ConfigHelper.getInputSplitSize(context.getConfiguration());
         keyspace = ConfigHelper.getInputKeyspace(context.getConfiguration());
         cfName = ConfigHelper.getInputColumnFamily(context.getConfiguration());
         
@@ -103,7 +102,7 @@ public class ColumnFamilyInputFormat extends InputFormat<byte[], SortedMap<byte[
             for (TokenRange range : masterRangeNodes)
             {
                 // for each range, pick a live owner and ask it to compute bite-sized splits
-                splitfutures.add(executor.submit(new SplitCallable(range)));
+                splitfutures.add(executor.submit(new SplitCallable(range, conf)));
             }
     
             // wait until we have all the results back
@@ -136,18 +135,19 @@ public class ColumnFamilyInputFormat extends InputFormat<byte[], SortedMap<byte[
     class SplitCallable implements Callable<List<InputSplit>>
     {
 
-        private TokenRange range;
-        
-        public SplitCallable(TokenRange tr)
+        private final TokenRange range;
+        private final Configuration conf;
+
+        public SplitCallable(TokenRange tr, Configuration conf)
         {
             this.range = tr;
+            this.conf = conf;
         }
 
-        @Override
         public List<InputSplit> call() throws Exception
         {
             ArrayList<InputSplit> splits = new ArrayList<InputSplit>();
-            List<String> tokens = getSubSplits(keyspace, cfName, range, splitsize);
+            List<String> tokens = getSubSplits(keyspace, cfName, range, conf);
 
             // turn the sub-ranges into InputSplits
             String[] endpoints = range.endpoints.toArray(new String[range.endpoints.size()]);
@@ -167,13 +167,13 @@ public class ColumnFamilyInputFormat extends InputFormat<byte[], SortedMap<byte[
         }
     }
 
-    private List<String> getSubSplits(String keyspace, String cfName, TokenRange range, int splitsize) throws IOException
+    private List<String> getSubSplits(String keyspace, String cfName, TokenRange range, Configuration conf) throws IOException
     {
         // TODO handle failure of range replicas & retry
-        TSocket socket = new TSocket(range.endpoints.get(0),
-                                     DatabaseDescriptor.getRpcPort());
+        TSocket socket = new TSocket(range.endpoints.get(0), ConfigHelper.getThriftPort(conf));
         TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket, false, false);
         Cassandra.Client client = new Cassandra.Client(binaryProtocol);
+        int splitsize = ConfigHelper.getInputSplitSize(conf);
         try
         {
             socket.open();
@@ -194,10 +194,9 @@ public class ColumnFamilyInputFormat extends InputFormat<byte[], SortedMap<byte[
         return splits;
     }
 
-    private List<TokenRange> getRangeMap(String keyspace) throws IOException
+    private List<TokenRange> getRangeMap(Configuration conf) throws IOException
     {
-        TSocket socket = new TSocket(DatabaseDescriptor.getSeeds().iterator().next().getHostAddress(),
-                                     DatabaseDescriptor.getRpcPort());
+        TSocket socket = new TSocket(ConfigHelper.getInitialAddress(conf), ConfigHelper.getThriftPort(conf));
         TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket, false, false);
         Cassandra.Client client = new Cassandra.Client(binaryProtocol);
         try
@@ -211,7 +210,7 @@ public class ColumnFamilyInputFormat extends InputFormat<byte[], SortedMap<byte[
         List<TokenRange> map;
         try
         {
-            map = client.describe_ring(keyspace);
+            map = client.describe_ring(ConfigHelper.getInputKeyspace(conf));
         }
         catch (TException e)
         {
@@ -224,7 +223,6 @@ public class ColumnFamilyInputFormat extends InputFormat<byte[], SortedMap<byte[
         return map;
     }
 
-    @Override
     public RecordReader<byte[], SortedMap<byte[], IColumn>> createRecordReader(InputSplit inputSplit, TaskAttemptContext taskAttemptContext) throws IOException, InterruptedException
     {
         return new ColumnFamilyRecordReader();

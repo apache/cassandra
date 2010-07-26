@@ -30,6 +30,8 @@ import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.auth.SimpleAuthenticator;
+
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.clock.AbstractReconciler;
@@ -57,6 +59,7 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
     private int batchRowCount; // fetch this many per batch
     private String cfName;
     private String keyspace;
+    private Configuration conf;
     private AuthenticationRequest authRequest;
     private TSocket socket;
     private Cassandra.Client client;
@@ -90,7 +93,7 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
     public void initialize(InputSplit split, TaskAttemptContext context) throws IOException
     {
         this.split = (ColumnFamilySplit) split;
-        Configuration conf = context.getConfiguration();
+        conf = context.getConfiguration();
         predicate = ConfigHelper.getInputSlicePredicate(conf);
         totalRowCount = ConfigHelper.getInputSplitSize(conf);
         batchRowCount = ConfigHelper.getRangeBatchSize(conf);
@@ -115,12 +118,36 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
 
     private class RowIterator extends AbstractIterator<Pair<byte[], SortedMap<byte[], IColumn>>>
     {
-
         private List<KeySlice> rows;
         private String startToken;
         private int totalRead = 0;
         private int i = 0;
-        private AbstractType comparator = null;
+        private final AbstractType comparator;
+        private final AbstractType subComparator;
+        private final IPartitioner partitioner;
+
+        private RowIterator()
+        {
+            try
+            {
+                partitioner = DatabaseDescriptor.newPartitioner(client.describe_partitioner());
+                Map<String, String> info = client.describe_keyspace(keyspace).get(cfName);
+                comparator = DatabaseDescriptor.getComparator(info.get("CompareWith"));
+                subComparator = DatabaseDescriptor.getComparator(info.get("CompareSubcolumnsWith"));
+            }
+            catch (ConfigurationException e)
+            {
+                throw new RuntimeException("unable to load sub/comparator", e);
+            }
+            catch (TException e)
+            {
+                throw new RuntimeException("error communicating via Thrift", e);
+            }
+            catch (NotFoundException e)
+            {
+                throw new RuntimeException("server reports no such keyspace " + keyspace, e);
+            }
+        }
 
         private void maybeInit()
         {
@@ -172,9 +199,8 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
                 
                 // prepare for the next slice to be read
                 KeySlice lastRow = rows.get(rows.size() - 1);
-                IPartitioner p = DatabaseDescriptor.getPartitioner();
                 byte[] rowkey = lastRow.getKey();
-                startToken = p.getTokenFactory().toString(p.getToken(rowkey));
+                startToken = partitioner.getTokenFactory().toString(partitioner.getToken(rowkey));
             }
             catch (Exception e)
             {
@@ -205,17 +231,6 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
             if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
             {
                 client.login(authRequest);
-            }
-            
-            // Get the keyspace information to get the comparator
-            if (comparator == null)
-            {
-                Map<String, Map<String,String>> desc = client.describe_keyspace(keyspace);
-                Map<String,String> ksProps = desc.get(cfName);
-                String compClass = ksProps.get("CompareWith");
-                // Get the singleton instance of the AbstractType subclass
-                Class<?> c = Class.forName(compClass);
-                comparator = (AbstractType) c.getField("instance").get(c);
             }
         }
 
@@ -280,35 +295,34 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
             }
             return new Pair<byte[], SortedMap<byte[], IColumn>>(ks.key, map);
         }
-    }
 
-    private IColumn unthriftify(ColumnOrSuperColumn cosc)
-    {
-        if (cosc.column == null)
-            return unthriftifySuper(cosc.super_column);
-        return unthriftifySimple(cosc.column);
-    }
-
-    private IColumn unthriftifySuper(SuperColumn super_column)
-    {
-        AbstractType subComparator = DatabaseDescriptor.getSubComparator(keyspace, cfName);
-        ClockType clockType = DatabaseDescriptor.getClockType(keyspace, cfName);
-        AbstractReconciler reconciler = DatabaseDescriptor.getReconciler(keyspace, cfName);
-        org.apache.cassandra.db.SuperColumn sc = new org.apache.cassandra.db.SuperColumn(super_column.name, subComparator, clockType, reconciler);
-        for (Column column : super_column.columns)
+        private IColumn unthriftify(ColumnOrSuperColumn cosc)
         {
-            sc.addColumn(unthriftifySimple(column));
+            if (cosc.column == null)
+                return unthriftifySuper(cosc.super_column);
+            return unthriftifySimple(cosc.column);
         }
-        return sc;
-    }
 
-    private IColumn unthriftifySimple(Column column)
-    {
-        return new org.apache.cassandra.db.Column(column.name, column.value, unthriftifyClock(column.clock));
-    }
+        private IColumn unthriftifySuper(SuperColumn super_column)
+        {
+            ClockType clockType = DatabaseDescriptor.getClockType(keyspace, cfName);
+            AbstractReconciler reconciler = DatabaseDescriptor.getReconciler(keyspace, cfName);
+            org.apache.cassandra.db.SuperColumn sc = new org.apache.cassandra.db.SuperColumn(super_column.name, subComparator, clockType, reconciler);
+            for (Column column : super_column.columns)
+            {
+                sc.addColumn(unthriftifySimple(column));
+            }
+            return sc;
+        }
 
-    private static IClock unthriftifyClock(Clock clock)
-    {
-        return new org.apache.cassandra.db.TimestampClock(clock.getTimestamp());
+        private IColumn unthriftifySimple(Column column)
+        {
+            return new org.apache.cassandra.db.Column(column.name, column.value, unthriftifyClock(column.clock));
+        }
+
+        private IClock unthriftifyClock(Clock clock)
+        {
+            return new org.apache.cassandra.db.TimestampClock(clock.getTimestamp());
+        }
     }
 }

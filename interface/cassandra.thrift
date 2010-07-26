@@ -534,6 +534,9 @@ service Cassandra {
   list<TokenRange> describe_ring(1:required string keyspace)
                    throws (1:InvalidRequestException ire),
 
+  /** returns the partitioner used by this cluster */
+  string describe_partitioner(),
+
   /** describe specified keyspace */
   map<string, map<string, string>> describe_keyspace(1:required string keyspace)
                                    throws (1:NotFoundException nfe),

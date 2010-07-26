@@ -205,10 +205,9 @@ public class DatabaseDescriptor
             }
             try
             {
-                Class cls = Class.forName(conf.partitioner);
-                partitioner = (IPartitioner) cls.getConstructor().newInstance();
+                partitioner = newPartitioner(conf.partitioner);
             }
-            catch (ClassNotFoundException e)
+            catch (Exception e)
             {
                 throw new ConfigurationException("Invalid partitioner class " + conf.partitioner);
             }
@@ -383,6 +382,22 @@ public class DatabaseDescriptor
         catch (Exception e)
         {
             throw new RuntimeException(e);
+        }
+    }
+
+    public static IPartitioner newPartitioner(String partitionerClassName)
+    {
+        if (!partitionerClassName.contains("."))
+            partitionerClassName = "org.apache.cassandra.dht." + partitionerClassName;
+
+        try
+        {
+            Class cls = Class.forName(partitionerClassName);
+            return (IPartitioner) cls.getConstructor().newInstance();
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Invalid partitioner class " + partitionerClassName);
         }
     }
 
@@ -716,19 +731,7 @@ public class DatabaseDescriptor
             ex.initCause(e);
             throw ex;
         }
-        catch (IllegalAccessException e)
-        {
-            ConfigurationException ex = new ConfigurationException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
-        catch (InvocationTargetException e)
-        {
-            ConfigurationException ex = new ConfigurationException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
-        catch (NoSuchMethodException e)
+        catch (Exception e)
         {
             ConfigurationException ex = new ConfigurationException(e.getMessage());
             ex.initCause(e);

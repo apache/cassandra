@@ -221,6 +221,11 @@ public class Cassandra {
     public List<TokenRange> describe_ring(String keyspace) throws InvalidRequestException, TException;
 
     /**
+     * returns the partitioner used by this cluster
+     */
+    public String describe_partitioner() throws TException;
+
+    /**
      * describe specified keyspace
      * 
      * @param keyspace
@@ -327,6 +332,8 @@ public class Cassandra {
     public void describe_version(AsyncMethodCallback<AsyncClient.describe_version_call> resultHandler) throws TException;
 
     public void describe_ring(String keyspace, AsyncMethodCallback<AsyncClient.describe_ring_call> resultHandler) throws TException;
+
+    public void describe_partitioner(AsyncMethodCallback<AsyncClient.describe_partitioner_call> resultHandler) throws TException;
 
     public void describe_keyspace(String keyspace, AsyncMethodCallback<AsyncClient.describe_keyspace_call> resultHandler) throws TException;
 
@@ -1200,6 +1207,41 @@ public class Cassandra {
         throw result.ire;
       }
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "describe_ring failed: unknown result");
+    }
+
+    public String describe_partitioner() throws TException
+    {
+      send_describe_partitioner();
+      return recv_describe_partitioner();
+    }
+
+    public void send_describe_partitioner() throws TException
+    {
+      oprot_.writeMessageBegin(new TMessage("describe_partitioner", TMessageType.CALL, ++seqid_));
+      describe_partitioner_args args = new describe_partitioner_args();
+      args.write(oprot_);
+      oprot_.writeMessageEnd();
+      oprot_.getTransport().flush();
+    }
+
+    public String recv_describe_partitioner() throws TException
+    {
+      TMessage msg = iprot_.readMessageBegin();
+      if (msg.type == TMessageType.EXCEPTION) {
+        TApplicationException x = TApplicationException.read(iprot_);
+        iprot_.readMessageEnd();
+        throw x;
+      }
+      if (msg.seqid != seqid_) {
+        throw new TApplicationException(TApplicationException.BAD_SEQUENCE_ID, "describe_partitioner failed: out of sequence response");
+      }
+      describe_partitioner_result result = new describe_partitioner_result();
+      result.read(iprot_);
+      iprot_.readMessageEnd();
+      if (result.isSetSuccess()) {
+        return result.success;
+      }
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "describe_partitioner failed: unknown result");
     }
 
     public Map<String,Map<String,String>> describe_keyspace(String keyspace) throws NotFoundException, TException
@@ -2205,6 +2247,34 @@ public class Cassandra {
       }
     }
 
+    public void describe_partitioner(AsyncMethodCallback<describe_partitioner_call> resultHandler) throws TException {
+      checkReady();
+      describe_partitioner_call method_call = new describe_partitioner_call(resultHandler, this, protocolFactory, transport);
+      manager.call(method_call);
+    }
+
+    public static class describe_partitioner_call extends TAsyncMethodCall {
+      public describe_partitioner_call(AsyncMethodCallback<describe_partitioner_call> resultHandler, TAsyncClient client, TProtocolFactory protocolFactory, TNonblockingTransport transport) throws TException {
+        super(client, protocolFactory, transport, resultHandler, false);
+      }
+
+      public void write_args(TProtocol prot) throws TException {
+        prot.writeMessageBegin(new TMessage("describe_partitioner", TMessageType.CALL, 0));
+        describe_partitioner_args args = new describe_partitioner_args();
+        args.write(prot);
+        prot.writeMessageEnd();
+      }
+
+      public String getResult() throws TException {
+        if (getState() != State.RESPONSE_READ) {
+          throw new IllegalStateException("Method call not finished!");
+        }
+        TMemoryInputTransport memoryTransport = new TMemoryInputTransport(getFrameBuffer().array());
+        TProtocol prot = client.getProtocolFactory().getProtocol(memoryTransport);
+        return (new Client(prot)).recv_describe_partitioner();
+      }
+    }
+
     public void describe_keyspace(String keyspace, AsyncMethodCallback<describe_keyspace_call> resultHandler) throws TException {
       checkReady();
       describe_keyspace_call method_call = new describe_keyspace_call(keyspace, resultHandler, this, protocolFactory, transport);
@@ -2497,6 +2567,7 @@ public class Cassandra {
       processMap_.put("describe_cluster_name", new describe_cluster_name());
       processMap_.put("describe_version", new describe_version());
       processMap_.put("describe_ring", new describe_ring());
+      processMap_.put("describe_partitioner", new describe_partitioner());
       processMap_.put("describe_keyspace", new describe_keyspace());
       processMap_.put("describe_splits", new describe_splits());
       processMap_.put("system_add_column_family", new system_add_column_family());
@@ -3262,6 +3333,32 @@ public class Cassandra {
           return;
         }
         oprot.writeMessageBegin(new TMessage("describe_ring", TMessageType.REPLY, seqid));
+        result.write(oprot);
+        oprot.writeMessageEnd();
+        oprot.getTransport().flush();
+      }
+
+    }
+
+    private class describe_partitioner implements ProcessFunction {
+      public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
+      {
+        describe_partitioner_args args = new describe_partitioner_args();
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("describe_partitioner", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
+        iprot.readMessageEnd();
+        describe_partitioner_result result = new describe_partitioner_result();
+        result.success = iface_.describe_partitioner();
+        oprot.writeMessageBegin(new TMessage("describe_partitioner", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
         oprot.getTransport().flush();
@@ -20774,6 +20871,480 @@ public class Cassandra {
         sb.append("null");
       } else {
         sb.append(this.ire);
+      }
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws TException {
+      // check for required fields
+    }
+
+  }
+
+  public static class describe_partitioner_args implements TBase<describe_partitioner_args, describe_partitioner_args._Fields>, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("describe_partitioner_args");
+
+
+
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements TFieldIdEnum {
+;
+
+      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+      static {
+        for (_Fields field : EnumSet.allOf(_Fields.class)) {
+          byName.put(field.getFieldName(), field);
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, or null if its not found.
+       */
+      public static _Fields findByThriftId(int fieldId) {
+        switch(fieldId) {
+          default:
+            return null;
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, throwing an exception
+       * if it is not found.
+       */
+      public static _Fields findByThriftIdOrThrow(int fieldId) {
+        _Fields fields = findByThriftId(fieldId);
+        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+        return fields;
+      }
+
+      /**
+       * Find the _Fields constant that matches name, or null if its not found.
+       */
+      public static _Fields findByName(String name) {
+        return byName.get(name);
+      }
+
+      private final short _thriftId;
+      private final String _fieldName;
+
+      _Fields(short thriftId, String fieldName) {
+        _thriftId = thriftId;
+        _fieldName = fieldName;
+      }
+
+      public short getThriftFieldId() {
+        return _thriftId;
+      }
+
+      public String getFieldName() {
+        return _fieldName;
+      }
+    }
+    public static final Map<_Fields, FieldMetaData> metaDataMap;
+    static {
+      Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
+      metaDataMap = Collections.unmodifiableMap(tmpMap);
+      FieldMetaData.addStructMetaDataMap(describe_partitioner_args.class, metaDataMap);
+    }
+
+    public describe_partitioner_args() {
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public describe_partitioner_args(describe_partitioner_args other) {
+    }
+
+    public describe_partitioner_args deepCopy() {
+      return new describe_partitioner_args(this);
+    }
+
+    @Deprecated
+    public describe_partitioner_args clone() {
+      return new describe_partitioner_args(this);
+    }
+
+    public void setFieldValue(_Fields field, Object value) {
+      switch (field) {
+      }
+    }
+
+    public void setFieldValue(int fieldID, Object value) {
+      setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
+    }
+
+    public Object getFieldValue(_Fields field) {
+      switch (field) {
+      }
+      throw new IllegalStateException();
+    }
+
+    public Object getFieldValue(int fieldId) {
+      return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+    public boolean isSet(_Fields field) {
+      switch (field) {
+      }
+      throw new IllegalStateException();
+    }
+
+    public boolean isSet(int fieldID) {
+      return isSet(_Fields.findByThriftIdOrThrow(fieldID));
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof describe_partitioner_args)
+        return this.equals((describe_partitioner_args)that);
+      return false;
+    }
+
+    public boolean equals(describe_partitioner_args that) {
+      if (that == null)
+        return false;
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public int compareTo(describe_partitioner_args other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      describe_partitioner_args typedOther = (describe_partitioner_args)other;
+
+      return 0;
+    }
+
+    public void read(TProtocol iprot) throws TException {
+      TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == TType.STOP) { 
+          break;
+        }
+        switch (field.id) {
+          default:
+            TProtocolUtil.skip(iprot, field.type);
+        }
+        iprot.readFieldEnd();
+      }
+      iprot.readStructEnd();
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      validate();
+    }
+
+    public void write(TProtocol oprot) throws TException {
+      validate();
+
+      oprot.writeStructBegin(STRUCT_DESC);
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("describe_partitioner_args(");
+      boolean first = true;
+
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws TException {
+      // check for required fields
+    }
+
+  }
+
+  public static class describe_partitioner_result implements TBase<describe_partitioner_result, describe_partitioner_result._Fields>, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("describe_partitioner_result");
+
+    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRING, (short)0);
+
+    public String success;
+
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements TFieldIdEnum {
+      SUCCESS((short)0, "success");
+
+      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+      static {
+        for (_Fields field : EnumSet.allOf(_Fields.class)) {
+          byName.put(field.getFieldName(), field);
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, or null if its not found.
+       */
+      public static _Fields findByThriftId(int fieldId) {
+        switch(fieldId) {
+          case 0: // SUCCESS
+            return SUCCESS;
+          default:
+            return null;
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, throwing an exception
+       * if it is not found.
+       */
+      public static _Fields findByThriftIdOrThrow(int fieldId) {
+        _Fields fields = findByThriftId(fieldId);
+        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+        return fields;
+      }
+
+      /**
+       * Find the _Fields constant that matches name, or null if its not found.
+       */
+      public static _Fields findByName(String name) {
+        return byName.get(name);
+      }
+
+      private final short _thriftId;
+      private final String _fieldName;
+
+      _Fields(short thriftId, String fieldName) {
+        _thriftId = thriftId;
+        _fieldName = fieldName;
+      }
+
+      public short getThriftFieldId() {
+        return _thriftId;
+      }
+
+      public String getFieldName() {
+        return _fieldName;
+      }
+    }
+
+    // isset id assignments
+
+    public static final Map<_Fields, FieldMetaData> metaDataMap;
+    static {
+      Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
+      tmpMap.put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRING)));
+      metaDataMap = Collections.unmodifiableMap(tmpMap);
+      FieldMetaData.addStructMetaDataMap(describe_partitioner_result.class, metaDataMap);
+    }
+
+    public describe_partitioner_result() {
+    }
+
+    public describe_partitioner_result(
+      String success)
+    {
+      this();
+      this.success = success;
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public describe_partitioner_result(describe_partitioner_result other) {
+      if (other.isSetSuccess()) {
+        this.success = other.success;
+      }
+    }
+
+    public describe_partitioner_result deepCopy() {
+      return new describe_partitioner_result(this);
+    }
+
+    @Deprecated
+    public describe_partitioner_result clone() {
+      return new describe_partitioner_result(this);
+    }
+
+    public String getSuccess() {
+      return this.success;
+    }
+
+    public describe_partitioner_result setSuccess(String success) {
+      this.success = success;
+      return this;
+    }
+
+    public void unsetSuccess() {
+      this.success = null;
+    }
+
+    /** Returns true if field success is set (has been asigned a value) and false otherwise */
+    public boolean isSetSuccess() {
+      return this.success != null;
+    }
+
+    public void setSuccessIsSet(boolean value) {
+      if (!value) {
+        this.success = null;
+      }
+    }
+
+    public void setFieldValue(_Fields field, Object value) {
+      switch (field) {
+      case SUCCESS:
+        if (value == null) {
+          unsetSuccess();
+        } else {
+          setSuccess((String)value);
+        }
+        break;
+
+      }
+    }
+
+    public void setFieldValue(int fieldID, Object value) {
+      setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
+    }
+
+    public Object getFieldValue(_Fields field) {
+      switch (field) {
+      case SUCCESS:
+        return getSuccess();
+
+      }
+      throw new IllegalStateException();
+    }
+
+    public Object getFieldValue(int fieldId) {
+      return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+    public boolean isSet(_Fields field) {
+      switch (field) {
+      case SUCCESS:
+        return isSetSuccess();
+      }
+      throw new IllegalStateException();
+    }
+
+    public boolean isSet(int fieldID) {
+      return isSet(_Fields.findByThriftIdOrThrow(fieldID));
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof describe_partitioner_result)
+        return this.equals((describe_partitioner_result)that);
+      return false;
+    }
+
+    public boolean equals(describe_partitioner_result that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_success = true && this.isSetSuccess();
+      boolean that_present_success = true && that.isSetSuccess();
+      if (this_present_success || that_present_success) {
+        if (!(this_present_success && that_present_success))
+          return false;
+        if (!this.success.equals(that.success))
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public int compareTo(describe_partitioner_result other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      describe_partitioner_result typedOther = (describe_partitioner_result)other;
+
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(this.success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      return 0;
+    }
+
+    public void read(TProtocol iprot) throws TException {
+      TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == TType.STOP) { 
+          break;
+        }
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.STRING) {
+              this.success = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
+        }
+        iprot.readFieldEnd();
+      }
+      iprot.readStructEnd();
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      validate();
+    }
+
+    public void write(TProtocol oprot) throws TException {
+      oprot.writeStructBegin(STRUCT_DESC);
+
+      if (this.isSetSuccess()) {
+        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
+        oprot.writeString(this.success);
+        oprot.writeFieldEnd();
+      }
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("describe_partitioner_result(");
+      boolean first = true;
+
+      sb.append("success:");
+      if (this.success == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.success);
       }
       first = false;
       sb.append(")");
