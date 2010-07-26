@@ -573,10 +573,10 @@ public class FBUtilities
     public static AbstractType getComparator(String compareWith) throws ConfigurationException
     {
         String className = compareWith.contains(".") ? compareWith : "org.apache.cassandra.db.marshal." + compareWith;
-	Class<? extends AbstractType> typeClass;
+        Class<? extends AbstractType> typeClass;
         try
         {
-            typeClass = (Class<? extends AbstractType>)Class.forName(className);
+            typeClass = (Class<? extends AbstractType>) Class.forName(className);
         }
         catch (ClassNotFoundException e)
         {
