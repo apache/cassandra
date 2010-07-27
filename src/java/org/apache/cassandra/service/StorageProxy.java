@@ -445,8 +445,7 @@ public class StorageProxy implements StorageProxyMBean
         List<InetAddress[]> commandEndPoints = new ArrayList<InetAddress[]>();
         List<Row> rows = new ArrayList<Row>();
 
-        int commandIndex = 0;
-
+        // send out read requests
         for (ReadCommand command: commands)
         {
             assert !command.isDigestQuery();
@@ -481,10 +480,13 @@ public class StorageProxy implements StorageProxyMBean
             commandEndPoints.add(endPoints);
         }
 
-        for (QuorumResponseHandler<Row> quorumResponseHandler: quorumResponseHandlers)
+        // read results and make a second pass for any digest mismatches
+        List<QuorumResponseHandler<Row>> repairResponseHandlers = null;
+        for (int i = 0; i < commands.size(); i++)
         {
+            QuorumResponseHandler<Row> quorumResponseHandler = quorumResponseHandlers.get(i);
             Row row;
-            ReadCommand command = commands.get(commandIndex);
+            ReadCommand command = commands.get(i);
             try
             {
                 long startTime2 = System.currentTimeMillis();
@@ -502,23 +504,32 @@ public class StorageProxy implements StorageProxyMBean
                     if (logger.isDebugEnabled())
                         logger.debug("Digest mismatch:", ex);
                     int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(command.table), consistency_level);
-                    IResponseResolver<Row> readResponseResolverRepair = new ReadResponseResolver(command.table, responseCount);
-                    QuorumResponseHandler<Row> quorumResponseHandlerRepair = new QuorumResponseHandler<Row>(responseCount, readResponseResolverRepair);
+                    QuorumResponseHandler<Row> qrhRepair = new QuorumResponseHandler<Row>(responseCount, new ReadResponseResolver(command.table, responseCount));
                     Message messageRepair = command.makeReadMessage();
-                    MessagingService.instance.sendRR(messageRepair, commandEndPoints.get(commandIndex), quorumResponseHandlerRepair);
-                    try
-                    {
-                        row = quorumResponseHandlerRepair.get();
-                        if (row != null)
-                            rows.add(row);
-                    }
-                    catch (DigestMismatchException e)
-                    {
-                        throw new AssertionError(e); // full data requested from each node here, no digests should be sent
-                    }
+                    MessagingService.instance.sendRR(messageRepair, commandEndPoints.get(i), qrhRepair);
+                    if (repairResponseHandlers == null)
+                        repairResponseHandlers = new ArrayList<QuorumResponseHandler<Row>>();
+                    repairResponseHandlers.add(qrhRepair);
                 }
             }
-            commandIndex++;
+        }
+
+        // read the results for the digest mismatch retries
+        if (repairResponseHandlers != null)
+        {
+            for (QuorumResponseHandler<Row> handler : repairResponseHandlers)
+            {
+                try
+                {
+                    Row row = handler.get();
+                    if (row != null)
+                        rows.add(row);
+                }
+                catch (DigestMismatchException e)
+                {
+                    throw new AssertionError(e); // full data requested from each node here, no digests should be sent
+                }
+            }
         }
 
         return rows;

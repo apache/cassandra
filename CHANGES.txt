@@ -24,7 +24,7 @@
    when determining whether to do local read for CL.ONE (CASSANDRA-1317)
  * fix read repair to use requested consistency level on digest mismatch,
    rather than assuming QUORUM (CASSANDRA-1316)
-
+ * process digest mismatch re-reads in parallel (CASSANDRA-1323)
 
 
 0.6.3
