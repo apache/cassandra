@@ -104,16 +104,11 @@ public class ExpiringMap<K, V>
                 {
                     hook.callMe(key, value);
                 }
-                else if (globalHook_ != null)
-                {
-                    globalHook_.callMe(key, value);
-                }
             }
             expungedValues.clear();
         }
     }
 
-    private ICacheExpungeHook<K, V> globalHook_;
     private Hashtable<K, CacheableObject> cache_;
     private Map<K, ICacheExpungeHook<K, V>> hooks_;
     private Timer timer_;
@@ -140,18 +135,6 @@ public class ExpiringMap<K, V>
     public ExpiringMap(long expiration)
     {
         init(expiration);
-    }
-
-    /*
-    * Specify the TTL for objects in the cache
-    * in milliseconds and a global expunge hook. If
-    * a key has a key-specific hook installed invoke that
-    * instead.
-    */
-    public ExpiringMap(long expiration, ICacheExpungeHook<K, V> global)
-    {
-        init(expiration);
-        globalHook_ = global;
     }
 
     public void shutdown()
@@ -200,11 +183,6 @@ public class ExpiringMap<K, V>
     public boolean containsKey(K key)
     {
         return cache_.containsKey(key);
-    }
-
-    public boolean containsValue(V value)
-    {
-        return cache_.containsValue(new CacheableObject(value));
     }
 
     public boolean isEmpty()

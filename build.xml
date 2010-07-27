@@ -35,7 +35,6 @@
     <property name="interface.dir" value="${basedir}/interface"/>
     <property name="interface.thrift.dir" value="${interface.dir}/thrift"/>
     <property name="interface.thrift.gen-java" value="${interface.thrift.dir}/gen-java"/>
-    <property name="interface.avro.dir" value="${interface.dir}/avro/gen-java"/>
     <property name="test.dir" value="${basedir}/test"/>
     <property name="test.resources" value="${test.dir}/resources"/>
     <property name="test.classes" value="${build.dir}/test/classes"/>
@@ -98,7 +97,6 @@
         <delete dir="${build.test.dir}" />
         <delete dir="${build.classes}" />
         <delete dir="${build.src.gen-java}" />
-        <delete dir="${interface.avro.dir}" />
     </target>
     <target depends="clean" name="cleanall"/>
 
@@ -153,41 +151,6 @@
     </target>
 
     <!--
-       Generate avro code
-    -->
-    <target name="check-avro-generate">
-        <uptodate property="avroUpToDate"
-                  srcfile="${interface.dir}/cassandra.avpr"
-                  targetfile="${interface.avro.dir}/org/apache/cassandra/avro/Cassandra.java" />
-      <taskdef name="protocol"
-               classname="org.apache.avro.specific.ProtocolTask">
-        <classpath refid="cassandra.classpath" />
-      </taskdef>
-      <taskdef name="schema" classname="org.apache.avro.specific.SchemaTask">
-        <classpath refid="cassandra.classpath" />
-      </taskdef>
-      <taskdef name="paranamer" 
-          classname="com.thoughtworks.paranamer.ant.ParanamerGeneratorTask">
-        <classpath refid="cassandra.classpath" />
-      </taskdef>
-    </target>
-    <target name="avro-generate" unless="avroUpToDate"
-            depends="init,check-avro-generate">
-      <echo>Generating avro code...</echo>
-      <protocol destdir="${interface.avro.dir}">
-        <fileset dir="${interface.dir}">
-          <include name="**/*.avpr" />
-        </fileset>
-      </protocol>
-  
-      <schema destdir="${interface.avro.dir}">
-        <fileset dir="${interface.dir}">
-          <include name="**/*.avsc" />
-        </fileset>
-      </schema>
-    </target>
-
-    <!--
        Generate thrift code
     -->
     <target name="gen-thrift-java">
@@ -219,22 +182,18 @@
 	The build target builds all the .class files
     -->
     <target name="build"
-        depends="ivy-retrieve-build,avro-generate,build-subprojects,build-project"/>
+        depends="ivy-retrieve-build,build-subprojects,build-project"/>
     <target name="build-subprojects"/>
     <target name="codecoverage" depends="cobertura-instrument,test,cobertura-report"/>
     	
-    <target depends="init,avro-generate,gen-cli-grammar" name="build-project">
+    <target depends="init,gen-cli-grammar" name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <javac debug="true" debuglevel="${debuglevel}" destdir="${build.classes}">
             <src path="${build.src}"/>
             <src path="${build.src.gen-java}"/>
             <src path="${interface.thrift.dir}/gen-java"/>
-            <src path="${interface.avro.dir}"/>
             <classpath refid="cassandra.classpath"/>
         </javac>
-
-        <paranamer sourceDirectory="${interface.avro.dir}"
-               outputDirectory="${build.classes}"/>
     </target>
 
     <!--
@@ -323,7 +282,6 @@
           <include name="**"/>
           <exclude name="build/**" />
           <exclude name="src/gen-java/**" />
-          <exclude name="interface/avro/**" />
           <exclude name=".git/**" />
         </tarfileset>
       </tar>
