@@ -77,27 +77,35 @@ listen_address: localhost
 rpc_address: localhost
 # port for Thrift to listen on
 rpc_port: 9160
-# Whether or not to use a framed transport for Thrift.
-thrift_framed_transport: false
+
+# Frame size for thrift (maximum field length).
+# 0 disables TFramedTransport in favor of TSocket.
+thrift_framed_transport_size_in_mb: 15
+
+# The max length of a thrift message, including all fields and
+# internal thrift overhead.
+thrift_max_message_length_in_mb: 16
+
 snapshot_before_compaction: false
 
 # The threshold size in megabytes the binary memtable must grow to,
 # before it's submitted for flushing to disk.
 binary_memtable_throughput_in_mb: 256
-# Number of minutes to keep a memtable in memory
+# The maximum time to leave a dirty memtable unflushed.
+# (While any affected columnfamilies have unflushed data from a
+# commit log segment, that segment cannot be deleted.)
+# This needs to be large enough that it won't cause a flush storm
+# of all your memtables flushing at once because none has hit
+# the size or count thresholds yet.
 memtable_flush_after_mins: 60
-# Size of the memtable in memory before it is dumped
+# Size of the memtable in memory before it is flushed
 memtable_throughput_in_mb: 64
-# Number of objects in millions in the memtable before it is dumped
+# Number of objects in millions in the memtable before it is flushed
 memtable_operations_in_millions: 0.3
-# Buffer size to use when flushing !memtables to disk.
-flush_data_buffer_size_in_mb: 32
-# Increase (decrease) the index buffer size relative to the data
-# buffer if you have few (many) columns per key.
-flush_index_buffer_size_in_mb: 8
 
 column_index_size_in_kb: 64
-row_warning_threshold_in_mb: 512
+
+in_memory_compaction_limit_in_mb: 64
 
 # commit log
 commitlog_directory: /var/lib/cassandra/commitlog
@@ -124,9 +132,6 @@ rpc_timeout_in_ms: 10000
 # most users should never need to adjust this.
 # phi_convict_threshold: 8
 
-# time to wait before garbage collecting tombstones (deletion markers)
-gc_grace_seconds: 864000
-
 # endpoint_snitch -- Set this to a class that implements
 # IEndpointSnitch, which will let Cassandra know enough
 # about your network topology to route requests efficiently.
@@ -136,7 +141,42 @@ gc_grace_seconds: 864000
 # org.apache.cassandra.locator.PropertyFileSnitch.
 endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
 
-# A ColumnFamily is the Cassandra concept closest to a relational table. 
+# dynamic_snitch -- This boolean controls whether the above snitch is
+# wrapped with a dynamic snitch, which will monitor read latencies
+# and avoid reading from hosts that have slowed (due to compaction,
+# for instance)
+dynamic_snitch: true
+
+# request_scheduler -- Set this to a class that implements
+# RequestScheduler, which will schedule incoming client requests
+# according to the specific policy. This is useful for multi-tenancy
+# with a single Cassandra cluster.
+# NOTE: This is specifically for requests from the client and does
+# not affect inter node communication.
+# org.apache.cassandra.scheduler.NoScheduler - No scheduling takes place
+# org.apache.cassandra.scheduler.RoundRobinScheduler - Round robin of
+# client requests to a node with a sepearte queue for each
+# reques_scheduler_id. The requests are throttled based on the limit set
+# in throttle_limit in the requeset_scheduler_options
+request_scheduler: org.apache.cassandra.scheduler.NoScheduler
+
+# Scheduler Options vary based on the type of scheduler
+# NoScheduler - Has no options
+# RoundRobin
+#  - throttle_limit -- The throttle_limit is the number of in-flight
+#                      requests per client.  Requests beyond
+#                      that limit are queued up until
+#                      running requests can complete.
+#                      The value of 80 here is twice the number of
+#                      concurrent_reads + concurrent_writes.
+# request_scheduler_options:
+#    throttle_limit: 80
+
+# request_scheduler_id -- An identifer based on which to perform
+# the request scheduling. The current supported option is "keyspace"
+request_scheduler_id: keyspace
+
+# A ColumnFamily is the Cassandra concept closest to a relational table.
 #
 # Keyspaces are separate groups of ColumnFamilies.  Except in very
 # unusual circumstances you will have one Keyspace per application.
@@ -144,8 +184,10 @@ endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
 # Keyspace required parameters:
 # - name: name of the keyspace; "system" and "definitions" are 
 #   reserved for Cassandra Internals.
-# - replica_placement_strategy: the class that determines how replicas
-#   are distributed among nodes.  Must implement IReplicaPlacementStrategy.
+# - replica_placement_strategy: determines how replicas are distributed
+#   among nodes. Contains both the class as well as configuration
+#   information.
+#    Must implement IReplicaPlacementStrategy.
 #   Out of the box, Cassandra provides 
 #     * org.apache.cassandra.locator.RackUnawareStrategy 
 #     * org.apache.cassandra.locator.RackAwareStrategy
@@ -161,9 +203,17 @@ endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
 #   different rack in in the first.
 #
 #   DatacenterShardStrategy is a generalization of RackAwareStrategy.
-#   For each datacenter, you can specify (in `datacenter.properties`)
-#   how many replicas you want on a per-keyspace basis.  Replicas are
-#   placed on different racks within each DC, if possible.
+#   For each datacenter, you can specify how many replicas you want
+#   on a per-keyspace basis.  Replicas are placed on different racks
+#   within each DC, if possible. This strategy also requires rack aware
+#   snitch, such as RackInferringSnitch or PropertyFileSnitch.
+#   An example:
+#    - name: Keyspace1
+#      replica_placement_strategy: org.apache.cassandra.locator.DatacenterShardStrategy
+#      strategy_options:
+#        DC1 : 3
+#        DC2 : 2
+#        DC3 : 1
 # 
 # - replication_factor: Number of replicas of each row
 # - column_families: column families associated with this keyspace
@@ -195,6 +245,9 @@ endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
 #   and 1. defaults to 1.0 (always read repair).
 # - preload_row_cache: If true, will populate row cache on startup.
 #   Defaults to false.
+# - gc_grace_seconds: specifies the time to wait before garbage
+#   collecting tombstones (deletion markers). defaults to 864000 (10
+#   days). See http://wiki.apache.org/cassandra/DistributedDeletes
 #
 # NOTE: this keyspace definition is for demonstration purposes only.
 #       Cassandra will not load these definitions during startup. See
@@ -211,6 +264,7 @@ keyspaces:
           compare_with: UTF8Type
           read_repair_chance: 0.1
           keys_cached: 100
+          gc_grace_seconds: 0
 
         - name: StandardByUUID1
           compare_with: TimeUUIDType
