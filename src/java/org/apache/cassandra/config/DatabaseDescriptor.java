@@ -514,7 +514,7 @@ public class DatabaseDescriptor
             systemMeta.cfMetaData.put(HintedHandOffManager.HINTS_CF, new CFMetaData(Table.SYSTEM_TABLE,
                                                                                     HintedHandOffManager.HINTS_CF,
                                                                                     "Super",
-                                                                                    new UTF8Type(),
+                                                                                    new BytesType(),
                                                                                     new BytesType(),
                                                                                     "hinted handoff data",
                                                                                     0.0,
