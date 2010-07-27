@@ -278,6 +278,22 @@ class TestMutations(ThriftTester):
         slice = [result.column.name for result in _big_slice('key1', ColumnParent('StandardLong1'))]
         assert slice == L, slice
         
+    def test_integer_order(self):
+        _set_keyspace('Keyspace1')
+        def long_xrange(start, stop, step):
+            i = start
+            while i >= stop:
+                yield i
+                i -= step
+        L = []
+        for i in long_xrange(104294967296, 0, 429496729):
+            name = _i64(i)
+            client.insert('key1', ColumnParent('StandardInteger1'), Column(name, 'v', Clock(0)), ConsistencyLevel.ONE)
+            L.append(name)
+        slice = [result.column.name for result in _big_slice('key1', ColumnParent('StandardInteger1'))]
+        L.sort()
+        assert slice == L, slice
+
     def test_time_uuid(self):
         import uuid
         L = []
@@ -338,6 +354,23 @@ class TestMutations(ThriftTester):
                      for result in client.get_slice('key1', column_parent, sp, ConsistencyLevel.ONE)]
             assert slice == [Column(_i64(i), 'value2', Clock(10 * i + 2))], (slice, i)
         
+    def test_integer_remove(self):
+        column_parent = ColumnParent('StandardInteger1')
+        sp = SlicePredicate(slice_range=SliceRange('', '', False, 1))
+        _set_keyspace('Keyspace1')
+        for i in xrange(10):
+            parent = ColumnParent('StandardInteger1')
+
+            client.insert('key1', parent, Column(_i64(i), 'value1', Clock(10 * i)), ConsistencyLevel.ONE)
+            client.remove('key1', ColumnPath('StandardInteger1'), Clock(10 * i + 1), ConsistencyLevel.ONE)
+            slice = client.get_slice('key1', column_parent, sp, ConsistencyLevel.ONE)
+            assert slice == [], slice
+            # resurrect
+            client.insert('key1', parent, Column(_i64(i), 'value2', Clock(10 * i + 2)), ConsistencyLevel.ONE)
+            slice = [result.column
+                     for result in client.get_slice('key1', column_parent, sp, ConsistencyLevel.ONE)]
+            assert slice == [Column(_i64(i), 'value2', Clock(10 * i + 2))], (slice, i)
+
     def test_batch_insert(self):
         _set_keyspace('Keyspace1')
         _insert_batch(False)
@@ -1077,7 +1110,7 @@ class TestMutations(ThriftTester):
         kspaces = client.describe_keyspaces()
         assert len(kspaces) == 5, kspaces # ['system', 'Keyspace2', 'Keyspace3', 'Keyspace1', 'Keyspace4']
         ks1 = client.describe_keyspace("Keyspace1")
-        assert set(ks1.keys()) == set(['Super1', 'Standard1', 'Standard2', 'StandardLong1', 'StandardLong2', 'Super3', 'Super2', 'Super4', 'Indexed1'])
+        assert set(ks1.keys()) == set(['Super1', 'Standard1', 'Standard2', 'StandardLong1', 'StandardLong2', 'StandardInteger1', 'Super3', 'Super2', 'Super4', 'Indexed1'])
         sysks = client.describe_keyspace("system")
 
     def test_describe(self):

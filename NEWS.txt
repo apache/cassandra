@@ -22,6 +22,8 @@ Features
       clusters
     - dynamic endpoint snitch mitigates the impact of impaired nodes
     - significantly faster reads from row cache
+    - introduced IntegerType that is both faster than LongType and
+      allows integers of both less and more bits than Long's 64
 
 Configuraton
 ------------

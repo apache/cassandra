@@ -49,6 +49,9 @@ keyspaces:
         - name: StandardLong2
           compare_with: LongType
 
+        - name: StandardInteger1
+          compare_with: IntegerType
+
         - name: Super1
           column_type: Super
           compare_subcolumns_with: LongType
