@@ -493,8 +493,6 @@ public class StorageProxy implements StorageProxyMBean
             logger.debug(command.toString());
         long startTime = System.nanoTime();
 
-        final String table = command.keyspace;
-
         List<AbstractBounds> ranges = getRestrictedRanges(command.range);
         // now scan until we have enough results
         List<Row> rows = new ArrayList<Row>(command.max_keys);
@@ -531,8 +529,8 @@ public class StorageProxy implements StorageProxyMBean
 
                 // collect replies and resolve according to consistency level
                 RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, liveEndpoints);
-                AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(table);
-                QuorumResponseHandler<List<Row>> handler = rs.getQuorumResponseHandler(resolver, consistency_level, table);
+                AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(command.keyspace);
+                QuorumResponseHandler<List<Row>> handler = rs.getQuorumResponseHandler(resolver, consistency_level, command.keyspace);
                 // TODO bail early if live endpoints can't satisfy requested
                 // consistency level
                 for (InetAddress endpoint : liveEndpoints) 
@@ -557,8 +555,7 @@ public class StorageProxy implements StorageProxyMBean
                 } 
                 catch (DigestMismatchException e) 
                 {
-                    throw new AssertionError(e); // no digests in range slices
-                                                 // yet
+                    throw new AssertionError(e); // no digests in range slices yet
                 }
             }
           
