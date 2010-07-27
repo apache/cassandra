@@ -127,7 +127,7 @@ public class ColumnFamilyOutputFormatTest extends EmbeddedServer
         /* Establish a thrift connection to the cassandra instance */
         TSocket socket = new TSocket(DatabaseDescriptor.getListenAddress().getHostName(), DatabaseDescriptor.getRpcPort());
         TTransport transport = new TFramedTransport(socket);
-        TBinaryProtocol binaryProtocol = new TBinaryProtocol(transport, false, false);
+        TBinaryProtocol binaryProtocol = new TBinaryProtocol(transport);
         Cassandra.Client cassandraClient = new Cassandra.Client(binaryProtocol);
         transport.open();
         thriftClient = cassandraClient;
