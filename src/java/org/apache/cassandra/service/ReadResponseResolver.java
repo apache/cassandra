@@ -60,8 +60,8 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 	public Row resolve(Collection<Message> responses) throws DigestMismatchException, IOException
     {
         long startTime = System.currentTimeMillis();
-		List<ColumnFamily> versions = new ArrayList<ColumnFamily>();
-		List<InetAddress> endpoints = new ArrayList<InetAddress>();
+		List<ColumnFamily> versions = new ArrayList<ColumnFamily>(responses.size());
+		List<InetAddress> endpoints = new ArrayList<InetAddress>(responses.size());
 		DecoratedKey key = null;
 		byte[] digest = new byte[0];
 		boolean isDigestQuery = false;
