@@ -70,6 +70,7 @@ dev
  * fix read repair to use requested consistency level on digest mismatch,
    rather than assuming QUORUM (CASSANDRA-1316)
  * process digest mismatch re-reads in parallel (CASSANDRA-1323)
+ * switch hints CF comparator to BytesType (CASSANDRA-1274)
 
 
 0.6.3
