@@ -128,7 +128,7 @@ public class Descriptor
      * @return True if the given version string is not empty, and
      * contains all lowercase letters, as defined by java.lang.Character.
      */
-    private static boolean versionValidate(String ver)
+    static boolean versionValidate(String ver)
     {
         if (ver.length() < 1) return false;
         for (char ch : ver.toCharArray())

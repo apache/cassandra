@@ -92,7 +92,8 @@ public class LegacySSTableTest extends CleanupHelper
     public void testVersions() throws IOException
     {
         for (File version : LEGACY_SSTABLE_ROOT.listFiles())
-            testVersion(version.getName());
+            if (Descriptor.versionValidate(version.getName()))
+                testVersion(version.getName());
     }
 
     public void testVersion(String version)
