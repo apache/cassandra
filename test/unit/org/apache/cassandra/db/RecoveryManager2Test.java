@@ -22,21 +22,19 @@ package org.apache.cassandra.db;
 
 
 import java.io.IOException;
-import java.util.concurrent.ExecutionException;
-
-import org.apache.cassandra.Util;
 
 import org.junit.Test;
 
-import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.db.commitlog.CommitLog;
-
 import static org.apache.cassandra.Util.column;
+import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.Util;
+import org.apache.cassandra.db.commitlog.CommitLog;
 
 public class RecoveryManager2Test extends CleanupHelper
 {
     @Test
-    public void testWithFlush() throws IOException, ExecutionException, InterruptedException
+    /* test that commit logs do not replay flushed data */
+    public void testWithFlush() throws Exception
     {
         CompactionManager.instance.disableAutoCompaction();
 
@@ -50,9 +48,19 @@ public class RecoveryManager2Test extends CleanupHelper
         ColumnFamilyStore cfs = table1.getColumnFamilyStore("Standard1");
         cfs.forceBlockingFlush();
 
-        cfs.clearUnsafe();
-        CommitLog.recover(); // this is a no-op. is testing this useful?
+        // forceBlockingFlush above adds persistent stats to the current commit log segment
+        // it ends up in the same segment as key99 meaning that segment still has unwritten data
+        // thus the commit log replays it when recover is called below
+        Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(StatisticsTable.STATISTICS_CF).forceBlockingFlush();
 
+        // remove all SSTable/MemTables
+        cfs.clearUnsafe();
+
+        // replay the commit log (nothing should be replayed since everything was flushed)
+        CommitLog.recover();
+
+        // since everything that was flushed was removed (i.e. clearUnsafe)
+        // and the commit shouldn't have replayed anything, there should be no data
         assert Util.getRangeSlice(cfs).isEmpty();
     }
 
