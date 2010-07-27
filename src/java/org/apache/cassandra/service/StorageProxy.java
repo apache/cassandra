@@ -422,8 +422,7 @@ public class StorageProxy implements StorageProxyMBean
                     logger.debug("strongread reading " + (m == message ? "data" : "digest") + " for " + command + " from " + m.getMessageId() + "@" + endpoint);
             }
             AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(command.table);
-            ReadResponseResolver resolver = new ReadResponseResolver(command.table);
-            QuorumResponseHandler<Row> quorumResponseHandler = rs.getQuorumResponseHandler(resolver, consistency_level, command.table);
+            QuorumResponseHandler<Row> quorumResponseHandler = rs.getQuorumResponseHandler(new ReadResponseResolver(command.table), consistency_level, command.table);
             MessagingService.instance.sendRR(messages, endpoints, quorumResponseHandler);
             quorumResponseHandlers.add(quorumResponseHandler);
             commandEndpoints.add(endpoints);
@@ -447,10 +446,10 @@ public class StorageProxy implements StorageProxyMBean
             {
                 if (randomlyReadRepair(command))
                 {
-                    IResponseResolver<Row> resolver = new ReadResponseResolver(command.table);
                     AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(command.table);
-                    QuorumResponseHandler<Row> quorumResponseHandlerRepair = rs.getQuorumResponseHandler(resolver, ConsistencyLevel.QUORUM, command.table);
-                    logger.info("DigestMismatchException: " + ex.getMessage());
+                    QuorumResponseHandler<Row> quorumResponseHandlerRepair = rs.getQuorumResponseHandler(new ReadResponseResolver(command.table), ConsistencyLevel.QUORUM, command.table);
+                    if (logger.isDebugEnabled())
+                        logger.debug("Digest mismatch:", ex);
                     Message messageRepair = command.makeReadMessage();
                     MessagingService.instance.sendRR(messageRepair, commandEndpoints.get(commandIndex), quorumResponseHandlerRepair);
                     try
@@ -461,8 +460,7 @@ public class StorageProxy implements StorageProxyMBean
                     }
                     catch (DigestMismatchException e)
                     {
-                        // TODO should this be a thrift exception?
-                        throw new RuntimeException("digest mismatch reading key " + FBUtilities.bytesToHex(command.key), e);
+                        throw new AssertionError(e); // full data requested from each node here, no digests should be sent
                     }
                 }
             }

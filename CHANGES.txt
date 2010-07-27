@@ -67,6 +67,9 @@ dev
  * remove gossip message size limit (CASSANDRA-1138)
  * parallelize local and remote reads during multiget, and respect snitch 
    when determining whether to do local read for CL.ONE (CASSANDRA-1317)
+ * fix read repair to use requested consistency level on digest mismatch,
+   rather than assuming QUORUM (CASSANDRA-1316)
+
 
 
 0.6.3
