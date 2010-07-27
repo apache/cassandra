@@ -31,7 +31,6 @@ import javax.management.ObjectName;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.RawColumnDefinition;
 import org.apache.cassandra.config.RawColumnFamily;
 import org.apache.cassandra.config.RawKeyspace;
@@ -77,10 +76,7 @@ import org.apache.log4j.Level;
 import org.yaml.snakeyaml.Dumper;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.introspector.Property;
-import org.yaml.snakeyaml.nodes.NodeTuple;
 import org.yaml.snakeyaml.nodes.Tag;
-import org.yaml.snakeyaml.representer.Representer;
 
 /*
  * This abstraction contains the token/identifier of this node
@@ -1667,8 +1663,13 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // blow up if there is a schema saved.
         if (DatabaseDescriptor.getDefsVersion().timestamp() > 0 || Migration.getLastMigrationId() != null)
             throw new ConfigurationException("Cannot load from XML on top of pre-existing schemas.");
+        
+        Migration migration = null;
         for (KSMetaData table : DatabaseDescriptor.readTablesFromYaml())
-            new AddKeyspace(table).apply();
+        {
+            migration = new AddKeyspace(table); 
+            migration.apply();
+        }
         
         assert DatabaseDescriptor.getDefsVersion().timestamp() > 0;
         DefsTable.dumpToStorage(DatabaseDescriptor.getDefsVersion());
@@ -1688,6 +1689,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 throw ce;
             }
         }
+        
+        // we don't want to announce after every Migration.apply(). keep track of the last one and then announce the
+        // current version.
+        if (migration != null)
+            migration.announce();
         
     }
 

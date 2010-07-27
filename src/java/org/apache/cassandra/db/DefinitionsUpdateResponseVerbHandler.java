@@ -60,8 +60,10 @@ public class DefinitionsUpdateResponseVerbHandler implements IVerbHandler
                         protected void runMayThrow() throws Exception
                         {
                             // check to make sure the current version is before this one.
-                            if (DatabaseDescriptor.getDefsVersion().timestamp() >= version.timestamp())
-                                logger.debug("Not applying " + version.toString());
+                            if (DatabaseDescriptor.getDefsVersion().timestamp() == version.timestamp())
+                                logger.debug("Not appling (equal) " + version.toString());
+                            else if (DatabaseDescriptor.getDefsVersion().timestamp() > version.timestamp())
+                                logger.debug("Not applying (before)" + version.toString());
                             else
                             {
                                 logger.debug("Applying {} from {}", m.getClass().getSimpleName(), message.getFrom());
