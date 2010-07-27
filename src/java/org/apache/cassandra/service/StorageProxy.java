@@ -499,10 +499,11 @@ public class StorageProxy implements StorageProxyMBean
             {
                 if (DatabaseDescriptor.getConsistencyCheck())
                 {
+                    if (logger.isDebugEnabled())
+                        logger.debug("Digest mismatch:", ex);
                     int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(command.table), consistency_level);
                     IResponseResolver<Row> readResponseResolverRepair = new ReadResponseResolver(command.table, responseCount);
                     QuorumResponseHandler<Row> quorumResponseHandlerRepair = new QuorumResponseHandler<Row>(responseCount, readResponseResolverRepair);
-                    logger.debug("Digest mismatch; requesting full data from each replica");
                     Message messageRepair = command.makeReadMessage();
                     MessagingService.instance.sendRR(messageRepair, commandEndPoints.get(commandIndex), quorumResponseHandlerRepair);
                     try
