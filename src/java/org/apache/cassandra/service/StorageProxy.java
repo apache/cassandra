@@ -502,7 +502,7 @@ public class StorageProxy implements StorageProxyMBean
                     int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(command.table), consistency_level);
                     IResponseResolver<Row> readResponseResolverRepair = new ReadResponseResolver(command.table, responseCount);
                     QuorumResponseHandler<Row> quorumResponseHandlerRepair = new QuorumResponseHandler<Row>(responseCount, readResponseResolverRepair);
-                    logger.info("DigestMismatchException: " + ex.getMessage());
+                    logger.debug("Digest mismatch; requesting full data from each replica");
                     Message messageRepair = command.makeReadMessage();
                     MessagingService.instance.sendRR(messageRepair, commandEndPoints.get(commandIndex), quorumResponseHandlerRepair);
                     try
@@ -513,8 +513,7 @@ public class StorageProxy implements StorageProxyMBean
                     }
                     catch (DigestMismatchException e)
                     {
-                        // TODO should this be a thrift exception?
-                        throw new RuntimeException("digest mismatch reading key " + command.key, e);
+                        throw new AssertionError(e); // full data requested from each node here, no digests should be sent
                     }
                 }
             }
