@@ -1660,15 +1660,42 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public void loadSchemaFromYAML() throws ConfigurationException, IOException
     { 
-        // blow up if there is a schema saved.
-        if (DatabaseDescriptor.getDefsVersion().timestamp() > 0 || Migration.getLastMigrationId() != null)
-            throw new ConfigurationException("Cannot load from XML on top of pre-existing schemas.");
-        
-        Migration migration = null;
-        for (KSMetaData table : DatabaseDescriptor.readTablesFromYaml())
+        Callable<Migration> call = new Callable<Migration>()
         {
-            migration = new AddKeyspace(table); 
-            migration.apply();
+            public Migration call() throws Exception
+            {
+                // blow up if there is a schema saved.
+                if (DatabaseDescriptor.getDefsVersion().timestamp() > 0 || Migration.getLastMigrationId() != null)
+                    throw new ConfigurationException("Cannot load from XML on top of pre-existing schemas.");
+                
+                Migration migration = null;
+                for (KSMetaData table : DatabaseDescriptor.readTablesFromYaml())
+                {
+                    migration = new AddKeyspace(table); 
+                    migration.apply();
+                }
+                return migration;
+            }
+        };
+        Migration migration = null;
+        try
+        {
+            migration = StageManager.getStage(StageManager.MIGRATION_STAGE).submit(call).get();
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (ExecutionException e)
+        {
+            if (e.getCause() instanceof ConfigurationException)
+                throw (ConfigurationException)e.getCause();
+            else if (e.getCause() instanceof IOException)
+                throw (IOException)e.getCause();
+            else if (e.getCause() instanceof Exception)
+                throw new ConfigurationException(e.getCause().getMessage(), (Exception)e.getCause());
+            else
+                throw new RuntimeException(e);
         }
         
         assert DatabaseDescriptor.getDefsVersion().timestamp() > 0;
