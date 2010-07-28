@@ -71,6 +71,6 @@ public class AuthenticatedUser
     @Override
     public String toString()
     {
-        return "#<User %s groups=%s>".format(username, groups);
+        return String.format("#<User %s groups=%s>", username, groups);
     }
 }
