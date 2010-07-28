@@ -69,25 +69,11 @@ public class RenameKeyspace extends Migration
             throw new ConfigurationException("Keyspace already exists.");
         
         // clone the ksm, replacing thename.
-        KSMetaData newKsm = rename(oldKsm, newName, false); 
+        KSMetaData newKsm = oldKsm.withName(newName); 
         
         rm = makeDefinitionMutation(newKsm, oldKsm, newVersion);
     }
     
-    private static KSMetaData rename(KSMetaData ksm, String newName, boolean purgeOldCfs)
-    {
-        // cfs will need to have their tablenames reset. CFMetaData are immutable, so new ones get created with the
-        // same ids.
-        List<CFMetaData> newCfs = new ArrayList<CFMetaData>(ksm.cfMetaData().size());
-        for (CFMetaData oldCf : ksm.cfMetaData().values())
-        {
-            if (purgeOldCfs)
-                CFMetaData.purge(oldCf);
-            newCfs.add(CFMetaData.renameTable(oldCf, newName));
-        }
-        return new KSMetaData(newName, ksm.strategyClass, ksm.replicationFactor, newCfs.toArray(new CFMetaData[newCfs.size()]));
-    }
-
     @Override
     public ICompactSerializer getSerializer()
     {
@@ -102,8 +88,9 @@ public class RenameKeyspace extends Migration
         
         KSMetaData oldKsm = DatabaseDescriptor.getTableDefinition(oldName);
         for (CFMetaData cfm : oldKsm.cfMetaData().values())
+            // remove cf mappings for previous ksname
             CFMetaData.purge(cfm);
-        KSMetaData newKsm = rename(oldKsm, newName, true);
+        KSMetaData newKsm = oldKsm.withName(newName);
         for (CFMetaData cfm : newKsm.cfMetaData().values())
         {
             try

@@ -49,7 +49,41 @@ public final class KSMetaData
             cfmap.put(cfm.cfName, cfm);
         this.cfMetaData = Collections.unmodifiableMap(cfmap);
     }
-    
+
+    /**
+     * Copies this KSMetaData, adding an additional ColumnFamily.
+     */
+    public KSMetaData withColumnFamily(CFMetaData cfm)
+    {
+        List<CFMetaData> newCfs = new ArrayList<CFMetaData>(cfMetaData().values());
+        newCfs.add(cfm);
+        return new KSMetaData(name, strategyClass, replicationFactor, newCfs.toArray(new CFMetaData[newCfs.size()]));
+    }
+
+    /**
+     * Copies this KSMetaData, removing the ColumnFamily with the given name (which must exist).
+     */
+    public KSMetaData withoutColumnFamily(String cfName)
+    {
+        CFMetaData cfm = cfMetaData().get(cfName);
+        List<CFMetaData> newCfs = new ArrayList<CFMetaData>(cfMetaData().values());
+        newCfs.remove(cfm);
+        assert newCfs.size() == cfMetaData().size() - 1;
+        return new KSMetaData(name, strategyClass, replicationFactor, newCfs.toArray(new CFMetaData[newCfs.size()]));
+    }
+
+    /**
+     * Copies this KSMetaData, returning a renamed copy.
+     */
+    public KSMetaData withName(String ksName)
+    {
+        // cfs will need to have their tablenames reset, but their ids will not change
+        List<CFMetaData> newCfs = new ArrayList<CFMetaData>(cfMetaData().size());
+        for (CFMetaData oldCf : cfMetaData().values())
+            newCfs.add(CFMetaData.renameTable(oldCf, ksName));
+        return new KSMetaData(ksName, strategyClass, replicationFactor, newCfs.toArray(new CFMetaData[newCfs.size()]));
+    }
+
     public boolean equals(Object obj)
     {
         if (obj == null)
