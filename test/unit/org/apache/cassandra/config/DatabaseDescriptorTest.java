@@ -37,9 +37,7 @@ public class DatabaseDescriptorTest
 {
     protected <D extends SpecificRecord> D serDe(D record) throws IOException
     {
-        D actual = SerDeUtils.<D>deserialize(record.getSchema(), SerDeUtils.serialize(record));
-        assert actual.equals(record) : actual + " != " + record;
-        return actual;
+        return SerDeUtils.<D>deserialize(record.getSchema(), SerDeUtils.serialize(record));
     }
 
     @Test
@@ -83,9 +81,9 @@ public class DatabaseDescriptorTest
         assert DatabaseDescriptor.getNonSystemTables().size() == 0;
         
         // add a few.
-        AddKeyspace ks0 = new AddKeyspace(new KSMetaData("ks0", RackUnawareStrategy.class, 3));
+        AddKeyspace ks0 = new AddKeyspace(new KSMetaData("ks0", RackUnawareStrategy.class, 3, null, null));
         ks0.apply();
-        AddKeyspace ks1 = new AddKeyspace(new KSMetaData("ks1", RackUnawareStrategy.class, 3));
+        AddKeyspace ks1 = new AddKeyspace(new KSMetaData("ks1", RackUnawareStrategy.class, 3, null, null));
         ks1.apply();
         
         assert DatabaseDescriptor.getTableDefinition("ks0") != null;

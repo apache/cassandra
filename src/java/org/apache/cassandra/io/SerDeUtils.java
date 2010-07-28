@@ -22,6 +22,8 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Map;
+import java.util.HashMap;
 
 import org.apache.avro.Schema;
 import org.apache.avro.io.BinaryDecoder;
@@ -44,6 +46,22 @@ public final class SerDeUtils
 {
     // unbuffered decoders
     private final static DecoderFactory DIRECT_DECODERS = new DecoderFactory().configureDirectDecoder(true);
+
+    public static <T> Map<Utf8,T> toAvroMap(Map<String,T> map)
+    {
+        Map<Utf8,T> out = new HashMap<Utf8,T>();
+        for (Map.Entry<String,T> entry : map.entrySet())
+            out.put(new Utf8(entry.getKey()), entry.getValue());
+        return out;
+    }
+
+    public static <T> Map<String,T> fromAvroMap(Map<Utf8,T> map)
+    {
+        Map<String,T> out = new HashMap<String,T>();
+        for (Map.Entry<Utf8,T> entry : map.entrySet())
+            out.put(entry.getKey().toString(), entry.getValue());
+        return out;
+    }
 
 	/**
      * Deserializes a single object based on the given Schema.

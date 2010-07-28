@@ -343,11 +343,16 @@ public class DatabaseDescriptor
                 CommitLog.setSegmentSize(conf.commitlog_rotation_threshold_in_mb * 1024 * 1024);
 
             // Hardcoded system tables
-            KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE, LocalStrategy.class, 1, new CFMetaData[]{CFMetaData.StatusCf,
-                                                                                                  CFMetaData.HintsCf,
-                                                                                                  CFMetaData.MigrationsCf,
-                                                                                                  CFMetaData.SchemaCf,
-                                                                                                  CFMetaData.StatisticsCf
+            KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE,
+                                                   LocalStrategy.class,
+                                                   1,
+                                                   null,
+                                                   null,
+                                                   new CFMetaData[]{CFMetaData.StatusCf,
+                                                                    CFMetaData.HintsCf,
+                                                                    CFMetaData.MigrationsCf,
+                                                                    CFMetaData.SchemaCf,
+                                                                    CFMetaData.StatisticsCf
             });
             CFMetaData.map(CFMetaData.StatusCf);
             CFMetaData.map(CFMetaData.HintsCf);
@@ -617,7 +622,7 @@ public class DatabaseDescriptor
                                              cf.gc_grace_seconds,
                                              metadata);
             }
-            defs.add(new KSMetaData(keyspace.name, strategyClass, keyspace.replication_factor, cfDefs));
+            defs.add(new KSMetaData(keyspace.name, strategyClass, keyspace.replication_factor, null, null, cfDefs));
             
         }
 

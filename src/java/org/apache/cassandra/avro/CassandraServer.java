@@ -521,6 +521,16 @@ public class CassandraServer implements Cassandra {
         return new org.apache.cassandra.db.TimestampClock(clock.timestamp);
     }
     
+    private static Map<String,AccessLevel> unavronateAccessMap(Map<Utf8,AccessLevel> map)
+    {
+        Map<String,AccessLevel> out = new HashMap<String,AccessLevel>();
+        if (map == null)
+            return out;
+        for (Map.Entry<Utf8, AccessLevel> entry : map.entrySet())
+            out.put(entry.getKey().toString(), entry.getValue());
+        return out;
+    }
+
     // FIXME: This is copypasta from o.a.c.db.RowMutation, (RowMutation.getRowMutation uses Thrift types directly).
     private static RowMutation getRowMutationFromMutations(String keyspace, byte[] key, Map<Utf8, GenericArray<Mutation>> cfMap)
     {
@@ -666,6 +676,8 @@ public class CassandraServer implements Cassandra {
                     ksDef.name.toString(),
                     (Class<? extends AbstractReplicationStrategy>)Class.forName(ksDef.strategy_class.toString()),
                     (int)ksDef.replication_factor,
+                    unavronateAccessMap(ksDef.users_access),
+                    unavronateAccessMap(ksDef.groups_access),
                     cfDefs.toArray(new CFMetaData[cfDefs.size()]));
             AddKeyspace add = new AddKeyspace(ksmeta);
             add.apply();

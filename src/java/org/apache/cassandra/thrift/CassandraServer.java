@@ -225,6 +225,16 @@ public class CassandraServer implements Cassandra.Iface
         return thrift_clock;
     }
 
+    private static Map<String,org.apache.cassandra.avro.AccessLevel> unthriftifyAccessMap(Map<String,AccessLevel> map)
+    {
+        Map<String,org.apache.cassandra.avro.AccessLevel> out = new HashMap<String,org.apache.cassandra.avro.AccessLevel>();
+        if (map == null)
+            return out;
+        for (Map.Entry<String,AccessLevel> entry : map.entrySet())
+            out.put(entry.getKey(), Enum.valueOf(org.apache.cassandra.avro.AccessLevel.class, entry.getValue().name()));
+        return out;
+    }
+
     private Map<byte[], List<ColumnOrSuperColumn>> getSlice(List<ReadCommand> commands, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -881,7 +891,9 @@ public class CassandraServer implements Cassandra.Iface
             KSMetaData ksm = new KSMetaData(
                     ks_def.name, 
                     (Class<? extends AbstractReplicationStrategy>)Class.forName(ks_def.strategy_class), 
-                    ks_def.replication_factor, 
+                    ks_def.replication_factor,
+                    unthriftifyAccessMap(ks_def.users_access),
+                    unthriftifyAccessMap(ks_def.groups_access),
                     cfDefs.toArray(new CFMetaData[cfDefs.size()]));
             applyMigrationOnStage(new AddKeyspace(ksm));
             return DatabaseDescriptor.getDefsVersion().toString();
