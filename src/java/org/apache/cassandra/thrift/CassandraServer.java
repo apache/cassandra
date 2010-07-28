@@ -30,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.AllowAllAuthenticator;
+import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.KSMetaData;
@@ -66,14 +67,14 @@ public class CassandraServer implements Cassandra.Iface
     private final static List<Column> EMPTY_SUBCOLUMNS = Collections.emptyList();
 
     // will be set only by login()
-    private ThreadLocal<AccessLevel> loginDone = new ThreadLocal<AccessLevel>() 
-    {
+    private ThreadLocal<AuthenticatedUser> loginDone = new ThreadLocal<AuthenticatedUser>() {
         @Override
-        protected AccessLevel initialValue()
+        public AuthenticatedUser initialValue()
         {
-            return AccessLevel.NONE;
+            return DatabaseDescriptor.getAuthenticator().defaultUser();
         }
     };
+
     /*
      * Keyspace associated with session
      */
@@ -706,22 +707,14 @@ public class CassandraServer implements Cassandra.Iface
         return splits;
     }
 
-    public AccessLevel login(AuthenticationRequest auth_request) throws AuthenticationException, AuthorizationException, TException
+    public void login(AuthenticationRequest auth_request) throws AuthenticationException, AuthorizationException, TException
     {
-        AccessLevel level;
-        
-        if (keySpace.get() == null)
-        {
-            throw new AuthenticationException("You have not set a specific keyspace; please call set_keyspace first");
-        }
-        
-        level = DatabaseDescriptor.getAuthenticator().login(keySpace.get(), auth_request);
+        AuthenticatedUser user = DatabaseDescriptor.getAuthenticator().login(auth_request.getCredentials());
         
         if (logger.isDebugEnabled())
-            logger.debug("login confirmed; new access level is " + level);
+            logger.debug("login confirmed; user is " + user);
         
-        loginDone.set(level);
-        return level;
+        loginDone.set(user);
     }
 
     public void logout()
@@ -735,18 +728,11 @@ public class CassandraServer implements Cassandra.Iface
 
     protected void checkKeyspaceAndLoginAuthorized(AccessLevel level) throws InvalidRequestException
     {
-        if (keySpace.get() == null)
-        {
-            throw new InvalidRequestException("You have not assigned a keyspace; please use set_keyspace (and login if necessary)");
-        }
-        
-        if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
-        {
-            if (loginDone.get() == null)
-                throw new InvalidRequestException("You have not logged into keyspace " + keySpace.get());
-            if (loginDone.get().getValue() < level.getValue())
-                throw new InvalidRequestException("Your credentials are not sufficient to perform " + level + " operations");
-        }
+        if (loginDone.get() == null)
+            throw new InvalidRequestException("You have not logged in");
+
+        // FIXME: if no keyspace set, check against global authlist. otherwise, check
+        // against keyspace authlist
     }
 
     /**
@@ -877,6 +863,7 @@ public class CassandraServer implements Cassandra.Iface
         // IAuthenticator was devised prior to, and without thought for, dynamic keyspace creation. As
         // a result, we must choose between letting anyone/everyone create keyspaces (which they likely
         // won't even be able to use), or be honest and disallow it entirely if configured for auth.
+        // See CASSANDRA-1271 for a proposed solution.
         if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
             throw new InvalidRequestException("Unable to create new keyspace while authentication is enabled.");
 
@@ -1033,10 +1020,6 @@ public class CassandraServer implements Cassandra.Iface
         {
             throw new InvalidRequestException("Keyspace does not exist");
         }
-        
-        // If switching, invalidate previous access level; force a new login.
-        if (keySpace.get() != null && !keySpace.get().equals(keyspace))
-            loginDone.set(AccessLevel.NONE);
         
         keySpace.set(keyspace);
         requestSchedulerId.set(keyspace);
