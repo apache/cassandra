@@ -32,7 +32,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.AllowAllAuthenticator;
+import org.apache.cassandra.auth.SimpleAuthenticator;
 import org.apache.cassandra.auth.IAuthenticator;
+import org.apache.cassandra.avro.AccessLevel;
 import org.apache.cassandra.config.Config.RequestSchedulerId;
 import org.apache.cassandra.db.ClockType;
 import org.apache.cassandra.db.ColumnFamilyType;
@@ -509,11 +511,18 @@ public class DatabaseDescriptor
         CFMetaData.fixMaxId();
     }
 
-    /** reads xml. doesn't populate any internal structures. */
+    /**
+     * Reads keyspaces from yaml: doesn't populate any internal structures.
+     * @Deprecated
+     */
     public static Collection<KSMetaData> readTablesFromYaml() throws ConfigurationException
     {
         List<KSMetaData> defs = new ArrayList<KSMetaData>();
         
+        /* If SimpleAuthenticator is in use, load the (deprecated) access.properties file, to apply it to keyspaces. */
+        Map<String,Map<String,AccessLevel>> keyspacesAccess = new HashMap();
+        if (DatabaseDescriptor.getAuthenticator() instanceof SimpleAuthenticator)
+            keyspacesAccess = ((SimpleAuthenticator)DatabaseDescriptor.getAuthenticator()).loadAccessFile();
         
         /* Read the table related stuff from config */
         for (RawKeyspace keyspace : conf.keyspaces)
@@ -622,8 +631,12 @@ public class DatabaseDescriptor
                                              cf.gc_grace_seconds,
                                              metadata);
             }
-            defs.add(new KSMetaData(keyspace.name, strategyClass, keyspace.replication_factor, null, null, cfDefs));
-            
+            defs.add(new KSMetaData(keyspace.name,
+                                    strategyClass,
+                                    keyspace.replication_factor,
+                                    keyspacesAccess.get(keyspace.name),
+                                    null,
+                                    cfDefs));
         }
 
         return defs;

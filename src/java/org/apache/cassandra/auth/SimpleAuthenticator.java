@@ -26,7 +26,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Properties;
 import java.util.Map;
+import java.util.HashMap;
 
+import org.apache.cassandra.avro.AccessLevel;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.AuthorizationException;
@@ -133,6 +135,39 @@ public class SimpleAuthenticator implements IAuthenticator
             throw new ConfigurationException("When using " + this.getClass().getCanonicalName() + " " + 
                     SimpleAuthenticator.PASSWD_FILENAME_PROPERTY + " properties must be defined.");	
         }
+    }
+
+    /**
+     * Loads the user access map for each keyspace from the deprecated access.properties file.
+     */
+    @Deprecated
+    public Map<String,Map<String,AccessLevel>> loadAccessFile() throws ConfigurationException 
+    {
+        Map<String,Map<String,AccessLevel>> keyspacesAccess = new HashMap();
+        final String accessFilenameProperty = "access.properties";
+        String afilename = System.getProperty(accessFilenameProperty);
+        Properties props = new Properties();
+        try
+        {
+            FileInputStream in = new FileInputStream(afilename);
+            props.load(in);
+            in.close();
+        }
+        catch (Exception e)
+        {
+            throw new ConfigurationException("Authorization table file given by property " + accessFilenameProperty + " could not be loaded: " + e.getMessage());
+        }
+        for (String keyspace : props.stringPropertyNames())
+        {
+            // structure:
+            // given keyspace X, users A B and C can be authorized like this (separate their names with spaces):
+            // X = A B C
+            Map<String,AccessLevel> usersAccess = new HashMap();
+            for (String user : props.getProperty(keyspace).split(","))
+                usersAccess.put(user, AccessLevel.FULL);
+            keyspacesAccess.put(keyspace, usersAccess);
+        }
+        return keyspacesAccess;
     }
 
     static String authenticationErrorMessage(PasswordMode mode, String username)
