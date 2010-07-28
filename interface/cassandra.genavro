@@ -23,7 +23,7 @@
 
 protocol Cassandra {
     enum AccessLevel {
-        NONE, READONLY, READWRITE, FALL
+        NONE, READONLY, READWRITE, FULL
     }
 
     record ColumnPath {
@@ -122,6 +122,8 @@ protocol Cassandra {
         string strategy_class;
         int replication_factor;
         array<CfDef> cf_defs;
+        union { map<AccessLevel>, null } users_access;
+        union { map<AccessLevel>, null } groups_access;
     }
     
     record MutationsMapEntry {

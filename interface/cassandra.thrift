@@ -377,11 +377,13 @@ struct KsDef {
     2: required string strategy_class,
     3: required i32 replication_factor,
     5: required list<CfDef> cf_defs,    
+    6: optional map<string,AccessLevel> users_access,
+    7: optional map<string,AccessLevel> groups_access,
 }
 
 service Cassandra {
   # auth methods
-  AccessLevel login(1: required AuthenticationRequest auth_request) throws (1:AuthenticationException authnx, 2:AuthorizationException authzx),
+  void login(1: required AuthenticationRequest auth_request) throws (1:AuthenticationException authnx, 2:AuthorizationException authzx),
  
   # set keyspace
   void set_keyspace(1: required string keyspace) throws (1:InvalidRequestException ire),
