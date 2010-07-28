@@ -22,6 +22,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.ColumnPath;
 import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.UnavailableException;
 
 import java.io.IOException;
@@ -119,6 +120,10 @@ public class ClientOnlyExample
                 throw new RuntimeException(e);
             }
             catch (TimeoutException e)
+            {
+                throw new RuntimeException(e);
+            }
+            catch (InvalidRequestException e)
             {
                 throw new RuntimeException(e);
             }
