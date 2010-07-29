@@ -1,3 +1,6 @@
+0.6.5
+ * page within a single row during hinted handoff (CASSANDRA-1327)
+
 0.6.4
  * avoid queuing multiple hint deliveries for the same endpoint
    (CASSANDRA-1229)
