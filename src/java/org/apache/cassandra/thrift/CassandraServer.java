@@ -832,6 +832,15 @@ public class CassandraServer implements Cassandra.Iface
         if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
             throw new InvalidRequestException("Unable to create new keyspace while authentication is enabled.");
 
+        //generate a meaningful error if the user setup keyspace and/or column definition incorrectly
+        for (CfDef cf : ks_def.cf_defs) 
+        {
+            if (!cf.getKeyspace().equals(ks_def.getName()))
+            {
+                throw new InvalidRequestException("CsDef (" + cf.getName() +") had a keyspace definition that did not match KsDef");
+            }
+        }
+
         try
         {
             Collection<CFMetaData> cfDefs = new ArrayList<CFMetaData>(ks_def.cf_defs.size());
