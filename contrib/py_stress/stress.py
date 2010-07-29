@@ -266,7 +266,7 @@ class RangeSlicer(Operation):
                 keyrange = KeyRange(fmt % current, fmt % last, count = options.rangecount)
                 res = []
                 for j in xrange(supers_per_key):
-                    parent = ColumnParent('Super1', chr(ord('A') + j)) 
+                    parent = ColumnParent('Super1', 'S' + str(j)) 
                     begin = time.time()
                     try:
                         res = self.cclient.get_range_slices(parent, p, keyrange, consistency)
