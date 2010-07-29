@@ -917,7 +917,11 @@ public class CassandraServer implements Cassandra.Iface
     
     public String system_drop_keyspace(String keyspace) throws InvalidRequestException, TException
     {
-        checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
+        // IAuthenticator was devised prior to, and without thought for, dynamic keyspace creation. As
+        // a result, we must choose between letting anyone/everyone create keyspaces (which they likely
+        // won't even be able to use), or be honest and disallow it entirely if configured for auth.
+        if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
+            throw new InvalidRequestException("Unable to create new keyspace while authentication is enabled.");
         
         try
         {

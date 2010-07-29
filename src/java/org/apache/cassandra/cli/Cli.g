@@ -47,10 +47,18 @@ tokens {
     NODE_THRIFT_SET;
     NODE_THRIFT_COUNT;
     NODE_THRIFT_DEL;
+    NODE_ADD_COLUMN_FAMILY;
+    NODE_ADD_KEYSPACE;
+    NODE_DEL_KEYSPACE;
+    NODE_DEL_COLUMN_FAMILY;
+    NODE_RENAME_KEYSPACE;
+    NODE_RENAME_COLUMN_FAMILY;
 
     // Internal Nodes.
     NODE_COLUMN_ACCESS;
     NODE_ID_LIST;
+    NODE_NEW_CF_ACCESS;
+    NODE_NEW_KEYSPACE_ACCESS;
 }
 
 @parser::header {
@@ -73,6 +81,12 @@ stmt
     | exitStmt
     | countStmt
     | describeTable
+    | addColumnFamily
+    | addKeyspace
+    | delColumnFamily
+    | delKeyspace
+    | renameColumnFamily
+    | renameKeyspace
     | useTable
     | delStmt
     | getStmt
@@ -88,7 +102,26 @@ connectStmt
     ;
 
 helpStmt
-    : K_HELP -> ^(NODE_HELP)
+    : K_HELP K_HELP -> ^(NODE_HELP NODE_HELP)
+    | K_HELP K_CONNECT -> ^(NODE_HELP NODE_CONNECT)
+    | K_HELP K_USE -> ^(NODE_HELP NODE_USE_TABLE)
+    | K_HELP K_DESCRIBE K_TABLE -> ^(NODE_HELP NODE_DESCRIBE_TABLE)
+    | K_HELP K_EXIT -> ^(NODE_HELP NODE_EXIT)
+    | K_HELP K_QUIT -> ^(NODE_HELP NODE_EXIT)
+    | K_HELP K_SHOW K_CLUSTER K_NAME -> ^(NODE_HELP NODE_SHOW_CLUSTER_NAME)
+    | K_HELP K_SHOW K_TABLES -> ^(NODE_HELP NODE_SHOW_TABLES)
+    | K_HELP K_SHOW K_VERSION -> ^(NODE_HELP NODE_SHOW_VERSION)
+    | K_HELP K_CREATE K_TABLE -> ^(NODE_HELP NODE_ADD_KEYSPACE)
+    | K_HELP K_CREATE K_COLUMN K_FAMILY -> ^(NODE_HELP NODE_ADD_COLUMN_FAMILY)
+    | K_HELP K_DROP K_TABLE -> ^(NODE_HELP NODE_DEL_KEYSPACE)
+    | K_HELP K_DROP K_COLUMN K_FAMILY -> ^(NODE_HELP NODE_DEL_COLUMN_FAMILY)
+    | K_HELP K_RENAME K_TABLE -> ^(NODE_HELP NODE_RENAME_KEYSPACE)
+    | K_HELP K_RENAME K_COLUMN K_FAMILY -> ^(NODE_HELP NODE_RENAME_COLUMN_FAMILY)
+    | K_HELP K_GET -> ^(NODE_HELP NODE_THRIFT_GET)
+    | K_HELP K_SET -> ^(NODE_HELP NODE_THRIFT_SET)
+    | K_HELP K_DEL -> ^(NODE_HELP NODE_THRIFT_DEL)
+    | K_HELP K_COUNT -> ^(NODE_HELP NODE_THRIFT_COUNT)
+    | K_HELP -> ^(NODE_HELP)
     | '?'    -> ^(NODE_HELP)
     ;
 
@@ -123,6 +156,31 @@ showClusterName
     : K_SHOW K_CLUSTER K_NAME -> ^(NODE_SHOW_CLUSTER_NAME)
     ;
 
+addKeyspace
+    : K_CREATE K_TABLE keyValuePairExpr -> ^(NODE_ADD_KEYSPACE keyValuePairExpr)
+    ;
+
+addColumnFamily
+    : K_CREATE K_COLUMN K_FAMILY keyValuePairExpr -> ^(NODE_ADD_COLUMN_FAMILY keyValuePairExpr)
+    ;
+
+delKeyspace
+    : K_DROP K_TABLE keyspace -> ^(NODE_DEL_KEYSPACE keyspace)
+    ;
+
+delColumnFamily
+    : K_DROP K_COLUMN K_FAMILY columnFamily -> ^(NODE_DEL_COLUMN_FAMILY columnFamily)
+    ;
+
+renameKeyspace
+    : K_RENAME K_TABLE keyspace keyspaceNewName -> ^(NODE_RENAME_KEYSPACE keyspace keyspaceNewName)
+    ;
+
+renameColumnFamily
+    : K_RENAME K_COLUMN K_FAMILY columnFamily newColumnFamily -> ^(NODE_RENAME_COLUMN_FAMILY columnFamily newColumnFamily)
+    ;
+
+
 showVersion
     : K_SHOW K_VERSION -> ^(NODE_SHOW_VERSION)
     ;
@@ -137,6 +195,13 @@ describeTable
 useTable
     : K_USE table ( username )? ( password )? -> ^(NODE_USE_TABLE table ( username )? ( password )?);
 
+
+keyValuePairExpr
+    : objectName 
+            ( (K_AND|K_WITH) a+=attname '=' b+=attvaluestring)*
+            ( (K_AND|K_WITH) c+=attname '=' d+=attvalueint)*
+            -> ^(NODE_NEW_KEYSPACE_ACCESS objectName ($a $b)* ($c $d)*);
+            
 columnFamilyExpr
     : columnFamily '[' rowKey ']' 
         ( '[' a+=columnOrSuperColumn ']' 
@@ -146,6 +211,30 @@ columnFamilyExpr
     ;
 
 table: Identifier;
+
+columnName: Identifier;
+
+attname: Identifier;
+
+attvaluestring: StringLiteral;
+      
+attvalueint: IntegerLiteral;
+  
+objectName: Identifier;
+
+keyspace: Identifier;
+
+replica_placement_strategy: StringLiteral;
+
+replication_factor: IntegerLiteral;
+
+keyspaceNewName: Identifier;
+
+comparator:  StringLiteral;
+      
+command: Identifier;
+
+newColumnFamily: Identifier;
 
 username: Identifier;
 
@@ -193,6 +282,13 @@ K_SHOW:       'SHOW';
 K_TABLE:      'KEYSPACE';
 K_TABLES:     'KEYSPACES';
 K_VERSION:    'API VERSION';
+K_CREATE:     'CREATE';
+K_DROP:       'DROP';
+K_RENAME:     'RENAME';
+K_COLUMN:     'COLUMN';
+K_FAMILY:     'FAMILY';
+K_WITH:       'WITH';
+K_AND:        'AND';
 
 // private syntactic rules
 fragment

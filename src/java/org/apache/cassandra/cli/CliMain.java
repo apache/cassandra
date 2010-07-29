@@ -80,7 +80,7 @@ public class CliMain
             transport_ = socket;
         }
 
-        TBinaryProtocol binaryProtocol = new TBinaryProtocol(transport_);
+        TBinaryProtocol binaryProtocol = new TBinaryProtocol(transport_, true, true);
         Cassandra.Client cassandraClient = new Cassandra.Client(binaryProtocol);
 
         try
