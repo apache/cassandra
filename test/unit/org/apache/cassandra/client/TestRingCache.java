@@ -56,7 +56,7 @@ public class TestRingCache
         TTransport transport;
         System.out.println(" connected to " + server + ":" + port + ".");
         transport = socket;
-        TBinaryProtocol binaryProtocol = new TBinaryProtocol(transport, false, false);
+        TBinaryProtocol binaryProtocol = new TBinaryProtocol(transport);
         Cassandra.Client cassandraClient = new Cassandra.Client(binaryProtocol);
         transport.open();
         thriftClient = cassandraClient;

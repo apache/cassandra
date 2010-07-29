@@ -76,7 +76,7 @@ public class RingCache
             try
             {
                 TSocket socket = new TSocket(seed, port_);
-                TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket, false, false);
+                TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket);
                 Cassandra.Client client = new Cassandra.Client(binaryProtocol);
                 socket.open();
 
