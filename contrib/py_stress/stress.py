@@ -163,10 +163,10 @@ class Operation(Thread):
 class Inserter(Operation):
     def run(self):
         data = md5(str(get_ident())).hexdigest()
-        columns = [Column(chr(ord('A') + j), data, 0) for j in xrange(columns_per_key)]
+        columns = [Column('C' + str(j), data, 0) for j in xrange(columns_per_key)]
         fmt = '%0' + str(len(str(total_keys))) + 'd'
         if 'super' == options.cftype:
-            supers = [SuperColumn(chr(ord('A') + j), columns) for j in xrange(supers_per_key)]
+            supers = [SuperColumn('S' + str(j), columns) for j in xrange(supers_per_key)]
         for i in self.range:
             key = fmt % i
             if 'super' == options.cftype:
@@ -194,7 +194,7 @@ class Reader(Operation):
             for i in xrange(keys_per_thread):
                 key = key_generator()
                 for j in xrange(supers_per_key):
-                    parent = ColumnParent('Super1', chr(ord('A') + j))
+                    parent = ColumnParent('Super1', 'S' + str(j))
                     start = time.time()
                     try:
                         r = self.cclient.get_slice('Keyspace1', key, parent, p, ConsistencyLevel.ONE)
@@ -240,7 +240,7 @@ class RangeSlicer(Operation):
                 finish = fmt % last
                 res = []
                 for j in xrange(supers_per_key):
-                    parent = ColumnParent('Super1', chr(ord('A') + j)) 
+                    parent = ColumnParent('Super1', 'S' + str(j)) 
                     begin = time.time()
                     try:
                         res = self.cclient.get_range_slice('Keyspace1', parent, p, start,finish, options.rangecount, ConsistencyLevel.ONE)
