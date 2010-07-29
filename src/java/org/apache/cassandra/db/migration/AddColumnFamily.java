@@ -73,16 +73,23 @@ public class AddColumnFamily extends Migration
             throw new ConfigurationException("CF is already defined in that keyspace.");
         
         // clone ksm but include the new cf def.
-        KSMetaData newKsm = ksm.withColumnFamily(cfm);
+        KSMetaData newKsm = makeNewKeyspaceDefinition(ksm);
         
         rm = Migration.makeDefinitionMutation(newKsm, null, newVersion);
+    }
+    
+    private KSMetaData makeNewKeyspaceDefinition(KSMetaData ksm)
+    {
+        List<CFMetaData> newCfs = new ArrayList<CFMetaData>(ksm.cfMetaData().values());
+        newCfs.add(cfm);
+        return new KSMetaData(ksm.name, ksm.strategyClass, ksm.replicationFactor, newCfs.toArray(new CFMetaData[newCfs.size()]));
     }
     
     public void applyModels() throws IOException
     {
         // reinitialize the table.
         KSMetaData ksm = DatabaseDescriptor.getTableDefinition(cfm.tableName);
-        ksm = ksm.withColumnFamily(cfm);
+        ksm = makeNewKeyspaceDefinition(ksm);
         try
         {
             CFMetaData.map(cfm);

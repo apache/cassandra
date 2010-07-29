@@ -20,31 +20,25 @@ package org.apache.cassandra.auth;
  * 
  */
 
-import java.util.Map;
 
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.thrift.AccessLevel;
 import org.apache.cassandra.thrift.AuthenticationException;
+import org.apache.cassandra.thrift.AuthenticationRequest;
 import org.apache.cassandra.thrift.AuthorizationException;
 
 public class AllowAllAuthenticator implements IAuthenticator
 {
-    private final static AuthenticatedUser USER = new AuthenticatedUser("allow_all", true);
-
     @Override
-    public AuthenticatedUser defaultUser()
+    public AccessLevel login(String keyspace, AuthenticationRequest authRequest) throws AuthenticationException, AuthorizationException
     {
-        return USER;
-    }
-
-    @Override
-    public AuthenticatedUser login(Map<String,String> credentials) throws AuthenticationException, AuthorizationException
-    {
-        return USER;
+        // do nothing, allow anything
+        return AccessLevel.FULL;
     }
     
-    @Override    
+   @Override    
     public void validateConfiguration() throws ConfigurationException
-    {
+   {
         // do nothing, no configuration to validate
     }
 }

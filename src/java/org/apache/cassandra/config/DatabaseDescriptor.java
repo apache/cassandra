@@ -32,9 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.AllowAllAuthenticator;
-import org.apache.cassandra.auth.SimpleAuthenticator;
 import org.apache.cassandra.auth.IAuthenticator;
-import org.apache.cassandra.avro.AccessLevel;
 import org.apache.cassandra.config.Config.RequestSchedulerId;
 import org.apache.cassandra.db.ClockType;
 import org.apache.cassandra.db.ColumnFamilyType;
@@ -345,16 +343,11 @@ public class DatabaseDescriptor
                 CommitLog.setSegmentSize(conf.commitlog_rotation_threshold_in_mb * 1024 * 1024);
 
             // Hardcoded system tables
-            KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE,
-                                                   LocalStrategy.class,
-                                                   1,
-                                                   null,
-                                                   null,
-                                                   new CFMetaData[]{CFMetaData.StatusCf,
-                                                                    CFMetaData.HintsCf,
-                                                                    CFMetaData.MigrationsCf,
-                                                                    CFMetaData.SchemaCf,
-                                                                    CFMetaData.StatisticsCf
+            KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE, LocalStrategy.class, 1, new CFMetaData[]{CFMetaData.StatusCf,
+                                                                                                  CFMetaData.HintsCf,
+                                                                                                  CFMetaData.MigrationsCf,
+                                                                                                  CFMetaData.SchemaCf,
+                                                                                                  CFMetaData.StatisticsCf
             });
             CFMetaData.map(CFMetaData.StatusCf);
             CFMetaData.map(CFMetaData.HintsCf);
@@ -511,18 +504,11 @@ public class DatabaseDescriptor
         CFMetaData.fixMaxId();
     }
 
-    /**
-     * Reads keyspaces from yaml: doesn't populate any internal structures.
-     * @Deprecated
-     */
+    /** reads xml. doesn't populate any internal structures. */
     public static Collection<KSMetaData> readTablesFromYaml() throws ConfigurationException
     {
         List<KSMetaData> defs = new ArrayList<KSMetaData>();
         
-        /* If SimpleAuthenticator is in use, load the (deprecated) access.properties file, to apply it to keyspaces. */
-        Map<String,Map<String,AccessLevel>> keyspacesAccess = new HashMap();
-        if (DatabaseDescriptor.getAuthenticator() instanceof SimpleAuthenticator)
-            keyspacesAccess = ((SimpleAuthenticator)DatabaseDescriptor.getAuthenticator()).loadAccessFile();
         
         /* Read the table related stuff from config */
         for (RawKeyspace keyspace : conf.keyspaces)
@@ -631,12 +617,8 @@ public class DatabaseDescriptor
                                              cf.gc_grace_seconds,
                                              metadata);
             }
-            defs.add(new KSMetaData(keyspace.name,
-                                    strategyClass,
-                                    keyspace.replication_factor,
-                                    keyspacesAccess.get(keyspace.name),
-                                    null,
-                                    cfDefs));
+            defs.add(new KSMetaData(keyspace.name, strategyClass, keyspace.replication_factor, cfDefs));
+            
         }
 
         return defs;

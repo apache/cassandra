@@ -70,8 +70,18 @@ public class DropColumnFamily extends Migration
         else if (!ksm.cfMetaData().containsKey(cfName))
             throw new ConfigurationException("CF is not defined in that keyspace.");
         
-        KSMetaData newKsm = ksm.withoutColumnFamily(cfName);
+        KSMetaData newKsm = makeNewKeyspaceDefinition(ksm);
         rm = Migration.makeDefinitionMutation(newKsm, null, newVersion);
+    }
+
+    private KSMetaData makeNewKeyspaceDefinition(KSMetaData ksm)
+    {
+        // clone ksm but do not include the new def
+        CFMetaData cfm = ksm.cfMetaData().get(cfName);
+        List<CFMetaData> newCfs = new ArrayList<CFMetaData>(ksm.cfMetaData().values());
+        newCfs.remove(cfm);
+        assert newCfs.size() == ksm.cfMetaData().size() - 1;
+        return new KSMetaData(ksm.name, ksm.strategyClass, ksm.replicationFactor, newCfs.toArray(new CFMetaData[newCfs.size()]));
     }
 
     @Override
@@ -95,7 +105,7 @@ public class DropColumnFamily extends Migration
         // reinitialize the table.
         KSMetaData existing = DatabaseDescriptor.getTableDefinition(tableName);
         CFMetaData cfm = existing.cfMetaData().get(cfName);
-        KSMetaData ksm = existing.withoutColumnFamily(cfName);
+        KSMetaData ksm = makeNewKeyspaceDefinition(existing);
         CFMetaData.purge(cfm);
         DatabaseDescriptor.setTableDefinition(ksm, newVersion);
         

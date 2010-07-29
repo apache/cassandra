@@ -25,17 +25,17 @@ import java.io.*;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Properties;
-import java.util.Map;
-import java.util.HashMap;
 
-import org.apache.cassandra.avro.AccessLevel;
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.thrift.AccessLevel;
 import org.apache.cassandra.thrift.AuthenticationException;
+import org.apache.cassandra.thrift.AuthenticationRequest;
 import org.apache.cassandra.thrift.AuthorizationException;
 
 public class SimpleAuthenticator implements IAuthenticator
 {
     public final static String PASSWD_FILENAME_PROPERTY        = "passwd.properties";
+    public final static String ACCESS_FILENAME_PROPERTY        = "access.properties";
     public final static String PMODE_PROPERTY                  = "passwd.mode";
     public static final String USERNAME_KEY                    = "username";
     public static final String PASSWORD_KEY                    = "password";
@@ -46,14 +46,7 @@ public class SimpleAuthenticator implements IAuthenticator
     };
 
     @Override
-    public AuthenticatedUser defaultUser()
-    {
-        // users must log in
-        return null;
-    }
-
-    @Override
-    public AuthenticatedUser login(Map<String,String> credentials) throws AuthenticationException, AuthorizationException
+    public AccessLevel login(String keyspace, AuthenticationRequest authRequest) throws AuthenticationException, AuthorizationException
     {
         String pmode_plain = System.getProperty(PMODE_PROPERTY);
         PasswordMode mode = PasswordMode.PLAIN;
@@ -78,10 +71,10 @@ public class SimpleAuthenticator implements IAuthenticator
 
         String pfilename = System.getProperty(PASSWD_FILENAME_PROPERTY);
 
-        String username = credentials.get(USERNAME_KEY);
+        String username = authRequest.getCredentials().get(USERNAME_KEY);
         if (null == username) throw new AuthenticationException("Authentication request was missing the required key '" + USERNAME_KEY + "'");
 
-        String password = credentials.get(PASSWORD_KEY);
+        String password = authRequest.getCredentials().get(PASSWORD_KEY);
         if (null == password) throw new AuthenticationException("Authentication request was missing the required key '" + PASSWORD_KEY + "'");
 
         boolean authenticated = false;
@@ -103,13 +96,15 @@ public class SimpleAuthenticator implements IAuthenticator
                 case MD5:
                     authenticated = MessageDigest.isEqual(password.getBytes(), MessageDigest.getInstance("MD5").digest(props.getProperty(username).getBytes()));
                     break;
-                default:
-                    throw new RuntimeException("Unknown PasswordMode " + mode);
             }
         }
         catch (NoSuchAlgorithmException e)
         {
-            throw new RuntimeException("You requested MD5 checking but the MD5 digest algorithm is not available: " + e.getMessage());
+            throw new AuthenticationException("You requested MD5 checking but the MD5 digest algorithm is not available: " + e.getMessage());
+        }
+        catch (FileNotFoundException e)
+        {
+            throw new RuntimeException("Authentication table file given by property " + PASSWD_FILENAME_PROPERTY + " could not be found: " + e.getMessage());
         }
         catch (IOException e)
         {
@@ -122,52 +117,61 @@ public class SimpleAuthenticator implements IAuthenticator
 
         if (!authenticated) throw new AuthenticationException(authenticationErrorMessage(mode, username));
 
-        // TODO: Should allow/require a user to configure a 'super' username.
-        return new AuthenticatedUser(username, false);
+        // if we're here, the authentication succeeded. Now let's see if the user is authorized for this keyspace.
+
+        String afilename = System.getProperty(ACCESS_FILENAME_PROPERTY);
+        AccessLevel authorized = AccessLevel.NONE;
+        try
+        {
+            FileInputStream in = new FileInputStream(afilename);
+            Properties props = new Properties();
+            props.load(in);
+            in.close();
+
+            // structure:
+            // given keyspace X, users A B and C can be authorized like this (separate their names with spaces):
+            // X = A B C
+            
+            // note we keep the message here and for other authorization problems exactly the same to prevent attackers
+            // from guessing what keyspaces are valid
+            if (null == props.getProperty(keyspace))
+                throw new AuthorizationException(authorizationErrorMessage(keyspace, username));
+
+            for (String allow : props.getProperty(keyspace).split(","))
+            {
+                if (allow.equals(username)) authorized = AccessLevel.FULL;
+            }
+        }
+        catch (FileNotFoundException e)
+        {
+            throw new RuntimeException("Authorization table file given by property " + ACCESS_FILENAME_PROPERTY + " could not be found: " + e.getMessage());
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Authorization table file given by property " + ACCESS_FILENAME_PROPERTY + " could not be opened: " + e.getMessage());
+        }
+
+        if (authorized == AccessLevel.NONE) throw new AuthorizationException(authorizationErrorMessage(keyspace, username));
+        
+        return authorized;
     }
 
-    @Override
+   @Override
     public void validateConfiguration() throws ConfigurationException 
     {
+        String aFileName = System.getProperty(SimpleAuthenticator.ACCESS_FILENAME_PROPERTY);
         String pfilename = System.getProperty(SimpleAuthenticator.PASSWD_FILENAME_PROPERTY);
-        if (pfilename == null)
+        if (aFileName == null || pfilename == null)
         {
             throw new ConfigurationException("When using " + this.getClass().getCanonicalName() + " " + 
+                    SimpleAuthenticator.ACCESS_FILENAME_PROPERTY + " and " + 
                     SimpleAuthenticator.PASSWD_FILENAME_PROPERTY + " properties must be defined.");	
         }
     }
 
-    /**
-     * Loads the user access map for each keyspace from the deprecated access.properties file.
-     */
-    @Deprecated
-    public Map<String,Map<String,AccessLevel>> loadAccessFile() throws ConfigurationException 
+    static String authorizationErrorMessage(String keyspace, String username)
     {
-        Map<String,Map<String,AccessLevel>> keyspacesAccess = new HashMap();
-        final String accessFilenameProperty = "access.properties";
-        String afilename = System.getProperty(accessFilenameProperty);
-        Properties props = new Properties();
-        try
-        {
-            FileInputStream in = new FileInputStream(afilename);
-            props.load(in);
-            in.close();
-        }
-        catch (Exception e)
-        {
-            throw new ConfigurationException("Authorization table file given by property " + accessFilenameProperty + " could not be loaded: " + e.getMessage());
-        }
-        for (String keyspace : props.stringPropertyNames())
-        {
-            // structure:
-            // given keyspace X, users A B and C can be authorized like this (separate their names with spaces):
-            // X = A B C
-            Map<String,AccessLevel> usersAccess = new HashMap();
-            for (String user : props.getProperty(keyspace).split(","))
-                usersAccess.put(user, AccessLevel.FULL);
-            keyspacesAccess.put(keyspace, usersAccess);
-        }
-        return keyspacesAccess;
+        return String.format("User %s could not be authorized to use keyspace %s", username, keyspace);
     }
 
     static String authenticationErrorMessage(PasswordMode mode, String username)

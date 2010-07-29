@@ -53,24 +53,18 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
   private static final TField STRATEGY_CLASS_FIELD_DESC = new TField("strategy_class", TType.STRING, (short)2);
   private static final TField REPLICATION_FACTOR_FIELD_DESC = new TField("replication_factor", TType.I32, (short)3);
   private static final TField CF_DEFS_FIELD_DESC = new TField("cf_defs", TType.LIST, (short)5);
-  private static final TField USERS_ACCESS_FIELD_DESC = new TField("users_access", TType.MAP, (short)6);
-  private static final TField GROUPS_ACCESS_FIELD_DESC = new TField("groups_access", TType.MAP, (short)7);
 
   public String name;
   public String strategy_class;
   public int replication_factor;
   public List<CfDef> cf_defs;
-  public Map<String,AccessLevel> users_access;
-  public Map<String,AccessLevel> groups_access;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
     NAME((short)1, "name"),
     STRATEGY_CLASS((short)2, "strategy_class"),
     REPLICATION_FACTOR((short)3, "replication_factor"),
-    CF_DEFS((short)5, "cf_defs"),
-    USERS_ACCESS((short)6, "users_access"),
-    GROUPS_ACCESS((short)7, "groups_access");
+    CF_DEFS((short)5, "cf_defs");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -93,10 +87,6 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
           return REPLICATION_FACTOR;
         case 5: // CF_DEFS
           return CF_DEFS;
-        case 6: // USERS_ACCESS
-          return USERS_ACCESS;
-        case 7: // GROUPS_ACCESS
-          return GROUPS_ACCESS;
         default:
           return null;
       }
@@ -152,14 +142,6 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
     tmpMap.put(_Fields.CF_DEFS, new FieldMetaData("cf_defs", TFieldRequirementType.REQUIRED, 
         new ListMetaData(TType.LIST, 
             new StructMetaData(TType.STRUCT, CfDef.class))));
-    tmpMap.put(_Fields.USERS_ACCESS, new FieldMetaData("users_access", TFieldRequirementType.OPTIONAL, 
-        new MapMetaData(TType.MAP, 
-            new FieldValueMetaData(TType.STRING), 
-            new EnumMetaData(TType.ENUM, AccessLevel.class))));
-    tmpMap.put(_Fields.GROUPS_ACCESS, new FieldMetaData("groups_access", TFieldRequirementType.OPTIONAL, 
-        new MapMetaData(TType.MAP, 
-            new FieldValueMetaData(TType.STRING), 
-            new EnumMetaData(TType.ENUM, AccessLevel.class))));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(KsDef.class, metaDataMap);
   }
@@ -200,36 +182,6 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
         __this__cf_defs.add(new CfDef(other_element));
       }
       this.cf_defs = __this__cf_defs;
-    }
-    if (other.isSetUsers_access()) {
-      Map<String,AccessLevel> __this__users_access = new HashMap<String,AccessLevel>();
-      for (Map.Entry<String, AccessLevel> other_element : other.users_access.entrySet()) {
-
-        String other_element_key = other_element.getKey();
-        AccessLevel other_element_value = other_element.getValue();
-
-        String __this__users_access_copy_key = other_element_key;
-
-        AccessLevel __this__users_access_copy_value = other_element_value;
-
-        __this__users_access.put(__this__users_access_copy_key, __this__users_access_copy_value);
-      }
-      this.users_access = __this__users_access;
-    }
-    if (other.isSetGroups_access()) {
-      Map<String,AccessLevel> __this__groups_access = new HashMap<String,AccessLevel>();
-      for (Map.Entry<String, AccessLevel> other_element : other.groups_access.entrySet()) {
-
-        String other_element_key = other_element.getKey();
-        AccessLevel other_element_value = other_element.getValue();
-
-        String __this__groups_access_copy_key = other_element_key;
-
-        AccessLevel __this__groups_access_copy_value = other_element_value;
-
-        __this__groups_access.put(__this__groups_access_copy_key, __this__groups_access_copy_value);
-      }
-      this.groups_access = __this__groups_access;
     }
   }
 
@@ -352,76 +304,6 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
     }
   }
 
-  public int getUsers_accessSize() {
-    return (this.users_access == null) ? 0 : this.users_access.size();
-  }
-
-  public void putToUsers_access(String key, AccessLevel val) {
-    if (this.users_access == null) {
-      this.users_access = new HashMap<String,AccessLevel>();
-    }
-    this.users_access.put(key, val);
-  }
-
-  public Map<String,AccessLevel> getUsers_access() {
-    return this.users_access;
-  }
-
-  public KsDef setUsers_access(Map<String,AccessLevel> users_access) {
-    this.users_access = users_access;
-    return this;
-  }
-
-  public void unsetUsers_access() {
-    this.users_access = null;
-  }
-
-  /** Returns true if field users_access is set (has been asigned a value) and false otherwise */
-  public boolean isSetUsers_access() {
-    return this.users_access != null;
-  }
-
-  public void setUsers_accessIsSet(boolean value) {
-    if (!value) {
-      this.users_access = null;
-    }
-  }
-
-  public int getGroups_accessSize() {
-    return (this.groups_access == null) ? 0 : this.groups_access.size();
-  }
-
-  public void putToGroups_access(String key, AccessLevel val) {
-    if (this.groups_access == null) {
-      this.groups_access = new HashMap<String,AccessLevel>();
-    }
-    this.groups_access.put(key, val);
-  }
-
-  public Map<String,AccessLevel> getGroups_access() {
-    return this.groups_access;
-  }
-
-  public KsDef setGroups_access(Map<String,AccessLevel> groups_access) {
-    this.groups_access = groups_access;
-    return this;
-  }
-
-  public void unsetGroups_access() {
-    this.groups_access = null;
-  }
-
-  /** Returns true if field groups_access is set (has been asigned a value) and false otherwise */
-  public boolean isSetGroups_access() {
-    return this.groups_access != null;
-  }
-
-  public void setGroups_accessIsSet(boolean value) {
-    if (!value) {
-      this.groups_access = null;
-    }
-  }
-
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case NAME:
@@ -456,22 +338,6 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
       }
       break;
 
-    case USERS_ACCESS:
-      if (value == null) {
-        unsetUsers_access();
-      } else {
-        setUsers_access((Map<String,AccessLevel>)value);
-      }
-      break;
-
-    case GROUPS_ACCESS:
-      if (value == null) {
-        unsetGroups_access();
-      } else {
-        setGroups_access((Map<String,AccessLevel>)value);
-      }
-      break;
-
     }
   }
 
@@ -493,12 +359,6 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
     case CF_DEFS:
       return getCf_defs();
 
-    case USERS_ACCESS:
-      return getUsers_access();
-
-    case GROUPS_ACCESS:
-      return getGroups_access();
-
     }
     throw new IllegalStateException();
   }
@@ -518,10 +378,6 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
       return isSetReplication_factor();
     case CF_DEFS:
       return isSetCf_defs();
-    case USERS_ACCESS:
-      return isSetUsers_access();
-    case GROUPS_ACCESS:
-      return isSetGroups_access();
     }
     throw new IllegalStateException();
   }
@@ -579,24 +435,6 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
         return false;
     }
 
-    boolean this_present_users_access = true && this.isSetUsers_access();
-    boolean that_present_users_access = true && that.isSetUsers_access();
-    if (this_present_users_access || that_present_users_access) {
-      if (!(this_present_users_access && that_present_users_access))
-        return false;
-      if (!this.users_access.equals(that.users_access))
-        return false;
-    }
-
-    boolean this_present_groups_access = true && this.isSetGroups_access();
-    boolean that_present_groups_access = true && that.isSetGroups_access();
-    if (this_present_groups_access || that_present_groups_access) {
-      if (!(this_present_groups_access && that_present_groups_access))
-        return false;
-      if (!this.groups_access.equals(that.groups_access))
-        return false;
-    }
-
     return true;
   }
 
@@ -645,24 +483,6 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetCf_defs()) {      lastComparison = TBaseHelper.compareTo(this.cf_defs, typedOther.cf_defs);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = Boolean.valueOf(isSetUsers_access()).compareTo(typedOther.isSetUsers_access());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetUsers_access()) {      lastComparison = TBaseHelper.compareTo(this.users_access, typedOther.users_access);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = Boolean.valueOf(isSetGroups_access()).compareTo(typedOther.isSetGroups_access());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetGroups_access()) {      lastComparison = TBaseHelper.compareTo(this.groups_access, typedOther.groups_access);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -720,44 +540,6 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 6: // USERS_ACCESS
-          if (field.type == TType.MAP) {
-            {
-              TMap _map36 = iprot.readMapBegin();
-              this.users_access = new HashMap<String,AccessLevel>(2*_map36.size);
-              for (int _i37 = 0; _i37 < _map36.size; ++_i37)
-              {
-                String _key38;
-                AccessLevel _val39;
-                _key38 = iprot.readString();
-                _val39 = AccessLevel.findByValue(iprot.readI32());
-                this.users_access.put(_key38, _val39);
-              }
-              iprot.readMapEnd();
-            }
-          } else { 
-            TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
-        case 7: // GROUPS_ACCESS
-          if (field.type == TType.MAP) {
-            {
-              TMap _map40 = iprot.readMapBegin();
-              this.groups_access = new HashMap<String,AccessLevel>(2*_map40.size);
-              for (int _i41 = 0; _i41 < _map40.size; ++_i41)
-              {
-                String _key42;
-                AccessLevel _val43;
-                _key42 = iprot.readString();
-                _val43 = AccessLevel.findByValue(iprot.readI32());
-                this.groups_access.put(_key42, _val43);
-              }
-              iprot.readMapEnd();
-            }
-          } else { 
-            TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
         default:
           TProtocolUtil.skip(iprot, field.type);
       }
@@ -793,43 +575,13 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
       oprot.writeFieldBegin(CF_DEFS_FIELD_DESC);
       {
         oprot.writeListBegin(new TList(TType.STRUCT, this.cf_defs.size()));
-        for (CfDef _iter44 : this.cf_defs)
+        for (CfDef _iter36 : this.cf_defs)
         {
-          _iter44.write(oprot);
+          _iter36.write(oprot);
         }
         oprot.writeListEnd();
       }
       oprot.writeFieldEnd();
-    }
-    if (this.users_access != null) {
-      if (isSetUsers_access()) {
-        oprot.writeFieldBegin(USERS_ACCESS_FIELD_DESC);
-        {
-          oprot.writeMapBegin(new TMap(TType.STRING, TType.I32, this.users_access.size()));
-          for (Map.Entry<String, AccessLevel> _iter45 : this.users_access.entrySet())
-          {
-            oprot.writeString(_iter45.getKey());
-            oprot.writeI32(_iter45.getValue().getValue());
-          }
-          oprot.writeMapEnd();
-        }
-        oprot.writeFieldEnd();
-      }
-    }
-    if (this.groups_access != null) {
-      if (isSetGroups_access()) {
-        oprot.writeFieldBegin(GROUPS_ACCESS_FIELD_DESC);
-        {
-          oprot.writeMapBegin(new TMap(TType.STRING, TType.I32, this.groups_access.size()));
-          for (Map.Entry<String, AccessLevel> _iter46 : this.groups_access.entrySet())
-          {
-            oprot.writeString(_iter46.getKey());
-            oprot.writeI32(_iter46.getValue().getValue());
-          }
-          oprot.writeMapEnd();
-        }
-        oprot.writeFieldEnd();
-      }
     }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
@@ -867,26 +619,6 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
       sb.append(this.cf_defs);
     }
     first = false;
-    if (isSetUsers_access()) {
-      if (!first) sb.append(", ");
-      sb.append("users_access:");
-      if (this.users_access == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.users_access);
-      }
-      first = false;
-    }
-    if (isSetGroups_access()) {
-      if (!first) sb.append(", ");
-      sb.append("groups_access:");
-      if (this.groups_access == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.groups_access);
-      }
-      first = false;
-    }
     sb.append(")");
     return sb.toString();
   }

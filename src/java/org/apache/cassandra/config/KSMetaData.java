@@ -32,18 +32,14 @@ import java.util.Map;
 import org.apache.avro.util.Utf8;
 import org.apache.commons.lang.ObjectUtils;
 
-import org.apache.cassandra.avro.AccessLevel;
-
 public final class KSMetaData
 {
     public final String name;
     public final Class<? extends AbstractReplicationStrategy> strategyClass;
     public final int replicationFactor;
-    public final Map<String, CFMetaData> cfMetaData;
-    public final Map<String, AccessLevel> usersAccess;
-    public final Map<String, AccessLevel> groupsAccess;
+    private final Map<String, CFMetaData> cfMetaData;
 
-    public KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, int replicationFactor, Map<String,AccessLevel> usersAccess, Map<String,AccessLevel> groupsAccess, CFMetaData... cfDefs)
+    public KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, int replicationFactor, CFMetaData... cfDefs)
     {
         this.name = name;
         this.strategyClass = strategyClass == null ? RackUnawareStrategy.class : strategyClass;
@@ -52,46 +48,8 @@ public final class KSMetaData
         for (CFMetaData cfm : cfDefs)
             cfmap.put(cfm.cfName, cfm);
         this.cfMetaData = Collections.unmodifiableMap(cfmap);
-        this.usersAccess = usersAccess == null ?
-            Collections.<String, AccessLevel>emptyMap() : Collections.unmodifiableMap(usersAccess);
-        this.groupsAccess = groupsAccess == null ?
-            Collections.<String, AccessLevel>emptyMap() : Collections.unmodifiableMap(groupsAccess);
     }
-
-    /**
-     * Copies this KSMetaData, adding an additional ColumnFamily.
-     */
-    public KSMetaData withColumnFamily(CFMetaData cfm)
-    {
-        List<CFMetaData> newCfs = new ArrayList<CFMetaData>(cfMetaData().values());
-        newCfs.add(cfm);
-        return new KSMetaData(name, strategyClass, replicationFactor, usersAccess, groupsAccess, newCfs.toArray(new CFMetaData[newCfs.size()]));
-    }
-
-    /**
-     * Copies this KSMetaData, removing the ColumnFamily with the given name (which must exist).
-     */
-    public KSMetaData withoutColumnFamily(String cfName)
-    {
-        CFMetaData cfm = cfMetaData().get(cfName);
-        List<CFMetaData> newCfs = new ArrayList<CFMetaData>(cfMetaData().values());
-        newCfs.remove(cfm);
-        assert newCfs.size() == cfMetaData().size() - 1;
-        return new KSMetaData(name, strategyClass, replicationFactor, usersAccess, groupsAccess, newCfs.toArray(new CFMetaData[newCfs.size()]));
-    }
-
-    /**
-     * Copies this KSMetaData, returning a renamed copy.
-     */
-    public KSMetaData withName(String ksName)
-    {
-        // cfs will need to have their tablenames reset, but their ids will not change
-        List<CFMetaData> newCfs = new ArrayList<CFMetaData>(cfMetaData().size());
-        for (CFMetaData oldCf : cfMetaData().values())
-            newCfs.add(CFMetaData.renameTable(oldCf, ksName));
-        return new KSMetaData(ksName, strategyClass, replicationFactor, usersAccess, groupsAccess, newCfs.toArray(new CFMetaData[newCfs.size()]));
-    }
-
+    
     public boolean equals(Object obj)
     {
         if (obj == null)
@@ -110,15 +68,13 @@ public final class KSMetaData
     {
         return cfMetaData;
     }
-
+        
     public org.apache.cassandra.avro.KsDef deflate()
     {
         org.apache.cassandra.avro.KsDef ks = new org.apache.cassandra.avro.KsDef();
         ks.name = new Utf8(name);
         ks.strategy_class = new Utf8(strategyClass.getName());
         ks.replication_factor = replicationFactor;
-        ks.users_access = SerDeUtils.toAvroMap(usersAccess);
-        ks.groups_access = SerDeUtils.toAvroMap(groupsAccess);
         ks.cf_defs = SerDeUtils.createArray(cfMetaData.size(), org.apache.cassandra.avro.CfDef.SCHEMA$);
         for (CFMetaData cfm : cfMetaData.values())
             ks.cf_defs.add(cfm.deflate());
@@ -136,14 +92,12 @@ public final class KSMetaData
         {
             throw new ConfigurationException("Could not create ReplicationStrategy of type " + ks.strategy_class, ex);
         }
-        Map<String,AccessLevel> usersAccess = SerDeUtils.fromAvroMap(ks.users_access);
-        Map<String,AccessLevel> groupsAccess = SerDeUtils.fromAvroMap(ks.groups_access);
         int cfsz = (int)ks.cf_defs.size();
         CFMetaData[] cfMetaData = new CFMetaData[cfsz];
         Iterator<org.apache.cassandra.avro.CfDef> cfiter = ks.cf_defs.iterator();
         for (int i = 0; i < cfsz; i++)
             cfMetaData[i] = CFMetaData.inflate(cfiter.next());
 
-        return new KSMetaData(ks.name.toString(), repStratClass, ks.replication_factor, usersAccess, groupsAccess, cfMetaData);
+        return new KSMetaData(ks.name.toString(), repStratClass, ks.replication_factor, cfMetaData);
     }
 }

@@ -38,6 +38,8 @@ import java.util.List;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+
 public class RenameColumnFamily extends Migration
 {
     private static final Serializer serializer = new Serializer();
@@ -84,8 +86,12 @@ public class RenameColumnFamily extends Migration
     private KSMetaData makeNewKeyspaceDefinition(KSMetaData ksm)
     {
         CFMetaData oldCfm = ksm.cfMetaData().get(oldName);
-        KSMetaData temp = ksm.withoutColumnFamily(oldName);
-        return temp.withColumnFamily(CFMetaData.rename(oldCfm, newName));
+        List<CFMetaData> newCfs = new ArrayList<CFMetaData>(ksm.cfMetaData().values());
+        newCfs.remove(oldCfm);
+        assert newCfs.size() == ksm.cfMetaData().size() - 1;
+        CFMetaData newCfm = CFMetaData.rename(oldCfm, newName);
+        newCfs.add(newCfm);
+        return new KSMetaData(ksm.name, ksm.strategyClass, ksm.replicationFactor, newCfs.toArray(new CFMetaData[newCfs.size()]));
     }
 
     @Override
