@@ -168,9 +168,9 @@ public class CliClient
             case CliParser.NODE_CONNECT:
                 css_.out.println("connect <hostname>/<port>");
                 css_.out.println("");
-                css_.out.println("connect to the specified host name on the specified port. ");
+                css_.out.println("Connect to the specified host on the specified port. ");
                 css_.out.println("");
-                css_.out.println("eg:");
+                css_.out.println("example:");
                 css_.out.println("connect localhost/9160");
                 break;
                 
@@ -178,8 +178,8 @@ public class CliClient
                 css_.out.println("use <keyspace>");
                 css_.out.println("use <keyspace> <username> '<password>'");
                 css_.out.println("");
-                css_.out.println("Authenticated to and use the specified keyspace. Username and password fields");
-                css_.out.println("  are optional.");
+                css_.out.println("Switch to the specified keyspace. The optional username and password fields");
+                css_.out.println("are needed when performing authentication.");
                 css_.out.println("");
                 break;
                 
@@ -187,12 +187,13 @@ public class CliClient
                 css_.out.println("describe keyspace <keyspace>");
                 css_.out.println("");
                 css_.out.println("Show additional information about the specified keyspace.");
-                css_.out.println("eg:");
+                css_.out.println();
+                css_.out.println("example:");
                 css_.out.println("describe keyspace system");
                 break;
                 
             case CliParser.NODE_EXIT:
-                  css_.out.println("exit");
+                css_.out.println("exit");
                 css_.out.println("quit");
                 css_.out.println("");
                 css_.out.println("Exit this utility.");
@@ -207,7 +208,7 @@ public class CliClient
             case CliParser.NODE_SHOW_VERSION:
                 css_.out.println("show api version");
                 css_.out.println("");
-                css_.out.println("Displays the api version number.");
+                css_.out.println("Displays the API version number.");
                 break;
                 
             case CliParser.NODE_SHOW_TABLES:  
@@ -225,18 +226,16 @@ public class CliClient
                 css_.out.println("");
                 css_.out.println("valid attributes are:");
                 css_.out.println("    replication_factor: to how many nodes should entries to this keyspace be");
-                css_.out.println("        replicated. Valid entries are all integers  greater than 0.");
-                css_.out.println("    placement_strategy: the fully qualified class responsible for determining");
-                css_.out.println("        the replication of entries in this keyspace. ");
-                css_.out.println("    valid values for this attribute are:");
-                css_.out.println("    org.apache.cassandra.locator.RackUnawareStrategy");
-                css_.out.println("     org.apache.cassandra.locator.DatacenterShardStrategy");
-                css_.out.println("         org.apache.cassandra.locator.RackAwareStrategy");
+                css_.out.println("                        replicated. Valid entries are integers greater than 0.");
+                css_.out.println("    placement_strategy: the fully qualified class used to place replicas in");
+                css_.out.println("                        this keyspace. Valid values are");
+                css_.out.println("                        org.apache.cassandra.locator.RackUnawareStrategy,");
+                css_.out.println("                        org.apache.cassandra.locator.DatacenterShardStrategy,");
+                css_.out.println("                        and org.apache.cassandra.locator.RackAwareStrategy");
                 css_.out.println("");
-                css_.out.println("    example:");
-                css_.out.println("    create keyspace foo with");
+                css_.out.println("example:");
+                css_.out.println("create keyspace foo with replication_factor = 3 and ");
                 css_.out.println("        placement_strategy = 'org.apache.cassandra.locator.RackUnawareStrategy'");
-                css_.out.println("        and replication_factor = 3");
                 break;
                 
             case CliParser.NODE_ADD_COLUMN_FAMILY:
@@ -245,31 +244,31 @@ public class CliClient
                 css_.out.println("create column family Bar with <att1>=<value1> and <att2>=<value2>...");
                 css_.out.println("");
                 css_.out.println("Create a new column family with the specified values for the given set of");
-                css_.out.println("    attributes. Note that you must be using a keyspace.");
+                css_.out.println("attributes. Note that you must be using a keyspace.");
                 css_.out.println("");
                 css_.out.println("valid attributes are:");
-                css_.out.println("    column_type: should this be  Super or Standard");
-                css_.out.println("    clock_type: Timestamp");
-                css_.out.println("    comparator: This is the class that determins how ");
-                css_.out.println("        valid values for this attribute are:");
-                css_.out.println("        AsciiType, BytesType, LexicalUUIDType, Long, TimeUUID, UTF8Type");
-                css_.out.println("    subcomparator: Name of comparator used for subcolumns (when");
-                css_.out.println("        column_type=Super only)");
-                css_.out.println("        all comparator values are valid values for this attribute as well.");
-                css_.out.println("    reconciler:  reconciler class decides what to do with two conflicting");
-                css_.out.println("        versions of a column by comparing them in a clock specific manner.");
-                css_.out.println("        Timestamp is the only valid value for this");
-                css_.out.println("    comment: Human-readable description of column family. Any string is valid.");
-                css_.out.println("    rows_cached: number of rows to cache");
-                css_.out.println("    preload_row_cache: Set to true to automatically load the row cache");
-                css_.out.println("    key_cache_size: Number of keys to cache");
-                css_.out.println("    read_repair_chance: valid values for this attribute are any number between");
-                css_.out.println("        0.0 and 1.0");
+                css_.out.println("    - column_type: One of Super or Standard");
+                css_.out.println("    - clock_type: Timestamp");
+                css_.out.println("    - comparator: The class used as a comparator when sorting column names.");
+                css_.out.println("                  Valid options include: AsciiType, BytesType, LexicalUUIDType,");
+                css_.out.println("                  LongType, TimeUUIDType, and UTF8Type");
+                css_.out.println("    - subcomparator: Name of comparator used for subcolumns (when");
+                css_.out.println("                     column_type=Super only). Valid options are identical to");
+                css_.out.println("                     comparator above.");
+                css_.out.println("    - reconciler: Name of reconciler class that determines what to do with");
+                css_.out.println("                  conflicting versions of a column. Timestamp is currently the");
+                css_.out.println("                  only valid value.");
+                css_.out.println("    - comment: Human-readable column family description. Any string is valid.");
+                css_.out.println("    - rows_cached: Number of rows to cache");
+                css_.out.println("    - preload_row_cache: Set to true to automatically load the row cache");
+                css_.out.println("    - key_cache_size: Number of keys to cache");
+                css_.out.println("    - read_repair_chance: Valid values for this attribute are any number");
+                css_.out.println("                          between 0.0 and 1.0");
                 css_.out.println("");
-                css_.out.println("eg:");
+                css_.out.println("example:");
                 css_.out.println("");
                 css_.out.println("create column family bar with column_type = 'Super' and comparator = 'AsciiType'");
-                css_.out.println("  and rows_cached = 10000");
+                css_.out.println("      and rows_cached = 10000");
                 css_.out.println("create column family baz with comparator = 'LongType' and rows_cached = 10000");
                 break;
                 
@@ -278,7 +277,7 @@ public class CliClient
                 css_.out.println("");
                 css_.out.println("Renames the specified keyspace with the given new name.");
                 css_.out.println("");
-                css_.out.println("eg:");
+                css_.out.println("example:");
                 css_.out.println("rename keyspace foo bar");
                 break;
                 
@@ -287,7 +286,7 @@ public class CliClient
                 css_.out.println("");
                 css_.out.println("Renames the specified column family with the given new name.");
                 css_.out.println("");
-                css_.out.println("eg:");
+                css_.out.println("example:");
                 css_.out.println("rename column family foo bar");
                 break;
                 
@@ -296,7 +295,7 @@ public class CliClient
                 css_.out.println("");
                 css_.out.println("Drops the specified keyspace.");
                 css_.out.println("");
-                css_.out.println("eg:");
+                css_.out.println("example:");
                 css_.out.println("drop keyspace foo");
                 break;
                 
@@ -305,7 +304,7 @@ public class CliClient
                 css_.out.println("");
                 css_.out.println("Drops the specified column family.");
                 css_.out.println("");
-                css_.out.println("eg:");
+                css_.out.println("example:");
                 css_.out.println("drop column family foo");
                 break;
                 
@@ -315,7 +314,7 @@ public class CliClient
                 css_.out.println("get <cf>['<key>']['<super>'] ");
                 css_.out.println("get <cf>['<key>']['<super>']['<col>'] ");
                 css_.out.println("");
-                css_.out.println("eg:");
+                css_.out.println("example:");
                 css_.out.println("get bar['testkey']");
                 break;
                 
@@ -323,10 +322,7 @@ public class CliClient
                 css_.out.println("set <cf>['<key>']['<col>'] = '<value>' ");
                 css_.out.println("set <cf>['<key>']['<super>']['<col>'] = '<value>' ");
                 css_.out.println("");
-                css_.out.println("");
-                css_.out.println("");
-                css_.out.println("eg:");
-                css_.out.println("");
+                css_.out.println("example:");
                 css_.out.println("set bar['testkey']['my super']['test col']='this is a test'");
                 css_.out.println("set baz['testkey']['test col']='this is also a test'");
                 break;
@@ -338,8 +334,7 @@ public class CliClient
                 css_.out.println("");
                 css_.out.println("Deletes a record, a column, or a subcolumn.");
                 css_.out.println("");
-                css_.out.println("eg:");
-                css_.out.println("");
+                css_.out.println("example:");
                 css_.out.println("del bar['testkey']['my super']['test col']");
                 css_.out.println("del baz['testkey']['test col']");
                 css_.out.println("del baz['testkey']");
@@ -350,10 +345,9 @@ public class CliClient
                 css_.out.println("count <cf>['<key>']['<super>']  ");
                 css_.out.println("");
                 css_.out.println("Count the number of columns in the specified key or subcolumns in the specified");
-                css_.out.println("  super column.");
+                css_.out.println("super column.");
                 css_.out.println("");
-                css_.out.println("eg:");
-                css_.out.println("");
+                css_.out.println("example:");
                 css_.out.println("count bar['testkey']['my super']");
                 css_.out.println("count baz['testkey']");
                 break;
@@ -368,26 +362,19 @@ public class CliClient
             css_.out.println("List of all CLI commands:");
             css_.out.println("?                                                          Display this message.");
             css_.out.println("help                                                          Display this help.");
-            css_.out.println("help <command>       Displays a detailed help message for the specified command.");
+            css_.out.println("help <command>                          Display detailed, command-specific help.");
             css_.out.println("connect <hostname>/<port>                             Connect to thrift service.");
-            css_.out.println("use <keyspace>                                    Switch to a specific keyspace.");
-            css_.out.println("use <keyspace> <username> 'password'              Switch to privileged keyspace.");
+            css_.out.println("use <keyspace> [<username> 'password']                     Switch to a keyspace.");
             css_.out.println("describe keyspace <keyspacename>                              Describe keyspace.");
             css_.out.println("exit                                                                   Exit CLI.");
             css_.out.println("quit                                                                   Exit CLI.");
             css_.out.println("show cluster name                                          Display cluster name.");
             css_.out.println("show keyspaces                                           Show list of keyspaces.");
             css_.out.println("show api version                                        Show server API version.");
-            css_.out.println("create keyspace <keyspace>                                   Add a new keyspace.");
-            css_.out.println("create keyspace <keyspace> with <att1>=<value1>                           ");
-            css_.out.println("                      Add a new keyspace with the specified attribute and value.\n");
-            css_.out.println("create keyspace <keyspace> with <att1>=<value1> and <att2>=<value2> ...                                     ");
-            css_.out.println("                    Add a new keyspace with the specified attributes and values.\n");
-            css_.out.println("create column family <cf>                            Create a new column family.");
-            css_.out.println("create column family <cf> with <att1>=<value1>        Create a new column                                      ");
-            css_.out.println("                                  family with the specified attribute and value.\n");
-            css_.out.println("create column family <cf> with <att1>=<value1> and <att2>=<value2> ...                                     ");
-            css_.out.println("             Create a new column family with the spcified attributes and values.\n");
+            css_.out.println("create keyspace <keyspace> [with <att1>=<value1> [and <att2>=<value2> ...]]");
+            css_.out.println("                   Add a new keyspace with the specified attribute and value(s).");
+            css_.out.println("create column family <cf> [with <att1>=<value1> [and <att2>=<value2> ...]]");
+            css_.out.println("           Create a new column family with the specified attribute and value(s).");
             css_.out.println("drop keyspace <keyspace>                                      Delete a keyspace.");
             css_.out.println("drop column family <cf>                                  Delete a column family.");
             css_.out.println("rename keyspace <keyspace> <keyspace_new_name>                Rename a keyspace.");
