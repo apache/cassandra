@@ -1003,14 +1003,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                : range;
 
         List<Row> rows = new ArrayList<Row>();
-        final DecoratedKey startWith = new DecoratedKey(range.left, (byte[])null);
-        final DecoratedKey stopAt = new DecoratedKey(range.right, (byte[])null);
+        DecoratedKey startWith = new DecoratedKey(range.left, (byte[])null);
+        DecoratedKey stopAt = new DecoratedKey(range.right, (byte[])null);
 
-        final int gcBefore = (int) (System.currentTimeMillis() / 1000) - metadata.gcGraceSeconds;
-
-        final QueryPath queryPath =  new QueryPath(columnFamily_, superColumn, null);
-
-        final QueryFilter filter = new QueryFilter(null, queryPath, columnFilter);
+        QueryFilter filter = new QueryFilter(null, new QueryPath(columnFamily_, superColumn, null), columnFilter);
         Collection<Memtable> memtables = new ArrayList<Memtable>();
         memtables.add(getMemtableThreadSafe());
         memtables.addAll(memtablesPendingFlush);
@@ -1018,7 +1014,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Collection<SSTableReader> sstables = new ArrayList<SSTableReader>();
         Iterables.addAll(sstables, ssTables_);
 
-        RowIterator iterator = RowIteratorFactory.getIterator(memtables, sstables, startWith, stopAt, filter, getComparator(), this, gcBefore);
+        RowIterator iterator = RowIteratorFactory.getIterator(memtables, sstables, startWith, stopAt, filter, getComparator(), this);
 
         try
         {

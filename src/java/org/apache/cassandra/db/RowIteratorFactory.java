@@ -62,7 +62,6 @@ public class RowIteratorFactory
      * @param stopAt Stop and this key
      * @param filter Used to decide which columns to pull out
      * @param comparator
-     * @param gcBefore 
      * @return A row iterator following all the given restrictions
      */
     public static RowIterator getIterator(final Collection<Memtable> memtables,
@@ -71,8 +70,8 @@ public class RowIteratorFactory
                                           final DecoratedKey stopAt,
                                           final QueryFilter filter,
                                           final AbstractType comparator,
-                                          final ColumnFamilyStore cfs,
-                                          final int gcBefore)
+                                          final ColumnFamilyStore cfs
+    )
     {
         // fetch data from current memtable, historical memtables, and SSTables in the correct order.
         final List<Iterator<IColumnIterator>> iterators = new ArrayList<Iterator<IColumnIterator>>();
@@ -109,7 +108,8 @@ public class RowIteratorFactory
         // reduce rows from all sources into a single row
         ReducingIterator<IColumnIterator, Row> reduced = new ReducingIterator<IColumnIterator, Row>(collated)
         {
-            private List<IColumnIterator> colIters = new ArrayList<IColumnIterator>();
+            private final int gcBefore = (int) (System.currentTimeMillis() / 1000) - cfs.metadata.gcGraceSeconds;
+            private final List<IColumnIterator> colIters = new ArrayList<IColumnIterator>();
             private DecoratedKey key;
 
             public void reduce(IColumnIterator current)
