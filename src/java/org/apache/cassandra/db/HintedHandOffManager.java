@@ -109,23 +109,29 @@ public class HintedHandOffManager
         }
 
         Table table = Table.open(tableName);
-        RowMutation rm = new RowMutation(tableName, key);
         DecoratedKey dkey = StorageService.getPartitioner().decorateKey(key);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
-        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(dkey, new QueryPath(cfs.getColumnFamilyName())));
-        if (cf != null)
+        byte[] startColumn = ArrayUtils.EMPTY_BYTE_ARRAY;
+        while (true)
+        {
+            QueryFilter filter = QueryFilter.getSliceFilter(dkey, new QueryPath(cfs.getColumnFamilyName()), startColumn, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, PAGE_SIZE);
+            ColumnFamily cf = cfs.getColumnFamily(filter);
+            if (pagingFinished(cf, startColumn))
+                break;
+            startColumn = cf.getColumnNames().last();
+            RowMutation rm = new RowMutation(tableName, key);
             rm.add(cf);
-        Message message = rm.makeRowMutationMessage();
-        WriteResponseHandler responseHandler = new WriteResponseHandler(endpoint);
-        MessagingService.instance.sendRR(message, new InetAddress[] { endpoint }, responseHandler);
-
-        try
-        {
-            responseHandler.get();
-        }
-        catch (TimeoutException e)
-        {
-            return false;
+            Message message = rm.makeRowMutationMessage();
+            WriteResponseHandler responseHandler = new WriteResponseHandler(endpoint);
+            MessagingService.instance.sendRR(message, new InetAddress[] { endpoint }, responseHandler);
+            try
+            {
+                responseHandler.get();
+            }
+            catch (TimeoutException e)
+            {
+                return false;
+            }
         }
         return true;
     }

@@ -42,7 +42,7 @@ dev
  * make GCGraceSeconds a per-ColumnFamily value (CASSANDRA-1276)
  * keep persistent row size and column count statistics (CASSANDRA-1155)
  * add IntegerType (CASSANDRA-1282)
-
+ * page within a single row during hinted handoff (CASSANDRA-1327)
 
 0.6.4
  * avoid queuing multiple hint deliveries for the same endpoint
