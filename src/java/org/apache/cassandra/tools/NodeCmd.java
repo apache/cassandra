@@ -91,13 +91,20 @@ public class NodeCmd {
      */
     public void printRing(PrintStream outs)
     {
-        Map<Range, List<String>> rangeMap = probe.getRangeToEndpointMap(null);
-        Map<Range, List<String>> pendingRangeMap = probe.getPendingRangeToEndpoingMap(null);
+        
         Map<Range, List<String>> rangesToIterate = new HashMap<Range, List<String>>();
-
-        rangesToIterate.putAll(pendingRangeMap);
-        rangesToIterate.putAll(rangeMap);
-
+        try
+        {
+            rangesToIterate.putAll(probe.getPendingRangeToEndpoingMap(null));
+            rangesToIterate.putAll(probe.getRangeToEndpointMap(null));
+        } 
+        catch (IllegalStateException ise) 
+        {
+            outs.println(String.format("Ring information unavailable: %s",ise.getMessage()));
+            return;
+        }
+        
+        
         List<Range> ranges = new ArrayList<Range>(rangesToIterate.keySet());
         Collections.sort(ranges);
         Set<String> liveNodes = probe.getLiveNodes();
