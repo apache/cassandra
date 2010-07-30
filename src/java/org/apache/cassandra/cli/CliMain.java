@@ -233,12 +233,20 @@ public class CliMain
             css_.err.println(ire.why);
             if (css_.debug)
                 ire.printStackTrace(css_.err);
+            
+            // Abort a batch run when errors are encountered
+            if (css_.batch)
+                System.exit(4);
         }
         catch (Exception e)
         {
             css_.err.println("Exception " + e.getMessage());
             if (css_.debug)
                 e.printStackTrace(css_.err);
+            
+            // Abort a batch run when errors are encountered
+            if (css_.batch)
+                System.exit(8);
         }
     }
 
@@ -262,19 +270,27 @@ public class CliMain
         }
 
         ConsoleReader reader = new ConsoleReader();
-        reader.addCompletor(completer_);
-        reader.setBellEnabled(false);
-
-        String historyFile = System.getProperty("user.home") + File.separator + HISTORYFILE;
-
-        try
+        
+        if (!css_.batch)
         {
-            History history = new History(new File(historyFile));
-            reader.setHistory(history);
+            reader.addCompletor(completer_);
+            reader.setBellEnabled(false);
+            
+            String historyFile = System.getProperty("user.home") + File.separator + HISTORYFILE;
+
+            try
+            {
+                History history = new History(new File(historyFile));
+                reader.setHistory(history);
+            }
+            catch (IOException exp)
+            {
+                css_.err.printf("Unable to open %s for writing%n", historyFile);
+            }
         }
-        catch (IOException exp)
+        else
         {
-            css_.err.printf("Unable to open %s for writing%n", historyFile);
+            css_.out.close();
         }
 
         printBanner();

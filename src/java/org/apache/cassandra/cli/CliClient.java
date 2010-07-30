@@ -143,6 +143,8 @@ public class CliClient
                     break;
                 default:
                     css_.err.println("Invalid Statement (Type: " + ast.getType() + ")");
+                    if (css_.batch)
+                        System.exit(2);
                     break;
             }
         }

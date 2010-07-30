@@ -33,7 +33,8 @@ public class CliSessionState
     public boolean debug = false; // print stack traces when errors occur in the CLI
     public String  username;      // cassandra login name (if SimpleAuthenticator is used)
     public String  password;      // cassandra login password (if SimpleAuthenticator is used)
-    public String  keyspace;      // cassandra keyspace user is authenticating 			
+    public String  keyspace;      // cassandra keyspace user is authenticating
+    public boolean batch = false; // enable/disable batch processing mode
     /*
      * Streams to read/write from
      */
