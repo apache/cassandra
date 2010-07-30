@@ -21,7 +21,7 @@ package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -45,7 +45,7 @@ public class RackUnawareStrategy extends AbstractReplicationStrategy
     {
         int replicas = getReplicationFactor(table);
         ArrayList<Token> tokens = metadata.sortedTokens();
-        Set<InetAddress> endpoints = new HashSet<InetAddress>(replicas);
+        Set<InetAddress> endpoints = new LinkedHashSet<InetAddress>(replicas);
 
         if (tokens.isEmpty())
             return endpoints;
