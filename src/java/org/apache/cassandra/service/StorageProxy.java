@@ -200,7 +200,7 @@ public class StorageProxy implements StorageProxyMBean
                 Multimap<InetAddress, InetAddress> hintedEndpoints = rs.getHintedEndpoints(writeEndpoints);
                 
                 // send out the writes, as in mutate() above, but this time with a callback that tracks responses
-                final AbstractWriteResponseHandler responseHandler = rs.getWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level, table);
+                final AbstractWriteResponseHandler responseHandler = rs.getWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level);
                 responseHandler.assureSufficientLiveNodes();
 
                 responseHandlers.add(responseHandler);
@@ -421,7 +421,7 @@ public class StorageProxy implements StorageProxyMBean
                     logger.debug("strongread reading " + (m == message ? "data" : "digest") + " for " + command + " from " + m.getMessageId() + "@" + endpoint);
             }
             AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(command.table);
-            QuorumResponseHandler<Row> quorumResponseHandler = rs.getQuorumResponseHandler(new ReadResponseResolver(command.table), consistency_level, command.table);
+            QuorumResponseHandler<Row> quorumResponseHandler = rs.getQuorumResponseHandler(new ReadResponseResolver(command.table), consistency_level);
             MessagingService.instance.sendRR(messages, endpoints, quorumResponseHandler);
             quorumResponseHandlers.add(quorumResponseHandler);
             commandEndpoints.add(endpoints);
@@ -449,7 +449,7 @@ public class StorageProxy implements StorageProxyMBean
                 if (randomlyReadRepair(command))
                 {
                     AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(command.table);
-                    QuorumResponseHandler<Row> qrhRepair = rs.getQuorumResponseHandler(new ReadResponseResolver(command.table), ConsistencyLevel.QUORUM, command.table);
+                    QuorumResponseHandler<Row> qrhRepair = rs.getQuorumResponseHandler(new ReadResponseResolver(command.table), ConsistencyLevel.QUORUM);
                     if (logger.isDebugEnabled())
                         logger.debug("Digest mismatch:", ex);
                     Message messageRepair = command.makeReadMessage();
@@ -530,7 +530,7 @@ public class StorageProxy implements StorageProxyMBean
                 // collect replies and resolve according to consistency level
                 RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, liveEndpoints);
                 AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(command.keyspace);
-                QuorumResponseHandler<List<Row>> handler = rs.getQuorumResponseHandler(resolver, consistency_level, command.keyspace);
+                QuorumResponseHandler<List<Row>> handler = rs.getQuorumResponseHandler(resolver, consistency_level);
                 // TODO bail early if live endpoints can't satisfy requested
                 // consistency level
                 for (InetAddress endpoint : liveEndpoints) 
@@ -795,7 +795,7 @@ public class StorageProxy implements StorageProxyMBean
         Message message = command.getMessage();
         RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, endpoints);
         AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(command.keyspace);
-        QuorumResponseHandler<List<Row>> handler = rs.getQuorumResponseHandler(resolver, consistency_level, command.keyspace);
+        QuorumResponseHandler<List<Row>> handler = rs.getQuorumResponseHandler(resolver, consistency_level);
         MessagingService.instance.sendRR(message, endpoints.get(0), handler);
         try
         {

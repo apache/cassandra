@@ -375,8 +375,9 @@ struct CfDef {
 struct KsDef {
     1: required string name,
     2: required string strategy_class,
-    3: required i32 replication_factor,
-    5: required list<CfDef> cf_defs,    
+    3: optional map<string,string> strategy_options,
+    4: required i32 replication_factor,
+    5: required list<CfDef> cf_defs,
 }
 
 service Cassandra {

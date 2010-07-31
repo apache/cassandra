@@ -81,7 +81,7 @@ public class DropColumnFamily extends Migration
         List<CFMetaData> newCfs = new ArrayList<CFMetaData>(ksm.cfMetaData().values());
         newCfs.remove(cfm);
         assert newCfs.size() == ksm.cfMetaData().size() - 1;
-        return new KSMetaData(ksm.name, ksm.strategyClass, ksm.replicationFactor, newCfs.toArray(new CFMetaData[newCfs.size()]));
+        return new KSMetaData(ksm.name, ksm.strategyClass, ksm.strategyOptions, ksm.replicationFactor, newCfs.toArray(new CFMetaData[newCfs.size()]));
     }
 
     @Override

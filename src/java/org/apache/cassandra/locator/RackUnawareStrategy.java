@@ -20,12 +20,8 @@
 package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.*;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
 
 /**
@@ -36,14 +32,14 @@ import org.apache.cassandra.dht.Token;
  */
 public class RackUnawareStrategy extends AbstractReplicationStrategy
 {
-    public RackUnawareStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch)
+    public RackUnawareStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
-        super(tokenMetadata, snitch);
+        super(table, tokenMetadata, snitch, configOptions);
     }
 
-    public Set<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata, String table)
+    public Set<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
     {
-        int replicas = getReplicationFactor(table);
+        int replicas = getReplicationFactor();
         ArrayList<Token> tokens = metadata.sortedTokens();
         Set<InetAddress> endpoints = new LinkedHashSet<InetAddress>(replicas);
 
@@ -62,4 +58,5 @@ public class RackUnawareStrategy extends AbstractReplicationStrategy
         
         return endpoints;
     }
+
 }

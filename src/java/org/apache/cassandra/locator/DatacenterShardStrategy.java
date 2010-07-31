@@ -21,10 +21,12 @@
 
 package org.apache.cassandra.locator;
 
+import java.io.*;
 import java.net.InetAddress;
 import java.util.*;
 import java.util.Map.Entry;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,8 +35,6 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.utils.ResourceWatcher;
-import org.apache.cassandra.utils.WrappedRunnable;
 
 /**
  * This Replication Strategy takes a property file that gives the intended
@@ -51,51 +51,30 @@ import org.apache.cassandra.utils.WrappedRunnable;
  */
 public class DatacenterShardStrategy extends AbstractReplicationStrategy
 {
-    private static final String DATACENTER_PROPERTY_FILENAME = "datacenters.properties";
     private AbstractRackAwareSnitch snitch;
-    private volatile Map<String, Map<String, Integer>> datacenters;
+    private Map<String, Integer> datacenters;
     private static final Logger logger = LoggerFactory.getLogger(DatacenterShardStrategy.class);
 
-    public DatacenterShardStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch) throws ConfigurationException
+    public DatacenterShardStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions) throws ConfigurationException
     {
-        super(tokenMetadata, snitch);
+        super(table, tokenMetadata, snitch, configOptions);
         if ((!(snitch instanceof AbstractRackAwareSnitch)))
             throw new IllegalArgumentException("DatacenterShardStrategy requires a rack-aware endpointsnitch");
         this.snitch = (AbstractRackAwareSnitch)snitch;
-        
-        reloadConfiguration();
-        Runnable runnable = new WrappedRunnable()
-        {
-            protected void runMayThrow() throws ConfigurationException
-            {
-                reloadConfiguration();
-            }
-        };
-        ResourceWatcher.watch(DATACENTER_PROPERTY_FILENAME, runnable, 60 * 1000);
-    }
 
-    public synchronized void reloadConfiguration() throws ConfigurationException
-    {
-        Properties props = PropertyFileSnitch.resourceToProperties(DATACENTER_PROPERTY_FILENAME);
-        Map<String, Map<String, Integer>> newDatacenters = new HashMap<String, Map<String, Integer>>();
-        for (Entry entry : props.entrySet())
+        Map<String, Integer> newDatacenters = new HashMap<String, Integer>();
+        for (Entry entry : configOptions.entrySet())
         {
-            String[] keys = ((String)entry.getKey()).split(":");
-            Map<String, Integer> map = newDatacenters.get(keys[0]);
-            if (map == null)
-                map = new HashMap<String, Integer>();
-            map.put(keys[1], Integer.parseInt((String) entry.getValue()));
-            newDatacenters.put(keys[0], map);
+            newDatacenters.put((String) entry.getKey(), Integer.parseInt((String) entry.getValue()));
         }
+
         datacenters = Collections.unmodifiableMap(newDatacenters);
-        logger.info(DATACENTER_PROPERTY_FILENAME + " changed, clearing endpoint cache");
-        clearCachedEndpoints();
     }
 
-    public Set<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata, String table)
+    public Set<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata)
     {
-        int totalReplicas = getReplicationFactor(table);
-        Map<String, Integer> remainingReplicas = new HashMap<String, Integer>(datacenters.get(table));
+        int totalReplicas = getReplicationFactor();
+        Map<String, Integer> remainingReplicas = new HashMap<String, Integer>(datacenters);
         Map<String, Set<String>> dcUsedRacks = new HashMap<String, Set<String>>();
         Set<InetAddress> endpoints = new LinkedHashSet<InetAddress>(totalReplicas);
 
@@ -152,22 +131,22 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
         return endpoints;
     }
 
-    public int getReplicationFactor(String table)
+    public int getReplicationFactor()
     {
         int total = 0;
-        for (int repFactor : datacenters.get(table).values())
+        for (int repFactor : datacenters.values())
             total += repFactor;
         return total;
     }
 
-    public int getReplicationFactor(String dc, String table)
+    public int getReplicationFactor(String dc)
     {
-        return datacenters.get(table).get(dc);
+        return datacenters.get(dc);
     }
 
-    public Set<String> getDatacenters(String table)
+    public Set<String> getDatacenters()
     {
-        return datacenters.get(table).keySet();
+        return datacenters.keySet();
     }
 
     /**
@@ -177,7 +156,7 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
      * return a DCQRH with a map of all the DC rep factor.
      */
     @Override
-    public AbstractWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistency_level, String table)
+    public AbstractWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistency_level)
     {
         if (consistency_level == ConsistencyLevel.DCQUORUM)
         {
@@ -188,7 +167,7 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
         {
             return new DatacenterSyncWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level, table);
         }
-        return super.getWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level, table);
+        return super.getWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level);
     }
 
     /**
@@ -196,12 +175,12 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
      * level is DCQUORUM/DCQUORUMSYNC then it will return a DCQRH.
      */
     @Override
-    public QuorumResponseHandler getQuorumResponseHandler(IResponseResolver responseResolver, ConsistencyLevel consistencyLevel, String table)
+    public QuorumResponseHandler getQuorumResponseHandler(IResponseResolver responseResolver, ConsistencyLevel consistencyLevel)
     {
         if (consistencyLevel.equals(ConsistencyLevel.DCQUORUM) || consistencyLevel.equals(ConsistencyLevel.DCQUORUMSYNC))
         {
             return new DatacenterQuorumResponseHandler(responseResolver, consistencyLevel, table);
         }
-        return super.getQuorumResponseHandler(responseResolver, consistencyLevel, table);
+        return super.getQuorumResponseHandler(responseResolver, consistencyLevel);
     }
 }

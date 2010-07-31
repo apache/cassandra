@@ -889,8 +889,9 @@ public class CassandraServer implements Cassandra.Iface
             
             KSMetaData ksm = new KSMetaData(
                     ks_def.name, 
-                    (Class<? extends AbstractReplicationStrategy>)Class.forName(ks_def.strategy_class), 
-                    ks_def.replication_factor, 
+                    (Class<? extends AbstractReplicationStrategy>)Class.forName(ks_def.strategy_class),
+                    ks_def.strategy_options,
+                    ks_def.replication_factor,
                     cfDefs.toArray(new CFMetaData[cfDefs.size()]));
             applyMigrationOnStage(new AddKeyspace(ksm));
             return DatabaseDescriptor.getDefsVersion().toString();

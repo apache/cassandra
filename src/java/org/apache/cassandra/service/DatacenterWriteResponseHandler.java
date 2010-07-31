@@ -63,7 +63,7 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
     protected int determineBlockFor(String table)
     {
         DatacenterShardStrategy strategy = (DatacenterShardStrategy) StorageService.instance.getReplicationStrategy(table);
-        return (strategy.getReplicationFactor(localdc, table) / 2) + 1;
+        return (strategy.getReplicationFactor(localdc) / 2) + 1;
     }
 
 

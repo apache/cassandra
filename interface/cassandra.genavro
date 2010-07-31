@@ -120,6 +120,7 @@ protocol Cassandra {
     record KsDef {
         string name;
         string strategy_class;
+        union{ map<string>, null } strategy_options;
         int replication_factor;
         array<CfDef> cf_defs;
     }

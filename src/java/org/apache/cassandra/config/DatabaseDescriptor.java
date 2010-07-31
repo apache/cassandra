@@ -344,11 +344,15 @@ public class DatabaseDescriptor
                 CommitLog.setSegmentSize(conf.commitlog_rotation_threshold_in_mb * 1024 * 1024);
 
             // Hardcoded system tables
-            KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE, LocalStrategy.class, 1, new CFMetaData[]{CFMetaData.StatusCf,
-                                                                                                  CFMetaData.HintsCf,
-                                                                                                  CFMetaData.MigrationsCf,
-                                                                                                  CFMetaData.SchemaCf,
-                                                                                                  CFMetaData.StatisticsCf
+            KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE,
+                                                   LocalStrategy.class,
+                                                   null,
+                                                   1,
+                                                   new CFMetaData[]{CFMetaData.StatusCf,
+                                                                    CFMetaData.HintsCf,
+                                                                    CFMetaData.MigrationsCf,
+                                                                    CFMetaData.SchemaCf,
+                                                                    CFMetaData.StatisticsCf
             });
             CFMetaData.map(CFMetaData.StatusCf);
             CFMetaData.map(CFMetaData.HintsCf);
@@ -618,8 +622,11 @@ public class DatabaseDescriptor
                                              cf.gc_grace_seconds,
                                              metadata);
             }
-            defs.add(new KSMetaData(keyspace.name, strategyClass, keyspace.replication_factor, cfDefs));
-            
+            defs.add(new KSMetaData(keyspace.name,
+                                    strategyClass,
+                                    keyspace.strategy_options,
+                                    keyspace.replication_factor,
+                                    cfDefs));
         }
 
         return defs;
@@ -749,6 +756,12 @@ public class DatabaseDescriptor
     	if (meta == null)
             throw new RuntimeException(table + " not found. Failure to call loadSchemas() perhaps?");
         return meta.strategyClass;
+    }
+
+    public static KSMetaData getKSMetaData(String table)
+    {
+        assert table != null;
+        return tables.get(table);
     }
     
     public static String getJobTrackerAddress()

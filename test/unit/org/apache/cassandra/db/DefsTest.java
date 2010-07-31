@@ -66,7 +66,7 @@ public class DefsTest extends CleanupHelper
         try
         {
             new AddColumnFamily(newCf).apply();
-            throw new AssertionError("You should't be able to do anything to a keyspace that doesn't exist.");
+            throw new AssertionError("You shouldn't be able to do anything to a keyspace that doesn't exist.");
         }
         catch (ConfigurationException expected)
         {
@@ -262,7 +262,7 @@ public class DefsTest extends CleanupHelper
     {
         DecoratedKey dk = Util.dk("key0");
         CFMetaData newCf = new CFMetaData("NewKeyspace1", "AddedStandard1", ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, new TimestampReconciler(), "A new cf for a new ks", 0, false, 1.0, 0, 864000, Collections.<byte[], ColumnDefinition>emptyMap());
-        KSMetaData newKs = new KSMetaData(newCf.tableName, RackUnawareStrategy.class, 5, newCf);
+        KSMetaData newKs = new KSMetaData(newCf.tableName, RackUnawareStrategy.class, null, 5, newCf);
         
         new AddKeyspace(newKs).apply();
         
@@ -414,7 +414,7 @@ public class DefsTest extends CleanupHelper
     {
         assert DatabaseDescriptor.getTableDefinition("EmptyKeyspace") == null;
         
-        KSMetaData newKs = new KSMetaData("EmptyKeyspace", RackUnawareStrategy.class, 5, new CFMetaData[]{});
+        KSMetaData newKs = new KSMetaData("EmptyKeyspace", RackUnawareStrategy.class, null, 5);
 
         new AddKeyspace(newKs).apply();
         assert DatabaseDescriptor.getTableDefinition("EmptyKeyspace") != null;

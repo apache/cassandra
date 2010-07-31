@@ -661,10 +661,23 @@ public class CassandraServer implements Cassandra {
                                                    Collections.<byte[], ColumnDefinition>emptyMap());
                 cfDefs.add(cfmeta);
             }
-            
+
+
+            Map<String, String> strategyOptions = null;
+            if (ksDef.strategy_options != null && !ksDef.strategy_options.isEmpty())
+            {
+                strategyOptions = new HashMap<String, String>();
+                for (Map.Entry<Utf8, Utf8> option : ksDef.strategy_options.entrySet())
+                {
+                    strategyOptions.put(option.getKey().toString(), option.getValue().toString());
+                }
+            }
+
+
             KSMetaData ksmeta = new KSMetaData(
                     ksDef.name.toString(),
                     (Class<? extends AbstractReplicationStrategy>)Class.forName(ksDef.strategy_class.toString()),
+                    strategyOptions,
                     (int)ksDef.replication_factor,
                     cfDefs.toArray(new CFMetaData[cfDefs.size()]));
             AddKeyspace add = new AddKeyspace(ksmeta);

@@ -185,7 +185,8 @@ request_scheduler_id: keyspace
 # - name: name of the keyspace; "system" and "definitions" are 
 #   reserved for Cassandra Internals.
 # - replica_placement_strategy: the class that determines how replicas
-#   are distributed among nodes.  Must extend AbstractReplicationStrategy.
+#   are distributed among nodes. Contains both the class as well as
+#   configuration information.  Must extend AbstractReplicationStrategy.
 #   Out of the box, Cassandra provides 
 #     * org.apache.cassandra.locator.RackUnawareStrategy 
 #     * org.apache.cassandra.locator.RackAwareStrategy
@@ -201,9 +202,17 @@ request_scheduler_id: keyspace
 #   different rack in in the first.
 #
 #   DatacenterShardStrategy is a generalization of RackAwareStrategy.
-#   For each datacenter, you can specify (in `datacenter.properties`)
-#   how many replicas you want on a per-keyspace basis.  Replicas are
-#   placed on different racks within each DC, if possible.
+#   For each datacenter, you can specify how many replicas you want
+#   on a per-keyspace basis.  Replicas are placed on different racks
+#   within each DC, if possible. This strategy also requires rack aware
+#   snitch, such as RackInferringSnitch or PropertyFileSnitch.
+#   An example:
+#    - name: Keyspace1
+#      replica_placement_strategy: org.apache.cassandra.locator.DatacenterShardStrategy
+#      strategy_options:
+#        DC1 : 3
+#        DC2 : 2
+#        DC3 : 1
 # 
 # - replication_factor: Number of replicas of each row
 # - column_families: column families associated with this keyspace
@@ -236,8 +245,8 @@ request_scheduler_id: keyspace
 #   and 1. defaults to 1.0 (always read repair).
 # - preload_row_cache: If true, will populate row cache on startup.
 #   Defaults to false.
-# - gc_grace_seconds: specifies the time to wait before garbage 
-#   collecting tombstones (deletion markers). defaults to 864000 (10 
+# - gc_grace_seconds: specifies the time to wait before garbage
+#   collecting tombstones (deletion markers). defaults to 864000 (10
 #   days). See http://wiki.apache.org/cassandra/DistributedDeletes
 #
 # NOTE: this keyspace definition is for demonstration purposes only.

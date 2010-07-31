@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 
+import org.apache.cassandra.config.ConfigurationException;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
@@ -45,7 +46,7 @@ public class RackUnawareStrategyTest extends SchemaLoader
         try
         {
             rs = StorageService.instance.getReplicationStrategy("SomeBogusTableThatDoesntExist");
-            throw new AssertionError("SS.getReplicationStrategy() should have thrown a RuntimeException.");
+            throw new AssertionError("SS.createReplicationStrategy() should have thrown a RuntimeException.");
         }
         catch (RuntimeException ex)
         {
@@ -54,26 +55,21 @@ public class RackUnawareStrategyTest extends SchemaLoader
     }
 
     @Test
-    public void testBigIntegerEndpoints() throws UnknownHostException
+    public void testBigIntegerEndpoints() throws UnknownHostException, ConfigurationException
     {
-        TokenMetadata tmd = new TokenMetadata();
-        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, new SimpleSnitch());
-
         List<Token> endpointTokens = new ArrayList<Token>();
         List<Token> keyTokens = new ArrayList<Token>();
         for (int i = 0; i < 5; i++) {
             endpointTokens.add(new BigIntegerToken(String.valueOf(10 * i)));
             keyTokens.add(new BigIntegerToken(String.valueOf(10 * i + 5)));
         }
-        verifyGetNaturalEndpoints(tmd, strategy, endpointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]));
+        verifyGetNaturalEndpoints(endpointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]));
     }
 
     @Test
-    public void testStringEndpoints() throws UnknownHostException
+    public void testStringEndpoints() throws UnknownHostException, ConfigurationException
     {
-        TokenMetadata tmd = new TokenMetadata();
         IPartitioner partitioner = new OrderPreservingPartitioner();
-        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, new SimpleSnitch());
 
         List<Token> endpointTokens = new ArrayList<Token>();
         List<Token> keyTokens = new ArrayList<Token>();
@@ -81,15 +77,19 @@ public class RackUnawareStrategyTest extends SchemaLoader
             endpointTokens.add(new StringToken(String.valueOf((char)('a' + i * 2))));
             keyTokens.add(partitioner.getToken(String.valueOf((char)('a' + i * 2 + 1)).getBytes()));
         }
-        verifyGetNaturalEndpoints(tmd, strategy, endpointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]));
+        verifyGetNaturalEndpoints(endpointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]));
     }
 
     // given a list of endpoint tokens, and a set of key tokens falling between the endpoint tokens,
     // make sure that the Strategy picks the right endpoints for the keys.
-    private void verifyGetNaturalEndpoints(TokenMetadata tmd, AbstractReplicationStrategy strategy, Token[] endpointTokens, Token[] keyTokens) throws UnknownHostException
+    private void verifyGetNaturalEndpoints(Token[] endpointTokens, Token[] keyTokens) throws UnknownHostException, ConfigurationException
     {
+        TokenMetadata tmd;
+        AbstractReplicationStrategy strategy;
         for (String table : DatabaseDescriptor.getNonSystemTables())
         {
+            tmd = new TokenMetadata();
+            strategy = getStrategy(table, tmd);
             List<InetAddress> hosts = new ArrayList<InetAddress>();
             for (int i = 0; i < endpointTokens.length; i++)
             {
@@ -100,7 +100,7 @@ public class RackUnawareStrategyTest extends SchemaLoader
 
             for (int i = 0; i < keyTokens.length; i++)
             {
-                List<InetAddress> endpoints = strategy.getNaturalEndpoints(keyTokens[i], table);
+                List<InetAddress> endpoints = strategy.getNaturalEndpoints(keyTokens[i]);
                 assertEquals(DatabaseDescriptor.getReplicationFactor(table), endpoints.size());
                 List<InetAddress> correctEndpoints = new ArrayList<InetAddress>();
                 for (int j = 0; j < endpoints.size(); j++)
@@ -111,13 +111,12 @@ public class RackUnawareStrategyTest extends SchemaLoader
     }
     
     @Test
-    public void testGetEndpointsDuringBootstrap() throws UnknownHostException
+    public void testGetEndpointsDuringBootstrap() throws UnknownHostException, ConfigurationException
     {
         // the token difference will be RING_SIZE * 2.
         final int RING_SIZE = 10;
         TokenMetadata tmd = new TokenMetadata();
         TokenMetadata oldTmd = StorageServiceAccessor.setTokenMetadata(tmd);
-        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, new SimpleSnitch());
 
         Token[] endpointTokens = new Token[RING_SIZE];
         Token[] keyTokens = new Token[RING_SIZE];
@@ -141,14 +140,18 @@ public class RackUnawareStrategyTest extends SchemaLoader
         InetAddress bootstrapEndpoint = InetAddress.getByName("127.0.0.11");
         tmd.addBootstrapToken(bsToken, bootstrapEndpoint);
 
+        AbstractReplicationStrategy strategy = null;
         for (String table : DatabaseDescriptor.getNonSystemTables())
         {
+            strategy = getStrategy(table, tmd);
+
             StorageService.calculatePendingRanges(strategy, table);
+
             int replicationFactor = DatabaseDescriptor.getReplicationFactor(table);
 
             for (int i = 0; i < keyTokens.length; i++)
             {
-                Collection<InetAddress> endpoints = tmd.getWriteEndpoints(keyTokens[i], table, strategy.getNaturalEndpoints(keyTokens[i], table));
+                Collection<InetAddress> endpoints = tmd.getWriteEndpoints(keyTokens[i], table, strategy.getNaturalEndpoints(keyTokens[i]));
                 assertTrue(endpoints.size() >= replicationFactor);
 
                 for (int j = 0; j < replicationFactor; j++)
@@ -166,5 +169,25 @@ public class RackUnawareStrategyTest extends SchemaLoader
         }
 
         StorageServiceAccessor.setTokenMetadata(oldTmd);
+    }
+
+    private AbstractReplicationStrategy getStrategyWithNewTokenMetadata(AbstractReplicationStrategy strategy, TokenMetadata newTmd) throws ConfigurationException
+    {
+        return AbstractReplicationStrategy.createReplicationStrategy(
+                strategy.table,
+                strategy.getClass().getName(),
+                newTmd,
+                strategy.snitch,
+                strategy.configOptions);
+    }
+
+    private AbstractReplicationStrategy getStrategy(String table, TokenMetadata tmd) throws ConfigurationException
+    {
+        return AbstractReplicationStrategy.createReplicationStrategy(
+                table,
+                "org.apache.cassandra.locator.RackUnawareStrategy",
+                tmd,
+                new SimpleSnitch(),
+                null);
     }
 }

@@ -19,12 +19,16 @@
 
 package org.apache.cassandra.locator;
 
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.service.*;
+import org.apache.commons.lang.ObjectUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,13 +38,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.service.AbstractWriteResponseHandler;
-import org.apache.cassandra.service.IResponseResolver;
-import org.apache.cassandra.service.QuorumResponseHandler;
-import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
@@ -50,42 +49,44 @@ public abstract class AbstractReplicationStrategy
 {
     private static final Logger logger = LoggerFactory.getLogger(AbstractReplicationStrategy.class);
 
+    public String table;
     private TokenMetadata tokenMetadata;
-    protected final IEndpointSnitch snitch;
-    private volatile Map<EndpointCacheKey, ArrayList<InetAddress>> cachedEndpoints;
+    public final IEndpointSnitch snitch;
+    private volatile Map<Token, ArrayList<InetAddress>> cachedEndpoints;
+    public Map<String, String> configOptions;
 
-    AbstractReplicationStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch)
+    AbstractReplicationStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
+        assert table != null;
         assert snitch != null;
         assert tokenMetadata != null;
         this.tokenMetadata = tokenMetadata;
         this.snitch = snitch;
-        cachedEndpoints = new NonBlockingHashMap<EndpointCacheKey, ArrayList<InetAddress>>();
+        cachedEndpoints = new NonBlockingHashMap<Token, ArrayList<InetAddress>>();
         this.tokenMetadata.register(this);
+        this.configOptions = configOptions;
+        this.table = table;
     }
 
     /**
-     * get the (possibly cached) endpoints that should store the given Token, for the given table.
+     * get the (possibly cached) endpoints that should store the given Token
      * Note that while the endpoints are conceptually a Set (no duplicates will be included),
      * we return a List to avoid an extra allocation when sorting by proximity later
      * @param searchToken the token the natural endpoints are requested for
-     * @param table the table the natural endpoints are requested for
-     * @return a copy of the natural endpoints for the given token and table
-     * @throws IllegalStateException if the number of requested replicas is greater than the number of known endpints
+     * @return a copy of the natural endpoints for the given token
+     * @throws IllegalStateException if the number of requested replicas is greater than the number of known endpoints
      */
-    public ArrayList<InetAddress> getNaturalEndpoints(Token searchToken, String table) throws IllegalStateException
+    public ArrayList<InetAddress> getNaturalEndpoints(Token searchToken) throws IllegalStateException
     {
-        int replicas = getReplicationFactor(table);
+        int replicas = getReplicationFactor();
         Token keyToken = TokenMetadata.firstToken(tokenMetadata.sortedTokens(), searchToken);
-        EndpointCacheKey cacheKey = new EndpointCacheKey(table, keyToken);
-        ArrayList<InetAddress> endpoints = cachedEndpoints.get(cacheKey);
+        ArrayList<InetAddress> endpoints = cachedEndpoints.get(keyToken);
         if (endpoints == null)
         {
             TokenMetadata tokenMetadataClone = tokenMetadata.cloneOnlyTokenMap();
             keyToken = TokenMetadata.firstToken(tokenMetadataClone.sortedTokens(), searchToken);
-            cacheKey = new EndpointCacheKey(table, keyToken);
-            endpoints = new ArrayList<InetAddress>(calculateNaturalEndpoints(searchToken, tokenMetadataClone, table));
-            cachedEndpoints.put(cacheKey, endpoints);
+            endpoints = new ArrayList<InetAddress>(calculateNaturalEndpoints(searchToken, tokenMetadataClone));
+            cachedEndpoints.put(keyToken, endpoints);
         }
 
         // calculateNaturalEndpoints should have checked this already, this is a safety
@@ -95,27 +96,25 @@ public abstract class AbstractReplicationStrategy
     }
 
     /**
-     * calculate the natural endpionts for the given token, for the given table.
+     * calculate the natural endpoints for the given token
      *
-     * @see #getNaturalEndpoints(org.apache.cassandra.dht.Token, String)
+     * @see #getNaturalEndpoints(org.apache.cassandra.dht.Token)
      *
      * @param searchToken the token the natural endpoints are requested for
-     * @param table the table the natural endpoints are requested for
-     * @return a copy of the natural endpoints for the given token and table
+     * @return a copy of the natural endpoints for the given token
      * @throws IllegalStateException if the number of requested replicas is greater than the number of known endpoints
      */
-    public abstract Set<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata, String table) throws IllegalStateException;
+    public abstract Set<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata) throws IllegalStateException;
 
     public AbstractWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints,
                                                                 Multimap<InetAddress, InetAddress> hintedEndpoints,
-                                                                ConsistencyLevel consistencyLevel,
-                                                                String table)
+                                                                ConsistencyLevel consistencyLevel)
     {
         return new WriteResponseHandler(writeEndpoints, hintedEndpoints, consistencyLevel, table);
     }
 
     // instance method so test subclasses can override it
-    int getReplicationFactor(String table)
+    int getReplicationFactor()
     {
        return DatabaseDescriptor.getReplicationFactor(table);
     }
@@ -170,14 +169,14 @@ public abstract class AbstractReplicationStrategy
      * (fixing this would probably require merging tokenmetadata into replicationstrategy,
      * so we could cache/invalidate cleanly.)
      */
-    public Multimap<InetAddress, Range> getAddressRanges(TokenMetadata metadata, String table)
+    public Multimap<InetAddress, Range> getAddressRanges(TokenMetadata metadata)
     {
         Multimap<InetAddress, Range> map = HashMultimap.create();
 
         for (Token token : metadata.sortedTokens())
         {
             Range range = metadata.getPrimaryRangeFor(token);
-            for (InetAddress ep : calculateNaturalEndpoints(token, metadata, table))
+            for (InetAddress ep : calculateNaturalEndpoints(token, metadata))
             {
                 map.put(ep, range);
             }
@@ -186,14 +185,14 @@ public abstract class AbstractReplicationStrategy
         return map;
     }
 
-    public Multimap<Range, InetAddress> getRangeAddresses(TokenMetadata metadata, String table)
+    public Multimap<Range, InetAddress> getRangeAddresses(TokenMetadata metadata)
     {
         Multimap<Range, InetAddress> map = HashMultimap.create();
 
         for (Token token : metadata.sortedTokens())
         {
             Range range = metadata.getPrimaryRangeFor(token);
-            for (InetAddress ep : calculateNaturalEndpoints(token, metadata, table))
+            for (InetAddress ep : calculateNaturalEndpoints(token, metadata))
             {
                 map.put(range, ep);
             }
@@ -202,32 +201,27 @@ public abstract class AbstractReplicationStrategy
         return map;
     }
 
-    public Multimap<InetAddress, Range> getAddressRanges(String table)
+    public Multimap<InetAddress, Range> getAddressRanges()
     {
-        return getAddressRanges(tokenMetadata, table);
+        return getAddressRanges(tokenMetadata);
     }
 
-    public Collection<Range> getPendingAddressRanges(TokenMetadata metadata, Token pendingToken, InetAddress pendingAddress, String table)
+    public Collection<Range> getPendingAddressRanges(TokenMetadata metadata, Token pendingToken, InetAddress pendingAddress)
     {
         TokenMetadata temp = metadata.cloneOnlyTokenMap();
         temp.updateNormalToken(pendingToken, pendingAddress);
-        return getAddressRanges(temp, table).get(pendingAddress);
+        return getAddressRanges(temp).get(pendingAddress);
     }
 
-    public QuorumResponseHandler getQuorumResponseHandler(IResponseResolver responseResolver, ConsistencyLevel consistencyLevel, String table)
+    public QuorumResponseHandler getQuorumResponseHandler(IResponseResolver responseResolver, ConsistencyLevel consistencyLevel)
     {
         return new QuorumResponseHandler(responseResolver, consistencyLevel, table);
-    }
-
-    protected static class EndpointCacheKey extends Pair<String, Token>
-    {
-        public EndpointCacheKey(String table, Token keyToken) {super(table, keyToken);}
     }
 
     protected void clearCachedEndpoints()
     {
         logger.debug("clearing cached endpoints");
-        cachedEndpoints = new NonBlockingHashMap<EndpointCacheKey, ArrayList<InetAddress>>();
+        cachedEndpoints = new NonBlockingHashMap<Token, ArrayList<InetAddress>>();
     }
 
     public void invalidateCachedTokenEndpointValues()
@@ -238,5 +232,48 @@ public abstract class AbstractReplicationStrategy
     public void invalidateCachedSnitchValues()
     {
         clearCachedEndpoints();
+    }
+
+    public static AbstractReplicationStrategy createReplicationStrategy(String table,
+                                                                        Class<? extends AbstractReplicationStrategy> strategyClass,
+                                                                        TokenMetadata tokenMetadata,
+                                                                        IEndpointSnitch snitch,
+                                                                        Map<String, String> strategyOptions)
+            throws ConfigurationException
+    {
+        AbstractReplicationStrategy strategy;
+        Class [] parameterTypes = new Class[] {String.class, TokenMetadata.class, IEndpointSnitch.class, Map.class};
+        try
+        {
+            Constructor<? extends AbstractReplicationStrategy> constructor = strategyClass.getConstructor(parameterTypes);
+            strategy = constructor.newInstance(table, tokenMetadata, snitch, strategyOptions);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        return strategy;
+    }
+
+    public static AbstractReplicationStrategy createReplicationStrategy(String table,
+                                                                        String strategyClassName,
+                                                                        TokenMetadata tokenMetadata,
+                                                                        IEndpointSnitch snitch,
+                                                                        Map<String, String> strategyOptions)
+            throws ConfigurationException
+    {
+        AbstractReplicationStrategy strategy;
+        Class<? extends AbstractReplicationStrategy> c;
+        try
+        {
+            c = (Class<? extends AbstractReplicationStrategy>) Class.forName(strategyClassName);
+        }
+        catch (ClassNotFoundException e)
+        {
+            throw new ConfigurationException("Invalid replication strategy class: " + strategyClassName);
+        }
+
+        return createReplicationStrategy(table, c, tokenMetadata, snitch, strategyOptions);
     }
 }

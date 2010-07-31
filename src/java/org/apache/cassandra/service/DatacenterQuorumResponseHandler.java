@@ -45,6 +45,6 @@ public class DatacenterQuorumResponseHandler<T> extends QuorumResponseHandler<T>
     public int determineBlockFor(ConsistencyLevel consistency_level, String table)
 	{
 		DatacenterShardStrategy stategy = (DatacenterShardStrategy) StorageService.instance.getReplicationStrategy(table);
-		return (stategy.getReplicationFactor(localdc, table) / 2) + 1;
+		return (stategy.getReplicationFactor(localdc) / 2) + 1;
 	}
 }

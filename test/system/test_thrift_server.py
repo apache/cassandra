@@ -1124,7 +1124,7 @@ class TestMutations(ThriftTester):
     def test_system_keyspace_operations(self):
         """ Test keyspace (add, drop, rename) operations """
         # create
-        keyspace = KsDef('CreateKeyspace', 'org.apache.cassandra.locator.RackUnawareStrategy', 1,
+        keyspace = KsDef('CreateKeyspace', 'org.apache.cassandra.locator.RackUnawareStrategy', {}, 1,
                          [CfDef('CreateKeyspace', 'CreateKsCf')])
         client.system_add_keyspace(keyspace)
         newks = client.describe_keyspace('CreateKeyspace')

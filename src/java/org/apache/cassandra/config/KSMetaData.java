@@ -36,13 +36,15 @@ public final class KSMetaData
 {
     public final String name;
     public final Class<? extends AbstractReplicationStrategy> strategyClass;
+    public final Map<String, String> strategyOptions;
     public final int replicationFactor;
     private final Map<String, CFMetaData> cfMetaData;
 
-    public KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, int replicationFactor, CFMetaData... cfDefs)
+    public KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, int replicationFactor, CFMetaData... cfDefs)
     {
         this.name = name;
         this.strategyClass = strategyClass == null ? RackUnawareStrategy.class : strategyClass;
+        this.strategyOptions = strategyOptions;
         this.replicationFactor = replicationFactor;
         Map<String, CFMetaData> cfmap = new HashMap<String, CFMetaData>();
         for (CFMetaData cfm : cfDefs)
@@ -59,6 +61,7 @@ public final class KSMetaData
         KSMetaData other = (KSMetaData)obj;
         return other.name.equals(name)
                 && ObjectUtils.equals(other.strategyClass, strategyClass)
+                && ObjectUtils.equals(other.strategyOptions, strategyOptions)
                 && other.replicationFactor == replicationFactor
                 && other.cfMetaData.size() == cfMetaData.size()
                 && other.cfMetaData.equals(cfMetaData);
@@ -74,6 +77,14 @@ public final class KSMetaData
         org.apache.cassandra.avro.KsDef ks = new org.apache.cassandra.avro.KsDef();
         ks.name = new Utf8(name);
         ks.strategy_class = new Utf8(strategyClass.getName());
+        if (strategyOptions != null)
+        {
+            ks.strategy_options = new HashMap<Utf8, Utf8>();
+            for (Map.Entry<String, String> e : strategyOptions.entrySet())
+            {
+                ks.strategy_options.put(new Utf8(e.getKey()), new Utf8(e.getValue()));
+            }
+        }
         ks.replication_factor = replicationFactor;
         ks.cf_defs = SerDeUtils.createArray(cfMetaData.size(), org.apache.cassandra.avro.CfDef.SCHEMA$);
         for (CFMetaData cfm : cfMetaData.values())
@@ -83,7 +94,7 @@ public final class KSMetaData
 
     public static KSMetaData inflate(org.apache.cassandra.avro.KsDef ks) throws ConfigurationException
     {
-        Class<AbstractReplicationStrategy> repStratClass = null;
+        Class<AbstractReplicationStrategy> repStratClass;
         try
         {
             repStratClass = (Class<AbstractReplicationStrategy>)Class.forName(ks.strategy_class.toString());
@@ -92,12 +103,21 @@ public final class KSMetaData
         {
             throw new ConfigurationException("Could not create ReplicationStrategy of type " + ks.strategy_class, ex);
         }
+        Map<String, String> strategyOptions = null;
+        if (ks.strategy_options != null)
+        {
+            strategyOptions = new HashMap<String, String>();
+            for (Map.Entry<Utf8, Utf8> e : ks.strategy_options.entrySet())
+            {
+                strategyOptions.put(e.getKey().toString(), e.getValue().toString());
+            }
+        }
         int cfsz = (int)ks.cf_defs.size();
         CFMetaData[] cfMetaData = new CFMetaData[cfsz];
         Iterator<org.apache.cassandra.avro.CfDef> cfiter = ks.cf_defs.iterator();
         for (int i = 0; i < cfsz; i++)
             cfMetaData[i] = CFMetaData.inflate(cfiter.next());
 
-        return new KSMetaData(ks.name.toString(), repStratClass, ks.replication_factor, cfMetaData);
+        return new KSMetaData(ks.name.toString(), repStratClass, strategyOptions, ks.replication_factor, cfMetaData);
     }
 }

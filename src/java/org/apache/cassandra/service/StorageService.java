@@ -21,7 +21,6 @@ package org.apache.cassandra.service;
 import java.io.IOError;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
-import java.lang.reflect.Constructor;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
@@ -62,7 +61,6 @@ import org.apache.cassandra.io.DeletionService;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ResponseVerbHandler;
@@ -274,7 +272,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     
     public void initReplicationStrategy(String table)
     {
-        AbstractReplicationStrategy strat = getReplicationStrategy(tokenMetadata_, table);
+        AbstractReplicationStrategy strat = createReplicationStrategy(tokenMetadata_, table);
         replicationStrategies.put(table, strat);
     }
     
@@ -283,17 +281,19 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         replicationStrategies.remove(table);
     }
 
-    public static AbstractReplicationStrategy getReplicationStrategy(TokenMetadata tokenMetadata, String table)
+    public static AbstractReplicationStrategy createReplicationStrategy(TokenMetadata tokenMetadata, String table)
     {
-        AbstractReplicationStrategy replicationStrategy = null;
-        Class<? extends AbstractReplicationStrategy> cls = DatabaseDescriptor.getReplicaPlacementStrategyClass(table);
-        if (cls == null)
-            throw new RuntimeException(String.format("No replica strategy configured for %s", table));
-        Class [] parameterTypes = new Class[] { TokenMetadata.class, IEndpointSnitch.class};
+        AbstractReplicationStrategy replicationStrategy;
+        KSMetaData ksm = DatabaseDescriptor.getKSMetaData(table);
         try
         {
-            Constructor<? extends AbstractReplicationStrategy> constructor = cls.getConstructor(parameterTypes);
-            replicationStrategy = constructor.newInstance(tokenMetadata, DatabaseDescriptor.getEndpointSnitch());
+            replicationStrategy = AbstractReplicationStrategy.createReplicationStrategy(
+                    table,
+                    ksm.strategyClass,
+                    tokenMetadata,
+                    DatabaseDescriptor.getEndpointSnitch(),
+                    ksm.strategyOptions
+            );
         }
         catch (Exception e)
         {
@@ -543,7 +543,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Map<Range, List<InetAddress>> rangeToEndpointMap = new HashMap<Range, List<InetAddress>>();
         for (Range range : ranges)
         {
-            rangeToEndpointMap.put(range, getReplicationStrategy(keyspace).getNaturalEndpoints(range.right, keyspace));
+            rangeToEndpointMap.put(range, getReplicationStrategy(keyspace).getNaturalEndpoints(range.right));
         }
         return rangeToEndpointMap;
     }
@@ -785,7 +785,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             return;
         }
 
-        Multimap<InetAddress, Range> addressRanges = strategy.getAddressRanges(table);
+        Multimap<InetAddress, Range> addressRanges = strategy.getAddressRanges();
 
         // Copy of metadata reflecting the situation after all leave operations are finished.
         TokenMetadata allLeftMetadata = tm.cloneAfterAllLeft();
@@ -799,8 +799,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // all leaving nodes are gone.
         for (Range range : affectedRanges)
         {
-            Set<InetAddress> currentEndpoints = strategy.calculateNaturalEndpoints(range.right, tm, table);
-            Set<InetAddress> newEndpoints = strategy.calculateNaturalEndpoints(range.right, allLeftMetadata, table);
+            Set<InetAddress> currentEndpoints = strategy.calculateNaturalEndpoints(range.right, tm);
+            Set<InetAddress> newEndpoints = strategy.calculateNaturalEndpoints(range.right, allLeftMetadata);
             newEndpoints.removeAll(currentEndpoints);
             pendingRanges.putAll(range, newEndpoints);
         }
@@ -815,7 +815,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             InetAddress endpoint = entry.getValue();
 
             allLeftMetadata.updateNormalToken(entry.getKey(), endpoint);
-            for (Range range : strategy.getAddressRanges(allLeftMetadata, table).get(endpoint))
+            for (Range range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
                 pendingRanges.put(range, endpoint);
             allLeftMetadata.removeEndpoint(endpoint);
         }
@@ -860,7 +860,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 if (logger_.isDebugEnabled())
                     logger_.debug(endpoint + " was removed, my added ranges: " + StringUtils.join(myNewRanges, ", "));
 
-                Multimap<Range, InetAddress> rangeAddresses = getReplicationStrategy(table).getRangeAddresses(tokenMetadata_, table);
+                Multimap<Range, InetAddress> rangeAddresses = getReplicationStrategy(table).getRangeAddresses(tokenMetadata_);
                 Multimap<InetAddress, Range> sourceRanges = HashMultimap.create();
                 IFailureDetector failureDetector = FailureDetector.instance;
 
@@ -909,7 +909,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         // Find (for each range) all nodes that store replicas for these ranges as well
         for (Range range : ranges)
-            currentReplicaEndpoints.put(range, getReplicationStrategy(table).calculateNaturalEndpoints(range.right, tokenMetadata_, table));
+            currentReplicaEndpoints.put(range, getReplicationStrategy(table).calculateNaturalEndpoints(range.right, tokenMetadata_));
 
         TokenMetadata temp = tokenMetadata_.cloneAfterAllLeft();
 
@@ -927,7 +927,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // range.
         for (Range range : ranges)
         {
-            Set<InetAddress> newReplicaEndpoints = getReplicationStrategy(table).calculateNaturalEndpoints(range.right, temp, table);
+            Set<InetAddress> newReplicaEndpoints = getReplicationStrategy(table).calculateNaturalEndpoints(range.right, temp);
             newReplicaEndpoints.removeAll(currentReplicaEndpoints.get(range));
             if (logger_.isDebugEnabled())
                 if (newReplicaEndpoints.isEmpty())
@@ -1227,7 +1227,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     Collection<Range> getRangesForEndpoint(String table, InetAddress ep)
     {
-        return getReplicationStrategy(table).getAddressRanges(table).get(ep);
+        return getReplicationStrategy(table).getAddressRanges().get(ep);
     }
 
     /**
@@ -1277,7 +1277,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public List<InetAddress> getNaturalEndpoints(String table, Token token)
     {
-        return getReplicationStrategy(table).getNaturalEndpoints(token, table);
+        return getReplicationStrategy(table).getNaturalEndpoints(token);
     }
 
     /**
@@ -1295,7 +1295,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public List<InetAddress> getLiveNaturalEndpoints(String table, Token token)
     {
         List<InetAddress> liveEps = new ArrayList<InetAddress>();
-        List<InetAddress> endpoints = getReplicationStrategy(table).getNaturalEndpoints(token, table);
+        List<InetAddress> endpoints = getReplicationStrategy(table).getNaturalEndpoints(token);
 
         for (InetAddress endpoint : endpoints)
         {

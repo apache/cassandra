@@ -23,7 +23,9 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import javax.xml.parsers.ParserConfigurationException;
 
 import org.junit.Test;
@@ -40,16 +42,22 @@ public class DatacenterShardStrategyTest
     @Test
     public void testProperties() throws IOException, ParserConfigurationException, SAXException, ConfigurationException
     {
-        PropertyFileSnitch snitch = new PropertyFileSnitch();
+        IEndpointSnitch snitch = new PropertyFileSnitch();
         TokenMetadata metadata = new TokenMetadata();
         createDummyTokens(metadata);
-        // Set the localhost to the tokenmetadata. Embeded cassandra way?
-        DatacenterShardStrategy strategy = new DatacenterShardStrategy(metadata, snitch);
-        assert strategy.getReplicationFactor("DC1", table) == 3;
-        assert strategy.getReplicationFactor("DC2", table) == 2;
-        assert strategy.getReplicationFactor("DC3", table) == 1;
+
+        Map<String, String> configOptions = new HashMap<String, String>();
+        configOptions.put("DC1", "3");
+        configOptions.put("DC2", "2");
+        configOptions.put("DC3", "1");
+
+        // Set the localhost to the tokenmetadata. Embedded cassandra way?
+        DatacenterShardStrategy strategy = new DatacenterShardStrategy(table, metadata, snitch, configOptions);
+        assert strategy.getReplicationFactor("DC1") == 3;
+        assert strategy.getReplicationFactor("DC2") == 2;
+        assert strategy.getReplicationFactor("DC3") == 1;
         // Query for the natural hosts
-        ArrayList<InetAddress> endpoints = strategy.getNaturalEndpoints(new StringToken("123"), table);
+        ArrayList<InetAddress> endpoints = strategy.getNaturalEndpoints(new StringToken("123"));
         assert 6 == endpoints.size();
         assert 6 == new HashSet<InetAddress>(endpoints).size(); // ensure uniqueness
     }

@@ -149,10 +149,10 @@ public class BootStrapper
     {
         assert tokenMetadata.sortedTokens().size() > 0;
         final AbstractReplicationStrategy strat = StorageService.instance.getReplicationStrategy(table);
-        Collection<Range> myRanges = strat.getPendingAddressRanges(tokenMetadata, token, address, table);
+        Collection<Range> myRanges = strat.getPendingAddressRanges(tokenMetadata, token, address);
 
         Multimap<Range, InetAddress> myRangeAddresses = ArrayListMultimap.create();
-        Multimap<Range, InetAddress> rangeAddresses = strat.getRangeAddresses(tokenMetadata, table);
+        Multimap<Range, InetAddress> rangeAddresses = strat.getRangeAddresses(tokenMetadata);
         for (Range myRange : myRanges)
         {
             for (Range range : rangeAddresses.keySet())

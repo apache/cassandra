@@ -188,9 +188,9 @@ public class AntiEntropyServiceTest extends CleanupHelper
         addTokens(1 + (2 * DatabaseDescriptor.getReplicationFactor(tablename)));
         AbstractReplicationStrategy ars = StorageService.instance.getReplicationStrategy(tablename);
         Set<InetAddress> expected = new HashSet<InetAddress>();
-        for (Range replicaRange : ars.getAddressRanges(tablename).get(FBUtilities.getLocalAddress()))
+        for (Range replicaRange : ars.getAddressRanges().get(FBUtilities.getLocalAddress()))
         {
-            expected.addAll(ars.getRangeAddresses(tmd, tablename).get(replicaRange));
+            expected.addAll(ars.getRangeAddresses(tmd).get(replicaRange));
         }
         expected.remove(FBUtilities.getLocalAddress());
         assertEquals(expected, AntiEntropyService.getNeighbors(tablename));

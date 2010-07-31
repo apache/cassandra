@@ -56,7 +56,6 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
 
 	private final DatacenterShardStrategy strategy;
     private HashMap<String, AtomicInteger> responses = new HashMap<String, AtomicInteger>();
-    private final String table;
 
     public DatacenterSyncWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
@@ -64,12 +63,11 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
         super(writeEndpoints, hintedEndpoints, consistencyLevel);
         assert consistencyLevel == ConsistencyLevel.DCQUORUM;
 
-        this.table = table;
         strategy = (DatacenterShardStrategy) StorageService.instance.getReplicationStrategy(table);
 
-        for (String dc : strategy.getDatacenters(table))
+        for (String dc : strategy.getDatacenters())
         {
-            int rf = strategy.getReplicationFactor(dc, table);
+            int rf = strategy.getReplicationFactor(dc);
             responses.put(dc, new AtomicInteger((rf / 2) + 1));
         }
     }
@@ -88,14 +86,14 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
                 return;
         }
 
-        // all the quorum conditionas are met
+        // all the quorum conditions are met
         condition.signal();
     }
 
     public void assureSufficientLiveNodes() throws UnavailableException
     {   
 		Map<String, AtomicInteger> dcEndpoints = new HashMap<String, AtomicInteger>();
-        for (String dc: strategy.getDatacenters(table))
+        for (String dc: strategy.getDatacenters())
             dcEndpoints.put(dc, new AtomicInteger());
         for (InetAddress destination : hintedEndpoints.keySet())
         {
@@ -105,8 +103,8 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
             dcEndpoints.get(destinationDC).incrementAndGet();
         }
 
-        // Throw exception if any of the DC doesnt have livenodes to accept write.
-        for (String dc: strategy.getDatacenters(table)) 
+        // Throw exception if any of the DC doesn't have livenodes to accept write.
+        for (String dc: strategy.getDatacenters())
         {
         	if (dcEndpoints.get(dc).get() != responses.get(dc).get())
                 throw new UnavailableException();

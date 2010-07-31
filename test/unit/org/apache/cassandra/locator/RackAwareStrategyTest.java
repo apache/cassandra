@@ -60,7 +60,7 @@ public class RackAwareStrategyTest
     {
         RackInferringSnitch endpointSnitch = new RackInferringSnitch();
 
-        AbstractReplicationStrategy strategy = new RackAwareStrategy(tmd, endpointSnitch);
+        AbstractReplicationStrategy strategy = new RackAwareStrategy("Keyspace1", tmd, endpointSnitch, null);
         addEndpoint("0", "5", "254.0.0.1");
         addEndpoint("10", "15", "254.0.0.2");
         addEndpoint("20", "25", "254.0.0.3");
@@ -85,7 +85,7 @@ public class RackAwareStrategyTest
     {
         RackInferringSnitch endpointSnitch = new RackInferringSnitch();
 
-        AbstractReplicationStrategy strategy = new RackAwareStrategy(tmd, endpointSnitch);
+        AbstractReplicationStrategy strategy = new RackAwareStrategy("Keyspace1", tmd, endpointSnitch, null);
         addEndpoint("0", "5", "254.0.0.1");
         addEndpoint("10", "15", "254.0.0.2");
         addEndpoint("20", "25", "254.1.0.3");
@@ -111,7 +111,7 @@ public class RackAwareStrategyTest
     {
         RackInferringSnitch endpointSnitch = new RackInferringSnitch();
 
-        AbstractReplicationStrategy strategy = new RackAwareStrategy(tmd, endpointSnitch);
+        AbstractReplicationStrategy strategy = new RackAwareStrategy("Keyspace1", tmd, endpointSnitch, null);
         addEndpoint("0", "5", "254.0.0.1");
         addEndpoint("10", "15", "254.0.0.2");
         addEndpoint("20", "25", "254.0.1.3");
@@ -160,7 +160,7 @@ public class RackAwareStrategyTest
     {
         for (Token keyToken : keyTokens)
         {
-            List<InetAddress> endpoints = strategy.getNaturalEndpoints(keyToken, table);
+            List<InetAddress> endpoints = strategy.getNaturalEndpoints(keyToken);
             for (int j = 0; j < endpoints.size(); j++)
             {
                 ArrayList<InetAddress> hostsExpected = expectedResults.get(keyToken.toString());

@@ -20,10 +20,7 @@
 package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
@@ -37,16 +34,16 @@ import org.apache.cassandra.dht.Token;
  */
 public class RackAwareStrategy extends AbstractReplicationStrategy
 {
-    public RackAwareStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch)
+    public RackAwareStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
-        super(tokenMetadata, snitch);
+        super(table, tokenMetadata, snitch, configOptions);
         if (!(snitch instanceof AbstractRackAwareSnitch))
             throw new IllegalArgumentException(("RackAwareStrategy requires AbstractRackAwareSnitch."));
     }
 
-    public Set<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata, String table)
+    public Set<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
     {
-        int replicas = getReplicationFactor(table);
+        int replicas = getReplicationFactor();
         Set<InetAddress> endpoints = new LinkedHashSet<InetAddress>(replicas);
         ArrayList<Token> tokens = metadata.sortedTokens();
 

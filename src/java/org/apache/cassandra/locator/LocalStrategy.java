@@ -21,6 +21,7 @@ package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import org.apache.cassandra.utils.FBUtilities;
@@ -28,12 +29,12 @@ import org.apache.cassandra.dht.Token;
 
 public class LocalStrategy extends AbstractReplicationStrategy
 {
-    public LocalStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch)
+    public LocalStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
-        super(tokenMetadata, snitch);
+        super(table, tokenMetadata, snitch, configOptions);
     }
 
-    public Set<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata, String table)
+    public Set<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
     {
         Set<InetAddress> endpoints = new HashSet<InetAddress>(1);
         InetAddress local = FBUtilities.getLocalAddress();

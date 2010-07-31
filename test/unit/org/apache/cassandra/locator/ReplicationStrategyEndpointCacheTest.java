@@ -21,10 +21,9 @@ package org.apache.cassandra.locator;
 
 import java.lang.reflect.Constructor;
 import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
+import org.apache.cassandra.service.StorageService;
 import org.apache.commons.lang.StringUtils;
 import org.junit.Test;
 
@@ -39,12 +38,12 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
     private Token searchToken;
     private AbstractReplicationStrategy strategy;
 
-    public void setup(Class stratClass) throws Exception
+    public void setup(Class stratClass, Map<String, String> strategyOptions) throws Exception
     {
         tmd = new TokenMetadata();
         searchToken = new BigIntegerToken(String.valueOf(15));
-        Constructor constructor = stratClass.getConstructor(TokenMetadata.class, IEndpointSnitch.class);
-        strategy = (AbstractReplicationStrategy) constructor.newInstance(tmd, new PropertyFileSnitch());
+
+        strategy = getStrategyWithNewTokenMetadata(StorageService.instance.getReplicationStrategy("Keyspace3"), tmd);
 
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(10)), InetAddress.getByName("127.0.0.1"));
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(20)), InetAddress.getByName("127.0.0.2"));
@@ -59,73 +58,73 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
     @Test
     public void testEndpointsWereCached() throws Exception
     {
-        runEndpointsWereCachedTest(FakeRackUnawareStrategy.class);
-        runEndpointsWereCachedTest(FakeRackAwareStrategy.class);
-        runEndpointsWereCachedTest(FakeDatacenterShardStrategy.class);
+        runEndpointsWereCachedTest(FakeRackUnawareStrategy.class, null);
+        runEndpointsWereCachedTest(FakeRackAwareStrategy.class, null);
+        runEndpointsWereCachedTest(FakeDatacenterShardStrategy.class, new HashMap<String, String>());
     }
 
-    public void runEndpointsWereCachedTest(Class stratClass) throws Exception
+    public void runEndpointsWereCachedTest(Class stratClass, Map<String, String> configOptions) throws Exception
     {
-        setup(stratClass);
-        assert strategy.getNaturalEndpoints(searchToken, "Keyspace3").equals(strategy.getNaturalEndpoints(searchToken, "Keyspace3"));
+        setup(stratClass, configOptions);
+        assert strategy.getNaturalEndpoints(searchToken).equals(strategy.getNaturalEndpoints(searchToken));
     }
 
     @Test
     public void testCacheRespectsTokenChanges() throws Exception
     {
-        runCacheRespectsTokenChangesTest(RackUnawareStrategy.class);
-        runCacheRespectsTokenChangesTest(RackAwareStrategy.class);
-        runCacheRespectsTokenChangesTest(DatacenterShardStrategy.class);
+        runCacheRespectsTokenChangesTest(RackUnawareStrategy.class, null);
+        runCacheRespectsTokenChangesTest(RackAwareStrategy.class, null);
+        runCacheRespectsTokenChangesTest(DatacenterShardStrategy.class, new HashMap<String, String>());
     }
 
-    public void runCacheRespectsTokenChangesTest(Class stratClass) throws Exception
+    public void runCacheRespectsTokenChangesTest(Class stratClass, Map<String, String> configOptions) throws Exception
     {
-        setup(stratClass);
+        setup(stratClass, configOptions);
         ArrayList<InetAddress> initial;
         ArrayList<InetAddress> endpoints;
 
-        endpoints = strategy.getNaturalEndpoints(searchToken, "Keyspace3");
+        endpoints = strategy.getNaturalEndpoints(searchToken);
         assert endpoints.size() == 5 : StringUtils.join(endpoints, ",");
 
         // test token addition, in DC2 before existing token
-        initial = strategy.getNaturalEndpoints(searchToken, "Keyspace3");
+        initial = strategy.getNaturalEndpoints(searchToken);
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(35)), InetAddress.getByName("127.0.0.5"));
-        endpoints = strategy.getNaturalEndpoints(searchToken, "Keyspace3");
+        endpoints = strategy.getNaturalEndpoints(searchToken);
         assert endpoints.size() == 5 : StringUtils.join(endpoints, ",");
         assert !endpoints.equals(initial);
 
         // test token removal, newly created token
-        initial = strategy.getNaturalEndpoints(searchToken, "Keyspace3");
+        initial = strategy.getNaturalEndpoints(searchToken);
         tmd.removeEndpoint(InetAddress.getByName("127.0.0.5"));
-        endpoints = strategy.getNaturalEndpoints(searchToken, "Keyspace3");
+        endpoints = strategy.getNaturalEndpoints(searchToken);
         assert endpoints.size() == 5 : StringUtils.join(endpoints, ",");
         assert !endpoints.contains(InetAddress.getByName("127.0.0.5"));
         assert !endpoints.equals(initial);
 
         // test token change
-        initial = strategy.getNaturalEndpoints(searchToken, "Keyspace3");
+        initial = strategy.getNaturalEndpoints(searchToken);
         //move .8 after search token but before other DC3
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(25)), InetAddress.getByName("127.0.0.8"));
-        endpoints = strategy.getNaturalEndpoints(searchToken, "Keyspace3");
+        endpoints = strategy.getNaturalEndpoints(searchToken);
         assert endpoints.size() == 5 : StringUtils.join(endpoints, ",");
-        assert !endpoints.equals(initial);        
+        assert !endpoints.equals(initial);
     }
 
     protected static class FakeRackUnawareStrategy extends RackUnawareStrategy
     {
         private boolean called = false;
 
-        public FakeRackUnawareStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch)
+        public FakeRackUnawareStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
         {
-            super(tokenMetadata, snitch);
+            super(table, tokenMetadata, snitch, configOptions);
         }
 
         @Override
-        public Set<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata, String table)
+        public Set<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
         {
             assert !called : "calculateNaturalEndpoints was already called, result should have been cached";
             called = true;
-            return super.calculateNaturalEndpoints(token, metadata, table);
+            return super.calculateNaturalEndpoints(token, metadata);
         }
     }
 
@@ -133,17 +132,17 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
     {
         private boolean called = false;
 
-        public FakeRackAwareStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch)
+        public FakeRackAwareStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
         {
-            super(tokenMetadata, snitch);
+            super(table, tokenMetadata, snitch, configOptions);
         }
 
         @Override
-        public Set<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata, String table)
+        public Set<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
         {
             assert !called : "calculateNaturalEndpoints was already called, result should have been cached";
             called = true;
-            return super.calculateNaturalEndpoints(token, metadata, table);
+            return super.calculateNaturalEndpoints(token, metadata);
         }
     }
 
@@ -151,17 +150,28 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
     {
         private boolean called = false;
 
-        public FakeDatacenterShardStrategy(TokenMetadata tokenMetadata, IEndpointSnitch snitch) throws ConfigurationException
+        public FakeDatacenterShardStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions) throws ConfigurationException
         {
-            super(tokenMetadata, snitch);
+            super(table, tokenMetadata, snitch, configOptions);
         }
 
         @Override
-        public Set<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata, String table)
+        public Set<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
         {
             assert !called : "calculateNaturalEndpoints was already called, result should have been cached";
             called = true;
-            return super.calculateNaturalEndpoints(token, metadata, table);
+            return super.calculateNaturalEndpoints(token, metadata);
         }
     }
+
+    private AbstractReplicationStrategy getStrategyWithNewTokenMetadata(AbstractReplicationStrategy strategy, TokenMetadata newTmd) throws ConfigurationException
+    {
+        return AbstractReplicationStrategy.createReplicationStrategy(
+                strategy.table,
+                strategy.getClass().getName(),
+                newTmd,
+                strategy.snitch,
+                strategy.configOptions);
+    }
+
 }

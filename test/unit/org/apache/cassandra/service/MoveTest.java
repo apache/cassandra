@@ -23,6 +23,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 
+import org.apache.cassandra.config.ConfigurationException;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
@@ -36,7 +37,6 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.RackUnawareStrategy;
 import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.utils.Pair;
 
 public class MoveTest extends CleanupHelper
 {
@@ -63,10 +63,8 @@ public class MoveTest extends CleanupHelper
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
-        AbstractReplicationStrategy testStrategy = new RackUnawareStrategy(tmd, new SimpleSnitch());
 
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
-        Map<String, AbstractReplicationStrategy> oldStrategies = ss.setReplicationStrategyUnsafe(createReplacements(testStrategy));
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
@@ -74,52 +72,53 @@ public class MoveTest extends CleanupHelper
 
         createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, RING_SIZE);
 
-        final Map<Pair<String, Token>, List<InetAddress>> expectedEndpoints = new HashMap<Pair<String, Token>, List<InetAddress>>();
+        Map<Token, List<InetAddress>> expectedEndpoints = new HashMap<Token, List<InetAddress>>();
         for (String table : DatabaseDescriptor.getNonSystemTables())
         {
             for (Token token : keyTokens)
             {
                 List<InetAddress> endpoints = new ArrayList<InetAddress>();
-                Pair<String, Token> key = new Pair<String, Token>(table, token);
                 Iterator<Token> tokenIter = TokenMetadata.ringIterator(tmd.sortedTokens(), token);
                 while (tokenIter.hasNext())
                 {
                     endpoints.add(tmd.getEndpoint(tokenIter.next()));
                 }
-                expectedEndpoints.put(key, endpoints);
+                expectedEndpoints.put(token, endpoints);
             }
         }
 
         // Third node leaves
-        ss.onChange(hosts.get(LEAVING_NODE), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(LEAVING_NODE))));
+        ss.onChange(hosts.get(LEAVING_NODE),
+                StorageService.MOVE_STATE,
+                new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(LEAVING_NODE))));
         assertTrue(tmd.isLeaving(hosts.get(LEAVING_NODE)));
 
+        AbstractReplicationStrategy strategy;
         for (String table : DatabaseDescriptor.getNonSystemTables())
         {
+            strategy = getStrategy(table, tmd);
             for (Token token : keyTokens)
             {
-                Pair<String, Token> key = new Pair<String, Token>(table, token);
                 int replicationFactor = DatabaseDescriptor.getReplicationFactor(table);
 
-                HashSet<InetAddress> actual = new HashSet<InetAddress>(tmd.getWriteEndpoints(token, table, testStrategy.calculateNaturalEndpoints(token, tmd, table)));
+                HashSet<InetAddress> actual = new HashSet<InetAddress>(tmd.getWriteEndpoints(token, table, strategy.calculateNaturalEndpoints(token, tmd)));
                 HashSet<InetAddress> expected = new HashSet<InetAddress>();
 
                 for (int i = 0; i < replicationFactor; i++)
                 {
-                    expected.add(expectedEndpoints.get(key).get(i));
+                    expected.add(expectedEndpoints.get(token).get(i));
                 }
 
                 // if the leaving node is in the endpoint list,
                 // then we should expect it plus one extra for when it's gone
                 if (expected.contains(hosts.get(LEAVING_NODE)))
-                    expected.add(expectedEndpoints.get(key).get(replicationFactor));
+                    expected.add(expectedEndpoints.get(token).get(replicationFactor));
 
                 assertEquals("mismatched endpoint sets", expected, actual);
             }
         }
 
         ss.setPartitionerUnsafe(oldPartitioner);
-        ss.setReplicationStrategyUnsafe(oldStrategies);
     }
 
     /**
@@ -127,17 +126,15 @@ public class MoveTest extends CleanupHelper
      * simultaneously
      */
     @Test
-    public void testSimultaneousMove() throws UnknownHostException
+    public void testSimultaneousMove() throws UnknownHostException, ConfigurationException
     {
         StorageService ss = StorageService.instance;
         final int RING_SIZE = 10;
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
-        AbstractReplicationStrategy testStrategy = new RackUnawareStrategy(tmd, new SimpleSnitch());
 
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
-        Map<String, AbstractReplicationStrategy> oldStrategy = ss.setReplicationStrategyUnsafe(createReplacements(testStrategy));
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
@@ -150,7 +147,7 @@ public class MoveTest extends CleanupHelper
         final int[] LEAVING = new int[] {6, 8, 9};
         for (int leaving : LEAVING)
             ss.onChange(hosts.get(leaving), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(leaving))));
-        
+
         // boot two new nodes with keyTokens.get(5) and keyTokens.get(7)
         InetAddress boot1 = InetAddress.getByName("127.0.1.1");
         ss.onChange(boot1, StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_BOOTSTRAPPING + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(5))));
@@ -160,7 +157,11 @@ public class MoveTest extends CleanupHelper
         Collection<InetAddress> endpoints = null;
 
         /* don't require test update every time a new keyspace is added to test/conf/cassandra.yaml */
-        List<String> tables = Arrays.asList("Keyspace1", "Keyspace2", "Keyspace3", "Keyspace4");
+        Map<String, AbstractReplicationStrategy> tableStrategyMap = new HashMap<String, AbstractReplicationStrategy>();
+        for (int i=1; i<=4; i++)
+        {
+            tableStrategyMap.put("Keyspace" + i, getStrategy("Keyspace" + i, tmd));
+        }
 
         // pre-calculate the results.
         Map<String, Multimap<Token, InetAddress>> expectedEndpoints = new HashMap<String, Multimap<Token, InetAddress>>();
@@ -209,11 +210,14 @@ public class MoveTest extends CleanupHelper
         expectedEndpoints.get("Keyspace4").putAll(new BigIntegerToken("85"), makeAddrs("127.0.0.10", "127.0.0.1", "127.0.0.2", "127.0.0.3"));
         expectedEndpoints.get("Keyspace4").putAll(new BigIntegerToken("95"), makeAddrs("127.0.0.1", "127.0.0.2", "127.0.0.3"));
 
-        for (String table : tables)
+        for (Map.Entry<String, AbstractReplicationStrategy> tableStrategy : tableStrategyMap.entrySet())
         {
+            String table = tableStrategy.getKey();
+            AbstractReplicationStrategy strategy = tableStrategy.getValue();
+
             for (int i = 0; i < keyTokens.size(); i++)
             {
-                endpoints = tmd.getWriteEndpoints(keyTokens.get(i), table, testStrategy.getNaturalEndpoints(keyTokens.get(i), table));
+                endpoints = tmd.getWriteEndpoints(keyTokens.get(i), table, strategy.getNaturalEndpoints(keyTokens.get(i)));
                 assertTrue(expectedEndpoints.get(table).get(keyTokens.get(i)).size() == endpoints.size());
                 assertTrue(expectedEndpoints.get(table).get(keyTokens.get(i)).containsAll(endpoints));
             }
@@ -224,7 +228,7 @@ public class MoveTest extends CleanupHelper
             // tokens 5, 15 and 25 should go three nodes
             for (int i=0; i<3; ++i)
             {
-                endpoints = tmd.getWriteEndpoints(keyTokens.get(i), table, testStrategy.getNaturalEndpoints(keyTokens.get(i), table));
+                endpoints = tmd.getWriteEndpoints(keyTokens.get(i), table, strategy.getNaturalEndpoints(keyTokens.get(i)));
                 assertTrue(endpoints.size() == 3);
                 assertTrue(endpoints.contains(hosts.get(i+1)));
                 assertTrue(endpoints.contains(hosts.get(i+2)));
@@ -232,7 +236,7 @@ public class MoveTest extends CleanupHelper
             }
 
             // token 35 should go to nodes 4, 5, 6, 7 and boot1
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(3), table, testStrategy.getNaturalEndpoints(keyTokens.get(3), table));
+            endpoints = tmd.getWriteEndpoints(keyTokens.get(3), table, strategy.getNaturalEndpoints(keyTokens.get(3)));
             assertTrue(endpoints.size() == 5);
             assertTrue(endpoints.contains(hosts.get(4)));
             assertTrue(endpoints.contains(hosts.get(5)));
@@ -241,7 +245,7 @@ public class MoveTest extends CleanupHelper
             assertTrue(endpoints.contains(boot1));
 
             // token 45 should go to nodes 5, 6, 7, 0, boot1 and boot2
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(4), table, testStrategy.getNaturalEndpoints(keyTokens.get(4), table));
+            endpoints = tmd.getWriteEndpoints(keyTokens.get(4), table, strategy.getNaturalEndpoints(keyTokens.get(4)));
             assertTrue(endpoints.size() == 6);
             assertTrue(endpoints.contains(hosts.get(5)));
             assertTrue(endpoints.contains(hosts.get(6)));
@@ -251,7 +255,7 @@ public class MoveTest extends CleanupHelper
             assertTrue(endpoints.contains(boot2));
 
             // token 55 should go to nodes 6, 7, 8, 0, 1, boot1 and boot2
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(5), table, testStrategy.getNaturalEndpoints(keyTokens.get(5), table));
+            endpoints = tmd.getWriteEndpoints(keyTokens.get(5), table, strategy.getNaturalEndpoints(keyTokens.get(5)));
             assertTrue(endpoints.size() == 7);
             assertTrue(endpoints.contains(hosts.get(6)));
             assertTrue(endpoints.contains(hosts.get(7)));
@@ -262,7 +266,7 @@ public class MoveTest extends CleanupHelper
             assertTrue(endpoints.contains(boot2));
 
             // token 65 should go to nodes 7, 8, 9, 0, 1 and boot2
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(6), table, testStrategy.getNaturalEndpoints(keyTokens.get(6), table));
+            endpoints = tmd.getWriteEndpoints(keyTokens.get(6), table, strategy.getNaturalEndpoints(keyTokens.get(6)));
             assertTrue(endpoints.size() == 6);
             assertTrue(endpoints.contains(hosts.get(7)));
             assertTrue(endpoints.contains(hosts.get(8)));
@@ -272,7 +276,7 @@ public class MoveTest extends CleanupHelper
             assertTrue(endpoints.contains(boot2));
 
             // token 75 should to go nodes 8, 9, 0, 1, 2 and boot2
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(7), table, testStrategy.getNaturalEndpoints(keyTokens.get(7), table));
+            endpoints = tmd.getWriteEndpoints(keyTokens.get(7), table, strategy.getNaturalEndpoints(keyTokens.get(7)));
             assertTrue(endpoints.size() == 6);
             assertTrue(endpoints.contains(hosts.get(8)));
             assertTrue(endpoints.contains(hosts.get(9)));
@@ -282,7 +286,7 @@ public class MoveTest extends CleanupHelper
             assertTrue(endpoints.contains(boot2));
 
             // token 85 should go to nodes 9, 0, 1 and 2
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(8), table, testStrategy.getNaturalEndpoints(keyTokens.get(8), table));
+            endpoints = tmd.getWriteEndpoints(keyTokens.get(8), table, strategy.getNaturalEndpoints(keyTokens.get(8)));
             assertTrue(endpoints.size() == 4);
             assertTrue(endpoints.contains(hosts.get(9)));
             assertTrue(endpoints.contains(hosts.get(0)));
@@ -290,7 +294,7 @@ public class MoveTest extends CleanupHelper
             assertTrue(endpoints.contains(hosts.get(2)));
 
             // token 95 should go to nodes 0, 1 and 2
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(9), table, testStrategy.getNaturalEndpoints(keyTokens.get(9), table));
+            endpoints = tmd.getWriteEndpoints(keyTokens.get(9), table, strategy.getNaturalEndpoints(keyTokens.get(9)));
             assertTrue(endpoints.size() == 3);
             assertTrue(endpoints.contains(hosts.get(0)));
             assertTrue(endpoints.contains(hosts.get(1)));
@@ -324,11 +328,14 @@ public class MoveTest extends CleanupHelper
         expectedEndpoints.get("Keyspace4").get(new BigIntegerToken("75")).removeAll(makeAddrs("127.0.0.10"));
         expectedEndpoints.get("Keyspace4").get(new BigIntegerToken("85")).removeAll(makeAddrs("127.0.0.10"));
 
-        for (String table : tables)
+        for (Map.Entry<String, AbstractReplicationStrategy> tableStrategy : tableStrategyMap.entrySet())
         {
+            String table = tableStrategy.getKey();
+            AbstractReplicationStrategy strategy = tableStrategy.getValue();
+
             for (int i = 0; i < keyTokens.size(); i++)
             {
-                endpoints = tmd.getWriteEndpoints(keyTokens.get(i), table, testStrategy.getNaturalEndpoints(keyTokens.get(i), table));
+                endpoints = tmd.getWriteEndpoints(keyTokens.get(i), table, strategy.getNaturalEndpoints(keyTokens.get(i)));
                 assertTrue(expectedEndpoints.get(table).get(keyTokens.get(i)).size() == endpoints.size());
                 assertTrue(expectedEndpoints.get(table).get(keyTokens.get(i)).containsAll(endpoints));
             }
@@ -339,7 +346,7 @@ public class MoveTest extends CleanupHelper
             // tokens 5, 15 and 25 should go three nodes
             for (int i=0; i<3; ++i)
             {
-                endpoints = tmd.getWriteEndpoints(keyTokens.get(i), table, testStrategy.getNaturalEndpoints(keyTokens.get(i), table));
+                endpoints = tmd.getWriteEndpoints(keyTokens.get(i), table, strategy.getNaturalEndpoints(keyTokens.get(i)));
                 assertTrue(endpoints.size() == 3);
                 assertTrue(endpoints.contains(hosts.get(i+1)));
                 assertTrue(endpoints.contains(hosts.get(i+2)));
@@ -347,21 +354,21 @@ public class MoveTest extends CleanupHelper
             }
 
             // token 35 goes to nodes 4, 5 and boot1
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(3), table, testStrategy.getNaturalEndpoints(keyTokens.get(3), table));
+            endpoints = tmd.getWriteEndpoints(keyTokens.get(3), table, strategy.getNaturalEndpoints(keyTokens.get(3)));
             assertTrue(endpoints.size() == 3);
             assertTrue(endpoints.contains(hosts.get(4)));
             assertTrue(endpoints.contains(hosts.get(5)));
             assertTrue(endpoints.contains(boot1));
 
             // token 45 goes to nodes 5, boot1 and node7
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(4), table, testStrategy.getNaturalEndpoints(keyTokens.get(4), table));
+            endpoints = tmd.getWriteEndpoints(keyTokens.get(4), table, strategy.getNaturalEndpoints(keyTokens.get(4)));
             assertTrue(endpoints.size() == 3);
             assertTrue(endpoints.contains(hosts.get(5)));
             assertTrue(endpoints.contains(boot1));
             assertTrue(endpoints.contains(hosts.get(7)));
 
             // token 55 goes to boot1, 7, boot2, 8 and 0
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(5), table, testStrategy.getNaturalEndpoints(keyTokens.get(5), table));
+            endpoints = tmd.getWriteEndpoints(keyTokens.get(5), table, strategy.getNaturalEndpoints(keyTokens.get(5)));
             assertTrue(endpoints.size() == 5);
             assertTrue(endpoints.contains(boot1));
             assertTrue(endpoints.contains(hosts.get(7)));
@@ -370,7 +377,7 @@ public class MoveTest extends CleanupHelper
             assertTrue(endpoints.contains(hosts.get(0)));
 
             // token 65 goes to nodes 7, boot2, 8, 0 and 1
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(6), table, testStrategy.getNaturalEndpoints(keyTokens.get(6), table));
+            endpoints = tmd.getWriteEndpoints(keyTokens.get(6), table, strategy.getNaturalEndpoints(keyTokens.get(6)));
             assertTrue(endpoints.size() == 5);
             assertTrue(endpoints.contains(hosts.get(7)));
             assertTrue(endpoints.contains(boot2));
@@ -379,7 +386,7 @@ public class MoveTest extends CleanupHelper
             assertTrue(endpoints.contains(hosts.get(1)));
 
             // token 75 goes to nodes boot2, 8, 0, 1 and 2
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(7), table, testStrategy.getNaturalEndpoints(keyTokens.get(7), table));
+            endpoints = tmd.getWriteEndpoints(keyTokens.get(7), table, strategy.getNaturalEndpoints(keyTokens.get(7)));
             assertTrue(endpoints.size() == 5);
             assertTrue(endpoints.contains(boot2));
             assertTrue(endpoints.contains(hosts.get(8)));
@@ -388,14 +395,14 @@ public class MoveTest extends CleanupHelper
             assertTrue(endpoints.contains(hosts.get(2)));
 
             // token 85 goes to nodes 0, 1 and 2
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(8), table, testStrategy.getNaturalEndpoints(keyTokens.get(8), table));
+            endpoints = tmd.getWriteEndpoints(keyTokens.get(8), table, strategy.getNaturalEndpoints(keyTokens.get(8)));
             assertTrue(endpoints.size() == 3);
             assertTrue(endpoints.contains(hosts.get(0)));
             assertTrue(endpoints.contains(hosts.get(1)));
             assertTrue(endpoints.contains(hosts.get(2)));
 
             // token 95 goes to nodes 0, 1 and 2
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(9), table, testStrategy.getNaturalEndpoints(keyTokens.get(9), table));
+            endpoints = tmd.getWriteEndpoints(keyTokens.get(9), table, strategy.getNaturalEndpoints(keyTokens.get(9)));
             assertTrue(endpoints.size() == 3);
             assertTrue(endpoints.contains(hosts.get(0)));
             assertTrue(endpoints.contains(hosts.get(1)));
@@ -403,7 +410,6 @@ public class MoveTest extends CleanupHelper
         }
 
         ss.setPartitionerUnsafe(oldPartitioner);
-        ss.setReplicationStrategyUnsafe(oldStrategy);
     }
 
     @Test
@@ -413,10 +419,8 @@ public class MoveTest extends CleanupHelper
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
-        AbstractReplicationStrategy testStrategy = new RackUnawareStrategy(tmd, new SimpleSnitch());
 
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
-        Map<String, AbstractReplicationStrategy> oldStrategy = ss.setReplicationStrategyUnsafe(createReplacements(testStrategy));
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
@@ -472,7 +476,6 @@ public class MoveTest extends CleanupHelper
         assertTrue(tmd.getBootstrapTokens().isEmpty());
 
         ss.setPartitionerUnsafe(oldPartitioner);
-        ss.setReplicationStrategyUnsafe(oldStrategy);
     }
 
     @Test
@@ -482,10 +485,8 @@ public class MoveTest extends CleanupHelper
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
-        AbstractReplicationStrategy testStrategy = new RackUnawareStrategy(tmd, new SimpleSnitch());
 
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
-        Map<String, AbstractReplicationStrategy> oldStrategy = ss.setReplicationStrategyUnsafe(createReplacements(testStrategy));
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
@@ -516,7 +517,6 @@ public class MoveTest extends CleanupHelper
         assertTrue(tmd.getToken(hosts.get(2)).equals(keyTokens.get(4)));
 
         ss.setPartitionerUnsafe(oldPartitioner);
-        ss.setReplicationStrategyUnsafe(oldStrategy);
     }
 
     @Test
@@ -526,10 +526,8 @@ public class MoveTest extends CleanupHelper
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
-        AbstractReplicationStrategy testStrategy = new RackUnawareStrategy(tmd, new SimpleSnitch());
 
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
-        Map<String, AbstractReplicationStrategy> oldStrategy = ss.setReplicationStrategyUnsafe(createReplacements(testStrategy));
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
@@ -566,7 +564,6 @@ public class MoveTest extends CleanupHelper
         assertFalse(tmd.isLeaving(hosts.get(2)));
 
         ss.setPartitionerUnsafe(oldPartitioner);
-        ss.setReplicationStrategyUnsafe(oldStrategy);
     }
 
     @Test
@@ -576,10 +573,8 @@ public class MoveTest extends CleanupHelper
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
-        AbstractReplicationStrategy testStrategy = new RackUnawareStrategy(tmd, new SimpleSnitch());
 
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
-        Map<String, AbstractReplicationStrategy> oldStrategy = ss.setReplicationStrategyUnsafe(createReplacements(testStrategy));
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
@@ -608,7 +603,6 @@ public class MoveTest extends CleanupHelper
         assertFalse(tmd.isLeaving(hosts.get(2)));
 
         ss.setPartitionerUnsafe(oldPartitioner);
-        ss.setReplicationStrategyUnsafe(oldStrategy);
     }
 
     /**
@@ -643,4 +637,15 @@ public class MoveTest extends CleanupHelper
             addrs.add(InetAddress.getByName(host));
         return addrs;
     }
+
+    private AbstractReplicationStrategy getStrategy(String table, TokenMetadata tmd) throws ConfigurationException
+    {
+        return AbstractReplicationStrategy.createReplicationStrategy(
+                table,
+                "org.apache.cassandra.locator.RackUnawareStrategy",
+                tmd,
+                new SimpleSnitch(),
+                null);
+    }
+
 }
