@@ -185,7 +185,7 @@ request_scheduler_id: keyspace
 # - name: name of the keyspace; "system" and "definitions" are 
 #   reserved for Cassandra Internals.
 # - replica_placement_strategy: the class that determines how replicas
-#   are distributed among nodes.  Must implement IReplicaPlacementStrategy.
+#   are distributed among nodes.  Must extend AbstractReplicationStrategy.
 #   Out of the box, Cassandra provides 
 #     * org.apache.cassandra.locator.RackUnawareStrategy 
 #     * org.apache.cassandra.locator.RackAwareStrategy
