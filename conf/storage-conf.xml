@@ -123,8 +123,8 @@
                     Comment="A column family with supercolumns, whose column and subcolumn names are UTF8 strings"/>
 
       <!--
-       ~ Strategy: Setting this to the class that implements
-       ~ IReplicaPlacementStrategy will change the way the node picker works.
+       ~ Strategy: The class that extends AbstractReplicationStrategy 
+       ~ determines how replicas are placed around the token ring.
        ~ Out of the box, Cassandra provides
        ~ org.apache.cassandra.locator.RackUnawareStrategy and
        ~ org.apache.cassandra.locator.RackAwareStrategy (place one replica in
