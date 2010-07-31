@@ -51,11 +51,13 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
 
   private static final TField NAME_FIELD_DESC = new TField("name", TType.STRING, (short)1);
   private static final TField STRATEGY_CLASS_FIELD_DESC = new TField("strategy_class", TType.STRING, (short)2);
-  private static final TField REPLICATION_FACTOR_FIELD_DESC = new TField("replication_factor", TType.I32, (short)3);
+  private static final TField STRATEGY_OPTIONS_FIELD_DESC = new TField("strategy_options", TType.MAP, (short)3);
+  private static final TField REPLICATION_FACTOR_FIELD_DESC = new TField("replication_factor", TType.I32, (short)4);
   private static final TField CF_DEFS_FIELD_DESC = new TField("cf_defs", TType.LIST, (short)5);
 
   public String name;
   public String strategy_class;
+  public Map<String,String> strategy_options;
   public int replication_factor;
   public List<CfDef> cf_defs;
 
@@ -63,7 +65,8 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
   public enum _Fields implements TFieldIdEnum {
     NAME((short)1, "name"),
     STRATEGY_CLASS((short)2, "strategy_class"),
-    REPLICATION_FACTOR((short)3, "replication_factor"),
+    STRATEGY_OPTIONS((short)3, "strategy_options"),
+    REPLICATION_FACTOR((short)4, "replication_factor"),
     CF_DEFS((short)5, "cf_defs");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
@@ -83,7 +86,9 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
           return NAME;
         case 2: // STRATEGY_CLASS
           return STRATEGY_CLASS;
-        case 3: // REPLICATION_FACTOR
+        case 3: // STRATEGY_OPTIONS
+          return STRATEGY_OPTIONS;
+        case 4: // REPLICATION_FACTOR
           return REPLICATION_FACTOR;
         case 5: // CF_DEFS
           return CF_DEFS;
@@ -137,6 +142,10 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
         new FieldValueMetaData(TType.STRING)));
     tmpMap.put(_Fields.STRATEGY_CLASS, new FieldMetaData("strategy_class", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.STRING)));
+    tmpMap.put(_Fields.STRATEGY_OPTIONS, new FieldMetaData("strategy_options", TFieldRequirementType.OPTIONAL, 
+        new MapMetaData(TType.MAP, 
+            new FieldValueMetaData(TType.STRING), 
+            new FieldValueMetaData(TType.STRING))));
     tmpMap.put(_Fields.REPLICATION_FACTOR, new FieldMetaData("replication_factor", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.I32)));
     tmpMap.put(_Fields.CF_DEFS, new FieldMetaData("cf_defs", TFieldRequirementType.REQUIRED, 
@@ -174,6 +183,21 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
     }
     if (other.isSetStrategy_class()) {
       this.strategy_class = other.strategy_class;
+    }
+    if (other.isSetStrategy_options()) {
+      Map<String,String> __this__strategy_options = new HashMap<String,String>();
+      for (Map.Entry<String, String> other_element : other.strategy_options.entrySet()) {
+
+        String other_element_key = other_element.getKey();
+        String other_element_value = other_element.getValue();
+
+        String __this__strategy_options_copy_key = other_element_key;
+
+        String __this__strategy_options_copy_value = other_element_value;
+
+        __this__strategy_options.put(__this__strategy_options_copy_key, __this__strategy_options_copy_value);
+      }
+      this.strategy_options = __this__strategy_options;
     }
     this.replication_factor = other.replication_factor;
     if (other.isSetCf_defs()) {
@@ -239,6 +263,41 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
   public void setStrategy_classIsSet(boolean value) {
     if (!value) {
       this.strategy_class = null;
+    }
+  }
+
+  public int getStrategy_optionsSize() {
+    return (this.strategy_options == null) ? 0 : this.strategy_options.size();
+  }
+
+  public void putToStrategy_options(String key, String val) {
+    if (this.strategy_options == null) {
+      this.strategy_options = new HashMap<String,String>();
+    }
+    this.strategy_options.put(key, val);
+  }
+
+  public Map<String,String> getStrategy_options() {
+    return this.strategy_options;
+  }
+
+  public KsDef setStrategy_options(Map<String,String> strategy_options) {
+    this.strategy_options = strategy_options;
+    return this;
+  }
+
+  public void unsetStrategy_options() {
+    this.strategy_options = null;
+  }
+
+  /** Returns true if field strategy_options is set (has been asigned a value) and false otherwise */
+  public boolean isSetStrategy_options() {
+    return this.strategy_options != null;
+  }
+
+  public void setStrategy_optionsIsSet(boolean value) {
+    if (!value) {
+      this.strategy_options = null;
     }
   }
 
@@ -322,6 +381,14 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
       }
       break;
 
+    case STRATEGY_OPTIONS:
+      if (value == null) {
+        unsetStrategy_options();
+      } else {
+        setStrategy_options((Map<String,String>)value);
+      }
+      break;
+
     case REPLICATION_FACTOR:
       if (value == null) {
         unsetReplication_factor();
@@ -353,6 +420,9 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
     case STRATEGY_CLASS:
       return getStrategy_class();
 
+    case STRATEGY_OPTIONS:
+      return getStrategy_options();
+
     case REPLICATION_FACTOR:
       return new Integer(getReplication_factor());
 
@@ -374,6 +444,8 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
       return isSetName();
     case STRATEGY_CLASS:
       return isSetStrategy_class();
+    case STRATEGY_OPTIONS:
+      return isSetStrategy_options();
     case REPLICATION_FACTOR:
       return isSetReplication_factor();
     case CF_DEFS:
@@ -414,6 +486,15 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
       if (!(this_present_strategy_class && that_present_strategy_class))
         return false;
       if (!this.strategy_class.equals(that.strategy_class))
+        return false;
+    }
+
+    boolean this_present_strategy_options = true && this.isSetStrategy_options();
+    boolean that_present_strategy_options = true && that.isSetStrategy_options();
+    if (this_present_strategy_options || that_present_strategy_options) {
+      if (!(this_present_strategy_options && that_present_strategy_options))
+        return false;
+      if (!this.strategy_options.equals(that.strategy_options))
         return false;
     }
 
@@ -469,6 +550,15 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetStrategy_options()).compareTo(typedOther.isSetStrategy_options());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetStrategy_options()) {      lastComparison = TBaseHelper.compareTo(this.strategy_options, typedOther.strategy_options);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     lastComparison = Boolean.valueOf(isSetReplication_factor()).compareTo(typedOther.isSetReplication_factor());
     if (lastComparison != 0) {
       return lastComparison;
@@ -514,7 +604,26 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 3: // REPLICATION_FACTOR
+        case 3: // STRATEGY_OPTIONS
+          if (field.type == TType.MAP) {
+            {
+              TMap _map33 = iprot.readMapBegin();
+              this.strategy_options = new HashMap<String,String>(2*_map33.size);
+              for (int _i34 = 0; _i34 < _map33.size; ++_i34)
+              {
+                String _key35;
+                String _val36;
+                _key35 = iprot.readString();
+                _val36 = iprot.readString();
+                this.strategy_options.put(_key35, _val36);
+              }
+              iprot.readMapEnd();
+            }
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 4: // REPLICATION_FACTOR
           if (field.type == TType.I32) {
             this.replication_factor = iprot.readI32();
             setReplication_factorIsSet(true);
@@ -525,14 +634,14 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
         case 5: // CF_DEFS
           if (field.type == TType.LIST) {
             {
-              TList _list33 = iprot.readListBegin();
-              this.cf_defs = new ArrayList<CfDef>(_list33.size);
-              for (int _i34 = 0; _i34 < _list33.size; ++_i34)
+              TList _list37 = iprot.readListBegin();
+              this.cf_defs = new ArrayList<CfDef>(_list37.size);
+              for (int _i38 = 0; _i38 < _list37.size; ++_i38)
               {
-                CfDef _elem35;
-                _elem35 = new CfDef();
-                _elem35.read(iprot);
-                this.cf_defs.add(_elem35);
+                CfDef _elem39;
+                _elem39 = new CfDef();
+                _elem39.read(iprot);
+                this.cf_defs.add(_elem39);
               }
               iprot.readListEnd();
             }
@@ -568,6 +677,21 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
       oprot.writeString(this.strategy_class);
       oprot.writeFieldEnd();
     }
+    if (this.strategy_options != null) {
+      if (isSetStrategy_options()) {
+        oprot.writeFieldBegin(STRATEGY_OPTIONS_FIELD_DESC);
+        {
+          oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, this.strategy_options.size()));
+          for (Map.Entry<String, String> _iter40 : this.strategy_options.entrySet())
+          {
+            oprot.writeString(_iter40.getKey());
+            oprot.writeString(_iter40.getValue());
+          }
+          oprot.writeMapEnd();
+        }
+        oprot.writeFieldEnd();
+      }
+    }
     oprot.writeFieldBegin(REPLICATION_FACTOR_FIELD_DESC);
     oprot.writeI32(this.replication_factor);
     oprot.writeFieldEnd();
@@ -575,9 +699,9 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
       oprot.writeFieldBegin(CF_DEFS_FIELD_DESC);
       {
         oprot.writeListBegin(new TList(TType.STRUCT, this.cf_defs.size()));
-        for (CfDef _iter36 : this.cf_defs)
+        for (CfDef _iter41 : this.cf_defs)
         {
-          _iter36.write(oprot);
+          _iter41.write(oprot);
         }
         oprot.writeListEnd();
       }
@@ -607,6 +731,16 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
       sb.append(this.strategy_class);
     }
     first = false;
+    if (isSetStrategy_options()) {
+      if (!first) sb.append(", ");
+      sb.append("strategy_options:");
+      if (this.strategy_options == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.strategy_options);
+      }
+      first = false;
+    }
     if (!first) sb.append(", ");
     sb.append("replication_factor:");
     sb.append(this.replication_factor);
