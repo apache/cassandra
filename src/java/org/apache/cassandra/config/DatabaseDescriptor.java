@@ -27,6 +27,7 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.*;
 
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1129,5 +1130,10 @@ public class DatabaseDescriptor
     public static AbstractType getValueValidator(String keyspace, String cf, byte[] column)
     {
         return getCFMetaData(keyspace, cf).getValueValidator(column);
+    }
+
+    public static CFMetaData getCFMetaData(Descriptor desc)
+    {
+        return getCFMetaData(desc.ksname, desc.cfname);
     }
 }

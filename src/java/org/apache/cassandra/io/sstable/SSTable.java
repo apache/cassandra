@@ -29,6 +29,7 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.db.StatisticsTable;
@@ -50,7 +51,6 @@ public abstract class SSTable
 {
     static final Logger logger = LoggerFactory.getLogger(SSTable.class);
 
-    public static final int FILES_ON_DISK = 3; // data, index, and bloom filter
     public static final String COMPONENT_DATA = "Data.db";
     public static final String COMPONENT_INDEX = "Index.db";
     public static final String COMPONENT_FILTER = "Filter.db";
@@ -58,6 +58,7 @@ public abstract class SSTable
     public static final String COMPONENT_COMPACTED = "Compacted";
 
     protected Descriptor desc;
+    protected final CFMetaData metadata;
     protected IPartitioner partitioner;
 
     public static final String TEMPFILE_MARKER = "tmp";
@@ -66,16 +67,15 @@ public abstract class SSTable
     protected EstimatedHistogram estimatedRowSize = new EstimatedHistogram(130);
     protected EstimatedHistogram estimatedColumnCount = new EstimatedHistogram(112);
 
-    protected SSTable(String filename, IPartitioner partitioner)
+    protected SSTable(String filename, CFMetaData metadata, IPartitioner partitioner)
     {
-        assert filename.endsWith("-" + COMPONENT_DATA);
-        this.desc = Descriptor.fromFilename(filename);
-        this.partitioner = partitioner;
+        this(Descriptor.fromFilename(filename), metadata, partitioner);
     }
 
-    protected SSTable(Descriptor desc, IPartitioner partitioner)
+    protected SSTable(Descriptor desc, CFMetaData metadata, IPartitioner partitioner)
     {
         this.desc = desc;
+        this.metadata = metadata;
         this.partitioner = partitioner;
     }
 

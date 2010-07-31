@@ -159,7 +159,7 @@ public class SSTableImport
         {
             JSONObject json = (JSONObject)JSONValue.parseWithException(new FileReader(jsonFile));
             
-            SSTableWriter writer = new SSTableWriter(ssTablePath, json.size(), partitioner);
+            SSTableWriter writer = new SSTableWriter(ssTablePath, json.size());
             SortedMap<DecoratedKey,String> decoratedKeys = new TreeMap<DecoratedKey,String>();
             
             // sort by dk representation, but hold onto the hex version

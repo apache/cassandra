@@ -85,7 +85,7 @@ public class SSTableUtils
     public static SSTableReader writeRawSSTable(String tablename, String cfname, Map<byte[], byte[]> entries) throws IOException
     {
         File datafile = tempSSTableFile(tablename, cfname);
-        SSTableWriter writer = new SSTableWriter(datafile.getAbsolutePath(), entries.size(), StorageService.getPartitioner());
+        SSTableWriter writer = new SSTableWriter(datafile.getAbsolutePath(), entries.size());
         SortedMap<DecoratedKey, byte[]> sortedEntries = new TreeMap<DecoratedKey, byte[]>();
         for (Map.Entry<byte[], byte[]> entry : entries.entrySet())
             sortedEntries.put(writer.partitioner.decorateKey(entry.getKey()), entry.getValue());

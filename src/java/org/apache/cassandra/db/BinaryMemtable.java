@@ -122,7 +122,7 @@ public class BinaryMemtable implements IFlushable
     {
         logger.info("Writing " + this);
         String path = cfs.getFlushPath();
-        SSTableWriter writer = new SSTableWriter(path, sortedKeys.size(), StorageService.getPartitioner());
+        SSTableWriter writer = new SSTableWriter(path, sortedKeys.size(), cfs.metadata, cfs.partitioner_);
 
         for (DecoratedKey key : sortedKeys)
         {

@@ -413,6 +413,26 @@ public class Table
             entry.getKey().maybeSwitchMemtable(entry.getValue(), writeCommitLog);
     }
 
+    public void applyIndexedCF(ColumnFamilyStore indexedCfs, DecoratedKey rowKey, DecoratedKey indexedKey, ColumnFamily indexedColumnFamily) 
+    {
+        Memtable memtableToFlush;
+        flusherLock.readLock().lock();
+        try
+        {
+            synchronized (indexLocks[Arrays.hashCode(rowKey.key) % indexLocks.length])
+            {
+                memtableToFlush = indexedCfs.apply(indexedKey, indexedColumnFamily);
+            }
+        }
+        finally 
+        {
+            flusherLock.readLock().unlock();
+        }
+
+        if (memtableToFlush != null)
+            indexedCfs.maybeSwitchMemtable(memtableToFlush, false);
+    }
+    
     private static void applyCF(ColumnFamilyStore cfs, DecoratedKey key, ColumnFamily columnFamily, HashMap<ColumnFamilyStore, Memtable> memtablesToFlush)
     {
         Memtable memtableToFlush = cfs.apply(key, columnFamily);

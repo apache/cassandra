@@ -20,15 +20,16 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.*;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
+import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.StatisticsTable;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.AbstractCompactedRow;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
@@ -47,9 +48,14 @@ public class SSTableWriter extends SSTable
     private final BufferedRandomAccessFile dataFile;
     private DecoratedKey lastWrittenKey;
 
-    public SSTableWriter(String filename, long keyCount, IPartitioner partitioner) throws IOException
+    public SSTableWriter(String filename, long keyCount) throws IOException
     {
-        super(filename, partitioner);
+        this(filename, keyCount, DatabaseDescriptor.getCFMetaData(Descriptor.fromFilename(filename)), StorageService.getPartitioner());
+    }
+
+    public SSTableWriter(String filename, long keyCount, CFMetaData metadata, IPartitioner partitioner) throws IOException
+    {
+        super(filename, metadata, partitioner);
         iwriter = new IndexWriter(desc, partitioner, keyCount);
         dbuilder = SegmentedFile.getBuilder();
         dataFile = new BufferedRandomAccessFile(getFilename(), "rw", DatabaseDescriptor.getInMemoryCompactionLimit());
@@ -149,7 +155,7 @@ public class SSTableWriter extends SSTable
         // finalize in-memory state for the reader
         SegmentedFile ifile = iwriter.builder.complete(newdesc.filenameFor(SSTable.COMPONENT_INDEX));
         SegmentedFile dfile = dbuilder.complete(newdesc.filenameFor(SSTable.COMPONENT_DATA));
-        SSTableReader sstable = SSTableReader.internalOpen(newdesc, partitioner, ifile, dfile, iwriter.summary, iwriter.bf, maxDataAge, estimatedRowSize, estimatedColumnCount);
+        SSTableReader sstable = SSTableReader.internalOpen(newdesc, metadata, partitioner, ifile, dfile, iwriter.summary, iwriter.bf, maxDataAge, estimatedRowSize, estimatedColumnCount);
         iwriter = null;
         dbuilder = null;
         return sstable;
@@ -202,12 +208,15 @@ public class SSTableWriter extends SSTable
      */
     private static void maybeRecover(Descriptor desc) throws IOException
     {
+        logger.debug("In maybeRecover with Descriptor {}", desc);
         File ifile = new File(desc.filenameFor(SSTable.COMPONENT_INDEX));
         File ffile = new File(desc.filenameFor(SSTable.COMPONENT_FILTER));
         if (ifile.exists() && ffile.exists())
             // nothing to do
             return;
 
+        ColumnFamilyStore cfs = Table.open(desc.ksname).getColumnFamilyStore(desc.cfname);
+        Set<byte[]> indexedColumns = cfs.getIndexedColumns();
         // remove existing files
         ifile.delete();
         ffile.delete();
@@ -217,8 +226,8 @@ public class SSTableWriter extends SSTable
         IndexWriter iwriter;
         long estimatedRows;
         try
-        {
-            estimatedRows = estimateRows(desc, dfile);
+        {            
+            estimatedRows = estimateRows(desc, dfile);            
             iwriter = new IndexWriter(desc, StorageService.getPartitioner(), estimatedRows);
         }
         catch(IOException e)
@@ -237,10 +246,53 @@ public class SSTableWriter extends SSTable
             {
                 key = SSTableReader.decodeKey(StorageService.getPartitioner(), desc, FBUtilities.readShortByteArray(dfile));
                 long dataSize = SSTableReader.readRowSize(dfile, desc);
+                if (!indexedColumns.isEmpty())
+                {
+                    // skip bloom filter and column index
+                    dfile.readFully(new byte[dfile.readInt()]);
+                    dfile.readFully(new byte[dfile.readInt()]);
+
+                    // index the column data
+                    ColumnFamily cf = ColumnFamily.create(desc.ksname, desc.cfname);
+                    ColumnFamily.serializer().deserializeFromSSTableNoColumns(cf, dfile);
+                    int columns = dfile.readInt();
+                    for (int i = 0; i < columns; i++)
+                    {
+                        IColumn iColumn = cf.getColumnSerializer().deserialize(dfile);
+                        if (indexedColumns.contains(iColumn.name()))
+                        {
+                            DecoratedKey valueKey = cfs.getIndexKeyFor(iColumn.name(), iColumn.value());
+                            ColumnFamily indexedCf = cfs.newIndexedColumnFamily(iColumn.name());
+                            indexedCf.addColumn(new Column(key.key, ArrayUtils.EMPTY_BYTE_ARRAY, iColumn.clock()));
+                            logger.debug("adding indexed column row mutation for key {}", valueKey);
+                            Table.open(desc.ksname).applyIndexedCF(cfs.getIndexedColumnFamilyStore(iColumn.name()),
+                                                                   key,
+                                                                   valueKey,
+                                                                   indexedCf);
+                        }
+                    }
+                }
+
                 iwriter.afterAppend(key, dataPosition);
                 dataPosition = dfile.getFilePointer() + dataSize;
                 dfile.seek(dataPosition);
                 rows++;
+            }
+
+            for (byte[] column : cfs.getIndexedColumns())
+            {
+                try
+                {
+                    cfs.getIndexedColumnFamilyStore(column).forceBlockingFlush();
+                }
+                catch (ExecutionException e)
+                {
+                    throw new RuntimeException(e);
+                }
+                catch (InterruptedException e)
+                {
+                    throw new AssertionError(e);
+                }
             }
         }
         finally

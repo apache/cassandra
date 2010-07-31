@@ -20,34 +20,33 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.*;
-import java.util.*;
-import java.lang.ref.ReferenceQueue;
 import java.lang.ref.Reference;
+import java.lang.ref.ReferenceQueue;
+import java.util.*;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
-import org.apache.cassandra.db.StatisticsTable;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.io.util.SegmentedFile;
-import org.apache.cassandra.utils.BloomFilter;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.EstimatedHistogram;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.InstrumentedCache;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.clock.AbstractReconciler;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.SegmentedFile;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.BloomFilter;
+import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * SSTableReaders are open()ed by Table.onStart; after that they are created by SSTableWriter.renameAndOpen.
@@ -158,23 +157,12 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         }
     }
 
-    public static SSTableReader open(String dataFileName) throws IOException
-    {
-        return open(Descriptor.fromFilename(dataFileName));
-    }
-
     public static SSTableReader open(Descriptor desc) throws IOException
     {
-        return open(desc, StorageService.getPartitioner());
+        return open(desc, DatabaseDescriptor.getCFMetaData(desc.ksname, desc.cfname), StorageService.getPartitioner());
     }
 
-    /** public, but only for tests */
-    public static SSTableReader open(String dataFileName, IPartitioner partitioner) throws IOException
-    {
-        return open(Descriptor.fromFilename(dataFileName), partitioner);
-    }
-
-    public static SSTableReader open(Descriptor descriptor, IPartitioner partitioner) throws IOException
+    public static SSTableReader open(Descriptor descriptor, CFMetaData metadata, IPartitioner partitioner) throws IOException
     {
         assert partitioner != null;
 
@@ -185,7 +173,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         // FIXME: version conditional readers here
         if (true)
         {
-            sstable = internalOpen(descriptor, partitioner);
+            sstable = internalOpen(descriptor, metadata, partitioner);
         }
 
         if (logger.isDebugEnabled())
@@ -195,9 +183,9 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     }
 
     /** Open a RowIndexedReader which needs its state loaded from disk. */
-    static SSTableReader internalOpen(Descriptor desc, IPartitioner partitioner) throws IOException
+    static SSTableReader internalOpen(Descriptor desc, CFMetaData metadata, IPartitioner partitioner) throws IOException
     {
-        SSTableReader sstable = new SSTableReader(desc, partitioner, null, null, null, null, System.currentTimeMillis());
+        SSTableReader sstable = new SSTableReader(desc, metadata, partitioner, null, null, null, null, System.currentTimeMillis());
 
         // versions before 'c' encoded keys as utf-16 before hashing to the filter
         if (desc.hasStringsInBloomFilter)
@@ -214,16 +202,17 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return sstable;
     }
 
-    SSTableReader(Descriptor desc,
-                  IPartitioner partitioner,
-                  SegmentedFile ifile,
-                  SegmentedFile dfile,
-                  IndexSummary indexSummary,
-                  BloomFilter bloomFilter,
-                  long maxDataAge)
+    private SSTableReader(Descriptor desc,
+                          CFMetaData metadata,
+                          IPartitioner partitioner,
+                          SegmentedFile ifile,
+                          SegmentedFile dfile,
+                          IndexSummary indexSummary,
+                          BloomFilter bloomFilter,
+                          long maxDataAge)
             throws IOException
     {
-        super(desc, partitioner);
+        super(desc, metadata, partitioner);
         this.maxDataAge = maxDataAge;
 
 
@@ -236,25 +225,26 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     /**
      * Open a RowIndexedReader which already has its state initialized (by SSTableWriter).
      */
-    static SSTableReader internalOpen(Descriptor desc, IPartitioner partitioner, SegmentedFile ifile, SegmentedFile dfile, IndexSummary isummary, BloomFilter bf, long maxDataAge, EstimatedHistogram rowsize,
+    static SSTableReader internalOpen(Descriptor desc, CFMetaData metadata, IPartitioner partitioner, SegmentedFile ifile, SegmentedFile dfile, IndexSummary isummary, BloomFilter bf, long maxDataAge, EstimatedHistogram rowsize,
                                       EstimatedHistogram columncount) throws IOException
     {
         assert desc != null && partitioner != null && ifile != null && dfile != null && isummary != null && bf != null;
-        return new SSTableReader(desc, partitioner, ifile, dfile, isummary, bf, maxDataAge, rowsize, columncount);
+        return new SSTableReader(desc, metadata, partitioner, ifile, dfile, isummary, bf, maxDataAge, rowsize, columncount);
     }
 
     SSTableReader(Descriptor desc,
-                     IPartitioner partitioner,
-                     SegmentedFile ifile,
-                     SegmentedFile dfile,
-                     IndexSummary indexSummary,
-                     BloomFilter bloomFilter,
-                     long maxDataAge,
-                     EstimatedHistogram rowsize,
-                     EstimatedHistogram columncount)
+                  CFMetaData metadata,
+                  IPartitioner partitioner,
+                  SegmentedFile ifile,
+                  SegmentedFile dfile,
+                  IndexSummary indexSummary,
+                  BloomFilter bloomFilter,
+                  long maxDataAge,
+                  EstimatedHistogram rowsize,
+                  EstimatedHistogram columncount)
     throws IOException
     {
-        super(desc, partitioner);
+        super(desc, metadata, partitioner);
         this.maxDataAge = maxDataAge;
 
 
@@ -563,22 +553,19 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     public AbstractType getColumnComparator()
     {
-        return DatabaseDescriptor.getComparator(getTableName(), getColumnFamilyName());
+        return metadata.comparator;
     }
 
     public ColumnFamily makeColumnFamily()
     {
-        return ColumnFamily.create(getTableName(), getColumnFamilyName());
+        return ColumnFamily.create(metadata);
     }
 
     public ICompactSerializer2<IColumn> getColumnSerializer()
     {
-        ColumnFamilyType cfType = DatabaseDescriptor.getColumnFamilyType(getTableName(), getColumnFamilyName());
-        ClockType clockType = DatabaseDescriptor.getClockType(getTableName(), getColumnFamilyName());
-        AbstractReconciler reconciler = DatabaseDescriptor.getReconciler(getTableName(), getColumnFamilyName());
-        return cfType == ColumnFamilyType.Standard
-               ? Column.serializer(clockType)
-               : SuperColumn.serializer(getColumnComparator(), clockType, reconciler);
+        return metadata.cfType == ColumnFamilyType.Standard
+               ? Column.serializer(metadata.clockType)
+               : SuperColumn.serializer(getColumnComparator(), metadata.clockType, metadata.reconciler);
     }
 
     /**

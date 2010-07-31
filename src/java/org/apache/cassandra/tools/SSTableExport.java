@@ -197,7 +197,7 @@ public class SSTableExport
     public static void export(String ssTableFile, PrintStream outs, String[] keys, String[] excludes)
     throws IOException
     {
-        SSTableReader reader = SSTableReader.open(ssTableFile);
+        SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(ssTableFile));
         SSTableScanner scanner = reader.getScanner(INPUT_FILE_BUFFER_SIZE);
         IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();    
         Set<String> excludeSet = new HashSet();
@@ -309,7 +309,7 @@ public class SSTableExport
      */
     public static void export(String ssTableFile, PrintStream outs, String[] excludes) throws IOException
     {
-        SSTableReader reader = SSTableReader.open(ssTableFile);
+        SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(ssTableFile));
         export(reader, outs, excludes);
     }
     

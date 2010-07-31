@@ -31,9 +31,10 @@ import org.apache.cassandra.db.TimestampClock;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
-import org.apache.cassandra.io.util.DataOutputBuffer;
+
 import static org.apache.cassandra.io.sstable.SSTableUtils.tempSSTableFile;
 import static org.apache.cassandra.utils.FBUtilities.bytesToHex;
 import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
@@ -59,8 +60,7 @@ public class SSTableExportTest extends SchemaLoader
     {
         File tempSS = tempSSTableFile("Keyspace1", "Standard1");
         ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Standard1");
-        IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();
-        SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2, partitioner);
+        SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
         
         // Add rowA
         cfamily.addColumn(new QueryPath("Standard1", null, "colA".getBytes()), "valA".getBytes(), new TimestampClock(1));
@@ -92,8 +92,7 @@ public class SSTableExportTest extends SchemaLoader
     public void testExportSimpleCf() throws IOException    {
         File tempSS = tempSSTableFile("Keyspace1", "Standard1");
         ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Standard1");
-        IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();
-        SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2, partitioner);
+        SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
         
         // Add rowA
         cfamily.addColumn(new QueryPath("Standard1", null, "colA".getBytes()), "valA".getBytes(), new TimestampClock(1));
@@ -135,8 +134,7 @@ public class SSTableExportTest extends SchemaLoader
     {
         File tempSS = tempSSTableFile("Keyspace1", "Super4");
         ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Super4");
-        IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();
-        SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2, partitioner);
+        SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
         
         // Add rowA
         cfamily.addColumn(new QueryPath("Super4", "superA".getBytes(), "colA".getBytes()), "valA".getBytes(), new TimestampClock(1));
@@ -176,8 +174,7 @@ public class SSTableExportTest extends SchemaLoader
     {
         File tempSS = tempSSTableFile("Keyspace1", "Standard1");
         ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Standard1");
-        IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();
-        SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2, partitioner);
+        SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
         
         // Add rowA
         cfamily.addColumn(new QueryPath("Standard1", null, "name".getBytes()), "val".getBytes(), new TimestampClock(1));
@@ -197,9 +194,9 @@ public class SSTableExportTest extends SchemaLoader
         
         // Import JSON to another SSTable file
         File tempSS2 = tempSSTableFile("Keyspace1", "Standard1");
-        SSTableImport.importJson(tempJson.getPath(), "Keyspace1", "Standard1", tempSS2.getPath());        
-        
-        reader = SSTableReader.open(tempSS2.getPath(), DatabaseDescriptor.getPartitioner());
+        SSTableImport.importJson(tempJson.getPath(), "Keyspace1", "Standard1", tempSS2.getPath());
+
+        reader = SSTableReader.open(Descriptor.fromFilename(tempSS2.getPath()));
         QueryFilter qf = QueryFilter.getNamesFilter(Util.dk("rowA"), new QueryPath("Standard1", null, null), "name".getBytes());
         ColumnFamily cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
         assertTrue(cf != null);

@@ -26,12 +26,10 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.Condition;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
@@ -62,7 +60,6 @@ import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LatencyTracker;
-import org.apache.cassandra.utils.SimpleCondition;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
@@ -112,7 +109,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public final String table_;
     public final String columnFamily_;
-    private final IPartitioner partitioner_;
+    public final IPartitioner partitioner_;
 
     private volatile int memtableSwitchCount = 0;
 
@@ -206,7 +203,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             SSTableReader sstable;
             try
             {
-                sstable = SSTableReader.open(filename, partitioner_);
+                sstable = SSTableReader.open(Descriptor.fromFilename(filename), metadata, partitioner_);
             }
             catch (IOException ex)
             {
