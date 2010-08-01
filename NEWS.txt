@@ -47,6 +47,9 @@ Configuraton
       has been added.
     - RowWarningThresholdInMB replaced with in_memory_compaction_limit_in_mb
     - GCGraceSeconds is now per-ColumnFamily instead of global
+    - Configuration of DatacenterShardStrategy is now a part of the keyspace
+      definition using the strategy_options attribute.
+      The datacenter.properties file is no longer used.
 
 JMX
 ---
