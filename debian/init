@@ -85,6 +85,7 @@ do_start()
     is_running && return 1
 
     $JSVC \
+        -user cassandra \
         -home $JAVA_HOME \
         -pidfile $PIDFILE \
         -errfile "&1" \
