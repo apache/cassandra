@@ -1,6 +1,8 @@
 0.6.5
  * page within a single row during hinted handoff (CASSANDRA-1327)
  * fix compilation on non-sun JKDs (CASSANDRA-1061)
+ * remove String.trim() call on row keys in batch mutations (CASSANDRA-1235)
+
 
 0.6.4
  * avoid queuing multiple hint deliveries for the same endpoint

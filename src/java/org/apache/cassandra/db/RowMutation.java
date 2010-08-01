@@ -224,7 +224,7 @@ public class RowMutation
 
     public static RowMutation getRowMutationFromMutations(String keyspace, String key, Map<String, List<Mutation>> cfmap)
     {
-        RowMutation rm = new RowMutation(keyspace, key.trim());
+        RowMutation rm = new RowMutation(keyspace, key);
         for (Map.Entry<String, List<Mutation>> entry : cfmap.entrySet())
         {
             String cfName = entry.getKey();
@@ -245,7 +245,7 @@ public class RowMutation
     
     public static RowMutation getRowMutation(String table, String key, Map<String, List<ColumnOrSuperColumn>> cfmap)
     {
-        RowMutation rm = new RowMutation(table, key.trim());
+        RowMutation rm = new RowMutation(table, key);
         for (Map.Entry<String, List<ColumnOrSuperColumn>> entry : cfmap.entrySet())
         {
             String cfName = entry.getKey();
