@@ -45,6 +45,8 @@ dev
  * page within a single row during hinted handoff (CASSANDRA-1327)
  * push DatacenterShardStrategy configuration into keyspace definition,
    eliminating datacenter.properties. (CASSANDRA-1066)
+ * optimize forward slices starting with '' and single-index-block name 
+   queries by skipping the column index (CASSANDRA-1338)
 
 
 0.6.5
