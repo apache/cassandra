@@ -118,7 +118,7 @@ public class SSTableSliceIterator implements IColumnIterator
 
     public void close() throws IOException
     {
-        if (closeFileWhenDone)
+        if (closeFileWhenDone && file != null)
             file.close();
     }
 

@@ -53,7 +53,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         this (ssTable, null, key, columnNames);
     }
 
-    public SSTableNamesIterator(SSTableReader ssTable, FileDataInput file, DecoratedKey key, SortedSet<byte[]> columnNames)
+    public SSTableNamesIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, SortedSet<byte[]> columnNames)
     {
         boolean closeFileWhenDone = file == null;
         
@@ -67,15 +67,15 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
             // open the sstable file, if we don't have one passed to use from range scan
             if (file == null)
             {
-                file = ssTable.getFileDataInput(decoratedKey, DatabaseDescriptor.getIndexedReadBufferSizeInKB() * 1024);
+                file = sstable.getFileDataInput(decoratedKey, DatabaseDescriptor.getIndexedReadBufferSizeInKB() * 1024);
                 if (file == null)
                     return;
-                DecoratedKey keyInDisk = SSTableReader.decodeKey(ssTable.getPartitioner(),
-                                                                 ssTable.getDescriptor(),
+                DecoratedKey keyInDisk = SSTableReader.decodeKey(sstable.getPartitioner(),
+                                                                 sstable.getDescriptor(),
                                                                  FBUtilities.readShortByteArray(file));
                 assert keyInDisk.equals(decoratedKey)
                        : String.format("%s != %s in %s", keyInDisk, decoratedKey, file.getPath());
-                SSTableReader.readRowSize(file, ssTable.getDescriptor());
+                SSTableReader.readRowSize(file, sstable.getDescriptor());
             }
 
             // read the requested columns into `cf`
@@ -85,7 +85,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
 
             // we can stop early if bloom filter says none of the columns actually exist -- but,
             // we can't stop before initializing the cf above, in case there's a relevant tombstone
-            cf = ColumnFamily.serializer().deserializeFromSSTableNoColumns(ssTable.makeColumnFamily(), file);
+            cf = ColumnFamily.serializer().deserializeFromSSTableNoColumns(sstable.makeColumnFamily(), file);
 
             List<byte[]> filteredColumnNames1 = new ArrayList<byte[]>(columnNames.size());
             for (byte[] name : columnNames)
@@ -99,39 +99,10 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
             if (filteredColumnNames.isEmpty())
                 return;
 
-            file.readInt(); // column count
-
-            /* get the various column ranges we have to read */
-            AbstractType comparator = ssTable.getColumnComparator();
-            SortedSet<IndexHelper.IndexInfo> ranges = new TreeSet<IndexHelper.IndexInfo>(IndexHelper.getComparator(comparator));
-            for (byte[] name : filteredColumnNames)
-            {
-                int index = IndexHelper.indexFor(name, indexList, comparator, false);
-                if (index == indexList.size())
-                    continue;
-                IndexHelper.IndexInfo indexInfo = indexList.get(index);
-                if (comparator.compare(name, indexInfo.firstName) < 0)
-                    continue;
-                ranges.add(indexInfo);
-            }
-
-            FileMark mark = file.mark();
-            for (IndexHelper.IndexInfo indexInfo : ranges)
-            {
-                file.reset(mark);
-                long curOffsert = file.skipBytes((int) indexInfo.offset);
-                assert curOffsert == indexInfo.offset;
-                // TODO only completely deserialize columns we are interested in
-                while (file.bytesPastMark(mark) < indexInfo.offset + indexInfo.width)
-                {
-                    final IColumn column = cf.getColumnSerializer().deserialize(file);
-                    // we check vs the original Set, not the filtered List, for efficiency
-                    if (columnNames.contains(column.name()))
-                    {
-                        cf.addColumn(column);
-                    }
-                }
-            }
+            if (indexList == null)
+                readSimpleColumns(file, columnNames, filteredColumnNames);
+            else
+                readIndexedColumns(sstable, file, columnNames, filteredColumnNames, indexList);
 
             // create an iterator view of the columns we read
             iter = cf.getSortedColumns().iterator();
@@ -151,6 +122,60 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
                 catch (IOException ioe)
                 {
                     logger.warn("error closing " + file.getPath());
+                }
+            }
+        }
+    }
+
+    private void readSimpleColumns(FileDataInput file, SortedSet<byte[]> columnNames, List<byte[]> filteredColumnNames) throws IOException
+    {
+        int columns = file.readInt();
+        int n = 0;
+        for (int i = 0; i < columns; i++)
+        {
+            IColumn column = cf.getColumnSerializer().deserialize(file);
+            if (columnNames.contains(column.name()))
+            {
+                cf.addColumn(column);
+                if (n++ > filteredColumnNames.size())
+                    break;
+            }
+        }
+    }
+
+    private void readIndexedColumns(SSTableReader sstable, FileDataInput file, SortedSet<byte[]> columnNames, List<byte[]> filteredColumnNames, List<IndexHelper.IndexInfo> indexList)
+    throws IOException
+    {
+        file.readInt(); // column count
+
+        /* get the various column ranges we have to read */
+        AbstractType comparator = sstable.getColumnComparator();
+        SortedSet<IndexHelper.IndexInfo> ranges = new TreeSet<IndexHelper.IndexInfo>(IndexHelper.getComparator(comparator));
+        for (byte[] name : filteredColumnNames)
+        {
+            int index = IndexHelper.indexFor(name, indexList, comparator, false);
+            if (index == indexList.size())
+                continue;
+            IndexHelper.IndexInfo indexInfo = indexList.get(index);
+            if (comparator.compare(name, indexInfo.firstName) < 0)
+                continue;
+            ranges.add(indexInfo);
+        }
+
+        FileMark mark = file.mark();
+        for (IndexHelper.IndexInfo indexInfo : ranges)
+        {
+            file.reset(mark);
+            long curOffsert = file.skipBytes((int) indexInfo.offset);
+            assert curOffsert == indexInfo.offset;
+            // TODO only completely deserialize columns we are interested in
+            while (file.bytesPastMark(mark) < indexInfo.offset + indexInfo.width)
+            {
+                IColumn column = cf.getColumnSerializer().deserialize(file);
+                // we check vs the original Set, not the filtered List, for efficiency
+                if (columnNames.contains(column.name()))
+                {
+                    cf.addColumn(column);
                 }
             }
         }

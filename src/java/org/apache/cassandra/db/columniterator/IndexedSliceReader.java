@@ -32,9 +32,8 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
     private final byte[] finishColumn;
     private final boolean reversed;
 
-    private int curRangeIndex;
+    private BlockFetcher fetcher;
     private Deque<IColumn> blockColumns = new ArrayDeque<IColumn>();
-    private final FileMark mark;
     private AbstractType comparator;
 
     public IndexedSliceReader(SSTableReader sstable, FileDataInput input, byte[] startColumn, byte[] finishColumn, boolean reversed)
@@ -50,16 +49,12 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
             indexes = IndexHelper.deserializeIndex(file);
 
             emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(sstable.makeColumnFamily(), file);
-            file.readInt(); // column count
+            fetcher = indexes == null ? new SimpleBlockFetcher() : new IndexedBlockFetcher();
         }
         catch (IOException e)
         {
             throw new IOError(e);
         }
-        this.mark = file.mark();
-        curRangeIndex = IndexHelper.indexFor(startColumn, indexes, comparator, reversed);
-        if (reversed && curRangeIndex == indexes.size())
-            curRangeIndex--;
     }
 
     public ColumnFamily getColumnFamily()
@@ -99,7 +94,7 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
                 return column;
             try
             {
-                if (column == null && !getNextBlock())
+                if (column == null && !fetcher.getNextBlock())
                     return endOfData();
             }
             catch (IOException e)
@@ -109,59 +104,105 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
         }
     }
 
-    public boolean getNextBlock() throws IOException
+    public void close()
     {
-        if (curRangeIndex < 0 || curRangeIndex >= indexes.size())
-            return false;
-
-        /* seek to the correct offset to the data, and calculate the data size */
-        IndexHelper.IndexInfo curColPosition = indexes.get(curRangeIndex);
-
-        /* see if this read is really necessary. */
-        if (reversed)
-        {
-            if ((finishColumn.length > 0 && comparator.compare(finishColumn, curColPosition.lastName) > 0) ||
-                (startColumn.length > 0 && comparator.compare(startColumn, curColPosition.firstName) < 0))
-                return false;
-        }
-        else
-        {
-            if ((startColumn.length > 0 && comparator.compare(startColumn, curColPosition.lastName) > 0) ||
-                (finishColumn.length > 0 && comparator.compare(finishColumn, curColPosition.firstName) < 0))
-                return false;
-        }
-
-        boolean outOfBounds = false;
-
-        file.reset(mark);
-        long curOffset = file.skipBytes((int) curColPosition.offset);
-        assert curOffset == curColPosition.offset;
-        while (file.bytesPastMark(mark) < curColPosition.offset + curColPosition.width && !outOfBounds)
-        {
-            IColumn column = emptyColumnFamily.getColumnSerializer().deserialize(file);
-            if (reversed)
-                blockColumns.addFirst(column);
-            else
-                blockColumns.addLast(column);
-
-            /* see if we can stop seeking. */
-            if (!reversed && finishColumn.length > 0)
-                outOfBounds = comparator.compare(column.name(), finishColumn) >= 0;
-            else if (reversed && startColumn.length > 0)
-                outOfBounds = comparator.compare(column.name(), startColumn) >= 0;
-
-            if (outOfBounds)
-                break;
-        }
-
-        if (reversed)
-            curRangeIndex--;
-        else
-            curRangeIndex++;
-        return true;
     }
 
-    public void close() throws IOException
+    interface BlockFetcher
     {
+        public boolean getNextBlock() throws IOException;
+    }
+
+    private class IndexedBlockFetcher implements BlockFetcher
+    {
+        private final FileMark mark;
+        private int curRangeIndex;
+
+        IndexedBlockFetcher() throws IOException
+        {
+            file.readInt(); // column count
+            this.mark = file.mark();
+            curRangeIndex = IndexHelper.indexFor(startColumn, indexes, comparator, reversed);
+            if (reversed && curRangeIndex == indexes.size())
+                curRangeIndex--;
+        }
+
+        public boolean getNextBlock() throws IOException
+        {
+            if (curRangeIndex < 0 || curRangeIndex >= indexes.size())
+                return false;
+
+            /* seek to the correct offset to the data, and calculate the data size */
+            IndexHelper.IndexInfo curColPosition = indexes.get(curRangeIndex);
+
+            /* see if this read is really necessary. */
+            if (reversed)
+            {
+                if ((finishColumn.length > 0 && comparator.compare(finishColumn, curColPosition.lastName) > 0) ||
+                    (startColumn.length > 0 && comparator.compare(startColumn, curColPosition.firstName) < 0))
+                    return false;
+            }
+            else
+            {
+                if ((startColumn.length > 0 && comparator.compare(startColumn, curColPosition.lastName) > 0) ||
+                    (finishColumn.length > 0 && comparator.compare(finishColumn, curColPosition.firstName) < 0))
+                    return false;
+            }
+
+            boolean outOfBounds = false;
+            file.reset(mark);
+            long curOffset = file.skipBytes((int) curColPosition.offset);
+            assert curOffset == curColPosition.offset;
+            while (file.bytesPastMark(mark) < curColPosition.offset + curColPosition.width && !outOfBounds)
+            {
+                IColumn column = emptyColumnFamily.getColumnSerializer().deserialize(file);
+                if (reversed)
+                    blockColumns.addFirst(column);
+                else
+                    blockColumns.addLast(column);
+
+                /* see if we can stop seeking. */
+                if (!reversed && finishColumn.length > 0)
+                    outOfBounds = comparator.compare(column.name(), finishColumn) >= 0;
+                else if (reversed && startColumn.length > 0)
+                    outOfBounds = comparator.compare(column.name(), startColumn) >= 0;
+            }
+
+            if (reversed)
+                curRangeIndex--;
+            else
+                curRangeIndex++;
+            return true;
+        }
+    }
+
+    private class SimpleBlockFetcher implements BlockFetcher
+    {
+        private SimpleBlockFetcher() throws IOException
+        {
+            int columns = file.readInt();
+            for (int i = 0; i < columns; i++)
+            {
+                IColumn column = emptyColumnFamily.getColumnSerializer().deserialize(file);
+                if (reversed)
+                    blockColumns.addFirst(column);
+                else
+                    blockColumns.addLast(column);
+
+                /* see if we can stop seeking. */
+                boolean outOfBounds = false;
+                if (!reversed && finishColumn.length > 0)
+                    outOfBounds = comparator.compare(column.name(), finishColumn) >= 0;
+                else if (reversed && startColumn.length > 0)
+                    outOfBounds = comparator.compare(column.name(), startColumn) >= 0;
+                if (outOfBounds)
+                    break;
+            }
+        }
+
+        public boolean getNextBlock() throws IOException
+        {
+            return false;
+        }
     }
 }

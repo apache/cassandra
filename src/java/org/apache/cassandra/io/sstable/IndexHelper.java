@@ -68,9 +68,10 @@ public class IndexHelper
      */
 	public static ArrayList<IndexInfo> deserializeIndex(FileDataInput in) throws IOException
 	{
-        ArrayList<IndexInfo> indexList = new ArrayList<IndexInfo>();
-
 		int columnIndexSize = in.readInt();
+        if (columnIndexSize == 0)
+            return null;
+        ArrayList<IndexInfo> indexList = new ArrayList<IndexInfo>();
         FileMark mark = in.mark();
         while (in.bytesPastMark(mark) < columnIndexSize)
         {

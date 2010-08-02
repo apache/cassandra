@@ -113,12 +113,19 @@ public class ColumnIndexer
         /* Write out the bloom filter. */
         writeBloomFilter(dos, bf);
 
-        // write the index
+        // write the index.  we should always have at least one computed index block, but we only write it out if there is more than that.
         assert indexSizeInBytes > 0;
-        dos.writeInt(indexSizeInBytes);
-        for (IndexHelper.IndexInfo cIndexInfo : indexList)
+        if (indexList.size() > 1)
         {
-            cIndexInfo.serialize(dos);
+            dos.writeInt(indexSizeInBytes);
+            for (IndexHelper.IndexInfo cIndexInfo : indexList)
+            {
+                cIndexInfo.serialize(dos);
+            }
+        }
+        else
+        {
+            dos.writeInt(0);
         }
 	}
 
