@@ -23,32 +23,21 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.HintedHandOffManager;
-import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 
 public class DropKeyspace extends Migration
 {
-    private static final Serializer serializer = new Serializer();
-    
     private String name;
     private boolean blockOnFileDeletion;
     
-    private DropKeyspace(DataInputStream din) throws IOException
-    {
-        super(UUIDGen.makeType1UUID(din), UUIDGen.makeType1UUID(din));
-        rm = RowMutation.serializer().deserialize(din);
-        name = din.readUTF();
-    }
+    /** Required no-arg constructor */
+    protected DropKeyspace() { /* pass */ }
     
     public DropKeyspace(String name, boolean blockOnFileDeletion) throws ConfigurationException, IOException
     {
@@ -59,12 +48,6 @@ public class DropKeyspace extends Migration
         if (ksm == null)
             throw new ConfigurationException("Keyspace does not exist.");
         rm = makeDefinitionMutation(null, ksm, newVersion);
-    }
-
-    @Override
-    public ICompactSerializer getSerializer()
-    {
-        return serializer;
     }
 
     @Override
@@ -107,20 +90,18 @@ public class DropKeyspace extends Migration
         }
     }
     
-    private static final class Serializer implements ICompactSerializer<DropKeyspace>
+    public void subdeflate(org.apache.cassandra.db.migration.avro.Migration mi)
     {
-        public void serialize(DropKeyspace dropKeyspace, DataOutputStream dos) throws IOException
-        {
-            dos.write(UUIDGen.decompose(dropKeyspace.newVersion));
-            dos.write(UUIDGen.decompose(dropKeyspace.lastVersion));
-            RowMutation.serializer().serialize(dropKeyspace.rm, dos);
-            
-            dos.writeUTF(dropKeyspace.name);
-        }
+        org.apache.cassandra.db.migration.avro.DropKeyspace dks = new org.apache.cassandra.db.migration.avro.DropKeyspace();
+        dks.ksname = new org.apache.avro.util.Utf8(name);
+        dks.block_on_deletion = blockOnFileDeletion;
+        mi.migration = dks;
+    }
 
-        public DropKeyspace deserialize(DataInputStream dis) throws IOException
-        {
-            return new DropKeyspace(dis);
-        }
+    public void subinflate(org.apache.cassandra.db.migration.avro.Migration mi)
+    {
+        org.apache.cassandra.db.migration.avro.DropKeyspace dks = (org.apache.cassandra.db.migration.avro.DropKeyspace)mi.migration;
+        name = dks.ksname.toString();
+        blockOnFileDeletion = dks.block_on_deletion;
     }
 }

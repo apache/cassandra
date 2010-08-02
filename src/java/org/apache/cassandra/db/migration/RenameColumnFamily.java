@@ -5,17 +5,12 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.DefsTable;
-import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,22 +37,13 @@ import java.util.List;
 
 public class RenameColumnFamily extends Migration
 {
-    private static final Serializer serializer = new Serializer();
-    
     private String tableName;
     private String oldName;
     private String newName;
     private Integer cfId;
     
-    RenameColumnFamily(DataInputStream din) throws IOException
-    {
-        super(UUIDGen.makeType1UUID(din), UUIDGen.makeType1UUID(din));
-        rm = RowMutation.serializer().deserialize(din);
-        tableName = din.readUTF();
-        oldName = din.readUTF();
-        newName = din.readUTF();
-        cfId = din.readInt();
-    }
+    /** Required no-arg constructor */
+    protected RenameColumnFamily() { /* pass */ }
     
     // this this constructor sets the cfid, it can only be called form a node that is starting the migration. It cannot
     // be called during deserialization of this migration.
@@ -92,12 +78,6 @@ public class RenameColumnFamily extends Migration
         CFMetaData newCfm = CFMetaData.rename(oldCfm, newName);
         newCfs.add(newCfm);
         return new KSMetaData(ksm.name, ksm.strategyClass, ksm.strategyOptions, ksm.replicationFactor, newCfs.toArray(new CFMetaData[newCfs.size()]));
-    }
-
-    @Override
-    public ICompactSerializer getSerializer()
-    {
-        return serializer;
     }
 
     @Override
@@ -153,23 +133,22 @@ public class RenameColumnFamily extends Migration
             throw new IOException("One or more IOExceptions encountered while renaming files. Most recent problem is included.", mostRecentProblem);
     }
     
-    private static final class Serializer implements ICompactSerializer<RenameColumnFamily>
+    public void subdeflate(org.apache.cassandra.db.migration.avro.Migration mi)
     {
-        public void serialize(RenameColumnFamily renameColumnFamily, DataOutputStream dos) throws IOException
-        {
-            dos.write(UUIDGen.decompose(renameColumnFamily.newVersion));
-            dos.write(UUIDGen.decompose(renameColumnFamily.lastVersion));
-            RowMutation.serializer().serialize(renameColumnFamily.rm, dos);
-            
-            dos.writeUTF(renameColumnFamily.tableName);
-            dos.writeUTF(renameColumnFamily.oldName);
-            dos.writeUTF(renameColumnFamily.newName);
-            dos.writeInt(renameColumnFamily.cfId);
-        }
+        org.apache.cassandra.db.migration.avro.RenameColumnFamily rcf = new org.apache.cassandra.db.migration.avro.RenameColumnFamily();
+        rcf.ksname = new org.apache.avro.util.Utf8(tableName);
+        rcf.cfid = cfId;
+        rcf.old_cfname = new org.apache.avro.util.Utf8(oldName);
+        rcf.new_cfname = new org.apache.avro.util.Utf8(newName);
+        mi.migration = rcf;
+    }
 
-        public RenameColumnFamily deserialize(DataInputStream dis) throws IOException
-        {
-            return new RenameColumnFamily(dis);
-        }
+    public void subinflate(org.apache.cassandra.db.migration.avro.Migration mi)
+    {
+        org.apache.cassandra.db.migration.avro.RenameColumnFamily rcf = (org.apache.cassandra.db.migration.avro.RenameColumnFamily)mi.migration;
+        tableName = rcf.ksname.toString();
+        cfId = rcf.cfid;
+        oldName = rcf.old_cfname.toString();
+        newName = rcf.new_cfname.toString();
     }
 }

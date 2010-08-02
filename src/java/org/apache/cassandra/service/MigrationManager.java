@@ -117,7 +117,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         Collection<IColumn> migrations = Migration.getLocalMigrations(from, to);
         for (IColumn col : migrations)
         {
-            final Migration migration = Migration.deserialize(new ByteArrayInputStream(col.value()));
+            final Migration migration = Migration.deserialize(col.value());
             Future update = StageManager.getStage(StageManager.MIGRATION_STAGE).submit(new Runnable() 
             {
                 public void run()

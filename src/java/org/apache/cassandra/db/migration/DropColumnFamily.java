@@ -5,21 +5,15 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -42,20 +36,12 @@ import java.util.concurrent.ExecutionException;
 
 public class DropColumnFamily extends Migration
 {
-    private static final Serializer serializer = new Serializer();
-    
     private String tableName;
     private String cfName;
     private boolean blockOnFileDeletion;
     
-    private DropColumnFamily(DataInputStream din) throws IOException
-    {
-        super(UUIDGen.makeType1UUID(din), UUIDGen.makeType1UUID(din));
-        rm = RowMutation.serializer().deserialize(din);
-        tableName = din.readUTF();
-        cfName = din.readUTF();
-        blockOnFileDeletion = din.readBoolean();
-    }
+    /** Required no-arg constructor */
+    protected DropColumnFamily() { /* pass */ }
     
     public DropColumnFamily(String tableName, String cfName, boolean blockOnFileDeletion) throws ConfigurationException, IOException
     {
@@ -94,12 +80,6 @@ public class DropColumnFamily extends Migration
     }
 
     @Override
-    public ICompactSerializer getSerializer()
-    {
-        return serializer;
-    }
-
-    @Override
     public void applyModels() throws IOException
     {
         // reinitialize the table.
@@ -123,21 +103,20 @@ public class DropColumnFamily extends Migration
         }
     }
     
-    private static final class Serializer implements ICompactSerializer<DropColumnFamily>
+    public void subdeflate(org.apache.cassandra.db.migration.avro.Migration mi)
     {
-        public void serialize(DropColumnFamily dropColumnFamily, DataOutputStream dos) throws IOException
-        {
-            dos.write(UUIDGen.decompose(dropColumnFamily.newVersion));
-            dos.write(UUIDGen.decompose(dropColumnFamily.lastVersion));
-            RowMutation.serializer().serialize(dropColumnFamily.rm, dos);
-            dos.writeUTF(dropColumnFamily.tableName);
-            dos.writeUTF(dropColumnFamily.cfName);
-            dos.writeBoolean(dropColumnFamily.blockOnFileDeletion);       
-        }
+        org.apache.cassandra.db.migration.avro.DropColumnFamily dcf = new org.apache.cassandra.db.migration.avro.DropColumnFamily();
+        dcf.ksname = new org.apache.avro.util.Utf8(tableName);
+        dcf.cfname = new org.apache.avro.util.Utf8(cfName);
+        dcf.block_on_deletion = blockOnFileDeletion;
+        mi.migration = dcf;
+    }
 
-        public DropColumnFamily deserialize(DataInputStream dis) throws IOException
-        {
-            return new DropColumnFamily(dis);
-        }
+    public void subinflate(org.apache.cassandra.db.migration.avro.Migration mi)
+    {
+        org.apache.cassandra.db.migration.avro.DropColumnFamily dcf = (org.apache.cassandra.db.migration.avro.DropColumnFamily)mi.migration;
+        tableName = dcf.ksname.toString();
+        cfName = dcf.cfname.toString();
+        blockOnFileDeletion = dcf.block_on_deletion;
     }
 }

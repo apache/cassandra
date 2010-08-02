@@ -19,7 +19,8 @@
 package org.apache.cassandra.db.migration;
 
 import java.io.*;
-import java.lang.reflect.Field;
+import java.lang.reflect.Constructor;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -38,7 +39,6 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.service.MigrationManager;
@@ -61,9 +61,8 @@ import static com.google.common.base.Charsets.UTF_8;
  * Since steps 1, 2 and 3 are not committed atomically, care should be taken to ensure that a node/cluster is reasonably
  * quiescent with regard to the keyspace or columnfamily whose schema is being modified.
  * 
- * Each class that extends Migration is required to implement a constructor that takes a DataInputStream as its only
- * argument.  Also, each implementation must take care to ensure that its serialization can be deserialized.  For 
- * example, it is required that the class name be serialized first always.
+ * Each class that extends Migration is required to implement a no arg constructor, which will be used to inflate the
+ * object from it's serialized form.
  */
 public abstract class Migration
 {
@@ -75,12 +74,15 @@ public abstract class Migration
     public static final byte[] LAST_MIGRATION_KEY = "Last Migration".getBytes(UTF_8);
     
     protected RowMutation rm;
-    protected final UUID newVersion;
+    protected UUID newVersion;
     protected UUID lastVersion;
     
     // this doesn't follow the serialized migration around.
-    protected final transient boolean clientMode;
+    protected transient boolean clientMode;
     
+    /** Subclasses must have a matching constructor */
+    protected Migration() { /* pass */ }
+
     Migration(UUID newVersion, UUID lastVersion)
     {
         this.newVersion = newVersion;
@@ -108,7 +110,7 @@ public abstract class Migration
         if (!clientMode)
         {
             long now = System.currentTimeMillis();
-            byte[] buf = getBytes();
+            byte[] buf = serialize();
             RowMutation migration = new RowMutation(Table.SYSTEM_TABLE, MIGRATIONS_KEY);
             migration.add(new QueryPath(MIGRATIONS_CF, null, UUIDGen.decompose(newVersion)), buf, new TimestampClock(now));
             migration.apply();
@@ -181,18 +183,11 @@ public abstract class Migration
     /** keep in mind that applyLive might happen on another machine */
     abstract void applyModels() throws IOException;
     
-    /** serialize migration */
-    public abstract ICompactSerializer getSerializer();
+    /** Deflate this Migration into an Avro object. */
+    public abstract void subdeflate(org.apache.cassandra.db.migration.avro.Migration mi);
     
-    private byte[] getBytes() throws IOException
-    {
-        ByteArrayOutputStream bout = new ByteArrayOutputStream();
-        DataOutputStream dout = new DataOutputStream(bout);
-        dout.writeUTF(getClass().getName());
-        getSerializer().serialize(this, dout);
-        dout.close();
-        return bout.toByteArray();
-    }
+    /** Inflate this Migration from an Avro object: called after the required no-arg constructor. */
+    public abstract void subinflate(org.apache.cassandra.db.migration.avro.Migration mi);
     
     public UUID getVersion()
     {
@@ -253,23 +248,67 @@ public abstract class Migration
         } 
     }
     
-    /** deserialize any Migration. */
-    public static Migration deserialize(InputStream in) throws IOException
+    public byte[] serialize() throws IOException
     {
-        DataInputStream din = new DataInputStream(in);
-        String className = din.readUTF();
+        // super deflate
+        org.apache.cassandra.db.migration.avro.Migration mi = new org.apache.cassandra.db.migration.avro.Migration();
+        mi.old_version = new org.apache.cassandra.utils.avro.UUID();
+        mi.old_version.bytes(UUIDGen.decompose(lastVersion));
+        mi.new_version = new org.apache.cassandra.utils.avro.UUID();
+        mi.new_version.bytes(UUIDGen.decompose(newVersion));
+        mi.classname = new org.apache.avro.util.Utf8(this.getClass().getName());
+        // TODO: Avro RowMutation serialization?
+        DataOutputBuffer dob = new DataOutputBuffer();
         try
         {
-            Class migrationClass = Class.forName(className);
-            Field serializerField = migrationClass.getDeclaredField("serializer");
-            serializerField.setAccessible(true);
-            ICompactSerializer serializer = (ICompactSerializer)serializerField.get(migrationClass);
-            return (Migration)serializer.deserialize(din);
+            RowMutation.serializer().serialize(rm, dob);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        mi.row_mutation = ByteBuffer.wrap(dob.asByteArray());
+
+        // sub deflate
+        this.subdeflate(mi);
+
+        // serialize
+        return SerDeUtils.serializeWithSchema(mi);
+    }
+
+    public static Migration deserialize(byte[] bytes) throws IOException
+    {
+        // deserialize
+        org.apache.cassandra.db.migration.avro.Migration mi = SerDeUtils.deserializeWithSchema(bytes);
+
+        // create an instance of the migration subclass
+        Migration migration;
+        try
+        {
+            Class migrationClass = Class.forName(mi.classname.toString());
+            Constructor migrationConstructor = migrationClass.getDeclaredConstructor();
+            migrationConstructor.setAccessible(true);
+            migration = (Migration)migrationConstructor.newInstance();
         }
         catch (Exception e)
         {
-            throw new IOException(e);
+            throw new RuntimeException("Invalid migration class: " + mi.classname.toString(), e);
         }
+        
+        // super inflate
+        migration.lastVersion = UUIDGen.makeType1UUID(mi.old_version.bytes());
+        migration.newVersion = UUIDGen.makeType1UUID(mi.new_version.bytes());
+        try
+        {
+            migration.rm = RowMutation.serializer().deserialize(SerDeUtils.createDataInputStream(mi.row_mutation));
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        // sub inflate
+        migration.subinflate(mi);
+        return migration;
     }
     
     /** load serialized migrations. */

@@ -115,7 +115,7 @@ public class DefsTest extends CleanupHelper
         for (IColumn col : serializedMigrations)
         {
             UUID version = UUIDGen.makeType1UUID(col.name());
-            reconstituded[i] = Migration.deserialize(new ByteArrayInputStream(col.value()));
+            reconstituded[i] = Migration.deserialize(col.value());
             assert version.equals(reconstituded[i].getVersion());
             i++;
         }
@@ -125,18 +125,9 @@ public class DefsTest extends CleanupHelper
         assert m3.getClass().equals(reconstituded[2].getClass());
         
         // verify that the row mutations are the same. rather than exposing the private fields, serialize and verify.
-        assert Arrays.equals(getBytes(m1), getBytes(reconstituded[0]));
-        assert Arrays.equals(getBytes(m2), getBytes(reconstituded[1]));
-        assert Arrays.equals(getBytes(m3), getBytes(reconstituded[2]));
-    }
-    
-    private static byte[] getBytes(Migration m) throws IOException
-    {
-        ByteArrayOutputStream bout = new ByteArrayOutputStream();
-        DataOutputStream dout = new DataOutputStream(bout);
-        m.getSerializer().serialize(m, dout);
-        dout.close();
-        return bout.toByteArray();
+        assert Arrays.equals(m1.serialize(), reconstituded[0].serialize());
+        assert Arrays.equals(m2.serialize(), reconstituded[1].serialize());
+        assert Arrays.equals(m3.serialize(), reconstituded[2].serialize());
     }
 
     @Test

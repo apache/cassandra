@@ -6,16 +6,12 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,17 +37,10 @@ import java.util.List;
 
 public class AddColumnFamily extends Migration
 {
-    private static final Serializer serializer = new Serializer();
     private CFMetaData cfm;
     
-    private AddColumnFamily(DataInputStream din) throws IOException
-    {
-        super(UUIDGen.makeType1UUID(din), UUIDGen.makeType1UUID(din));
-        rm = RowMutation.serializer().deserialize(din);
-
-        // deserialize cf
-        cfm = CFMetaData.inflate(SerDeUtils.<org.apache.cassandra.config.avro.CfDef>deserializeWithSchema(FBUtilities.readShortByteArray(din)));
-    }
+    /** Required no-arg constructor */
+    protected AddColumnFamily() { /* pass */ }
     
     public AddColumnFamily(CFMetaData cfm) throws ConfigurationException, IOException
     {
@@ -100,27 +89,16 @@ public class AddColumnFamily extends Migration
             CommitLog.instance().forceNewSegment();
     }
 
-    @Override
-    public ICompactSerializer getSerializer()
+    public void subdeflate(org.apache.cassandra.db.migration.avro.Migration mi)
     {
-        return serializer;
+        org.apache.cassandra.db.migration.avro.AddColumnFamily acf = new org.apache.cassandra.db.migration.avro.AddColumnFamily();
+        acf.cf = cfm.deflate();
+        mi.migration = acf;
     }
 
-    private static final class Serializer implements ICompactSerializer<AddColumnFamily>
+    public void subinflate(org.apache.cassandra.db.migration.avro.Migration mi)
     {
-        public void serialize(AddColumnFamily addColumnFamily, DataOutputStream dos) throws IOException
-        {
-            dos.write(UUIDGen.decompose(addColumnFamily.newVersion));
-            dos.write(UUIDGen.decompose(addColumnFamily.lastVersion));
-            RowMutation.serializer().serialize(addColumnFamily.rm, dos);
-            // serialize the added cf
-            // TODO: sloppy, but migrations should be converted to Avro soon anyway
-            FBUtilities.writeShortByteArray(SerDeUtils.serializeWithSchema(addColumnFamily.cfm.deflate()), dos);
-        }
-
-        public AddColumnFamily deserialize(DataInputStream dis) throws IOException
-        {
-            return new AddColumnFamily(dis);
-        }
+        org.apache.cassandra.db.migration.avro.AddColumnFamily acf = (org.apache.cassandra.db.migration.avro.AddColumnFamily)mi.migration;
+        cfm = CFMetaData.inflate(acf.cf);
     }
 }
