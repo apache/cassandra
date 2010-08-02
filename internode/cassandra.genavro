@@ -22,6 +22,9 @@
 @namespace("org.apache.cassandra")
 
 protocol InterNode {
+    @namespace("org.apache.cassandra.utils.avro")
+    fixed UUID(16);
+
     /* NB: Until AVRO-495: must be kept sync'd with the public IndexType. */
     @namespace("org.apache.cassandra.config.avro")
     enum IndexType {
@@ -65,5 +68,51 @@ protocol InterNode {
         union{ map<string>, null } strategy_options;
         int replication_factor;
         array<CfDef> cf_defs;
+    }
+
+    @namespace("org.apache.cassandra.db.migration.avro")
+    record AddColumnFamily {
+        org.apache.cassandra.config.avro.CfDef cf;
+    }
+
+    @namespace("org.apache.cassandra.db.migration.avro")
+    record AddKeyspace {
+        org.apache.cassandra.config.avro.KsDef ks;
+    }
+
+    @namespace("org.apache.cassandra.db.migration.avro")
+    record DropColumnFamily {
+        string ksname;
+        string cfname;
+        boolean block_on_deletion;
+    }
+
+    @namespace("org.apache.cassandra.db.migration.avro")
+    record DropKeyspace {
+        string ksname;
+        boolean block_on_deletion;
+    }
+
+    @namespace("org.apache.cassandra.db.migration.avro")
+    record RenameColumnFamily {
+        string ksname;
+        int cfid;
+        string old_cfname;
+        string new_cfname;
+    }
+
+    @namespace("org.apache.cassandra.db.migration.avro")
+    record RenameKeyspace {
+        string old_ksname;
+        string new_ksname;
+    }
+
+    @namespace("org.apache.cassandra.db.migration.avro")
+    record Migration {
+        org.apache.cassandra.utils.avro.UUID old_version;
+        org.apache.cassandra.utils.avro.UUID new_version;
+        bytes row_mutation;
+        string classname;
+        union { AddColumnFamily,DropColumnFamily,RenameColumnFamily,AddKeyspace,DropKeyspace,RenameKeyspace } migration;
     }
 }
