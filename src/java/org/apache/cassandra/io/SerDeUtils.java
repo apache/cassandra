@@ -18,16 +18,17 @@
 
 package org.apache.cassandra.io;
 
-import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.util.Collections;
 
 import org.apache.avro.Schema;
 import org.apache.avro.io.BinaryDecoder;
 import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.io.DecoderFactory;
+import org.apache.avro.ipc.ByteBufferInputStream;
 import org.apache.avro.generic.GenericArray;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.specific.SpecificDatumReader;
@@ -97,6 +98,15 @@ public final class SerDeUtils
         writer.write(o, enc);
         enc.flush();
         return buff.asByteArray();
+    }
+
+    /**
+     * @return a DataInputStream wrapping the given buffer.
+     */
+    public static DataInputStream createDataInputStream(ByteBuffer buff)
+    {
+        ByteBufferInputStream bbis = new ByteBufferInputStream(Collections.singletonList(buff));
+        return new DataInputStream(bbis);
     }
 
     /**
