@@ -532,6 +532,17 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return constructRangeToEndpointMap(keyspace, ranges);
     }
 
+    public Map<Token, String> getTokenToEndpointMap()
+    {
+        Map<Token, InetAddress> mapInetAddress = tokenMetadata_.getTokenToEndpointMap();
+        Map<Token, String> mapString = new HashMap<Token, String>(mapInetAddress.size());
+        for (Map.Entry<Token, InetAddress> entry : mapInetAddress.entrySet())
+        {
+            mapString.put(entry.getKey(), entry.getValue().getHostAddress());
+        }
+        return mapString;
+    }
+
     /**
      * Construct the range to endpoint mapping based on the true view
      * of the world.

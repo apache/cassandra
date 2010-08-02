@@ -28,6 +28,7 @@ import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.thrift.UnavailableException;
 
 import java.net.InetAddress;
@@ -92,6 +93,14 @@ public interface StorageServiceMBean
      * @return a map of pending ranges to endpoints
      */
     public Map<Range, List<String>> getPendingRangeToEndpointMap(String keyspace);
+
+    /**
+     * Retrieve a map of tokens to endpoints, including the bootstrapping
+     * ones.
+     *
+     * @return a map of tokens to endpoints
+     */
+    public Map<Token, String> getTokenToEndpointMap();
 
     /**
      * Numeric load value.

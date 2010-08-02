@@ -44,6 +44,7 @@ import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.db.CompactionManagerMBean;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamingService;
 import org.apache.cassandra.streaming.StreamingServiceMBean;
@@ -152,14 +153,9 @@ public class NodeProbe
         ssProxy.drain();	
     }
     
-    public Map<Range, List<String>> getRangeToEndpointMap(String tableName)
+    public Map<Token, String> getTokenToEndpointMap()
     {
-        return ssProxy.getRangeToEndpointMap(tableName);
-    }
-
-    public Map<Range, List<String>> getPendingRangeToEndpoingMap(String tableName)
-    {
-        return ssProxy.getPendingRangeToEndpointMap(tableName);
+        return ssProxy.getTokenToEndpointMap();
     }
 
     public Set<String> getLiveNodes()
