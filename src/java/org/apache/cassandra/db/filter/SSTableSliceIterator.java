@@ -41,13 +41,13 @@ import org.apache.cassandra.utils.FBUtilities;
 /**
  *  A Column Iterator over SSTable
  */
-class SSTableSliceIterator extends AbstractIterator<IColumn> implements IColumnIterator
+class SSTableSliceIterator implements IColumnIterator
 {
     private final boolean reversed;
     private final byte[] startColumn;
     private final byte[] finishColumn;
     private final AbstractType comparator;
-    private ColumnGroupReader reader;
+    private IColumnIterator reader;
     private boolean closeFileWhenDone = false;
     private DecoratedKey decoratedKey;
 
@@ -105,42 +105,24 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements IColumnI
         return decoratedKey;
     }
 
-    private boolean isColumnNeeded(IColumn column)
+    public ColumnFamily getColumnFamily() throws IOException
     {
-        if (startColumn.length == 0 && finishColumn.length == 0)
-            return true;
-        else if (startColumn.length == 0 && !reversed)
-            return comparator.compare(column.name(), finishColumn) <= 0;
-        else if (startColumn.length == 0 && reversed)
-            return comparator.compare(column.name(), finishColumn) >= 0;
-        else if (finishColumn.length == 0 && !reversed)
-            return comparator.compare(column.name(), startColumn) >= 0;
-        else if (finishColumn.length == 0 && reversed)
-            return comparator.compare(column.name(), startColumn) <= 0;
-        else if (!reversed)
-            return comparator.compare(column.name(), startColumn) >= 0 && comparator.compare(column.name(), finishColumn) <= 0;
-        else // if reversed
-            return comparator.compare(column.name(), startColumn) <= 0 && comparator.compare(column.name(), finishColumn) >= 0;
+        return reader == null ? null : reader.getColumnFamily();
     }
 
-    public ColumnFamily getColumnFamily()
+    public boolean hasNext()
     {
-        return reader == null ? null : reader.getEmptyColumnFamily();
+        return reader.hasNext();
     }
 
-    protected IColumn computeNext()
+    public IColumn next()
     {
-        if (reader == null)
-            return endOfData();
+        return reader.next();
+    }
 
-        while (true)
-        {
-            IColumn column = reader.pollColumn();
-            if (column == null)
-                return endOfData();
-            if (isColumnNeeded(column))
-                return column;
-        }
+    public void remove()
+    {
+        throw new UnsupportedOperationException();
     }
 
     public void close() throws IOException
@@ -154,7 +136,7 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements IColumnI
      *  blocks before/after it for each next call. This function assumes that
      *  the CF is sorted by name and exploits the name index.
      */
-    class ColumnGroupReader
+    class ColumnGroupReader extends AbstractIterator<IColumn> implements IColumnIterator
     {
         private final ColumnFamily emptyColumnFamily;
 
@@ -186,27 +168,51 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements IColumnI
                 curRangeIndex--;
         }
 
-        public ColumnFamily getEmptyColumnFamily()
+        public ColumnFamily getColumnFamily()
         {
             return emptyColumnFamily;
         }
 
-        public IColumn pollColumn()
+        public DecoratedKey getKey()
         {
-            IColumn column = blockColumns.poll();
-            if (column == null)
+            throw new UnsupportedOperationException();
+        }
+
+        private boolean isColumnNeeded(IColumn column)
+        {
+            if (startColumn.length == 0 && finishColumn.length == 0)
+                return true;
+            else if (startColumn.length == 0 && !reversed)
+                return comparator.compare(column.name(), finishColumn) <= 0;
+            else if (startColumn.length == 0 && reversed)
+                return comparator.compare(column.name(), finishColumn) >= 0;
+            else if (finishColumn.length == 0 && !reversed)
+                return comparator.compare(column.name(), startColumn) >= 0;
+            else if (finishColumn.length == 0 && reversed)
+                return comparator.compare(column.name(), startColumn) <= 0;
+            else if (!reversed)
+                return comparator.compare(column.name(), startColumn) >= 0 && comparator.compare(column.name(), finishColumn) <= 0;
+            else // if reversed
+                return comparator.compare(column.name(), startColumn) <= 0 && comparator.compare(column.name(), finishColumn) >= 0;
+        }
+
+        protected IColumn computeNext()
+        {
+            while (true)
             {
+                IColumn column = blockColumns.poll();
+                if (column != null && isColumnNeeded(column))
+                    return column;
                 try
                 {
-                    if (getNextBlock())
-                        column = blockColumns.poll();
+                    if (column == null && !getNextBlock())
+                        return endOfData();
                 }
                 catch (IOException e)
                 {
                     throw new RuntimeException(e);
                 }
             }
-            return column;
         }
 
         public boolean getNextBlock() throws IOException
