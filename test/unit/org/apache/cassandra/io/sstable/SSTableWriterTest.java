@@ -18,7 +18,7 @@ import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.TimestampClock;
 import org.apache.cassandra.db.filter.IFilter;
-import org.apache.cassandra.db.filter.IdentityQueryFilter;
+import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.thrift.IndexClause;

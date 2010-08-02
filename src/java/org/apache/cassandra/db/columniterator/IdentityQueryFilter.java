@@ -1,4 +1,4 @@
-package org.apache.cassandra.db.filter;
+package org.apache.cassandra.db.columniterator;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -21,28 +21,24 @@ package org.apache.cassandra.db.filter;
  */
 
 
-import java.util.Iterator;
-import java.io.IOException;
+import org.apache.commons.lang.ArrayUtils;
 
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.SuperColumn;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 
-public interface IColumnIterator extends Iterator<IColumn>
+public class IdentityQueryFilter extends SliceQueryFilter
 {
     /**
-     *  returns the CF of the column being iterated.  Do not modify the returned CF; clone first.
-     *  The CF is only guaranteed to be available after a call to next() or hasNext().
-     * @throws IOException 
+     * Only for use in testing; will read entire CF into memory.
      */
-    public abstract ColumnFamily getColumnFamily() throws IOException;
+    public IdentityQueryFilter()
+    {
+        super(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, Integer.MAX_VALUE);
+    }
 
-    /**
-     * @return the current row key
-     */
-    public DecoratedKey getKey();
-
-    /** clean up any open resources */
-    public void close() throws IOException;
+    public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore)
+    {
+        // no filtering done, deliberately
+        return superColumn;
+    }
 }
-

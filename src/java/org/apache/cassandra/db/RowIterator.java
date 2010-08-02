@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
-import org.apache.cassandra.db.filter.IColumnIterator;
+import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.utils.ReducingIterator;
 
 /**

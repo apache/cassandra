@@ -26,7 +26,7 @@ import java.io.*;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.filter.IColumnIterator;
+import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 
 public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterator>, IColumnIterator

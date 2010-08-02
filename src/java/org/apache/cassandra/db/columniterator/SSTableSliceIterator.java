@@ -1,4 +1,4 @@
-package org.apache.cassandra.db.filter;
+package org.apache.cassandra.db.columniterator;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -41,7 +41,7 @@ import org.apache.cassandra.utils.FBUtilities;
 /**
  *  A Column Iterator over SSTable
  */
-class SSTableSliceIterator implements IColumnIterator
+public class SSTableSliceIterator implements IColumnIterator
 {
     private final boolean reversed;
     private final byte[] startColumn;

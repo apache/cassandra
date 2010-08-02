@@ -23,6 +23,8 @@ package org.apache.cassandra.db.filter;
 
 import java.util.*;
 
+import org.apache.cassandra.db.columniterator.IColumnIterator;
+import org.apache.cassandra.db.columniterator.SSTableNamesIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.db.*;

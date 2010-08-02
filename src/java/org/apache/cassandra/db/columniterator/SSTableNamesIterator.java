@@ -1,4 +1,4 @@
-package org.apache.cassandra.db.filter;
+package org.apache.cassandra.db.columniterator;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one

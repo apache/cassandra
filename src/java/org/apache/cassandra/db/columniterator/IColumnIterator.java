@@ -1,4 +1,4 @@
-package org.apache.cassandra.db.filter;
+package org.apache.cassandra.db.columniterator;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -21,12 +21,28 @@ package org.apache.cassandra.db.filter;
  */
 
 
+import java.util.Iterator;
 import java.io.IOException;
 
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
-import com.google.common.collect.AbstractIterator;
+import org.apache.cassandra.db.ColumnFamily;
 
-public abstract class SimpleAbstractColumnIterator extends AbstractIterator<IColumn> implements IColumnIterator
+public interface IColumnIterator extends Iterator<IColumn>
 {
-    public void close() throws IOException {}
+    /**
+     *  returns the CF of the column being iterated.  Do not modify the returned CF; clone first.
+     *  The CF is only guaranteed to be available after a call to next() or hasNext().
+     * @throws IOException 
+     */
+    public abstract ColumnFamily getColumnFamily() throws IOException;
+
+    /**
+     * @return the current row key
+     */
+    public DecoratedKey getKey();
+
+    /** clean up any open resources */
+    public void close() throws IOException;
 }
+
