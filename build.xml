@@ -52,6 +52,7 @@
       <isset property="release"/>
     </condition>
     <property name="version" value="${base.version}-SNAPSHOT"/>
+    <property name="version.properties.dir" value="${build.classes}/org/apache/cassandra/config/"/>
     <property name="final.name" value="${ant.project.name}-${version}"/>
     <property name="ivy.version" value="2.1.0" />
     <property name="ivy.url"
@@ -250,7 +251,7 @@
     <!-- create properties file with C version -->
     <target name="createVersionPropFile"> 
       <taskdef name="propertyfile" classname="org.apache.tools.ant.taskdefs.optional.PropertyFile"/>
-      <propertyfile file="${build.classes}/org/apache/cassandra/config/version.properties">
+      <propertyfile file="${version.properties.dir}/version.properties">
 	<entry key="CassandraVersion" value="${version}"/>
       </propertyfile>
     </target>
