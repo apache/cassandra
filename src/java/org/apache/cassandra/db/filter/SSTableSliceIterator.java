@@ -97,7 +97,7 @@ class SSTableSliceIterator implements IColumnIterator
             }
         }
 
-        reader = new ColumnGroupReader(ssTable, file);
+        reader = startColumn.length == 0 && !reversed ? new SimpleColumnReader(ssTable, file) : new ColumnGroupReader(ssTable, file);
     }
     
     public DecoratedKey getKey()
@@ -129,6 +129,70 @@ class SSTableSliceIterator implements IColumnIterator
     {
         if (reader != null)
             reader.close();
+    }
+
+    private class SimpleColumnReader extends AbstractIterator<IColumn> implements IColumnIterator
+    {
+        private final FileDataInput file;
+        private final ColumnFamily emptyColumnFamily;
+        private final int columns;
+        private int i;
+        private FileMark mark;
+
+        public SimpleColumnReader(SSTableReader ssTable, FileDataInput input)
+        {
+            this.file = input;
+            try
+            {
+                IndexHelper.skipBloomFilter(file);
+                IndexHelper.skipIndex(file);
+
+                emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(ssTable.makeColumnFamily(), file);
+                columns = file.readInt();
+                mark = file.mark();
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
+        }
+
+        protected IColumn computeNext()
+        {
+            if (i++ >= columns)
+                return endOfData();
+
+            IColumn column;
+            try
+            {
+                file.reset(mark);
+                column = emptyColumnFamily.getColumnSerializer().deserialize(file);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException("error reading " + i + " of " + columns, e);
+            }
+            if (finishColumn.length > 0 && comparator.compare(column.name(), finishColumn) > 0)
+                return endOfData();
+
+            mark = file.mark();
+            return column;
+        }
+
+        public ColumnFamily getColumnFamily() throws IOException
+        {
+            return emptyColumnFamily;
+        }
+
+        public void close() throws IOException
+        {
+            file.close();
+        }
+
+        public DecoratedKey getKey()
+        {
+            throw new UnsupportedOperationException();
+        }
     }
 
     /**

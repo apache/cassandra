@@ -70,6 +70,9 @@ public class StreamingTest extends CleanupHelper
         assertEquals(2, rows.size());
         assert Arrays.equals(rows.get(0).key.key, "key".getBytes());
         assert Arrays.equals(rows.get(1).key.key, "key3".getBytes());
+        assert rows.get(0).cf.getColumnsMap().size() == 1;
+        assert rows.get(1).cf.getColumnsMap().size() == 1;
+        assert rows.get(1).cf.getColumn("key3".getBytes()) != null;
 
         // and that the index and filter were properly recovered
         assert null != cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("key"), new QueryPath("Standard1")));
