@@ -57,9 +57,9 @@ public abstract class SSTable
 
     public static final String COMPONENT_COMPACTED = "Compacted";
 
-    protected Descriptor desc;
+    protected final Descriptor desc;
     protected final CFMetaData metadata;
-    protected IPartitioner partitioner;
+    protected final IPartitioner partitioner;
 
     public static final String TEMPFILE_MARKER = "tmp";
 
