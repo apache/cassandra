@@ -92,7 +92,7 @@ public final class KSMetaData
         return ks;
     }
 
-    public static KSMetaData inflate(org.apache.cassandra.config.avro.KsDef ks) throws ConfigurationException
+    public static KSMetaData inflate(org.apache.cassandra.config.avro.KsDef ks)
     {
         Class<AbstractReplicationStrategy> repStratClass;
         try
@@ -101,7 +101,7 @@ public final class KSMetaData
         }
         catch (Exception ex)
         {
-            throw new ConfigurationException("Could not create ReplicationStrategy of type " + ks.strategy_class, ex);
+            throw new RuntimeException("Could not create ReplicationStrategy of type " + ks.strategy_class, ex);
         }
         Map<String, String> strategyOptions = null;
         if (ks.strategy_options != null)

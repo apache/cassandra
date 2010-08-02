@@ -50,14 +50,7 @@ public class AddColumnFamily extends Migration
         rm = RowMutation.serializer().deserialize(din);
 
         // deserialize cf
-        try
-        {
-            cfm = CFMetaData.inflate(SerDeUtils.<org.apache.cassandra.config.avro.CfDef>deserializeWithSchema(FBUtilities.readShortByteArray(din)));
-        }
-        catch (ConfigurationException e)
-        {
-            throw new IOException(e);
-        }
+        cfm = CFMetaData.inflate(SerDeUtils.<org.apache.cassandra.config.avro.CfDef>deserializeWithSchema(FBUtilities.readShortByteArray(din)));
     }
     
     public AddColumnFamily(CFMetaData cfm) throws ConfigurationException, IOException

@@ -231,20 +231,21 @@ public final class CFMetaData
         return cf;
     }
 
-    public static CFMetaData inflate(org.apache.cassandra.config.avro.CfDef cf) throws ConfigurationException
+    public static CFMetaData inflate(org.apache.cassandra.config.avro.CfDef cf)
     {
-        AbstractType comparator = DatabaseDescriptor.getComparator(cf.comparator_type.toString());
+        AbstractType comparator;
         AbstractType subcolumnComparator = null;
-        if (cf.subcomparator_type != null)
-            subcolumnComparator = DatabaseDescriptor.getComparator(cf.subcomparator_type.toString());
-        AbstractReconciler reconciler = null;
+        AbstractReconciler reconciler;
         try
         {
+            comparator = DatabaseDescriptor.getComparator(cf.comparator_type.toString());
+            if (cf.subcomparator_type != null)
+                subcolumnComparator = DatabaseDescriptor.getComparator(cf.subcomparator_type.toString());
             reconciler = (AbstractReconciler)Class.forName(cf.reconciler.toString()).newInstance();
         }
         catch (Exception ex)
         {
-            throw new ConfigurationException("Could not create Reconciler of type " + cf.reconciler, ex);
+            throw new RuntimeException("Could not inflate CFMetaData for " + cf, ex);
         }
         Map<byte[], ColumnDefinition> column_metadata = new TreeMap<byte[], ColumnDefinition>(FBUtilities.byteArrayComparator);
         Iterator<org.apache.cassandra.config.avro.ColumnDef> cditer = cf.column_metadata.iterator();

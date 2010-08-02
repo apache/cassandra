@@ -102,19 +102,12 @@ public class DefsTable
 
         // deserialize keyspaces using schema
         Collection<KSMetaData> keyspaces = new ArrayList<KSMetaData>();
-        try
+        for (IColumn column : cf.getSortedColumns())
         {
-            for (IColumn column : cf.getSortedColumns())
-            {
-                if (Arrays.equals(column.name(), DEFINITION_SCHEMA_COLUMN_NAME))
-                    continue;
-                org.apache.cassandra.config.avro.KsDef ks = SerDeUtils.<org.apache.cassandra.config.avro.KsDef>deserialize(schema, column.value());
-                keyspaces.add(KSMetaData.inflate(ks));
-            }
-        }
-        catch (ConfigurationException e)
-        {
-            throw new IOException(e);
+            if (Arrays.equals(column.name(), DEFINITION_SCHEMA_COLUMN_NAME))
+                continue;
+            org.apache.cassandra.config.avro.KsDef ks = SerDeUtils.<org.apache.cassandra.config.avro.KsDef>deserialize(schema, column.value());
+            keyspaces.add(KSMetaData.inflate(ks));
         }
         return keyspaces;
     }

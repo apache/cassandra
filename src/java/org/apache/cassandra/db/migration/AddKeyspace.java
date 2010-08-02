@@ -48,14 +48,7 @@ public class AddKeyspace extends Migration
         rm = RowMutation.serializer().deserialize(din);
 
         // deserialize ks
-        try
-        {
-            ksm = KSMetaData.inflate(SerDeUtils.<org.apache.cassandra.config.avro.KsDef>deserializeWithSchema(FBUtilities.readShortByteArray(din)));
-        }
-        catch (ConfigurationException e)
-        {
-            throw new IOException(e);
-        }
+        ksm = KSMetaData.inflate(SerDeUtils.<org.apache.cassandra.config.avro.KsDef>deserializeWithSchema(FBUtilities.readShortByteArray(din)));
     }
     
     public AddKeyspace(KSMetaData ksm) throws ConfigurationException, IOException

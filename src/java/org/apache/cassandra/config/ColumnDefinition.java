@@ -65,7 +65,7 @@ public class ColumnDefinition {
         return cd;
     }
 
-    public static ColumnDefinition inflate(org.apache.cassandra.config.avro.ColumnDef cd) throws ConfigurationException
+    public static ColumnDefinition inflate(org.apache.cassandra.config.avro.ColumnDef cd)
     {
         byte[] name = new byte[cd.name.remaining()];
         cd.name.get(name, 0, name.length);
