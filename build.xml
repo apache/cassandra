@@ -36,6 +36,8 @@
     <property name="interface.thrift.dir" value="${interface.dir}/thrift"/>
     <property name="interface.thrift.gen-java" value="${interface.thrift.dir}/gen-java"/>
     <property name="interface.avro.dir" value="${interface.dir}/avro"/>
+    <property name="internode.dir" value="${basedir}/internode"/>
+    <property name="internode.avro.dir" value="${internode.dir}/avro"/>
     <property name="test.dir" value="${basedir}/test"/>
     <property name="test.resources" value="${test.dir}/resources"/>
     <property name="test.classes" value="${build.dir}/test/classes"/>
@@ -111,6 +113,7 @@
         <delete dir="${build.classes}" />
         <delete dir="${build.src.gen-java}" />
         <delete dir="${interface.avro.dir}" />
+        <delete dir="${internode.avro.dir}" />
     </target>
     <target depends="clean" name="cleanall"/>
 
@@ -179,6 +182,8 @@
       </taskdef>
       <uptodate property="avroInterfaceUpToDate" srcfile="${interface.dir}/cassandra.genavro"
                   targetfile="${interface.avro.dir}/cassandra.avpr" />
+      <uptodate property="avroINProtoUpToDate" srcfile="${internode.dir}/cassandra.genavro"
+                  targetfile="${internode.avro.dir}/cassandra.avpr" />
     </target>
 
     <target name="avro-generate" depends="avro-interface-generate"
@@ -187,6 +192,7 @@
     <target name="avro-interface-generate" unless="avroInterfaceUpToDate"
             depends="init,check-avro-generate">
             <avromacro protocolname="client" inputfile="${interface.dir}/cassandra.genavro" outputdir="${interface.avro.dir}" />
+            <avromacro protocolname="internode" inputfile="${internode.dir}/cassandra.genavro" outputdir="${internode.avro.dir}" />
     </target>
 
     <macrodef name="avromacro">
@@ -264,10 +270,13 @@
             <src path="${build.src.gen-java}"/>
             <src path="${interface.thrift.dir}/gen-java"/>
             <src path="${interface.avro.dir}"/>
+            <src path="${internode.avro.dir}"/>
             <classpath refid="cassandra.classpath"/>
         </javac>
 
         <paranamer sourceDirectory="${interface.avro.dir}"
+               outputDirectory="${build.classes}"/>
+        <paranamer sourceDirectory="${internode.avro.dir}"
                outputDirectory="${build.classes}"/>
 
         <antcall target="createVersionPropFile"/>

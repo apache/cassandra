@@ -1,7 +1,6 @@
 package org.apache.cassandra.db.migration;
 
 import org.apache.avro.Schema;
-import org.apache.avro.io.BinaryDecoder;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
@@ -53,7 +52,7 @@ public class AddColumnFamily extends Migration
         // deserialize cf
         try
         {
-            cfm = CFMetaData.inflate(SerDeUtils.<org.apache.cassandra.avro.CfDef>deserializeWithSchema(FBUtilities.readShortByteArray(din)));
+            cfm = CFMetaData.inflate(SerDeUtils.<org.apache.cassandra.config.avro.CfDef>deserializeWithSchema(FBUtilities.readShortByteArray(din)));
         }
         catch (ConfigurationException e)
         {

@@ -82,11 +82,13 @@ protocol Cassandra {
         union { Deletion, null } deletion;
     }
 
+    /* NB: Until AVRO-495: must be kept sync'd with private fields. */
     enum IndexType {
         KEYS
     }
 
     /* describes a column in a column family. */
+    /* NB: Until AVRO-495: must be kept sync'd with private fields. */
     record ColumnDef {
         bytes name;
         string validation_class;
@@ -98,6 +100,7 @@ protocol Cassandra {
      * describes a keyspace:
      * NB: the id field is ignored during column family creation: the server will choose an appropriate value.
      */
+    /* NB: Until AVRO-495: must be kept sync'd with private fields. */
     record CfDef {
         string keyspace;
         string name;
@@ -117,6 +120,7 @@ protocol Cassandra {
     }
 
     /* describes a keyspace. */
+    /* NB: Until AVRO-495: must be kept sync'd with private fields. */
     record KsDef {
         string name;
         string strategy_class;

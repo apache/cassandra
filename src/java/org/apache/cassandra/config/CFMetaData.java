@@ -206,9 +206,9 @@ public final class CFMetaData
                + "Columns Sorted By: " + comparator + "\n";
     }
 
-    public org.apache.cassandra.avro.CfDef deflate()
+    public org.apache.cassandra.config.avro.CfDef deflate()
     {
-        org.apache.cassandra.avro.CfDef cf = new org.apache.cassandra.avro.CfDef();
+        org.apache.cassandra.config.avro.CfDef cf = new org.apache.cassandra.config.avro.CfDef();
         cf.id = cfId;
         cf.keyspace = new Utf8(tableName);
         cf.name = new Utf8(cfName);
@@ -225,13 +225,13 @@ public final class CFMetaData
         cf.read_repair_chance = readRepairChance;
         cf.gc_grace_seconds = gcGraceSeconds;
         cf.column_metadata = SerDeUtils.createArray(column_metadata.size(),
-                                                    org.apache.cassandra.avro.ColumnDef.SCHEMA$);
+                                                    org.apache.cassandra.config.avro.ColumnDef.SCHEMA$);
         for (ColumnDefinition cd : column_metadata.values())
             cf.column_metadata.add(cd.deflate());
         return cf;
     }
 
-    public static CFMetaData inflate(org.apache.cassandra.avro.CfDef cf) throws ConfigurationException
+    public static CFMetaData inflate(org.apache.cassandra.config.avro.CfDef cf) throws ConfigurationException
     {
         AbstractType comparator = DatabaseDescriptor.getComparator(cf.comparator_type.toString());
         AbstractType subcolumnComparator = null;
@@ -247,7 +247,7 @@ public final class CFMetaData
             throw new ConfigurationException("Could not create Reconciler of type " + cf.reconciler, ex);
         }
         Map<byte[], ColumnDefinition> column_metadata = new TreeMap<byte[], ColumnDefinition>(FBUtilities.byteArrayComparator);
-        Iterator<org.apache.cassandra.avro.ColumnDef> cditer = cf.column_metadata.iterator();
+        Iterator<org.apache.cassandra.config.avro.ColumnDef> cditer = cf.column_metadata.iterator();
         while (cditer.hasNext())
         {
             ColumnDefinition cd = ColumnDefinition.inflate(cditer.next());

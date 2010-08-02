@@ -19,7 +19,6 @@
 package org.apache.cassandra.db;
 
 import org.apache.avro.Schema;
-import org.apache.avro.io.BinaryDecoder;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -75,7 +74,7 @@ public class DefsTable
         rm.add(new QueryPath(Migration.SCHEMA_CF,
                              null,
                              DEFINITION_SCHEMA_COLUMN_NAME),
-                             org.apache.cassandra.avro.KsDef.SCHEMA$.toString().getBytes(UTF_8),
+                             org.apache.cassandra.config.avro.KsDef.SCHEMA$.toString().getBytes(UTF_8),
                              now);
         rm.apply();
 
@@ -109,7 +108,7 @@ public class DefsTable
             {
                 if (Arrays.equals(column.name(), DEFINITION_SCHEMA_COLUMN_NAME))
                     continue;
-                org.apache.cassandra.avro.KsDef ks = SerDeUtils.<org.apache.cassandra.avro.KsDef>deserialize(schema, column.value());
+                org.apache.cassandra.config.avro.KsDef ks = SerDeUtils.<org.apache.cassandra.config.avro.KsDef>deserialize(schema, column.value());
                 keyspaces.add(KSMetaData.inflate(ks));
             }
         }
