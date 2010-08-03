@@ -138,7 +138,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         assert metadata != null : "null metadata for " + table + ":" + columnFamilyName;
         table_ = table;
-        columnFamily_ = columnFamilyName;
+        columnFamily_ = columnFamilyName; 
         this.metadata = metadata;
         this.partitioner_ = partitioner;
         fileIndexGenerator_.set(generation);
@@ -250,6 +250,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                                                      indexedCfMetadata);
             indexedColumns_.put(column, indexedCfs);
         }
+    }
+    
+    String getMBeanName()
+    {
+        return "org.apache.cassandra.db:type=ColumnFamilyStores,keyspace=" + table_ + ",columnfamily=" + columnFamily_;
     }
 
     public long getMinRowSize()

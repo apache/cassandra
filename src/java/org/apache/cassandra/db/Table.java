@@ -246,7 +246,7 @@ public class Table
             columnFamilyStores.put(cfm.cfId, cfs);
             try
             {
-                ObjectName mbeanName = new ObjectName("org.apache.cassandra.db:type=ColumnFamilyStores,keyspace=" + table + ",columnfamily=" + cfm.cfName);
+                ObjectName mbeanName = new ObjectName(cfs.getMBeanName());
                 if (mbs.isRegistered(mbeanName))
                     mbs.unregisterMBean(mbeanName);
                 mbs.registerMBean(cfs, mbeanName);
@@ -291,6 +291,20 @@ public class Table
             catch (InterruptedException e)
             {
                 throw new IOException(e);
+            }
+            
+            // unregister mbean.
+            try
+            {
+                MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+                ObjectName mbeanName = new ObjectName(cfs.getMBeanName());
+                if (mbs.isRegistered(mbeanName))
+                    mbs.unregisterMBean(mbeanName);
+            }
+            catch (Exception e)
+            {
+                // I'm not going to let this block the drop.
+                logger.warn(e.getMessage(), e);
             }
         }
     }
