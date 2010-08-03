@@ -41,7 +41,7 @@ public class RackUnawareStrategy extends AbstractReplicationStrategy
     {
         int replicas = getReplicationFactor();
         ArrayList<Token> tokens = metadata.sortedTokens();
-        Set<InetAddress> endpoints = new LinkedHashSet<InetAddress>(replicas);
+        Set<InetAddress> endpoints = new HashSet<InetAddress>(replicas);
 
         if (tokens.isEmpty())
             return endpoints;

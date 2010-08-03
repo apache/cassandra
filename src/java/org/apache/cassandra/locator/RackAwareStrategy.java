@@ -42,7 +42,7 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
     public Set<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
     {
         int replicas = getReplicationFactor();
-        Set<InetAddress> endpoints = new LinkedHashSet<InetAddress>(replicas);
+        Set<InetAddress> endpoints = new HashSet<InetAddress>(replicas);
         ArrayList<Token> tokens = metadata.sortedTokens();
 
         if (tokens.isEmpty())

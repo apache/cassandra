@@ -74,7 +74,7 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
         int totalReplicas = getReplicationFactor();
         Map<String, Integer> remainingReplicas = new HashMap<String, Integer>(datacenters);
         Map<String, Set<String>> dcUsedRacks = new HashMap<String, Set<String>>();
-        Set<InetAddress> endpoints = new LinkedHashSet<InetAddress>(totalReplicas);
+        Set<InetAddress> endpoints = new HashSet<InetAddress>(totalReplicas);
 
         // first pass: only collect replicas on unique racks
         for (Iterator<Token> iter = TokenMetadata.ringIterator(tokenMetadata.sortedTokens(), searchToken);
