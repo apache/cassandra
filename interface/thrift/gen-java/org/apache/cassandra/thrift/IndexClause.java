@@ -50,18 +50,18 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
   private static final TStruct STRUCT_DESC = new TStruct("IndexClause");
 
   private static final TField EXPRESSIONS_FIELD_DESC = new TField("expressions", TType.LIST, (short)1);
-  private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)2);
-  private static final TField START_KEY_FIELD_DESC = new TField("start_key", TType.STRING, (short)3);
+  private static final TField START_KEY_FIELD_DESC = new TField("start_key", TType.STRING, (short)2);
+  private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)3);
 
   public List<IndexExpression> expressions;
-  public int count;
   public byte[] start_key;
+  public int count;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
     EXPRESSIONS((short)1, "expressions"),
-    COUNT((short)2, "count"),
-    START_KEY((short)3, "start_key");
+    START_KEY((short)2, "start_key"),
+    COUNT((short)3, "count");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -78,10 +78,10 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
       switch(fieldId) {
         case 1: // EXPRESSIONS
           return EXPRESSIONS;
-        case 2: // COUNT
-          return COUNT;
-        case 3: // START_KEY
+        case 2: // START_KEY
           return START_KEY;
+        case 3: // COUNT
+          return COUNT;
         default:
           return null;
       }
@@ -131,10 +131,10 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
     tmpMap.put(_Fields.EXPRESSIONS, new FieldMetaData("expressions", TFieldRequirementType.REQUIRED, 
         new ListMetaData(TType.LIST, 
             new StructMetaData(TType.STRUCT, IndexExpression.class))));
+    tmpMap.put(_Fields.START_KEY, new FieldMetaData("start_key", TFieldRequirementType.REQUIRED, 
+        new FieldValueMetaData(TType.STRING)));
     tmpMap.put(_Fields.COUNT, new FieldMetaData("count", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.I32)));
-    tmpMap.put(_Fields.START_KEY, new FieldMetaData("start_key", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(IndexClause.class, metaDataMap);
   }
@@ -146,10 +146,12 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
 
   public IndexClause(
     List<IndexExpression> expressions,
+    byte[] start_key,
     int count)
   {
     this();
     this.expressions = expressions;
+    this.start_key = start_key;
     this.count = count;
     setCountIsSet(true);
   }
@@ -167,11 +169,11 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
       }
       this.expressions = __this__expressions;
     }
-    this.count = other.count;
     if (other.isSetStart_key()) {
       this.start_key = new byte[other.start_key.length];
       System.arraycopy(other.start_key, 0, start_key, 0, other.start_key.length);
     }
+    this.count = other.count;
   }
 
   public IndexClause deepCopy() {
@@ -222,29 +224,6 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
     }
   }
 
-  public int getCount() {
-    return this.count;
-  }
-
-  public IndexClause setCount(int count) {
-    this.count = count;
-    setCountIsSet(true);
-    return this;
-  }
-
-  public void unsetCount() {
-    __isset_bit_vector.clear(__COUNT_ISSET_ID);
-  }
-
-  /** Returns true if field count is set (has been asigned a value) and false otherwise */
-  public boolean isSetCount() {
-    return __isset_bit_vector.get(__COUNT_ISSET_ID);
-  }
-
-  public void setCountIsSet(boolean value) {
-    __isset_bit_vector.set(__COUNT_ISSET_ID, value);
-  }
-
   public byte[] getStart_key() {
     return this.start_key;
   }
@@ -269,6 +248,29 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
     }
   }
 
+  public int getCount() {
+    return this.count;
+  }
+
+  public IndexClause setCount(int count) {
+    this.count = count;
+    setCountIsSet(true);
+    return this;
+  }
+
+  public void unsetCount() {
+    __isset_bit_vector.clear(__COUNT_ISSET_ID);
+  }
+
+  /** Returns true if field count is set (has been asigned a value) and false otherwise */
+  public boolean isSetCount() {
+    return __isset_bit_vector.get(__COUNT_ISSET_ID);
+  }
+
+  public void setCountIsSet(boolean value) {
+    __isset_bit_vector.set(__COUNT_ISSET_ID, value);
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case EXPRESSIONS:
@@ -279,19 +281,19 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
       }
       break;
 
-    case COUNT:
-      if (value == null) {
-        unsetCount();
-      } else {
-        setCount((Integer)value);
-      }
-      break;
-
     case START_KEY:
       if (value == null) {
         unsetStart_key();
       } else {
         setStart_key((byte[])value);
+      }
+      break;
+
+    case COUNT:
+      if (value == null) {
+        unsetCount();
+      } else {
+        setCount((Integer)value);
       }
       break;
 
@@ -307,11 +309,11 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
     case EXPRESSIONS:
       return getExpressions();
 
-    case COUNT:
-      return new Integer(getCount());
-
     case START_KEY:
       return getStart_key();
+
+    case COUNT:
+      return new Integer(getCount());
 
     }
     throw new IllegalStateException();
@@ -326,10 +328,10 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
     switch (field) {
     case EXPRESSIONS:
       return isSetExpressions();
-    case COUNT:
-      return isSetCount();
     case START_KEY:
       return isSetStart_key();
+    case COUNT:
+      return isSetCount();
     }
     throw new IllegalStateException();
   }
@@ -360,21 +362,21 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
         return false;
     }
 
-    boolean this_present_count = true;
-    boolean that_present_count = true;
-    if (this_present_count || that_present_count) {
-      if (!(this_present_count && that_present_count))
-        return false;
-      if (this.count != that.count)
-        return false;
-    }
-
     boolean this_present_start_key = true && this.isSetStart_key();
     boolean that_present_start_key = true && that.isSetStart_key();
     if (this_present_start_key || that_present_start_key) {
       if (!(this_present_start_key && that_present_start_key))
         return false;
       if (!java.util.Arrays.equals(this.start_key, that.start_key))
+        return false;
+    }
+
+    boolean this_present_count = true;
+    boolean that_present_count = true;
+    if (this_present_count || that_present_count) {
+      if (!(this_present_count && that_present_count))
+        return false;
+      if (this.count != that.count)
         return false;
     }
 
@@ -403,20 +405,20 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
         return lastComparison;
       }
     }
-    lastComparison = Boolean.valueOf(isSetCount()).compareTo(typedOther.isSetCount());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetCount()) {      lastComparison = TBaseHelper.compareTo(this.count, typedOther.count);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
     lastComparison = Boolean.valueOf(isSetStart_key()).compareTo(typedOther.isSetStart_key());
     if (lastComparison != 0) {
       return lastComparison;
     }
     if (isSetStart_key()) {      lastComparison = TBaseHelper.compareTo(this.start_key, typedOther.start_key);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetCount()).compareTo(typedOther.isSetCount());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetCount()) {      lastComparison = TBaseHelper.compareTo(this.count, typedOther.count);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -452,17 +454,17 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 2: // COUNT
-          if (field.type == TType.I32) {
-            this.count = iprot.readI32();
-            setCountIsSet(true);
+        case 2: // START_KEY
+          if (field.type == TType.STRING) {
+            this.start_key = iprot.readBinary();
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 3: // START_KEY
-          if (field.type == TType.STRING) {
-            this.start_key = iprot.readBinary();
+        case 3: // COUNT
+          if (field.type == TType.I32) {
+            this.count = iprot.readI32();
+            setCountIsSet(true);
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -497,16 +499,14 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
       }
       oprot.writeFieldEnd();
     }
+    if (this.start_key != null) {
+      oprot.writeFieldBegin(START_KEY_FIELD_DESC);
+      oprot.writeBinary(this.start_key);
+      oprot.writeFieldEnd();
+    }
     oprot.writeFieldBegin(COUNT_FIELD_DESC);
     oprot.writeI32(this.count);
     oprot.writeFieldEnd();
-    if (this.start_key != null) {
-      if (isSetStart_key()) {
-        oprot.writeFieldBegin(START_KEY_FIELD_DESC);
-        oprot.writeBinary(this.start_key);
-        oprot.writeFieldEnd();
-      }
-    }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
   }
@@ -524,24 +524,22 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
     }
     first = false;
     if (!first) sb.append(", ");
+    sb.append("start_key:");
+    if (this.start_key == null) {
+      sb.append("null");
+    } else {
+        int __start_key_size = Math.min(this.start_key.length, 128);
+        for (int i = 0; i < __start_key_size; i++) {
+          if (i != 0) sb.append(" ");
+          sb.append(Integer.toHexString(this.start_key[i]).length() > 1 ? Integer.toHexString(this.start_key[i]).substring(Integer.toHexString(this.start_key[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.start_key[i]).toUpperCase());
+        }
+        if (this.start_key.length > 128) sb.append(" ...");
+    }
+    first = false;
+    if (!first) sb.append(", ");
     sb.append("count:");
     sb.append(this.count);
     first = false;
-    if (isSetStart_key()) {
-      if (!first) sb.append(", ");
-      sb.append("start_key:");
-      if (this.start_key == null) {
-        sb.append("null");
-      } else {
-          int __start_key_size = Math.min(this.start_key.length, 128);
-          for (int i = 0; i < __start_key_size; i++) {
-            if (i != 0) sb.append(" ");
-            sb.append(Integer.toHexString(this.start_key[i]).length() > 1 ? Integer.toHexString(this.start_key[i]).substring(Integer.toHexString(this.start_key[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.start_key[i]).toUpperCase());
-          }
-          if (this.start_key.length > 128) sb.append(" ...");
-      }
-      first = false;
-    }
     sb.append(")");
     return sb.toString();
   }
@@ -550,6 +548,9 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
     // check for required fields
     if (expressions == null) {
       throw new TProtocolException("Required field 'expressions' was not present! Struct: " + toString());
+    }
+    if (start_key == null) {
+      throw new TProtocolException("Required field 'start_key' was not present! Struct: " + toString());
     }
     // alas, we cannot check 'count' because it's a primitive and you chose the non-beans generator.
   }
