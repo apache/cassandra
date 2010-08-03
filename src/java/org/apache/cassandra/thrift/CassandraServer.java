@@ -826,6 +826,9 @@ public class CassandraServer implements Cassandra.Iface
         if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
             throw new InvalidRequestException("Unable to create new keyspace while authentication is enabled.");
 
+        if (StorageService.instance.getLiveNodes().size() < ks_def.replication_factor)
+            throw new InvalidRequestException("Not enough live nodes to support this keyspace");
+        
         //generate a meaningful error if the user setup keyspace and/or column definition incorrectly
         for (CfDef cf : ks_def.cf_defs) 
         {

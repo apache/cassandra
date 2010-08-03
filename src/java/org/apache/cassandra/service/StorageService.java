@@ -1679,8 +1679,16 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 if (DatabaseDescriptor.getDefsVersion().timestamp() > 0 || Migration.getLastMigrationId() != null)
                     throw new ConfigurationException("Cannot load from XML on top of pre-existing schemas.");
                 
+                Collection<KSMetaData> tables = DatabaseDescriptor.readTablesFromYaml();
+             
+                // cycle through first to make sure we can satisfy live nodes constraint.
+                int liveNodeCount = getLiveNodes().size();
+                for (KSMetaData table : tables)
+                    if (liveNodeCount < table.replicationFactor)
+                        throw new ConfigurationException("Not enough live nodes to support this keyspace: " + table.name);
+                
                 Migration migration = null;
-                for (KSMetaData table : DatabaseDescriptor.readTablesFromYaml())
+                for (KSMetaData table : tables)
                 {
                     migration = new AddKeyspace(table); 
                     migration.apply();
