@@ -40,10 +40,7 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
@@ -51,9 +48,7 @@ import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LatencyTracker;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -496,7 +491,7 @@ public class StorageProxy implements StorageProxyMBean
         List<AbstractBounds> ranges = getRestrictedRanges(command.range);
         // now scan until we have enough results
         List<Row> rows = new ArrayList<Row>(command.max_keys);
-        for (AbstractBounds range : getRangeIterator(ranges, command.range.left))
+        for (AbstractBounds range : ranges)
         {
             List<InetAddress> liveEndpoints = StorageService.instance.getLiveNaturalEndpoints(command.keyspace, range.right);
 
@@ -531,8 +526,7 @@ public class StorageProxy implements StorageProxyMBean
                 RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, liveEndpoints);
                 AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(command.keyspace);
                 QuorumResponseHandler<List<Row>> handler = rs.getQuorumResponseHandler(resolver, consistency_level);
-                // TODO bail early if live endpoints can't satisfy requested
-                // consistency level
+                // TODO bail early if live endpoints can't satisfy requested consistency level
                 for (InetAddress endpoint : liveEndpoints) 
                 {
                     MessagingService.instance.sendRR(message, endpoint, handler);
@@ -637,43 +631,6 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     /**
-     * returns an iterator that will return ranges in ring order, starting with the one that contains the start token
-     */
-    private static Iterable<AbstractBounds> getRangeIterator(final List<AbstractBounds> ranges, Token start)
-    {
-        // find the one to start with
-        int i;
-        for (i = 0; i < ranges.size(); i++)
-        {
-            AbstractBounds range = ranges.get(i);
-            if (range.contains(start) || range.left.equals(start))
-                break;
-        }
-        AbstractBounds range = ranges.get(i);
-        assert range.contains(start) || range.left.equals(start); // make sure the loop didn't just end b/c ranges were exhausted
-
-        // return an iterable that starts w/ the correct range and iterates the rest in ring order
-        final int begin = i;
-        return new Iterable<AbstractBounds>()
-        {
-            public Iterator<AbstractBounds> iterator()
-            {
-                return new AbstractIterator<AbstractBounds>()
-                {
-                    int n = 0;
-
-                    protected AbstractBounds computeNext()
-                    {
-                        if (n == ranges.size())
-                            return endOfData();
-                        return ranges.get((begin + n++) % ranges.size());
-                    }
-                };
-            }
-        };
-    }
-
-    /**
      * compute all ranges we're going to query, in sorted order, so that we get the correct results back.
      *  1) computing range intersections is necessary because nodes can be replica destinations for many ranges,
      *     so if we do not restrict each scan to the specific range we want we will get duplicate results.
@@ -720,6 +677,15 @@ public class StorageProxy implements StorageProxyMBean
                 // sort in order that the original query range would see them.
                 int queryOrder1 = queryRange.left.compareTo(o1.left);
                 int queryOrder2 = queryRange.left.compareTo(o2.left);
+
+                // check for exact match with query start
+                assert !(queryOrder1 == 0 && queryOrder2 == 0);
+                if (queryOrder1 == 0)
+                    return -1;
+                if (queryOrder2 == 0)
+                    return 1;
+
+                // order segments in order they should be traversed
                 if (queryOrder1 < queryOrder2)
                     return -1; // o1 comes after query start, o2 wraps to after
                 if (queryOrder1 > queryOrder2)
@@ -785,26 +751,51 @@ public class StorageProxy implements StorageProxyMBean
         return writeStats.getRecentLatencyMicros();
     }
 
-    public static List<Row> scan(IndexScanCommand command, ConsistencyLevel consistency_level)
+    public static List<Row> scan(String keyspace, String column_family, IndexClause index_clause, SlicePredicate column_predicate, ConsistencyLevel consistency_level)
     throws IOException, TimeoutException
     {
         IPartitioner p = StorageService.getPartitioner();
-        Token startToken = command.index_clause.start_key == null ? p.getMinimumToken() : p.getToken(command.index_clause.start_key);
-        List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.keyspace, startToken);
-        // TODO iterate through endpoints in token order like getRangeSlice
-        Message message = command.getMessage();
-        RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, endpoints);
-        AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(command.keyspace);
-        QuorumResponseHandler<List<Row>> handler = rs.getQuorumResponseHandler(resolver, consistency_level);
-        MessagingService.instance.sendRR(message, endpoints.get(0), handler);
-        try
+
+        Token leftToken = index_clause.start_key == null ? p.getMinimumToken() : p.getToken(index_clause.start_key);
+        List<AbstractBounds> ranges = getRestrictedRanges(new Bounds(leftToken, p.getMinimumToken()));
+        logger.debug("scan ranges are " + StringUtils.join(ranges, ","));
+
+        // now scan until we have enough results
+        List<Row> rows = new ArrayList<Row>(index_clause.count);
+        for (AbstractBounds range : ranges)
         {
-            return handler.get();
+            List<InetAddress> liveEndpoints = StorageService.instance.getLiveNaturalEndpoints(keyspace, range.right);
+            DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), liveEndpoints);
+
+            // collect replies and resolve according to consistency level
+            RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(keyspace, liveEndpoints);
+            AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(keyspace);
+            QuorumResponseHandler<List<Row>> handler = rs.getQuorumResponseHandler(resolver, consistency_level);
+            // TODO bail early if live endpoints can't satisfy requested consistency level
+            IndexScanCommand command = new IndexScanCommand(keyspace, column_family, index_clause, column_predicate, range);
+            Message message = command.getMessage();
+            for (InetAddress endpoint : liveEndpoints)
+            {
+                MessagingService.instance.sendRR(message, endpoint, handler);
+                if (logger.isDebugEnabled())
+                    logger.debug("reading " + command + " from " + message.getMessageId() + "@" + endpoint);
+            }
+
+            List<Row> theseRows;
+            try
+            {
+                theseRows = handler.get();
+            }
+            catch (DigestMismatchException e)
+            {
+                throw new RuntimeException(e);
+            }
+            rows.addAll(theseRows);
+            if (rows.size() >= index_clause.count)
+                return rows.subList(0, index_clause.count);
         }
-        catch (DigestMismatchException e)
-        {
-            throw new RuntimeException(e);
-        }
+
+        return rows;
     }
 
     static class weakReadLocalCallable implements Callable<Object>

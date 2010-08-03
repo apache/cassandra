@@ -20,7 +20,10 @@ import org.apache.cassandra.db.TimestampClock;
 import org.apache.cassandra.db.filter.IFilter;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
@@ -65,9 +68,11 @@ public class SSTableWriterTest extends CleanupHelper {
         cfs.addSSTable(sstr);
         
         IndexExpression expr = new IndexExpression("birthdate".getBytes("UTF8"), IndexOperator.EQ, FBUtilities.toByteArray(1L));
-        IndexClause clause = new IndexClause(Arrays.asList(expr), 100);
+        IndexClause clause = new IndexClause(Arrays.asList(expr), "".getBytes(), 100);
         IFilter filter = new IdentityQueryFilter();
-        List<Row> rows = cfs.scan(clause, filter);
+        IPartitioner p = StorageService.getPartitioner();
+        Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
+        List<Row> rows = cfs.scan(clause, range, filter);
         
         assertEquals("IndexExpression should return two rows on recoverAndOpen",2, rows.size());
         assertTrue("First result should be 'k1'",Arrays.equals("k1".getBytes(), rows.get(0).key.key));

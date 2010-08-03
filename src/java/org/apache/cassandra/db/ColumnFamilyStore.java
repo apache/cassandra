@@ -1055,42 +1055,56 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return rows;
     }
 
-    public List<Row> scan(IndexClause indexClause, IFilter dataFilter)
+    public List<Row> scan(IndexClause clause, AbstractBounds range, IFilter dataFilter)
     {
         // TODO: allow merge join instead of just one index + loop
-        IndexExpression first = highestSelectivityPredicate(indexClause);
+        IndexExpression first = highestSelectivityPredicate(clause);
         ColumnFamilyStore indexCFS = getIndexedColumnFamilyStore(first.column_name);
         assert indexCFS != null;
         DecoratedKey indexKey = indexCFS.partitioner_.decorateKey(first.value);
-        QueryFilter indexFilter = QueryFilter.getSliceFilter(indexKey,
-                                                             new QueryPath(indexCFS.getColumnFamilyName()),
-                                                             ArrayUtils.EMPTY_BYTE_ARRAY,
-                                                             ArrayUtils.EMPTY_BYTE_ARRAY,
-                                                             null,
-                                                             false,
-                                                             indexClause.count);
 
         List<Row> rows = new ArrayList<Row>();
-        ColumnFamily indexRow = indexCFS.getColumnFamily(indexFilter);
-        if (indexRow == null)
-            return rows;
-
-        for (byte[] dataKey : indexRow.getColumnNames())
+        byte[] startKey = clause.start_key;
+        
+        outer:
+        while (true)
         {
-            DecoratedKey dk = partitioner_.decorateKey(dataKey);
-            ColumnFamily data = getColumnFamily(new QueryFilter(dk, new QueryPath(columnFamily_), dataFilter));
-            boolean accepted = true;
-            for (IndexExpression expression : indexClause.expressions)
+            /* we don't have a way to get the key back from the DK -- we just have a token --
+             * so, we need to loop after starting with start_key, until we get to keys in the given `range`.
+             * But, if the calling StorageProxy is doing a good job estimating data from each range, the range
+             * should be pretty close to `start_key`. */
+            QueryFilter indexFilter = QueryFilter.getSliceFilter(indexKey,
+                                                                 new QueryPath(indexCFS.getColumnFamilyName()),
+                                                                 startKey,
+                                                                 ArrayUtils.EMPTY_BYTE_ARRAY,
+                                                                 null,
+                                                                 false,
+                                                                 clause.count);
+            ColumnFamily indexRow = indexCFS.getColumnFamily(indexFilter);
+            if (indexRow == null)
+                break;
+
+            byte[] dataKey = null;
+            int n = 0;
+            Iterator<byte[]> iter = indexRow.getColumnNames().iterator();
+            while (iter.hasNext())
             {
-                // (we can skip "first" since we already know it's satisfied)
-                if (expression != first && !satisfies(data, expression))
-                {
-                    accepted = false;
-                    break;
-                }
+                dataKey = iter.next();
+                n++;
+                DecoratedKey dk = partitioner_.decorateKey(dataKey);
+                if (!range.right.equals(partitioner_.getMinimumToken()) && range.right.compareTo(dk.token) < 0)
+                    break outer;
+                if (!range.contains(dk.token))
+                    continue;
+                ColumnFamily data = getColumnFamily(new QueryFilter(dk, new QueryPath(columnFamily_), dataFilter));
+                if (satisfies(data, clause, first))
+                    rows.add(new Row(dk, data));
+                if (rows.size() == clause.count)
+                    break outer;
             }
-            if (accepted)
-                rows.add(new Row(dk, data));
+            startKey = dataKey;
+            if (n < clause.count)
+                break;
         }
 
         return rows;
@@ -1115,10 +1129,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return best;
     }
 
-    private static boolean satisfies(ColumnFamily data, IndexExpression expression)
+    private static boolean satisfies(ColumnFamily data, IndexClause clause, IndexExpression first)
     {
-        IColumn column = data.getColumn(expression.column_name);
-        return column != null && Arrays.equals(column.value(), expression.value);
+        for (IndexExpression expression : clause.expressions)
+        {
+            // (we can skip "first" since we already know it's satisfied)
+            if (expression == first)
+                continue;
+            // check column data vs expression
+            IColumn column = data.getColumn(expression.column_name);
+            if (column != null && !Arrays.equals(column.value(), expression.value))
+                 return false;
+        }
+        return true;
     }
 
     public AbstractType getComparator()

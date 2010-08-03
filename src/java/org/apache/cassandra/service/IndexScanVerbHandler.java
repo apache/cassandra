@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service;
 
+import java.util.List;
+
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.net.IVerbHandler;
@@ -36,7 +38,8 @@ public class IndexScanVerbHandler implements IVerbHandler
         {
             IndexScanCommand command = IndexScanCommand.read(message);
             ColumnFamilyStore cfs = Table.open(command.keyspace).getColumnFamilyStore(command.column_family);
-            RangeSliceReply reply = new RangeSliceReply(cfs.scan(command.index_clause, QueryFilter.getFilter(command.predicate, cfs.getComparator())));
+            List<Row> rows = cfs.scan(command.index_clause, command.range, QueryFilter.getFilter(command.predicate, cfs.getComparator()));
+            RangeSliceReply reply = new RangeSliceReply(rows);
             Message response = reply.getReply(message);
             if (logger.isDebugEnabled())
                 logger.debug("Sending " + reply+ " to " + message.getMessageId() + "@" + message.getFrom());

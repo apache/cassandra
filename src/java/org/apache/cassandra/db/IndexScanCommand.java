@@ -23,6 +23,7 @@ import java.io.*;
 import java.util.Arrays;
 
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.Message;
@@ -42,14 +43,16 @@ public class IndexScanCommand
     public final String column_family;
     public final IndexClause index_clause;
     public final SlicePredicate predicate;
+    public final AbstractBounds range;
 
-    public IndexScanCommand(String keyspace, String column_family, IndexClause index_clause, SlicePredicate predicate)
+    public IndexScanCommand(String keyspace, String column_family, IndexClause index_clause, SlicePredicate predicate, AbstractBounds range)
     {
 
         this.keyspace = keyspace;
         this.column_family = column_family;
         this.index_clause = index_clause;
         this.predicate = predicate;
+        this.range = range;
     }
 
     public Message getMessage()
@@ -85,6 +88,7 @@ public class IndexScanCommand
             TSerializer ser = new TSerializer(new TBinaryProtocol.Factory());
             FBUtilities.serialize(ser, o.index_clause, out);
             FBUtilities.serialize(ser, o.predicate, out);
+            AbstractBounds.serializer().serialize(o.range, out);
         }
 
         public IndexScanCommand deserialize(DataInput in) throws IOException
@@ -97,8 +101,9 @@ public class IndexScanCommand
             FBUtilities.deserialize(dser, indexClause, in);
             SlicePredicate predicate = new SlicePredicate();
             FBUtilities.deserialize(dser, predicate, in);
+            AbstractBounds range = AbstractBounds.serializer().deserialize(in);
 
-            return new IndexScanCommand(keyspace, columnFamily, indexClause, predicate);
+            return new IndexScanCommand(keyspace, columnFamily, indexClause, predicate, range);
         }
     }
 }

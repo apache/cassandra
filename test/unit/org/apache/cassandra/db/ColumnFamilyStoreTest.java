@@ -23,6 +23,8 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang.StringUtils;
+
 import static org.junit.Assert.assertNull;
 import org.junit.Test;
 
@@ -31,6 +33,7 @@ import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
@@ -172,12 +175,14 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.apply();
 
         IndexExpression expr = new IndexExpression("birthdate".getBytes("UTF8"), IndexOperator.EQ, FBUtilities.toByteArray(1L));
-        IndexClause clause = new IndexClause(Arrays.asList(expr), 100);
+        IndexClause clause = new IndexClause(Arrays.asList(expr), ArrayUtils.EMPTY_BYTE_ARRAY, 100);
         IFilter filter = new IdentityQueryFilter();
-        List<Row> rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").scan(clause, filter);
+        IPartitioner p = StorageService.getPartitioner();
+        Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
+        List<Row> rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").scan(clause, range, filter);
 
         assert rows != null;
-        assert rows.size() == 2;
+        assert rows.size() == 2 : StringUtils.join(rows, ",");
         assert Arrays.equals("k1".getBytes(), rows.get(0).key.key);
         assert Arrays.equals("k3".getBytes(), rows.get(1).key.key);
         assert Arrays.equals(FBUtilities.toByteArray(1L), rows.get(0).cf.getColumn("birthdate".getBytes("UTF8")).value());

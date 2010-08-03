@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "9.0.0"
+const string VERSION = "10.0.0"
 
 
 #
@@ -254,8 +254,8 @@ struct IndexExpression {
 
 struct IndexClause {
     1: required list<IndexExpression> expressions
-    2: required i32 count=100,
-    3: optional binary start_key,
+    2: required binary start_key,
+    3: required i32 count=100,
 }
 
 /**
@@ -272,12 +272,6 @@ struct KeyRange {
     3: optional string start_token,
     4: optional string end_token,
     5: required i32 count=100
-}
-
-struct RowPredicate {
-    1: optional list<binary> keys,
-    2: optional KeyRange key_range,
-    3: optional IndexClause index_clause
 }
 
 /**
@@ -409,16 +403,6 @@ service Cassandra {
                             throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
-    Performs a get_slice for column_parent and predicate for the given keys in parallel.
-    @Deprecated; use `scan`
-  */
-  map<binary,list<ColumnOrSuperColumn>> multiget_slice(1:required list<binary> keys, 
-                                                       2:required ColumnParent column_parent, 
-                                                       3:required SlicePredicate predicate, 
-                                                       4:required ConsistencyLevel consistency_level=ONE)
-                                        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
-
-  /**
     returns the number of columns matching <code>predicate</code> for a particular <code>key</code>, 
     <code>ColumnFamily</code> and optionally <code>SuperColumn</code>.
   */
@@ -427,6 +411,15 @@ service Cassandra {
                 3:required SlicePredicate predicate,
                 4:required ConsistencyLevel consistency_level=ONE)
       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
+
+  /**
+    Performs a get_slice for column_parent and predicate for the given keys in parallel.
+  */
+  map<binary,list<ColumnOrSuperColumn>> multiget_slice(1:required list<binary> keys, 
+                                                       2:required ColumnParent column_parent, 
+                                                       3:required SlicePredicate predicate, 
+                                                       4:required ConsistencyLevel consistency_level=ONE)
+                                        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
     Perform a get_count in parallel on the given list<binary> keys. The return value maps keys to the count found.
@@ -439,8 +432,7 @@ service Cassandra {
       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
-   returns a subset of columns for a range of keys.
-   @Deprecated; use `scan`
+   returns a subset of columns for a contiguous range of keys.
   */
   list<KeySlice> get_range_slices(1:required ColumnParent column_parent, 
                                   2:required SlicePredicate predicate,
@@ -448,19 +440,12 @@ service Cassandra {
                                   4:required ConsistencyLevel consistency_level=ONE)
                  throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
-  /** Returns the subset of columns specified in SlicePredicate for the rows requested in RowsPredicate */
-  list<KeySlice> scan(1:required ColumnParent column_parent,
-                      2:required RowPredicate row_predicate,
-                      3:required SlicePredicate column_predicate,
-                      4:required ConsistencyLevel consistency_level=ONE)
+  /** Returns the subset of columns specified in SlicePredicate for the rows matching the IndexClause */
+  list<KeySlice> get_indexed_slices(1:required ColumnParent column_parent,
+                                    2:required IndexClause index_clause,
+                                    3:required SlicePredicate column_predicate,
+                                    4:required ConsistencyLevel consistency_level=ONE)
                  throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
-
-  /** Counts the subset of columns specified in SlicePredicate for the rows requested in RowsPredicate */
-  list<KeyCount> scan_count(1:required ColumnParent column_parent,
-                           2:required RowPredicate row_predicate,
-                           3:required SlicePredicate column_predicate,
-                           4:required ConsistencyLevel consistency_level=ONE)
-      throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   # modification methods
 
