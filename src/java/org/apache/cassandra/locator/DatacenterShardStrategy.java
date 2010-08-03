@@ -58,8 +58,6 @@ public class DatacenterShardStrategy extends AbstractReplicationStrategy
     public DatacenterShardStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions) throws ConfigurationException
     {
         super(table, tokenMetadata, snitch, configOptions);
-        if ((!(snitch instanceof AbstractRackAwareSnitch)))
-            throw new IllegalArgumentException("DatacenterShardStrategy requires a rack-aware endpointsnitch");
         this.snitch = (AbstractRackAwareSnitch)snitch;
 
         Map<String, Integer> newDatacenters = new HashMap<String, Integer>();

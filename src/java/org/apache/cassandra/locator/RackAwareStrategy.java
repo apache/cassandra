@@ -37,8 +37,6 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
     public RackAwareStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
         super(table, tokenMetadata, snitch, configOptions);
-        if (!(snitch instanceof AbstractRackAwareSnitch))
-            throw new IllegalArgumentException(("RackAwareStrategy requires AbstractRackAwareSnitch."));
     }
 
     public Set<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
