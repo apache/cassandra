@@ -106,7 +106,7 @@ public class DefsTable
         {
             if (Arrays.equals(column.name(), DEFINITION_SCHEMA_COLUMN_NAME))
                 continue;
-            org.apache.cassandra.config.avro.KsDef ks = SerDeUtils.<org.apache.cassandra.config.avro.KsDef>deserialize(schema, column.value());
+            org.apache.cassandra.config.avro.KsDef ks = SerDeUtils.deserialize(schema, column.value(), new org.apache.cassandra.config.avro.KsDef());
             keyspaces.add(KSMetaData.inflate(ks));
         }
         return keyspaces;

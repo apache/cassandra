@@ -48,14 +48,17 @@ public final class SerDeUtils
 
 	/**
      * Deserializes a single object based on the given Schema.
-     * @param schema writer's schema
+     * @param writer writer's schema
      * @param bytes Array to deserialize from
+     * @param ob An empty object to deserialize into (must not be null).
      * @throws IOException
      */
-    public static <T extends SpecificRecord> T deserialize(Schema schema, byte[] bytes) throws IOException
+    public static <T extends SpecificRecord> T deserialize(Schema writer, byte[] bytes, T ob) throws IOException
     {
         BinaryDecoder dec = DIRECT_DECODERS.createBinaryDecoder(bytes, null);
-        return new SpecificDatumReader<T>(schema).read(null, dec);
+        SpecificDatumReader<T> reader = new SpecificDatumReader<T>(writer);
+        reader.setExpected(ob.getSchema());
+        return reader.read(ob, dec);
     }
 
 	/**
@@ -74,14 +77,17 @@ public final class SerDeUtils
 
 	/**
      * Deserializes a single object as stored along with its Schema by serialize(T). NB: See warnings on serialize(T).
+     * @param ob An empty object to deserialize into (must not be null).
      * @param bytes Array to deserialize from
      * @throws IOException
      */
-    public static <T extends SpecificRecord> T deserializeWithSchema(byte[] bytes) throws IOException
+    public static <T extends SpecificRecord> T deserializeWithSchema(byte[] bytes, T ob) throws IOException
     {
         BinaryDecoder dec = DIRECT_DECODERS.createBinaryDecoder(bytes, null);
-        Schema schema = Schema.parse(dec.readString(new Utf8()).toString());
-        return new SpecificDatumReader<T>(schema).read(null, dec);
+        Schema writer = Schema.parse(dec.readString(new Utf8()).toString());
+        SpecificDatumReader<T> reader = new SpecificDatumReader<T>(writer);
+        reader.setExpected(ob.getSchema());
+        return new SpecificDatumReader<T>(writer).read(ob, dec);
     }
 
 	/**

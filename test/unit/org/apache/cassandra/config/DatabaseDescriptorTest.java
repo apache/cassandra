@@ -22,6 +22,7 @@ import static org.junit.Assert.assertNotNull;
 
 import org.apache.avro.specific.SpecificRecord;
 
+import org.apache.cassandra.config.avro.KsDef;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.migration.AddKeyspace;
 import org.apache.cassandra.locator.RackUnawareStrategy;
@@ -35,9 +36,11 @@ import java.util.UUID;
 
 public class DatabaseDescriptorTest
 {
-    protected <D extends SpecificRecord> D serDe(D record) throws IOException
+    protected <D extends SpecificRecord> D serDe(D record, D newInstance) throws IOException
     {
-        D actual = SerDeUtils.<D>deserialize(record.getSchema(), SerDeUtils.serialize(record));
+        D actual = SerDeUtils.deserialize(record.getSchema(),
+                                              SerDeUtils.serialize(record),
+                                              newInstance);
         assert actual.equals(record) : actual + " != " + record;
         return actual;
     }
@@ -56,7 +59,7 @@ public class DatabaseDescriptorTest
         {
             for (CFMetaData cfm : DatabaseDescriptor.getTableMetaData(table).values())
             {
-                CFMetaData cfmDupe = CFMetaData.inflate(serDe(cfm.deflate()));
+                CFMetaData cfmDupe = CFMetaData.inflate(serDe(cfm.deflate(), new org.apache.cassandra.config.avro.CfDef()));
                 assert cfmDupe != null;
                 assert cfmDupe.equals(cfm);
             }
@@ -68,7 +71,7 @@ public class DatabaseDescriptorTest
     {
         for (KSMetaData ksm : DatabaseDescriptor.tables.values())
         {
-            KSMetaData ksmDupe = KSMetaData.inflate(serDe(ksm.deflate()));
+            KSMetaData ksmDupe = KSMetaData.inflate(serDe(ksm.deflate(), new org.apache.cassandra.config.avro.KsDef()));
             assert ksmDupe != null;
             assert ksmDupe.equals(ksm);
         }

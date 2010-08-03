@@ -279,7 +279,7 @@ public abstract class Migration
     public static Migration deserialize(byte[] bytes) throws IOException
     {
         // deserialize
-        org.apache.cassandra.db.migration.avro.Migration mi = SerDeUtils.deserializeWithSchema(bytes);
+        org.apache.cassandra.db.migration.avro.Migration mi = SerDeUtils.deserializeWithSchema(bytes, new org.apache.cassandra.db.migration.avro.Migration());
 
         // create an instance of the migration subclass
         Migration migration;
