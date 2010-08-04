@@ -522,9 +522,10 @@ public class FBUtilities
             props.load(in);
             return props.getProperty("CassandraVersion");
         }
-        catch (IOException ioe)
+        catch (Exception e)
         {
-            throw new IOError(ioe);
+            logger_.warn("Unable to load version.properties", e);
+            return "debug version";
         }
     }
 
