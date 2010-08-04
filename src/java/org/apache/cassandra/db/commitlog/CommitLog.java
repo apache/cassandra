@@ -25,6 +25,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.UnserializableColumnFamilyException;
 import org.apache.cassandra.io.DeletionService;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileUtils;
@@ -184,6 +185,7 @@ public class CommitLog
         Set<Table> tablesRecovered = new HashSet<Table>();
         List<Future<?>> futures = new ArrayList<Future<?>>();
         byte[] bytes = new byte[4096];
+        Map<Integer, AtomicInteger> invalidMutations = new HashMap<Integer, AtomicInteger>();
 
         for (File file : clogs)
         {
@@ -255,7 +257,24 @@ public class CommitLog
 
                     /* deserialize the commit log entry */
                     ByteArrayInputStream bufIn = new ByteArrayInputStream(bytes, 0, serializedSize);
-                    final RowMutation rm = RowMutation.serializer().deserialize(new DataInputStream(bufIn));
+                    RowMutation rm = null;
+                    try
+                    {
+                        rm = RowMutation.serializer().deserialize(new DataInputStream(bufIn));
+                    }
+                    catch (UnserializableColumnFamilyException ex)
+                    {
+                        AtomicInteger i = invalidMutations.get(ex.cfId);
+                        if (i == null)
+                        {
+                            i = new AtomicInteger(1);
+                            invalidMutations.put(ex.cfId, i);
+                        }
+                        else
+                            i.incrementAndGet();
+                        continue;
+                    }
+                    
                     if (logger.isDebugEnabled())
                         logger.debug(String.format("replaying mutation for %s.%s: %s",
                                                     rm.getTable(),
@@ -266,11 +285,12 @@ public class CommitLog
                     final Collection<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>(rm.getColumnFamilies());
                     final long entryLocation = reader.getFilePointer();
                     final CommitLogHeader finalHeader = clHeader;
+                    final RowMutation frm = rm;
                     Runnable runnable = new WrappedRunnable()
                     {
                         public void runMayThrow() throws IOException
                         {
-                            RowMutation newRm = new RowMutation(rm.getTable(), rm.key());
+                            RowMutation newRm = new RowMutation(frm.getTable(), frm.key());
 
                             // Rebuild the row mutation, omitting column families that a) have already been flushed,
                             // b) are part of a cf that was dropped. Keep in mind that the cf.name() is suspect. do every
@@ -304,6 +324,9 @@ public class CommitLog
                 logger.info("Finished reading " + file);
             }
         }
+        
+        for (Map.Entry<Integer, AtomicInteger> entry : invalidMutations.entrySet())
+            logger.info(String.format("Skipped %d mutations from unknown (probably removed) CF with id %d", entry.getValue().intValue(), entry.getKey()));
 
         // wait for all the writes to finish on the mutation stage
         FBUtilities.waitOnFutures(futures);

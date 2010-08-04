@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.io.DataInput;
 import java.util.Collection;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -109,7 +110,10 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
             return null;
 
         // create a ColumnFamily based on the cf id
-        ColumnFamily cf = ColumnFamily.create(dis.readInt());
+        int cfId = dis.readInt();
+        if (CFMetaData.getCF(cfId) == null)
+            throw new UnserializableColumnFamilyException("Couldn't find cfId=" + cfId, cfId);
+        ColumnFamily cf = ColumnFamily.create(cfId);
         deserializeFromSSTableNoColumns(cf, dis);
         deserializeColumns(dis, cf);
         return cf;
