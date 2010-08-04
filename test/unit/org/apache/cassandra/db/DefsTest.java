@@ -18,9 +18,6 @@
 
 package org.apache.cassandra.db;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
@@ -42,6 +39,16 @@ import org.apache.cassandra.utils.UUIDGen;
 
 public class DefsTest extends CleanupHelper
 {   
+    @Test
+    public void ensureStaticCFMIdsAreLessThan1000()
+    {
+        assert CFMetaData.StatusCf.cfId == 0;    
+        assert CFMetaData.HintsCf.cfId == 1;    
+        assert CFMetaData.MigrationsCf.cfId == 2;    
+        assert CFMetaData.SchemaCf.cfId == 3;    
+        assert CFMetaData.StatisticsCf.cfId == 4;    
+    }
+    
     @Test
     public void saveAndRestore() throws IOException
     {
