@@ -24,7 +24,9 @@
     <property name="debuglevel" value="source,lines,vars"/>
 
     <property name="basedir" value="."/>
-    <property name="build.src" value="${basedir}/src/java"/>
+    <property name="build.src" value="${basedir}/src"/>
+    <property name="build.src.java" value="${basedir}/src/java"/>
+    <property name="avro.src" value="${basedir}/src/avro"/>
     <property name="build.src.gen-java" value="${basedir}/src/gen-java"/>
     <property name="build.lib" value="${basedir}/lib"/>
     <property name="build.dir" value="${basedir}/build"/>
@@ -36,8 +38,6 @@
     <property name="interface.thrift.dir" value="${interface.dir}/thrift"/>
     <property name="interface.thrift.gen-java" value="${interface.thrift.dir}/gen-java"/>
     <property name="interface.avro.dir" value="${interface.dir}/avro"/>
-    <property name="internode.dir" value="${basedir}/internode"/>
-    <property name="internode.avro.dir" value="${internode.dir}/avro"/>
     <property name="test.dir" value="${basedir}/test"/>
     <property name="test.resources" value="${test.dir}/resources"/>
     <property name="test.classes" value="${build.dir}/test/classes"/>
@@ -71,7 +71,7 @@
     </condition>
 
     <condition property="is.source.artifact">
-      <available file="${build.src}" type="dir" />
+      <available file="${build.src.java}" type="dir" />
     </condition>
 
     <!-- 
@@ -114,7 +114,6 @@
         <delete dir="${build.classes}" />
         <delete dir="${build.src.gen-java}" />
         <delete dir="${interface.avro.dir}" />
-        <delete dir="${internode.avro.dir}" />
     </target>
     <target depends="clean" name="cleanall"/>
 
@@ -127,16 +126,16 @@
     -->
     <target name="check-gen-cli-grammar">
         <uptodate property="cliUpToDate" 
-                srcfile="${build.src}/org/apache/cassandra/cli/Cli.g" 
+                srcfile="${build.src.java}/org/apache/cassandra/cli/Cli.g" 
                 targetfile="${build.src.gen-java}/org/apache/cassandra/cli/Cli.tokens"/>
     </target>
  
     <target name="gen-cli-grammar" depends="check-gen-cli-grammar" unless="cliUpToDate">
-      <echo>Building Grammar ${build.src}/org/apache/cassandra/cli/Cli.g  ....</echo>
+      <echo>Building Grammar ${build.src.java}/org/apache/cassandra/cli/Cli.g  ....</echo>
       <java classname="org.antlr.Tool"
             classpath="${build.lib}/antlr-3.1.3.jar"
             fork="true">
-         <arg value="${build.src}/org/apache/cassandra/cli/Cli.g" />
+         <arg value="${build.src.java}/org/apache/cassandra/cli/Cli.g" />
          <arg value="-fo" />
          <arg value="${build.src.gen-java}/org/apache/cassandra/cli/" />
       </java> 
@@ -171,29 +170,26 @@
     <!--
        Generate avro code
     -->
-    <target name="check-avro-generate">
+    <target name="check-avro-generate" depends="ivy-init">
       <taskdef name="avro-protocol" classname="org.apache.avro.specific.ProtocolTask">
         <classpath refid="cassandra.classpath" />
       </taskdef>
       <taskdef name="avro-schema" classname="org.apache.avro.specific.SchemaTask">
         <classpath refid="cassandra.classpath" />
       </taskdef>
-      <taskdef name="paranamer" classname="com.thoughtworks.paranamer.ant.ParanamerGeneratorTask">
-        <classpath refid="cassandra.classpath" />
-      </taskdef>
       <uptodate property="avroInterfaceUpToDate" srcfile="${interface.dir}/cassandra.genavro"
                   targetfile="${interface.avro.dir}/cassandra.avpr" />
-      <uptodate property="avroINProtoUpToDate" srcfile="${internode.dir}/cassandra.genavro"
-                  targetfile="${internode.avro.dir}/cassandra.avpr" />
+      <uptodate property="avroINProtoUpToDate" srcfile="${avro.src}/internode.genavro"
+                  targetfile="${build.src.gen-java}/cassandra.avpr" />
     </target>
 
     <target name="avro-generate" depends="avro-interface-generate"
             description="Generates Java Avro classes for client and internal use." />
 
     <target name="avro-interface-generate" unless="avroInterfaceUpToDate"
-            depends="init,check-avro-generate">
-            <avromacro protocolname="client" inputfile="${interface.dir}/cassandra.genavro" outputdir="${interface.avro.dir}" />
-            <avromacro protocolname="internode" inputfile="${internode.dir}/cassandra.genavro" outputdir="${internode.avro.dir}" />
+            depends="init,check-avro-generate,ivy-retrieve-build">
+      <avromacro protocolname="client" inputfile="${interface.dir}/cassandra.genavro" outputdir="${interface.avro.dir}" />
+      <avromacro protocolname="internode" inputfile="${avro.src}/internode.genavro" outputdir="${build.src}"/>
     </target>
 
     <macrodef name="avromacro">
@@ -267,18 +263,19 @@
     <target depends="init,avro-generate,gen-cli-grammar" name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <javac debug="true" debuglevel="${debuglevel}" destdir="${build.classes}">
-            <src path="${build.src}"/>
+            <src path="${build.src.java}"/>
             <src path="${build.src.gen-java}"/>
             <src path="${interface.thrift.dir}/gen-java"/>
             <src path="${interface.avro.dir}/gen-java"/>
-            <src path="${internode.avro.dir}/gen-java"/>
-            <classpath refid="cassandra.classpath"/>
+                <classpath refid="cassandra.classpath"/>
         </javac>
+        
+        <taskdef name="paranamer" classname="com.thoughtworks.paranamer.ant.ParanamerGeneratorTask">
+          <classpath refid="cassandra.classpath" />
+        </taskdef>
 
-        <paranamer sourceDirectory="${interface.avro.dir}"
-               outputDirectory="${build.classes}"/>
-        <paranamer sourceDirectory="${internode.avro.dir}"
-               outputDirectory="${build.classes}"/>
+        <!--<paranamer sourceDirectory="${interface.avro.dir}"-->
+               <!--outputDirectory="${build.classes}"/>-->
 
         <antcall target="createVersionPropFile"/>
     </target>
@@ -467,9 +464,9 @@
 
   <!-- create both html and xml code coverage reports -->
   <target name="cobertura-report">
-    <cobertura-report format="html" destdir="${cobertura.report.dir}" srcdir="${build.src}"
+    <cobertura-report format="html" destdir="${cobertura.report.dir}" srcdir="${build.src.java}"
       datafile="${cobertura.datafile}"/>
-    <cobertura-report format="xml" destdir="${cobertura.report.dir}" srcdir="${build.src}"
+    <cobertura-report format="xml" destdir="${cobertura.report.dir}" srcdir="${build.src.java}"
       datafile="${cobertura.datafile}"/>
   </target>
 
@@ -515,7 +512,7 @@
       windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
       bottom="Copyright &amp;copy; ${YEAR} The Apache Software Foundation">
 
-      <fileset dir="${build.src}" defaultexcludes="yes">
+      <fileset dir="${build.src.java}" defaultexcludes="yes">
         <include name="org/apache/**/*.java"/>
       </fileset>
       <fileset dir="${interface.thrift.gen-java}" defaultexcludes="yes">
