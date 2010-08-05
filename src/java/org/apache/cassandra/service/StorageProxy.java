@@ -553,7 +553,7 @@ public class StorageProxy implements StorageProxyMBean
 
         // now scan until we have enough results
         List<Row> rows = new ArrayList<Row>(command.max_keys);
-        for (AbstractBounds range : getRangeIterator(ranges, command.range.left))
+        for (AbstractBounds range : ranges)
         {
             List<InetAddress> liveEndpoints = StorageService.instance.getLiveNaturalEndpoints(command.keyspace, range.right);
             if (liveEndpoints.size() < responseCount)
@@ -598,43 +598,6 @@ public class StorageProxy implements StorageProxyMBean
 
         rangeStats.addNano(System.nanoTime() - startTime);
         return rows.size() > command.max_keys ? rows.subList(0, command.max_keys) : rows;
-    }
-
-    /**
-     * returns an iterator that will return ranges in ring order, starting with the one that contains the start token
-     */
-    private static Iterable<AbstractBounds> getRangeIterator(final List<AbstractBounds> ranges, Token start)
-    {
-        // find the one to start with
-        int i;
-        for (i = 0; i < ranges.size(); i++)
-        {
-            AbstractBounds range = ranges.get(i);
-            if (range.contains(start) || range.left.equals(start))
-                break;
-        }
-        AbstractBounds range = ranges.get(i);
-        assert range.contains(start) || range.left.equals(start); // make sure the loop didn't just end b/c ranges were exhausted
-
-        // return an iterable that starts w/ the correct range and iterates the rest in ring order
-        final int begin = i;
-        return new Iterable<AbstractBounds>()
-        {
-            public Iterator<AbstractBounds> iterator()
-            {
-                return new AbstractIterator<AbstractBounds>()
-                {
-                    int n = 0;
-
-                    protected AbstractBounds computeNext()
-                    {
-                        if (n == ranges.size())
-                            return endOfData();
-                        return ranges.get((begin + n++) % ranges.size());
-                    }
-                };
-            }
-        };
     }
 
     /**
@@ -684,6 +647,15 @@ public class StorageProxy implements StorageProxyMBean
                 // sort in order that the original query range would see them.
                 int queryOrder1 = queryRange.left.compareTo(o1.left);
                 int queryOrder2 = queryRange.left.compareTo(o2.left);
+
+                // check for exact match with query start
+                assert !(queryOrder1 == 0 && queryOrder2 == 0);
+                if (queryOrder1 == 0)
+                    return -1;
+                if (queryOrder2 == 0)
+                    return 1;
+
+                // order segments in order they should be traversed
                 if (queryOrder1 < queryOrder2)
                     return -1; // o1 comes after query start, o2 wraps to after
                 if (queryOrder1 > queryOrder2)

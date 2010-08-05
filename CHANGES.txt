@@ -1,4 +1,5 @@
 0.6.5
+ * fix for range query starting with the wrong token range (CASSANDRA-1042)
  * page within a single row during hinted handoff (CASSANDRA-1327)
  * fix compilation on non-sun JKDs (CASSANDRA-1061)
  * remove String.trim() call on row keys in batch mutations (CASSANDRA-1235)
