@@ -270,8 +270,8 @@
             <src path="${build.src}"/>
             <src path="${build.src.gen-java}"/>
             <src path="${interface.thrift.dir}/gen-java"/>
-            <src path="${interface.avro.dir}"/>
-            <src path="${internode.avro.dir}"/>
+            <src path="${interface.avro.dir}/gen-java"/>
+            <src path="${internode.avro.dir}/gen-java"/>
             <classpath refid="cassandra.classpath"/>
         </javac>
 
