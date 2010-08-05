@@ -22,14 +22,14 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
 
+import com.google.common.collect.AbstractIterator;
 import org.apache.log4j.Logger;
-
 import org.apache.commons.collections.iterators.CollatingIterator;
 
-import com.google.common.collect.AbstractIterator;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.RangeSliceReply;
 import org.apache.cassandra.db.Row;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.ReducingIterator;
@@ -40,15 +40,17 @@ import org.apache.cassandra.utils.ReducingIterator;
  */
 public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
 {
-    private static final Logger logger_ = Logger.getLogger(RangeSliceResponseResolver.class);
+    private static final Logger logger = Logger.getLogger(RangeSliceResponseResolver.class);
     private final String table;
     private final List<InetAddress> sources;
+    private final IPartitioner partitioner;
 
-    public RangeSliceResponseResolver(String table, List<InetAddress> sources)
+    public RangeSliceResponseResolver(String table, List<InetAddress> sources, IPartitioner partitioner)
     {
         assert sources.size() > 0;
-        this.sources = sources;
         this.table = table;
+        this.sources = sources;
+        this.partitioner = partitioner;
     }
 
     public List<Row> resolve(Collection<Message> responses) throws DigestMismatchException, IOException
@@ -57,7 +59,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
         {
             public int compare(Pair<Row,InetAddress> o1, Pair<Row,InetAddress> o2)
             {
-                return o1.left.key.compareTo(o2.left.key);
+                return partitioner.getToken(o1.left.key).compareTo(partitioner.getToken(o2.left.key));
             }
         });
         

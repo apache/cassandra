@@ -34,7 +34,6 @@ import org.apache.log4j.Logger;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 
-import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Multimap;
 
 import org.apache.cassandra.concurrent.StageManager;
@@ -565,7 +564,7 @@ public class StorageProxy implements StorageProxyMBean
             Message message = c2.getMessage();
 
             // collect replies and resolve according to consistency level
-            RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, endpoints);
+            RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, endpoints, StorageService.getPartitioner());
             QuorumResponseHandler<List<Row>> handler = new QuorumResponseHandler<List<Row>>(responseCount, resolver);
 
             for (InetAddress endpoint : endpoints)
