@@ -70,7 +70,7 @@ public class BufferedRandomAccessFileTest
     }
 
     @Test
-    public void testReadsOnCapacity() throws IOException
+    public void testReadsAndWriteOnCapacity() throws IOException
     {
         File tmpFile = File.createTempFile("readtest", "bin");
         BufferedRandomAccessFile rw = new BufferedRandomAccessFile(tmpFile, "rw");
@@ -78,7 +78,6 @@ public class BufferedRandomAccessFileTest
         // Fully write the file and sync..
         byte[] in = new byte[BufferedRandomAccessFile.BuffSz_];
         rw.write(in);
-        rw.sync();
 
         // Read it into a same size array.
         byte[] out = new byte[BufferedRandomAccessFile.BuffSz_];
@@ -86,11 +85,17 @@ public class BufferedRandomAccessFileTest
 
         // We're really at the end.
         long rem = rw.bytesRemaining();
+        assert rw.isEOF();
         assert rem == 0 : "BytesRemaining should be 0 but it's " + rem;
 
         // Cannot read any more.
         int negone = rw.read();
         assert negone == -1 : "We read past the end of the file, should have gotten EOF -1. Instead, " + negone;
+
+        // Writing will succeed
+        rw.write(new byte[BufferedRandomAccessFile.BuffSz_]);
+        // Forcing a rebuffer here
+        rw.write(42);
     }
 
     protected void expectException(int size, int offset, int len, BufferedRandomAccessFile braf)
@@ -140,11 +145,22 @@ public class BufferedRandomAccessFileTest
     {
         File tmpFile = File.createTempFile("overflowtest", "bin");
         tmpFile.deleteOnExit();
-        BufferedRandomAccessFile rw = new BufferedRandomAccessFile(tmpFile, "rw");
-        FileMark mark = rw.mark();
-        rw.seek(4L*1024L*1024L*1024L*1024L); //seek 4gb
 
-        //Expect this call to fail, because the distance from mark to current file pointer > 2gb.
+        // Create the BRAF by filename instead of by file.
+        BufferedRandomAccessFile rw = new BufferedRandomAccessFile(tmpFile.getPath(), "rw");
+        assert tmpFile.getPath().equals(rw.getPath());
+
+        // Create a mark and move the rw there.
+        FileMark mark = rw.mark();
+        rw.reset(mark);
+
+        // Expect this call to succeed.
         int bpm = rw.bytesPastMark(mark);
+
+        // Seek 4gb
+        rw.seek(4L*1024L*1024L*1024L*1024L);
+        
+        // Expect this call to fail -- the distance from mark to current file pointer > 2gb.
+        bpm = rw.bytesPastMark(mark);
     }
 }
