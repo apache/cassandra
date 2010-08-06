@@ -25,7 +25,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 
-import org.apache.cassandra.streaming.PendingFile;
+import org.apache.cassandra.streaming.StreamHeader;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,16 +38,15 @@ public class FileStreamTask extends WrappedRunnable
 {
     private static Logger logger = LoggerFactory.getLogger( FileStreamTask.class );
     
-    public static final int CHUNK_SIZE = 32*1024*1024;
     // around 10 minutes at the default rpctimeout
     public static final int MAX_CONNECT_ATTEMPTS = 8;
 
-    private final PendingFile file;
+    private final StreamHeader header;
     private final InetAddress to;
     
-    FileStreamTask(PendingFile file, InetAddress to)
+    FileStreamTask(StreamHeader header, InetAddress to)
     {
-        this.file = file;
+        this.header = header;
         this.to = to;
     }
     
@@ -74,22 +73,22 @@ public class FileStreamTask extends WrappedRunnable
             }
         }
         if (logger.isDebugEnabled())
-          logger.debug("Done streaming " + file);
+          logger.debug("Done streaming " + header.getStreamFile());
     }
 
     private void stream(SocketChannel channel) throws IOException
     {
-        RandomAccessFile raf = new RandomAccessFile(new File(file.getFilename()), "r");
+        RandomAccessFile raf = new RandomAccessFile(new File(header.getStreamFile().getFilename()), "r");
         try
         {
             FileChannel fc = raf.getChannel();
 
-            ByteBuffer buffer = MessagingService.constructStreamHeader(false);
+            ByteBuffer buffer = MessagingService.constructStreamHeader(header, false);
             channel.write(buffer);
             assert buffer.remaining() == 0;
             
             // stream sections of the file as returned by PendingFile.currentSection
-            for (Pair<Long, Long> section : file.sections)
+            for (Pair<Long, Long> section : header.getStreamFile().sections)
             {
                 long length = section.right - section.left;
                 long bytesTransferred = 0;
@@ -137,7 +136,7 @@ public class FileStreamTask extends WrappedRunnable
                     throw e;
 
                 long waitms = DatabaseDescriptor.getRpcTimeout() * (long)Math.pow(2, attempts);
-                logger.warn("Failed attempt " + attempts + " to connect to " + to + " to stream " + file + ". Retrying in " + waitms + " ms. (" + e + ")");
+                logger.warn("Failed attempt " + attempts + " to connect to " + to + " to stream " + header.getStreamFile() + ". Retrying in " + waitms + " ms. (" + e + ")");
                 try
                 {
                     Thread.sleep(waitms);

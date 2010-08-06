@@ -22,7 +22,6 @@ import static junit.framework.Assert.assertEquals;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Map;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -38,22 +37,15 @@ public class BootstrapTest extends SchemaLoader
     public void testGetNewNames() throws IOException
     {
         Descriptor desc = Descriptor.fromFilename(new File("Keyspace1", "Standard1-500-Data.db").toString());
-        PendingFile[] pendingFiles = new PendingFile[]{ new PendingFile(desc, "Data.db", Arrays.asList(new Pair<Long,Long>(0L, 1L))) };
-        StreamInitiateVerbHandler bivh = new StreamInitiateVerbHandler();
+        PendingFile inContext = new PendingFile(desc, "Data.db", Arrays.asList(new Pair<Long,Long>(0L, 1L)));
 
-        // map the input (remote) contexts to output (local) contexts
-        Map<PendingFile, PendingFile> mapping = bivh.getContextMapping(pendingFiles);
-        assertEquals(pendingFiles.length, mapping.size());
-        for (PendingFile inContext : pendingFiles)
-        {
-            PendingFile outContext = mapping.get(inContext);
-            // filename and generation are expected to have changed
-            assert !inContext.getFilename().equals(outContext.getFilename());
+        PendingFile outContext = StreamIn.getContextMapping(inContext);
+        // filename and generation are expected to have changed
+        assert !inContext.getFilename().equals(outContext.getFilename());
 
-            // nothing else should
-            assertEquals(inContext.component, outContext.component);
-            assertEquals(inContext.desc.ksname, outContext.desc.ksname);
-            assertEquals(inContext.desc.cfname, outContext.desc.cfname);
-        }
+        // nothing else should
+        assertEquals(inContext.component, outContext.component);
+        assertEquals(inContext.desc.ksname, outContext.desc.ksname);
+        assertEquals(inContext.desc.cfname, outContext.desc.cfname);
     }
 }

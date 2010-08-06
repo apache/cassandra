@@ -33,51 +33,60 @@ import org.apache.cassandra.utils.FBUtilities;
 
 class FileStatus
 {
-    private static ICompactSerializer<FileStatus> serializer_;
+    private static ICompactSerializer<FileStatus> serializer;
 
     static enum Action
     {
         // was received successfully, and can be deleted from the source node
         DELETE,
         // needs to be streamed (or restreamed)
-        STREAM
+        STREAM,
+        // No matching Ranges, this should not happen in almost all cases
+        EMPTY
     }
 
     static
     {
-        serializer_ = new FileStatusSerializer();
+        serializer = new FileStatusSerializer();
     }
 
     public static ICompactSerializer<FileStatus> serializer()
     {
-        return serializer_;
+        return serializer;
     }
 
-    private final String file_;
-    private Action action_;
+    private final long sessionId;
+    private final String file;
+    private Action action;
 
     /**
      * Create a FileStatus with the default Action: STREAM.
      */
-    public FileStatus(String file)
+    public FileStatus(String file, long sessionId)
     {
-        file_ = file;
-        action_ = Action.STREAM;
+        this.file = file;
+        this.action = Action.STREAM;
+        this.sessionId = sessionId;
     }
 
     public String getFile()
     {
-        return file_;
+        return file;
     }
 
     public void setAction(Action action)
     {
-        action_ = action;
+        this.action = action;
     }
 
     public Action getAction()
     {
-        return action_;
+        return action;
+    }
+
+    public long getSessionId()
+    {
+        return sessionId;
     }
 
     public Message makeStreamStatusMessage() throws IOException
@@ -85,27 +94,31 @@ class FileStatus
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
         FileStatus.serializer().serialize(this, dos);
-        return new Message(FBUtilities.getLocalAddress(), "", StorageService.Verb.STREAM_FINISHED, bos.toByteArray());
+        return new Message(FBUtilities.getLocalAddress(), "", StorageService.Verb.STREAM_STATUS, bos.toByteArray());
     }
 
     private static class FileStatusSerializer implements ICompactSerializer<FileStatus>
     {
         public void serialize(FileStatus streamStatus, DataOutputStream dos) throws IOException
         {
+            dos.writeLong(streamStatus.getSessionId());
             dos.writeUTF(streamStatus.getFile());
             dos.writeInt(streamStatus.getAction().ordinal());
         }
 
         public FileStatus deserialize(DataInputStream dis) throws IOException
         {
+            long sessionId = dis.readLong();
             String targetFile = dis.readUTF();
-            FileStatus streamStatus = new FileStatus(targetFile);
+            FileStatus streamStatus = new FileStatus(targetFile, sessionId);
 
             int ordinal = dis.readInt();
             if (ordinal == Action.DELETE.ordinal())
                 streamStatus.setAction(Action.DELETE);
             else if (ordinal == Action.STREAM.ordinal())
                 streamStatus.setAction(Action.STREAM);
+            else if (ordinal == Action.EMPTY.ordinal())
+                streamStatus.setAction(Action.EMPTY);
             else
                 throw new IOException("Bad FileStatus.Action: " + ordinal);
 

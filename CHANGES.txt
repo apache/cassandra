@@ -47,6 +47,7 @@ dev
    eliminating datacenter.properties. (CASSANDRA-1066)
  * optimize forward slices starting with '' and single-index-block name 
    queries by skipping the column index (CASSANDRA-1338)
+ * streaming refactor (CASSANDRA-1189)
 
 
 0.6.5

@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -53,10 +54,10 @@ public class StreamingService implements StreamingServiceMBean
     {
         StringBuilder sb = new StringBuilder();
         sb.append("Receiving from:\n");
-        for (InetAddress source : StreamInManager.getSources())
+        for (StreamContext source : StreamInManager.getSources())
         {
-            sb.append(String.format(" %s:\n", source.getHostAddress()));
-            for (PendingFile pf : StreamInManager.getIncomingFiles(source))
+            sb.append(String.format(" %s:\n", source.host.getHostAddress()));
+            for (PendingFile pf : StreamInManager.getIncomingFiles(source.host))
             {
                 sb.append(String.format("  %s\n", pf.toString()));
             }
@@ -65,7 +66,7 @@ public class StreamingService implements StreamingServiceMBean
         for (InetAddress dest : StreamOutManager.getDestinations())
         {
             sb.append(String.format(" %s:\n", dest.getHostAddress()));
-            for (PendingFile pf : StreamOutManager.getPendingFiles(dest))
+            for (PendingFile pf : StreamOutManager.getOutgoingFiles(dest))
             {
                 sb.append(String.format("  %s\n", pf.toString()));
             }
@@ -90,8 +91,7 @@ public class StreamingService implements StreamingServiceMBean
         if (!existingDestinations.contains(dest))
             return files;
         
-        StreamOutManager manager = StreamOutManager.get(dest);
-        for (PendingFile f : manager.getFiles())
+        for (PendingFile f : StreamOutManager.getOutgoingFiles(dest))
             files.add(String.format("%s", f.toString()));
         return files;
     }
@@ -99,7 +99,13 @@ public class StreamingService implements StreamingServiceMBean
     /** hosts sending incoming streams */
     public Set<InetAddress> getStreamSources()
     {
-        return StreamInManager.getSources();
+        Set<InetAddress> sources = new HashSet<InetAddress>();
+
+        for(StreamContext context : StreamInManager.getSources())
+        {
+            sources.add(context.host);
+        }
+        return sources;
     }
 
     /** details about incoming streams. */

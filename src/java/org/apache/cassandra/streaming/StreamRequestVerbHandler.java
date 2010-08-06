@@ -25,6 +25,7 @@ import java.io.IOError;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,25 +36,33 @@ import org.slf4j.LoggerFactory;
 */
 public class StreamRequestVerbHandler implements IVerbHandler
 {
-    private static Logger logger_ = LoggerFactory.getLogger(StreamRequestVerbHandler.class);
+    private static Logger logger = LoggerFactory.getLogger(StreamRequestVerbHandler.class);
     
     public void doVerb(Message message)
     {
-        if (logger_.isDebugEnabled())
-            logger_.debug("Received a StreamRequestMessage from " + message.getFrom());
-        
+        if (logger.isDebugEnabled())
+            logger.debug("Received a StreamRequestMessage from {}", message.getFrom());
+
         byte[] body = message.getMessageBody();
         ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
         try
         {
-            StreamRequestMessage streamRequestMessage = StreamRequestMessage.serializer().deserialize(new DataInputStream(bufIn));
-            StreamRequestMetadata[] streamRequestMetadata = streamRequestMessage.streamRequestMetadata_;
+            StreamRequestMessage srm = StreamRequestMessage.serializer().deserialize(new DataInputStream(bufIn));
 
-            for (StreamRequestMetadata srm : streamRequestMetadata)
+            if (logger.isDebugEnabled())
+                logger.debug(srm.toString());
+
+            if (srm.file != null)
             {
-                if (logger_.isDebugEnabled())
-                    logger_.debug(srm.toString());
-                StreamOut.transferRanges(srm.target_, srm.table_, srm.ranges_, null);
+                // single file request.
+                StreamHeader header = new StreamHeader(srm.sessionId, srm.file, false);
+                MessagingService.instance.stream(header, message.getFrom());
+                StreamOutManager.get(new StreamContext(message.getFrom(), srm.sessionId)).removePending(srm.file);
+            }
+            else
+            {
+                // range request.
+                StreamOut.transferRangesForRequest(new StreamContext(message.getFrom(), srm.sessionId), srm.table, srm.ranges, null);
             }
         }
         catch (IOException ex)

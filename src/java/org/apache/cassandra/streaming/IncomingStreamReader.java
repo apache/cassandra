@@ -19,7 +19,6 @@
 package org.apache.cassandra.streaming;
 
 import java.net.InetSocketAddress;
-import java.net.InetAddress;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 import java.io.*;
@@ -28,35 +27,45 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.net.FileStreamTask;
 import org.apache.cassandra.utils.Pair;
 
 public class IncomingStreamReader
 {
     private static Logger logger = LoggerFactory.getLogger(IncomingStreamReader.class);
     private PendingFile pendingFile;
+    private PendingFile lastFile;
     private FileStatus streamStatus;
     private SocketChannel socketChannel;
+    private StreamContext context;
+    private boolean initiatedTransfer;
 
-    public IncomingStreamReader(SocketChannel socketChannel)
+    public IncomingStreamReader(StreamHeader header, SocketChannel socketChannel) throws IOException
     {
         this.socketChannel = socketChannel;
         InetSocketAddress remoteAddress = (InetSocketAddress)socketChannel.socket().getRemoteSocketAddress();
-        // this is the part where we are assuming files come in order from a particular host. it is brittle because
-        // any node could send a stream message to this host and it would just assume it is receiving the next file.
-        pendingFile = StreamInManager.getNextIncomingFile(remoteAddress.getAddress());
-        StreamInManager.activeStreams.put(remoteAddress.getAddress(), pendingFile);
+        // pendingFile gets the new context for the local node.
+        pendingFile = StreamIn.getContextMapping(header.getStreamFile());
+        // lastFile has the old context, which was registered in the manager.
+        lastFile = header.getStreamFile();
+        initiatedTransfer = header.initiatedTransfer;
+        context = new StreamContext(remoteAddress.getAddress(), header.getSessionId());
+        StreamInManager.activeStreams.put(context, pendingFile);
         assert pendingFile != null;
-        streamStatus = StreamInManager.getStreamStatus(remoteAddress.getAddress());
-        assert streamStatus != null;
+        // For transfers setup the status and for replies to requests, prepare the list
+        // of available files to request.
+        if (initiatedTransfer)
+            streamStatus = new FileStatus(lastFile.getFilename(), header.getSessionId());
+        else if (header.getPendingFiles() != null)
+            StreamInManager.get(context).addFilesToRequest(header.getPendingFiles());
     }
 
     public void read() throws IOException
     {
-        logger.debug("Receiving stream");
-        InetSocketAddress remoteAddress = (InetSocketAddress)socketChannel.socket().getRemoteSocketAddress();
         if (logger.isDebugEnabled())
-          logger.debug("Creating file for " + pendingFile.getFilename());
+        {
+            logger.debug("Receiving stream");
+            logger.debug("Creating file for {}", pendingFile.getFilename());
+        }
         FileOutputStream fos = new FileOutputStream(pendingFile.getFilename(), true);
         FileChannel fc = fos.getChannel();
 
@@ -76,8 +85,11 @@ public class IncomingStreamReader
         {
             logger.debug("Receiving stream: recovering from IO error");
             /* Ask the source node to re-stream this file. */
-            streamStatus.setAction(FileStatus.Action.STREAM);
-            handleFileStatus(remoteAddress.getAddress());
+            if (initiatedTransfer)
+                handleFileStatus(FileStatus.Action.STREAM);
+            else
+                StreamIn.requestFile(context, lastFile);
+
             /* Delete the orphaned file. */
             FileUtils.deleteWithConfirm(new File(pendingFile.getFilename()));
             throw ex;
@@ -85,23 +97,23 @@ public class IncomingStreamReader
         finally
         {
             fc.close();
-            StreamInManager.activeStreams.remove(remoteAddress.getAddress(), pendingFile);
+            StreamInManager.activeStreams.remove(context, pendingFile);
         }
 
         if (logger.isDebugEnabled())
-            logger.debug("Removing stream context " + pendingFile);
-        streamStatus.setAction(FileStatus.Action.DELETE);
-        handleFileStatus(remoteAddress.getAddress());
+            logger.debug("Removing stream context {}", pendingFile);
+        if (initiatedTransfer)
+            handleFileStatus(FileStatus.Action.DELETE);
+        else
+        {
+            FileStatusHandler.addSSTable(pendingFile);
+            StreamInManager.get(context).finishAndRequestNext(lastFile);
+        }
     }
 
-    private void handleFileStatus(InetAddress remoteHost) throws IOException
+    private void handleFileStatus(FileStatus.Action action) throws IOException
     {
-        /*
-         * Streaming is complete. If all the data that has to be received inform the sender via
-         * the stream completion callback so that the source may perform the requisite cleanup.
-        */
-        FileStatusHandler handler = StreamInManager.getFileStatusHandler(remoteHost);
-        if (handler != null)
-            handler.onStatusChange(remoteHost, pendingFile, streamStatus);
+        streamStatus.setAction(action);
+        FileStatusHandler.onStatusChange(context, pendingFile, streamStatus);
     }
 }

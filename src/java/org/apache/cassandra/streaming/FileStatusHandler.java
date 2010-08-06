@@ -20,18 +20,15 @@
 package org.apache.cassandra.streaming;
 
 import java.io.IOException;
-import java.net.InetAddress;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.StorageService;
 
 /**
  * This is the callback handler that is invoked on the receiving node when a file changes status from RECEIVE to either
@@ -41,18 +38,28 @@ class FileStatusHandler
 {
     private static Logger logger = LoggerFactory.getLogger(FileStatusHandler.class);
 
-    public void onStatusChange(InetAddress host, PendingFile pendingFile, FileStatus streamStatus) throws IOException
+    public static void onStatusChange(StreamContext context, PendingFile pendingFile, FileStatus streamStatus) throws IOException
     {
         if (FileStatus.Action.STREAM == streamStatus.getAction())
         {
             // file needs to be restreamed
-            logger.warn("Streaming of file " + pendingFile + " from " + host + " failed: requesting a retry.");
-            MessagingService.instance.sendOneWay(streamStatus.makeStreamStatusMessage(), host);
+            logger.warn("Streaming of file {} from {} failed: requesting a retry.", pendingFile, context);
+            MessagingService.instance.sendOneWay(streamStatus.makeStreamStatusMessage(), context.host);
             return;
         }
         assert FileStatus.Action.DELETE == streamStatus.getAction() :
             "Unknown stream action: " + streamStatus.getAction();
 
+        addSSTable(pendingFile);
+
+        // send a StreamStatus message telling the source node it can delete this file
+        if (logger.isDebugEnabled())
+            logger.debug("Sending a streaming finished message for {} to {}", pendingFile, context);
+        MessagingService.instance.sendOneWay(streamStatus.makeStreamStatusMessage(), context.host);
+    }
+
+    public static void addSSTable(PendingFile pendingFile)
+    {
         // file was successfully streamed
         Descriptor desc = pendingFile.desc;
         try
@@ -63,19 +70,8 @@ class FileStatusHandler
         }
         catch (IOException e)
         {
-            logger.error("Failed adding " + pendingFile, e);
+            logger.error("Failed adding {}", pendingFile, e);
             throw new RuntimeException("Not able to add streamed file " + pendingFile.getFilename(), e);
-        }
-
-        // send a StreamStatus message telling the source node it can delete this file
-        if (logger.isDebugEnabled())
-            logger.debug("Sending a streaming finished message for " + pendingFile + " to " + host);
-        MessagingService.instance.sendOneWay(streamStatus.makeStreamStatusMessage(), host);
-
-        // if all files have been received from this host, remove from bootstrap sources
-        if (StreamInManager.isDone(host) && StorageService.instance.isBootstrapMode())
-        {
-            StorageService.instance.removeBootstrapSource(host, pendingFile.desc.ksname);
         }
     }
 }

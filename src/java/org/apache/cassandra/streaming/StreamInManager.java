@@ -18,73 +18,91 @@
 
 package org.apache.cassandra.streaming;
 
-import java.util.*;
 import java.net.InetAddress;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
-import org.apache.cassandra.streaming.FileStatusHandler;
+
+import org.apache.cassandra.service.StorageService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class StreamInManager
+/** each context gets its own StreamInManager. So there may be >1 StreamInManager per host */
+public class StreamInManager
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamInManager.class);
 
-    /* Maintain a stream context per host that is the source of the stream */
-    public static final Map<InetAddress, List<PendingFile>> ctxBag_ = new Hashtable<InetAddress, List<PendingFile>>();
-    /* Maintain in this map the status of the streams that need to be sent back to the source */
-    public static final Map<InetAddress, List<FileStatus>> streamStatusBag_ = new Hashtable<InetAddress, List<FileStatus>>();
-    /* Maintains a callback handler per endpoint to notify the app that a stream from a given endpoint has been handled */
-    public static final Map<InetAddress, FileStatusHandler> streamNotificationHandlers_ = new HashMap<InetAddress, FileStatusHandler>();
+    private static ConcurrentMap<StreamContext, StreamInManager> streamManagers = new ConcurrentHashMap<StreamContext, StreamInManager>(0);
+    public static final Multimap<StreamContext, PendingFile> activeStreams = Multimaps.synchronizedMultimap(HashMultimap.<StreamContext, PendingFile>create());
+    public static final Multimap<InetAddress, StreamContext> sourceHosts = Multimaps.synchronizedMultimap(HashMultimap.<InetAddress, StreamContext>create());
+    
+    private final List<PendingFile> pendingFiles = new ArrayList<PendingFile>();
+    private final StreamContext context;
 
-    public static final Multimap<InetAddress, PendingFile> activeStreams = Multimaps.synchronizedMultimap(HashMultimap.<InetAddress, PendingFile>create());
-
-    public synchronized static void initContect(InetAddress key)
+    private StreamInManager(StreamContext context)
     {
-        List<PendingFile> context = ctxBag_.get(key);
-        if (context == null)
+        this.context = context;
+    }
+
+    public synchronized static StreamInManager get(StreamContext context)
+    {
+        StreamInManager manager = streamManagers.get(context);
+        if (manager == null)
         {
-            context = new ArrayList<PendingFile>();
-            ctxBag_.put(key, context);
+            StreamInManager possibleNew = new StreamInManager(context);
+            if ((manager = streamManagers.putIfAbsent(context, possibleNew)) == null)
+            {
+                manager = possibleNew;
+                sourceHosts.put(context.host, context);
+            }
+        }
+        return manager;
+    }
+
+    public void addFilesToRequest(List<PendingFile> pendingFiles)
+    {
+        for(PendingFile file : pendingFiles)
+        {
+            if(logger.isDebugEnabled())
+                logger.debug("Adding file {} to Stream Request queue", file.getFilename());
+            this.pendingFiles.add(file);
         }
     }
+
     /**
-     * gets the next file to be received given a host key.
-     * @param key
-     * @return next file to receive.
-     * @throws IndexOutOfBoundsException if you are unfortunate enough to call this on an empty context. 
+     * Complete the transfer process of the existing file and then request
+     * the next file in the list
      */
-    public synchronized static PendingFile getNextIncomingFile(InetAddress key)
-    {        
-        List<PendingFile> context = ctxBag_.get(key);
-        if ( context == null )
-            throw new IllegalStateException("Streaming context has not been set for " + key);
-        // will thrown an IndexOutOfBoundsException if nothing is there.
-        PendingFile pendingFile = context.remove(0);
-        if ( context.isEmpty() )
-            ctxBag_.remove(key);
-        return pendingFile;
+    public void finishAndRequestNext(PendingFile lastFile)
+    {
+        pendingFiles.remove(lastFile);
+        if (pendingFiles.size() > 0)
+            StreamIn.requestFile(context, pendingFiles.get(0));
+        else
+        {
+            if (StorageService.instance.isBootstrapMode())
+                StorageService.instance.removeBootstrapSource(context.host, lastFile.desc.ksname);
+            remove();
+        }
     }
     
-    public synchronized static FileStatus getStreamStatus(InetAddress key)
+    public void remove()
     {
-        List<FileStatus> status = streamStatusBag_.get(key);
-        if ( status == null )
-            throw new IllegalStateException("Streaming status has not been set for " + key);
-        FileStatus streamStatus = status.remove(0);
-        if ( status.isEmpty() )
-            streamStatusBag_.remove(key);
-        return streamStatus;
+        if (streamManagers.containsKey(context))
+            streamManagers.remove(context);
+        sourceHosts.remove(context.host, context);
     }
 
     /** query method to determine which hosts are streaming to this node. */
-    public static Set<InetAddress> getSources()
+    public static Set<StreamContext> getSources()
     {
-        HashSet<InetAddress> set = new HashSet<InetAddress>();
-        set.addAll(ctxBag_.keySet());
+        HashSet<StreamContext> set = new HashSet<StreamContext>();
+        set.addAll(streamManagers.keySet());
         set.addAll(activeStreams.keySet());
         return set;
     }
@@ -94,54 +112,12 @@ class StreamInManager
     {
         // avoid returning null.
         List<PendingFile> list = new ArrayList<PendingFile>();
-        if (ctxBag_.containsKey(host))
-            list.addAll(ctxBag_.get(host));
-        list.addAll(activeStreams.get(host));
+        for (StreamContext context : sourceHosts.get(host))
+        {
+            if (streamManagers.containsKey(context))
+                list.addAll(streamManagers.get(context).pendingFiles);
+            list.addAll(activeStreams.get(context));
+        }
         return list;
-    }
-
-    /*
-     * This method helps determine if the FileStatusHandler needs
-     * to be invoked for the data being streamed from a source. 
-    */
-    public synchronized static boolean isDone(InetAddress key)
-    {
-        return (ctxBag_.get(key) == null);
-    }
-    
-    public synchronized static FileStatusHandler getFileStatusHandler(InetAddress key)
-    {
-        return streamNotificationHandlers_.get(key);
-    }
-    
-    public synchronized static void removeFileStatusHandler(InetAddress key)
-    {
-        streamNotificationHandlers_.remove(key);
-    }
-    
-    public synchronized static void registerFileStatusHandler(InetAddress key, FileStatusHandler streamComplete)
-    {
-        streamNotificationHandlers_.put(key, streamComplete);
-    }
-    
-    public synchronized static void addStreamContext(InetAddress key, PendingFile pendingFile, FileStatus streamStatus)
-    {
-        /* Record the stream context */
-        List<PendingFile> context = ctxBag_.get(key);
-        if ( context == null )
-        {
-            context = new ArrayList<PendingFile>();
-            ctxBag_.put(key, context);
-        }
-        context.add(pendingFile);
-        
-        /* Record the stream status for this stream context */
-        List<FileStatus> status = streamStatusBag_.get(key);
-        if ( status == null )
-        {
-            status = new ArrayList<FileStatus>();
-            streamStatusBag_.put(key, status);
-        }
-        status.add( streamStatus );
     }
 }

@@ -22,7 +22,6 @@ package org.apache.cassandra.streaming;
 import java.net.InetAddress;
 import java.util.*;
 import java.io.IOException;
-import java.io.File;
 import java.io.IOError;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -43,15 +42,16 @@ import org.apache.cassandra.utils.Pair;
 /**
  * This class handles streaming data from one node to another.
  *
- * For bootstrap,
- *  1. BOOTSTRAP_TOKEN asks the most-loaded node what Token to use to split its Range in two.
- *  2. STREAM_REQUEST tells source nodes to send us the necessary Ranges
- *  3. source nodes send STREAM_INITIATE to us to say "get ready to receive data" [if there is data to send]
- *  4. when we have everything set up to receive the data, we send STREAM_INITIATE_DONE back to the source nodes and they start streaming
- *  5. when streaming is complete, we send STREAM_FINISHED to the source so it can clean up on its end
+ * For StreamingRepair and Unbootstrap
+ *  1. The ranges are transferred on a single file basis.
+ *  2. Each transfer has the header information for the sstable being transferred.
+ *  3. List of the pending files are maintained, as this is the source node.
  *
- * For unbootstrap, the leaving node starts with step 3 (1 and 2 are skipped entirely).  This is why
- * STREAM_INITIATE is a separate verb, rather than just a reply to STREAM_REQUEST; the REQUEST is optional.
+ * For StreamRequests
+ *  1. The ranges are compiled and the first file transferred.
+ *  2. The header contains the first file info + all the remaining pending files info.
+ *  3. List of the pending files are not maintained, that will be maintained by the destination node
+ *
  */
 public class StreamOut
 {
@@ -66,37 +66,17 @@ public class StreamOut
     {
         assert ranges.size() > 0;
         
+        StreamContext context = new StreamContext(target);
         // this is so that this target shows up as a destination while anticompaction is happening.
-        StreamOutManager.pendingDestinations.add(target);
+        StreamOutManager.get(context);
 
-        logger.info("Beginning transfer process to " + target + " for ranges " + StringUtils.join(ranges, ", "));
+        logger.info("Beginning transfer process to {} for ranges {}", context, StringUtils.join(ranges, ", "));
 
-        /*
-         * (1) dump all the memtables to disk.
-         * (2) determine the minimal file sections we need to send for the given ranges
-         * (3) transfer the data.
-        */
         try
         {
-            Table table = Table.open(tableName);
-            logger.info("Flushing memtables for " + tableName + "...");
-            for (Future f : table.flush())
-            {
-                try
-                {
-                    f.get();
-                }
-                catch (InterruptedException e)
-                {
-                    throw new RuntimeException(e);
-                }
-                catch (ExecutionException e)
-                {
-                    throw new RuntimeException(e);
-                }
-            }
+            Table table = flushSSTable(tableName);
             // send the matching portion of every sstable in the keyspace
-            transferSSTables(target, tableName, table.getAllSSTables(), ranges);
+            transferSSTables(context, tableName, table.getAllSSTables(), ranges);
         }
         catch (IOException e)
         {
@@ -104,8 +84,59 @@ public class StreamOut
         }
         finally
         {
-            StreamOutManager.remove(target);
+            StreamOutManager.remove(context);
         }
+        if (callback != null)
+            callback.run();
+    }
+
+    /**
+     * (1) dump all the memtables to disk.
+     * (2) determine the minimal file sections we need to send for the given ranges
+     * (3) transfer the data.
+     */
+    private static Table flushSSTable(String tableName) throws IOException
+    {
+        Table table = Table.open(tableName);
+        logger.info("Flushing memtables for {}...", tableName);
+        for (Future f : table.flush())
+        {
+            try
+            {
+                f.get();
+            }
+            catch (InterruptedException e)
+            {
+                throw new RuntimeException(e);
+            }
+            catch (ExecutionException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+        return table;
+    }
+
+    /**
+     * Split out files for all tables on disk locally for each range and then stream them to the target endpoint.
+    */
+    public static void transferRangesForRequest(StreamContext context, String tableName, Collection<Range> ranges, Runnable callback)
+    {
+        assert ranges.size() > 0;
+
+        logger.info("Beginning transfer process to {} for ranges {}", context, StringUtils.join(ranges, ", "));
+
+        try
+        {
+            Table table = flushSSTable(tableName);
+            // send the matching portion of every sstable in the keyspace
+            transferSSTablesForRequest(context, tableName, table.getAllSSTables(), ranges);
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+
         if (callback != null)
             callback.run();
     }
@@ -113,10 +144,56 @@ public class StreamOut
     /**
      * Transfers matching portions of a group of sstables from a single table to the target endpoint.
      */
-    public static void transferSSTables(InetAddress target, String table, Collection<SSTableReader> sstables, Collection<Range> ranges) throws IOException
+    public static void transferSSTables(StreamContext context, String table, Collection<SSTableReader> sstables, Collection<Range> ranges) throws IOException
+    {
+        List<PendingFile> pending = createPendingFiles(sstables, ranges);
+
+        if (pending.size() > 0)
+        {
+            StreamHeader header = new StreamHeader(context.sessionId, pending.get(0), true);
+            StreamOutManager.get(context).addFilesToStream(pending);
+
+            logger.info("Streaming file {} to {}", header.getStreamFile(), context.host);
+            MessagingService.instance.stream(header, context.host);
+
+            logger.info("Waiting for transfer to {} to complete", context);
+            StreamOutManager.get(context).waitForStreamCompletion();
+            logger.info("Done with transfer to {}", context);
+        }
+    }
+
+    /**
+     * Transfers the first file for matching portions of a group of sstables and appends a list of other files
+     * to the header for the requesting destination to take control of the rest of the transfers
+     */
+    private static void transferSSTablesForRequest(StreamContext context, String table, Collection<SSTableReader> sstables, Collection<Range> ranges) throws IOException
+    {
+        List<PendingFile> pending = createPendingFiles(sstables, ranges);
+        if (pending.size() > 0)
+        {
+            StreamHeader header = new StreamHeader(context.sessionId, pending.get(0), pending, false);
+            // In case this happens to be a re-request due to some error condition on the destination side
+            if (StreamOutManager.getPendingFiles(context).size() == 0)
+                StreamOutManager.get(context).addFilesToStream(pending);
+
+            logger.info("Streaming file {} to {}", header.getStreamFile(), context.host);
+            MessagingService.instance.stream(header, context.host);
+            StreamOutManager.get(context).removePending(header.getStreamFile());
+        }
+        else
+        {
+            FileStatus status = new FileStatus("", context.sessionId);
+            status.setAction(FileStatus.Action.EMPTY);
+            Message message = status.makeStreamStatusMessage();
+            message.setHeader(StreamOut.TABLE_NAME, table.getBytes());
+            MessagingService.instance.sendOneWay(message, context.host);
+        }
+    }
+
+    // called prior to sending anything.
+    private static List<PendingFile> createPendingFiles(Collection<SSTableReader> sstables, Collection<Range> ranges)
     {
         List<PendingFile> pending = new ArrayList<PendingFile>();
-        int i = 0;
         for (SSTableReader sstable : sstables)
         {
             Descriptor desc = sstable.getDescriptor();
@@ -125,23 +202,7 @@ public class StreamOut
                 continue;
             pending.add(new PendingFile(desc, SSTable.COMPONENT_DATA, sections));
         }
-        logger.info("Stream context metadata " + pending + " " + sstables.size() + " sstables.");
-
-        PendingFile[] pendingFiles = pending.toArray(new PendingFile[pending.size()]);
-        StreamOutManager.get(target).addFilesToStream(pendingFiles);
-        StreamInitiateMessage biMessage = new StreamInitiateMessage(pendingFiles);
-        Message message = StreamInitiateMessage.makeStreamInitiateMessage(biMessage);
-        message.setHeader(StreamOut.TABLE_NAME, table.getBytes());
-        logger.info("Sending a stream initiate message to " + target + " ...");
-        MessagingService.instance.sendOneWay(message, target);
-
-        if (pendingFiles.length > 0)
-        {
-            logger.info("Waiting for transfer to " + target + " to complete");
-            StreamOutManager.get(target).waitForStreamCompletion();
-            // todo: it would be good if there were a dafe way to remove the StreamManager for target.
-            // (StreamManager will delete the streamed file on completion.)
-            logger.info("Done with transfer to " + target);
-        }
+        logger.info("Stream context metadata {}, {} sstables.", pending, sstables.size());
+        return pending;
     }
 }

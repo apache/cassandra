@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.streaming.IncomingStreamReader;
+import org.apache.cassandra.streaming.StreamHeader;
 
 public class IncomingTcpConnection extends Thread
 {
@@ -64,7 +65,11 @@ public class IncomingTcpConnection extends Thread
 
                 if (isStream)
                 {
-                    new IncomingStreamReader(socket.getChannel()).read();
+                    int size = input.readInt();
+                    byte[] headerBytes = new byte[size];
+                    input.readFully(headerBytes);
+                    StreamHeader streamHeader = StreamHeader.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(headerBytes)));
+                    new IncomingStreamReader(streamHeader, socket.getChannel()).read();
                 }
                 else
                 {

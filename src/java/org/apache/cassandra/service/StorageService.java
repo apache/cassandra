@@ -109,9 +109,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         READ_REPAIR,
         READ,
         READ_RESPONSE,
-        STREAM_INITIATE,
-        STREAM_INITIATE_DONE,
-        STREAM_FINISHED,
+        STREAM_INITIATE, // Deprecated
+        STREAM_INITIATE_DONE, // Deprecated
+        STREAM_STATUS,
         STREAM_REQUEST,
         RANGE_SLICE,
         BOOTSTRAP_TOKEN,
@@ -236,9 +236,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // see BootStrapper for a summary of how the bootstrap verbs interact
         MessagingService.instance.registerVerbHandlers(Verb.BOOTSTRAP_TOKEN, new BootStrapper.BootstrapTokenVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.STREAM_REQUEST, new StreamRequestVerbHandler() );
-        MessagingService.instance.registerVerbHandlers(Verb.STREAM_INITIATE, new StreamInitiateVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.STREAM_INITIATE_DONE, new StreamInitiateDoneVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.STREAM_FINISHED, new StreamFinishedVerbHandler());
+        MessagingService.instance.registerVerbHandlers(Verb.STREAM_STATUS, new StreamStatusVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.READ_RESPONSE, new ResponseVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.TREE_REQUEST, new TreeRequestVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.TREE_RESPONSE, new AntiEntropyService.TreeResponseVerbHandler());

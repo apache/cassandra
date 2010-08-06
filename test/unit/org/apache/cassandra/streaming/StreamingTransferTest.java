@@ -1,3 +1,5 @@
+package org.apache.cassandra.streaming;
+
 /*
 * Licensed to the Apache Software Foundation (ASF) under one
 * or more contributor license agreements.  See the NOTICE file
@@ -16,7 +18,6 @@
 * specific language governing permissions and limitations
 * under the License.
 */
-package org.apache.cassandra.io;
 
 import static junit.framework.Assert.assertEquals;
 
@@ -30,24 +31,29 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableUtils;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.StreamContext;
 import org.apache.cassandra.streaming.StreamOut;
 import org.apache.cassandra.utils.FBUtilities;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class StreamingTest extends CleanupHelper
+public class StreamingTransferTest extends CleanupHelper
 {
     public static final InetAddress LOCAL = FBUtilities.getLocalAddress();
+
+    @BeforeClass
+    public static void setup() throws Exception
+    {
+        StorageService.instance.initServer();
+    }
 
     @Test
     public void testTransferTable() throws Exception
     {
-        StorageService.instance.initServer();
-
         // write a temporary SSTable, but don't register it
         Set<String> content = new HashSet<String>();
         content.add("key");
@@ -62,7 +68,7 @@ public class StreamingTest extends CleanupHelper
         List<Range> ranges = new ArrayList<Range>();
         ranges.add(new Range(p.getMinimumToken(), p.getToken("key".getBytes())));
         ranges.add(new Range(p.getToken("key2".getBytes()), p.getMinimumToken()));
-        StreamOut.transferSSTables(LOCAL, tablename, Arrays.asList(sstable), ranges);
+        StreamOut.transferSSTables(new StreamContext(LOCAL), tablename, Arrays.asList(sstable), ranges);
 
         // confirm that the SSTable was transferred and registered
         ColumnFamilyStore cfstore = Table.open(tablename).getColumnFamilyStore(cfname);
@@ -77,5 +83,52 @@ public class StreamingTest extends CleanupHelper
         // and that the index and filter were properly recovered
         assert null != cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("key"), new QueryPath("Standard1")));
         assert null != cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("key3"), new QueryPath("Standard1")));
+    }
+
+    @Test
+    public void testTransferTableMultiple() throws Exception
+    {
+        // write a temporary SSTable, but don't register it
+        Set<String> content = new HashSet<String>();
+        content.add("transfer1");
+        content.add("transfer2");
+        content.add("transfer3");
+        SSTableReader sstable = SSTableUtils.writeSSTable(content);
+        String tablename = sstable.getTableName();
+        String cfname = sstable.getColumnFamilyName();
+
+        Set<String> content2 = new HashSet<String>();
+        content2.add("test");
+        content2.add("test2");
+        content2.add("test3");
+        SSTableReader sstable2 = SSTableUtils.writeSSTable(content2);
+
+        // transfer the first and last key
+        IPartitioner p = StorageService.getPartitioner();
+        List<Range> ranges = new ArrayList<Range>();
+        ranges.add(new Range(p.getMinimumToken(), p.getToken("transfer1".getBytes())));
+        ranges.add(new Range(p.getToken("test2".getBytes()), p.getMinimumToken()));
+        StreamOut.transferSSTables(new StreamContext(LOCAL), tablename, Arrays.asList(sstable, sstable2), ranges);
+
+        // confirm that the SSTable was transferred and registered
+        ColumnFamilyStore cfstore = Table.open(tablename).getColumnFamilyStore(cfname);
+        List<Row> rows = Util.getRangeSlice(cfstore);
+        assertEquals(8, rows.size());
+        assert Arrays.equals(rows.get(0).key.key, "key".getBytes());
+        assert Arrays.equals(rows.get(2).key.key, "test".getBytes());
+        assert Arrays.equals(rows.get(5).key.key, "transfer1".getBytes());
+        assert rows.get(0).cf.getColumnsMap().size() == 1;
+        assert rows.get(2).cf.getColumnsMap().size() == 1;
+        assert rows.get(5).cf.getColumnsMap().size() == 1;
+        assert rows.get(0).cf.getColumn("key".getBytes()) != null;
+        
+        // these keys fall outside of the ranges and should not be transferred.
+        assert null != cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("transfer2"), new QueryPath("Standard1")));
+        assert null != cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("transfer3"), new QueryPath("Standard1")));
+        
+        // and that the index and filter were properly recovered
+        assert null != cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("key"), new QueryPath("Standard1")));
+        assert null != cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("test"), new QueryPath("Standard1")));
+        assert null != cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("transfer1"), new QueryPath("Standard1")));
     }
 }

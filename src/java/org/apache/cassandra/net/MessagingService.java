@@ -22,12 +22,11 @@ import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.io.SerializerType;
 import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.streaming.PendingFile;
+import org.apache.cassandra.streaming.StreamHeader;
 import org.apache.cassandra.utils.ExpiringMap;
 import org.apache.cassandra.utils.GuidGenerator;
 import org.apache.cassandra.utils.SimpleCondition;
@@ -340,14 +339,14 @@ public class MessagingService
     /**
      * Stream a file from source to destination. This is highly optimized
      * to not hold any of the contents of the file in memory.
-     * @param file file to stream.
+     * @param header Header contains file to stream and other metadata.
      * @param to endpoint to which we need to stream the file.
     */
 
-    public void stream(PendingFile file, InetAddress to)
+    public void stream(StreamHeader header, InetAddress to)
     {
         /* Streaming asynchronously on streamExector_ threads. */
-        streamExecutor_.execute(new FileStreamTask(file, to));
+        streamExecutor_.execute(new FileStreamTask(header, to));
     }
     
     /** blocks until the processing pools are empty and done. */
@@ -470,7 +469,7 @@ public class MessagingService
         return buffer;
     }
         
-    public static ByteBuffer constructStreamHeader(boolean compress)
+    public static ByteBuffer constructStreamHeader(StreamHeader streamHeader, boolean compress)
     {
         /* 
         Setting up the protocol header. This is 4 bytes long
@@ -494,9 +493,29 @@ public class MessagingService
         header |= (version_ << 8);
         /* Finished the protocol header setup */
 
-        ByteBuffer buffer = ByteBuffer.allocate(4 + 4);
+        /* Adding the StreamHeader which contains the session Id along
+         * with the pendingfile info for the stream.
+         * | Session Id | Pending File Size | Pending File | Bool more files |
+         * | No. of Pending files | Pending Files ... |
+         */
+        byte[] bytes;
+        try
+        {
+            DataOutputBuffer buffer = new DataOutputBuffer();
+            StreamHeader.serializer().serialize(streamHeader, buffer);
+            bytes = buffer.getData();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        assert bytes.length > 0;
+
+        ByteBuffer buffer = ByteBuffer.allocate(4 + 4 + 4 + bytes.length);
         buffer.putInt(PROTOCOL_MAGIC);
         buffer.putInt(header);
+        buffer.putInt(bytes.length);
+        buffer.put(bytes);
         buffer.flip();
         return buffer;
     }

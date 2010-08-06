@@ -21,6 +21,7 @@ package org.apache.cassandra.streaming;
  */
 
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collection;
 
@@ -28,7 +29,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.commons.lang.StringUtils;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -36,18 +40,46 @@ import org.apache.cassandra.utils.FBUtilities;
 /** for streaming data from other nodes in to this one */
 public class StreamIn
 {
-    private static Logger logger = LoggerFactory.getLogger(StreamOut.class);
+    private static Logger logger = LoggerFactory.getLogger(StreamIn.class);
 
     /**
      * Request ranges to be transferred from source to local node
      */
     public static void requestRanges(InetAddress source, String tableName, Collection<Range> ranges)
     {
+        assert ranges.size() > 0;
+
         if (logger.isDebugEnabled())
-            logger.debug("Requesting from " + source + " ranges " + StringUtils.join(ranges, ", "));
-        StreamInManager.initContect(source);
-        StreamRequestMetadata streamRequestMetadata = new StreamRequestMetadata(FBUtilities.getLocalAddress(), ranges, tableName);
-        Message message = StreamRequestMessage.makeStreamRequestMessage(new StreamRequestMessage(streamRequestMetadata));
+            logger.debug("Requesting from {} ranges {}", source, StringUtils.join(ranges, ", "));
+        StreamContext context = new StreamContext(source);
+        StreamInManager.get(context);
+        Message message = new StreamRequestMessage(FBUtilities.getLocalAddress(), ranges, tableName, context.sessionId).makeMessage();
         MessagingService.instance.sendOneWay(message, source);
     }
+
+    /**
+     * Request for transferring a single file. This happens subsequent of #requestRanges() being called.
+     * @param file Pending File that needs to be transferred
+     */
+    public static void requestFile(StreamContext context, PendingFile file)
+    {
+        if (logger.isDebugEnabled())
+            logger.debug("Requesting file {} from source {}", file.getFilename(), context.host);
+        Message message = new StreamRequestMessage(FBUtilities.getLocalAddress(), file, context.sessionId).makeMessage();
+        MessagingService.instance.sendOneWay(message, context.host);
+    }
+
+    /** Translates remote files to local files by creating a local sstable per remote sstable. */
+    public static PendingFile getContextMapping(PendingFile remote) throws IOException
+    {
+        /* Create a local sstable for each remote sstable */
+        Descriptor remotedesc = remote.desc;
+
+        // new local sstable
+        Table table = Table.open(remotedesc.ksname);
+        ColumnFamilyStore cfStore = table.getColumnFamilyStore(remotedesc.cfname);
+        Descriptor localdesc = Descriptor.fromFilename(cfStore.getFlushPath());
+
+        return new PendingFile(localdesc, remote);
+     }
 }

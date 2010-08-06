@@ -18,8 +18,8 @@
 
 package org.apache.cassandra.streaming;
 
-import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -30,16 +30,15 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import java.net.InetAddress;
-
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.SimpleCondition;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
 
 /**
  * This class manages the streaming of multiple files one after the other.
@@ -48,34 +47,39 @@ public class StreamOutManager
 {   
     private static Logger logger = LoggerFactory.getLogger( StreamOutManager.class );
         
-    private static ConcurrentMap<InetAddress, StreamOutManager> streamManagers = new ConcurrentHashMap<InetAddress, StreamOutManager>();
-    public static final Set<InetAddress> pendingDestinations = Collections.synchronizedSet(new HashSet<InetAddress>());
+    // one host may have multiple stream contexts (think of them as sessions). each context gets its own manager.
+    private static ConcurrentMap<StreamContext, StreamOutManager> streamManagers = new ConcurrentHashMap<StreamContext, StreamOutManager>();
+    public static final Multimap<InetAddress, StreamContext> destHosts = Multimaps.synchronizedMultimap(HashMultimap.<InetAddress, StreamContext>create());
 
-    public static StreamOutManager get(InetAddress to)
+    public static StreamOutManager get(StreamContext context)
     {
-        StreamOutManager manager = streamManagers.get(to);
+        StreamOutManager manager = streamManagers.get(context);
         if (manager == null)
         {
-            StreamOutManager possibleNew = new StreamOutManager(to);
-            if ((manager = streamManagers.putIfAbsent(to, possibleNew)) == null)
+            StreamOutManager possibleNew = new StreamOutManager(context);
+            if ((manager = streamManagers.putIfAbsent(context, possibleNew)) == null)
+            {
                 manager = possibleNew;
+                destHosts.put(context.host, context);
+            }
         }
         return manager;
     }
     
-    public static void remove(InetAddress to)
+    public static void remove(StreamContext context)
     {
-        if (streamManagers.containsKey(to) && streamManagers.get(to).files.size() == 0)
-            streamManagers.remove(to);
-        pendingDestinations.remove(to);
+        if (streamManagers.containsKey(context) && streamManagers.get(context).files.size() == 0)
+        {
+            streamManagers.remove(context);
+            destHosts.remove(context.host, context);
+        }
     }
 
     public static Set<InetAddress> getDestinations()
     {
         // the results of streamManagers.keySet() isn't serializable, so create a new set.
         Set<InetAddress> hosts = new HashSet<InetAddress>();
-        hosts.addAll(streamManagers.keySet());
-        hosts.addAll(pendingDestinations);
+        hosts.addAll(destHosts.keySet());
         return hosts;
     }
     
@@ -83,65 +87,88 @@ public class StreamOutManager
      * this method exists so that we don't have to call StreamOutManager.get() which has a nasty side-effect of 
      * indicating that we are streaming to a particular host.
      **/     
-    public static List<PendingFile> getPendingFiles(InetAddress host)
+    public static List<PendingFile> getPendingFiles(StreamContext context)
     {
         List<PendingFile> list = new ArrayList<PendingFile>();
-        StreamOutManager manager = streamManagers.get(host);
+        StreamOutManager manager = streamManagers.get(context);
         if (manager != null)
             list.addAll(manager.getFiles());
         return list;
-    }    
+    }
+
+    public static List<PendingFile> getOutgoingFiles(InetAddress host)
+    {
+        List<PendingFile> list = new ArrayList<PendingFile>();
+        for(StreamContext context : destHosts.get(host))
+        {
+            list.addAll(getPendingFiles(context));
+        }
+        return list;
+    }
 
     // we need sequential and random access to the files. hence, the map and the list.
     private final List<PendingFile> files = new ArrayList<PendingFile>();
     private final Map<String, PendingFile> fileMap = new HashMap<String, PendingFile>();
     
-    private final InetAddress to;
+    private final StreamContext context;
     private final SimpleCondition condition = new SimpleCondition();
     
-    private StreamOutManager(InetAddress to)
+    private StreamOutManager(StreamContext context)
     {
-        this.to = to;
+        this.context = context;
     }
     
-    public void addFilesToStream(PendingFile[] pendingFiles)
+    public void addFilesToStream(List<PendingFile> pendingFiles)
     {
         // reset the condition in case this SOM is getting reused before it can be removed.
         condition.reset();
         for (PendingFile pendingFile : pendingFiles)
         {
             if (logger.isDebugEnabled())
-              logger.debug("Adding file " + pendingFile.getFilename() + " to be streamed.");
+                logger.debug("Adding file {} to be streamed.", pendingFile.getFilename());
             files.add(pendingFile);
             fileMap.put(pendingFile.getFilename(), pendingFile);
         }
     }
     
-    public void startNext()
+    public void retry(String file)
     {
-        if (files.size() > 0)
-        {
-            PendingFile pf = files.get(0);
-            if (logger.isDebugEnabled())
-              logger.debug("Streaming " + pf + " ...");
-            MessagingService.instance.stream(pf, to);
-        }
+        PendingFile pf = fileMap.get(file);
+        if (pf != null)
+            streamFile(pf);
     }
 
-    public void finishAndStartNext() throws IOException
+    private void streamFile(PendingFile pf)
     {
-        PendingFile pf = files.remove(0);
-        fileMap.remove(pf.getFilename());
+        if (logger.isDebugEnabled())
+            logger.debug("Streaming {} ...", pf);
+        MessagingService.instance.stream(new StreamHeader(context.sessionId, pf, true), context.host);
+    }
+
+    public void finishAndStartNext(String pfname) throws IOException
+    {
+        PendingFile pf = fileMap.remove(pfname);
+        files.remove(pf);
+
         if (files.size() > 0)
-            startNext();
+            streamFile(files.get(0));
         else
         {
             if (logger.isDebugEnabled())
-              logger.debug("Signalling that streaming is done for " + to);
+                logger.debug("Signalling that streaming is done for {} session {}", context.host, context.sessionId);
+            remove(context);
             condition.signalAll();
         }
     }
-    
+
+    public void removePending(PendingFile pf)
+    {
+        files.remove(pf);
+        fileMap.remove(pf.getFilename());
+        if (files.size() == 0)
+            remove(context);
+    }
+
     public void waitForStreamCompletion()
     {
         try
