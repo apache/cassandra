@@ -90,6 +90,10 @@ if [ -z $CASSANDRA_CONF -o -z $CLASSPATH ]; then
     exit 1
 fi
 
+if [ -f "$CASSANDRA_CONF/cassandra-env.sh" ]; then
+    . "$CASSANDRA_CONF/cassandra-env.sh"
+fi
+
 # Special-case path variables.
 case "`uname`" in
     CYGWIN*) 
