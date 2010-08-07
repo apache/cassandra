@@ -37,6 +37,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
+import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 
 import com.google.common.collect.BiMap;
@@ -76,7 +77,7 @@ public class RingCache
             try
             {
                 TSocket socket = new TSocket(seed, port_);
-                TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket);
+                TBinaryProtocol binaryProtocol = new TBinaryProtocol(new TFramedTransport(socket));
                 Cassandra.Client client = new Cassandra.Client(binaryProtocol);
                 socket.open();
 
