@@ -14,3 +14,5 @@ lib/licenses/*.txt
 .settings/**
 contrib/pig/example-script.pig
 contrib/redhat/cassandra
+**/cassandra.yaml
+**/*.db

@@ -1,4 +1,4 @@
-dev
+0.7.0-beta1
  * sstable versioning (CASSANDRA-389)
  * switched to slf4j logging (CASSANDRA-625)
  * access levels for authentication/authorization (CASSANDRA-900)
