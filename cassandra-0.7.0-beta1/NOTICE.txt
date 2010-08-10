@@ -1,0 +1,34 @@
+Apache Cassandra
+Copyright 2009, 2010 The Apache Software Foundation
+
+This product includes software developed by The Apache Software
+Foundation (http://www.apache.org/).
+
+Some alternate data structures provided by high-scale-lib from
+http://sourceforge.net/projects/high-scale-lib/.
+Written by Cliff Click and released as Public Domain.
+
+Some alternate data structures provided by concurrentlinkedhashmap
+from http://code.google.com/p/concurrentlinkedhashmap/.
+Copyright 2009 Benjamin Manes
+
+Alternative collection types provided by google-collections from
+http://code.google.com/p/google-collections/.
+Copyright (C) 2007 Google Inc.
+
+JSON (de)serialization provided by jackson (http://jackson.codehaus.org).
+Copyright (C) 2010 Tatu Saloranta and others.
+
+Alternative JSON (de)serialization by json-simple from
+(http://code.google.com/p/json-simple).
+Copyright (C) 2009 Fang Yidong and Chris Nokleberg
+
+This product includes the Jetty HTTP server
+(http://jetty.codehaus.org/jetty/).
+Copyright 1995-2006 Mort Bay Consulting Pty Ltd
+
+Alternative UUID support provided by Jug (http://jug.safehaus.org/).
+Copyright (c) 2002- Tatu Saloranta.
+
+YAML support provided by snakeyaml (http://code.google.com/p/snakeyaml/).
+Copyright (c) 2008-2010 Andrey Somov

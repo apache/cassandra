@@ -1,0 +1,16 @@
+Source: cassandra
+Section: misc
+Priority: extra
+Maintainer: Eric Evans <eevans@apache.org>
+Build-Depends: debhelper (>= 5), openjdk-6-jdk (>= 6b11) | java6-sdk, ant (>= 1.7)
+Homepage: http://cassandra.apache.org
+Vcs-Svn: https://svn.apache.org/repos/asf/cassandra/trunk
+Vcs-Browser: http://svn.apache.org/viewvc/cassandra/trunk
+Standards-Version: 3.8.3
+
+Package: cassandra
+Architecture: all
+Depends: openjdk-6-jre-headless (>= 6b11) | java6-runtime, jsvc (>= 1.0), libcommons-daemon-java (>= 1.0)
+Description: distributed storage system for structured data
+ Cassandra is a distributed (peer-to-peer) system for the management
+ and storage of structured data.
