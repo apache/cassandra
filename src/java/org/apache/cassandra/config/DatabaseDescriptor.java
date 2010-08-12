@@ -476,8 +476,12 @@ public class DatabaseDescriptor
             Collection<KSMetaData> tableDefs = DefsTable.loadFromStorage(uuid);   
             for (KSMetaData def : tableDefs)
             {
+                if (!def.name.matches("\\w+"))
+                    throw new RuntimeException("invalid keyspace name: " + def.name);
                 for (CFMetaData cfm : def.cfMetaData().values())
                 {
+                    if (!cfm.cfName.matches("\\w+"))
+                        throw new RuntimeException("invalid column family name: " + cfm.cfName);
                     try
                     {
                         CFMetaData.map(cfm);
@@ -559,9 +563,9 @@ public class DatabaseDescriptor
                 {
                     throw new ConfigurationException("ColumnFamily name attribute is required");
                 }
-                if (cf.name.contains("-"))
+                if (!cf.name.matches("\\w+"))
                 {
-                    throw new ConfigurationException("ColumnFamily names cannot contain hyphens");
+                    throw new ConfigurationException("ColumnFamily name contains invalid characters.");
                 }
                 
                 // Parse out the column comparator
