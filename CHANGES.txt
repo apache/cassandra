@@ -16,7 +16,6 @@
    (CASSANDRA-994)
  * Added preload_row_cache option (CASSANDRA-946)
  * add CRC to commitlog header (CASSANDRA-999)
- * removed multiget thrift method (CASSANDRA-739)
  * removed deprecated batch_insert and get_range_slice methods (CASSANDRA-1065)
  * add truncate thrift method (CASSANDRA-531)
  * http mini-interface using mx4j (CASSANDRA-1068)
@@ -48,6 +47,8 @@
  * optimize forward slices starting with '' and single-index-block name 
    queries by skipping the column index (CASSANDRA-1338)
  * streaming refactor (CASSANDRA-1189)
+ * faster comparison for UUID types (CASSANDRA-1043)
+ * secondary index support (CASSANDRA-749 and subtasks)
 
 
 0.6.5
@@ -55,7 +56,7 @@
    and ConsistencyLevel > ONE (CASSANDRA-1145)
  * fix for range query starting with the wrong token range (CASSANDRA-1042)
  * page within a single row during hinted handoff (CASSANDRA-1327)
- * fix compilation on non-sun JKDs (CASSANDRA-1061)
+ * fix compilation on non-sun JDKs (CASSANDRA-1061)
  * remove String.trim() call on row keys in batch mutations (CASSANDRA-1235)
  * Log summary of dropped messages instead of spamming log (CASSANDRA-1284)
 
@@ -93,9 +94,16 @@
 0.6.3
  * retry to make streaming connections up to 8 times. (CASSANDRA-1019)
  * reject describe_ring() calls on invalid keyspaces (CASSANDRA-1111)
+ * fix cache size calculation for size of 100% (CASSANDRA-1129)
+ * fix cache capacity only being recalculated once (CASSANDRA-1129)
+ * remove hourly scan of all hints on the off chance that the gossiper
+   missed a status change; instead, expose deliverHintsToEndpoint to JMX
+   so it can be done manually, if necessary (CASSANDRA-1141)
  * don't reject reads at CL.ALL (CASSANDRA-1152)
  * reject deletions to supercolumns in CFs containing only standard
    columns (CASSANDRA-1139)
+ * avoid preserving login information after client disconnects
+   (CASSANDRA-1057)
  * prefer sun jdk to openjdk in debian init script (CASSANDRA-1174)
  * detect partioner config changes between restarts and fail fast 
    (CASSANDRA-1146)
@@ -107,6 +115,7 @@
  * force anti-entropy service to stream files on the stream stage to avoid
    sending streams out of order (CASSANDRA-1169)
  * remove inactive stream managers after AES streams files (CASSANDRA-1169)
+ * allow removing entire row through batch_mutate Deletion (CASSANDRA-1027)
  * add JMX metrics for row-level bloom filter false positives (CASSANDRA-1212)
  * added a redhat init script to contrib (CASSANDRA-1201)
  * use midpoint when bootstrapping a new machine into range with not
@@ -144,6 +153,7 @@
    (CASSANDRA-1100)
  * windows scripts for SSTableImport/Export (CASSANDRA-1051)
  * windows script for nodetool (CASSANDRA-1113)
+ * expose PhiConvictThreshold (CASSANDRA-1053)
  * make repair of RF==1 a no-op (CASSANDRA-1090)
  * improve default JVM GC options (CASSANDRA-1014)
  * fix SlicePredicate serialization inside Hadoop jobs (CASSANDRA-1049)
@@ -162,6 +172,8 @@
  * perform repair even for small entropy differences (CASSANDRA-924)
  * Use hostnames in CFInputFormat to allow Hadoop's naive string-based
    locality comparisons to work (CASSANDRA-955)
+ * cache read-only BufferedRandomAccessFile length to avoid
+   3 system calls per invocation (CASSANDRA-950)
  * nodes with IPv6 (and no IPv4) addresses could not join cluster
    (CASSANDRA-969)
  * Retrieve the correct number of undeleted columns, if any, from
