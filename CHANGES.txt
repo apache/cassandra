@@ -7,6 +7,8 @@
  * remove String.trim() call on row keys in batch mutations (CASSANDRA-1235)
  * Log summary of dropped messages instead of spamming log (CASSANDRA-1284)
  * Dynamic snitch (CASSANDRA-981)
+ * Use a regex to filter keyspace and column family names during
+   initialization (CASSANDRA-1377)
 
 
 0.6.4

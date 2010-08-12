@@ -590,6 +590,8 @@ public class DatabaseDescriptor
                 {
                     throw new ConfigurationException("'system' is a reserved table name for Cassandra internals");
                 }
+                if (!ksName.matches("\\w+"))
+                    throw new ConfigurationException("keyspace name contains invalid char");
 
                 /* See which replica placement strategy to use */
                 String replicaPlacementStrategyClassName = xmlUtils.getNodeValue("/Storage/Keyspaces/Keyspace[@Name='" + ksName + "']/ReplicaPlacementStrategy");
@@ -671,9 +673,9 @@ public class DatabaseDescriptor
                     {
                         throw new ConfigurationException("ColumnFamily name attribute is required");
                     }
-                    if (cfName.contains("-"))
+                    if (!cfName.matches("\\w+"))
                     {
-                        throw new ConfigurationException("ColumnFamily names cannot contain hyphens");
+                        throw new ConfigurationException("ColumnFamily name contains invalid characters.");
                     }
                     String xqlCF = xqlTable + "ColumnFamily[@Name='" + cfName + "']/";
 
