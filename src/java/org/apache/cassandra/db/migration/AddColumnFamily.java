@@ -52,6 +52,8 @@ public class AddColumnFamily extends Migration
             throw new ConfigurationException("Keyspace does not already exist.");
         else if (ksm.cfMetaData().containsKey(cfm.cfName))
             throw new ConfigurationException("CF is already defined in that keyspace.");
+        else if (!Migration.isLegalName(cfm.cfName))
+            throw new ConfigurationException("Invalid column family name: " + cfm.cfName);
         
         // clone ksm but include the new cf def.
         KSMetaData newKsm = makeNewKeyspaceDefinition(ksm);

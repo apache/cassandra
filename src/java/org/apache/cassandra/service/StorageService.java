@@ -1669,6 +1669,17 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public void loadSchemaFromYAML() throws ConfigurationException, IOException
     { 
+        // validate
+        final Collection<KSMetaData> tables = DatabaseDescriptor.readTablesFromYaml();
+        for (KSMetaData table : tables)
+        {
+            if (!table.name.matches(Migration.NAME_VALIDATOR_REGEX))
+                throw new ConfigurationException("Invalid table name: " + table.name);
+            for (CFMetaData cfm : table.cfMetaData().values())
+                if (!Migration.isLegalName(cfm.cfName))
+                    throw new ConfigurationException("Invalid column family name: " + cfm.cfName);
+        }
+        
         Callable<Migration> call = new Callable<Migration>()
         {
             public Migration call() throws Exception
@@ -1676,8 +1687,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 // blow up if there is a schema saved.
                 if (DatabaseDescriptor.getDefsVersion().timestamp() > 0 || Migration.getLastMigrationId() != null)
                     throw new ConfigurationException("Cannot load from XML on top of pre-existing schemas.");
-                
-                Collection<KSMetaData> tables = DatabaseDescriptor.readTablesFromYaml();
              
                 // cycle through first to make sure we can satisfy live nodes constraint.
                 int liveNodeCount = getLiveNodes().size();

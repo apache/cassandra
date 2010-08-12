@@ -50,6 +50,18 @@ public class DefsTest extends CleanupHelper
     }
     
     @Test
+    public void testInvalidNames() throws IOException
+    {
+        String[] valid = {"1", "a", "_1", "b_", "__", "1_a"};
+        for (String s : valid)
+            assert Migration.isLegalName(s);
+        
+        String[] invalid = {"b@t", "dash-y", "", " ", "dot.s", ".hidden"};
+        for (String s : invalid)
+            assert !Migration.isLegalName(s);
+    }
+    
+    @Test
     public void saveAndRestore() throws IOException
     {
         // verify dump and reload.

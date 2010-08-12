@@ -1124,6 +1124,33 @@ class TestMutations(ThriftTester):
 
     def test_describe_ring(self):
         assert list(client.describe_ring('Keyspace1'))[0].endpoints == ['127.0.0.1']
+        
+    def test_invalid_ks_names(self):
+        def invalid_keyspace():
+            client.system_add_keyspace(KsDef('in-valid', 'org.apache.cassandra.locator.RackUnawareStrategy', {}, 1, []))
+        _expect_exception(invalid_keyspace, InvalidRequestException)
+        
+        def invalid_rename():
+            client.system_rename_keyspace('Keyspace1', 'in-valid')
+        _expect_exception(invalid_rename, InvalidRequestException)
+        
+    def test_invalid_cf_names(self):
+        def invalid_cf():
+            _set_keyspace('Keyspace1')
+            newcf = CfDef('Keyspace1', 'in-valid')
+            client.system_add_column_family(newcf)
+        _expect_exception(invalid_cf, InvalidRequestException)
+        
+        def invalid_cf_inside_new_ks():
+            cf = CfDef('ValidKsName_invalid_cf', 'in-valid')
+            _set_keyspace('system')
+            client.system_add_keyspace(KsDef('ValidKsName_invalid_cf', 'org.apache.cassandra.locator.RackUnawareStrategy', {}, 1, [cf]))
+        _expect_exception(invalid_cf_inside_new_ks, InvalidRequestException)
+        
+        def invalid_rename():
+            _set_keyspace('Keyspace1')
+            client.system_rename_column_family('Standard1', 'in-validcf')
+        _expect_exception(invalid_rename, InvalidRequestException)
     
     def test_system_keyspace_operations(self):
         """ Test keyspace (add, drop, rename) operations """

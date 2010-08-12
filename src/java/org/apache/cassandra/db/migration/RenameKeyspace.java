@@ -55,6 +55,8 @@ public class RenameKeyspace extends Migration
             throw new ConfigurationException("Keyspace either does not exist or does not match the one currently defined.");
         if (DatabaseDescriptor.getTableDefinition(newName) != null)
             throw new ConfigurationException("Keyspace already exists.");
+        if (!Migration.isLegalName(newName))
+            throw new ConfigurationException("Invalid keyspace name: " + newName);
         
         // clone the ksm, replacing thename.
         KSMetaData newKsm = rename(oldKsm, newName, false); 

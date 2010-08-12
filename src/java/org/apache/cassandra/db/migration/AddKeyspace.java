@@ -45,6 +45,11 @@ public class AddKeyspace extends Migration
         
         if (DatabaseDescriptor.getTableDefinition(ksm.name) != null)
             throw new ConfigurationException("Keyspace already exists.");
+        if (!Migration.isLegalName(ksm.name))
+            throw new ConfigurationException("Invalid keyspace name: " + ksm.name);
+        for (CFMetaData cfm : ksm.cfMetaData().values())
+            if (!Migration.isLegalName(cfm.cfName))
+                throw new ConfigurationException("Invalid column family name: " + cfm.cfName);
         
         this.ksm = ksm;
         rm = makeDefinitionMutation(ksm, null, newVersion);

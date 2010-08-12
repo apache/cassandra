@@ -68,6 +68,7 @@ public abstract class Migration
 {
     private static final Logger logger = LoggerFactory.getLogger(Migration.class);
     
+    public static final String NAME_VALIDATOR_REGEX = "\\w+";
     public static final String MIGRATIONS_CF = "Migrations";
     public static final String SCHEMA_CF = "Schema";
     public static final byte[] MIGRATIONS_KEY = "Migrations Key".getBytes(UTF_8);
@@ -325,5 +326,10 @@ public abstract class Migration
     public static byte[] toUTF8Bytes(UUID version)
     {
         return version.toString().getBytes(UTF_8);
+    }
+    
+    public static boolean isLegalName(String s)
+    {
+        return s.matches(Migration.NAME_VALIDATOR_REGEX);
     }
 }

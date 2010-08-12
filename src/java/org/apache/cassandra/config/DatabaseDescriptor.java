@@ -476,11 +476,11 @@ public class DatabaseDescriptor
             Collection<KSMetaData> tableDefs = DefsTable.loadFromStorage(uuid);   
             for (KSMetaData def : tableDefs)
             {
-                if (!def.name.matches("\\w+"))
+                if (!def.name.matches(Migration.NAME_VALIDATOR_REGEX))
                     throw new RuntimeException("invalid keyspace name: " + def.name);
                 for (CFMetaData cfm : def.cfMetaData().values())
                 {
-                    if (!cfm.cfName.matches("\\w+"))
+                    if (!cfm.cfName.matches(Migration.NAME_VALIDATOR_REGEX))
                         throw new RuntimeException("invalid column family name: " + cfm.cfName);
                     try
                     {
@@ -563,7 +563,7 @@ public class DatabaseDescriptor
                 {
                     throw new ConfigurationException("ColumnFamily name attribute is required");
                 }
-                if (!cf.name.matches("\\w+"))
+                if (!cf.name.matches(Migration.NAME_VALIDATOR_REGEX))
                 {
                     throw new ConfigurationException("ColumnFamily name contains invalid characters.");
                 }

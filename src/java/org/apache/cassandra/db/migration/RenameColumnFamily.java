@@ -61,6 +61,8 @@ public class RenameColumnFamily extends Migration
             throw new ConfigurationException("CF is not defined in that keyspace.");
         if (ksm.cfMetaData().containsKey(newName))
             throw new ConfigurationException("CF is already defined in that keyspace.");
+        if (!Migration.isLegalName(newName))
+            throw new ConfigurationException("Invalid column family name: " + newName);
         
         cfId = ksm.cfMetaData().get(oldName).cfId;
         
