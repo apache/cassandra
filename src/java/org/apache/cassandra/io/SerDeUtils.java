@@ -46,14 +46,6 @@ public final class SerDeUtils
     // unbuffered decoders
     private final static DecoderFactory DIRECT_DECODERS = new DecoderFactory().configureDirectDecoder(true);
 
-    public static byte[] copy(ByteBuffer buff)
-    {
-        byte[] bytes = new byte[buff.remaining()];
-        buff.get(bytes);
-        buff.rewind();
-        return bytes;
-    }
-
 	/**
      * Deserializes a single object based on the given Schema.
      * @param writer writer's schema

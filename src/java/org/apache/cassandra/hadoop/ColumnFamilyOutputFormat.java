@@ -25,10 +25,10 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.nio.ByteBuffer;
 
 import org.apache.cassandra.auth.SimpleAuthenticator;
-import org.apache.cassandra.avro.Mutation;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.AuthenticationRequest;
 import org.apache.cassandra.thrift.AuthorizationException;
@@ -64,11 +64,11 @@ import org.slf4j.LoggerFactory;
  * <p>
  * For the sake of performance, this class employs a lazy write-back caching
  * mechanism, where its record writer batches mutations created based on the
- * reduce's inputs (in a task-specific map), and periodically makes the changes
- * official by sending a batch mutate request to Cassandra.
+ * reduce's inputs (in a task-specific map). When the writer is closed, then it
+ * makes the changes official by sending a batch mutate request to Cassandra.
  * </p>
  */
-public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutation>>
+public class ColumnFamilyOutputFormat extends OutputFormat<byte[],List<IColumn>>
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyOutputFormat.class);
     
@@ -93,7 +93,15 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
     }
     
     /**
-     * The OutputCommitter for this format does not write any data to the DFS.
+     * Get the output committer for this output format. This is responsible for
+     * ensuring the output is committed correctly.
+     * 
+     * <p>
+     * This output format employs a lazy write-back caching mechanism, where the
+     * {@link RecordWriter} is responsible for collecting mutations in the
+     * {@link #MUTATIONS_CACHE}, and the {@link OutputCommitter} makes the
+     * changes official by making the change request to Cassandra.
+     * </p>
      * 
      * @param context
      *            the task context
@@ -110,13 +118,19 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
     /**
      * Get the {@link RecordWriter} for the given task.
      * 
+     * <p>
+     * As stated above, this {@link RecordWriter} merely batches the mutations
+     * that it defines in the {@link #MUTATIONS_CACHE}. In other words, it
+     * doesn't literally cause any changes on the Cassandra server.
+     * </p>
+     * 
      * @param context
      *            the information about the current task.
      * @return a {@link RecordWriter} to write the output for the job.
      * @throws IOException
      */
     @Override
-    public RecordWriter<ByteBuffer,List<Mutation>> getRecordWriter(final TaskAttemptContext context) throws IOException, InterruptedException
+    public RecordWriter<byte[],List<IColumn>> getRecordWriter(final TaskAttemptContext context) throws IOException, InterruptedException
     {
         return new ColumnFamilyRecordWriter(context);
     }
