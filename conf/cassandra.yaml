@@ -79,7 +79,8 @@ rpc_address: localhost
 rpc_port: 9160
 
 # Frame size for thrift (maximum field length).
-# 0 disables TFramedTransport in favor of TSocket. 
+# 0 disables TFramedTransport in favor of TSocket. This option
+# is deprecated; we strongly recommend using Framed mode.
 thrift_framed_transport_size_in_mb: 15
 
 # The max length of a thrift message, including all fields and
