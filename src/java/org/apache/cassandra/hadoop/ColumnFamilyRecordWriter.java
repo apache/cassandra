@@ -22,10 +22,12 @@ package org.apache.cassandra.hadoop;
  */
 import java.io.IOException;
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -33,7 +35,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import org.apache.cassandra.client.RingCache;
-import org.apache.cassandra.db.IColumn;
+import static org.apache.cassandra.io.SerDeUtils.copy;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.Clock;
 import org.apache.cassandra.thrift.Column;
@@ -43,6 +45,8 @@ import org.apache.cassandra.thrift.Deletion;
 import org.apache.cassandra.thrift.Mutation;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.SliceRange;
+import org.apache.cassandra.thrift.SuperColumn;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.hadoop.mapreduce.OutputFormat;
 import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
@@ -50,31 +54,28 @@ import org.apache.thrift.transport.TSocket;
 
 /**
  * The <code>ColumnFamilyRecordWriter</code> maps the output &lt;key, value&gt;
- * pairs to a Cassandra column family. In particular, it creates mutations for
- * each column in the value, which it associates with the key, and in turn the
- * responsible endpoint.
+ * pairs to a Cassandra column family. In particular, it applies all mutations
+ * in the value, which it associates with the key, and in turn the responsible
+ * endpoint.
  * 
  * <p>
  * Note that, given that round trips to the server are fairly expensive, it
- * merely batches the mutations in-memory (specifically in
- * {@link ColumnFamilyOutputFormat#MUTATIONS_CACHE}), and leaves it to the
- * {@link ColumnFamilyOutputCommitter} to send the batched mutations to the
- * server in one shot.
+ * merely batches the mutations in-memory and periodically sends the batched
+ * mutations to the server in one shot.
  * </p>
  * 
  * <p>
  * Furthermore, this writer groups the mutations by the endpoint responsible for
- * the rows being affected. This allows the {@link ColumnFamilyOutputCommitter}
- * to execute the mutations in parallel, on a endpoint-by-endpoint basis.
+ * the rows being affected. This allows the mutations to be executed in parallel,
+ * directly to a responsible endpoint.
  * </p>
  * 
  * @author Karthick Sankarachary
- * @see ColumnFamilyOutputCommitter
  * @see ColumnFamilyOutputFormat
  * @see OutputFormat
  * 
  */
-final class ColumnFamilyRecordWriter extends RecordWriter<byte[],List<IColumn>>
+final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer,List<org.apache.cassandra.avro.Mutation>>
 {
     // The task attempt context this writer is associated with.
     private final TaskAttemptContext context;
@@ -87,12 +88,12 @@ final class ColumnFamilyRecordWriter extends RecordWriter<byte[],List<IColumn>>
     // the endpoints they should be targeted at. The targeted endpoint
     // essentially
     // acts as the primary replica for the rows being affected by the mutations.
-    private RingCache ringCache;
+    private final RingCache ringCache;
     
     // The number of mutations currently held in the mutations cache.
     private long batchSize = 0L;
     // The maximum number of mutations to hold in the mutations cache.
-    private long batchThreshold = Long.MAX_VALUE;
+    private final long batchThreshold;
     
     /**
      * Upon construction, obtain the map that this writer will use to collect
@@ -144,75 +145,92 @@ final class ColumnFamilyRecordWriter extends RecordWriter<byte[],List<IColumn>>
      * @throws IOException
      */
     @Override
-    public synchronized void write(byte[] key, List<IColumn> value) throws IOException, InterruptedException
+    public synchronized void write(ByteBuffer keybuff, List<org.apache.cassandra.avro.Mutation> value) throws IOException, InterruptedException
     {
         maybeFlush();
+        byte[] key = copy(keybuff);
         InetAddress endpoint = getEndpoint(key);
         Map<byte[], Map<String, List<Mutation>>> mutationsByKey = mutationsByEndpoint.get(endpoint);
         if (mutationsByKey == null)
         {
-            mutationsByKey = new HashMap<byte[], Map<String, List<Mutation>>>();
+            mutationsByKey = new TreeMap<byte[], Map<String, List<Mutation>>>(FBUtilities.byteArrayComparator);
             mutationsByEndpoint.put(endpoint, mutationsByKey);
         }
 
         Map<String, List<Mutation>> cfMutation = new HashMap<String, List<Mutation>>();
         mutationsByKey.put(key, cfMutation);
 
-        Clock clock = new Clock(System.currentTimeMillis());
         List<Mutation> mutationList = new ArrayList<Mutation>();
         cfMutation.put(ConfigHelper.getOutputColumnFamily(context.getConfiguration()), mutationList);
 
-        if (value == null)
+        for (org.apache.cassandra.avro.Mutation amut : value)
+            mutationList.add(avroToThrift(amut));
+    }
+
+    /**
+     * Deep copies the given Avro mutation into a new Thrift mutation.
+     */
+    private Mutation avroToThrift(org.apache.cassandra.avro.Mutation amut)
+    {
+        Mutation mutation = new Mutation();
+        org.apache.cassandra.avro.ColumnOrSuperColumn acosc = amut.column_or_supercolumn;
+        if (acosc != null)
         {
-            Mutation mutation = new Mutation();
-            Deletion deletion = new Deletion(clock);
-            mutation.setDeletion(deletion);
-            mutationList.add(mutation);
+            // creation
+            ColumnOrSuperColumn cosc = new ColumnOrSuperColumn();
+            mutation.setColumn_or_supercolumn(cosc);
+            if (acosc.column != null)
+                // standard column
+                cosc.setColumn(avroToThrift(acosc.column));
+            else
+            {
+                // super column
+                byte[] scolname = copy(acosc.super_column.name);
+                List<Column> scolcols = new ArrayList<Column>((int)acosc.super_column.columns.size());
+                for (org.apache.cassandra.avro.Column acol : acosc.super_column.columns)
+                    scolcols.add(avroToThrift(acol));
+                cosc.setSuper_column(new SuperColumn(scolname, scolcols));
+            }
         }
         else
         {
-            List<byte[]> columnsToDelete = new ArrayList<byte[]>();
-            for (IColumn column : value)
+            // deletion
+            Deletion deletion = new Deletion(avroToThrift(amut.deletion.clock));
+            mutation.setDeletion(deletion);
+            org.apache.cassandra.avro.SlicePredicate apred = amut.deletion.predicate;
+            if (amut.deletion.super_column != null)
+                // super column
+                deletion.setSuper_column(copy(amut.deletion.super_column));
+            else if (apred.column_names != null)
             {
-                Mutation mutation = new Mutation();
-                if (column.value() == null)
-                {
-                    if (columnsToDelete.size() != 1 || columnsToDelete.get(0) != null)
-                    {
-                        if (column.name() == null)
-                            columnsToDelete.clear();
-                        columnsToDelete.add(column.name());
-                    }
-                }
-                else
-                {
-
-                    ColumnOrSuperColumn cosc = new ColumnOrSuperColumn();
-                    cosc.setColumn(new Column(column.name(), column.value(), clock));
-                    mutation.setColumn_or_supercolumn(cosc);
-                }
-                mutationList.add(mutation);
+                // column names
+                List<byte[]> colnames = new ArrayList<byte[]>((int)apred.column_names.size());
+                for (ByteBuffer acolname : apred.column_names)
+                    colnames.add(copy(acolname));
+                deletion.setPredicate(new SlicePredicate().setColumn_names(colnames));
             }
-
-            if (columnsToDelete.size() > 0)
+            else
             {
-                Mutation mutation = new Mutation();
-                Deletion deletion = new Deletion(clock);
-
-                if (columnsToDelete.size() != 1 || columnsToDelete.get(0) != null)
-                {
-                    deletion.setPredicate(new SlicePredicate().setColumn_names(columnsToDelete));
-                }
-                else
-                {
-                    SliceRange range = new SliceRange(new byte[]{ }, new byte[]{ }, false, Integer.MAX_VALUE);
-                    deletion.setPredicate(new SlicePredicate().setSlice_range(range));
-                }
-
-                mutation.setDeletion(deletion);
-                mutationList.add(mutation);
+                // range
+                deletion.setPredicate(new SlicePredicate().setSlice_range(avroToThrift(apred.slice_range)));
             }
         }
+        return mutation;
+    }
+
+    private SliceRange avroToThrift(org.apache.cassandra.avro.SliceRange asr)
+    {
+        return new SliceRange(copy(asr.start), copy(asr.finish), asr.reversed, asr.count);
+    }
+
+    private Column avroToThrift(org.apache.cassandra.avro.Column acol)
+    {
+        return new Column(copy(acol.name), copy(acol.value), avroToThrift(acol.clock));
+    }
+
+    private Clock avroToThrift(org.apache.cassandra.avro.Clock aclo)
+    {
+        return new Clock(aclo.timestamp);
     }
 
     /**
