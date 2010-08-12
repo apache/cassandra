@@ -1,4 +1,9 @@
-0.7.0-beta1
+dev
+ * remove cassandra.yaml dependency from Hadoop and Pig (CASSADRA-1322)
+ * expose CfDef metadata in describe_keyspaces (CASSANDRA-1633)
+
+
+0.7-beta1
  * sstable versioning (CASSANDRA-389)
  * switched to slf4j logging (CASSANDRA-625)
  * access levels for authentication/authorization (CASSANDRA-900)

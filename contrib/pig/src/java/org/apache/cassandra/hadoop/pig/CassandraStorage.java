@@ -46,6 +46,12 @@ import org.apache.pig.data.TupleFactory;
  */
 public class CassandraStorage extends LoadFunc
 {
+    // system environment variables that can be set to configure connection info:
+    // alternatively, Hadoop JobConf variables can be set using keys from ConfigHelper
+    public final static String PIG_RPC_PORT = "PIG_RPC_PORT";
+    public final static String PIG_INITIAL_ADDRESS = "PIG_INITIAL_ADDRESS";
+    public final static String PIG_PARTITIONER = "PIG_PARTITIONER";
+
     private final static byte[] BOUND = new byte[0];
     private final static int LIMIT = 1024;
 
@@ -135,6 +141,14 @@ public class CassandraStorage extends LoadFunc
         conf = job.getConfiguration();
         ConfigHelper.setInputSlicePredicate(conf, predicate);
         ConfigHelper.setInputColumnFamily(conf, ksname, cfname);
+
+        // check the environment for connection information
+        if (System.getenv(PIG_RPC_PORT) != null)
+            ConfigHelper.setRpcPort(conf, System.getenv(PIG_RPC_PORT));
+        if (System.getenv(PIG_INITIAL_ADDRESS) != null)
+            ConfigHelper.setInitialAddress(conf, System.getenv(PIG_INITIAL_ADDRESS));
+        if (System.getenv(PIG_PARTITIONER) != null)
+            ConfigHelper.setPartitioner(conf, System.getenv(PIG_PARTITIONER));
     }
 
     @Override

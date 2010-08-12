@@ -20,8 +20,7 @@ package org.apache.cassandra.hadoop;
  * 
  */
 
-
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.hadoop.conf.Configuration;
@@ -32,6 +31,7 @@ import org.apache.thrift.protocol.TBinaryProtocol;
 
 public class ConfigHelper
 {
+    private static final String PARTITIONER_CONFIG = "cassandra.partitioner.class";
     private static final String INPUT_KEYSPACE_CONFIG = "cassandra.input.keyspace";
     private static final String OUTPUT_KEYSPACE_CONFIG = "cassandra.output.keyspace";
     private static final String INPUT_KEYSPACE_USERNAME_CONFIG = "cassandra.input.keyspace.username";
@@ -92,21 +92,6 @@ public class ConfigHelper
 
         conf.set(OUTPUT_KEYSPACE_CONFIG, keyspace);
         conf.set(OUTPUT_COLUMNFAMILY_CONFIG, columnFamily);
-    }
-
-    /**
-     * The address and port of a Cassandra node that Hadoop can contact over Thrift
-     * to learn more about the Cassandra cluster.  Optional when storage-conf.xml
-     * is provided.
-     *
-     * @param conf
-     * @param address
-     * @param port
-     */
-    public static void setThriftContact(Configuration conf, String address, int port)
-    {
-        conf.set(THRIFT_PORT, String.valueOf(port));
-        conf.set(INITIAL_THRIFT_ADDRESS, address);
     }
 
     /**
@@ -244,13 +229,31 @@ public class ConfigHelper
 
     public static int getRpcPort(Configuration conf)
     {
-        String v = conf.get(THRIFT_PORT);
-        return v == null ? DatabaseDescriptor.getRpcPort() : Integer.valueOf(v);
+        return Integer.valueOf(conf.get(THRIFT_PORT));
+    }
+
+    public static void setRpcPort(Configuration conf, String port)
+    {
+        conf.set(THRIFT_PORT, port);
     }
 
     public static String getInitialAddress(Configuration conf)
     {
-        String v = conf.get(INITIAL_THRIFT_ADDRESS);
-        return v == null ? DatabaseDescriptor.getSeeds().iterator().next().getHostAddress() : v;
+        return conf.get(INITIAL_THRIFT_ADDRESS);
+    }
+
+    public static void setInitialAddress(Configuration conf, String address)
+    {
+        conf.set(INITIAL_THRIFT_ADDRESS, address);
+    }
+
+    public static void setPartitioner(Configuration conf, String classname)
+    {
+        conf.set(PARTITIONER_CONFIG, classname); 
+    }
+
+    public static IPartitioner getPartitioner(Configuration conf)
+    {
+        return FBUtilities.newPartitioner(conf.get(PARTITIONER_CONFIG)); 
     }
 }

@@ -19,22 +19,15 @@ package org.apache.cassandra.client;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.HashMap;
-import java.util.List;
+import java.util.Collection;
 
-import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.Column;
-import org.apache.cassandra.thrift.Clock;
-import org.apache.cassandra.thrift.ColumnPath;
-import org.apache.cassandra.thrift.ColumnParent;
-import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.thrift.*;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
-
-import org.apache.cassandra.thrift.AuthenticationRequest;
 
 /**
  *  Sample code that uses RingCache in the client.
@@ -46,7 +39,8 @@ public class TestRingCache
 
     public TestRingCache(String keyspace) throws IOException
     {
-    	ringCache = new RingCache(keyspace);
+        String seed = DatabaseDescriptor.getSeeds().iterator().next().getHostAddress();
+    	ringCache = new RingCache(keyspace, DatabaseDescriptor.getPartitioner(), seed, DatabaseDescriptor.getRpcPort());
     }
     
     private void setup(String server, int port) throws Exception
@@ -97,14 +91,13 @@ public class TestRingCache
             ColumnPath col = new ColumnPath("Standard1").setSuper_column(null).setColumn("col1".getBytes());
             ColumnParent parent = new ColumnParent("Standard1").setSuper_column(null);
 
-            List<InetAddress> endpoints = tester.ringCache.getEndpoint(row);
-            String hosts="";
-            for (int i = 0; i < endpoints.size(); i++)
-                hosts = hosts + ((i > 0) ? "," : "") + endpoints.get(i);
-            System.out.println("hosts with key " + new String(row) + " : " + hosts + "; choose " + endpoints.get(0));
+            Collection<InetAddress> endpoints = tester.ringCache.getEndpoint(row);
+            InetAddress firstEndpoint = endpoints.iterator().next();
+            System.out.printf("hosts with key %s : %s; choose %s%n",
+                              new String(row), StringUtils.join(endpoints, ","), firstEndpoint);
 
             // now, read the row back directly from the host owning the row locally
-            tester.setup(endpoints.get(0).getHostAddress(), DatabaseDescriptor.getRpcPort());
+            tester.setup(firstEndpoint.getHostAddress(), DatabaseDescriptor.getRpcPort());
             tester.thriftClient.set_keyspace(keyspace);
             Clock clock = new Clock();
             clock.setTimestamp(1);

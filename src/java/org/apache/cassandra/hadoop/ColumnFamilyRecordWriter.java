@@ -33,7 +33,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import org.apache.cassandra.client.RingCache;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.Clock;
@@ -106,7 +105,10 @@ final class ColumnFamilyRecordWriter extends RecordWriter<byte[],List<IColumn>>
     {
         this.context = context;
         this.mutationsByEndpoint = new HashMap<InetAddress,Map<byte[],Map<String,List<Mutation>>>>();
-        this.ringCache = new RingCache(ConfigHelper.getOutputKeyspace(context.getConfiguration()));
+        this.ringCache = new RingCache(ConfigHelper.getOutputKeyspace(context.getConfiguration()),
+                                       ConfigHelper.getPartitioner(context.getConfiguration()),
+                                       ConfigHelper.getInitialAddress(context.getConfiguration()),
+                                       ConfigHelper.getRpcPort(context.getConfiguration()));
         this.batchThreshold = context.getConfiguration().getLong(ColumnFamilyOutputFormat.BATCH_THRESHOLD, Long.MAX_VALUE);
     }
     
@@ -120,10 +122,7 @@ final class ColumnFamilyRecordWriter extends RecordWriter<byte[],List<IColumn>>
      */
     protected InetAddress getEndpoint(byte[] key)
     {
-        List<InetAddress> endpoints = ringCache.getEndpoint(key);
-        return endpoints != null && endpoints.size() > 0
-               ? endpoints.get(0)
-               : null;
+        return ringCache.getEndpoint(key).iterator().next();
     }
 
     /**
@@ -327,7 +326,7 @@ final class ColumnFamilyRecordWriter extends RecordWriter<byte[],List<IColumn>>
             TSocket socket = null;
             try
             {
-                socket = new TSocket(endpoint.getHostName(), DatabaseDescriptor.getRpcPort());
+                socket = new TSocket(endpoint.getHostName(), ConfigHelper.getRpcPort(taskContext.getConfiguration()));
                 Cassandra.Client client = ColumnFamilyOutputFormat.createAuthenticatedClient(socket, taskContext);
                 client.batch_mutate(mutations, ConsistencyLevel.ONE);
                 return null;

@@ -3,10 +3,18 @@ A Pig LoadFunc that reads all columns from a given ColumnFamily.
 Setup:
 
 First build and start a Cassandra server with the default
-configuration* and set the PIG_HOME and JAVA_HOME environment
+configuration and set the PIG_HOME and JAVA_HOME environment
 variables to the location of a Pig >= 0.7.0 install and your Java
-install. If you would like to run using the Hadoop backend, you should
+install. 
+
+If you would like to run using the Hadoop backend, you should
 also set PIG_CONF_DIR to the location of your Hadoop config.
+
+FInally, set the following as environment variables (uppercase,
+underscored), or as Hadoop configuration variables (lowercase, dotted):
+* PIG_RPC_PORT or cassandra.thrift.port : the port thrift is listening on 
+* PIG_INITIAL_ADDRESS or cassandra.thrift.address : initial address to connect to
+* PIG_PARTITIONER or cassandra.partitioner.class : cluster partitioner
 
 Run:
 
@@ -32,6 +40,3 @@ grunt> namecounts = FOREACH namegroups GENERATE COUNT($1), group;
 grunt> orderednames = ORDER namecounts BY $0;
 grunt> topnames = LIMIT orderednames 50;
 grunt> dump topnames;
-
-*If you want to point Pig at a real cluster, modify the seed
-address in cassandra.yaml and re-run the build step.
