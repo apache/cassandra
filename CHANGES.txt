@@ -37,7 +37,6 @@ dev
  * revise HH schema to be per-endpoint (CASSANDRA-1142)
  * add joining/leaving status to nodetool ring (CASSANDRA-1115)
  * allow multiple repair sessions per node (CASSANDRA-1190)
- * add dynamic endpoint snitch (CASSANDRA-981)
  * optimize away MessagingService for local range queries (CASSANDRA-1261)
  * make framed transport the default so malformed requests can't OOM the 
    server (CASSANDRA-475)
@@ -64,6 +63,7 @@ dev
  * fix compilation on non-sun JDKs (CASSANDRA-1061)
  * remove String.trim() call on row keys in batch mutations (CASSANDRA-1235)
  * Log summary of dropped messages instead of spamming log (CASSANDRA-1284)
+ * add dynamic endpoint snitch (CASSANDRA-981)
 
 
 0.6.4
