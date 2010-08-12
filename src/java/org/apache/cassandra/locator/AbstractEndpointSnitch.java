@@ -70,28 +70,33 @@ public abstract class AbstractEndpointSnitch implements IEndPointSnitch
         {
             public int compare(InetAddress a1, InetAddress a2)
             {
-                try
-                {
-                    if (address.equals(a1) && !address.equals(a2))
-                        return -1;
-                    if (address.equals(a2) && !address.equals(a1))
-                        return 1;
-                    if (isOnSameRack(address, a1) && !isOnSameRack(address, a2))
-                        return -1;
-                    if (isOnSameRack(address, a2) && !isOnSameRack(address, a1))
-                        return 1;
-                    if (isInSameDataCenter(address, a1) && !isInSameDataCenter(address, a2))
-                        return -1;
-                    if (isInSameDataCenter(address, a2) && !isInSameDataCenter(address, a1))
-                        return 1;
-                    return 0;
-                }
-                catch (UnknownHostException e)
-                {
-                    throw new RuntimeException(e);
-                }
+                return compareEndpoints(address, a1, a2);
             }
         });
         return addresses;
+    }
+
+    public int compareEndpoints(InetAddress target, InetAddress a1, InetAddress a2)
+    {
+        try
+        {
+            if (target.equals(a1) && !target.equals(a2))
+                return -1;
+            if (target.equals(a2) && !target.equals(a1))
+                return 1;
+            if (isOnSameRack(target, a1) && !isOnSameRack(target, a2))
+                return -1;
+            if (isOnSameRack(target, a2) && !isOnSameRack(target, a1))
+                return 1;
+            if (isInSameDataCenter(target, a1) && !isInSameDataCenter(target, a2))
+                return -1;
+            if (isInSameDataCenter(target, a2) && !isInSameDataCenter(target, a1))
+                return 1;
+            return 0;
+        }
+        catch (UnknownHostException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 }

@@ -110,6 +110,9 @@ public class PropertyFileEndPointSnitch extends EndPointSnitch implements Proper
         return getEndPointInfo(endPoint)[0];
     }
 
+    public String getLocation(InetAddress endPoint) {
+        return getEndPointInfo(endPoint)[0];
+    }
     /**
      * Return the rack for which an endpoint resides in
      *  

@@ -27,6 +27,7 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.locator.IEndPointSnitch;
+import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -626,7 +627,12 @@ public class DatabaseDescriptor
                 try
                 {
                     Class cls = Class.forName(endPointSnitchClassName);
-                    epSnitch = (IEndPointSnitch)cls.getConstructor().newInstance();
+                    IEndPointSnitch snitch = (IEndPointSnitch)cls.getConstructor().newInstance();
+                    String dynamic = System.getProperty("cassandra.dynamic_snitch");
+                    if (dynamic == null || Boolean.getBoolean(dynamic) == false)
+                        epSnitch = snitch;
+                    else
+                        epSnitch = new DynamicEndpointSnitch(snitch);
                 }
                 catch (ClassNotFoundException e)
                 {
@@ -648,7 +654,6 @@ public class DatabaseDescriptor
                 {
                     throw new ConfigurationException("Invalid endpointsnitch class " + endPointSnitchClassName + " " + e.getMessage());
                 }
-
                 String xqlTable = "/Storage/Keyspaces/Keyspace[@Name='" + ksName + "']/";
                 NodeList columnFamilies = xmlUtils.getRequestedNodeList(xqlTable + "ColumnFamily");
 

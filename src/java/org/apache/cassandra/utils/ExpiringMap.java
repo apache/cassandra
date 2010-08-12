@@ -30,12 +30,12 @@ public class ExpiringMap<K, V>
     private class CacheableObject
     {
         private V value_;
-        private long age_;
+        public long age;
 
         CacheableObject(V o)
         {
             value_ = o;
-            age_ = System.currentTimeMillis();
+            age = System.currentTimeMillis();
         }
 
         @Override
@@ -57,7 +57,7 @@ public class ExpiringMap<K, V>
 
         boolean isReadyToDie(long expiration)
         {
-            return ((System.currentTimeMillis() - age_) > expiration);
+            return ((System.currentTimeMillis() - age) > expiration);
         }
     }
 
@@ -173,6 +173,17 @@ public class ExpiringMap<K, V>
             result = co.getValue();
         }
         return result;
+    }
+
+    public long getAge(K key)
+    {
+        long age = 0;
+        CacheableObject co = cache_.get(key);
+        if (co != null)
+        {
+            age = co.age;
+        }
+        return age;
     }
 
     public int size()

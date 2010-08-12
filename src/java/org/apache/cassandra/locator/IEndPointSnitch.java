@@ -45,5 +45,22 @@ public interface IEndPointSnitch
      * This method will sort the List<InetAddress> according to the proximity of the given address.
      */
     public List<InetAddress> sortByProximity(InetAddress address, List<InetAddress> addresses);
+
+    /**
+     * compares two endpoints in relation to the target endpoint, returning as Comparator.compare would
+     */
+    public int compareEndpoints(InetAddress target, InetAddress a1, InetAddress a2);
+
+    /**
+     * indicates whether two endpoints are on the same rack
+     */
+    public boolean isOnSameRack(InetAddress a1, InetAddress a2) throws UnknownHostException;
+
+    /**
+     * indicates whether two endpoints are in the same datacenter
+     */
+    public boolean isInSameDataCenter(InetAddress a1, InetAddress a2) throws UnknownHostException;
+
+    public String getLocation(InetAddress endpoint) throws UnknownHostException;
 }
 
