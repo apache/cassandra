@@ -485,32 +485,36 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public Map<String, Map<String, String>> describe_keyspace(String table) throws NotFoundException
+    public KsDef describe_keyspace(String table) throws NotFoundException
     {
-        Map<String, Map<String, String>> columnFamiliesMap = new HashMap<String, Map<String, String>>();
-
-        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(table); 
+        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(table);
         if (ksm == null)
             throw new NotFoundException();
-        
 
-        for (Map.Entry<String, CFMetaData> stringCFMetaDataEntry : ksm.cfMetaData().entrySet())
+        List<CfDef> cfDefs = new ArrayList<CfDef>();
+        for (CFMetaData cfm : ksm.cfMetaData().values())
         {
-            CFMetaData columnFamilyMetaData = stringCFMetaDataEntry.getValue();
-
-            Map<String, String> columnMap = new HashMap<String, String>();
-            columnMap.put("Type", columnFamilyMetaData.cfType.name());
-            columnMap.put("ClockType", columnFamilyMetaData.clockType.name());
-            columnMap.put("Desc", columnFamilyMetaData.comment == null ? columnFamilyMetaData.pretty() : columnFamilyMetaData.comment);
-            columnMap.put("CompareWith", columnFamilyMetaData.comparator.getClass().getName());
-            if (columnFamilyMetaData.cfType == ColumnFamilyType.Super)
+            CfDef def = new CfDef(cfm.tableName, cfm.cfName);
+            if (cfm.subcolumnComparator != null)
             {
-                columnMap.put("CompareSubcolumnsWith", columnFamilyMetaData.subcolumnComparator.getClass().getName());
-                columnMap.put("Reconciler", columnFamilyMetaData.reconciler.getClass().getName());
+                def.setSubcomparator_type(cfm.subcolumnComparator.getClass().getName());
+                def.setColumn_type("Super");
             }
-            columnFamiliesMap.put(columnFamilyMetaData.cfName, columnMap);
+            def.setComparator_type(cfm.comparator.getClass().getName());
+
+            List<ColumnDef> cdef_list = new ArrayList<ColumnDef>();
+            for (ColumnDefinition col_definition : cfm.column_metadata.values())
+            {
+                ColumnDef cdef = new ColumnDef(col_definition.name, col_definition.validator.getClass().getName());
+                cdef.setIndex_name(col_definition.index_name);
+                cdef.setIndex_type(col_definition.index_type);
+                cdef_list.add(cdef);
+            }
+
+            def.setColumn_metadata(cdef_list);
+            cfDefs.add(def);
         }
-        return columnFamiliesMap;
+        return new KsDef(ksm.name, ksm.strategyClass.toString(), ksm.replicationFactor, cfDefs);
     }
 
     public List<KeySlice> get_range_slices(ColumnParent column_parent, SlicePredicate predicate, KeyRange range, ConsistencyLevel consistency_level)
@@ -605,9 +609,19 @@ public class CassandraServer implements Cassandra.Iface
         return thriftifyKeySlices(rows, column_parent, column_predicate);
     }
 
-    public Set<String> describe_keyspaces() throws TException
+    public List<KsDef> describe_keyspaces() throws TException
     {
-        return DatabaseDescriptor.getTables();
+        Set<String> keyspaces = DatabaseDescriptor.getTables();
+        List<KsDef> ksset = new ArrayList<KsDef>();
+        for (String ks : keyspaces) {
+            try {
+                ksset.add(describe_keyspace(ks));
+            }
+            catch (NotFoundException nfe) {
+                logger.info("Failed to find metadata for keyspace '" + ks + "'. Continuing... ");
+            }
+        }
+        return ksset;
     }
 
     public String describe_cluster_name() throws TException

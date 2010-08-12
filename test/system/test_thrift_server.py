@@ -1106,12 +1106,16 @@ class TestMutations(ThriftTester):
             assert len(slice) == n, "expected %s results; found %s" % (n, slice)
 
     def test_describe_keyspace(self):
-        """ Test keyspace description """
         kspaces = client.describe_keyspaces()
-        assert len(kspaces) == 3, kspaces # ['system', 'Keyspace2', 'Keyspace1']
-        ks1 = client.describe_keyspace("Keyspace1")
-        assert set(ks1.keys()) == set(['Super1', 'Standard1', 'Standard2', 'StandardLong1', 'StandardLong2', 'StandardInteger1', 'Super3', 'Super2', 'Super4', 'Indexed1'])
+        assert len(kspaces) == 3, kspaces # ['Keyspace2', 'Keyspace1', 'system']
+
         sysks = client.describe_keyspace("system")
+        assert sysks == kspaces[2]
+
+        ks1 = client.describe_keyspace("Keyspace1")
+        assert ks1.replication_factor == 1
+        cf0 = ks1.cf_defs[0]
+        assert cf0.comparator_type == "org.apache.cassandra.db.marshal.BytesType"
 
     def test_describe(self):
         server_version = client.describe_version()
@@ -1128,14 +1132,14 @@ class TestMutations(ThriftTester):
                          [CfDef('CreateKeyspace', 'CreateKsCf')])
         client.system_add_keyspace(keyspace)
         newks = client.describe_keyspace('CreateKeyspace')
-        assert 'CreateKsCf' in newks
+        assert 'CreateKsCf' in [x.name for x in newks.cf_defs]
         
         _set_keyspace('CreateKeyspace')
         
         # rename
         client.system_rename_keyspace('CreateKeyspace', 'RenameKeyspace')
         renameks = client.describe_keyspace('RenameKeyspace')
-        assert 'CreateKsCf' in renameks
+        assert 'CreateKsCf' in [x.name for x in renameks.cf_defs]
         def get_first_ks():
             client.describe_keyspace('CreateKeyspace')
         _expect_exception(get_first_ks, NotFoundException)
@@ -1152,8 +1156,8 @@ class TestMutations(ThriftTester):
         cd = ColumnDef('col', 'LongType', None, None)
         cf = CfDef('Keyspace1', 'ValidatorColumnFamily', column_metadata=[cd])
         client.system_add_column_family(cf)
-        dks = client.describe_keyspace(ks)
-        assert 'ValidatorColumnFamily' in dks
+        ks_def = client.describe_keyspace(ks)
+        assert 'ValidatorColumnFamily' in [x.name for x in ks_def.cf_defs]
 
         cp = ColumnParent('ValidatorColumnFamily')
         col0 = Column('col', _i64(42), Clock(0))
@@ -1169,20 +1173,20 @@ class TestMutations(ThriftTester):
         newcf = CfDef('Keyspace1', 'NewColumnFamily', column_metadata=[cd])
         client.system_add_column_family(newcf)
         ks1 = client.describe_keyspace('Keyspace1')
-        assert 'NewColumnFamily' in ks1
+        assert 'NewColumnFamily' in [x.name for x in ks1.cf_defs]
         
         # rename
         client.system_rename_column_family('NewColumnFamily', 'RenameColumnFamily')
         ks1 = client.describe_keyspace('Keyspace1')
-        assert 'RenameColumnFamily' in ks1
-        assert 'NewColumnFamily' not in ks1
+        assert 'RenameColumnFamily' in [x.name for x in ks1.cf_defs]
+        assert 'NewColumnFamily' not in [x.name for x in ks1.cf_defs]
         
         # drop
         client.system_drop_column_family('RenameColumnFamily')
         ks1 = client.describe_keyspace('Keyspace1')
-        assert 'RenameColumnFamily' not in ks1
-        assert 'NewColumnFamily' not in ks1
-        assert 'Standard1' in ks1
+        assert 'RenameColumnFamily' not in [x.name for x in ks1.cf_defs]
+        assert 'NewColumnFamily' not in [x.name for x in ks1.cf_defs]
+        assert 'Standard1' in [x.name for x in ks1.cf_defs]
 
     def test_system_super_column_family_operations(self):
         _set_keyspace('Keyspace1')
@@ -1192,20 +1196,20 @@ class TestMutations(ThriftTester):
         newcf = CfDef('Keyspace1', 'NewSuperColumnFamily', 'Super', column_metadata=[cd])
         client.system_add_column_family(newcf)
         ks1 = client.describe_keyspace('Keyspace1')
-        assert 'NewSuperColumnFamily' in ks1
+        assert 'NewSuperColumnFamily' in [x.name for x in ks1.cf_defs]
         
         # rename
         client.system_rename_column_family('NewSuperColumnFamily', 'RenameSuperColumnFamily')
         ks1 = client.describe_keyspace('Keyspace1')
-        assert 'RenameSuperColumnFamily' in ks1
-        assert 'NewSuperColumnFamily' not in ks1
+        assert 'RenameSuperColumnFamily' in [x.name for x in ks1.cf_defs]
+        assert 'NewSuperColumnFamily' not in [x.name for x in ks1.cf_defs]
         
         # drop
         client.system_drop_column_family('RenameSuperColumnFamily')
         ks1 = client.describe_keyspace('Keyspace1')
-        assert 'RenameSuperColumnFamily' not in ks1
-        assert 'NewSuperColumnFamily' not in ks1
-        assert 'Standard1' in ks1
+        assert 'RenameSuperColumnFamily' not in [x.name for x in ks1.cf_defs]
+        assert 'NewSuperColumnFamily' not in [x.name for x in ks1.cf_defs]
+        assert 'Standard1' in [x.name for x in ks1.cf_defs]
 
     def test_insert_ttl(self):
         """ Test simple insertion of a column with ttl """

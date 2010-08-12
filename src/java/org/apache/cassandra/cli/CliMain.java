@@ -21,12 +21,7 @@ package org.apache.cassandra.cli;
 import jline.ConsoleReader;
 import jline.History;
 import org.apache.cassandra.auth.SimpleAuthenticator;
-import org.apache.cassandra.thrift.AuthenticationException;
-import org.apache.cassandra.thrift.AuthenticationRequest;
-import org.apache.cassandra.thrift.AuthorizationException;
-import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.NotFoundException;
+import org.apache.cassandra.thrift.*;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TFramedTransport;
@@ -106,7 +101,13 @@ public class CliMain
             try {
                 thriftClient_.set_keyspace(css_.keyspace);
                 cliClient_.setKeyspace(css_.keyspace);
-                updateCompletor(cliClient_.getCFMetaData(css_.keyspace).keySet());
+
+                Set<String> cfnames = new HashSet<String>();
+                KsDef ksd = cliClient_.getKSMetaData(css_.keyspace);
+                for (CfDef cfd : ksd.cf_defs) {
+                    cfnames.add(cfd.name);
+                }
+                updateCompletor(cfnames);
                 
             }
             catch (InvalidRequestException e)

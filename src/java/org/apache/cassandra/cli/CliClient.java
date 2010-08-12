@@ -66,7 +66,7 @@ public class CliClient
     private CliSessionState css_ = null;
     private String keySpace = null;
     private String username = null;
-    private Map<String, Map<String, Map<String, String>>> keyspacesMap = new HashMap<String, Map<String,Map<String,String>>>();
+    private Map<String, KsDef> keyspacesMap = new HashMap<String, KsDef>();
 
     public CliClient(CliSessionState css, Cassandra.Client thriftClient)
     {
@@ -402,9 +402,9 @@ public class CliClient
         System.exit(0);
     }
     
-    Map<String, Map<String, String>> getCFMetaData(String keyspace) throws NotFoundException, TException
+    KsDef getKSMetaData(String keyspace) throws NotFoundException, TException
     {
-        // Lazily lookup column family meta-data.
+        // Lazily lookup keyspace meta-data.
         if (!(keyspacesMap.containsKey(keyspace)))
             keyspacesMap.put(keyspace, thriftClient_.describe_keyspace(keyspace));
         return keyspacesMap.get(keyspace);
@@ -462,14 +462,20 @@ public class CliClient
         byte[] superColumnName = null;
         byte[] columnName = null;
         boolean isSuper;
-        
-        if (!(keyspacesMap.get(keySpace).containsKey(columnFamily)))
+
+        List<String> cfnames = new ArrayList<String>();
+        for (CfDef cfd : keyspacesMap.get(keySpace).cf_defs) {
+            cfnames.add(cfd.name);
+        }
+
+        int idx = cfnames.indexOf(columnFamily);
+        if (idx == -1)
         {
             css_.out.println("No such column family: " + columnFamily);
             return;
         }
             
-        isSuper = keyspacesMap.get(keySpace).get(columnFamily).get("Type").equals("Super");
+        isSuper = keyspacesMap.get(keySpace).cf_defs.get(idx).column_type.equals("Super");
      
         if ((columnSpecCnt < 0) || (columnSpecCnt > 2))
         {
@@ -534,17 +540,17 @@ public class CliClient
  
     private String formatSuperColumnName(String keyspace, String columnFamily, SuperColumn column) throws NotFoundException, TException, IllegalAccessException, InstantiationException, NoSuchFieldException
     {
-        return getFormatTypeForColumn(keyspacesMap.get(keyspace).get(columnFamily).get("CompareWith")).getString(column.name);
+        return getFormatTypeForColumn(getCfDef(keyspace,columnFamily).comparator_type).getString(column.name);
     }
 
     private String formatSubcolumnName(String keyspace, String columnFamily, Column subcolumn) throws NotFoundException, TException, IllegalAccessException, InstantiationException, NoSuchFieldException
     {
-        return getFormatTypeForColumn(keyspacesMap.get(keyspace).get(columnFamily).get("CompareSubcolumnsWith")).getString(subcolumn.name);
+        return getFormatTypeForColumn(getCfDef(keyspace,columnFamily).subcomparator_type).getString(subcolumn.name);
     }
 
     private String formatColumnName(String keyspace, String columnFamily, Column column) throws NotFoundException, TException, IllegalAccessException, InstantiationException, NoSuchFieldException
     {
-        return getFormatTypeForColumn(keyspacesMap.get(keyspace).get(columnFamily).get("CompareWith")).getString(column.name);
+        return getFormatTypeForColumn(getCfDef(keyspace,columnFamily).comparator_type).getString(column.name);
     }
 
     private AbstractType getFormatTypeForColumn(String compareWith) throws IllegalAccessException, InstantiationException, NoSuchFieldException
@@ -574,15 +580,21 @@ public class CliClient
 
         String key = CliCompiler.getKey(columnFamilySpec);
         String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
-        int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec); 
-        
-        if (!(keyspacesMap.get(keySpace).containsKey(columnFamily)))
+        int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
+
+        List<String> cfnames = new ArrayList<String>();
+        for (CfDef cfd : keyspacesMap.get(keySpace).cf_defs) {
+            cfnames.add(cfd.name);
+        }
+
+        int idx = cfnames.indexOf(columnFamily);
+        if (idx == -1)
         {
             css_.out.println("No such column family: " + columnFamily);
             return;
         }
-        
-        boolean isSuper = keyspacesMap.get(keySpace).get(columnFamily).get("Type").equals("Super");
+
+        boolean isSuper = keyspacesMap.get(keySpace).cf_defs.get(idx).column_type.equals("Super");
         
         byte[] superColumnName = null;
         byte[] columnName = null;
@@ -905,10 +917,9 @@ public class CliClient
         if (!CliMain.isConnected())
             return;
         
-        Set<String> tables = thriftClient_.describe_keyspaces();
-        for (String table : tables)
-        {
-            css_.out.println(table);
+        List<KsDef> tables = thriftClient_.describe_keyspaces();
+        for (KsDef t : tables) {
+            describeTableInternal(t.name, t);
         }
     }
     
@@ -930,7 +941,9 @@ public class CliClient
     public void setKeyspace(String keySpace) throws NotFoundException, TException 
     {
         this.keySpace = keySpace;
-        getCFMetaData(keySpace);
+        //We do nothing with the return value, but it hits a cache and
+        // the tab-completer.
+        getKSMetaData(keySpace);
     }
     
     public String getUsername() 
@@ -991,7 +1004,12 @@ public class CliClient
             {
                 keyspacesMap.put(keySpace, thriftClient_.describe_keyspace(keySpace));
             }
-            CliMain.updateCompletor(keyspacesMap.get(keySpace).keySet());
+            Set<String> cfnames = new HashSet<String>();
+            KsDef ksd = keyspacesMap.get(keySpace);
+            for (CfDef cfd : ksd.cf_defs) {
+                cfnames.add(cfd.name);
+            }
+            CliMain.updateCompletor(cfnames);
             css_.out.println("Authenticated to keyspace: " + keySpace);
         } 
         catch (AuthenticationException e) 
@@ -1025,6 +1043,43 @@ public class CliClient
         }
     }
 
+    private void describeTableInternal(String tableName, KsDef metadata) throws TException {
+        // Describe and display
+        css_.out.println("Keyspace: " + tableName);
+        try
+        {
+            KsDef ks_def;
+            if (metadata != null) {
+                ks_def = metadata;
+            }
+            else {
+                ks_def = thriftClient_.describe_keyspace(tableName);
+            }
+            css_.out.println("  Replication Factor: " + ks_def.replication_factor);
+            css_.out.println("  Column Families:");
+
+            for (CfDef cf_def : ks_def.cf_defs)
+            {
+                /**
+                String desc = columnMap.get("Desc");
+                String columnFamilyType = columnMap.get("Type");
+                String sort = columnMap.get("CompareWith");
+                String flushperiod = columnMap.get("FlushPeriodInMinutes");
+                css_.out.println(desc);
+                 */
+                //css_.out.println("description");
+                css_.out.println("    Column Family Name: " + cf_def.name + " {");
+                css_.out.println("      Column Family Type: " + cf_def.column_type);
+                css_.out.println("      Column Sorted By: " + cf_def.comparator_type);
+                //css_.out.println("      flush period: " + flushperiod + " minutes");
+                css_.out.println("    }");
+            }
+        }
+        catch (NotFoundException e)
+        {
+            css_.out.println("Keyspace " + tableName + " could not be found.");
+        }
+    }
     // process a statement of the form: describe table <tablename> 
     private void executeDescribeTable(CommonTree ast) throws TException
     {
@@ -1041,33 +1096,8 @@ public class CliClient
             css_.out.println("Keyspace argument required");
             return;
         }
-
-        // Describe and display
-        css_.out.println("Keyspace: " + tableName);
-
-        Map<String, Map<String, String>> columnFamiliesMap;
-        try
-        {
-            columnFamiliesMap = thriftClient_.describe_keyspace(tableName);
-            for (String columnFamilyName: columnFamiliesMap.keySet())
-            {
-                Map<String, String> columnMap = columnFamiliesMap.get(columnFamilyName);
-                String desc = columnMap.get("Desc");
-                String columnFamilyType = columnMap.get("Type");
-                String sort = columnMap.get("CompareWith");
-                String flushperiod = columnMap.get("FlushPeriodInMinutes");
-                css_.out.println(desc);
-                css_.out.println("Column Family Name: " + columnFamilyName);
-                css_.out.println("Column Family Type: " + columnFamilyType);
-                css_.out.println("Column Sorted By: " + sort);
-                css_.out.println("flush period: " + flushperiod + " minutes");
-                css_.out.println("------");
-            }
-        }
-        catch (NotFoundException e)
-        {
-            css_.out.println("Keyspace " + tableName + " could not be found.");
-        }
+        
+        describeTableInternal(tableName, null);
     }
 
     // process a statement of the form: connect hostname/port
@@ -1091,5 +1121,15 @@ public class CliClient
         css_.hostName = hostName.toString();
         css_.thriftPort = portNumber;
         CliMain.connect(css_.hostName, css_.thriftPort);
+    }
+
+    private CfDef getCfDef(String ksname, String cfname) {
+        List<String> cfnames = new ArrayList<String>();
+        KsDef ksd = keyspacesMap.get(ksname);
+        for (CfDef cfd : ksd.cf_defs) {
+            cfnames.add(cfd.name);
+        }
+        int idx = cfnames.indexOf(cfname);
+        return ksd.cf_defs.get(idx);
     }
 }

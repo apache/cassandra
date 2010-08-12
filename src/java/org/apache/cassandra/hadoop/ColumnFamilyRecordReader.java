@@ -191,9 +191,18 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
             try
             {
                 partitioner = FBUtilities.newPartitioner(client.describe_partitioner());
-                Map<String, String> info = client.describe_keyspace(keyspace).get(cfName);
-                comparator = FBUtilities.getComparator(info.get("CompareWith"));
-                subComparator = info.get("CompareSubcolumnsWith") == null ? null : FBUtilities.getComparator(info.get("CompareSubcolumnsWith"));
+
+                // Get the Keyspace metadata, then get the specific CF metadata
+                // in order to populate the sub/comparator.
+                KsDef ks_def = client.describe_keyspace(keyspace);
+                List<String> cfnames = new ArrayList<String>();
+                for (CfDef cfd : ks_def.cf_defs)
+                    cfnames.add(cfd.name);
+                int idx = cfnames.indexOf(cfName);
+                CfDef cf_def = ks_def.cf_defs.get(idx);
+
+                comparator = FBUtilities.getComparator(cf_def.comparator_type);
+                subComparator = cf_def.subcomparator_type == null ? null : FBUtilities.getComparator(cf_def.subcomparator_type);
             }
             catch (ConfigurationException e)
             {

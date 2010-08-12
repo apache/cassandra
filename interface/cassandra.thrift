@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "10.0.0"
+const string VERSION = "11.0.0"
 
 
 #
@@ -501,7 +501,7 @@ service Cassandra {
        throws (1: InvalidRequestException ire),
 
   /** list the defined keyspaces in this cluster */
-  set<string> describe_keyspaces(),
+  list<KsDef> describe_keyspaces(),
 
   /** get the cluster name */
   string describe_cluster_name(),
@@ -524,8 +524,8 @@ service Cassandra {
   string describe_partitioner(),
 
   /** describe specified keyspace */
-  map<string, map<string, string>> describe_keyspace(1:required string keyspace)
-                                   throws (1:NotFoundException nfe),
+  KsDef describe_keyspace(1:required string keyspace)
+        throws (1:NotFoundException nfe),
 
   /** experimental API for hadoop/parallel query support.  
       may change violently and without warning. 

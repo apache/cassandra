@@ -21,6 +21,7 @@ package org.apache.cassandra.hadoop;
 import java.io.IOError;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -131,7 +132,9 @@ public class ColumnFamilyOutputFormatTest extends EmbeddedServer
         Cassandra.Client cassandraClient = new Cassandra.Client(binaryProtocol);
         transport.open();
         thriftClient = cassandraClient;
-        Set<String> keyspaces = thriftClient.describe_keyspaces();
+        Set<String> keyspaces = new HashSet<String>();
+        for (KsDef def : thriftClient.describe_keyspaces())
+            keyspaces.add(def.name);
         if (!keyspaces.contains(KEYSPACE))
         {
             List<CfDef> cfDefs = new ArrayList<CfDef>();

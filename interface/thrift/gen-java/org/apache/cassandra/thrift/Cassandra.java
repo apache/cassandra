@@ -182,7 +182,7 @@ public class Cassandra {
     /**
      * list the defined keyspaces in this cluster
      */
-    public Set<String> describe_keyspaces() throws TException;
+    public List<KsDef> describe_keyspaces() throws TException;
 
     /**
      * get the cluster name
@@ -218,7 +218,7 @@ public class Cassandra {
      * 
      * @param keyspace
      */
-    public Map<String,Map<String,String>> describe_keyspace(String keyspace) throws NotFoundException, TException;
+    public KsDef describe_keyspace(String keyspace) throws NotFoundException, TException;
 
     /**
      * experimental API for hadoop/parallel query support.
@@ -1003,7 +1003,7 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "check_schema_agreement failed: unknown result");
     }
 
-    public Set<String> describe_keyspaces() throws TException
+    public List<KsDef> describe_keyspaces() throws TException
     {
       send_describe_keyspaces();
       return recv_describe_keyspaces();
@@ -1018,7 +1018,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public Set<String> recv_describe_keyspaces() throws TException
+    public List<KsDef> recv_describe_keyspaces() throws TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -1182,7 +1182,7 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "describe_partitioner failed: unknown result");
     }
 
-    public Map<String,Map<String,String>> describe_keyspace(String keyspace) throws NotFoundException, TException
+    public KsDef describe_keyspace(String keyspace) throws NotFoundException, TException
     {
       send_describe_keyspace(keyspace);
       return recv_describe_keyspace();
@@ -1198,7 +1198,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public Map<String,Map<String,String>> recv_describe_keyspace() throws NotFoundException, TException
+    public KsDef recv_describe_keyspace() throws NotFoundException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -2048,7 +2048,7 @@ public class Cassandra {
         prot.writeMessageEnd();
       }
 
-      public Set<String> getResult() throws TException {
+      public List<KsDef> getResult() throws TException {
         if (getState() != State.RESPONSE_READ) {
           throw new IllegalStateException("Method call not finished!");
         }
@@ -2194,7 +2194,7 @@ public class Cassandra {
         prot.writeMessageEnd();
       }
 
-      public Map<String,Map<String,String>> getResult() throws NotFoundException, TException {
+      public KsDef getResult() throws NotFoundException, TException {
         if (getState() != State.RESPONSE_READ) {
           throw new IllegalStateException("Method call not finished!");
         }
@@ -17618,9 +17618,9 @@ public class Cassandra {
   public static class describe_keyspaces_result implements TBase<describe_keyspaces_result, describe_keyspaces_result._Fields>, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("describe_keyspaces_result");
 
-    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.SET, (short)0);
+    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.LIST, (short)0);
 
-    public Set<String> success;
+    public List<KsDef> success;
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements TFieldIdEnum {
@@ -17686,8 +17686,8 @@ public class Cassandra {
     static {
       Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
       tmpMap.put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
-          new SetMetaData(TType.SET, 
-              new FieldValueMetaData(TType.STRING))));
+          new ListMetaData(TType.LIST, 
+              new StructMetaData(TType.STRUCT, KsDef.class))));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       FieldMetaData.addStructMetaDataMap(describe_keyspaces_result.class, metaDataMap);
     }
@@ -17696,7 +17696,7 @@ public class Cassandra {
     }
 
     public describe_keyspaces_result(
-      Set<String> success)
+      List<KsDef> success)
     {
       this();
       this.success = success;
@@ -17707,9 +17707,9 @@ public class Cassandra {
      */
     public describe_keyspaces_result(describe_keyspaces_result other) {
       if (other.isSetSuccess()) {
-        Set<String> __this__success = new HashSet<String>();
-        for (String other_element : other.success) {
-          __this__success.add(other_element);
+        List<KsDef> __this__success = new ArrayList<KsDef>();
+        for (KsDef other_element : other.success) {
+          __this__success.add(new KsDef(other_element));
         }
         this.success = __this__success;
       }
@@ -17728,22 +17728,22 @@ public class Cassandra {
       return (this.success == null) ? 0 : this.success.size();
     }
 
-    public java.util.Iterator<String> getSuccessIterator() {
+    public java.util.Iterator<KsDef> getSuccessIterator() {
       return (this.success == null) ? null : this.success.iterator();
     }
 
-    public void addToSuccess(String elem) {
+    public void addToSuccess(KsDef elem) {
       if (this.success == null) {
-        this.success = new HashSet<String>();
+        this.success = new ArrayList<KsDef>();
       }
       this.success.add(elem);
     }
 
-    public Set<String> getSuccess() {
+    public List<KsDef> getSuccess() {
       return this.success;
     }
 
-    public describe_keyspaces_result setSuccess(Set<String> success) {
+    public describe_keyspaces_result setSuccess(List<KsDef> success) {
       this.success = success;
       return this;
     }
@@ -17769,7 +17769,7 @@ public class Cassandra {
         if (value == null) {
           unsetSuccess();
         } else {
-          setSuccess((Set<String>)value);
+          setSuccess((List<KsDef>)value);
         }
         break;
 
@@ -17867,17 +17867,18 @@ public class Cassandra {
         }
         switch (field.id) {
           case 0: // SUCCESS
-            if (field.type == TType.SET) {
+            if (field.type == TType.LIST) {
               {
-                TSet _set95 = iprot.readSetBegin();
-                this.success = new HashSet<String>(2*_set95.size);
-                for (int _i96 = 0; _i96 < _set95.size; ++_i96)
+                TList _list95 = iprot.readListBegin();
+                this.success = new ArrayList<KsDef>(_list95.size);
+                for (int _i96 = 0; _i96 < _list95.size; ++_i96)
                 {
-                  String _elem97;
-                  _elem97 = iprot.readString();
+                  KsDef _elem97;
+                  _elem97 = new KsDef();
+                  _elem97.read(iprot);
                   this.success.add(_elem97);
                 }
-                iprot.readSetEnd();
+                iprot.readListEnd();
               }
             } else { 
               TProtocolUtil.skip(iprot, field.type);
@@ -17900,12 +17901,12 @@ public class Cassandra {
       if (this.isSetSuccess()) {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
-          oprot.writeSetBegin(new TSet(TType.STRING, this.success.size()));
-          for (String _iter98 : this.success)
+          oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
+          for (KsDef _iter98 : this.success)
           {
-            oprot.writeString(_iter98);
+            _iter98.write(oprot);
           }
-          oprot.writeSetEnd();
+          oprot.writeListEnd();
         }
         oprot.writeFieldEnd();
       }
@@ -20342,10 +20343,10 @@ public class Cassandra {
   public static class describe_keyspace_result implements TBase<describe_keyspace_result, describe_keyspace_result._Fields>, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("describe_keyspace_result");
 
-    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.MAP, (short)0);
+    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRUCT, (short)0);
     private static final TField NFE_FIELD_DESC = new TField("nfe", TType.STRUCT, (short)1);
 
-    public Map<String,Map<String,String>> success;
+    public KsDef success;
     public NotFoundException nfe;
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
@@ -20415,11 +20416,7 @@ public class Cassandra {
     static {
       Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
       tmpMap.put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
-          new MapMetaData(TType.MAP, 
-              new FieldValueMetaData(TType.STRING), 
-              new MapMetaData(TType.MAP, 
-                  new FieldValueMetaData(TType.STRING), 
-                  new FieldValueMetaData(TType.STRING)))));
+          new StructMetaData(TType.STRUCT, KsDef.class)));
       tmpMap.put(_Fields.NFE, new FieldMetaData("nfe", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
@@ -20430,7 +20427,7 @@ public class Cassandra {
     }
 
     public describe_keyspace_result(
-      Map<String,Map<String,String>> success,
+      KsDef success,
       NotFoundException nfe)
     {
       this();
@@ -20443,30 +20440,7 @@ public class Cassandra {
      */
     public describe_keyspace_result(describe_keyspace_result other) {
       if (other.isSetSuccess()) {
-        Map<String,Map<String,String>> __this__success = new HashMap<String,Map<String,String>>();
-        for (Map.Entry<String, Map<String,String>> other_element : other.success.entrySet()) {
-
-          String other_element_key = other_element.getKey();
-          Map<String,String> other_element_value = other_element.getValue();
-
-          String __this__success_copy_key = other_element_key;
-
-          Map<String,String> __this__success_copy_value = new HashMap<String,String>();
-          for (Map.Entry<String, String> other_element_value_element : other_element_value.entrySet()) {
-
-            String other_element_value_element_key = other_element_value_element.getKey();
-            String other_element_value_element_value = other_element_value_element.getValue();
-
-            String __this__success_copy_value_copy_key = other_element_value_element_key;
-
-            String __this__success_copy_value_copy_value = other_element_value_element_value;
-
-            __this__success_copy_value.put(__this__success_copy_value_copy_key, __this__success_copy_value_copy_value);
-          }
-
-          __this__success.put(__this__success_copy_key, __this__success_copy_value);
-        }
-        this.success = __this__success;
+        this.success = new KsDef(other.success);
       }
       if (other.isSetNfe()) {
         this.nfe = new NotFoundException(other.nfe);
@@ -20482,22 +20456,11 @@ public class Cassandra {
       return new describe_keyspace_result(this);
     }
 
-    public int getSuccessSize() {
-      return (this.success == null) ? 0 : this.success.size();
-    }
-
-    public void putToSuccess(String key, Map<String,String> val) {
-      if (this.success == null) {
-        this.success = new HashMap<String,Map<String,String>>();
-      }
-      this.success.put(key, val);
-    }
-
-    public Map<String,Map<String,String>> getSuccess() {
+    public KsDef getSuccess() {
       return this.success;
     }
 
-    public describe_keyspace_result setSuccess(Map<String,Map<String,String>> success) {
+    public describe_keyspace_result setSuccess(KsDef success) {
       this.success = success;
       return this;
     }
@@ -20547,7 +20510,7 @@ public class Cassandra {
         if (value == null) {
           unsetSuccess();
         } else {
-          setSuccess((Map<String,Map<String,String>>)value);
+          setSuccess((KsDef)value);
         }
         break;
 
@@ -20676,32 +20639,9 @@ public class Cassandra {
         }
         switch (field.id) {
           case 0: // SUCCESS
-            if (field.type == TType.MAP) {
-              {
-                TMap _map103 = iprot.readMapBegin();
-                this.success = new HashMap<String,Map<String,String>>(2*_map103.size);
-                for (int _i104 = 0; _i104 < _map103.size; ++_i104)
-                {
-                  String _key105;
-                  Map<String,String> _val106;
-                  _key105 = iprot.readString();
-                  {
-                    TMap _map107 = iprot.readMapBegin();
-                    _val106 = new HashMap<String,String>(2*_map107.size);
-                    for (int _i108 = 0; _i108 < _map107.size; ++_i108)
-                    {
-                      String _key109;
-                      String _val110;
-                      _key109 = iprot.readString();
-                      _val110 = iprot.readString();
-                      _val106.put(_key109, _val110);
-                    }
-                    iprot.readMapEnd();
-                  }
-                  this.success.put(_key105, _val106);
-                }
-                iprot.readMapEnd();
-              }
+            if (field.type == TType.STRUCT) {
+              this.success = new KsDef();
+              this.success.read(iprot);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -20730,23 +20670,7 @@ public class Cassandra {
 
       if (this.isSetSuccess()) {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
-        {
-          oprot.writeMapBegin(new TMap(TType.STRING, TType.MAP, this.success.size()));
-          for (Map.Entry<String, Map<String,String>> _iter111 : this.success.entrySet())
-          {
-            oprot.writeString(_iter111.getKey());
-            {
-              oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, _iter111.getValue().size()));
-              for (Map.Entry<String, String> _iter112 : _iter111.getValue().entrySet())
-              {
-                oprot.writeString(_iter112.getKey());
-                oprot.writeString(_iter112.getValue());
-              }
-              oprot.writeMapEnd();
-            }
-          }
-          oprot.writeMapEnd();
-        }
+        this.success.write(oprot);
         oprot.writeFieldEnd();
       } else if (this.isSetNfe()) {
         oprot.writeFieldBegin(NFE_FIELD_DESC);
@@ -21686,13 +21610,13 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list113 = iprot.readListBegin();
-                this.success = new ArrayList<String>(_list113.size);
-                for (int _i114 = 0; _i114 < _list113.size; ++_i114)
+                TList _list103 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list103.size);
+                for (int _i104 = 0; _i104 < _list103.size; ++_i104)
                 {
-                  String _elem115;
-                  _elem115 = iprot.readString();
-                  this.success.add(_elem115);
+                  String _elem105;
+                  _elem105 = iprot.readString();
+                  this.success.add(_elem105);
                 }
                 iprot.readListEnd();
               }
@@ -21718,9 +21642,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.success.size()));
-          for (String _iter116 : this.success)
+          for (String _iter106 : this.success)
           {
-            oprot.writeString(_iter116);
+            oprot.writeString(_iter106);
           }
           oprot.writeListEnd();
         }
