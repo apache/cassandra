@@ -52,7 +52,6 @@ public abstract class AbstractReplicationStrategy
     public String table;
     private TokenMetadata tokenMetadata;
     public final IEndpointSnitch snitch;
-    private volatile Map<Token, ArrayList<InetAddress>> cachedEndpoints;
     public Map<String, String> configOptions;
 
     AbstractReplicationStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
@@ -62,7 +61,6 @@ public abstract class AbstractReplicationStrategy
         assert tokenMetadata != null;
         this.tokenMetadata = tokenMetadata;
         this.snitch = snitch;
-        cachedEndpoints = new NonBlockingHashMap<Token, ArrayList<InetAddress>>();
         this.tokenMetadata.register(this);
         this.configOptions = configOptions;
         this.table = table;
@@ -80,13 +78,13 @@ public abstract class AbstractReplicationStrategy
     {
         int replicas = getReplicationFactor();
         Token keyToken = TokenMetadata.firstToken(tokenMetadata.sortedTokens(), searchToken);
-        ArrayList<InetAddress> endpoints = cachedEndpoints.get(keyToken);
+        ArrayList<InetAddress> endpoints = snitch.getCachedEndpoints(keyToken);
         if (endpoints == null)
         {
             TokenMetadata tokenMetadataClone = tokenMetadata.cloneOnlyTokenMap();
             keyToken = TokenMetadata.firstToken(tokenMetadataClone.sortedTokens(), searchToken);
             endpoints = new ArrayList<InetAddress>(calculateNaturalEndpoints(searchToken, tokenMetadataClone));
-            cachedEndpoints.put(keyToken, endpoints);
+            snitch.cacheEndpoint(keyToken, endpoints);
         }
 
         // calculateNaturalEndpoints should have checked this already, this is a safety
@@ -218,20 +216,9 @@ public abstract class AbstractReplicationStrategy
         return new QuorumResponseHandler(responseResolver, consistencyLevel, table);
     }
 
-    protected void clearCachedEndpoints()
-    {
-        logger.debug("clearing cached endpoints");
-        cachedEndpoints = new NonBlockingHashMap<Token, ArrayList<InetAddress>>();
-    }
-
     public void invalidateCachedTokenEndpointValues()
     {
-        clearCachedEndpoints();
-    }
-
-    public void invalidateCachedSnitchValues()
-    {
-        clearCachedEndpoints();
+        snitch.clearEndpointCache();
     }
 
     public static AbstractReplicationStrategy createReplicationStrategy(String table,

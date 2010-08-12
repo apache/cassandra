@@ -28,16 +28,10 @@ import java.lang.management.ManagementFactory;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.ResponseVerbHandler;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.AbstractStatsDeque;
-import org.apache.cassandra.locator.IEndpointSnitch;
-import org.apache.cassandra.locator.ILatencyPublisher;
-import org.apache.cassandra.locator.ILatencySubscriber;
-import org.apache.cassandra.locator.AbstractEndpointSnitch;
-import org.apache.cassandra.locator.DynamicEndpointSnitchMBean;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -88,6 +82,21 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public ArrayList<InetAddress> getCachedEndpoints(Token t)
+    {
+        return subsnitch.getCachedEndpoints(t);
+    }
+
+    public void cacheEndpoint(Token t, ArrayList<InetAddress> addr)
+    {
+        subsnitch.cacheEndpoint(t, addr);
+    }
+
+    public void clearEndpointCache()
+    {
+        subsnitch.clearEndpointCache();
     }
 
     public String getRack(InetAddress endpoint)

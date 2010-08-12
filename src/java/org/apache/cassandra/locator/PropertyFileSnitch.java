@@ -114,7 +114,7 @@ public class PropertyFileSnitch extends AbstractRackAwareSnitch
     public void reloadConfiguration() throws ConfigurationException
     {
         hostProperties = resourceToProperties(RACK_PROPERTY_FILENAME);
-        invalidateCachedSnitchValues();
+        clearEndpointCache();
     }
 
     public static Properties resourceToProperties(String filename) throws ConfigurationException
