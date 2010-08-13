@@ -66,6 +66,8 @@ dev
  * add dynamic endpoint snitch (CASSANDRA-981)
  * Use a regex to filter keyspace and column family names during
    initialization (CASSANDRA-1377)
+ * fix errors in hard-coded bloom filter optKPerBucket by computing it
+   algorithmically (CASSANDRA-1220
 
 
 0.6.4
