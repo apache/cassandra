@@ -1,6 +1,8 @@
 dev
  * remove cassandra.yaml dependency from Hadoop and Pig (CASSADRA-1322)
  * expose CfDef metadata in describe_keyspaces (CASSANDRA-1633)
+ * add back percentage option for cache size configuration, and replace
+   SnakeYAML with YamlBeans (CASSANDRA-1313)
 
 
 0.7-beta1

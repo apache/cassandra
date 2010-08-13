@@ -30,5 +30,5 @@ Copyright 1995-2006 Mort Bay Consulting Pty Ltd
 Alternative UUID support provided by Jug (http://jug.safehaus.org/).
 Copyright (c) 2002- Tatu Saloranta.
 
-YAML support provided by snakeyaml (http://code.google.com/p/snakeyaml/).
-Copyright (c) 2008-2010 Andrey Somov
+YAML support provided by yamlbeans (http://code.google.com/p/yamlbeans/).
+Copyright (c) 2008 Nathan Sweet

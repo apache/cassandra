@@ -95,7 +95,7 @@ public class Config
     public RequestSchedulerId request_scheduler_id;
     public RequestSchedulerOptions request_scheduler_options;
 
-    public List<RawKeyspace> keyspaces;
+    public RawKeyspace[] keyspaces;
     
     public static enum CommitLogSync {
         periodic,

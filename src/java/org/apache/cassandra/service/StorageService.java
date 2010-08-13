@@ -18,8 +18,7 @@
 
 package org.apache.cassandra.service;
 
-import java.io.IOError;
-import java.io.IOException;
+import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -28,12 +27,12 @@ import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import com.esotericsoftware.yamlbeans.YamlWriter;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.RawColumnDefinition;
 import org.apache.cassandra.config.RawColumnFamily;
 import org.apache.cassandra.config.RawKeyspace;
-import org.apache.cassandra.utils.SkipNullRepresenter;
 import org.apache.commons.lang.StringUtils;
 
 import org.slf4j.Logger;
@@ -71,10 +70,6 @@ import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.log4j.Level;
-import org.yaml.snakeyaml.Dumper;
-import org.yaml.snakeyaml.DumperOptions;
-import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.nodes.Tag;
 
 /*
  * This abstraction contains the token/identifier of this node
@@ -1750,7 +1745,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         
     }
 
-    public String exportSchema() throws IOException
+    public void exportSchema(String filename) throws IOException
     {
         List<RawKeyspace> keyspaces = new ArrayList<RawKeyspace>();
         for (String ksname : DatabaseDescriptor.getNonSystemTables())
@@ -1795,20 +1790,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             // whew.
             keyspaces.add(rks);
         }
-        
-        DumperOptions options = new DumperOptions();
-        /* Use a block YAML arrangement */
-        options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
-        SkipNullRepresenter representer = new SkipNullRepresenter();
-        /* Use Tag.MAP to avoid the class name being included as global tag */
-        representer.addClassTag(RawColumnFamily.class, Tag.MAP);
-        representer.addClassTag(Keyspaces.class, Tag.MAP);
-        representer.addClassTag(ColumnDefinition.class, Tag.MAP);
-        Dumper dumper = new Dumper(representer, options);
-        Yaml yaml = new Yaml(dumper);
-        Keyspaces ks = new Keyspaces();
-        ks.keyspaces = keyspaces;
-        return yaml.dump(ks);
+
+        YamlWriter writer = new YamlWriter(new FileWriter(filename));
+        writer.write(keyspaces);
+        writer.close();
     }
     
     public class Keyspaces

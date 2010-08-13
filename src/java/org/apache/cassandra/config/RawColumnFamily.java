@@ -26,6 +26,7 @@ import java.util.Map;
 
 import org.apache.cassandra.db.ClockType;
 import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * @deprecated Yaml configuration for Keyspaces and ColumnFamilies is deprecated in 0.7
@@ -45,4 +46,22 @@ public class RawColumnFamily
     public boolean preload_row_cache = CFMetaData.DEFAULT_PRELOAD_ROW_CACHE;
     public int gc_grace_seconds = CFMetaData.DEFAULT_GC_GRACE_SECONDS;
     public RawColumnDefinition[] column_metadata = new RawColumnDefinition[0];
+
+
+    /**
+     *  These getters/setters allow us to read X% in as a double.
+     */
+    public String getRows_cached() {
+        return String.valueOf(rows_cached);
+    }
+    public void setRows_cached(String in) {
+        rows_cached = FBUtilities.parseDoubleOrPercent(in);
+    }
+
+    public String getKeys_cached() {
+        return String.valueOf(keys_cached);
+    }
+    public void setKeys_cached(String in) {
+        keys_cached = FBUtilities.parseDoubleOrPercent(in);
+    }
 }

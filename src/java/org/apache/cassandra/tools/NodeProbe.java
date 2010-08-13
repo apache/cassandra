@@ -19,6 +19,7 @@
 package org.apache.cassandra.tools;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
@@ -411,9 +412,9 @@ public class NodeProbe
         ssProxy.loadSchemaFromYAML();
     }
     
-    public String exportSchemaToYAML() throws IOException
+    public void exportSchemaToYAML(String filename) throws IOException
     {
-        return ssProxy.exportSchema();
+        ssProxy.exportSchema(filename);
     }
 }
 

@@ -27,6 +27,9 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.*;
 
+import com.esotericsoftware.yamlbeans.YamlException;
+import com.esotericsoftware.yamlbeans.YamlReader;
+
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.slf4j.Logger;
@@ -55,10 +58,6 @@ import org.apache.cassandra.scheduler.NoScheduler;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-import org.yaml.snakeyaml.Loader;
-import org.yaml.snakeyaml.TypeDescription;
-import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.error.YAMLException;
 
 public class DatabaseDescriptor
 {
@@ -118,21 +117,10 @@ public class DatabaseDescriptor
 
             if (logger.isDebugEnabled())
                 logger.info("Loading settings from " + configFileName);
-            
-            InputStream input = new FileInputStream(new File(configFileName));
-            org.yaml.snakeyaml.constructor.Constructor constructor = new org.yaml.snakeyaml.constructor.Constructor(Config.class);
-            TypeDescription desc = new TypeDescription(Config.class);
-            desc.putListPropertyType("keyspaces", RawKeyspace.class);
-            TypeDescription ksDesc = new TypeDescription(RawKeyspace.class);
-            ksDesc.putListPropertyType("column_families", RawColumnFamily.class);
-            TypeDescription cfDesc = new TypeDescription(RawColumnFamily.class);
-            cfDesc.putListPropertyType("column_metadata", RawColumnDefinition.class);
-            constructor.addTypeDescription(desc);
-            constructor.addTypeDescription(ksDesc);
-            constructor.addTypeDescription(cfDesc);
-            Yaml yaml = new Yaml(new Loader(constructor));
-            conf = (Config)yaml.load(input);
-            
+
+            YamlReader yaml = new YamlReader(new FileReader(configFileName));
+            conf = yaml.read(Config.class);
+
             if (conf.commitlog_sync == null)
             {
                 throw new ConfigurationException("Missing required directive CommitLogSync");
@@ -373,13 +361,13 @@ public class DatabaseDescriptor
         }
         catch (ConfigurationException e)
         {
-            logger.error("Fatal error: " + e.getMessage());
+            logger.error("System error: " + e.getMessage());
             System.err.println("Bad configuration; unable to start server");
             System.exit(1);
         }
-        catch (YAMLException e)
+        catch (YamlException e)
         {
-            logger.error("Fatal error: " + e.getMessage());
+            logger.error("Parsing error: " + e.getMessage());
             System.err.println("Bad configuration; unable to start server");
             System.exit(1);
         }
@@ -505,7 +493,7 @@ public class DatabaseDescriptor
             }
             
             // since we loaded definitions from local storage, log a warning if definitions exist in yaml.
-            if (conf.keyspaces != null && conf.keyspaces.size() > 0)
+            if (conf.keyspaces != null && conf.keyspaces.length > 0)
                 logger.warn("Schema definitions were defined both locally and in " + STORAGE_CONF_FILE +
                     ". Definitions in " + STORAGE_CONF_FILE + " were ignored.");
             
