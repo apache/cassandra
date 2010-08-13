@@ -6,6 +6,7 @@ dev
  * restore use of mmap_index_only option (CASSANDRA-1241)
  * dropping a keyspace with no column families generated an error 
    (CASSANDRA-1378)
+ * optimize [Time|Lexical]UUIDType comparison further (CASSANDRA-1368)
 
 
 0.7-beta1

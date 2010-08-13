@@ -18,6 +18,9 @@
 */
 package org.apache.cassandra.db.marshal;
 
+import java.util.Arrays;
+import java.util.Random;
+
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
@@ -27,7 +30,7 @@ import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.safehaus.uuid.UUID;
 import org.safehaus.uuid.UUIDGenerator;
 
-public class TimeUUIDTypeTest extends CleanupHelper
+public class TimeUUIDTypeTest
 {
     TimeUUIDType timeUUIDType = new TimeUUIDType();
     UUIDGenerator generator = UUIDGenerator.getInstance();
@@ -48,9 +51,9 @@ public class TimeUUIDTypeTest extends CleanupHelper
         UUID b = generator.generateTimeBasedUUID();
         UUID c = generator.generateTimeBasedUUID();
 
-        assertEquals(-1, timeUUIDType.compare(a.asByteArray(), b.asByteArray()));
-        assertEquals(-1, timeUUIDType.compare(b.asByteArray(), c.asByteArray()));
-        assertEquals(-1, timeUUIDType.compare(a.asByteArray(), c.asByteArray()));
+        assert timeUUIDType.compare(a.asByteArray(), b.asByteArray()) < 0;
+        assert timeUUIDType.compare(b.asByteArray(), c.asByteArray()) < 0;
+        assert timeUUIDType.compare(a.asByteArray(), c.asByteArray()) < 0;
     }
 
     @Test
@@ -60,18 +63,30 @@ public class TimeUUIDTypeTest extends CleanupHelper
         UUID b = generator.generateTimeBasedUUID();
         UUID c = generator.generateTimeBasedUUID();
 
-        assertEquals(1, timeUUIDType.compare(c.asByteArray(), b.asByteArray()));
-        assertEquals(1, timeUUIDType.compare(b.asByteArray(), a.asByteArray()));
-        assertEquals(1, timeUUIDType.compare(c.asByteArray(), a.asByteArray()));
+        assert timeUUIDType.compare(c.asByteArray(), b.asByteArray()) > 0;
+        assert timeUUIDType.compare(b.asByteArray(), a.asByteArray()) > 0;
+        assert timeUUIDType.compare(c.asByteArray(), a.asByteArray()) > 0;
     }
 
     @Test
-    public void testTimestamp()
+    public void testTimestampComparison()
     {
-        for (int i = 0; i < 100; i++)
+        Random rng = new Random();
+        byte[][] uuids = new byte[100][];
+        for (int i = 0; i < uuids.length; i++)
         {
-            UUID uuid = generator.generateTimeBasedUUID();
-            assert TimeUUIDType.getTimestamp(uuid.asByteArray()) == LexicalUUIDType.getUUID(uuid.asByteArray()).timestamp();
+            uuids[i] = new byte[16];
+            rng.nextBytes(uuids[i]);
+            // set version to 1
+            uuids[i][6] &= 0x0F;
+            uuids[i][6] |= 0x10;
+        }
+        Arrays.sort(uuids, timeUUIDType);
+        for (int i = 1; i < uuids.length; i++)
+        {
+            long i0 = LexicalUUIDType.getUUID(uuids[i - 1]).timestamp();
+            long i1 = LexicalUUIDType.getUUID(uuids[i]).timestamp();
+            assert i0 <= i1;
         }
     }
 }
