@@ -156,8 +156,6 @@ public class DatabaseDescriptor
         throw new RuntimeException("Cannot locate " + STORAGE_CONF_FILE + " via storage-config system property or classpath lookup.");
     }
 
-    private static int stageQueueSize_ = 4096;
-
     static
     {
         try
@@ -1112,11 +1110,6 @@ public class DatabaseDescriptor
     {
         assert tableName != null;
         return getCFMetaData(tableName, cfName).subcolumnComparator;
-    }
-
-    public static int getStageQueueSize()
-    {
-        return stageQueueSize_;
     }
 
     /**

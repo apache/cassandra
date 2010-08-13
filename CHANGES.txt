@@ -11,6 +11,8 @@
    initialization (CASSANDRA-1377)
  * fix errors in hard-coded bloom filter optKPerBucket by computing it
    algorithmically (CASSANDRA-1220
+ * remove message deserialization stage, and uncap read/write stages
+   so slow reads/writes don't block gossip processing (CASSANDRA-1358)
 
 
 0.6.4

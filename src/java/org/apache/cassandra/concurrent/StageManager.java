@@ -70,7 +70,7 @@ public class StageManager
                                                 numThreads,
                                                 Integer.MAX_VALUE,
                                                 TimeUnit.SECONDS,
-                                                new LinkedBlockingQueue<Runnable>(DatabaseDescriptor.getStageQueueSize()),
+                                                new LinkedBlockingQueue<Runnable>(),
                                                 new NamedThreadFactory(name));
     }
     
@@ -82,7 +82,7 @@ public class StageManager
                                                      numThreads,
                                                      Integer.MAX_VALUE,
                                                      TimeUnit.SECONDS,
-                                                     new LinkedBlockingQueue<Runnable>(DatabaseDescriptor.getStageQueueSize()),
+                                                     new LinkedBlockingQueue<Runnable>(),
                                                      new NamedThreadFactory(name));
     }
 
