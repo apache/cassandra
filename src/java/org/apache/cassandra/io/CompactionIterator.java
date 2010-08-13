@@ -131,7 +131,8 @@ public class CompactionIterator extends ReducingIterator<SSTableIdentityIterator
 
         if (rowSize > DatabaseDescriptor.getInMemoryCompactionLimit())
         {
-            logger.info("Compacting large row (" + rowSize + " bytes) incrementally");
+            logger.info(String.format("Compacting large row %s (%d bytes) incrementally",
+                                      FBUtilities.bytesToHex(rows.get(0).getKey().key), rowSize));
             return new LazilyCompactedRow(rows, major, gcBefore);
         }
         return new PrecompactedRow(rows, major, gcBefore);
