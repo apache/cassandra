@@ -1176,6 +1176,19 @@ class TestMutations(ThriftTester):
         def get_second_ks():
             client.describe_keyspace('RenameKeyspace')
         _expect_exception(get_second_ks, NotFoundException)
+    
+    def test_create_then_drop_ks(self):
+        keyspace = KsDef('AddThenDrop', 
+                strategy_class='org.apache.cassandra.locator.RackUnawareStrategy',
+                replication_factor=1,
+                cf_defs=[])
+        def test_existence():
+            client.describe_keyspace(keyspace.name)
+        _expect_exception(test_existence, NotFoundException)
+        client.set_keyspace('system')
+        client.system_add_keyspace(keyspace)
+        test_existence()
+        client.system_drop_keyspace(keyspace.name)
 
     def test_column_validators(self):
         ks = 'Keyspace1'

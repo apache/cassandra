@@ -4,6 +4,8 @@ dev
  * add back percentage option for cache size configuration, and replace
    SnakeYAML with YamlBeans (CASSANDRA-1313)
  * restore use of mmap_index_only option (CASSANDRA-1241)
+ * dropping a keyspace with no column families generated an error 
+   (CASSANDRA-1378)
 
 
 0.7-beta1

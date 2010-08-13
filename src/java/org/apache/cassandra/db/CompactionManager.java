@@ -86,6 +86,9 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 logger.debug("Cleaning up abandoned column families...");
                 ColumnFamily dropped = SystemTable.getDroppedCFs();
+                if (dropped == null)
+                    // there is nothing that needs to be cleaned up.
+                    return null;
                 Collection<IColumn> successes = new ArrayList<IColumn>();
                 for (IColumn col : dropped.getSortedColumns())
                 {
