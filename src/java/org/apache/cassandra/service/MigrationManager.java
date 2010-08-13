@@ -111,7 +111,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
      * This method silently eats IOExceptions thrown by Migration.apply() as a result of applying a migration out of
      * order.
      */
-    public static void applyMigrations(UUID from, UUID to) throws IOException
+    public static void applyMigrations(final UUID from, final UUID to) throws IOException
     {
         List<Future> updates = new ArrayList<Future>();
         Collection<IColumn> migrations = Migration.getLocalMigrations(from, to);
@@ -129,6 +129,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
                     catch (ConfigurationException ex)
                     {
                         // this happens if we try to apply something that's already been applied. ignore and proceed.
+                        logger.debug("Migration not applied " + ex.getMessage());
                     }
                     catch (IOException ex)
                     {
