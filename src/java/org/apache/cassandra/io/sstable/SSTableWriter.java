@@ -57,7 +57,7 @@ public class SSTableWriter extends SSTable
     {
         super(filename, metadata, partitioner);
         iwriter = new IndexWriter(desc, partitioner, keyCount);
-        dbuilder = SegmentedFile.getBuilder();
+        dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
         dataFile = new BufferedRandomAccessFile(getFilename(), "rw", DatabaseDescriptor.getInMemoryCompactionLimit());
     }
 
@@ -344,7 +344,7 @@ public class SSTableWriter extends SSTable
             this.desc = desc;
             this.partitioner = part;
             indexFile = new BufferedRandomAccessFile(desc.filenameFor(SSTable.COMPONENT_INDEX), "rw", 8 * 1024 * 1024);
-            builder = SegmentedFile.getBuilder();
+            builder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
             summary = new IndexSummary();
             bf = BloomFilter.getFilter(keyCount, 15);
         }
