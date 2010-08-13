@@ -281,8 +281,8 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
      */
     private void load(boolean recreatebloom) throws IOException
     {
-        SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder();
-        SegmentedFile.Builder dbuilder = SegmentedFile.getBuilder();
+        SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
+        SegmentedFile.Builder dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
 
         // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
         indexSummary = new IndexSummary();

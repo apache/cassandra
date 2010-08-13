@@ -53,12 +53,11 @@ public abstract class SegmentedFile
     /**
      * @return A SegmentedFile.Builder.
      */
-    public static Builder getBuilder()
+    public static Builder getBuilder(Config.DiskAccessMode mode)
     {
-        if (DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap)
-            return new MmappedSegmentedFile.Builder();
-        assert DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.standard;
-        return new BufferedSegmentedFile.Builder();
+        return mode == Config.DiskAccessMode.mmap
+               ? new MmappedSegmentedFile.Builder()
+               : new BufferedSegmentedFile.Builder();
     }
 
     public abstract FileDataInput getSegment(long position, int bufferSize);
