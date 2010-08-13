@@ -19,7 +19,6 @@
 package org.apache.cassandra.db;
 
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.net.IVerbHandler;
@@ -68,14 +67,7 @@ public class DefinitionsUpdateResponseVerbHandler implements IVerbHandler
                             else
                             {
                                 logger.debug("Applying {} from {}", m.getClass().getSimpleName(), message.getFrom());
-                                try
-                                {
-                                    m.apply();
-                                }
-                                catch (ConfigurationException ex)
-                                {
-                                    logger.info("Migration not applied " + ex.getMessage());
-                                }
+                                m.apply();
                                 m.announce();
                             }
                         }
