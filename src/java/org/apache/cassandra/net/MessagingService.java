@@ -18,23 +18,6 @@
 
 package org.apache.cassandra.net;
 
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.net.io.SerializerType;
-import org.apache.cassandra.net.sink.SinkManager;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.streaming.StreamHeader;
-import org.apache.cassandra.utils.ExpiringMap;
-import org.apache.cassandra.utils.GuidGenerator;
-import org.apache.cassandra.utils.SimpleCondition;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -47,12 +30,27 @@ import java.nio.channels.ServerSocketChannel;
 import java.security.MessageDigest;
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.TimerTask;
 import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.net.io.SerializerType;
+import org.apache.cassandra.net.sink.SinkManager;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.StreamHeader;
+import org.apache.cassandra.utils.ExpiringMap;
+import org.apache.cassandra.utils.GuidGenerator;
+import org.apache.cassandra.utils.SimpleCondition;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class MessagingService
 {
@@ -70,8 +68,8 @@ public class MessagingService
     /* Lookup table for registering message handlers based on the verb. */
     private static Map<StorageService.Verb, IVerbHandler> verbHandlers_;
 
-    /* Thread pool to handle deserialization of messages read from the socket. */
-    private static ExecutorService messageDeserializerExecutor_;
+    /* Thread pool to handle messages without a specialized stage */
+    private static ExecutorService defaultExecutor_;
     
     /* Thread pool to handle messaging write activities */
     private static ExecutorService streamExecutor_;
@@ -106,13 +104,7 @@ public class MessagingService
         callbackMap_ = new ExpiringMap<String, IAsyncCallback>((long) (1.1 * DatabaseDescriptor.getRpcTimeout()));
         taskCompletionMap_ = new ExpiringMap<String, IAsyncResult>((long) (1.1 * DatabaseDescriptor.getRpcTimeout()));
 
-        // read executor puts messages to deserialize on this.
-        messageDeserializerExecutor_ = new JMXEnabledThreadPoolExecutor(1,
-                                                                        Runtime.getRuntime().availableProcessors(),
-                                                                        StageManager.KEEPALIVE,
-                                                                        TimeUnit.SECONDS,
-                                                                        new LinkedBlockingQueue<Runnable>(),
-                                                                        new NamedThreadFactory("MESSAGE-DESERIALIZER-POOL"));
+        defaultExecutor_ = new JMXEnabledThreadPoolExecutor("MISCELLANEOUS-POOL");
 
         streamExecutor_ = new JMXEnabledThreadPoolExecutor("MESSAGE-STREAMING-POOL");
         TimerTask logDropped = new TimerTask()
@@ -352,8 +344,8 @@ public class MessagingService
     /** blocks until the processing pools are empty and done. */
     public static void waitFor() throws InterruptedException
     {
-        while (!messageDeserializerExecutor_.isTerminated())
-            messageDeserializerExecutor_.awaitTermination(5, TimeUnit.SECONDS);
+        while (!defaultExecutor_.isTerminated())
+            defaultExecutor_.awaitTermination(5, TimeUnit.SECONDS);
         while (!streamExecutor_.isTerminated())
             streamExecutor_.awaitTermination(5, TimeUnit.SECONDS);
     }
@@ -371,7 +363,7 @@ public class MessagingService
             throw new IOError(e);
         }
 
-        messageDeserializerExecutor_.shutdownNow();
+        defaultExecutor_.shutdownNow();
         streamExecutor_.shutdownNow();
 
         /* shut down the cachetables */
@@ -383,14 +375,16 @@ public class MessagingService
 
     public static void receive(Message message)
     {
-        Runnable runnable = new MessageDeliveryTask(message);
+        message = SinkManager.processServerMessageSink(message);
 
+        Runnable runnable = new MessageDeliveryTask(message);
         ExecutorService stage = StageManager.getStage(message.getMessageType());
+
         if (stage == null)
         {
             if (logger_.isDebugEnabled())
                 logger_.debug("Running " + message.getMessageType() + " on default stage");
-            messageDeserializerExecutor_.execute(runnable);
+            defaultExecutor_.execute(runnable);
         }
         else
         {
@@ -421,11 +415,6 @@ public class MessagingService
     public static long getAsyncResultAge(String key)
     {
         return taskCompletionMap_.getAge(key);
-    }
-
-    public static ExecutorService getDeserializationExecutor()
-    {
-        return messageDeserializerExecutor_;
     }
 
     public static void validateMagic(int magic) throws IOException

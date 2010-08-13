@@ -21,13 +21,16 @@ package org.apache.cassandra.net;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.StorageService;
 
 public class MessageDeliveryTask implements Runnable
 {
+    private static final Logger logger_ = LoggerFactory.getLogger(MessageDeliveryTask.class);    
+
     private Message message_;
-    private static Logger logger_ = LoggerFactory.getLogger(MessageDeliveryTask.class);    
-    
+    private final long constructionTime_ = System.currentTimeMillis();
+
     public MessageDeliveryTask(Message message)
     {
         message_ = message;    
@@ -35,6 +38,12 @@ public class MessageDeliveryTask implements Runnable
     
     public void run()
     { 
+        if (System.currentTimeMillis() >  constructionTime_ + DatabaseDescriptor.getRpcTimeout())
+        {
+            MessagingService.incrementDroppedMessages();
+            return;
+        }
+
         StorageService.Verb verb = message_.getVerb();
         IVerbHandler verbHandler = MessagingService.instance.getVerbHandler(verb);
         assert verbHandler != null : "unknown verb " + verb;

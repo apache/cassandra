@@ -74,7 +74,7 @@ public class StageManager
                                                 numThreads,
                                                 KEEPALIVE,
                                                 TimeUnit.SECONDS,
-                                                new LinkedBlockingQueue<Runnable>(DatabaseDescriptor.getStageQueueSize()),
+                                                new LinkedBlockingQueue<Runnable>(),
                                                 new NamedThreadFactory(name));
     }
     
@@ -86,7 +86,7 @@ public class StageManager
                                                      numThreads,
                                                      KEEPALIVE,
                                                      TimeUnit.SECONDS,
-                                                     new LinkedBlockingQueue<Runnable>(DatabaseDescriptor.getStageQueueSize()),
+                                                     new LinkedBlockingQueue<Runnable>(),
                                                      new NamedThreadFactory(name));
     }
 

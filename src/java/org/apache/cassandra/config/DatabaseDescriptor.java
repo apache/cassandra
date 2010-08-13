@@ -107,8 +107,6 @@ public class DatabaseDescriptor
         throw new ConfigurationException("Cannot locate " + STORAGE_CONF_FILE + " on the classpath");
     }
 
-    private static int stageQueueSize_ = 4096;
-
     static
     {
         try
@@ -1006,11 +1004,6 @@ public class DatabaseDescriptor
     {
         assert tableName != null;
         return getCFMetaData(tableName, cfName).subcolumnComparator;
-    }
-
-    public static int getStageQueueSize()
-    {
-        return stageQueueSize_;
     }
 
     public static AbstractReconciler getReconciler(String tableName, String cfName)
