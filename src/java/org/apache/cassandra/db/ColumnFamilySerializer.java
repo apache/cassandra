@@ -28,8 +28,6 @@ import java.util.Collection;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.io.ICompactSerializer2;
-import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.db.marshal.AbstractType;
 
 public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
 {
@@ -129,41 +127,9 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
         }
     }
 
-    private AbstractType readComparator(DataInput dis) throws IOException
-    {
-        String className = dis.readUTF();
-        if (className.equals(""))
-        {
-            return null;
-        }
-
-        try
-        {
-            // Get the singleton instance of the AbstractType subclass
-            Class c = Class.forName(className);
-            return (AbstractType) c.getField("instance").get(c);
-        }
-        catch (ClassNotFoundException e)
-        {
-            throw new RuntimeException("Unable to load comparator class '" + className + "'.  probably this means you have obsolete sstables lying around", e);
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
     public ColumnFamily deserializeFromSSTableNoColumns(ColumnFamily cf, DataInput input) throws IOException
     {        
         cf.delete(input.readInt(), cf.getClockType().serializer().deserialize(input));
-        return cf;
-    }
-
-    public ColumnFamily deserializeFromSSTable(SSTableReader sstable, DataInput file) throws IOException
-    {
-        ColumnFamily cf = sstable.makeColumnFamily();
-        deserializeFromSSTableNoColumns(cf, file);
-        deserializeColumns(file, cf);
         return cf;
     }
 }
