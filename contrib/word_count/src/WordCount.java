@@ -127,7 +127,8 @@ public class WordCount extends Configured implements Tool
             job.setInputFormatClass(ColumnFamilyInputFormat.class);
             FileOutputFormat.setOutputPath(job, new Path(OUTPUT_PATH_PREFIX + i));
 
-            ConfigHelper.setThriftContact(job.getConfiguration(), "localhost",  9160);
+            ConfigHelper.setRpcPort(job.getConfiguration(), "9160");
+            ConfigHelper.setInitialAddress(job.getConfiguration(), "localhost");
             ConfigHelper.setInputColumnFamily(job.getConfiguration(), KEYSPACE, COLUMN_FAMILY);
             SlicePredicate predicate = new SlicePredicate().setColumn_names(Arrays.asList(columnName.getBytes()));
             ConfigHelper.setInputSlicePredicate(job.getConfiguration(), predicate);
