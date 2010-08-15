@@ -25,15 +25,14 @@ package org.apache.cassandra.service;
 
 
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.locator.AbstractRackAwareSnitch;
-import org.apache.cassandra.locator.DatacenterShardStrategy;
+import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
+import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
@@ -46,7 +45,7 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHandler
 {
-    private static final AbstractRackAwareSnitch snitch = (AbstractRackAwareSnitch) DatabaseDescriptor.getEndpointSnitch();
+    private static final AbstractNetworkTopologySnitch snitch = (AbstractNetworkTopologySnitch) DatabaseDescriptor.getEndpointSnitch();
 
     private static final String localdc;
     static
@@ -54,7 +53,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
         localdc = snitch.getDatacenter(FBUtilities.getLocalAddress());
     }
 
-	private final DatacenterShardStrategy strategy;
+	private final NetworkTopologyStrategy strategy;
     private HashMap<String, AtomicInteger> responses = new HashMap<String, AtomicInteger>();
 
     public DatacenterSyncWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
@@ -63,7 +62,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
         super(writeEndpoints, hintedEndpoints, consistencyLevel);
         assert consistencyLevel == ConsistencyLevel.DCQUORUM;
 
-        strategy = (DatacenterShardStrategy) StorageService.instance.getReplicationStrategy(table);
+        strategy = (NetworkTopologyStrategy) StorageService.instance.getReplicationStrategy(table);
 
         for (String dc : strategy.getDatacenters())
         {

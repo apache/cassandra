@@ -36,7 +36,7 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceAccessor;
 
-public class RackUnawareStrategyTest extends SchemaLoader
+public class SimpleStrategyTest extends SchemaLoader
 {
     @Test
     public void tryBogusTable()
@@ -185,7 +185,7 @@ public class RackUnawareStrategyTest extends SchemaLoader
     {
         return AbstractReplicationStrategy.createReplicationStrategy(
                 table,
-                "org.apache.cassandra.locator.RackUnawareStrategy",
+                "org.apache.cassandra.locator.SimpleStrategy",
                 tmd,
                 new SimpleSnitch(),
                 null);

@@ -37,7 +37,7 @@ import org.apache.cassandra.utils.WrappedRunnable;
  * <p/>
  * Based on a properties file configuration.
  */
-public class PropertyFileSnitch extends AbstractRackAwareSnitch
+public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
 {
     /**
      * A list of properties with keys being host:port and values being datacenter:rack

@@ -34,7 +34,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.BigIntegerToken;
 import org.apache.cassandra.dht.Token;
 
-public class RackAwareStrategyTest
+public class OldNetworkTopologyStrategyTest
 {
     private List<Token> endpointTokens;
     private List<Token> keyTokens;
@@ -60,7 +60,7 @@ public class RackAwareStrategyTest
     {
         RackInferringSnitch endpointSnitch = new RackInferringSnitch();
 
-        AbstractReplicationStrategy strategy = new RackAwareStrategy("Keyspace1", tmd, endpointSnitch, null);
+        AbstractReplicationStrategy strategy = new OldNetworkTopologyStrategy("Keyspace1", tmd, endpointSnitch, null);
         addEndpoint("0", "5", "254.0.0.1");
         addEndpoint("10", "15", "254.0.0.2");
         addEndpoint("20", "25", "254.0.0.3");
@@ -85,7 +85,7 @@ public class RackAwareStrategyTest
     {
         RackInferringSnitch endpointSnitch = new RackInferringSnitch();
 
-        AbstractReplicationStrategy strategy = new RackAwareStrategy("Keyspace1", tmd, endpointSnitch, null);
+        AbstractReplicationStrategy strategy = new OldNetworkTopologyStrategy("Keyspace1", tmd, endpointSnitch, null);
         addEndpoint("0", "5", "254.0.0.1");
         addEndpoint("10", "15", "254.0.0.2");
         addEndpoint("20", "25", "254.1.0.3");
@@ -111,7 +111,7 @@ public class RackAwareStrategyTest
     {
         RackInferringSnitch endpointSnitch = new RackInferringSnitch();
 
-        AbstractReplicationStrategy strategy = new RackAwareStrategy("Keyspace1", tmd, endpointSnitch, null);
+        AbstractReplicationStrategy strategy = new OldNetworkTopologyStrategy("Keyspace1", tmd, endpointSnitch, null);
         addEndpoint("0", "5", "254.0.0.1");
         addEndpoint("10", "15", "254.0.0.2");
         addEndpoint("20", "25", "254.0.1.3");

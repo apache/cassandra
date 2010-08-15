@@ -30,9 +30,9 @@ import org.apache.cassandra.dht.Token;
  * returns the RF nodes that lie right next to each other
  * on the ring.
  */
-public class RackUnawareStrategy extends AbstractReplicationStrategy
+public class SimpleStrategy extends AbstractReplicationStrategy
 {
-    public RackUnawareStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
+    public SimpleStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
         super(table, tokenMetadata, snitch, configOptions);
     }

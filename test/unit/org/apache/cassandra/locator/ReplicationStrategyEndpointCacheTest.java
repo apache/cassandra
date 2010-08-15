@@ -19,7 +19,6 @@
 
 package org.apache.cassandra.locator;
 
-import java.lang.reflect.Constructor;
 import java.net.InetAddress;
 import java.util.*;
 
@@ -58,9 +57,9 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
     @Test
     public void testEndpointsWereCached() throws Exception
     {
-        runEndpointsWereCachedTest(FakeRackUnawareStrategy.class, null);
-        runEndpointsWereCachedTest(FakeRackAwareStrategy.class, null);
-        runEndpointsWereCachedTest(FakeDatacenterShardStrategy.class, new HashMap<String, String>());
+        runEndpointsWereCachedTest(FakeSimpleStrategy.class, null);
+        runEndpointsWereCachedTest(FakeOldNetworkTopologyStrategy.class, null);
+        runEndpointsWereCachedTest(FakeNetworkTopologyStrategy.class, new HashMap<String, String>());
     }
 
     public void runEndpointsWereCachedTest(Class stratClass, Map<String, String> configOptions) throws Exception
@@ -72,9 +71,9 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
     @Test
     public void testCacheRespectsTokenChanges() throws Exception
     {
-        runCacheRespectsTokenChangesTest(RackUnawareStrategy.class, null);
-        runCacheRespectsTokenChangesTest(RackAwareStrategy.class, null);
-        runCacheRespectsTokenChangesTest(DatacenterShardStrategy.class, new HashMap<String, String>());
+        runCacheRespectsTokenChangesTest(SimpleStrategy.class, null);
+        runCacheRespectsTokenChangesTest(OldNetworkTopologyStrategy.class, null);
+        runCacheRespectsTokenChangesTest(NetworkTopologyStrategy.class, new HashMap<String, String>());
     }
 
     public void runCacheRespectsTokenChangesTest(Class stratClass, Map<String, String> configOptions) throws Exception
@@ -110,11 +109,11 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
         assert !endpoints.equals(initial);
     }
 
-    protected static class FakeRackUnawareStrategy extends RackUnawareStrategy
+    protected static class FakeSimpleStrategy extends SimpleStrategy
     {
         private boolean called = false;
 
-        public FakeRackUnawareStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
+        public FakeSimpleStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
         {
             super(table, tokenMetadata, snitch, configOptions);
         }
@@ -128,11 +127,11 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
         }
     }
 
-    protected static class FakeRackAwareStrategy extends RackAwareStrategy
+    protected static class FakeOldNetworkTopologyStrategy extends OldNetworkTopologyStrategy
     {
         private boolean called = false;
 
-        public FakeRackAwareStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
+        public FakeOldNetworkTopologyStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
         {
             super(table, tokenMetadata, snitch, configOptions);
         }
@@ -146,11 +145,11 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
         }
     }
 
-    protected static class FakeDatacenterShardStrategy extends DatacenterShardStrategy
+    protected static class FakeNetworkTopologyStrategy extends NetworkTopologyStrategy
     {
         private boolean called = false;
 
-        public FakeDatacenterShardStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions) throws ConfigurationException
+        public FakeNetworkTopologyStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions) throws ConfigurationException
         {
             super(table, tokenMetadata, snitch, configOptions);
         }

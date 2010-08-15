@@ -33,7 +33,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.migration.*;
-import org.apache.cassandra.locator.RackUnawareStrategy;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -272,7 +272,7 @@ public class DefsTest extends CleanupHelper
     {
         DecoratedKey dk = Util.dk("key0");
         CFMetaData newCf = new CFMetaData("NewKeyspace1", "AddedStandard1", ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, new TimestampReconciler(), "A new cf for a new ks", 0, false, 1.0, 0, 864000, Collections.<byte[], ColumnDefinition>emptyMap());
-        KSMetaData newKs = new KSMetaData(newCf.tableName, RackUnawareStrategy.class, null, 5, newCf);
+        KSMetaData newKs = new KSMetaData(newCf.tableName, SimpleStrategy.class, null, 5, newCf);
         
         new AddKeyspace(newKs).apply();
         
@@ -424,7 +424,7 @@ public class DefsTest extends CleanupHelper
     {
         assert DatabaseDescriptor.getTableDefinition("EmptyKeyspace") == null;
         
-        KSMetaData newKs = new KSMetaData("EmptyKeyspace", RackUnawareStrategy.class, null, 5);
+        KSMetaData newKs = new KSMetaData("EmptyKeyspace", SimpleStrategy.class, null, 5);
 
         new AddKeyspace(newKs).apply();
         assert DatabaseDescriptor.getTableDefinition("EmptyKeyspace") != null;

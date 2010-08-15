@@ -231,13 +231,13 @@ public class CliClient
                 css_.out.println("                        replicated. Valid entries are integers greater than 0.");
                 css_.out.println("    placement_strategy: the fully qualified class used to place replicas in");
                 css_.out.println("                        this keyspace. Valid values are");
-                css_.out.println("                        org.apache.cassandra.locator.RackUnawareStrategy,");
-                css_.out.println("                        org.apache.cassandra.locator.DatacenterShardStrategy,");
-                css_.out.println("                        and org.apache.cassandra.locator.RackAwareStrategy");
+                css_.out.println("                        org.apache.cassandra.locator.SimpleStrategy,");
+                css_.out.println("                        org.apache.cassandra.locator.NetworkTopologyStrategy,");
+                css_.out.println("                        and org.apache.cassandra.locator.OldNetworkTopologyStrategy");
                 css_.out.println("");
                 css_.out.println("example:");
                 css_.out.println("create keyspace foo with replication_factor = 3 and ");
-                css_.out.println("        placement_strategy = 'org.apache.cassandra.locator.RackUnawareStrategy'");
+                css_.out.println("        placement_strategy = 'org.apache.cassandra.locator.SimpleStrategy'");
                 break;
                 
             case CliParser.NODE_ADD_COLUMN_FAMILY:
@@ -716,7 +716,7 @@ public class CliClient
         assert(newKSSpec.getChildCount() % 2 == 1);
 
         //defaults
-        String replicaPlacementStrategy = "org.apache.cassandra.locator.RackUnawareStrategy";
+        String replicaPlacementStrategy = "org.apache.cassandra.locator.SimpleStrategy";
         int replicationFactor = 2;
 
         /*

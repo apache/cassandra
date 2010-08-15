@@ -100,7 +100,7 @@ public class WordCountSetup
         CfDef cfDef = new CfDef(WordCount.KEYSPACE, WordCount.COLUMN_FAMILY);
         cfDefList.add(cfDef);
 
-        client.system_add_keyspace(new KsDef(WordCount.KEYSPACE, "org.apache.cassandra.locator.RackUnawareStrategy", 1, cfDefList));
+        client.system_add_keyspace(new KsDef(WordCount.KEYSPACE, "org.apache.cassandra.locator.SimpleStrategy", 1, cfDefList));
     }
 
     private static Cassandra.Iface createConnection() throws TTransportException

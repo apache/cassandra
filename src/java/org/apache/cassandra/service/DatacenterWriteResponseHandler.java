@@ -25,13 +25,11 @@ package org.apache.cassandra.service;
 
 
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.Collection;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.locator.AbstractRackAwareSnitch;
-import org.apache.cassandra.locator.DatacenterShardStrategy;
+import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
+import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
@@ -44,7 +42,7 @@ import com.google.common.collect.Multimap;
  */
 public class DatacenterWriteResponseHandler extends WriteResponseHandler
 {
-    private static final AbstractRackAwareSnitch snitch = (AbstractRackAwareSnitch) DatabaseDescriptor.getEndpointSnitch();
+    private static final AbstractNetworkTopologySnitch snitch = (AbstractNetworkTopologySnitch) DatabaseDescriptor.getEndpointSnitch();
 
     private static final String localdc;
     static
@@ -62,7 +60,7 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
     @Override
     protected int determineBlockFor(String table)
     {
-        DatacenterShardStrategy strategy = (DatacenterShardStrategy) StorageService.instance.getReplicationStrategy(table);
+        NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) StorageService.instance.getReplicationStrategy(table);
         return (strategy.getReplicationFactor(localdc) / 2) + 1;
     }
 

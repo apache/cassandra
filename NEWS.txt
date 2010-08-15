@@ -10,9 +10,9 @@ Features
     - A new ByteOrderedPartitioner supports bytes keys with arbitrary content,
       and orders keys by their byte value. 
     - Truncate thrift method allows clearing an entire ColumnFamily at once
-    - DatacenterShardStrategy is ready for use, enabling 
-      ConsitencyLevel.DCQUORUM and DCQUORUMSYNC.  See comments in
-      `cassandra.yaml.`
+    - NetworkTopologyStrategy (formerly DatacenterShardStrategy) is ready for 
+      use, enabling ConsitencyLevel.DCQUORUM and DCQUORUMSYNC.  See comments 
+      in `cassandra.yaml.`
     - row size limit increased from 2GB to 2 billion columns
     - Hadoop OutputFormat support
     - Streaming data for repair or node movement no longer requires 
@@ -47,7 +47,7 @@ Configuraton
       has been added.
     - RowWarningThresholdInMB replaced with in_memory_compaction_limit_in_mb
     - GCGraceSeconds is now per-ColumnFamily instead of global
-    - Configuration of DatacenterShardStrategy is now a part of the keyspace
+    - Configuration of NetworkTopologyStrategy is now a part of the keyspace
       definition using the strategy_options attribute.
       The datacenter.properties file is no longer used.
 

@@ -22,7 +22,6 @@ package org.apache.cassandra.locator;
 import java.net.InetAddress;
 import java.util.*;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
 
 /**
@@ -32,9 +31,9 @@ import org.apache.cassandra.dht.Token;
  * the third replica in a different rack in the first datacenter, and
  * any remaining replicas on the first unused nodes on the ring.
  */
-public class RackAwareStrategy extends AbstractReplicationStrategy
+public class OldNetworkTopologyStrategy extends AbstractReplicationStrategy
 {
-    public RackAwareStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
+    public OldNetworkTopologyStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
         super(table, tokenMetadata, snitch, configOptions);
     }
@@ -56,7 +55,7 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
         boolean bOtherRack = false;
         while (endpoints.size() < replicas && iter.hasNext())
         {
-            AbstractRackAwareSnitch snitch = (AbstractRackAwareSnitch) this.snitch;
+            AbstractNetworkTopologySnitch snitch = (AbstractNetworkTopologySnitch) this.snitch;
 
             // First try to find one in a different data center
             Token t = iter.next();

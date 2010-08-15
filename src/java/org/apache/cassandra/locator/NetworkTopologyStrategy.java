@@ -21,12 +21,10 @@
 
 package org.apache.cassandra.locator;
 
-import java.io.*;
 import java.net.InetAddress;
 import java.util.*;
 import java.util.Map.Entry;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,16 +47,16 @@ import org.apache.cassandra.thrift.ConsistencyLevel;
  * This class also caches the Endpoints and invalidates the cache if there is a
  * change in the number of tokens.
  */
-public class DatacenterShardStrategy extends AbstractReplicationStrategy
+public class NetworkTopologyStrategy extends AbstractReplicationStrategy
 {
-    private AbstractRackAwareSnitch snitch;
+    private AbstractNetworkTopologySnitch snitch;
     private Map<String, Integer> datacenters;
-    private static final Logger logger = LoggerFactory.getLogger(DatacenterShardStrategy.class);
+    private static final Logger logger = LoggerFactory.getLogger(NetworkTopologyStrategy.class);
 
-    public DatacenterShardStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions) throws ConfigurationException
+    public NetworkTopologyStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions) throws ConfigurationException
     {
         super(table, tokenMetadata, snitch, configOptions);
-        this.snitch = (AbstractRackAwareSnitch)snitch;
+        this.snitch = (AbstractNetworkTopologySnitch)snitch;
 
         Map<String, Integer> newDatacenters = new HashMap<String, Integer>();
         for (Entry entry : configOptions.entrySet())

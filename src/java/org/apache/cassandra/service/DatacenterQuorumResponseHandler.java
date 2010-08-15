@@ -24,9 +24,8 @@ package org.apache.cassandra.service;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.locator.AbstractRackAwareSnitch;
-import org.apache.cassandra.locator.DatacenterShardStrategy;
-import org.apache.cassandra.locator.RackInferringSnitch;
+import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
+import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
@@ -36,7 +35,7 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class DatacenterQuorumResponseHandler<T> extends QuorumResponseHandler<T>
 {
-    private static final AbstractRackAwareSnitch snitch = (AbstractRackAwareSnitch) DatabaseDescriptor.getEndpointSnitch();
+    private static final AbstractNetworkTopologySnitch snitch = (AbstractNetworkTopologySnitch) DatabaseDescriptor.getEndpointSnitch();
 	private static final String localdc = snitch.getDatacenter(FBUtilities.getLocalAddress());
     private AtomicInteger localResponses;
     
@@ -65,7 +64,7 @@ public class DatacenterQuorumResponseHandler<T> extends QuorumResponseHandler<T>
     @Override
     public int determineBlockFor(ConsistencyLevel consistency_level, String table)
 	{
-		DatacenterShardStrategy stategy = (DatacenterShardStrategy) StorageService.instance.getReplicationStrategy(table);
+		NetworkTopologyStrategy stategy = (NetworkTopologyStrategy) StorageService.instance.getReplicationStrategy(table);
 		return (stategy.getReplicationFactor(localdc) / 2) + 1;
 	}
 }

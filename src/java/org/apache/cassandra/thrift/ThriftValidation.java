@@ -34,13 +34,12 @@ import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.DatacenterShardStrategy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class ThriftValidation
 {
-    private static final Logger logger = LoggerFactory.getLogger(DatacenterShardStrategy.class);
+    private static final Logger logger = LoggerFactory.getLogger(ThriftValidation.class);
 
     static void validateKey(byte[] key) throws InvalidRequestException
     {

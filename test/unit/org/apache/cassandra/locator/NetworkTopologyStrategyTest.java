@@ -35,7 +35,7 @@ import org.apache.cassandra.dht.StringToken;
 import org.apache.cassandra.dht.Token;
 import org.xml.sax.SAXException;
 
-public class DatacenterShardStrategyTest
+public class NetworkTopologyStrategyTest
 {
     private String table = "Keyspace1";
 
@@ -52,7 +52,7 @@ public class DatacenterShardStrategyTest
         configOptions.put("DC3", "1");
 
         // Set the localhost to the tokenmetadata. Embedded cassandra way?
-        DatacenterShardStrategy strategy = new DatacenterShardStrategy(table, metadata, snitch, configOptions);
+        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(table, metadata, snitch, configOptions);
         assert strategy.getReplicationFactor("DC1") == 3;
         assert strategy.getReplicationFactor("DC2") == 2;
         assert strategy.getReplicationFactor("DC3") == 1;

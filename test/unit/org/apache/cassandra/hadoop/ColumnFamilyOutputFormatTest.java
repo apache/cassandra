@@ -138,7 +138,7 @@ public class ColumnFamilyOutputFormatTest extends EmbeddedServer
         if (!keyspaces.contains(KEYSPACE))
         {
             List<CfDef> cfDefs = new ArrayList<CfDef>();
-            thriftClient.system_add_keyspace(new KsDef(KEYSPACE, "org.apache.cassandra.locator.RackUnawareStrategy", 1, cfDefs));
+            thriftClient.system_add_keyspace(new KsDef(KEYSPACE, "org.apache.cassandra.locator.SimpleStrategy", 1, cfDefs));
         }
         thriftClient.set_keyspace(KEYSPACE);
 

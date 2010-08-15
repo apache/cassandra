@@ -29,7 +29,7 @@ import java.util.*;
  * An endpoint snitch tells Cassandra information about network topology that it can use to route
  * requests more efficiently.
  */
-public abstract class AbstractRackAwareSnitch extends AbstractEndpointSnitch
+public abstract class AbstractNetworkTopologySnitch extends AbstractEndpointSnitch
 {
     /**
      * Return the rack for which an endpoint resides in

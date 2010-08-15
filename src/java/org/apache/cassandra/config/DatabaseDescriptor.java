@@ -524,10 +524,12 @@ public class DatabaseDescriptor
             {
                 throw new ConfigurationException("Missing replica_placement_strategy directive for " + keyspace.name);
             }
+            String strategyClassName = keyspace.replica_placement_strategy.replace("RackUnawareStrategy", "SimpleStrategy")
+                                                                          .replace("RackAwareStrategy", "OldNetworkTopologyStrategy");
             Class<? extends AbstractReplicationStrategy> strategyClass = null;
             try
             {
-                strategyClass = (Class<? extends AbstractReplicationStrategy>) Class.forName(keyspace.replica_placement_strategy);
+                strategyClass = (Class<? extends AbstractReplicationStrategy>) Class.forName(strategyClassName);
             }
             catch (ClassNotFoundException e)
             {

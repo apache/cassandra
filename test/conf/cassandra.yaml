@@ -26,7 +26,7 @@ request_scheduler: org.apache.cassandra.scheduler.RoundRobinScheduler
 request_scheduler_id: keyspace
 keyspaces:
     - name: Keyspace1
-      replica_placement_strategy: org.apache.cassandra.locator.RackUnawareStrategy
+      replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
       replication_factor: 1
       column_families:
         - name: Standard1
@@ -77,7 +77,7 @@ keyspaces:
               index_type: KEYS
 
     - name: Keyspace2
-      replica_placement_strategy: org.apache.cassandra.locator.RackUnawareStrategy
+      replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
       replication_factor: 1
       column_families:
 
@@ -93,14 +93,14 @@ keyspaces:
           compare_subcolumns_with: TimeUUIDType
 
     - name: Keyspace3
-      replica_placement_strategy: org.apache.cassandra.locator.RackUnawareStrategy
+      replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
       replication_factor: 5
       column_families:
 
         - name: Standard1
 
     - name: Keyspace4
-      replica_placement_strategy: org.apache.cassandra.locator.RackUnawareStrategy
+      replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
       replication_factor: 3
       column_families:
 
@@ -116,7 +116,7 @@ keyspaces:
           compare_subcolumns_with: TimeUUIDType
 
     - name: Keyspace5
-      replica_placement_strategy: org.apache.cassandra.locator.RackUnawareStrategy
+      replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
       replication_factor: 2
       column_families:
 

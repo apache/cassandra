@@ -19,17 +19,16 @@
 package org.apache.cassandra.config;
 
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.RackUnawareStrategy;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.io.SerDeUtils;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 import org.apache.avro.util.Utf8;
+
 import org.apache.commons.lang.ObjectUtils;
 
 public final class KSMetaData
@@ -43,7 +42,7 @@ public final class KSMetaData
     public KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, int replicationFactor, CFMetaData... cfDefs)
     {
         this.name = name;
-        this.strategyClass = strategyClass == null ? RackUnawareStrategy.class : strategyClass;
+        this.strategyClass = strategyClass == null ? SimpleStrategy.class : strategyClass;
         this.strategyOptions = strategyOptions;
         this.replicationFactor = replicationFactor;
         Map<String, CFMetaData> cfmap = new HashMap<String, CFMetaData>();

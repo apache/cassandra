@@ -34,21 +34,11 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.RackUnawareStrategy;
 import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 
 public class MoveTest extends CleanupHelper
 {
-    // handy way of creating a mapping of strategies to use in StorageService.
-    private static Map<String, AbstractReplicationStrategy> createReplacements(AbstractReplicationStrategy strat)
-    {
-        Map<String, AbstractReplicationStrategy> replacements = new HashMap<String, AbstractReplicationStrategy>();
-        for (String table : DatabaseDescriptor.getTables())
-            replacements.put(table, strat);
-        return replacements;
-    }
-
     /**
      * Test whether write endpoints is correct when the node is leaving. Uses
      * StorageService.onChange and does not manipulate token metadata directly.
@@ -642,7 +632,7 @@ public class MoveTest extends CleanupHelper
     {
         return AbstractReplicationStrategy.createReplicationStrategy(
                 table,
-                "org.apache.cassandra.locator.RackUnawareStrategy",
+                "org.apache.cassandra.locator.SimpleStrategy",
                 tmd,
                 new SimpleSnitch(),
                 null);

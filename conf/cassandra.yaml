@@ -189,32 +189,34 @@ request_scheduler_id: keyspace
 #   are distributed among nodes. Contains both the class as well as
 #   configuration information.  Must extend AbstractReplicationStrategy.
 #   Out of the box, Cassandra provides 
-#     * org.apache.cassandra.locator.RackUnawareStrategy 
-#     * org.apache.cassandra.locator.RackAwareStrategy
-#     * org.apache.cassandra.locator.DatacenterShardStrategy
+#     * org.apache.cassandra.locator.SimpleStrategy 
+#     * org.apache.cassandra.locator.NetworkTopologyStrategy
+#     * org.apache.cassandra.locator.OldNetworkTopologyStrategy
 #
-#   RackUnawareStrategy is the simplest; it simply places the first
+#   SimpleStrategy merely places the first
 #   replica at the node whose token is closest to the key (as determined
 #   by the Partitioner), and additional replicas on subsequent nodes
 #   along the ring in increasing Token order.
 # 
-#   RackAwareStrategy is special cased for replication_factor of 3.  It
-#   places one replica in each of two datacenters, and the third on a
-#   different rack in in the first.
-#
-#   DatacenterShardStrategy is a generalization of RackAwareStrategy.
-#   For each datacenter, you can specify how many replicas you want
+#   With NetworkTopologyStrategy,
+#   for each datacenter, you can specify how many replicas you want
 #   on a per-keyspace basis.  Replicas are placed on different racks
 #   within each DC, if possible. This strategy also requires rack aware
 #   snitch, such as RackInferringSnitch or PropertyFileSnitch.
 #   An example:
 #    - name: Keyspace1
-#      replica_placement_strategy: org.apache.cassandra.locator.DatacenterShardStrategy
+#      replica_placement_strategy: org.apache.cassandra.locator.NetworkTopologyStrategy
 #      strategy_options:
 #        DC1 : 3
 #        DC2 : 2
 #        DC3 : 1
 # 
+#   OldNetworkToplogyStrategy [formerly RackAwareStrategy] 
+#   places one replica in each of two datacenters, and the third on a
+#   different rack in in the first.  Additional datacenters are not
+#   guaranteed to get a replica.  Additional replicas after three are placed
+#   in ring order after the third without regard to rack or datacenter.
+#
 # - replication_factor: Number of replicas of each row
 # - column_families: column families associated with this keyspace
 #
@@ -255,7 +257,7 @@ request_scheduler_id: keyspace
 #       http://wiki.apache.org/cassandra/FAQ#no_keyspaces for an explanation.
 keyspaces:
     - name: Keyspace1
-      replica_placement_strategy: org.apache.cassandra.locator.RackUnawareStrategy
+      replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
       replication_factor: 1
       column_families:
         - name: Standard1

@@ -7,6 +7,9 @@ dev
  * dropping a keyspace with no column families generated an error 
    (CASSANDRA-1378)
  * optimize [Time|Lexical]UUIDType comparison further (CASSANDRA-1368)
+ * rename RackAwareStrategy to OldNetworkTopologyStrategy, RackUnawareStrategy 
+   to SimpleStrategy, DatacenterShardStrategy to NetworkTopologyStrategy,
+   AbstractRackAwareSnitch to AbstractNetworkTopologySnitch (CASSANDRA-1392)
 
 
 0.7-beta1

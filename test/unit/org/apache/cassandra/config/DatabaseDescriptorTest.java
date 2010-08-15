@@ -22,15 +22,13 @@ import static org.junit.Assert.assertNotNull;
 
 import org.apache.avro.specific.SpecificRecord;
 
-import org.apache.cassandra.config.avro.KsDef;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.migration.AddKeyspace;
-import org.apache.cassandra.locator.RackUnawareStrategy;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.io.SerDeUtils;
-import org.apache.cassandra.io.util.OutputBuffer;
+
 import org.junit.Test;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.UUID;
 
@@ -86,9 +84,9 @@ public class DatabaseDescriptorTest
         assert DatabaseDescriptor.getNonSystemTables().size() == 0;
         
         // add a few.
-        AddKeyspace ks0 = new AddKeyspace(new KSMetaData("ks0", RackUnawareStrategy.class, null, 3));
+        AddKeyspace ks0 = new AddKeyspace(new KSMetaData("ks0", SimpleStrategy.class, null, 3));
         ks0.apply();
-        AddKeyspace ks1 = new AddKeyspace(new KSMetaData("ks1", RackUnawareStrategy.class, null, 3));
+        AddKeyspace ks1 = new AddKeyspace(new KSMetaData("ks1", SimpleStrategy.class, null, 3));
         ks1.apply();
         
         assert DatabaseDescriptor.getTableDefinition("ks0") != null;
