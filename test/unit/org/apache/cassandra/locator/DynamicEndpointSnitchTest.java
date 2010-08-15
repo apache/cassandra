@@ -25,9 +25,6 @@ import java.util.ArrayList;
 
 import org.junit.Test;
 
-import static org.junit.Assert.*;
-import org.apache.cassandra.locator.DynamicEndpointSnitch;
-import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class DynamicEndpointSnitchTest
@@ -35,6 +32,7 @@ public class DynamicEndpointSnitchTest
     @Test
     public void testSnitch() throws UnknownHostException, InterruptedException
     {
+        int sleeptime = 150;
         DynamicEndpointSnitch dsnitch = new DynamicEndpointSnitch(new SimpleSnitch());
         InetAddress self = FBUtilities.getLocalAddress();
         ArrayList<InetAddress> order = new ArrayList<InetAddress>();
@@ -50,34 +48,31 @@ public class DynamicEndpointSnitchTest
             dsnitch.receiveTiming(host3, 1.0);
         }
 
-        Thread.sleep(1500);
+        Thread.sleep(sleeptime);
 
         order.add(host1);
         order.add(host2);
         order.add(host3);
-
         assert dsnitch.getSortedListByProximity(self, order).equals(order);
 
         // make host1 a little worse
         dsnitch.receiveTiming(host1, 2.0);
-        Thread.sleep(1500);
-        order.clear();
+        Thread.sleep(sleeptime);
 
+        order.clear();
         order.add(host2);
         order.add(host3);
         order.add(host1);
-
         assert dsnitch.getSortedListByProximity(self, order).equals(order);
 
-        // make host2 a little worse
+        // make host2 as bad as host1
         dsnitch.receiveTiming(host2, 2.0);
-        Thread.sleep(1500);
+        Thread.sleep(sleeptime);
+
         order.clear();
-
         order.add(host3);
-        order.add(host2);
         order.add(host1);
-
+        order.add(host2);
         assert dsnitch.getSortedListByProximity(self, order).equals(order);
 
         // make host3 the worst
@@ -85,25 +80,25 @@ public class DynamicEndpointSnitchTest
         {
             dsnitch.receiveTiming(host3, 2.0);
         }
-        Thread.sleep(1500);
-        order.clear();
+        Thread.sleep(sleeptime);
 
-        order.add(host2);
+        order.clear();
         order.add(host1);
+        order.add(host2);
         order.add(host3);
+        assert dsnitch.getSortedListByProximity(self, order).equals(order);
 
         // make host3 equal to the others
         for (int i = 0; i < 2; i++)
         {
             dsnitch.receiveTiming(host3, 1.0);
         }
-        Thread.sleep(1500);
-        order.clear();
+        Thread.sleep(sleeptime);
 
+        order.clear();
         order.add(host1);
         order.add(host2);
         order.add(host3);
-
         assert dsnitch.getSortedListByProximity(self, order).equals(order);
     }
 }
