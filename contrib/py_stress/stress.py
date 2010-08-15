@@ -153,7 +153,7 @@ def get_client(host='127.0.0.1', port=9160):
 def make_keyspaces():
     cfams = [CfDef(keyspace='Keyspace1', name='Standard1'),
              CfDef(keyspace='Keyspace1', name='Super1', column_type='Super')]
-    keyspace = KsDef(name='Keyspace1', strategy_class='org.apache.cassandra.locator.RackUnawareStrategy', replication_factor=options.replication, cf_defs=cfams)
+    keyspace = KsDef(name='Keyspace1', strategy_class='org.apache.cassandra.locator.SimpleStrategy', replication_factor=options.replication, cf_defs=cfams)
     client = get_client(nodes[0], options.port)
     client.transport.open()
     try:
