@@ -13,6 +13,7 @@
    algorithmically (CASSANDRA-1220
  * remove message deserialization stage, and uncap read/write stages
    so slow reads/writes don't block gossip processing (CASSANDRA-1358)
+ * faster UUIDType, LongType comparisons (CASSANDRA-1386, 1393)
 
 
 0.6.4

@@ -36,10 +36,29 @@ public class TimeUUIDType extends AbstractType
         {
             return 1;
         }
-        
-        long t1 = LexicalUUIDType.getUUID(o1).timestamp();
-        long t2 = LexicalUUIDType.getUUID(o2).timestamp();
-        return t1 < t2 ? -1 : (t1 > t2 ? 1 : FBUtilities.compareByteArrays(o1, o2));
+        int res = compareTimestampBytes(o1, o2);
+        if (res != 0)
+            return res;
+        return FBUtilities.compareByteArrays(o1, o2);
+    }
+
+    private static int compareTimestampBytes(byte[] o1, byte[] o2)
+    {
+        int d = (o1[6] & 0xF) - (o2[6] & 0xF);
+        if (d != 0) return d;
+        d = (o1[7] & 0xFF) - (o2[7] & 0xFF);
+        if (d != 0) return d;
+        d = (o1[4] & 0xFF) - (o2[4] & 0xFF);
+        if (d != 0) return d;
+        d = (o1[5] & 0xFF) - (o2[5] & 0xFF);
+        if (d != 0) return d;
+        d = (o1[0] & 0xFF) - (o2[0] & 0xFF);
+        if (d != 0) return d;
+        d = (o1[1] & 0xFF) - (o2[1] & 0xFF);
+        if (d != 0) return d;
+        d = (o1[2] & 0xFF) - (o2[2] & 0xFF);
+        if (d != 0) return d;
+        return (o1[3] & 0xFF) - (o2[3] & 0xFF);
     }
 
     public String getString(byte[] bytes)
