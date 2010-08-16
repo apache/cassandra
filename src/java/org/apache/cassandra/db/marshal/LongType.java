@@ -22,7 +22,8 @@ package org.apache.cassandra.db.marshal;
 
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
+
+import org.apache.cassandra.utils.FBUtilities;
 
 public class LongType extends AbstractType
 {
@@ -41,9 +42,10 @@ public class LongType extends AbstractType
             return 1;
         }
 
-        long L1 = ByteBuffer.wrap(o1).getLong();
-        long L2 = ByteBuffer.wrap(o2).getLong();
-        return Long.valueOf(L1).compareTo(Long.valueOf(L2));
+        int diff = o1[0] - o2[0];
+        if (diff != 0)
+            return diff;
+        return FBUtilities.compareByteArrays(o1, o2);
     }
 
     public String getString(byte[] bytes)

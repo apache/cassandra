@@ -9,6 +9,7 @@ dev
    to SimpleStrategy, DatacenterShardStrategy to NetworkTopologyStrategy,
    AbstractRackAwareSnitch to AbstractNetworkTopologySnitch (CASSANDRA-1392)
  * merge StorageProxy.mutate, mutateBlocking (CASSANDRA-1396)
+ * faster UUIDType, LongType comparisons (CASSANDRA-1368, 1393)
 
 
 0.7-beta1

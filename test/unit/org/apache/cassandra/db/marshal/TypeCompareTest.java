@@ -23,6 +23,8 @@ package org.apache.cassandra.db.marshal;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.Random;
 import java.util.UUID;
 
 import org.apache.commons.lang.ArrayUtils;
@@ -66,6 +68,27 @@ public class TypeCompareTest
         assert comparator.compare("z".getBytes("UTF-8"), "a".getBytes("UTF-8")) > 0;
         assert comparator.compare("z".getBytes("UTF-8"), "z".getBytes("UTF-8")) == 0;
         assert comparator.compare("a".getBytes("UTF-8"), "z".getBytes("UTF-8")) < 0;
+    }
+
+    @Test
+    public void testLong()
+    {
+        Random rng = new Random();
+        byte[][] data = new byte[1000][];
+        for (int i = 0; i < data.length; i++)
+        {
+            data[i] = new byte[8];
+            rng.nextBytes(data[i]);
+        }
+
+        Arrays.sort(data, LongType.instance);
+
+        for (int i = 1; i < data.length; i++)
+        {
+            long l0 = ByteBuffer.wrap(data[i - 1]).getLong();
+            long l1 = ByteBuffer.wrap(data[i]).getLong();
+            assert l0 <= l1;
+        }
     }
 
     @Test
