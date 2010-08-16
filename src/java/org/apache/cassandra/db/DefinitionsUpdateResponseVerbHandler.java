@@ -74,7 +74,8 @@ public class DefinitionsUpdateResponseVerbHandler implements IVerbHandler
                                 }
                                 catch (ConfigurationException ex)
                                 {
-                                    logger.info("Migration not applied " + ex.getMessage());
+                                    // Trying to apply the same migration twice. This happens as a result of gossip.
+                                    logger.debug("Migration not applied " + ex.getMessage());
                                 }
                                 m.announce();
                             }
