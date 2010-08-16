@@ -1,8 +1,6 @@
 dev
  * remove cassandra.yaml dependency from Hadoop and Pig (CASSADRA-1322)
  * expose CfDef metadata in describe_keyspaces (CASSANDRA-1633)
- * add back percentage option for cache size configuration, and replace
-   SnakeYAML with YamlBeans (CASSANDRA-1313)
  * restore use of mmap_index_only option (CASSANDRA-1241)
  * dropping a keyspace with no column families generated an error 
    (CASSANDRA-1378)

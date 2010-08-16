@@ -268,7 +268,6 @@ keyspaces:
           read_repair_chance: 0.1
           keys_cached: 100
           gc_grace_seconds: 0
-          rows_cached: 72%
 
         - name: StandardByUUID1
           compare_with: TimeUUIDType
@@ -284,7 +283,7 @@ keyspaces:
           column_type: Super
           compare_subcolumns_with: UTF8Type
           preload_row_cache: true
-          rows_cached: 72%
+          rows_cached: 10000
           keys_cached: 50
           comment: 'A column family with supercolumns, whose column and subcolumn names are UTF8 strings'
 

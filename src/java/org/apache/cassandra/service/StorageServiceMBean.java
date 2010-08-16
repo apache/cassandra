@@ -19,8 +19,6 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PrintStream;
 import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
@@ -221,7 +219,7 @@ public interface StorageServiceMBean
      * Introduced in 0.7 to allow schema yaml to be exported.
      * @todo: deprecate in 0.7+1, remove in 0.7+2.
      */
-    public void exportSchema(String filename) throws IOException;
+    public String exportSchema() throws IOException;
 
     /**
      * Truncates (deletes) the given columnFamily from the provided keyspace.

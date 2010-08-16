@@ -32,13 +32,20 @@ import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.TransformerException;
 import javax.xml.xpath.XPathExpressionException;
 
-import com.esotericsoftware.yamlbeans.YamlWriter;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.SkipNullRepresenter;
 import org.apache.cassandra.utils.XMLUtils;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.w3c.dom.NodeList;
 import org.w3c.dom.Node;
 import org.xml.sax.SAXException;
+import org.yaml.snakeyaml.Dumper;
+import org.yaml.snakeyaml.DumperOptions;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.introspector.Property;
+import org.yaml.snakeyaml.nodes.NodeTuple;
+import org.yaml.snakeyaml.nodes.Tag;
+import org.yaml.snakeyaml.representer.Representer;
 
 /**
  * @deprecated Yaml configuration for Keyspaces and ColumnFamilies is deprecated in 0.7
@@ -49,7 +56,7 @@ public class Converter
     private static Config conf = new Config();
     private final static String PREVIOUS_CONF_FILE = "cassandra.xml";
     
-    private static RawKeyspace[] readTablesFromXml(XMLUtils xmlUtils) throws ConfigurationException
+    private static List<RawKeyspace> readTablesFromXml(XMLUtils xmlUtils) throws ConfigurationException
     {
 
         List<RawKeyspace> keyspaces = new ArrayList<RawKeyspace>();
@@ -120,7 +127,7 @@ public class Converter
                 }
                 keyspaces.add(ks);
             }
-            return keyspaces.toArray(new RawKeyspace[0]);
+            return keyspaces;
         }
         catch (XPathExpressionException e) 
         {
@@ -276,9 +283,23 @@ public class Converter
     
     private static void dumpConfig(String outfile) throws IOException
     {
-        YamlWriter writer = new YamlWriter(new FileWriter(outfile));
-        writer.write(conf);
-        writer.close();
+        DumperOptions options = new DumperOptions();
+        /* Use a block YAML arrangement */
+        options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        SkipNullRepresenter representer = new SkipNullRepresenter();
+        /* Use Tag.MAP to avoid the class name being included as global tag */
+        representer.addClassTag(Config.class, Tag.MAP);
+        representer.addClassTag(RawColumnFamily.class, Tag.MAP);
+        Dumper dumper = new Dumper(representer, options);
+        Yaml yaml = new Yaml(dumper);
+        String output = yaml.dump(conf);
+        
+        /* Write to output file */
+        BufferedWriter out = new BufferedWriter(new FileWriter(outfile));
+        out.write("# Cassandra YAML generated from previous config\n");
+        out.write("# Configuration wiki: http://wiki.apache.org/cassandra/StorageConfiguration\n");
+        out.write(output);
+        out.close(); 
     }
     
     public static void main (String[] args) 

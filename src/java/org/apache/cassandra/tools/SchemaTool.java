@@ -49,18 +49,18 @@ public class SchemaTool
             System.err.println("Port must be a number.");
             System.exit(1);
         }
-
+        
         if ("import".equals(args[2]))
             new NodeProbe(host, port).loadSchemaFromYAML();
         else if ("export".equals(args[2]))
-            new NodeProbe(host, port).exportSchemaToYAML(args[3]);
+            System.out.println(new NodeProbe(host, port).exportSchemaToYAML());
         else
             usage();
     }
     
     private static void usage()
     {
-        System.err.printf("java %s <host> <port> import|export to_file%n", SchemaTool.class.getName());
+        System.err.printf("java %s <host> <port> import|export%n", SchemaTool.class.getName());
         System.exit(1);
     }
 }
