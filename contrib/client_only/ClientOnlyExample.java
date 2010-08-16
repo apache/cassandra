@@ -35,7 +35,7 @@ import java.util.concurrent.TimeoutException;
 public class ClientOnlyExample
 {
 
-    private static void testWriting() throws IOException
+    private static void testWriting() throws Exception
     {
         StorageService.instance.initClient();
         // sleep for a bit so that gossip can do its thing.
@@ -60,22 +60,14 @@ public class ClientOnlyExample
             // local storage initialization, which creates local directories.
             // change.apply();
 
-            StorageProxy.mutate(Arrays.asList(change));
-            try
-            {
-                Thread.sleep(50L);
-            }
-            catch (Exception ex)
-            {
-                throw new AssertionError(ex);
-            }
+            StorageProxy.mutate(Arrays.asList(change), ConsistencyLevel.ONE);
             System.out.println("wrote key" + i);
         }
         System.out.println("Done writing.");
         StorageService.instance.stopClient();
     }
 
-    private static void testReading() throws IOException
+    private static void testReading() throws Exception
     {
         StorageService.instance.initClient();
         // sleep for a bit so that gossip can do its thing.
@@ -99,34 +91,19 @@ public class ClientOnlyExample
             SliceByNamesReadCommand readCommand = new SliceByNamesReadCommand("Keyspace1", ("key" + i).getBytes(), new QueryPath("Standard1", null, null), cols);
             readCommand.setDigestQuery(false);
             commands.add(readCommand);
-            try
+            List<Row> rows = StorageProxy.readProtocol(commands, ConsistencyLevel.ONE);
+            assert rows.size() == 1;
+            Row row = rows.get(0);
+            ColumnFamily cf = row.cf;
+            if (cf != null)
             {
-                List<Row> rows = StorageProxy.readProtocol(commands, ConsistencyLevel.ONE);
-                assert rows.size() == 1;
-                Row row = rows.get(0);
-                ColumnFamily cf = row.cf;
-                if (cf != null)
+                for (IColumn col : cf.getSortedColumns())
                 {
-                    for (IColumn col : cf.getSortedColumns())
-                    {
-                        System.out.println(new String(col.name()) + ", " + new String(col.value()));
-                    }
+                    System.out.println(new String(col.name()) + ", " + new String(col.value()));
                 }
-                else
-                    System.err.println("This output indicates that nothing was read.");
             }
-            catch (UnavailableException e)
-            {
-                throw new RuntimeException(e);
-            }
-            catch (TimeoutException e)
-            {
-                throw new RuntimeException(e);
-            }
-            catch (InvalidRequestException e)
-            {
-                throw new RuntimeException(e);
-            }
+            else
+                System.err.println("This output indicates that nothing was read.");
         }
 
         // no need to do this:
@@ -138,7 +115,6 @@ public class ClientOnlyExample
     /**
      * First, bring one or more nodes up. Then run ClientOnlyExample with these VM arguments:
      *
-     -Xms128M
      -Xmx1G
      -Dstorage-config=/Users/gary.dusbabek/cass-configs/trunk/conf3-client
 
@@ -150,31 +126,17 @@ public class ClientOnlyExample
      2.  Because of the above, you still need to force-quit the process. StorageService.stopClient() doesn't (can't)
          spin everything down.
      */
-    public static void main(String args[])
+    public static void main(String args[]) throws Exception
     {
         if (args.length == 0)
             System.out.println("run with \"read\" or \"write\".");
         else if ("read".equalsIgnoreCase(args[0]))
         {
-            try
-            {
-                testReading();
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
+            testReading();
         }
         else if ("write".equalsIgnoreCase(args[0]))
         {
-            try
-            {
-                testWriting();
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
+            testWriting();
         }
     }
 }
