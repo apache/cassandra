@@ -78,6 +78,7 @@ dev
    algorithmically (CASSANDRA-1220
  * remove message deserialization stage, and uncap read/write stages
    so slow reads/writes don't block gossip processing (CASSANDRA-1358)
+ * add jmx port configuration to Debian package (CASSANDRA-1202)
 
 
 0.6.4
