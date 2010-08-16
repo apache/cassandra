@@ -142,7 +142,7 @@ class ThriftTester(BaseTester):
         self.client.transport.close()
         
     def define_schema(self):
-        keyspace1 = Cassandra.KsDef('Keyspace1', 'org.apache.cassandra.locator.RackUnawareStrategy', None, 1,
+        keyspace1 = Cassandra.KsDef('Keyspace1', 'org.apache.cassandra.locator.SimpleStrategy', None, 1,
         [
             Cassandra.CfDef('Keyspace1', 'Standard1'),
             Cassandra.CfDef('Keyspace1', 'Standard2'), 
@@ -156,7 +156,7 @@ class ThriftTester(BaseTester):
             Cassandra.CfDef('Keyspace1', 'Indexed1', column_metadata=[Cassandra.ColumnDef('birthdate', 'LongType', Cassandra.IndexType.KEYS, 'birthdate')]),
         ])
 
-        keyspace2 = Cassandra.KsDef('Keyspace2', 'org.apache.cassandra.locator.RackUnawareStrategy', None, 1,
+        keyspace2 = Cassandra.KsDef('Keyspace2', 'org.apache.cassandra.locator.SimpleStrategy', None, 1,
         [
             Cassandra.CfDef('Keyspace2', 'Standard1'),
             Cassandra.CfDef('Keyspace2', 'Standard3'),
@@ -181,8 +181,7 @@ class AvroTester(BaseTester):
         keyspace1 = dict()
         keyspace1['name'] = 'Keyspace1'
         keyspace1['replication_factor'] = 1
-        keyspace1['strategy_class'] = \
-                'org.apache.cassandra.locator.RackUnawareStrategy'
+        keyspace1['strategy_class'] = 'org.apache.cassandra.locator.SimpleStrategy'
 
         keyspace1['cf_defs'] = [{
             'keyspace': 'Keyspace1',

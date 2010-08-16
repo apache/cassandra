@@ -1127,7 +1127,7 @@ class TestMutations(ThriftTester):
         
     def test_invalid_ks_names(self):
         def invalid_keyspace():
-            client.system_add_keyspace(KsDef('in-valid', 'org.apache.cassandra.locator.RackUnawareStrategy', {}, 1, []))
+            client.system_add_keyspace(KsDef('in-valid', 'org.apache.cassandra.locator.SimpleStrategy', {}, 1, []))
         _expect_exception(invalid_keyspace, InvalidRequestException)
         
         def invalid_rename():
@@ -1144,7 +1144,7 @@ class TestMutations(ThriftTester):
         def invalid_cf_inside_new_ks():
             cf = CfDef('ValidKsName_invalid_cf', 'in-valid')
             _set_keyspace('system')
-            client.system_add_keyspace(KsDef('ValidKsName_invalid_cf', 'org.apache.cassandra.locator.RackUnawareStrategy', {}, 1, [cf]))
+            client.system_add_keyspace(KsDef('ValidKsName_invalid_cf', 'org.apache.cassandra.locator.SimpleStrategy', {}, 1, [cf]))
         _expect_exception(invalid_cf_inside_new_ks, InvalidRequestException)
         
         def invalid_rename():
@@ -1155,7 +1155,7 @@ class TestMutations(ThriftTester):
     def test_system_keyspace_operations(self):
         """ Test keyspace (add, drop, rename) operations """
         # create
-        keyspace = KsDef('CreateKeyspace', 'org.apache.cassandra.locator.RackUnawareStrategy', {}, 1,
+        keyspace = KsDef('CreateKeyspace', 'org.apache.cassandra.locator.SimpleStrategy', {}, 1,
                          [CfDef('CreateKeyspace', 'CreateKsCf')])
         client.system_add_keyspace(keyspace)
         newks = client.describe_keyspace('CreateKeyspace')
@@ -1179,7 +1179,7 @@ class TestMutations(ThriftTester):
     
     def test_create_then_drop_ks(self):
         keyspace = KsDef('AddThenDrop', 
-                strategy_class='org.apache.cassandra.locator.RackUnawareStrategy',
+                strategy_class='org.apache.cassandra.locator.SimpleStrategy',
                 replication_factor=1,
                 cf_defs=[])
         def test_existence():
