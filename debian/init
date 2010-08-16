@@ -20,6 +20,7 @@ CONFDIR=/etc/cassandra
 JSVC=/usr/bin/jsvc
 JVM_MAX_MEM="1G"
 JVM_START_MEM="128M"
+JMX_PORT="8080"
 
 # The first existing directory is used for JAVA_HOME
 JDK_DIRS="/usr/lib/jvm/java-6-sun /usr/lib/jvm/java-6-openjdk"
@@ -93,7 +94,7 @@ do_start()
         -Xmx$JVM_MAX_MEM \
         -Xms$JVM_START_MEM \
         -Dstorage-config=$CONFDIR \
-        -Dcom.sun.management.jmxremote.port=8080 \
+        -Dcom.sun.management.jmxremote.port=$JMX_PORT \
         -Dcom.sun.management.jmxremote.ssl=false \
         -Dcom.sun.management.jmxremote.authenticate=false \
         $JVM_EXTRA_OPTS \
