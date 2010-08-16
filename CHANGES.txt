@@ -14,6 +14,7 @@ dev
 0.7-beta1
  * sstable versioning (CASSANDRA-389)
  * switched to slf4j logging (CASSANDRA-625)
+ * add (optional) expiration time for column (CASSANDRA-699)
  * access levels for authentication/authorization (CASSANDRA-900)
  * add ReadRepairChance to CF definition (CASSANDRA-930)
  * fix heisenbug in system tests, especially common on OS X (CASSANDRA-944)
