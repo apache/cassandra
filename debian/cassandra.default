@@ -12,5 +12,9 @@ JVM_MAX_MEM="1G"
 # M to indicate kilobytes or megabytes respectively. 
 JVM_START_MEM="256"
 
+# Specifies the default port over which Cassandra will be available for
+# JMX connections.
+JMX_PORT="8080"
+
 # Specifies any additional arguments to the JVM.
 JVM_EXTRA_OPTS="-XX:+UseParNewGC -XX:+UseConcMarkSweepGC -XX:+CMSParallelRemarkEnabled -XX:SurvivorRatio=8 -XX:MaxTenuringThreshold=1 -XX:+HeapDumpOnOutOfMemoryError"
