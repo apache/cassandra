@@ -84,100 +84,13 @@ public class StorageProxy implements StorageProxyMBean
      * of the possibility of a replica being down and hint
      * the data across to some other replica.
      *
-     * This is the ZERO consistency level. We do not wait for replies.
-     *
      * @param mutations the mutations to be applied across the replicas
+     * @param consistency_level the consistency level for the operation
     */
-    public static void mutate(List<RowMutation> mutations)
+    public static void mutate(List<RowMutation> mutations, ConsistencyLevel consistency_level) throws UnavailableException, TimeoutException
     {
         long startTime = System.nanoTime();
-        try
-        {
-            StorageService ss = StorageService.instance;
-            for (final RowMutation rm: mutations)
-            {
-                try
-                {
-                    String table = rm.getTable();
-                    AbstractReplicationStrategy rs = ss.getReplicationStrategy(table);
-
-                    List<InetAddress> naturalEndpoints = ss.getNaturalEndpoints(table, rm.key());
-                    Multimap<InetAddress,InetAddress> hintedEndpoints = rs.getHintedEndpoints(naturalEndpoints);
-                    Message unhintedMessage = null; // lazy initialize for non-local, unhinted writes
-
-                    // 3 cases:
-                    // 1. local, unhinted write: run directly on write stage
-                    // 2. non-local, unhinted write: send row mutation message
-                    // 3. hinted write: add hint header, and send message
-                    for (Map.Entry<InetAddress, Collection<InetAddress>> entry : hintedEndpoints.asMap().entrySet())
-                    {
-                        InetAddress destination = entry.getKey();
-                        Collection<InetAddress> targets = entry.getValue();
-                        if (targets.size() == 1 && targets.iterator().next().equals(destination))
-                        {
-                            // unhinted writes
-                            if (destination.equals(FBUtilities.getLocalAddress()))
-                            {
-                                if (logger.isDebugEnabled())
-                                    logger.debug("insert writing local " + rm.toString(true));
-                                Runnable runnable = new WrappedRunnable()
-                                {
-                                    public void runMayThrow() throws IOException
-                                    {
-                                        rm.apply();
-                                    }
-                                };
-                                StageManager.getStage(StageManager.MUTATION_STAGE).execute(runnable);
-                            }
-                            else
-                            {
-                                if (unhintedMessage == null)
-                                    unhintedMessage = rm.makeRowMutationMessage();
-                                if (logger.isDebugEnabled())
-                                    logger.debug("insert writing key " + FBUtilities.bytesToHex(rm.key()) + " to " + unhintedMessage.getMessageId() + "@" + destination);
-                                MessagingService.instance.sendOneWay(unhintedMessage, destination);
-                            }
-                        }
-                        else
-                        {
-                            // hinted
-                            Message hintedMessage = rm.makeRowMutationMessage();
-                            for (InetAddress target : targets)
-                            {
-                                if (!target.equals(destination))
-                                {
-                                    addHintHeader(hintedMessage, target);
-                                    if (logger.isDebugEnabled())
-                                        logger.debug("insert writing key " + FBUtilities.bytesToHex(rm.key()) + " to " + hintedMessage.getMessageId() + "@" + destination + " for " + target);
-                                }
-                            }
-                            MessagingService.instance.sendOneWay(hintedMessage, destination);
-                        }
-                    }
-                }
-                catch (IOException e)
-                {
-                    throw new RuntimeException("error inserting key " + FBUtilities.bytesToHex(rm.key()), e);
-                }
-            }
-        }
-        finally
-        {
-            writeStats.addNano(System.nanoTime() - startTime);
-        }
-    }
-
-    private static void addHintHeader(Message message, InetAddress target)
-    {
-        byte[] oldHint = message.getHeader(RowMutation.HINT);
-        byte[] hint = oldHint == null ? target.getAddress() : ArrayUtils.addAll(oldHint, target.getAddress());
-        message.setHeader(RowMutation.HINT, hint);
-    }
-
-    public static void mutateBlocking(List<RowMutation> mutations, ConsistencyLevel consistency_level) throws UnavailableException, TimeoutException
-    {
-        long startTime = System.nanoTime();
-        ArrayList<AbstractWriteResponseHandler> responseHandlers = new ArrayList<AbstractWriteResponseHandler>();
+        ArrayList<IWriteResponseHandler> responseHandlers = new ArrayList<IWriteResponseHandler>();
 
         RowMutation mostRecentRowMutation = null;
         StorageService ss = StorageService.instance;
@@ -195,7 +108,7 @@ public class StorageProxy implements StorageProxyMBean
                 Multimap<InetAddress, InetAddress> hintedEndpoints = rs.getHintedEndpoints(writeEndpoints);
                 
                 // send out the writes, as in mutate() above, but this time with a callback that tracks responses
-                final AbstractWriteResponseHandler responseHandler = rs.getWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level);
+                final IWriteResponseHandler responseHandler = rs.getWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level);
                 responseHandler.assureSufficientLiveNodes();
 
                 responseHandlers.add(responseHandler);
@@ -238,15 +151,13 @@ public class StorageProxy implements StorageProxyMBean
                                     logger.debug("insert writing key " + FBUtilities.bytesToHex(rm.key()) + " to " + hintedMessage.getMessageId() + "@" + destination + " for " + target);
                             }
                         }
-                        // (non-destination hints are part of the callback and count towards consistency only under CL.ANY)
-                        if (writeEndpoints.contains(destination) || consistency_level == ConsistencyLevel.ANY)
-                            MessagingService.instance.addCallback(responseHandler, hintedMessage.getMessageId());
+                        responseHandler.addHintCallback(hintedMessage, destination);
                         MessagingService.instance.sendOneWay(hintedMessage, destination);
                     }
                 }
             }
             // wait for writes.  throws timeoutexception if necessary
-            for (AbstractWriteResponseHandler responseHandler : responseHandlers)
+            for (IWriteResponseHandler responseHandler : responseHandlers)
             {
                 responseHandler.get();
             }
@@ -265,7 +176,14 @@ public class StorageProxy implements StorageProxyMBean
 
     }
 
-    private static void insertLocalMessage(final RowMutation rm, final AbstractWriteResponseHandler responseHandler)
+    private static void addHintHeader(Message message, InetAddress target)
+    {
+        byte[] oldHint = message.getHeader(RowMutation.HINT);
+        byte[] hint = oldHint == null ? target.getAddress() : ArrayUtils.addAll(oldHint, target.getAddress());
+        message.setHeader(RowMutation.HINT, hint);
+    }
+
+    private static void insertLocalMessage(final RowMutation rm, final IWriteResponseHandler responseHandler)
     {
         if (logger.isDebugEnabled())
             logger.debug("insert writing local " + rm.toString(true));

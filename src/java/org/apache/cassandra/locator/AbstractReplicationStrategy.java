@@ -104,11 +104,11 @@ public abstract class AbstractReplicationStrategy
      */
     public abstract Set<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata) throws IllegalStateException;
 
-    public AbstractWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints,
-                                                                Multimap<InetAddress, InetAddress> hintedEndpoints,
-                                                                ConsistencyLevel consistencyLevel)
+    public IWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints,
+                                                         Multimap<InetAddress, InetAddress> hintedEndpoints,
+                                                         ConsistencyLevel consistencyLevel)
     {
-        return new WriteResponseHandler(writeEndpoints, hintedEndpoints, consistencyLevel, table);
+        return WriteResponseHandler.create(writeEndpoints, hintedEndpoints, consistencyLevel, table);
     }
 
     // instance method so test subclasses can override it

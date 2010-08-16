@@ -56,7 +56,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
 	private final NetworkTopologyStrategy strategy;
     private HashMap<String, AtomicInteger> responses = new HashMap<String, AtomicInteger>();
 
-    public DatacenterSyncWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
+    protected DatacenterSyncWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
         // Response is been managed by the map so make it 1 for the superclass.
         super(writeEndpoints, hintedEndpoints, consistencyLevel);
@@ -68,6 +68,18 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
         {
             int rf = strategy.getReplicationFactor(dc);
             responses.put(dc, new AtomicInteger((rf / 2) + 1));
+        }
+    }
+
+    public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
+    {
+        if (consistencyLevel == ConsistencyLevel.ZERO)
+        {
+            return NoConsistencyWriteResponseHandler.instance;
+        }
+        else
+        {
+            return new DatacenterSyncWriteResponseHandler(writeEndpoints, hintedEndpoints, consistencyLevel, table);
         }
     }
 

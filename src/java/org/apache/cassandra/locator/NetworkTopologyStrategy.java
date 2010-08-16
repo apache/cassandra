@@ -152,16 +152,16 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
      * return a DCQRH with a map of all the DC rep factor.
      */
     @Override
-    public AbstractWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistency_level)
+    public IWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistency_level)
     {
         if (consistency_level == ConsistencyLevel.DCQUORUM)
         {
             // block for in this context will be localnodes block.
-            return new DatacenterWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level, table);
+            return DatacenterWriteResponseHandler.create(writeEndpoints, hintedEndpoints, consistency_level, table);
         }
         else if (consistency_level == ConsistencyLevel.DCQUORUMSYNC)
         {
-            return new DatacenterSyncWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level, table);
+            return DatacenterSyncWriteResponseHandler.create(writeEndpoints, hintedEndpoints, consistency_level, table);
         }
         return super.getWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level);
     }

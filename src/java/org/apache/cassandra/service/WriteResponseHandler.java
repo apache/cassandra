@@ -39,20 +39,37 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
 {
     protected static final Logger logger = LoggerFactory.getLogger(WriteResponseHandler.class);
 
-    protected AtomicInteger responses;
+    protected final AtomicInteger responses;
 
-    public WriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
+    protected WriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
         super(writeEndpoints, hintedEndpoints, consistencyLevel);
         responses = new AtomicInteger(determineBlockFor(table));
     }
 
-    public WriteResponseHandler(InetAddress endpoint)
+    protected WriteResponseHandler(InetAddress endpoint)
     {
         super(Arrays.asList(endpoint),
               ImmutableMultimap.<InetAddress, InetAddress>builder().put(endpoint, endpoint).build(),
               ConsistencyLevel.ALL);
         responses = new AtomicInteger(1);
+    }
+
+    public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
+    {
+        if (consistencyLevel == ConsistencyLevel.ZERO)
+        {
+            return NoConsistencyWriteResponseHandler.instance;
+        }
+        else
+        {
+            return new WriteResponseHandler(writeEndpoints, hintedEndpoints, consistencyLevel, table);
+        }
+    }
+
+    public static IWriteResponseHandler create(InetAddress endpoint)
+    {
+        return new WriteResponseHandler(endpoint);
     }
 
     public void response(Message m)

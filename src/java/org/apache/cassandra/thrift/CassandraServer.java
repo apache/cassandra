@@ -463,20 +463,13 @@ public class CassandraServer implements Cassandra.Iface
         {
             schedule();
 
-            if (consistency_level == ConsistencyLevel.ZERO)
+            try
             {
-                StorageProxy.mutate(mutations);
+              StorageProxy.mutate(mutations, consistency_level);
             }
-            else
+            catch (TimeoutException e)
             {
-                try
-                {
-                    StorageProxy.mutateBlocking(mutations, consistency_level);
-                }
-                catch (TimeoutException e)
-                {
-                    throw new TimedOutException();
-                }
+              throw new TimedOutException();
             }
         }
         finally

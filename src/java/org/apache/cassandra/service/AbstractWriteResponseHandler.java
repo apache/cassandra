@@ -28,13 +28,13 @@ import java.util.concurrent.TimeoutException;
 
 import com.google.common.collect.Multimap;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.SimpleCondition;
 
-public abstract class AbstractWriteResponseHandler implements IAsyncCallback
+public abstract class AbstractWriteResponseHandler implements IWriteResponseHandler
 {
     protected final SimpleCondition condition = new SimpleCondition();
     protected final long startTime;
@@ -42,7 +42,7 @@ public abstract class AbstractWriteResponseHandler implements IAsyncCallback
     protected final Multimap<InetAddress, InetAddress> hintedEndpoints;
     protected final ConsistencyLevel consistencyLevel;
 
-    public AbstractWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel)
+    protected AbstractWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel)
     {
         startTime = System.currentTimeMillis();
         this.consistencyLevel = consistencyLevel;
@@ -67,6 +67,13 @@ public abstract class AbstractWriteResponseHandler implements IAsyncCallback
         {
             throw new TimeoutException();
         }
+    }
+
+    public void addHintCallback(Message hintedMessage, InetAddress destination)
+    {
+        // (non-destination hints are part of the callback and count towards consistency only under CL.ANY)
+        if (writeEndpoints.contains(destination) || consistencyLevel == ConsistencyLevel.ANY)
+            MessagingService.instance.addCallback(this, hintedMessage.getMessageId());
     }
 
     /** null message means "response from local write" */

@@ -421,37 +421,22 @@ public class CassandraServer implements Cassandra {
 
     private void doInsert(ConsistencyLevel consistency, RowMutation rm) throws UnavailableException, TimedOutException
     {
-        if (consistency != ConsistencyLevel.ZERO)
+        try
         {
-            try
-            {
-                schedule();
-                StorageProxy.mutateBlocking(Arrays.asList(rm), thriftConsistencyLevel(consistency));
-            }
-            catch (TimeoutException e)
-            {
-                throw new TimedOutException();
-            }
-            catch (org.apache.cassandra.thrift.UnavailableException thriftE)
-            {
-                throw new UnavailableException();
-            }
-            finally
-            {
-                release();
-            }
+            schedule();
+            StorageProxy.mutate(Arrays.asList(rm), thriftConsistencyLevel(consistency));
         }
-        else
+        catch (TimeoutException e)
         {
-            try
-            {
-                schedule();
-                StorageProxy.mutate(Arrays.asList(rm));
-            }
-            finally
-            {
-                release();
-            }
+            throw new TimedOutException();
+        }
+        catch (org.apache.cassandra.thrift.UnavailableException thriftE)
+        {
+            throw new UnavailableException();
+        }
+        finally
+        {
+            release();
         }
     }
 
@@ -479,38 +464,23 @@ public class CassandraServer implements Cassandra {
             rowMutations.add(getRowMutationFromMutations(curKeyspace.get(), pair.key.array(), cfToMutations));
         }
         
-        if (consistencyLevel == ConsistencyLevel.ZERO)
+        try
         {
-            try
-            {
-                schedule();
-                StorageProxy.mutate(rowMutations);
-            }
-            finally
-            {
-                release();
-            }
+            schedule();
+            StorageProxy.mutate(rowMutations, thriftConsistencyLevel(consistencyLevel));
         }
-        else
+        catch (TimeoutException te)
         {
-            try
-            {
-                schedule();
-                StorageProxy.mutateBlocking(rowMutations, thriftConsistencyLevel(consistencyLevel));
-            }
-            catch (TimeoutException te)
-            {
-                throw newTimedOutException();
-            }
-            // FIXME: StorageProxy.mutateBlocking throws Thrift's UnavailableException
-            catch (org.apache.cassandra.thrift.UnavailableException ue)
-            {
-                throw newUnavailableException();
-            }
-            finally
-            {
-                release();
-            }
+            throw newTimedOutException();
+        }
+        // FIXME: StorageProxy.mutate throws Thrift's UnavailableException
+        catch (org.apache.cassandra.thrift.UnavailableException ue)
+        {
+            throw newUnavailableException();
+        }
+        finally
+        {
+            release();
         }
         
         return null;

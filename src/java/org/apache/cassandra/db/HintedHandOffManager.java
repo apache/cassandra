@@ -40,6 +40,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.DigestMismatchException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.WriteResponseHandler;
+import org.apache.cassandra.service.IWriteResponseHandler;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
@@ -122,7 +123,7 @@ public class HintedHandOffManager
             RowMutation rm = new RowMutation(tableName, key);
             rm.add(cf);
             Message message = rm.makeRowMutationMessage();
-            WriteResponseHandler responseHandler = new WriteResponseHandler(endpoint);
+            IWriteResponseHandler responseHandler =  WriteResponseHandler.create(endpoint);
             MessagingService.instance.sendRR(message, new InetAddress[] { endpoint }, responseHandler);
             try
             {

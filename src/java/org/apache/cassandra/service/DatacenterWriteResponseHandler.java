@@ -50,12 +50,23 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
         localdc = snitch.getDatacenter(FBUtilities.getLocalAddress());
     }
 
-    public DatacenterWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
+    protected DatacenterWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
         super(writeEndpoints, hintedEndpoints, consistencyLevel, table);
         assert consistencyLevel == ConsistencyLevel.DCQUORUM;
     }
 
+    public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
+    {
+        if (consistencyLevel == ConsistencyLevel.ZERO)
+        {
+            return NoConsistencyWriteResponseHandler.instance;
+        }
+        else
+        {
+            return new DatacenterWriteResponseHandler(writeEndpoints, hintedEndpoints, consistencyLevel, table);
+        }
+    }
 
     @Override
     protected int determineBlockFor(String table)

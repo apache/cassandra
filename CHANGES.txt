@@ -10,6 +10,7 @@ dev
  * rename RackAwareStrategy to OldNetworkTopologyStrategy, RackUnawareStrategy 
    to SimpleStrategy, DatacenterShardStrategy to NetworkTopologyStrategy,
    AbstractRackAwareSnitch to AbstractNetworkTopologySnitch (CASSANDRA-1392)
+ * merge StorageProxy.mutate, mutateBlocking (CASSANDRA-1396)
 
 
 0.7-beta1
