@@ -291,3 +291,9 @@ keyspaces:
           column_type: Super
           compare_with: LongType
           comment: 'A column family with supercolumns, whose column names are Longs (8 bytes)'
+
+        - name: Indexed1
+          column_metadata:
+            - name: birthdate
+              validator_class: LongType
+              index_type: KEYS
