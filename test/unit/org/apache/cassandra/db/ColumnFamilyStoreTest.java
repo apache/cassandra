@@ -170,7 +170,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.apply();
 
         rm = new RowMutation("Keyspace1", "k3".getBytes());
-        rm.add(new QueryPath("Indexed1", null, "notbirthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), new TimestampClock(0));
+        rm.add(new QueryPath("Indexed1", null, "notbirthdate".getBytes("UTF8")), FBUtilities.toByteArray(2L), new TimestampClock(0));
         rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), new TimestampClock(0));
         rm.apply();
         
@@ -192,6 +192,13 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         assert Arrays.equals("k3".getBytes(), rows.get(1).key.key);
         assert Arrays.equals(FBUtilities.toByteArray(1L), rows.get(0).cf.getColumn("birthdate".getBytes("UTF8")).value());
         assert Arrays.equals(FBUtilities.toByteArray(1L), rows.get(1).cf.getColumn("birthdate".getBytes("UTF8")).value());
+
+        IndexExpression expr2 = new IndexExpression("notbirthdate".getBytes("UTF8"), IndexOperator.GTE, FBUtilities.toByteArray(2L));
+        clause = new IndexClause(Arrays.asList(expr, expr2), ArrayUtils.EMPTY_BYTE_ARRAY, 100);
+        rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").scan(clause, range, filter);
+
+        assert rows.size() == 1 : StringUtils.join(rows, ",");
+        assert Arrays.equals("k3".getBytes(), rows.get(0).key.key);
     }
 
     @Test

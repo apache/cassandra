@@ -60,6 +60,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
+import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LatencyTracker;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -1163,7 +1164,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (IndexExpression expression : clause.expressions)
         {
             ColumnFamilyStore cfs = getIndexedColumnFamilyStore(expression.column_name);
-            if (cfs == null)
+            if (cfs == null || !expression.op.equals(IndexOperator.EQ))
                 continue;
             int columns = cfs.getMeanColumns();
             if (columns < bestMeanCount)
@@ -1184,10 +1185,32 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 continue;
             // check column data vs expression
             IColumn column = data.getColumn(expression.column_name);
-            if (column != null && !Arrays.equals(column.value(), expression.value))
-                 return false;
+            if (column == null)
+                continue;
+            int v = data.getComparator().compare(column.value(), expression.value);
+            if (!satisfies(v, expression.op))
+                return false;
         }
         return true;
+    }
+
+    private static boolean satisfies(int comparison, IndexOperator op)
+    {
+        switch (op)
+        {
+            case EQ:
+                return comparison == 0;
+            case GTE:
+                return comparison >= 0;
+            case GT:
+                return comparison > 0;
+            case LTE:
+                return comparison <= 0;
+            case LT:
+                return comparison < 0;
+            default:
+                throw new IllegalStateException();
+        }
     }
 
     public AbstractType getComparator()

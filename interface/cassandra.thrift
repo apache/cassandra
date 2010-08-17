@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "11.0.0"
+const string VERSION = "11.1.0"
 
 
 #
@@ -244,6 +244,10 @@ struct SlicePredicate {
 
 enum IndexOperator {
     EQ,
+    GTE,
+    GT,
+    LTE,
+    LT
 }
 
 struct IndexExpression {

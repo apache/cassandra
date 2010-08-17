@@ -379,9 +379,9 @@ public class ThriftValidation
         Set<byte[]> indexedColumns = Table.open(keyspace).getColumnFamilyStore(columnFamily).getIndexedColumns();
         for (IndexExpression expression : index_clause.expressions)
         {
-            if (indexedColumns.contains(expression.column_name))
+            if (expression.op.equals(IndexOperator.EQ) && indexedColumns.contains(expression.column_name))
                 return;
         }
-        throw new InvalidRequestException("No indexed columns present in index clause");
+        throw new InvalidRequestException("No indexed columns present in index clause with operator EQ");
     }
 }
