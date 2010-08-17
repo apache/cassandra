@@ -355,9 +355,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             if (file.getName().contains("-Data.db"))
             {
-                if (SSTable.deleteIfCompacted(file.getAbsolutePath()))
+                final String delPath = file.getAbsolutePath();
+                if (SSTable.deleteIfCompacted(delPath))
                 {
-                    final String delPath = file.getAbsolutePath();
                     runnables.add(new Runnable()
                     {
                         public void run()
