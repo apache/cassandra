@@ -303,7 +303,7 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
         private IColumn unthriftifySuper(SuperColumn super_column)
         {
             ClockType clockType = ClockType.Timestamp; // TODO generalize
-            AbstractReconciler reconciler = new TimestampReconciler(); // TODO generalize
+            AbstractReconciler reconciler = TimestampReconciler.instance; // TODO generalize
             org.apache.cassandra.db.SuperColumn sc = new org.apache.cassandra.db.SuperColumn(super_column.name, subComparator, clockType, reconciler);
             for (Column column : super_column.columns)
             {

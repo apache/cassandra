@@ -24,8 +24,12 @@ import org.apache.cassandra.db.IClock.ClockRelationship;
  * Keeps the column with the highest timestamp. If both are equal
  * return the left column.
  */
-public class TimestampReconciler extends AbstractReconciler
+public final class TimestampReconciler extends AbstractReconciler
 {
+    public static final TimestampReconciler instance = new TimestampReconciler();
+
+    private TimestampReconciler()
+    {/* singleton */}
 
     public Column reconcile(Column left, Column right)
     {

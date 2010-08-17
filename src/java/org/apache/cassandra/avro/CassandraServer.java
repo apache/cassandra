@@ -74,6 +74,7 @@ public class CassandraServer implements Cassandra {
     private final static String D_CF_CFCLOCKTYPE = "Timestamp";
     private final static String D_CF_COMPTYPE = "BytesType";
     private final static String D_CF_SUBCOMPTYPE = "";
+    private final static String D_CF_RECONCILER = null;
     
     private ThreadLocal<AccessLevel> loginDone = new ThreadLocal<AccessLevel>()
     {
@@ -600,13 +601,13 @@ public class CassandraServer implements Cassandra {
                 ClockType clockType = ClockType.create(cfDef.clock_type == null ? D_CF_CFCLOCKTYPE : cfDef.clock_type.toString());
                 compare = cfDef.comparator_type == null ? D_CF_COMPTYPE : cfDef.comparator_type.toString();
                 subCompare = cfDef.subcomparator_type == null ? D_CF_SUBCOMPTYPE : cfDef.subcomparator_type.toString();
-                reconcilerName = cfDef.reconciler == null  ? null : cfDef.reconciler.toString();
+                reconcilerName = cfDef.reconciler == null  ? D_CF_RECONCILER : cfDef.reconciler.toString();
                 
                 AbstractReconciler reconciler = DatabaseDescriptor.getReconciler(reconcilerName);
                 if (reconciler == null)
                 {
                     if (clockType == ClockType.Timestamp)    
-                        reconciler = new TimestampReconciler(); // default
+                        reconciler = TimestampReconciler.instance; // default
                     else
                         throw new ConfigurationException("No reconciler specified for column family " + cfDef.name.toString());
 

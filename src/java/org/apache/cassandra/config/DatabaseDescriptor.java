@@ -588,7 +588,7 @@ public class DatabaseDescriptor
                 if (reconciler == null)
                 {
                     if (cf.clock_type == ClockType.Timestamp)    
-                        reconciler = new TimestampReconciler(); // default
+                        reconciler = TimestampReconciler.instance; // default
                     else
                         throw new ConfigurationException("No reconciler specified for column family " + cf.name);
                 }
@@ -668,38 +668,34 @@ public class DatabaseDescriptor
 
     public static AbstractReconciler getReconciler(String reconcileWith) throws ConfigurationException
     {
-        if (reconcileWith == null || "".equals(reconcileWith))
+        if (reconcileWith == null || reconcileWith.length() == 0)
         {
             return null;
         }
-        
+
+        String className = reconcileWith.indexOf('.') >= 0 ? reconcileWith : TimestampReconciler.class.getPackage().getName() + '.' + reconcileWith;
         Class<? extends AbstractReconciler> reconcilerClass;
-        {
-            String className = reconcileWith.contains(".") ? reconcileWith :  TimestampReconciler.class.getPackage().getName() + "." + reconcileWith;
-            try
-            {
-                reconcilerClass = (Class<? extends AbstractReconciler>)Class.forName(className);
-            }
-            catch (ClassNotFoundException e)
-            {
-                throw new ConfigurationException("Unable to load class " + className);
-            }
-        }
         try
         {
-            return reconcilerClass.getConstructor().newInstance();
+            reconcilerClass = (Class<? extends AbstractReconciler>) Class.forName(className);
         }
-        catch (InstantiationException e)
+        catch (ClassNotFoundException e)
         {
-            ConfigurationException ex = new ConfigurationException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
+            throw new ConfigurationException("Unable to load class " + className);
         }
-        catch (Exception e)
+
+        try
         {
-            ConfigurationException ex = new ConfigurationException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
+            Field field = reconcilerClass.getDeclaredField("instance");
+            return (AbstractReconciler) field.get(null);
+        }
+        catch (NoSuchFieldException e)
+        {
+            throw new ConfigurationException("Invalid reconciler: must define a public static instance field.", e);
+        }
+        catch (IllegalAccessException e)
+        {
+            throw new ConfigurationException("Invalid reconciler: must define a public static instance field.", e);
         }
     }
 

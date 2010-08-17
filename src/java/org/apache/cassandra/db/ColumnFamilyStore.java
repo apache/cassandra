@@ -202,7 +202,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                           ClockType.Timestamp,
                                                           columnComparator,
                                                           null,
-                                                          new TimestampReconciler(),
+                                                          TimestampReconciler.instance,
                                                           "",
                                                           0,
                                                           false,

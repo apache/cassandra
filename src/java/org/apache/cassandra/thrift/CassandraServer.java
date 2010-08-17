@@ -948,7 +948,7 @@ public class CassandraServer implements Cassandra.Iface
         if (reconciler == null)
         {
             if (clockType == ClockType.Timestamp)    
-                reconciler = new TimestampReconciler(); // default
+                reconciler = TimestampReconciler.instance; // default
             else
                 throw new ConfigurationException("No reconciler specified for column family " + cf_def.name);
 

@@ -30,7 +30,7 @@ import org.junit.Test;
 
 public class TimestampReconcilerTest
 {   
-    private static final TimestampReconciler reconciler = new TimestampReconciler();
+    private static final TimestampReconciler reconciler = TimestampReconciler.instance;
 
     @Test
     public void testReconcileNormal()

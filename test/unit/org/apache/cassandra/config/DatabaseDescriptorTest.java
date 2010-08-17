@@ -23,6 +23,7 @@ import static org.junit.Assert.assertNotNull;
 import org.apache.avro.specific.SpecificRecord;
 
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.db.clock.TimestampReconciler;
 import org.apache.cassandra.db.migration.AddKeyspace;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.io.SerDeUtils;
@@ -41,6 +42,13 @@ public class DatabaseDescriptorTest
                                               newInstance);
         assert actual.equals(record) : actual + " != " + record;
         return actual;
+    }
+    
+    @Test
+    public void testGetReconciler() throws ConfigurationException
+    {
+        assert DatabaseDescriptor.getReconciler("TimestampReconciler") == TimestampReconciler.instance;
+        assert DatabaseDescriptor.getReconciler(TimestampReconciler.class.getName()) == TimestampReconciler.instance;
     }
 
     @Test
