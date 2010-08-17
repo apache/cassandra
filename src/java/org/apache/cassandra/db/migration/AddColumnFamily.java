@@ -83,6 +83,8 @@ public class AddColumnFamily extends Migration
         }
         Table.open(cfm.tableName); // make sure it's init-ed w/ the old definitions first, since we're going to call initCf on the new one manually
         DatabaseDescriptor.setTableDefinition(ksm, newVersion);
+        // these definitions could have come from somewhere else.
+        CFMetaData.fixMaxId();
         if (!clientMode)
             Table.open(ksm.name).initCf(cfm.cfId, cfm.cfName);
 

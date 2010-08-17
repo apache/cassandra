@@ -14,6 +14,7 @@ dev
  * fix race condition leaving to FileNotFoundException (CASSANDRA-1382)
  * fix sharded lock hash on index write path (CASSANDRA-1402)
  * add support for GT/E, LT/E in subordinate index clauses (CASSANDRA-1401)
+ * cfId counter got out of sync when CFs were added (CASSANDRA-1403)
 
 
 0.7-beta1
