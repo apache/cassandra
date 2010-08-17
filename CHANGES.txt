@@ -11,6 +11,7 @@ dev
  * faster UUIDType, LongType comparisons (CASSANDRA-1386, 1393)
  * fix setting read_repair_chance from CLI addColumnFamily (CASSANDRA-1399)
  * fix updates to indexed columns (CASSANDRA-1373)
+ * fix race condition leaving to FileNotFoundException (CASSANDRA-1382)
 
 
 0.7-beta1
