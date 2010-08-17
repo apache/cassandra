@@ -189,6 +189,33 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         assert Arrays.equals(FBUtilities.toByteArray(1L), rows.get(1).cf.getColumn("birthdate".getBytes("UTF8")).value());
     }
 
+    @Test
+    public void testIndexUpdate() throws IOException
+    {
+        RowMutation rm;
+
+        rm = new RowMutation("Keyspace2", "k1".getBytes());
+        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), new TimestampClock(1));
+        rm.apply();
+
+        rm = new RowMutation("Keyspace2", "k1".getBytes());
+        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(2L), new TimestampClock(2));
+        rm.apply();
+
+        IndexExpression expr = new IndexExpression("birthdate".getBytes("UTF8"), IndexOperator.EQ, FBUtilities.toByteArray(1L));
+        IndexClause clause = new IndexClause(Arrays.asList(expr), ArrayUtils.EMPTY_BYTE_ARRAY, 100);
+        IFilter filter = new IdentityQueryFilter();
+        IPartitioner p = StorageService.getPartitioner();
+        Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
+        List<Row> rows = Table.open("Keyspace2").getColumnFamilyStore("Indexed1").scan(clause, range, filter);
+        assert rows.size() == 0;
+
+        expr = new IndexExpression("birthdate".getBytes("UTF8"), IndexOperator.EQ, FBUtilities.toByteArray(2L));
+        clause = new IndexClause(Arrays.asList(expr), ArrayUtils.EMPTY_BYTE_ARRAY, 100);
+        rows = Table.open("Keyspace2").getColumnFamilyStore("Indexed1").scan(clause, range, filter);
+        assert Arrays.equals("k1".getBytes(), rows.get(0).key.key);
+    }
+
     private ColumnFamilyStore insertKey1Key2() throws IOException, ExecutionException, InterruptedException
     {
         List<RowMutation> rms = new LinkedList<RowMutation>();

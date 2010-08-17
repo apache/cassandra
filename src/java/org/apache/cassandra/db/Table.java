@@ -32,6 +32,7 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.dht.LocalToken;
 import org.apache.cassandra.io.sstable.SSTableDeletingReference;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -389,7 +390,7 @@ public class Table
                         for (byte[] columnName : mutatedIndexedColumns)
                         {
                             IColumn column = columnFamily.getColumn(columnName);
-                            DecoratedKey valueKey = cfs.getIndexKeyFor(columnName, column.value());
+                            DecoratedKey<LocalToken> valueKey = cfs.getIndexKeyFor(columnName, column.value());
                             ColumnFamily cf = cfs.newIndexedColumnFamily(columnName);
                             cf.addColumn(new Column(mutation.key(), ArrayUtils.EMPTY_BYTE_ARRAY, column.clock()));
                             applyCF(cfs.getIndexedColumnFamilyStore(columnName), valueKey, cf, memtablesToFlush);
@@ -403,10 +404,10 @@ public class Table
                             {
                                 byte[] columnName = entry.getKey();
                                 IColumn column = entry.getValue();
-                                DecoratedKey valueKey = cfs.getIndexKeyFor(columnName, column.value());
+                                DecoratedKey<LocalToken> valueKey = cfs.getIndexKeyFor(columnName, column.value());
                                 ColumnFamily cf = cfs.newIndexedColumnFamily(columnName);
                                 cf.deleteColumn(mutation.key(), localDeletionTime, column.clock());
-                                applyCF(cfs, valueKey, cf, memtablesToFlush);
+                                applyCF(cfs.getIndexedColumnFamilyStore(columnName), valueKey, cf, memtablesToFlush);
                             }
                         }
                     }

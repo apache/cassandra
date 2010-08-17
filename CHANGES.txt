@@ -10,6 +10,7 @@ dev
  * merge StorageProxy.mutate, mutateBlocking (CASSANDRA-1396)
  * faster UUIDType, LongType comparisons (CASSANDRA-1386, 1393)
  * fix setting read_repair_chance from CLI addColumnFamily (CASSANDRA-1399)
+ * fix updates to indexed columns (CASSANDRA-1373)
 
 
 0.7-beta1

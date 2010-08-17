@@ -1091,10 +1091,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             byte[] dataKey = null;
             int n = 0;
-            Iterator<byte[]> iter = indexRow.getColumnNames().iterator();
-            while (iter.hasNext())
+            for (IColumn column : indexRow.getSortedColumns())
             {
-                dataKey = iter.next();
+                if (column.isMarkedForDelete())
+                    continue;
+                dataKey = column.name();
                 n++;
                 DecoratedKey dk = partitioner_.decorateKey(dataKey);
                 if (!range.right.equals(partitioner_.getMinimumToken()) && range.right.compareTo(dk.token) < 0)
@@ -1436,7 +1437,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return ColumnFamily.create(indexedColumns_.get(column).metadata);
     }
 
-    public DecoratedKey getIndexKeyFor(byte[] name, byte[] value)
+    public DecoratedKey<LocalToken> getIndexKeyFor(byte[] name, byte[] value)
     {
         return indexedColumns_.get(name).partitioner_.decorateKey(value);
     }
