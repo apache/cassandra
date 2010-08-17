@@ -386,7 +386,7 @@ public class Table
                 }
                 else
                 {
-                    synchronized (indexLocks[Arrays.hashCode(mutation.key()) % indexLocks.length])
+                    synchronized (indexLockFor(mutation.key()))
                     {
                         // read old indexed values
                         QueryFilter filter = QueryFilter.getNamesFilter(key, new QueryPath(cfs.getColumnFamilyName()), mutatedIndexedColumns);
@@ -443,7 +443,7 @@ public class Table
         flusherLock.readLock().lock();
         try
         {
-            synchronized (indexLocks[Arrays.hashCode(rowKey.key) % indexLocks.length])
+            synchronized (indexLockFor(rowKey.key))
             {
                 memtableToFlush = indexedCfs.apply(indexedKey, indexedColumnFamily);
             }
@@ -456,7 +456,12 @@ public class Table
         if (memtableToFlush != null)
             indexedCfs.maybeSwitchMemtable(memtableToFlush, false);
     }
-    
+
+    private Object indexLockFor(byte[] key)
+    {
+        return indexLocks[Math.abs(Arrays.hashCode(key) % indexLocks.length)];
+    }
+
     private static void applyCF(ColumnFamilyStore cfs, DecoratedKey key, ColumnFamily columnFamily, HashMap<ColumnFamilyStore, Memtable> memtablesToFlush)
     {
         Memtable memtableToFlush = cfs.apply(key, columnFamily);
