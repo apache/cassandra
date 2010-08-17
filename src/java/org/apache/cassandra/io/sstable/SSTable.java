@@ -133,7 +133,6 @@ public abstract class SSTable
                 FileUtils.deleteWithConfirm(new File(SSTable.indexFilename(dataFilename)));
                 FileUtils.deleteWithConfirm(new File(SSTable.filterFilename(dataFilename)));
                 FileUtils.deleteWithConfirm(new File(SSTable.compactedFilename(dataFilename)));
-                StatisticsTable.deleteSSTableStatistics(dataFilename);
             }
             catch (IOException e)
             {

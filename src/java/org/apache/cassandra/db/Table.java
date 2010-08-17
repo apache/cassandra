@@ -100,8 +100,18 @@ public class Table
                 tableInstance = instances.get(table);
                 if (tableInstance == null)
                 {
+                    // do some housekeeping on the column families.
+                    Collection<Runnable> systemTableUpdates = new ArrayList<Runnable>();
+                    for (CFMetaData cfm : DatabaseDescriptor.getTableDefinition(table).cfMetaData().values())
+                    {
+                        ColumnFamilyStore.scrubDataDirectories(table, cfm.cfName);
+                        systemTableUpdates.addAll(ColumnFamilyStore.deleteCompactedFiles(table, cfm.cfName)); 
+                    }
                     tableInstance = new Table(table);
                     instances.put(table, tableInstance);
+                    
+                    for (Runnable r : systemTableUpdates)
+                        r.run();
                 }
             }
         }
@@ -256,7 +266,6 @@ public class Table
             {
                 throw new RuntimeException(e);
             }
-
         }
 
         // check 10x as often as the lifetime, so we can exceed lifetime by 10% at most
