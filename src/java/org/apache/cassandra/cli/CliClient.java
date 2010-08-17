@@ -50,7 +50,8 @@ public class CliClient
         ROWS_CACHED,
         PRELOAD_ROW_CACHE,
         KEY_CACHE_SIZE,
-        READ_REPAIR_CHANCE
+        READ_REPAIR_CHANCE,
+        GC_GRACE_SECONDS
     }
 
     /*
@@ -821,8 +822,11 @@ public class CliClient
                 break;
 
             case READ_REPAIR_CHANCE:
-                cfDef.setKey_cache_size(Double.parseDouble(CliUtils.unescapeSQLString(mValue)));
+                cfDef.setRead_repair_chance(Double.parseDouble(mValue));
                 break;
+
+            case GC_GRACE_SECONDS:
+                cfDef.setGc_grace_seconds(Integer.parseInt(mValue));
 
             default:
                 //must match one of the above or we'd throw an exception at the valueOf statement above.

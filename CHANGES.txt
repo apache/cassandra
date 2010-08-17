@@ -9,6 +9,7 @@ dev
    AbstractRackAwareSnitch to AbstractNetworkTopologySnitch (CASSANDRA-1392)
  * merge StorageProxy.mutate, mutateBlocking (CASSANDRA-1396)
  * faster UUIDType, LongType comparisons (CASSANDRA-1386, 1393)
+ * fix setting read_repair_chance from CLI addColumnFamily (CASSANDRA-1399)
 
 
 0.7-beta1
