@@ -21,7 +21,6 @@ package org.apache.cassandra.service;
 import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.Callable;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -71,7 +70,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
         // generate a fake endpoint for which we can spoof receiving/sending trees
         REMOTE = InetAddress.getByName("127.0.0.2");
         store = Table.open(tablename).getColumnFamilyStores().iterator().next();
-        cfname = store.columnFamily_;
+        cfname = store.columnFamily;
     }
 
     @Before
