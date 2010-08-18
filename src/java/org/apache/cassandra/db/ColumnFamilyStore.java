@@ -22,6 +22,7 @@ import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOError;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -64,6 +65,9 @@ import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LatencyTracker;
 import org.apache.cassandra.utils.WrappedRunnable;
+
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
@@ -113,6 +117,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public final String table_;
     public final String columnFamily_;
     public final IPartitioner partitioner_;
+    private final String mbeanName;
 
     private volatile int memtableSwitchCount = 0;
 
@@ -217,11 +222,39 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                                                      indexedCfMetadata);
             indexedColumns_.put(column, indexedCfs);
         }
+        
+        String type = this.partitioner_ instanceof LocalPartitioner ? "IndexColumnFamilies" : "ColumnFamilies";
+        mbeanName = "org.apache.cassandra.db:type=" + type + ",keyspace=" + table_ + ",columnfamily=" + columnFamily_;
+        try
+        {
+            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+            ObjectName nameObj = new ObjectName(mbeanName);
+            mbs.registerMBean(this, nameObj);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
     }
     
-    String getMBeanName()
+    // called when dropping or renaming a CF. Performs mbean housekeeping.
+    void unregisterMBean()
     {
-        return "org.apache.cassandra.db:type=ColumnFamilyStores,keyspace=" + table_ + ",columnfamily=" + columnFamily_;
+        try
+        {
+            
+            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+            ObjectName nameObj = new ObjectName(mbeanName);
+            if (mbs.isRegistered(nameObj))
+                mbs.unregisterMBean(nameObj);
+            for (ColumnFamilyStore index : indexedColumns_.values())
+                index.unregisterMBean();
+        }
+        catch (Exception e)
+        {
+            // this shouldn't block anything.
+            logger_.warn(e.getMessage(), e);
+        }
     }
 
     public long getMinRowSize()

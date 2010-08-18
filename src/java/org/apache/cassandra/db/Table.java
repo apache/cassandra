@@ -250,22 +250,10 @@ public class Table
             }
         }
 
-        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         for (CFMetaData cfm : new ArrayList<CFMetaData>(DatabaseDescriptor.getTableDefinition(table).cfMetaData().values()))
         {
             ColumnFamilyStore cfs = ColumnFamilyStore.createColumnFamilyStore(table, cfm.cfName);
             columnFamilyStores.put(cfm.cfId, cfs);
-            try
-            {
-                ObjectName mbeanName = new ObjectName(cfs.getMBeanName());
-                if (mbs.isRegistered(mbeanName))
-                    mbs.unregisterMBean(mbeanName);
-                mbs.registerMBean(cfs, mbeanName);
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
         }
 
         // check 10x as often as the lifetime, so we can exceed lifetime by 10% at most
@@ -303,19 +291,7 @@ public class Table
                 throw new IOException(e);
             }
             
-            // unregister mbean.
-            try
-            {
-                MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-                ObjectName mbeanName = new ObjectName(cfs.getMBeanName());
-                if (mbs.isRegistered(mbeanName))
-                    mbs.unregisterMBean(mbeanName);
-            }
-            catch (Exception e)
-            {
-                // I'm not going to let this block the drop.
-                logger.warn(e.getMessage(), e);
-            }
+            cfs.unregisterMBean();
         }
     }
     
