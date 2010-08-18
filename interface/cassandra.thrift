@@ -385,6 +385,13 @@ service Cassandra {
   # set keyspace
   void set_keyspace(1: required string keyspace) throws (1:InvalidRequestException ire),
   
+  # enable session consistency
+  # call again to start a new session
+  void enable_session_consistency(),
+
+  # disable a previously enabled session
+  void disable_session_consistency(),
+
   # retrieval methods
 
   /**

@@ -681,6 +681,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         keySpace.remove();
         loginDone.remove();
+        StorageProxy.disableSessionConsistency();
 
         if (logger.isDebugEnabled())
             logger.debug("logout complete");
@@ -1012,6 +1013,16 @@ public class CassandraServer implements Cassandra.Iface
     {
         logger.debug("checking schema agreement");      
         return StorageProxy.checkSchemaAgreement();
+    }
+
+    public void enable_session_consistency() throws TException
+    {
+        StorageProxy.enableSessionConsistency();
+    }
+
+    public void disable_session_consistency() throws TException
+    {
+        StorageProxy.disableSessionConsistency();
     }
 
     // main method moved to CassandraDaemon

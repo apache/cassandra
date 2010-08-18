@@ -16,6 +16,7 @@ dev
  * add support for GT/E, LT/E in subordinate index clauses (CASSANDRA-1401)
  * cfId counter got out of sync when CFs were added (CASSANDRA-1403)
  * less chatty schema updates (CASSANDRA-1389)
+ * add optional per-connection read-your-writes consistency (CASSANDRA-876)
 
 
 0.7-beta1
