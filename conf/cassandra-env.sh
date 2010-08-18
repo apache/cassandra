@@ -19,6 +19,10 @@
 # certainly want to adjust this for your environment.
 MAX_HEAP_SIZE="1G" 
 
+# Specifies the default port over which Cassandra will be available for
+# JMX connections.
+JMX_PORT="8080"
+
 
 # Here we create the arguments that will get passed to the jvm when
 # starting cassandra.
@@ -47,7 +51,6 @@ JVM_OPTS="$JVM_OPTS -XX:SurvivorRatio=8"
 JVM_OPTS="$JVM_OPTS -XX:MaxTenuringThreshold=1" 
 JVM_OPTS="$JVM_OPTS -XX:+HeapDumpOnOutOfMemoryError" 
 
-# JMX options
-JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.port=8080" 
+JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.port=$JMX_PORT" 
 JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.ssl=false" 
 JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.authenticate=false" 
