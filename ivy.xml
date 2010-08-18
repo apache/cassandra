@@ -29,6 +29,8 @@
     <dependency org="org.apache.rat" name="apache-rat" rev="0.6" />
     <dependency org="org.apache.hadoop" name="hadoop-core" rev="0.20.2"/>
     <dependency org="net.sf.jopt-simple" name="jopt-simple" rev="3.2"/>
+
+    <dependency org="net.java.dev.jna" name="jna" rev="3.2.7"/>
   </dependencies>
 </ivy-module>
 

@@ -19,9 +19,7 @@
 package org.apache.cassandra.utils;
 
 import java.io.*;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.URL;
@@ -41,13 +39,13 @@ import org.apache.commons.collections.iterators.CollatingIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.sun.jna.Native;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IClock;
 import org.apache.cassandra.db.IClock.ClockRelationship;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -600,6 +598,52 @@ public class FBUtilities
             ConfigurationException ex = new ConfigurationException("Invalid comparator: must define a public static instance field.");
             ex.initCause(e);
             throw ex;
+        }
+    }
+
+    public static void tryMlockall()
+    {
+        int errno = Integer.MIN_VALUE;
+        try
+        {
+            int result = CLibrary.mlockall(CLibrary.MCL_CURRENT);
+            if (result != 0)
+                errno = Native.getLastError();
+        }
+        catch (UnsatisfiedLinkError e)
+        {
+            // this will have already been logged by CLibrary, no need to repeat it
+            return;
+        }
+        catch (Exception e)
+        {
+            logger_.debug("Unable to mlockall", e);
+            // skipping mlockall doesn't seem to be a Big Deal except on Linux.  See CASSANDRA-1214
+            if (System.getProperty("os.name").toLowerCase().contains("linux"))
+            {
+                logger_.warn("Unable to lock JVM memory (" + e.getMessage() + ")."
+                             + " This can result in part of the JVM being swapped out, especially with mmapped I/O enabled.");
+            }
+            else if (!System.getProperty("os.name").toLowerCase().contains("windows"))
+            {
+                logger_.info("Unable to lock JVM memory: " + e.getMessage());
+            }
+            return;
+        }
+
+        if (errno != Integer.MIN_VALUE)
+        {
+            if (errno == CLibrary.ENOMEM && System.getProperty("os.name").toLowerCase().contains("linux"))
+            {
+                logger_.warn("Unable to lock JVM memory (ENOMEM)."
+                             + " This can result in part of the JVM being swapped out, especially with mmapped I/O enabled."
+                             + " Increase RLIMIT_MEMLOCK or run Cassandra as root.");
+            }
+            else if (!System.getProperty("os.name").toLowerCase().contains("mac"))
+            {
+                // OS X allows mlockall to be called, but always returns an error
+                logger_.warn("Unknown mlockall error " + errno);
+            }
         }
     }
 }

@@ -50,6 +50,8 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
     
     protected void setup() throws IOException
     {
+        FBUtilities.tryMlockall();
+
         listenPort = DatabaseDescriptor.getRpcPort();
         listenAddr = DatabaseDescriptor.getRpcAddress();
         

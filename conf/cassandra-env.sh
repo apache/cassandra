@@ -22,12 +22,24 @@ MAX_HEAP_SIZE="1G"
 
 # Here we create the arguments that will get passed to the jvm when
 # starting cassandra.
+
+# enable assertions.  disabling this in production will give a modest
+# performance benefit (around 5%).
 JVM_OPTS="$JVM_OPTS -ea"
 
-JVM_OPTS="$JVM_OPTS -Xms256M"
+# min and max heap sizes should be set to the same value to avoid
+# stop-the-world GC pauses during resize, and so that we can lock the
+# heap in memory on startup to prevent any of it from being swapped
+# out.
+JVM_OPTS="$JVM_OPTS -Xms$MAX_HEAP_SIZE"
 JVM_OPTS="$JVM_OPTS -Xmx$MAX_HEAP_SIZE"
+
+# reduce the per-thread stack size to minimize the impact of Thrift
+# thread-per-client.  (Best practice is for client connections to
+# be pooled anyway.)
 JVM_OPTS="$JVM_OPTS -Xss128k" 
 
+# GC tuning options.
 JVM_OPTS="$JVM_OPTS -XX:+UseParNewGC" 
 JVM_OPTS="$JVM_OPTS -XX:+UseConcMarkSweepGC" 
 JVM_OPTS="$JVM_OPTS -XX:+CMSParallelRemarkEnabled" 
@@ -35,6 +47,7 @@ JVM_OPTS="$JVM_OPTS -XX:SurvivorRatio=8"
 JVM_OPTS="$JVM_OPTS -XX:MaxTenuringThreshold=1" 
 JVM_OPTS="$JVM_OPTS -XX:+HeapDumpOnOutOfMemoryError" 
 
+# JMX options
 JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.port=8080" 
 JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.ssl=false" 
 JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.authenticate=false" 

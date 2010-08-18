@@ -36,6 +36,7 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Mx4jTool;
 import org.apache.thrift.TProcessorFactory;
@@ -65,6 +66,8 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
 
     protected void setup() throws IOException
     {
+        FBUtilities.tryMlockall();
+
         int listenPort = DatabaseDescriptor.getRpcPort();
         InetAddress listenAddr = DatabaseDescriptor.getRpcAddress();
         
