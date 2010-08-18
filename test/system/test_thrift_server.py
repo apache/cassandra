@@ -1191,6 +1191,7 @@ class TestMutations(ThriftTester):
         client.system_drop_keyspace(keyspace.name)
 
     def test_column_validators(self):
+        # regular CF
         ks = 'Keyspace1'
         _set_keyspace(ks)
         cd = ColumnDef('col', 'LongType', None, None)
@@ -1205,6 +1206,18 @@ class TestMutations(ThriftTester):
         client.insert('key0', cp, col0, ConsistencyLevel.ONE)
         e = _expect_exception(lambda: client.insert('key1', cp, col1, ConsistencyLevel.ONE), InvalidRequestException)
         assert e.why.find("failed validation") >= 0
+
+        # super CF
+        scf = CfDef('Keyspace1', 'ValidatorSuperColumnFamily', column_type='Super', column_metadata=[cd])
+        client.system_add_column_family(scf)
+        ks_def = client.describe_keyspace(ks)
+        assert 'ValidatorSuperColumnFamily' in [x.name for x in ks_def.cf_defs]
+
+        scp = ColumnParent('ValidatorSuperColumnFamily','sc1')
+        client.insert('key0', scp, col0, ConsistencyLevel.ONE)
+        e = _expect_exception(lambda: client.insert('key1', scp, col1, ConsistencyLevel.ONE), InvalidRequestException)
+        assert e.why.find("failed validation") >= 0
+       
 
     def test_system_column_family_operations(self):
         _set_keyspace('Keyspace1')
