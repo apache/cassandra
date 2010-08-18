@@ -42,6 +42,7 @@ import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.TProcessorFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.CompactionManager;
@@ -62,6 +63,8 @@ public class CassandraDaemon
 
     private void setup() throws IOException, TTransportException
     {
+        FBUtilities.tryMlockall();
+        
         // log4j
         String file = System.getProperty("storage-config") + File.separator + "log4j.properties";
         PropertyConfigurator.configure(file);

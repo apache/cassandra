@@ -39,7 +39,7 @@ done
 # Arguments to pass to the JVM
 JVM_OPTS=" \
         -ea \
-        -Xms256M \
+        -Xms1G \
         -Xmx1G \
         -XX:+UseParNewGC \
         -XX:+UseConcMarkSweepGC \

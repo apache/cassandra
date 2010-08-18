@@ -37,6 +37,7 @@ import org.apache.log4j.Logger;
 
 import org.apache.commons.collections.iterators.CollatingIterator;
 
+import com.sun.jna.Native;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -547,6 +548,52 @@ public class FBUtilities
         catch (Exception e)
         {
             throw new RuntimeException(e);
+        }
+    }
+
+    public static void tryMlockall()
+    {
+        int errno = Integer.MIN_VALUE;
+        try
+        {
+            int result = CLibrary.mlockall(CLibrary.MCL_CURRENT);
+            if (result != 0)
+                errno = Native.getLastError();
+        }
+        catch (UnsatisfiedLinkError e)
+        {
+            // this will have already been logged by CLibrary, no need to repeat it
+            return;
+        }
+        catch (Exception e)
+        {
+            logger_.debug("Unable to mlockall", e);
+            // skipping mlockall doesn't seem to be a Big Deal except on Linux.  See CASSANDRA-1214
+            if (System.getProperty("os.name").toLowerCase().contains("linux"))
+            {
+                logger_.warn("Unable to lock JVM memory (" + e.getMessage() + ")."
+                             + " This can result in part of the JVM being swapped out, especially with mmapped I/O enabled.");
+            }
+            else if (!System.getProperty("os.name").toLowerCase().contains("windows"))
+            {
+                logger_.info("Unable to lock JVM memory: " + e.getMessage());
+            }
+            return;
+        }
+
+        if (errno != Integer.MIN_VALUE)
+        {
+            if (errno == CLibrary.ENOMEM && System.getProperty("os.name").toLowerCase().contains("linux"))
+            {
+                logger_.warn("Unable to lock JVM memory (ENOMEM)."
+                             + " This can result in part of the JVM being swapped out, especially with mmapped I/O enabled."
+                             + " Increase RLIMIT_MEMLOCK or run Cassandra as root.");
+            }
+            else if (!System.getProperty("os.name").toLowerCase().contains("mac"))
+            {
+                // OS X allows mlockall to be called, but always returns an error
+                logger_.warn("Unknown mlockall error " + errno);
+            }
         }
     }
 }
