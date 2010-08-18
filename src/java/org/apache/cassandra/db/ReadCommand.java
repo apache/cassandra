@@ -25,12 +25,10 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.concurrent.StageManager;
@@ -88,40 +86,11 @@ public abstract class ReadCommand
     
     public abstract ReadCommand copy();
 
-    public Row getRow(Table table) throws IOException
-    {
-        return table.getRow(getQueryFilter());
-    }
+    public abstract Row getRow(Table table) throws IOException;
 
-    protected abstract QueryFilter getQueryFilter();
-
-	protected AbstractType getComparator()
+    protected AbstractType getComparator()
     {
         return ColumnFamily.getComparatorFor(table, getColumnFamilyName(), queryPath.superColumnName);
-    }
-
-	public Row mergeRowWithMemtables(Table table, Row row, Map<ColumnFamilyStore, Memtable> map)
-	{
-        QueryFilter filter = getQueryFilter();
-        ColumnFamilyStore cfStore = table.getColumnFamilyStore(filter.getColumnFamilyName());
-        Memtable memtable = map.get(cfStore);
-
-        final ColumnFamily memtableCf = ColumnFamily.create(cfStore.metadata);
-        IColumnIterator iter = filter.getMemtableColumnIterator(memtable, cfStore.getComparator());
-        filter.collectCollatedColumns(memtableCf, iter, (int) (System.currentTimeMillis() / 1000) - cfStore.metadata.gcGraceSeconds);
-        try
-        {
-            iter.close();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-
-        if (row.cf == null)
-            return new Row(filter.key, memtableCf);
-        row.cf.resolve(memtableCf);
-        return new Row(filter.key, row.cf);
     }
 }
 

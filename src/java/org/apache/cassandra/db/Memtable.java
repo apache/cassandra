@@ -108,7 +108,12 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         isFrozen = true;
     }
 
-    public void put(DecoratedKey key, ColumnFamily columnFamily)
+    /**
+     * Should only be called by ColumnFamilyStore.apply.  NOT a public API.
+     * (CFS handles locking to avoid submitting an op
+     *  to a flushing memtable.  Any other way is unsafe.)
+    */
+    void put(DecoratedKey key, ColumnFamily columnFamily)
     {
         assert !isFrozen; // not 100% foolproof but hell, it's an assert
         resolve(key, columnFamily);

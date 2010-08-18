@@ -17,7 +17,6 @@ Features
     - `truncate` thrift method allows clearing an entire ColumnFamily at once
     - Hadoop OutputFormat support
     - Up to 8x faster reads from row cache
-    - Optional per-connection read-your-writes consistency
     - A new ByteOrderedPartitioner supports bytes keys with arbitrary content,
       and orders keys by their byte value.  This should be used in new
       deployments instead of OrderPreservingPartitioner.

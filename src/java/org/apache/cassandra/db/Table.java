@@ -31,7 +31,6 @@ import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.*;
-import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.LocalToken;
 import org.apache.cassandra.io.sstable.SSTableDeletingReference;
@@ -469,28 +468,6 @@ public class Table
         if (memtableToFlush != null)
             memtablesToFlush.put(cfs, memtableToFlush);
     }
-
-	public void applyToMemtable(RowMutation rm, Map<ColumnFamilyStore, Memtable> memtables)
-	{
-		for (ColumnFamily columnFamily : rm.getColumnFamilies())
-		{
-			ColumnFamilyStore cfs = columnFamilyStores.get(columnFamily.id());
-			if (cfs == null)
-			{
-				logger.error("Attempting to mutate non-existant column family " + columnFamily.id());
-				continue;
-			}
-			
-			DecoratedKey key = StorageService.getPartitioner().decorateKey(rm.key());
-			Memtable memtable = memtables.get(cfs);
-			if (memtable == null)
-			{
-				memtable = new Memtable(cfs, null);
-				memtables.put(cfs, memtable);
-			}
-            memtable.put(key, columnFamily);
-        }
-	}
 
     public List<Future<?>> flush() throws IOException
     {

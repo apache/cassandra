@@ -28,6 +28,7 @@ import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Multimap;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
@@ -50,7 +51,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LatencyTracker;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.db.filter.QueryFilter;
 
@@ -63,8 +63,6 @@ public class StorageProxy implements StorageProxyMBean
     private static final LatencyTracker readStats = new LatencyTracker();
     private static final LatencyTracker rangeStats = new LatencyTracker();
     private static final LatencyTracker writeStats = new LatencyTracker();
-
-    private static ThreadLocal<Map<ColumnFamilyStore, Memtable>> sessionWrites = new ThreadLocal<Map<ColumnFamilyStore,Memtable>>();
 
     private StorageProxy() {}
     static
@@ -96,7 +94,7 @@ public class StorageProxy implements StorageProxyMBean
 
         RowMutation mostRecentRowMutation = null;
         StorageService ss = StorageService.instance;
-
+        
         try
         {
             for (RowMutation rm : mutations)
@@ -162,14 +160,6 @@ public class StorageProxy implements StorageProxyMBean
             for (IWriteResponseHandler responseHandler : responseHandlers)
             {
                 responseHandler.get();
-            }
-            if (sessionWrites.get() != null)
-            {
-                for (RowMutation rm : mutations)
-                {
-                    // no need to apply locally-written mutations to the session
-                    Table.open(rm.getTable()).applyToMemtable(rm, sessionWrites.get());
-                }
             }
         }
         catch (IOException e)
@@ -240,7 +230,7 @@ public class StorageProxy implements StorageProxyMBean
 
         // send off all the commands asynchronously
         List<Future<Object>> localFutures = null;
-        List<Pair<IAsyncResult,ReadCommand>> remoteResults = null;
+        List<IAsyncResult> remoteResults = null;
         for (ReadCommand command: commands)
         {
             InetAddress endPoint = StorageService.instance.findSuitableEndpoint(command.table, command.key);
@@ -257,13 +247,13 @@ public class StorageProxy implements StorageProxyMBean
             else
             {
                 if (remoteResults == null)
-                    remoteResults = new ArrayList<Pair<IAsyncResult, ReadCommand>>();
+                    remoteResults = new ArrayList<IAsyncResult>();
                 Message message = command.makeReadMessage();
                 if (logger.isDebugEnabled())
                     logger.debug("weakread reading " + command + " from " + message.getMessageId() + "@" + endPoint);
                 if (randomlyReadRepair(command))
                     message.setHeader(ReadCommand.DO_REPAIR, ReadCommand.DO_REPAIR.getBytes());
-                remoteResults.add(new Pair<IAsyncResult,ReadCommand>(MessagingService.instance.sendRR(message, endPoint), command));
+                remoteResults.add(MessagingService.instance.sendRR(message, endPoint));
             }
         }
 
@@ -286,17 +276,14 @@ public class StorageProxy implements StorageProxyMBean
         }
         if (remoteResults != null)
         {
-            for (Pair<IAsyncResult,ReadCommand> iar: remoteResults)
+            for (IAsyncResult iar: remoteResults)
             {
                 byte[] body;
-                body = iar.left.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
+                body = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
                 ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
                 ReadResponse response = ReadResponse.serializer().deserialize(new DataInputStream(bufIn));
-                Row row = response.row();
-                if (sessionWrites.get() != null)
-                    row = iar.right.mergeRowWithMemtables(Table.open(iar.right.table), row, sessionWrites.get());
-                if (row != null)
-                    rows.add(row);
+                if (response.row() != null)
+                    rows.add(response.row());
             }
         }
 
@@ -364,10 +351,6 @@ public class StorageProxy implements StorageProxyMBean
             {
                 long startTime2 = System.currentTimeMillis();
                 row = quorumResponseHandler.get();
-                if (sessionWrites.get() != null)
-                {
-                    row = command.mergeRowWithMemtables(Table.open(command.table), row, sessionWrites.get());
-                }
                 if (row != null)
                     rows.add(row);
 
@@ -806,15 +789,5 @@ public class StorageProxy implements StorageProxyMBean
     private static boolean isAnyHostDown()
     {
         return !Gossiper.instance.getUnreachableMembers().isEmpty();
-    }
-
-    public static void enableSessionConsistency()
-    {
-        sessionWrites.set(new HashMap<ColumnFamilyStore, Memtable>());
-    }
-
-    public static void disableSessionConsistency()
-    {
-        sessionWrites.remove();
     }
 }

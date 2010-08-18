@@ -53,6 +53,13 @@ public class SliceByNamesReadCommand extends ReadCommand
     }
     
     @Override
+    public Row getRow(Table table) throws IOException
+    {
+        DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
+        return table.getRow(QueryFilter.getNamesFilter(dk, queryPath, columnNames));
+    }
+
+    @Override
     public String toString()
     {
         return "SliceByNamesReadCommand(" +
@@ -63,11 +70,6 @@ public class SliceByNamesReadCommand extends ReadCommand
                ')';
     }
 
-    protected QueryFilter getQueryFilter()
-    {
-        DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
-        return QueryFilter.getNamesFilter(dk, queryPath, columnNames);
-    }
 }
 
 class SliceByNamesReadCommandSerializer extends ReadCommandSerializer
