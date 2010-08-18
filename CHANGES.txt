@@ -16,6 +16,9 @@ dev
  * add support for GT/E, LT/E in subordinate index clauses (CASSANDRA-1401)
  * cfId counter got out of sync when CFs were added (CASSANDRA-1403)
  * less chatty schema updates (CASSANDRA-1389)
+ * rename column family mbeans. 'type' will now include either 
+   'IndexColumnFamilies' or 'ColumnFamilies' depending on the CFS type.
+   (CASSANDRA-1385)
 
 
 0.7-beta1
