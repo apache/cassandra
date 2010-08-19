@@ -19,6 +19,8 @@ dev
  * rename column family mbeans. 'type' will now include either 
    'IndexColumnFamilies' or 'ColumnFamilies' depending on the CFS type.
    (CASSANDRA-1385)
+ * disallow invalid keyspace and column family names. This includes name that
+   matches a '^\w+' regex. (CASSANDRA-1377)
 
 
 0.7-beta1
