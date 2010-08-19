@@ -453,9 +453,9 @@ public class CassandraServer implements Cassandra {
         for (MutationsMapEntry pair: mutationMap)
         {
             AvroValidation.validateKey(pair.key.array());
-            Map<Utf8, GenericArray<Mutation>> cfToMutations = pair.mutations;
+            Map<CharSequence, GenericArray<Mutation>> cfToMutations = pair.mutations;
             
-            for (Map.Entry<Utf8, GenericArray<Mutation>> cfMutations : cfToMutations.entrySet())
+            for (Map.Entry<CharSequence, GenericArray<Mutation>> cfMutations : cfToMutations.entrySet())
             {
                 String cfName = cfMutations.getKey().toString();
                 
@@ -493,11 +493,11 @@ public class CassandraServer implements Cassandra {
     }
     
     // FIXME: This is copypasta from o.a.c.db.RowMutation, (RowMutation.getRowMutation uses Thrift types directly).
-    private static RowMutation getRowMutationFromMutations(String keyspace, byte[] key, Map<Utf8, GenericArray<Mutation>> cfMap)
+    private static RowMutation getRowMutationFromMutations(String keyspace, byte[] key, Map<CharSequence, GenericArray<Mutation>> cfMap)
     {
         RowMutation rm = new RowMutation(keyspace, key);
         
-        for (Map.Entry<Utf8, GenericArray<Mutation>> entry : cfMap.entrySet())
+        for (Map.Entry<CharSequence, GenericArray<Mutation>> entry : cfMap.entrySet())
         {
             String cfName = entry.getKey().toString();
             
@@ -563,7 +563,7 @@ public class CassandraServer implements Cassandra {
     }
 
     @Override
-    public Void set_keyspace(Utf8 keyspace) throws InvalidRequestException
+    public Void set_keyspace(CharSequence keyspace) throws InvalidRequestException
     {
         String keyspaceStr = keyspace.toString();
         
@@ -638,7 +638,7 @@ public class CassandraServer implements Cassandra {
             if (ksDef.strategy_options != null && !ksDef.strategy_options.isEmpty())
             {
                 strategyOptions = new HashMap<String, String>();
-                for (Map.Entry<Utf8, Utf8> option : ksDef.strategy_options.entrySet())
+                for (Map.Entry<CharSequence, CharSequence> option : ksDef.strategy_options.entrySet())
                 {
                     strategyOptions.put(option.getKey().toString(), option.getValue().toString());
                 }
@@ -678,11 +678,11 @@ public class CassandraServer implements Cassandra {
     }
 
     @Override
-    public GenericArray<Utf8> describe_keyspaces() throws AvroRemoteException
+    public GenericArray<CharSequence> describe_keyspaces() throws AvroRemoteException
     {
         Set<String> keyspaces = DatabaseDescriptor.getTables();
         Schema schema = Schema.createArray(Schema.create(Schema.Type.STRING));
-        GenericArray<Utf8> avroResults = new GenericData.Array<Utf8>(keyspaces.size(), schema);
+        GenericArray<CharSequence> avroResults = new GenericData.Array<CharSequence>(keyspaces.size(), schema);
         
         for (String ksp : keyspaces)
             avroResults.add(new Utf8(ksp));

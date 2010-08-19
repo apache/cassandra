@@ -202,7 +202,7 @@
         <!-- Generate json schema from genavro IDL -->
         <java classname="org.apache.avro.tool.Main" fork="true">
           <classpath refid="cassandra.classpath" />
-          <arg value="genavro" />
+          <arg value="idl" />
           <arg value="@{inputfile}" />
           <arg value="@{outputdir}/cassandra.avpr" />
         </java>

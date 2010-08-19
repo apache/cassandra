@@ -133,6 +133,7 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
         Mx4jTool.maybeLoad();
         // FIXME: This isn't actually binding to listenAddr (it should).
         server = new HttpServer(responder, listenPort);
+        server.start();
     }
     
     /** hook for JSVC */

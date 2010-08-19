@@ -78,7 +78,7 @@ public final class KSMetaData
         ks.strategy_class = new Utf8(strategyClass.getName());
         if (strategyOptions != null)
         {
-            ks.strategy_options = new HashMap<Utf8, Utf8>();
+            ks.strategy_options = new HashMap<CharSequence, CharSequence>();
             for (Map.Entry<String, String> e : strategyOptions.entrySet())
             {
                 ks.strategy_options.put(new Utf8(e.getKey()), new Utf8(e.getValue()));
@@ -106,7 +106,7 @@ public final class KSMetaData
         if (ks.strategy_options != null)
         {
             strategyOptions = new HashMap<String, String>();
-            for (Map.Entry<Utf8, Utf8> e : ks.strategy_options.entrySet())
+            for (Map.Entry<CharSequence, CharSequence> e : ks.strategy_options.entrySet())
             {
                 strategyOptions.put(e.getKey().toString(), e.getValue().toString());
             }
