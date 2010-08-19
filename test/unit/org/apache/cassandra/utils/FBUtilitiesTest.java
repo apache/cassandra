@@ -23,6 +23,7 @@ import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
 import java.nio.charset.CharacterCodingException;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.cassandra.db.IClock;
@@ -43,6 +44,32 @@ public class FBUtilitiesTest
             byte[] c = FBUtilities.hexToBytes(s);
             assertArrayEquals(b, c);
         }
+    }
+    
+    @Test
+    public void testHexToBytesStringConversion()
+    {
+        String[] values = new String[]
+        {
+            "0",
+            "10",
+            "100",
+            "101",
+            "f",
+            "ff"
+        };
+        byte[][] expected = new byte[][]
+        {
+            new byte[] { 0x00 },
+            new byte[] { 0x10 },
+            new byte[] { 0x01, 0x00 },
+            new byte[] { 0x01, 0x01 },
+            new byte[] { 0x0f },
+            new byte[] { (byte)0x000000ff }
+        };
+        
+        for (int i = 0; i < values.length; i++)
+            assert Arrays.equals(FBUtilities.hexToBytes(values[i]), expected[i]);
     }
 
     @Test
