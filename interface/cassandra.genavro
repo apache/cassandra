@@ -23,7 +23,7 @@
 
 protocol Cassandra {
     enum AccessLevel {
-        NONE, READONLY, READWRITE, FALL
+        NONE, READONLY, READWRITE, FULL
     }
 
     record ColumnPath {
@@ -213,11 +213,22 @@ protocol Cassandra {
                       ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException;
 
+    string system_add_column_family(CfDef cf_def)
+    throws InvalidRequestException;
+
     void system_add_keyspace(KsDef ks_def) throws InvalidRequestException;
+    
+    string system_rename_column_family(string old_name, string new_name)
+    throws InvalidRequestException;
+    
+    string system_drop_column_family(string column_family)
+    throws InvalidRequestException;
 
     void set_keyspace(string keyspace) throws InvalidRequestException;
 
     array<string> describe_keyspaces();
+    
+    KsDef describe_keyspace(string keyspace) throws NotFoundException;
 
     string describe_cluster_name();
 

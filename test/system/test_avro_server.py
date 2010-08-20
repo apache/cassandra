@@ -315,6 +315,14 @@ class TestRpcOperations(AvroTester):
         keyspaces = self.client.request('describe_keyspaces', {})
         assert 'Keyspace1' in keyspaces, "Keyspace1 not in " + keyspaces
 
+    def test_describe_keyspace(self):
+        "retrieving a keyspace metadata"
+        ks1 = self.client.request('describe_keyspace',
+                {'keyspace': "Keyspace1"})
+        assert ks1['replication_factor'] == 1
+        cf0 = ks1['cf_defs'][0]
+        assert cf0['comparator_type'] == "org.apache.cassandra.db.marshal.BytesType"
+
     def test_describe_cluster_name(self):
         "retrieving the cluster name"
         name = self.client.request('describe_cluster_name', {})
@@ -327,6 +335,43 @@ class TestRpcOperations(AvroTester):
         segs = vers.split('.')
         assert len(segs) == 3 and len([i for i in segs if i.isdigit()]) == 3, \
                "incorrect api version format: " + vers
+              
+    def test_system_column_family_operations(self):
+        "adding, renaming, and removing column families"
+        self.__set_keyspace('Keyspace1')
+        
+        # create
+        columnDef = dict()
+        columnDef['name'] = b'ValidationColumn'
+        columnDef['validation_class'] = 'BytesType'
+        
+        cfDef = dict()
+        cfDef['keyspace'] = 'Keyspace1'
+        cfDef['name'] = 'NewColumnFamily'
+        cfDef['column_metadata'] = [columnDef]
+        s = self.client.request('system_add_column_family', {'cf_def' : cfDef})
+        assert isinstance(s, unicode), \
+            'returned type is %s, (not \'unicode\')' % type(s)
+        
+        ks1 = self.client.request(
+            'describe_keyspace', {'keyspace' : 'Keyspace1'})
+        assert 'NewColumnFamily' in [x['name'] for x in ks1['cf_defs']]
+
+        # rename
+        self.client.request('system_rename_column_family',
+            {'old_name' : 'NewColumnFamily', 'new_name': 'RenameColumnFamily'})
+        ks1 = self.client.request(
+            'describe_keyspace', {'keyspace' : 'Keyspace1'})
+        assert 'RenameColumnFamily' in [x['name'] for x in ks1['cf_defs']]
+
+        # drop
+        self.client.request('system_drop_column_family',
+            {'column_family' : 'RenameColumnFamily'})
+        ks1 = self.client.request(
+                'describe_keyspace', {'keyspace' : 'Keyspace1'})
+        assert 'RenameColumnFamily' not in [x['name'] for x in ks1['cf_defs']]
+        assert 'NewColumnFamily' not in [x['name'] for x in ks1['cf_defs']]
+        assert 'Standard1' in [x['name'] for x in ks1['cf_defs']]
 
     def __get(self, key, cf, super_name, col_name, consistency_level='ONE'):
         """

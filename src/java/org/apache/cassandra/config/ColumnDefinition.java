@@ -107,6 +107,14 @@ public class ColumnDefinition {
     {
         return new ColumnDefinition(cd.name, cd.validation_class, cd.index_type, cd.index_name);
     }
+    
+    public static ColumnDefinition fromColumnDef(org.apache.cassandra.avro.ColumnDef cd) throws ConfigurationException
+    {
+        return new ColumnDefinition(cd.name.array(),
+                cd.validation_class.toString(),
+                IndexType.valueOf(cd.index_type == null ? org.apache.cassandra.avro.CassandraServer.D_COLDEF_INDEXTYPE : cd.index_type.name()),
+                cd.index_name == null ? org.apache.cassandra.avro.CassandraServer.D_COLDEF_INDEXNAME : cd.index_name.toString());
+    }
 
     public static Map<byte[], ColumnDefinition> fromColumnDef(List<ColumnDef> thriftDefs) throws ConfigurationException
     {
@@ -117,6 +125,20 @@ public class ColumnDefinition {
         for (ColumnDef thriftColumnDef : thriftDefs)
         {
             cds.put(thriftColumnDef.name, fromColumnDef(thriftColumnDef));
+        }
+
+        return Collections.unmodifiableMap(cds);
+    }
+    
+    public static Map<byte[], ColumnDefinition> fromColumnDefs(Iterable<org.apache.cassandra.avro.ColumnDef> avroDefs) throws ConfigurationException
+    {
+        if (avroDefs == null)
+            return Collections.emptyMap();
+
+        Map<byte[], ColumnDefinition> cds = new TreeMap<byte[], ColumnDefinition>(FBUtilities.byteArrayComparator);
+        for (org.apache.cassandra.avro.ColumnDef avroColumnDef : avroDefs)
+        {
+            cds.put(avroColumnDef.name.array(), fromColumnDef(avroColumnDef));
         }
 
         return Collections.unmodifiableMap(cds);
