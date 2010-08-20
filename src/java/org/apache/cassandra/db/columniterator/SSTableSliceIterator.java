@@ -62,7 +62,6 @@ public class SSTableSliceIterator implements IColumnIterator
      */
     public SSTableSliceIterator(SSTableReader ssTable, FileDataInput file, DecoratedKey key, byte[] startColumn, byte[] finishColumn, boolean reversed)
     {
-        this.file = file;
         this.decoratedKey = key;
 
         if (file == null)
@@ -70,7 +69,10 @@ public class SSTableSliceIterator implements IColumnIterator
             closeFileWhenDone = true; //if we create it, we close it
             file = ssTable.getFileDataInput(decoratedKey, DatabaseDescriptor.getSlicedReadBufferSizeInKB() * 1024);
             if (file == null)
+            {
+                this.file = null;
                 return;
+            }
             try
             {
                 DecoratedKey keyInDisk = SSTableReader.decodeKey(ssTable.getPartitioner(),
@@ -85,6 +87,7 @@ public class SSTableSliceIterator implements IColumnIterator
                 throw new IOError(e);
             }
         }
+        this.file = file;
 
         reader = startColumn.length == 0 && !reversed
                  ? new SimpleSliceReader(ssTable, file, finishColumn)
