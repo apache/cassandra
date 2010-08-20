@@ -258,7 +258,7 @@ public class CassandraBulkLoader {
                                             ClockType.Timestamp,
                                             DatabaseDescriptor.getComparator(Keyspace, CFName),
                                             DatabaseDescriptor.getSubComparator(Keyspace, CFName),
-                                            new TimestampReconciler(),
+                                            TimestampReconciler.instance,
                                             CFMetaData.getId(Keyspace, CFName));
         
         for(ColumnFamily cf : ColumnFamiles) {
