@@ -133,6 +133,8 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
             MigrationManager.applyMigrations(currentMigration, lastMigration);
         }
         
+        SystemTable.purgeIncompatibleHints();
+        
         // start server internals
         StorageService.instance.initServer();
         

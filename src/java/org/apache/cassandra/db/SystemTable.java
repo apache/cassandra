@@ -52,6 +52,7 @@ public class SystemTable
     private static final byte[] LOCATION_KEY = "L".getBytes(UTF_8);
     private static final byte[] BOOTSTRAP_KEY = "Bootstrap".getBytes(UTF_8);
     private static final byte[] GRAVEYARD_KEY = "Graveyard".getBytes(UTF_8);
+    private static final byte[] COOKIE_KEY = "Cookies".getBytes(UTF_8);
     private static final byte[] BOOTSTRAP = "B".getBytes(UTF_8);
     private static final byte[] TOKEN = "Token".getBytes(UTF_8);
     private static final byte[] GENERATION = "Generation".getBytes(UTF_8);
@@ -62,6 +63,25 @@ public class SystemTable
     private static DecoratedKey decorate(byte[] key)
     {
         return StorageService.getPartitioner().decorateKey(key);
+    }
+    
+    /* if hints become incompatible across versions of cassandra, that logic (and associated purging) is managed here. */
+    public static void purgeIncompatibleHints() throws IOException
+    {
+        // 0.6->0.7
+        final byte[] hintsPurged6to7 = "Hints purged as part of upgrading from 0.6.x to 0.7".getBytes();
+        Table table = Table.open(Table.SYSTEM_TABLE);
+        QueryFilter dotSeven = QueryFilter.getNamesFilter(decorate(COOKIE_KEY), new QueryPath(STATUS_CF), hintsPurged6to7);
+        ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(dotSeven);
+        if (cf == null)
+        {
+            // upgrading from 0.6 to 0.7.
+            logger.info("Upgrading to 0.7. Purging hints if there are any. Old hints will be snapshotted.");
+            new Truncation(Table.SYSTEM_TABLE, HintedHandOffManager.HINTS_CF).apply();
+            RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, COOKIE_KEY);
+            rm.add(new QueryPath(STATUS_CF, null, hintsPurged6to7), "oh yes, it they were purged.".getBytes(), new TimestampClock(System.currentTimeMillis()));
+            rm.apply();
+        }
     }
 
     /**

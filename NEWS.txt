@@ -35,6 +35,10 @@ Upgrading
     The Cassandra inter-node protocol is incompatible with 0.6.x releases,
     meaning you will have to bring your cluster down prior to upgrading;
     you cannot mix 0.6 and 0.7 nodes.
+    
+    The hints schema was changed from 0.6 to 0.7. Cassandra automatically
+    snapshots and then truncates the hints column family as part of 
+    starting up 0.7 for the first time.
 
     Keyspace and ColumnFamily definitions are stored in the system
     keyspace, rather than the configuration file.

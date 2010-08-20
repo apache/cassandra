@@ -22,6 +22,7 @@ dev
  * disallow invalid keyspace and column family names. This includes name that
    matches a '^\w+' regex. (CASSANDRA-1377)
  * use JNA, if present, to take snapshots (CASSANDRA-1371)
+ * truncate hints if starting 0.7 for the first time (CASSANDRA-1414)
 
 
 0.7-beta1
