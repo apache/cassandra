@@ -616,21 +616,6 @@ public class FBUtilities
             // this will have already been logged by CLibrary, no need to repeat it
             return;
         }
-        catch (Exception e)
-        {
-            logger_.debug("Unable to mlockall", e);
-            // skipping mlockall doesn't seem to be a Big Deal except on Linux.  See CASSANDRA-1214
-            if (System.getProperty("os.name").toLowerCase().contains("linux"))
-            {
-                logger_.warn("Unable to lock JVM memory (" + e.getMessage() + ")."
-                             + " This can result in part of the JVM being swapped out, especially with mmapped I/O enabled.");
-            }
-            else if (!System.getProperty("os.name").toLowerCase().contains("windows"))
-            {
-                logger_.info("Unable to lock JVM memory: " + e.getMessage());
-            }
-            return;
-        }
 
         if (errno != Integer.MIN_VALUE)
         {
