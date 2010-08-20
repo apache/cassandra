@@ -179,6 +179,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(3L), new TimestampClock(0));
         rm.apply();
 
+        // basic single-expression query
         IndexExpression expr = new IndexExpression("birthdate".getBytes("UTF8"), IndexOperator.EQ, FBUtilities.toByteArray(1L));
         IndexClause clause = new IndexClause(Arrays.asList(expr), ArrayUtils.EMPTY_BYTE_ARRAY, 100);
         IFilter filter = new IdentityQueryFilter();
@@ -193,12 +194,28 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         assert Arrays.equals(FBUtilities.toByteArray(1L), rows.get(0).cf.getColumn("birthdate".getBytes("UTF8")).value());
         assert Arrays.equals(FBUtilities.toByteArray(1L), rows.get(1).cf.getColumn("birthdate".getBytes("UTF8")).value());
 
+        // add a second expression
         IndexExpression expr2 = new IndexExpression("notbirthdate".getBytes("UTF8"), IndexOperator.GTE, FBUtilities.toByteArray(2L));
         clause = new IndexClause(Arrays.asList(expr, expr2), ArrayUtils.EMPTY_BYTE_ARRAY, 100);
         rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").scan(clause, range, filter);
 
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         assert Arrays.equals("k3".getBytes(), rows.get(0).key.key);
+
+        // same query again, but with resultset not including the subordinate expression
+        rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").scan(clause, range, new NamesQueryFilter("birthdate".getBytes("UTF8")));
+
+        assert rows.size() == 1 : StringUtils.join(rows, ",");
+        assert Arrays.equals("k3".getBytes(), rows.get(0).key.key);
+        assert rows.get(0).cf.getColumnCount() == 1;
+
+        // once more, this time with a slice rowset that needs to be expanded
+        SliceQueryFilter sqf = new SliceQueryFilter(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 0);
+        rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").scan(clause, range, sqf);
+
+        assert rows.size() == 1 : StringUtils.join(rows, ",");
+        assert Arrays.equals("k3".getBytes(), rows.get(0).key.key);
+        assert rows.get(0).cf.getColumnCount() == 0;
     }
 
     @Test
