@@ -220,12 +220,13 @@ public class ColumnFamilyStoreTest extends CleanupHelper
     @Test
     public void testIndexUpdate() throws IOException
     {
-        RowMutation rm;
+        Table table = Table.open("Keyspace2");
 
+        // create a row and update the birthdate value, test that the index query fetches the new version
+        RowMutation rm;
         rm = new RowMutation("Keyspace2", "k1".getBytes());
         rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), new TimestampClock(1));
         rm.apply();
-
         rm = new RowMutation("Keyspace2", "k1".getBytes());
         rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(2L), new TimestampClock(2));
         rm.apply();
@@ -235,12 +236,20 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
-        List<Row> rows = Table.open("Keyspace2").getColumnFamilyStore("Indexed1").scan(clause, range, filter);
+        List<Row> rows = table.getColumnFamilyStore("Indexed1").scan(clause, range, filter);
         assert rows.size() == 0;
 
         expr = new IndexExpression("birthdate".getBytes("UTF8"), IndexOperator.EQ, FBUtilities.toByteArray(2L));
         clause = new IndexClause(Arrays.asList(expr), ArrayUtils.EMPTY_BYTE_ARRAY, 100);
-        rows = Table.open("Keyspace2").getColumnFamilyStore("Indexed1").scan(clause, range, filter);
+        rows = table.getColumnFamilyStore("Indexed1").scan(clause, range, filter);
+        assert Arrays.equals("k1".getBytes(), rows.get(0).key.key);
+
+        // update the birthdate value with an OLDER timestamp, and test that the index ignores this
+        rm = new RowMutation("Keyspace2", "k1".getBytes());
+        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(3L), new TimestampClock(0));
+        rm.apply();
+
+        rows = table.getColumnFamilyStore("Indexed1").scan(clause, range, filter);
         assert Arrays.equals("k1".getBytes(), rows.get(0).key.key);
     }
 
