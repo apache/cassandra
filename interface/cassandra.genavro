@@ -233,4 +233,6 @@ protocol Cassandra {
     string describe_cluster_name();
 
     string describe_version();
+
+    string describe_partitioner();
 }

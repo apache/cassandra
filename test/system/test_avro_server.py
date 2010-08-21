@@ -335,6 +335,12 @@ class TestRpcOperations(AvroTester):
         segs = vers.split('.')
         assert len(segs) == 3 and len([i for i in segs if i.isdigit()]) == 3, \
                "incorrect api version format: " + vers
+
+    def test_describe_partitioner(self):
+        "getting the partitioner"
+        part = "org.apache.cassandra.dht.CollatingOrderPreservingPartitioner"
+        result = self.client.request('describe_partitioner', {})
+        assert result == part, "got %s, expected %s" % (result, part)
               
     def test_system_column_family_operations(self):
         "adding, renaming, and removing column families"

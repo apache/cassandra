@@ -952,4 +952,10 @@ public class CassandraServer implements Cassandra {
             throw ex;
         }
     }
+
+    @Override
+    public CharSequence describe_partitioner() throws AvroRemoteException
+    {
+        return StorageService.getPartitioner().getClass().getName();
+    }
 }
