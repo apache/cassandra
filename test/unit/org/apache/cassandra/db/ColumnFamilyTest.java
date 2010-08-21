@@ -129,5 +129,17 @@ public class ColumnFamilyTest extends SchemaLoader
         assert 3 == cf_result.getColumnCount() : "Count is " + cf_new.getColumnCount();
         //addcolumns will only add if timestamp >= old timestamp
         assert Arrays.equals(val, cf_result.getColumn("col2".getBytes()).value());
+
+        // check that tombstone wins timestamp ties
+        cf_result.deleteColumn("col1".getBytes(), 0, new TimestampClock(3));
+        assert cf_result.getColumn("col1".getBytes()).isMarkedForDelete();
+        cf_result.addColumn(QueryPath.column("col1".getBytes()), val2, new TimestampClock(3));
+        assert cf_result.getColumn("col1".getBytes()).isMarkedForDelete();
+
+        // check that column value wins timestamp ties in absence of tombstone
+        cf_result.addColumn(QueryPath.column("col3".getBytes()), val, new TimestampClock(2));
+        assert Arrays.equals(cf_result.getColumn("col3".getBytes()).value(), val2);
+        cf_result.addColumn(QueryPath.column("col3".getBytes()), "z".getBytes(), new TimestampClock(2));
+        assert Arrays.equals(cf_result.getColumn("col3".getBytes()).value(), "z".getBytes());
     }
 }
