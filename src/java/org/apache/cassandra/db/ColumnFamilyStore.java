@@ -897,7 +897,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public ColumnFamily getColumnFamily(QueryFilter filter)
     {
-        return getColumnFamily(filter, (int) (System.currentTimeMillis() / 1000) - metadata.gcGraceSeconds);
+        return getColumnFamily(filter, gcBefore());
+    }
+
+    private int gcBefore()
+    {
+        return (int) (System.currentTimeMillis() / 1000) - metadata.gcGraceSeconds;
     }
 
     private ColumnFamily cacheRow(DecoratedKey key)
@@ -1136,15 +1141,68 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public List<Row> scan(IndexClause clause, AbstractBounds range, IFilter dataFilter)
     {
+        // Start with the most-restrictive indexed clause, then apply remaining clauses
+        // to each row matching that clause.
         // TODO: allow merge join instead of just one index + loop
-        IndexExpression first = highestSelectivityPredicate(clause);
-        ColumnFamilyStore indexCFS = getIndexedColumnFamilyStore(first.column_name);
+        IndexExpression primary = highestSelectivityPredicate(clause);
+        ColumnFamilyStore indexCFS = getIndexedColumnFamilyStore(primary.column_name);
         assert indexCFS != null;
-        DecoratedKey indexKey = indexCFS.partitioner.decorateKey(first.value);
+        DecoratedKey indexKey = indexCFS.partitioner.decorateKey(primary.value);
+
+        // if the slicepredicate doesn't contain all the columns for which we have expressions to evaluate,
+        // it needs to be expanded to include those too
+        IFilter firstFilter = dataFilter;
+        NamesQueryFilter extraFilter = null;
+        if (clause.expressions.size() > 1)
+        {
+            if (dataFilter instanceof SliceQueryFilter)
+            {
+                // if we have a high chance of getting all the columns in a single index slice, do that.
+                // otherwise, create an extraFilter to fetch by name the columns referenced by the additional expressions.
+                if (getMaxRowSize() < DatabaseDescriptor.getColumnIndexSize())
+                {
+                    firstFilter = new SliceQueryFilter(ArrayUtils.EMPTY_BYTE_ARRAY,
+                                                       ArrayUtils.EMPTY_BYTE_ARRAY,
+                                                       ((SliceQueryFilter) dataFilter).reversed,
+                                                       Integer.MAX_VALUE);
+                }
+                else
+                {
+                    SortedSet<byte[]> columns = new TreeSet<byte[]>(getComparator());
+                    for (IndexExpression expr : clause.expressions)
+                    {
+                        if (expr == primary)
+                            continue;
+                        columns.add(expr.column_name);
+                    }
+                    extraFilter = new NamesQueryFilter(columns);
+                }
+            }
+            else
+            {
+                // just add in columns that are not part of the resultset
+                assert dataFilter instanceof NamesQueryFilter;
+                SortedSet<byte[]> columns = new TreeSet<byte[]>(getComparator());
+                for (IndexExpression expr : clause.expressions)
+                {
+                    if (expr == primary || ((NamesQueryFilter) dataFilter).columns.contains(expr.column_name))
+                        continue;
+                    columns.add(expr.column_name);
+                }
+                if (columns.size() > 0)
+                {
+                    columns.addAll(((NamesQueryFilter) dataFilter).columns);
+                    firstFilter = new NamesQueryFilter(columns);
+                }
+            }
+        }
 
         List<Row> rows = new ArrayList<Row>();
         byte[] startKey = clause.start_key;
-        
+        QueryPath path = new QueryPath(columnFamily);
+
+        // fetch row keys matching the primary expression, fetch the slice predicate for each
+        // and filter by remaining expressions.  repeat until finished w/ assigned range or index row is exhausted.
         outer:
         while (true)
         {
@@ -1176,9 +1234,38 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     break outer;
                 if (!range.contains(dk.token))
                     continue;
-                ColumnFamily data = getColumnFamily(new QueryFilter(dk, new QueryPath(columnFamily), dataFilter));
-                if (satisfies(data, clause, first))
+
+                // get the row columns requested, and additional columns for the expressions if necessary
+                ColumnFamily data = getColumnFamily(new QueryFilter(dk, path, firstFilter));
+                if (extraFilter != null)
+                {
+                    // we might have gotten the expression columns in with the main data slice, but
+                    // we can't know for sure until that slice is done.  So, we'll do the extra query
+                    // if we go through and any expression columns are not present.
+                    for (IndexExpression expr : clause.expressions)
+                    {
+                        if (expr != primary && data.getColumn(expr.column_name) == null)
+                        {
+                            data.addAll(getColumnFamily(new QueryFilter(dk, path, extraFilter)));
+                            break;
+                        }
+                    }
+                }
+
+                if (satisfies(data, clause, primary))
+                {
+                    // cut the resultset back to what was requested, if necessary
+                    if (firstFilter != dataFilter)
+                    {
+                        ColumnFamily expandedData = data;
+                        data = expandedData.cloneMeShallow();
+                        IColumnIterator iter = dataFilter.getMemtableColumnIterator(expandedData, dk, getComparator());
+                        new QueryFilter(dk, path, dataFilter).collectCollatedColumns(data, iter, gcBefore());
+                    }
+
                     rows.add(new Row(dk, data));
+                }
+
                 if (rows.size() == clause.count)
                     break outer;
             }

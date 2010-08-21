@@ -24,6 +24,8 @@ dev
  * use JNA, if present, to take snapshots (CASSANDRA-1371)
  * truncate hints if starting 0.7 for the first time (CASSANDRA-1414)
  * fix FD leak in single-row slicepredicate queries (CASSANDRA-1416)
+ * allow index expressions against columns that are not part of the 
+   SlicePredicate (CASSANDRA-1410)
 
 
 0.7-beta1
