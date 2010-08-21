@@ -152,16 +152,14 @@ public class QueryFilter
     }
 
     /**
-     * @return a QueryFilter object to satisfy the given slice criteria:
-     * @param key the row to slice
+     * @return a QueryFilter object to satisfy the given slice criteria:  @param key the row to slice
      * @param path path to the level to slice at (CF or SuperColumn)
      * @param start column to start slice at, inclusive; empty for "the first column"
      * @param finish column to stop slice at, inclusive; empty for "the last column"
-     * @param bitmasks we should probably remove this
      * @param reversed true to start with the largest column (as determined by configured sort order) instead of smallest
      * @param limit maximum number of non-deleted columns to return
      */
-    public static QueryFilter getSliceFilter(DecoratedKey key, QueryPath path, byte[] start, byte[] finish, List<byte[]> bitmasks, boolean reversed, int limit)
+    public static QueryFilter getSliceFilter(DecoratedKey key, QueryPath path, byte[] start, byte[] finish, boolean reversed, int limit)
     {
         return new QueryFilter(key, path, new SliceQueryFilter(start, finish, reversed, limit));
     }

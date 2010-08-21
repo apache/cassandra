@@ -51,38 +51,21 @@ public class ReadMessageTest extends SchemaLoader
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
 
-        rm = new SliceFromReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, new ArrayList<byte[]>(0), true, 2);
+        rm = new SliceFromReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 2);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
         
-        rm = new SliceFromReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), "a".getBytes(), "z".getBytes(), new ArrayList<byte[]>(0), true, 5);
+        rm = new SliceFromReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), "a".getBytes(), "z".getBytes(), true, 5);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assertEquals(rm2.toString(), rm.toString());
 
-        rm = new SliceFromReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, null, true, 2);
+        rm = new SliceFromReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 2);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
 
-        rm = new SliceFromReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), "a".getBytes(), "z".getBytes(), null, true, 5);
+        rm = new SliceFromReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), "a".getBytes(), "z".getBytes(), true, 5);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assertEquals(rm2.toString(), rm.toString());
-
-        for (String[] bitmaskTests: new String[][] { {}, {"test one", "test two" }, { new String(new byte[] { 0, 1, 0x20, (byte) 0xff }) } })
-        {
-            ArrayList<byte[]> bitmasks = new ArrayList<byte[]>(bitmaskTests.length);
-            for (String bitmaskTest : bitmaskTests)
-            {
-                bitmasks.add(bitmaskTest.getBytes("UTF-8"));
-            }
-
-            rm = new SliceFromReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, bitmasks, true, 2);
-            rm2 = serializeAndDeserializeReadMessage(rm);
-            assert rm2.toString().equals(rm.toString());
-
-            rm = new SliceFromReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), "a".getBytes(), "z".getBytes(), bitmasks, true, 5);
-            rm2 = serializeAndDeserializeReadMessage(rm);
-            assertEquals(rm2.toString(), rm.toString());
-        }
     }
 
     private ReadCommand serializeAndDeserializeReadMessage(ReadCommand rm) throws IOException

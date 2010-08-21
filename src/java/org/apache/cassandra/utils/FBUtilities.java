@@ -482,19 +482,6 @@ public class FBUtilities
         return Charsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString();
     }
 
-    /**
-     * Test if a particular bit is set using a bit mask.
-     *
-     * @param v the value in which a bit must be tested
-     * @param mask the bit mask use to select a bit of <code>v</code>
-     * @return true if the bit of <code>v</code> selected by <code>mask<code>
-     * is set, false otherwise.
-     */
-    public static boolean testBitUsingBitMask(int v, int mask)
-    {
-        return (v & mask) != 0;
-    }
-
     public static byte[] toByteArray(long n)
     {
         byte[] bytes = new byte[8];

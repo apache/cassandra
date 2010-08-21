@@ -880,14 +880,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return writeStats.getRecentLatencyHistogramMicros();
     }
 
-    public ColumnFamily getColumnFamily(DecoratedKey key, QueryPath path, byte[] start, byte[] finish, List<byte[]> bitmasks, boolean reversed, int limit)
-    {
-        return getColumnFamily(QueryFilter.getSliceFilter(key, path, start, finish, bitmasks, reversed, limit));
-    }
-
     public ColumnFamily getColumnFamily(DecoratedKey key, QueryPath path, byte[] start, byte[] finish, boolean reversed, int limit)
     {
-        return getColumnFamily(QueryFilter.getSliceFilter(key, path, start, finish, null, reversed, limit));
+        return getColumnFamily(QueryFilter.getSliceFilter(key, path, start, finish, reversed, limit));
     }
 
     /**
@@ -1214,7 +1209,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                                  new QueryPath(indexCFS.getColumnFamilyName()),
                                                                  startKey,
                                                                  ArrayUtils.EMPTY_BYTE_ARRAY,
-                                                                 null,
                                                                  false,
                                                                  clause.count);
             ColumnFamily indexRow = indexCFS.getColumnFamily(indexFilter);

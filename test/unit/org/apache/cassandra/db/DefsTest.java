@@ -253,7 +253,7 @@ public class DefsTest extends CleanupHelper
         // do some reads.
         store = Table.open(oldCfm.tableName).getColumnFamilyStore(cfName);
         assert store != null;
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getSliceFilter(dk, new QueryPath(cfName), "".getBytes(), "".getBytes(), null, false, 1000));
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getSliceFilter(dk, new QueryPath(cfName), "".getBytes(), "".getBytes(), false, 1000));
         assert cfam.getSortedColumns().size() == 100; // should be good enough?
         
         // do some writes

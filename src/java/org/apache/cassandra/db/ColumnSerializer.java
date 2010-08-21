@@ -65,7 +65,7 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
     {
         byte[] name = FBUtilities.readShortByteArray(dis);
         int b = dis.readUnsignedByte();
-        if (FBUtilities.testBitUsingBitMask(b, EXPIRATION_MASK))
+        if ((b & EXPIRATION_MASK) != 0)
         {
             int ttl = dis.readInt();
             int expiration = dis.readInt();
@@ -86,10 +86,10 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
         }
         else
         {
-            boolean delete = FBUtilities.testBitUsingBitMask(b, DELETION_MASK);
+            boolean delete = (b & DELETION_MASK) != 0;
             IClock clock = clockType.serializer().deserialize(dis);
             byte[] value = FBUtilities.readByteArray(dis);
-            if (FBUtilities.testBitUsingBitMask(b, DELETION_MASK)) {
+            if ((b & DELETION_MASK) != 0) {
                 return new DeletedColumn(name, value, clock);
             } else {
                 return new Column(name, value, clock);

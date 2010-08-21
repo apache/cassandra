@@ -22,12 +22,9 @@ import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.*;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.Predicate;
-import org.apache.commons.collections.PredicateUtils;
+
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.ArrayUtils;
 import org.junit.Test;
@@ -40,7 +37,6 @@ import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.getBytes;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -81,7 +77,7 @@ public class TableTest extends CleanupHelper
                 cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(TEST_KEY, new QueryPath("Standard3"), new TreeSet<byte[]>()));
                 assertColumns(cf);
 
-                cf = cfStore.getColumnFamily(QueryFilter.getSliceFilter(TEST_KEY, new QueryPath("Standard3"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, 0));
+                cf = cfStore.getColumnFamily(QueryFilter.getSliceFilter(TEST_KEY, new QueryPath("Standard3"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 0));
                 assertColumns(cf);
 
                 cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(TEST_KEY, new QueryPath("Standard3"), "col99".getBytes()));
@@ -473,12 +469,10 @@ public class TableTest extends CleanupHelper
         }
 
         assert Arrays.equals(la, columnNames1)
-                : String.format("Columns [%s(as string: %s)])] is not expected [%s] (bitmasks %s)",
+                : String.format("Columns [%s(as string: %s)])] is not expected [%s]",
                                 ((cf == null) ? "" : cf.getComparator().getColumnsString(columns)),
                                 lasb.toString(),
-                                StringUtils.join(columnNames1, ","),
-                                SliceFromReadCommand.getBitmaskDescription(null));
-
+                                StringUtils.join(columnNames1, ","));
     }
 
 }
