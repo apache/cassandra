@@ -556,7 +556,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return metadata.comparator;
     }
 
-    public ColumnFamily makeColumnFamily()
+    public ColumnFamily createColumnFamily()
     {
         return ColumnFamily.create(metadata);
     }

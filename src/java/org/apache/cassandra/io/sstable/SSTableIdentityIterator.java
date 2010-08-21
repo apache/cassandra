@@ -66,7 +66,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
             file.seek(this.dataStart);
             IndexHelper.skipBloomFilter(file);
             IndexHelper.skipIndex(file);
-            columnFamily = sstable.makeColumnFamily();
+            columnFamily = sstable.createColumnFamily();
             ColumnFamily.serializer().deserializeFromSSTableNoColumns(columnFamily, file);
             columnCount = file.readInt();
             columnPosition = file.getFilePointer();

@@ -55,7 +55,7 @@ class SimpleSliceReader extends AbstractIterator<IColumn> implements IColumnIter
             IndexHelper.skipBloomFilter(file);
             IndexHelper.skipIndex(file);
 
-            emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(sstable.makeColumnFamily(), file);
+            emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(sstable.createColumnFamily(), file);
             columns = file.readInt();
             mark = file.mark();
         }

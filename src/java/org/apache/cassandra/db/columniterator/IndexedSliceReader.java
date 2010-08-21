@@ -69,7 +69,7 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
             IndexHelper.skipBloomFilter(file);
             indexes = IndexHelper.deserializeIndex(file);
 
-            emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(sstable.makeColumnFamily(), file);
+            emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(sstable.createColumnFamily(), file);
             fetcher = indexes == null ? new SimpleBlockFetcher() : new IndexedBlockFetcher();
         }
         catch (IOException e)
