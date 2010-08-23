@@ -642,9 +642,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         public CompactionExecutor()
         {
-            super("CompactionExecutor", System.getProperty("cassandra.compaction.priority") == null
-                                        ? Thread.NORM_PRIORITY
-                                        : Integer.parseInt(System.getProperty("cassandra.compaction.priority")));
+            super("CompactionExecutor", DatabaseDescriptor.getCompactionThreadPriority());
         }
 
         @Override

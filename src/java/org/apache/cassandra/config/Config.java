@@ -66,6 +66,7 @@ public class Config
     public Integer thrift_max_message_length_in_mb = 16;
     public Integer thrift_framed_transport_size_in_mb = 15;
     public Boolean snapshot_before_compaction = false;
+    public Integer compaction_thread_priority = Thread.MIN_PRIORITY;
     
     public Integer binary_memtable_throughput_in_mb = 256;
     /* Number of minutes to keep a memtable in memory */

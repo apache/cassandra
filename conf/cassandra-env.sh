@@ -50,6 +50,8 @@ JVM_OPTS="$JVM_OPTS -XX:+CMSParallelRemarkEnabled"
 JVM_OPTS="$JVM_OPTS -XX:SurvivorRatio=8" 
 JVM_OPTS="$JVM_OPTS -XX:MaxTenuringThreshold=1" 
 JVM_OPTS="$JVM_OPTS -XX:+HeapDumpOnOutOfMemoryError" 
+JVM_OPTS="$JVM_OPTS -XX:+UseThreadPriorities"
+JVM_OPTS="$JVM_OPTS -XX:ThreadPriorityPolicy=42"
 
 JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.port=$JMX_PORT" 
 JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.ssl=false" 

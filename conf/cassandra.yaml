@@ -89,6 +89,10 @@ thrift_max_message_length_in_mb: 16
 
 snapshot_before_compaction: false
 
+# change this to increase the compaction thread's priority.  In java, 1 is the
+# lowest priority and that is our default.
+# compaction_thread_priority: 1
+
 # The threshold size in megabytes the binary memtable must grow to,
 # before it's submitted for flushing to disk.
 binary_memtable_throughput_in_mb: 256
