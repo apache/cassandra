@@ -1,0 +1,53 @@
+cassandra (0.6.5) unstable; urgency=low
+
+  * New stable point release.
+
+ -- Eric Evans <eevans@apache.org>  Mon, 23 Aug 2010 12:08:14 -0500
+
+cassandra (0.6.4) unstable; urgency=low
+
+  * New stable point release.
+
+ -- Eric Evans <eevans@apache.org>  Tue, 27 Jul 2010 15:47:09 -0500
+
+cassandra (0.6.3) unstable; urgency=low
+
+  * New stable point release.
+
+ -- Eric Evans <eevans@apache.org>  Fri, 25 Jun 2010 17:18:54 -0500
+
+cassandra (0.6.2) unstable; urgency=low
+
+  * New stable point release.
+
+ -- Eric Evans <eevans@apache.org>  Mon, 24 May 2010 13:26:14 -0500
+
+cassandra (0.6.1) unstable; urgency=low
+
+  * New stable point release.
+
+ -- Eric Evans <eevans@apache.org>  Thu, 15 Apr 2010 08:04:20 -0500
+
+cassandra (0.6.0~rc1-1) unstable; urgency=low
+
+  * New release candidated.
+
+ -- Eric Evans <eevans@apache.org>  Sun, 28 Mar 2010 09:42:07 -0500
+
+cassandra (0.6.0~beta3-1) unstable; urgency=low
+
+  * New beta release.
+
+ -- Eric Evans <eevans@apache.org>  Wed, 17 Mar 2010 13:14:19 -0500
+
+cassandra (0.6.0~beta2-1) unstable; urgency=low
+
+  * New beta release.
+
+ -- Eric Evans <eevans@apache.org>  Tue, 23 Feb 2010 17:55:17 -0600
+
+cassandra (0.5.0-1) unstable; urgency=low
+
+  * New stable release.
+
+ -- Eric Evans <eevans@apache.org>  Tue, 26 Jan 2010 11:21:11 -0600
