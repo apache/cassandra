@@ -26,6 +26,8 @@ dev
  * fix FD leak in single-row slicepredicate queries (CASSANDRA-1416)
  * allow index expressions against columns that are not part of the 
    SlicePredicate (CASSANDRA-1410)
+ * config-converter properly handles snitches and framed support 
+   (CASSANDRA-1420)
 
 
 0.7-beta1
