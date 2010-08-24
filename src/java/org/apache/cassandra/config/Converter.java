@@ -63,6 +63,7 @@ public class Converter
         /* Read the table related stuff from config */
         try
         {
+            String endPointSnitchClassName = null; // Used as a sentinel. EPS cannot be undefined in 0.6.
             NodeList tablesxml = xmlUtils.getRequestedNodeList("/Storage/Keyspaces/Keyspace");
 
             String gcGrace = xmlUtils.getNodeValue("/Storage/GCGraceSeconds");
@@ -79,7 +80,14 @@ public class Converter
                 /* parsing out the table ksName */
                 ks.name = XMLUtils.getAttributeValue(table, "Name");
 
-                
+                value = xmlUtils.getNodeValue("/Storage/Keyspaces/Keyspace[@Name='" + ks.name + "']/EndPointSnitch");
+                if (endPointSnitchClassName == null) {
+                    endPointSnitchClassName = value;
+                }
+                else if (!endPointSnitchClassName.equals(value)) {
+                    throw new ConfigurationException("ERROR : EndPointSnitch is global in 0.7 -- multiple choices present.");
+                }
+
                 ks.replica_placement_strategy = xmlUtils.getNodeValue("/Storage/Keyspaces/Keyspace[@Name='" + ks.name + "']/ReplicaPlacementStrategy");
                 /* Data replication factor */
                 value = xmlUtils.getNodeValue("/Storage/Keyspaces/Keyspace[@Name='" + ks.name + "']/ReplicationFactor");
@@ -127,6 +135,18 @@ public class Converter
                 }
                 keyspaces.add(ks);
             }
+            if (endPointSnitchClassName.equals("org.apache.cassandra.locator.EndPointSnitch")) {
+                endPointSnitchClassName = "org.apache.cassandra.locator.RackInferringSnitch";
+                System.out.println("WARN : org.apache.cassandra.locator.EndPointSnitch has been replaced by org.apache.cassandra.locator.RackInferringSnitch");
+            }
+            else if (endPointSnitchClassName.equals("org.apache.cassandra.locator.PropertyFileEndpointSnitch")) {
+                endPointSnitchClassName = "org.apache.cassandra.locator.PropertyFileSnitch";
+                System.out.println("WARN : org.apache.cassandra.locator.PropertyFileEndpointSnich has been replaced by org.apache.cassandra.locator.PropertyFileSnitch");
+            }
+            else {
+                System.out.println("INFO : EndPointSnitch is global in 0.7 and may need to be updated.");
+            }
+            conf.endpoint_snitch = endPointSnitchClassName;
             return keyspaces;
         }
         catch (XPathExpressionException e) 
@@ -215,13 +235,16 @@ public class Converter
                 conf.rpc_port = Integer.parseInt(port);
             
             String framedRaw = xmlUtils.getNodeValue("/Storage/ThriftFramedTransport");
-            if (framedRaw != null && Boolean.valueOf(framedRaw))
+            if (framedRaw != null && !Boolean.valueOf(framedRaw))
+            {
+                conf.thrift_framed_transport_size_in_mb = 0;
+                System.out.println("WARN : Thrift uses framed Transport by default in 0.7! Setting TFramedTransportSize to 0MB (disabled).");
+            }
+            else
             {
                 conf.thrift_framed_transport_size_in_mb = 15;
                 System.out.println("TFramedTransport will have a maximum frame size of 15MB");
             }
-            
-            conf.endpoint_snitch = xmlUtils.getNodeValue("/Storage/EndpointSnitch");
             
             String sbc = xmlUtils.getNodeValue("/Storage/SnapshotBeforeCompaction");
             if (sbc != null)
@@ -264,8 +287,7 @@ public class Converter
             conf.seeds = xmlUtils.getNodeValues("/Storage/Seeds/Seed");
             
             conf.keyspaces = readTablesFromXml(xmlUtils);
-            
-        } 
+        }
         catch (ParserConfigurationException e) {
             System.out.println("Parser error during previous config load.");
             throw new ConfigurationException("Parser error during previous config load.");
