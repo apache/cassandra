@@ -90,8 +90,7 @@ dev
  * remove String.trim() call on row keys in batch mutations (CASSANDRA-1235)
  * Log summary of dropped messages instead of spamming log (CASSANDRA-1284)
  * add dynamic endpoint snitch (CASSANDRA-981)
- * Use a regex to filter keyspace and column family names during
-   initialization (CASSANDRA-1377)
+ * fix streaming for keyspaces with hyphens in their name (CASSANDRA-1377)
  * fix errors in hard-coded bloom filter optKPerBucket by computing it
    algorithmically (CASSANDRA-1220
  * remove message deserialization stage, and uncap read/write stages
