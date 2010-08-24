@@ -52,12 +52,6 @@ public class DatabaseDescriptorTest
     }
 
     @Test
-    public void testShouldHaveConfigFileNameAvailable()
-    {
-        assertNotNull(DatabaseDescriptor.getConfigFileName(), "DatabaseDescriptor should always be able to return the file name of the config file");
-    }
-
-    @Test
     public void testCFMetaDataSerialization() throws IOException, ConfigurationException
     {
         // test serialization of all defined test CFs.

@@ -23,6 +23,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.*;
@@ -43,7 +44,6 @@ import org.apache.cassandra.db.clock.AbstractReconciler;
 import org.apache.cassandra.db.clock.TimestampReconciler;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.FileUtils;
@@ -78,16 +78,13 @@ public class DatabaseDescriptor
     /* Hashing strategy Random or OPHF */
     private static IPartitioner partitioner;
 
-    // the path qualified config file (cassandra.yaml) name
-    private static String configFileName;
-
     private static Config.DiskAccessMode indexAccessMode;
     
     private static Config conf;
 
     private static IAuthenticator authenticator = new AllowAllAuthenticator();
 
-    private final static String STORAGE_CONF_FILE = "cassandra.yaml";
+    private final static String DEFAULT_CONFIGURATION = "cassandra.yaml";
 
     private static IRequestScheduler requestScheduler;
     private static RequestSchedulerId requestSchedulerId;
@@ -97,27 +94,39 @@ public class DatabaseDescriptor
     private static UUID defsVersion = INITIAL_VERSION;
 
     /**
-     * Inspect the classpath to find STORAGE_CONF_FILE.
+     * Inspect the classpath to find storage configuration file
      */
-    static String getStorageConfigPath() throws ConfigurationException
+    static URL getStorageConfigURL() throws ConfigurationException
     {
-        ClassLoader loader = DatabaseDescriptor.class.getClassLoader();
-        URL scpurl = loader.getResource(STORAGE_CONF_FILE);
-        if (scpurl != null)
-            return scpurl.getFile();
-        throw new ConfigurationException("Cannot locate " + STORAGE_CONF_FILE + " on the classpath");
+        String configUrl = System.getProperty("cassandra.config");
+        if (configUrl == null)
+            configUrl = DEFAULT_CONFIGURATION;
+
+        URL url;
+        try
+        {
+            url = new URL(configUrl);
+        }
+        catch (MalformedURLException e)
+        {
+            ClassLoader loader = DatabaseDescriptor.class.getClassLoader();
+            url = loader.getResource(configUrl);
+            if (url == null)
+                throw new ConfigurationException("Cannot locate " + configUrl);
+        }
+
+        return url;
     }
 
     static
     {
         try
         {
-            configFileName = getStorageConfigPath();
-
+            URL url = getStorageConfigURL();
             if (logger.isDebugEnabled())
-                logger.info("Loading settings from " + configFileName);
+                logger.info("Loading settings from " + url);
             
-            InputStream input = new FileInputStream(new File(configFileName));
+            InputStream input = url.openStream();
             org.yaml.snakeyaml.constructor.Constructor constructor = new org.yaml.snakeyaml.constructor.Constructor(Config.class);
             TypeDescription desc = new TypeDescription(Config.class);
             desc.putListPropertyType("keyspaces", RawKeyspace.class);
@@ -510,8 +519,8 @@ public class DatabaseDescriptor
             
             // since we loaded definitions from local storage, log a warning if definitions exist in yaml.
             if (conf.keyspaces != null && conf.keyspaces.size() > 0)
-                logger.warn("Schema definitions were defined both locally and in " + STORAGE_CONF_FILE +
-                    ". Definitions in " + STORAGE_CONF_FILE + " were ignored.");
+                logger.warn("Schema definitions were defined both locally and in " + DEFAULT_CONFIGURATION +
+                    ". Definitions in " + DEFAULT_CONFIGURATION + " were ignored.");
             
         }
         CFMetaData.fixMaxId();
@@ -803,10 +812,6 @@ public class DatabaseDescriptor
     public static String getClusterName()
     {
         return conf.cluster_name;
-    }
-
-    public static String getConfigFileName() {
-        return configFileName;
     }
 
     public static String getJobJarLocation()
