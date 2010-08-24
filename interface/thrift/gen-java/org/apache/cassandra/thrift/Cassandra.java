@@ -99,13 +99,12 @@ public class Cassandra {
     /**
      * Perform a get_count in parallel on the given list<binary> keys. The return value maps keys to the count found.
      * 
-     * @param keyspace
      * @param keys
      * @param column_parent
      * @param predicate
      * @param consistency_level
      */
-    public Map<byte[],Integer> multiget_count(String keyspace, List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
+    public Map<byte[],Integer> multiget_count(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
      * returns a subset of columns for a contiguous range of keys.
@@ -295,7 +294,7 @@ public class Cassandra {
 
     public void multiget_slice(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level, AsyncMethodCallback<AsyncClient.multiget_slice_call> resultHandler) throws TException;
 
-    public void multiget_count(String keyspace, List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level, AsyncMethodCallback<AsyncClient.multiget_count_call> resultHandler) throws TException;
+    public void multiget_count(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level, AsyncMethodCallback<AsyncClient.multiget_count_call> resultHandler) throws TException;
 
     public void get_range_slices(ColumnParent column_parent, SlicePredicate predicate, KeyRange range, ConsistencyLevel consistency_level, AsyncMethodCallback<AsyncClient.get_range_slices_call> resultHandler) throws TException;
 
@@ -648,17 +647,16 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "multiget_slice failed: unknown result");
     }
 
-    public Map<byte[],Integer> multiget_count(String keyspace, List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    public Map<byte[],Integer> multiget_count(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
-      send_multiget_count(keyspace, keys, column_parent, predicate, consistency_level);
+      send_multiget_count(keys, column_parent, predicate, consistency_level);
       return recv_multiget_count();
     }
 
-    public void send_multiget_count(String keyspace, List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws TException
+    public void send_multiget_count(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("multiget_count", TMessageType.CALL, ++seqid_));
       multiget_count_args args = new multiget_count_args();
-      args.setKeyspace(keyspace);
       args.setKeys(keys);
       args.setColumn_parent(column_parent);
       args.setPredicate(predicate);
@@ -1734,21 +1732,19 @@ public class Cassandra {
       }
     }
 
-    public void multiget_count(String keyspace, List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level, AsyncMethodCallback<multiget_count_call> resultHandler) throws TException {
+    public void multiget_count(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level, AsyncMethodCallback<multiget_count_call> resultHandler) throws TException {
       checkReady();
-      multiget_count_call method_call = new multiget_count_call(keyspace, keys, column_parent, predicate, consistency_level, resultHandler, this, protocolFactory, transport);
+      multiget_count_call method_call = new multiget_count_call(keys, column_parent, predicate, consistency_level, resultHandler, this, protocolFactory, transport);
       manager.call(method_call);
     }
 
     public static class multiget_count_call extends TAsyncMethodCall {
-      private String keyspace;
       private List<byte[]> keys;
       private ColumnParent column_parent;
       private SlicePredicate predicate;
       private ConsistencyLevel consistency_level;
-      public multiget_count_call(String keyspace, List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level, AsyncMethodCallback<multiget_count_call> resultHandler, TAsyncClient client, TProtocolFactory protocolFactory, TNonblockingTransport transport) throws TException {
+      public multiget_count_call(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level, AsyncMethodCallback<multiget_count_call> resultHandler, TAsyncClient client, TProtocolFactory protocolFactory, TNonblockingTransport transport) throws TException {
         super(client, protocolFactory, transport, resultHandler, false);
-        this.keyspace = keyspace;
         this.keys = keys;
         this.column_parent = column_parent;
         this.predicate = predicate;
@@ -1758,7 +1754,6 @@ public class Cassandra {
       public void write_args(TProtocol prot) throws TException {
         prot.writeMessageBegin(new TMessage("multiget_count", TMessageType.CALL, 0));
         multiget_count_args args = new multiget_count_args();
-        args.setKeyspace(keyspace);
         args.setKeys(keys);
         args.setColumn_parent(column_parent);
         args.setPredicate(predicate);
@@ -2767,7 +2762,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         multiget_count_result result = new multiget_count_result();
         try {
-          result.success = iface_.multiget_count(args.keyspace, args.keys, args.column_parent, args.predicate, args.consistency_level);
+          result.success = iface_.multiget_count(args.keys, args.column_parent, args.predicate, args.consistency_level);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (UnavailableException ue) {
@@ -9493,13 +9488,11 @@ public class Cassandra {
   public static class multiget_count_args implements TBase<multiget_count_args, multiget_count_args._Fields>, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("multiget_count_args");
 
-    private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
-    private static final TField KEYS_FIELD_DESC = new TField("keys", TType.LIST, (short)2);
-    private static final TField COLUMN_PARENT_FIELD_DESC = new TField("column_parent", TType.STRUCT, (short)3);
-    private static final TField PREDICATE_FIELD_DESC = new TField("predicate", TType.STRUCT, (short)4);
-    private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)5);
+    private static final TField KEYS_FIELD_DESC = new TField("keys", TType.LIST, (short)1);
+    private static final TField COLUMN_PARENT_FIELD_DESC = new TField("column_parent", TType.STRUCT, (short)2);
+    private static final TField PREDICATE_FIELD_DESC = new TField("predicate", TType.STRUCT, (short)3);
+    private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)4);
 
-    public String keyspace;
     public List<byte[]> keys;
     public ColumnParent column_parent;
     public SlicePredicate predicate;
@@ -9511,15 +9504,14 @@ public class Cassandra {
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements TFieldIdEnum {
-      KEYSPACE((short)1, "keyspace"),
-      KEYS((short)2, "keys"),
-      COLUMN_PARENT((short)3, "column_parent"),
-      PREDICATE((short)4, "predicate"),
+      KEYS((short)1, "keys"),
+      COLUMN_PARENT((short)2, "column_parent"),
+      PREDICATE((short)3, "predicate"),
       /**
        * 
        * @see ConsistencyLevel
        */
-      CONSISTENCY_LEVEL((short)5, "consistency_level");
+      CONSISTENCY_LEVEL((short)4, "consistency_level");
 
       private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -9534,15 +9526,13 @@ public class Cassandra {
        */
       public static _Fields findByThriftId(int fieldId) {
         switch(fieldId) {
-          case 1: // KEYSPACE
-            return KEYSPACE;
-          case 2: // KEYS
+          case 1: // KEYS
             return KEYS;
-          case 3: // COLUMN_PARENT
+          case 2: // COLUMN_PARENT
             return COLUMN_PARENT;
-          case 4: // PREDICATE
+          case 3: // PREDICATE
             return PREDICATE;
-          case 5: // CONSISTENCY_LEVEL
+          case 4: // CONSISTENCY_LEVEL
             return CONSISTENCY_LEVEL;
           default:
             return null;
@@ -9588,8 +9578,6 @@ public class Cassandra {
     public static final Map<_Fields, FieldMetaData> metaDataMap;
     static {
       Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.REQUIRED, 
-          new FieldValueMetaData(TType.STRING)));
       tmpMap.put(_Fields.KEYS, new FieldMetaData("keys", TFieldRequirementType.REQUIRED, 
           new ListMetaData(TType.LIST, 
               new FieldValueMetaData(TType.STRING))));
@@ -9609,14 +9597,12 @@ public class Cassandra {
     }
 
     public multiget_count_args(
-      String keyspace,
       List<byte[]> keys,
       ColumnParent column_parent,
       SlicePredicate predicate,
       ConsistencyLevel consistency_level)
     {
       this();
-      this.keyspace = keyspace;
       this.keys = keys;
       this.column_parent = column_parent;
       this.predicate = predicate;
@@ -9627,9 +9613,6 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public multiget_count_args(multiget_count_args other) {
-      if (other.isSetKeyspace()) {
-        this.keyspace = other.keyspace;
-      }
       if (other.isSetKeys()) {
         List<byte[]> __this__keys = new ArrayList<byte[]>();
         for (byte[] other_element : other.keys) {
@@ -9657,30 +9640,6 @@ public class Cassandra {
     @Deprecated
     public multiget_count_args clone() {
       return new multiget_count_args(this);
-    }
-
-    public String getKeyspace() {
-      return this.keyspace;
-    }
-
-    public multiget_count_args setKeyspace(String keyspace) {
-      this.keyspace = keyspace;
-      return this;
-    }
-
-    public void unsetKeyspace() {
-      this.keyspace = null;
-    }
-
-    /** Returns true if field keyspace is set (has been asigned a value) and false otherwise */
-    public boolean isSetKeyspace() {
-      return this.keyspace != null;
-    }
-
-    public void setKeyspaceIsSet(boolean value) {
-      if (!value) {
-        this.keyspace = null;
-      }
     }
 
     public int getKeysSize() {
@@ -9804,14 +9763,6 @@ public class Cassandra {
 
     public void setFieldValue(_Fields field, Object value) {
       switch (field) {
-      case KEYSPACE:
-        if (value == null) {
-          unsetKeyspace();
-        } else {
-          setKeyspace((String)value);
-        }
-        break;
-
       case KEYS:
         if (value == null) {
           unsetKeys();
@@ -9853,9 +9804,6 @@ public class Cassandra {
 
     public Object getFieldValue(_Fields field) {
       switch (field) {
-      case KEYSPACE:
-        return getKeyspace();
-
       case KEYS:
         return getKeys();
 
@@ -9879,8 +9827,6 @@ public class Cassandra {
     /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
     public boolean isSet(_Fields field) {
       switch (field) {
-      case KEYSPACE:
-        return isSetKeyspace();
       case KEYS:
         return isSetKeys();
       case COLUMN_PARENT:
@@ -9909,15 +9855,6 @@ public class Cassandra {
     public boolean equals(multiget_count_args that) {
       if (that == null)
         return false;
-
-      boolean this_present_keyspace = true && this.isSetKeyspace();
-      boolean that_present_keyspace = true && that.isSetKeyspace();
-      if (this_present_keyspace || that_present_keyspace) {
-        if (!(this_present_keyspace && that_present_keyspace))
-          return false;
-        if (!this.keyspace.equals(that.keyspace))
-          return false;
-      }
 
       boolean this_present_keys = true && this.isSetKeys();
       boolean that_present_keys = true && that.isSetKeys();
@@ -9971,15 +9908,6 @@ public class Cassandra {
       int lastComparison = 0;
       multiget_count_args typedOther = (multiget_count_args)other;
 
-      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(typedOther.isSetKeyspace());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      if (isSetKeyspace()) {        lastComparison = TBaseHelper.compareTo(this.keyspace, typedOther.keyspace);
-        if (lastComparison != 0) {
-          return lastComparison;
-        }
-      }
       lastComparison = Boolean.valueOf(isSetKeys()).compareTo(typedOther.isSetKeys());
       if (lastComparison != 0) {
         return lastComparison;
@@ -10029,14 +9957,7 @@ public class Cassandra {
           break;
         }
         switch (field.id) {
-          case 1: // KEYSPACE
-            if (field.type == TType.STRING) {
-              this.keyspace = iprot.readString();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case 2: // KEYS
+          case 1: // KEYS
             if (field.type == TType.LIST) {
               {
                 TList _list55 = iprot.readListBegin();
@@ -10053,7 +9974,7 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case 3: // COLUMN_PARENT
+          case 2: // COLUMN_PARENT
             if (field.type == TType.STRUCT) {
               this.column_parent = new ColumnParent();
               this.column_parent.read(iprot);
@@ -10061,7 +9982,7 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case 4: // PREDICATE
+          case 3: // PREDICATE
             if (field.type == TType.STRUCT) {
               this.predicate = new SlicePredicate();
               this.predicate.read(iprot);
@@ -10069,7 +9990,7 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case 5: // CONSISTENCY_LEVEL
+          case 4: // CONSISTENCY_LEVEL
             if (field.type == TType.I32) {
               this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
             } else { 
@@ -10091,11 +10012,6 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.keyspace != null) {
-        oprot.writeFieldBegin(KEYSPACE_FIELD_DESC);
-        oprot.writeString(this.keyspace);
-        oprot.writeFieldEnd();
-      }
       if (this.keys != null) {
         oprot.writeFieldBegin(KEYS_FIELD_DESC);
         {
@@ -10132,14 +10048,6 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("multiget_count_args(");
       boolean first = true;
 
-      sb.append("keyspace:");
-      if (this.keyspace == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.keyspace);
-      }
-      first = false;
-      if (!first) sb.append(", ");
       sb.append("keys:");
       if (this.keys == null) {
         sb.append("null");
@@ -10177,9 +10085,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (keyspace == null) {
-        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
-      }
       if (keys == null) {
         throw new TProtocolException("Required field 'keys' was not present! Struct: " + toString());
       }

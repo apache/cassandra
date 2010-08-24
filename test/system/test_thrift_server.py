@@ -1075,7 +1075,7 @@ class TestMutations(ThriftTester):
         # Count columns in all 10 keys
         keys = ['key'+str(i) for i in range(1, num_keys+1)]
         p = SlicePredicate(slice_range=SliceRange('', '', False, 1000))
-        counts = client.multiget_count('Keyspace1', keys, ColumnParent('Standard1'), p, ConsistencyLevel.ONE)
+        counts = client.multiget_count(keys, ColumnParent('Standard1'), p, ConsistencyLevel.ONE)
 
         # Check the returned counts
         for i in range(1, num_keys+1):
