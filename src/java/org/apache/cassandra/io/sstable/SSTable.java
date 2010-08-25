@@ -64,8 +64,8 @@ public abstract class SSTable
     public static final String TEMPFILE_MARKER = "tmp";
 
     public static List<String> components = Collections.unmodifiableList(Arrays.asList(COMPONENT_FILTER, COMPONENT_INDEX, COMPONENT_DATA));
-    protected EstimatedHistogram estimatedRowSize = new EstimatedHistogram(130);
-    protected EstimatedHistogram estimatedColumnCount = new EstimatedHistogram(112);
+    protected EstimatedHistogram estimatedRowSize = new EstimatedHistogram(150);
+    protected EstimatedHistogram estimatedColumnCount = new EstimatedHistogram(114);
 
     protected SSTable(String filename, CFMetaData metadata, IPartitioner partitioner)
     {

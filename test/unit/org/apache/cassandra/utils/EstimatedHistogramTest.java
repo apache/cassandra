@@ -33,8 +33,8 @@ public class EstimatedHistogramTest
         histogram.add(0L);
         assertEquals(1, histogram.get(false)[0]);
 
-        histogram.add(33282687);
-        assertEquals(1, histogram.get(false)[histogram.buckets.length()-1]);
+        histogram.add(23282687);
+        assertEquals(1, histogram.get(false)[histogram.buckets.length() - 2]);
 
         histogram.add(1);
         assertEquals(1, histogram.get(false)[1]);

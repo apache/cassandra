@@ -40,8 +40,7 @@ public class EstimatedHistogram
 
     public EstimatedHistogram()
     {
-        makeOffsets(90);
-        buckets = new AtomicLongArray(numBuckets);
+        this(90);
     }
 
     public EstimatedHistogram(int bucketCount)
@@ -118,10 +117,14 @@ public class EstimatedHistogram
 
     public long max()
     {
-        for (int i = numBuckets - 1; i >= 0; i--)
+        int lastBucket = numBuckets - 1;
+        if (buckets.get(lastBucket) > 0)
+            throw new IllegalStateException("Unable to compute ceiling for max when all buckets are full");
+
+        for (int i = lastBucket - 1; i >= 0; i--)
         {
             if (buckets.get(i) > 0)
-                return bucketOffsets[i == 0 ? 0 : i - 1];
+                return bucketOffsets[i];
         }
         return 0;
     }

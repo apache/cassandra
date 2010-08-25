@@ -35,6 +35,7 @@ dev
  * fix using DynamicEndpointSnitch with NetworkTopologyStrategy
    (CASSANDRA-1429)
  * Add CfDef.default_validation_class (CASSANDRA-891)
+ * fix EstimatedHistogram.max (CASSANDRA-1413)
 
 
 0.7-beta1
