@@ -54,6 +54,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.scheduler.IRequestScheduler;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.thrift.TException;
@@ -66,24 +67,8 @@ public class CassandraServer implements Cassandra.Iface
     private final static List<ColumnOrSuperColumn> EMPTY_COLUMNS = Collections.emptyList();
     private final static List<Column> EMPTY_SUBCOLUMNS = Collections.emptyList();
 
-    // will be set only by login()
-    private ThreadLocal<AuthenticatedUser> loginDone = new ThreadLocal<AuthenticatedUser>() {
-        @Override
-        public AuthenticatedUser initialValue()
-        {
-            return DatabaseDescriptor.getAuthenticator().defaultUser();
-        }
-    };
-
-    /*
-     * Keyspace associated with session
-     */
-    private ThreadLocal<String> keySpace = new ThreadLocal<String>();
-
-    /*
-     * An associated Id for scheduling the requests
-     */
-    private ThreadLocal<String> requestSchedulerId = new ThreadLocal<String>();
+    // thread local state containing session information
+    public final ClientState clientState = new ClientState();
 
     /*
      * RequestScheduler to perform the scheduling of incoming requests
@@ -267,8 +252,8 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("get_slice");
         
-        checkKeyspaceAndLoginAuthorized(AccessLevel.READONLY);
-        return multigetSliceInternal(keySpace.get(), Arrays.asList(key), column_parent, predicate, consistency_level).get(key);
+        clientState.hasKeyspaceAccess(AccessLevel.READONLY);
+        return multigetSliceInternal(clientState.getKeyspace(), Arrays.asList(key), column_parent, predicate, consistency_level).get(key);
     }
     
     public Map<byte[], List<ColumnOrSuperColumn>> multiget_slice(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
@@ -277,9 +262,9 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("multiget_slice");
 
-        checkKeyspaceAndLoginAuthorized(AccessLevel.READONLY);
+        clientState.hasKeyspaceAccess(AccessLevel.READONLY);
 
-        return multigetSliceInternal(keySpace.get(), keys, column_parent, predicate, consistency_level);
+        return multigetSliceInternal(clientState.getKeyspace(), keys, column_parent, predicate, consistency_level);
     }
 
     private Map<byte[], List<ColumnOrSuperColumn>> multigetSliceInternal(String keyspace, List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
@@ -316,8 +301,8 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("get");
 
-        checkKeyspaceAndLoginAuthorized(AccessLevel.READONLY);
-        String keyspace = keySpace.get();
+        clientState.hasKeyspaceAccess(AccessLevel.READONLY);
+        String keyspace = clientState.getKeyspace();
 
         ThriftValidation.validateColumnPath(keyspace, column_path);
 
@@ -344,7 +329,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("get_count");
 
-        checkKeyspaceAndLoginAuthorized(AccessLevel.READONLY);
+        clientState.hasKeyspaceAccess(AccessLevel.READONLY);
 
         return get_slice(key, column_parent, predicate, consistency_level).size();
     }
@@ -355,8 +340,8 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("multiget_count");
 
-        checkKeyspaceAndLoginAuthorized(AccessLevel.READONLY);
-        String keyspace = keySpace.get();
+        clientState.hasKeyspaceAccess(AccessLevel.READONLY);
+        String keyspace = clientState.getKeyspace();
 
         Map<byte[], Integer> counts = new HashMap<byte[], Integer>();
         Map<byte[], List<ColumnOrSuperColumn>> columnFamiliesMap = multigetSliceInternal(keyspace, keys, column_parent, predicate, consistency_level);
@@ -373,14 +358,14 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("insert");
 
-        checkKeyspaceAndLoginAuthorized(AccessLevel.READWRITE);
+        clientState.hasKeyspaceAccess(AccessLevel.READWRITE);
 
         ThriftValidation.validateKey(key);
-        ThriftValidation.validateColumnParent(keySpace.get(), column_parent);
-        ThriftValidation.validateColumn(keySpace.get(), column_parent, column);
+        ThriftValidation.validateColumnParent(clientState.getKeyspace(), column_parent);
+        ThriftValidation.validateColumn(clientState.getKeyspace(), column_parent, column);
         IClock cassandra_clock = ThriftValidation.validateClock(column.clock);
 
-        RowMutation rm = new RowMutation(keySpace.get(), key);
+        RowMutation rm = new RowMutation(clientState.getKeyspace(), key);
         try
         {
             rm.add(new QueryPath(column_parent.column_family, column_parent.super_column, column.name), column.value, cassandra_clock, column.ttl);
@@ -416,7 +401,7 @@ public class CassandraServer implements Cassandra.Iface
             }
         }
         
-        checkKeyspaceAndLoginAuthorized(needed);
+        clientState.hasKeyspaceAccess(needed);
 
         List<RowMutation> rowMutations = new ArrayList<RowMutation>();
         for (Map.Entry<byte[], Map<String, List<Mutation>>> mutationEntry: mutation_map.entrySet())
@@ -431,10 +416,10 @@ public class CassandraServer implements Cassandra.Iface
 
                 for (Mutation mutation : columnFamilyMutations.getValue())
                 {
-                    ThriftValidation.validateMutation(keySpace.get(), cfName, mutation);
+                    ThriftValidation.validateMutation(clientState.getKeyspace(), cfName, mutation);
                 }
             }
-            rowMutations.add(RowMutation.getRowMutationFromMutations(keySpace.get(), key, columnFamilyToMutations));
+            rowMutations.add(RowMutation.getRowMutationFromMutations(clientState.getKeyspace(), key, columnFamilyToMutations));
         }
 
         doInsert(consistency_level, rowMutations);
@@ -446,14 +431,14 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("remove");
 
-        checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
+        clientState.hasKeyspaceAccess(AccessLevel.FULL);
 
         ThriftValidation.validateKey(key);
-        ThriftValidation.validateColumnPathOrParent(keySpace.get(), column_path);
+        ThriftValidation.validateColumnPathOrParent(clientState.getKeyspace(), column_path);
 
         IClock cassandra_clock = ThriftValidation.validateClock(clock);
 
-        RowMutation rm = new RowMutation(keySpace.get(), key);
+        RowMutation rm = new RowMutation(clientState.getKeyspace(), key);
         rm.delete(new QueryPath(column_path), cassandra_clock);
 
         doInsert(consistency_level, Arrays.asList(rm));
@@ -518,8 +503,8 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("range_slice");
 
-        String keyspace = keySpace.get();
-        checkKeyspaceAndLoginAuthorized(AccessLevel.READONLY);
+        String keyspace = clientState.getKeyspace();
+        clientState.hasKeyspaceAccess(AccessLevel.READONLY);
 
         ThriftValidation.validateColumnParent(keyspace, column_parent);
         ThriftValidation.validatePredicate(keyspace, column_parent, predicate);
@@ -582,8 +567,8 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("scan");
 
-        checkKeyspaceAndLoginAuthorized(AccessLevel.READONLY);
-        String keyspace = keySpace.get();
+        clientState.hasKeyspaceAccess(AccessLevel.READONLY);
+        String keyspace = clientState.getKeyspace();
         ThriftValidation.validateColumnParent(keyspace, column_parent);
         ThriftValidation.validatePredicate(keyspace, column_parent, column_predicate);
         ThriftValidation.validateIndexClauses(keyspace, column_parent.column_family, index_clause);
@@ -663,30 +648,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public void login(AuthenticationRequest auth_request) throws AuthenticationException, AuthorizationException, TException
     {
-        AuthenticatedUser user = DatabaseDescriptor.getAuthenticator().authenticate(auth_request.getCredentials());
-        
-        if (logger.isDebugEnabled())
-            logger.debug("login confirmed; user is " + user);
-        
-        loginDone.set(user);
-    }
-
-    public void logout()
-    {
-        keySpace.remove();
-        loginDone.remove();
-
-        if (logger.isDebugEnabled())
-            logger.debug("logout complete");
-    }
-
-    protected void checkKeyspaceAndLoginAuthorized(AccessLevel level) throws InvalidRequestException
-    {
-        if (loginDone.get() == null)
-            throw new InvalidRequestException("You have not logged in");
-
-        // FIXME: if no keyspace set, check against global authlist. otherwise, check
-        // against keyspace authlist
+         clientState.login(auth_request.getCredentials());
     }
 
     /**
@@ -694,7 +656,7 @@ public class CassandraServer implements Cassandra.Iface
      */
     private void schedule()
     {
-        requestScheduler.queue(Thread.currentThread(), requestSchedulerId.get());
+        requestScheduler.queue(Thread.currentThread(), clientState.getSchedulingId());
     }
 
     /**
@@ -746,7 +708,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public String system_add_column_family(CfDef cf_def) throws InvalidRequestException, TException
     {
-        checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
+        clientState.hasKeyspaceAccess(AccessLevel.FULL);
         try
         {
             applyMigrationOnStage(new AddColumnFamily(convertToCFMetaData(cf_def)));
@@ -768,11 +730,11 @@ public class CassandraServer implements Cassandra.Iface
 
     public String system_drop_column_family(String column_family) throws InvalidRequestException, TException
     {
-        checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
+        clientState.hasKeyspaceAccess(AccessLevel.FULL);
         
         try
         {
-            applyMigrationOnStage(new DropColumnFamily(keySpace.get(), column_family, true));
+            applyMigrationOnStage(new DropColumnFamily(clientState.getKeyspace(), column_family, true));
             return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)
@@ -791,11 +753,11 @@ public class CassandraServer implements Cassandra.Iface
 
     public String system_rename_column_family(String old_name, String new_name) throws InvalidRequestException, TException
     {
-        checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
+        clientState.hasKeyspaceAccess(AccessLevel.FULL);
         
         try
         {
-            applyMigrationOnStage(new RenameColumnFamily(keySpace.get(), old_name, new_name));
+            applyMigrationOnStage(new RenameColumnFamily(clientState.getKeyspace(), old_name, new_name));
             return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)
@@ -899,7 +861,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public String system_rename_keyspace(String old_name, String new_name) throws InvalidRequestException, TException
     {
-        checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
+        clientState.hasKeyspaceAccess(AccessLevel.FULL);
         
         try
         {
@@ -961,12 +923,12 @@ public class CassandraServer implements Cassandra.Iface
 
     public void truncate(String cfname) throws InvalidRequestException, UnavailableException, TException
     {
-        logger.debug("truncating {} in {}", cfname, keySpace.get());
-        checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
+        logger.debug("truncating {} in {}", cfname, clientState.getKeyspace());
+        clientState.hasKeyspaceAccess(AccessLevel.READWRITE);
         try
         {
             schedule();
-            StorageProxy.truncateBlocking(keySpace.get(), cfname);
+            StorageProxy.truncateBlocking(clientState.getKeyspace(), cfname);
         }
         catch (TimeoutException e)
         {
@@ -989,8 +951,7 @@ public class CassandraServer implements Cassandra.Iface
             throw new InvalidRequestException("Keyspace does not exist");
         }
         
-        keySpace.set(keyspace);
-        requestSchedulerId.set(keyspace);
+        clientState.setKeyspace(keyspace);
     }
 
     public Map<String, List<String>> check_schema_agreement() throws TException, InvalidRequestException
