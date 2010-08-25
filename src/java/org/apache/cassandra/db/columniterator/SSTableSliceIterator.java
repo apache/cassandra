@@ -24,6 +24,7 @@ package org.apache.cassandra.db.columniterator;
 import java.io.IOError;
 import java.io.IOException;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
@@ -63,12 +64,12 @@ public class SSTableSliceIterator implements IColumnIterator
             throw new IOError(e);
         }
 
-        reader = createReader(sstable, fileToClose, startColumn, finishColumn, reversed);
+        reader = createReader(sstable.metadata, fileToClose, startColumn, finishColumn, reversed);
     }
 
     /**
      * An iterator for a slice within an SSTable
-     * @param sstable The SSTable to iterate over
+     * @param metadata Metadata for the CFS we are reading from
      * @param file Optional parameter that input is read from.  If null is passed, this class creates an appropriate one automatically.
      * If this class creates, it will close the underlying file when #close() is called.
      * If a caller passes a non-null argument, this class will NOT close the underlying file when the iterator is closed (i.e. the caller is responsible for closing the file)
@@ -78,18 +79,18 @@ public class SSTableSliceIterator implements IColumnIterator
      * @param finishColumn The end of the slice
      * @param reversed Results are returned in reverse order iff reversed is true.
      */
-    public SSTableSliceIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, byte[] startColumn, byte[] finishColumn, boolean reversed)
+    public SSTableSliceIterator(CFMetaData metadata, FileDataInput file, DecoratedKey key, byte[] startColumn, byte[] finishColumn, boolean reversed)
     {
         this.key = key;
         fileToClose = null;
-        reader = createReader(sstable, file, startColumn, finishColumn, reversed);
+        reader = createReader(metadata, file, startColumn, finishColumn, reversed);
     }
 
-    private static IColumnIterator createReader(SSTableReader ssTable, FileDataInput file, byte[] startColumn, byte[] finishColumn, boolean reversed)
+    private static IColumnIterator createReader(CFMetaData metadata, FileDataInput file, byte[] startColumn, byte[] finishColumn, boolean reversed)
     {
         return startColumn.length == 0 && !reversed
-                 ? new SimpleSliceReader(ssTable, file, finishColumn)
-                 : new IndexedSliceReader(ssTable, file, startColumn, finishColumn, reversed);
+                 ? new SimpleSliceReader(metadata, file, finishColumn)
+                 : new IndexedSliceReader(metadata, file, startColumn, finishColumn, reversed);
     }
 
     public DecoratedKey getKey()

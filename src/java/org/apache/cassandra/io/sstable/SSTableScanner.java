@@ -181,7 +181,7 @@ public class SSTableScanner implements Iterator<IColumnIterator>, Closeable
                 }
                 else
                 {
-                    return row = filter.getSSTableColumnIterator(sstable, file, key, dataStart);
+                    return row = filter.getSSTableColumnIterator(sstable, file, key);
                 }
             }
             catch (IOException e)

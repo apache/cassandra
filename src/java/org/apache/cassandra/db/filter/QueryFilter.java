@@ -77,11 +77,11 @@ public class QueryFilter
         return superFilter.getSSTableColumnIterator(sstable, key);
     }
 
-    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, long dataStart)
+    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key)
     {
         if (path.superColumnName == null)
-            return filter.getSSTableColumnIterator(sstable, file, key, dataStart);
-        return superFilter.getSSTableColumnIterator(sstable, file, key, dataStart);
+            return filter.getSSTableColumnIterator(sstable.metadata, file, key);
+        return superFilter.getSSTableColumnIterator(sstable.metadata, file, key);
     }
 
     public static Comparator<IColumn> getColumnComparator(final AbstractType comparator)

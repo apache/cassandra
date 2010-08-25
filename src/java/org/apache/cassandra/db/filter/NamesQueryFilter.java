@@ -23,6 +23,7 @@ package org.apache.cassandra.db.filter;
 
 import java.util.*;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.SSTableNamesIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -68,9 +69,9 @@ public class NamesQueryFilter implements IFilter
         return new SSTableNamesIterator(sstable, key, columns);
     }
     
-    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, long dataStart)
+    public IColumnIterator getSSTableColumnIterator(CFMetaData metadata, FileDataInput file, DecoratedKey key)
     {
-        return new SSTableNamesIterator(sstable, file, key, columns);
+        return new SSTableNamesIterator(metadata, file, key, columns);
     }
 
     public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore)

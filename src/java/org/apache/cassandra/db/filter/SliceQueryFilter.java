@@ -29,6 +29,7 @@ import org.apache.commons.collections.comparators.ReverseComparator;
 import org.apache.commons.collections.iterators.ReverseListIterator;
 import org.apache.commons.collections.IteratorUtils;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.SSTableSliceIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -64,9 +65,9 @@ public class SliceQueryFilter implements IFilter
         return new SSTableSliceIterator(sstable, key, start, finish, reversed);
     }
     
-    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, long dataStart)
+    public IColumnIterator getSSTableColumnIterator(CFMetaData metadata, FileDataInput file, DecoratedKey key)
     {
-        return new SSTableSliceIterator(sstable, file, key, start, finish, reversed);
+        return new SSTableSliceIterator(metadata, file, key, start, finish, reversed);
     }
 
     public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore)

@@ -127,7 +127,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /* active memtable associated with this ColumnFamilyStore. */
     private Memtable memtable;
 
-    private final Map<byte[], ColumnFamilyStore> indexedColumns;
+    private final SortedMap<byte[], ColumnFamilyStore> indexedColumns;
 
     // TODO binarymemtable ops are not threadsafe (do they need to be?)
     private AtomicReference<BinaryMemtable> binaryMemtable;
@@ -138,7 +138,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private LatencyTracker readStats = new LatencyTracker();
     private LatencyTracker writeStats = new LatencyTracker();
 
-    final CFMetaData metadata;
+    public final CFMetaData metadata;
     
     private ColumnFamilyStore(String table, String columnFamilyName, IPartitioner partitioner, int generation, CFMetaData metadata)
     {
@@ -189,7 +189,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ssTables = new SSTableTracker(table, columnFamilyName);
         ssTables.add(sstables);
 
-        indexedColumns = new TreeMap<byte[], ColumnFamilyStore>(BytesType.instance);
+        indexedColumns = new TreeMap<byte[], ColumnFamilyStore>(getComparator());
         for (Map.Entry<byte[], ColumnDefinition> entry : metadata.column_metadata.entrySet())
         {
             byte[] column = entry.getKey();
@@ -895,7 +895,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return getColumnFamily(filter, gcBefore());
     }
 
-    private int gcBefore()
+    public int gcBefore()
     {
         return (int) (System.currentTimeMillis() / 1000) - metadata.gcGraceSeconds;
     }
@@ -1599,9 +1599,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return (double) falseCount / (trueCount + falseCount);
     }
 
-    public Set<byte[]> getIndexedColumns()
+    public SortedSet<byte[]> getIndexedColumns()
     {
-        return indexedColumns.keySet();
+        return (SortedSet<byte[]>) indexedColumns.keySet();
     }
 
     public ColumnFamilyStore getIndexedColumnFamilyStore(byte[] column)

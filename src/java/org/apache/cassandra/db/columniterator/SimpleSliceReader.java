@@ -26,6 +26,7 @@ import java.io.IOException;
 
 import com.google.common.collect.AbstractIterator;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
@@ -45,17 +46,17 @@ class SimpleSliceReader extends AbstractIterator<IColumn> implements IColumnIter
     private int i;
     private FileMark mark;
 
-    public SimpleSliceReader(SSTableReader sstable, FileDataInput input, byte[] finishColumn)
+    public SimpleSliceReader(CFMetaData metadata, FileDataInput input, byte[] finishColumn)
     {
         this.file = input;
         this.finishColumn = finishColumn;
-        comparator = sstable.getColumnComparator();
+        comparator = metadata.comparator;
         try
         {
             IndexHelper.skipBloomFilter(file);
             IndexHelper.skipIndex(file);
 
-            emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(sstable.createColumnFamily(), file);
+            emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(ColumnFamily.create(metadata), file);
             columns = file.readInt();
             mark = file.mark();
         }

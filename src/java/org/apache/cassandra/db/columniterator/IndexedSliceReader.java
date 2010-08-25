@@ -29,6 +29,7 @@ import java.util.List;
 
 import com.google.common.collect.AbstractIterator;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
@@ -57,19 +58,19 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
     private Deque<IColumn> blockColumns = new ArrayDeque<IColumn>();
     private AbstractType comparator;
 
-    public IndexedSliceReader(SSTableReader sstable, FileDataInput input, byte[] startColumn, byte[] finishColumn, boolean reversed)
+    public IndexedSliceReader(CFMetaData metadata, FileDataInput input, byte[] startColumn, byte[] finishColumn, boolean reversed)
     {
         this.file = input;
         this.startColumn = startColumn;
         this.finishColumn = finishColumn;
         this.reversed = reversed;
-        comparator = sstable.getColumnComparator();
+        comparator = metadata.comparator;
         try
         {
             IndexHelper.skipBloomFilter(file);
             indexes = IndexHelper.deserializeIndex(file);
 
-            emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(sstable.createColumnFamily(), file);
+            emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(ColumnFamily.create(metadata), file);
             fetcher = indexes == null ? new SimpleBlockFetcher() : new IndexedBlockFetcher();
         }
         catch (IOException e)
