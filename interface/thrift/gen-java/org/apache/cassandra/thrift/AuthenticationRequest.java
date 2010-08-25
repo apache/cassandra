@@ -47,7 +47,7 @@ import org.apache.thrift.transport.*;
 import org.apache.thrift.protocol.*;
 
 /**
- * Authentication requests can contain any data, dependent on the AuthenticationBackend used
+ * Authentication requests can contain any data, dependent on the IAuthenticator used
  */
 public class AuthenticationRequest implements TBase<AuthenticationRequest, AuthenticationRequest._Fields>, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("AuthenticationRequest");

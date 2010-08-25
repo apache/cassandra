@@ -332,7 +332,7 @@ enum AccessLevel {
 }
 
 /**
-    Authentication requests can contain any data, dependent on the AuthenticationBackend used
+    Authentication requests can contain any data, dependent on the IAuthenticator used
 */
 struct AuthenticationRequest {
     1: required map<string, string> credentials
@@ -381,7 +381,7 @@ struct KsDef {
 
 service Cassandra {
   # auth methods
-  AccessLevel login(1: required AuthenticationRequest auth_request) throws (1:AuthenticationException authnx, 2:AuthorizationException authzx),
+  void login(1: required AuthenticationRequest auth_request) throws (1:AuthenticationException authnx, 2:AuthorizationException authzx),
  
   # set keyspace
   void set_keyspace(1: required string keyspace) throws (1:InvalidRequestException ire),

@@ -22,10 +22,6 @@
 @namespace("org.apache.cassandra.avro")
 
 protocol Cassandra {
-    enum AccessLevel {
-        NONE, READONLY, READWRITE, FULL
-    }
-
     record ColumnPath {
         string column_family;
         union { bytes, null } super_column;
