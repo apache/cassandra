@@ -1,5 +1,7 @@
 0.6.6
  * Allow using DynamicEndpointSnitch with RackAwareStrategy (CASSANDRA-1429)
+ * remove the remaining vestiges of the unfinished DatacenterShardStrategy 
+   (replaced by NetworkTopologyStrategy in 0.7)
 
 
 0.6.5
