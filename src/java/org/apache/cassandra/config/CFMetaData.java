@@ -79,6 +79,7 @@ public final class CFMetaData
                               0.01,
                               0,
                               0,
+                              BytesType.instance,
                               cfId,
                               Collections.<byte[], ColumnDefinition>emptyMap());
     }
@@ -136,6 +137,7 @@ public final class CFMetaData
     public final Integer cfId;
     public boolean preloadRowCache;
     public final int gcGraceSeconds; // default 864000 (ten days)
+    public final AbstractType defaultValidator; // values are longs, strings, bytes (no-op)...
 
     public final Map<byte[], ColumnDefinition> column_metadata;
 
@@ -152,6 +154,7 @@ public final class CFMetaData
                        double keyCacheSize,
                        double readRepairChance,
                        int gcGraceSeconds,
+                       AbstractType defaultValidator,
                        Integer cfId,
                        Map<byte[], ColumnDefinition> column_metadata)
     {
@@ -171,6 +174,7 @@ public final class CFMetaData
         this.keyCacheSize = keyCacheSize;
         this.readRepairChance = readRepairChance;
         this.gcGraceSeconds = gcGraceSeconds;
+        this.defaultValidator = defaultValidator;
         this.cfId = cfId;
         this.column_metadata = Collections.unmodifiableMap(column_metadata);
     }
@@ -187,22 +191,22 @@ public final class CFMetaData
         }
     }
 
-    public CFMetaData(String tableName, String cfName, ColumnFamilyType cfType, ClockType clockType, AbstractType comparator, AbstractType subcolumnComparator, AbstractReconciler reconciler, String comment, double rowCacheSize, boolean preloadRowCache, double keyCacheSize, double readRepairChance, int gcGraceSeconds, Map<byte[], ColumnDefinition> column_metadata)
+    public CFMetaData(String tableName, String cfName, ColumnFamilyType cfType, ClockType clockType, AbstractType comparator, AbstractType subcolumnComparator, AbstractReconciler reconciler, String comment, double rowCacheSize, boolean preloadRowCache, double keyCacheSize, double readRepairChance, int gcGraceSeconds, AbstractType defaultvalidator, Map<byte[], ColumnDefinition> column_metadata)
     {
-        this(tableName, cfName, cfType, clockType, comparator, subcolumnComparator, reconciler, comment, rowCacheSize, preloadRowCache, keyCacheSize, readRepairChance, gcGraceSeconds, nextId(), column_metadata);
+        this(tableName, cfName, cfType, clockType, comparator, subcolumnComparator, reconciler, comment, rowCacheSize, preloadRowCache, keyCacheSize, readRepairChance, gcGraceSeconds, defaultvalidator, nextId(), column_metadata);
     }
 
     /** clones an existing CFMetaData using the same id. */
     public static CFMetaData rename(CFMetaData cfm, String newName)
     {
-        CFMetaData newCfm = new CFMetaData(cfm.tableName, newName, cfm.cfType, cfm.clockType, cfm.comparator, cfm.subcolumnComparator, cfm.reconciler, cfm.comment, cfm.rowCacheSize, cfm.preloadRowCache, cfm.keyCacheSize, cfm.readRepairChance, cfm.gcGraceSeconds, cfm.cfId, cfm.column_metadata);
+        CFMetaData newCfm = new CFMetaData(cfm.tableName, newName, cfm.cfType, cfm.clockType, cfm.comparator, cfm.subcolumnComparator, cfm.reconciler, cfm.comment, cfm.rowCacheSize, cfm.preloadRowCache, cfm.keyCacheSize, cfm.readRepairChance, cfm.gcGraceSeconds, cfm.defaultValidator, cfm.cfId, cfm.column_metadata);
         return newCfm;
     }
     
     /** clones existing CFMetaData. keeps the id but changes the table name.*/
     public static CFMetaData renameTable(CFMetaData cfm, String tableName)
     {
-        return new CFMetaData(tableName, cfm.cfName, cfm.cfType, cfm.clockType, cfm.comparator, cfm.subcolumnComparator, cfm.reconciler, cfm.comment, cfm.rowCacheSize, cfm.preloadRowCache, cfm.keyCacheSize, cfm.readRepairChance, cfm.gcGraceSeconds, cfm.cfId, cfm.column_metadata);
+        return new CFMetaData(tableName, cfm.cfName, cfm.cfType, cfm.clockType, cfm.comparator, cfm.subcolumnComparator, cfm.reconciler, cfm.comment, cfm.rowCacheSize, cfm.preloadRowCache, cfm.keyCacheSize, cfm.readRepairChance, cfm.gcGraceSeconds, cfm.defaultValidator, cfm.cfId, cfm.column_metadata);
     }
     
     /** used for evicting cf data out of static tracking collections. */
@@ -238,6 +242,7 @@ public final class CFMetaData
         cf.preload_row_cache = preloadRowCache;
         cf.read_repair_chance = readRepairChance;
         cf.gc_grace_seconds = gcGraceSeconds;
+        cf.default_validation_class = new Utf8(defaultValidator.getClass().getName());
         cf.column_metadata = SerDeUtils.createArray(column_metadata.size(),
                                                     org.apache.cassandra.config.avro.ColumnDef.SCHEMA$);
         for (ColumnDefinition cd : column_metadata.values())
@@ -250,12 +255,14 @@ public final class CFMetaData
         AbstractType comparator;
         AbstractType subcolumnComparator = null;
         AbstractReconciler reconciler;
+        AbstractType validator;
         try
         {
             comparator = DatabaseDescriptor.getComparator(cf.comparator_type.toString());
             if (cf.subcomparator_type != null)
                 subcolumnComparator = DatabaseDescriptor.getComparator(cf.subcomparator_type.toString());
             reconciler = DatabaseDescriptor.getReconciler(cf.reconciler.toString());
+            validator = DatabaseDescriptor.getComparator(cf.default_validation_class.toString());
         }
         catch (Exception ex)
         {
@@ -268,7 +275,7 @@ public final class CFMetaData
             ColumnDefinition cd = ColumnDefinition.inflate(cditer.next());
             column_metadata.put(cd.name, cd);
         }
-        return new CFMetaData(cf.keyspace.toString(), cf.name.toString(), ColumnFamilyType.create(cf.column_type.toString()), ClockType.create(cf.clock_type.toString()), comparator, subcolumnComparator, reconciler, cf.comment.toString(), cf.row_cache_size, cf.preload_row_cache, cf.key_cache_size, cf.read_repair_chance, cf.gc_grace_seconds, cf.id, column_metadata);
+        return new CFMetaData(cf.keyspace.toString(), cf.name.toString(), ColumnFamilyType.create(cf.column_type.toString()), ClockType.create(cf.clock_type.toString()), comparator, subcolumnComparator, reconciler, cf.comment.toString(), cf.row_cache_size, cf.preload_row_cache, cf.key_cache_size, cf.read_repair_chance, cf.gc_grace_seconds, validator, cf.id, column_metadata);
     }
 
     public boolean equals(Object obj) 
@@ -328,9 +335,10 @@ public final class CFMetaData
 
     public AbstractType getValueValidator(byte[] column)
     {
+        AbstractType validator = defaultValidator;
         ColumnDefinition columnDefinition = column_metadata.get(column);
-        if (columnDefinition == null)
-            return null;
-        return columnDefinition.validator;
+        if (columnDefinition != null)
+            validator = columnDefinition.validator;
+        return validator;
     }
 }

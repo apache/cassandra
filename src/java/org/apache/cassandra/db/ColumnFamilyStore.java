@@ -215,6 +215,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                           0,
                                                           0,
                                                           CFMetaData.DEFAULT_GC_GRACE_SECONDS,
+                                                          BytesType.instance,
                                                           Collections.<byte[], ColumnDefinition>emptyMap());
             ColumnFamilyStore indexedCfs = ColumnFamilyStore.createColumnFamilyStore(table, 
                                                                                      indexedCfName,

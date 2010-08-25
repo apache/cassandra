@@ -34,6 +34,7 @@ dev
  * added CMSInitiatingOccupancyFraction=80 to default GC options
  * fix using DynamicEndpointSnitch with NetworkTopologyStrategy
    (CASSANDRA-1429)
+ * Add CfDef.default_validation_class (CASSANDRA-891)
 
 
 0.7-beta1

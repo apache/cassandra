@@ -583,9 +583,11 @@ public class DatabaseDescriptor
                     throw new ConfigurationException("ColumnFamily name contains invalid characters.");
                 }
                 
-                // Parse out the column comparator
+                // Parse out the column comparators and validators
                 AbstractType comparator = getComparator(cf.compare_with);
                 AbstractType subcolumnComparator = null;
+                AbstractType default_validator = getComparator(cf.default_validation_class);
+
                 ColumnFamilyType cfType = cf.column_type == null ? ColumnFamilyType.Standard : cf.column_type;
                 if (cfType == ColumnFamilyType.Super)
                 {
@@ -639,6 +641,7 @@ public class DatabaseDescriptor
                                              cf.keys_cached, 
                                              cf.read_repair_chance,
                                              cf.gc_grace_seconds,
+                                             default_validator,
                                              metadata);
             }
             defs.add(new KSMetaData(keyspace.name,

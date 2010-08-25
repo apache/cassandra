@@ -648,10 +648,11 @@ public class CassandraServer implements Cassandra {
             Collection<CFMetaData> cfDefs = new ArrayList<CFMetaData>((int)ksDef.cf_defs.size());
             for (CfDef cfDef : ksDef.cf_defs)
             {
-                String cfType, compare, subCompare, reconcilerName;
+                String cfType, compare, subCompare, reconcilerName, validate;
                 cfType = cfDef.column_type == null ? D_CF_CFTYPE : cfDef.column_type.toString();
                 ClockType clockType = ClockType.create(cfDef.clock_type == null ? D_CF_CFCLOCKTYPE : cfDef.clock_type.toString());
                 compare = cfDef.comparator_type == null ? D_CF_COMPTYPE : cfDef.comparator_type.toString();
+                validate = cfDef.default_validation_class == null ? D_CF_COMPTYPE : cfDef.default_validation_class.toString();
                 subCompare = cfDef.subcomparator_type == null ? D_CF_SUBCOMPTYPE : cfDef.subcomparator_type.toString();
                 reconcilerName = cfDef.reconciler == null  ? D_CF_RECONCILER : cfDef.reconciler.toString();
                 
@@ -681,6 +682,7 @@ public class CassandraServer implements Cassandra {
                                                    cfDef.key_cache_size == null ? CFMetaData.DEFAULT_KEY_CACHE_SIZE : cfDef.key_cache_size,
                                                    cfDef.read_repair_chance == null ? CFMetaData.DEFAULT_READ_REPAIR_CHANCE : cfDef.read_repair_chance,
                                                    cfDef.gc_grace_seconds == null ? CFMetaData.DEFAULT_GC_GRACE_SECONDS : cfDef.gc_grace_seconds,
+                                                   DatabaseDescriptor.getComparator(validate),
                                                    Collections.<byte[], ColumnDefinition>emptyMap());
                 cfDefs.add(cfmeta);
             }
@@ -820,6 +822,7 @@ public class CassandraServer implements Cassandra {
         String cfType = cf_def.column_type == null ? D_CF_CFTYPE : cf_def.column_type.toString();
         ClockType clockType = ClockType.create(cf_def.clock_type == null ? D_CF_CFCLOCKTYPE : cf_def.clock_type.toString());
         String compare = cf_def.comparator_type == null ? D_CF_COMPTYPE : cf_def.comparator_type.toString();
+        String validate = cf_def.default_validation_class == null ? D_CF_COMPTYPE : cf_def.default_validation_class.toString();
         String subCompare = cf_def.subcomparator_type == null ? D_CF_SUBCOMPTYPE : cf_def.subcomparator_type.toString();
         String reconcilerName = cf_def.reconciler == null  ? D_CF_RECONCILER : cf_def.reconciler.toString();
         
@@ -845,6 +848,7 @@ public class CassandraServer implements Cassandra {
                               cf_def.key_cache_size == null ? CFMetaData.DEFAULT_KEY_CACHE_SIZE : cf_def.key_cache_size,
                               cf_def.read_repair_chance == null ? CFMetaData.DEFAULT_READ_REPAIR_CHANCE : cf_def.read_repair_chance,
                               cf_def.gc_grace_seconds != null ? cf_def.gc_grace_seconds : CFMetaData.DEFAULT_GC_GRACE_SECONDS,
+                              DatabaseDescriptor.getComparator(validate),
                               ColumnDefinition.fromColumnDefs((Iterable<ColumnDef>) cf_def.column_metadata));
     }
     

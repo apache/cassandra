@@ -82,13 +82,13 @@ protocol Cassandra {
         union { Deletion, null } deletion;
     }
 
-    /* NB: Until AVRO-495: must be kept sync'd with private fields. */
+    /* NB: Until AVRO-495: must be kept sync'd with src/avro/internode.genavro. */
     enum IndexType {
         KEYS
     }
 
     /* describes a column in a column family. */
-    /* NB: Until AVRO-495: must be kept sync'd with private fields. */
+    /* NB: Until AVRO-495: must be kept sync'd with src/avro/internode.genavro. */
     record ColumnDef {
         bytes name;
         string validation_class;
@@ -100,7 +100,7 @@ protocol Cassandra {
      * describes a keyspace:
      * NB: the id field is ignored during column family creation: the server will choose an appropriate value.
      */
-    /* NB: Until AVRO-495: must be kept sync'd with private fields. */
+    /* NB: Until AVRO-495: must be kept sync'd with src/avro/internode.genavro. */
     record CfDef {
         string keyspace;
         string name;
@@ -115,12 +115,13 @@ protocol Cassandra {
         union { double, null } key_cache_size;
         union { double, null } read_repair_chance;
         union { int, null } gc_grace_seconds;
-        union { array<ColumnDef>, null } column_metadata;
+        union { string, null } default_validation_class;
         union { int, null } id;
+        union { array<ColumnDef>, null } column_metadata;
     }
 
     /* describes a keyspace. */
-    /* NB: Until AVRO-495: must be kept sync'd with private fields. */
+    /* NB: Until AVRO-495: must be kept sync'd with src/avro/internode.genavro. */
     record KsDef {
         string name;
         string strategy_class;

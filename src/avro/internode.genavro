@@ -56,8 +56,9 @@ protocol InterNode {
         union { double, null } key_cache_size;
         union { double, null } read_repair_chance;
         union { int, null } gc_grace_seconds;
-        union { array<ColumnDef>, null } column_metadata;
+        union { string, null } default_validation_class;
         union { int, null } id;
+        union { array<ColumnDef>, null } column_metadata;
     }
 
     /* NB: Until AVRO-495: must be kept sync'd with KSMetaData and the public KsDef. */

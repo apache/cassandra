@@ -63,6 +63,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   private static final TField READ_REPAIR_CHANCE_FIELD_DESC = new TField("read_repair_chance", TType.DOUBLE, (short)12);
   private static final TField COLUMN_METADATA_FIELD_DESC = new TField("column_metadata", TType.LIST, (short)13);
   private static final TField GC_GRACE_SECONDS_FIELD_DESC = new TField("gc_grace_seconds", TType.I32, (short)14);
+  private static final TField DEFAULT_VALIDATION_CLASS_FIELD_DESC = new TField("default_validation_class", TType.STRING, (short)15);
 
   public String keyspace;
   public String name;
@@ -78,6 +79,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   public double read_repair_chance;
   public List<ColumnDef> column_metadata;
   public int gc_grace_seconds;
+  public String default_validation_class;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
@@ -94,7 +96,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     KEY_CACHE_SIZE((short)11, "key_cache_size"),
     READ_REPAIR_CHANCE((short)12, "read_repair_chance"),
     COLUMN_METADATA((short)13, "column_metadata"),
-    GC_GRACE_SECONDS((short)14, "gc_grace_seconds");
+    GC_GRACE_SECONDS((short)14, "gc_grace_seconds"),
+    DEFAULT_VALIDATION_CLASS((short)15, "default_validation_class");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -137,6 +140,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
           return COLUMN_METADATA;
         case 14: // GC_GRACE_SECONDS
           return GC_GRACE_SECONDS;
+        case 15: // DEFAULT_VALIDATION_CLASS
+          return DEFAULT_VALIDATION_CLASS;
         default:
           return null;
       }
@@ -216,6 +221,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
             new StructMetaData(TType.STRUCT, ColumnDef.class))));
     tmpMap.put(_Fields.GC_GRACE_SECONDS, new FieldMetaData("gc_grace_seconds", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.I32)));
+    tmpMap.put(_Fields.DEFAULT_VALIDATION_CLASS, new FieldMetaData("default_validation_class", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.STRING)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(CfDef.class, metaDataMap);
   }
@@ -294,6 +301,9 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       this.column_metadata = __this__column_metadata;
     }
     this.gc_grace_seconds = other.gc_grace_seconds;
+    if (other.isSetDefault_validation_class()) {
+      this.default_validation_class = other.default_validation_class;
+    }
   }
 
   public CfDef deepCopy() {
@@ -651,6 +661,30 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     __isset_bit_vector.set(__GC_GRACE_SECONDS_ISSET_ID, value);
   }
 
+  public String getDefault_validation_class() {
+    return this.default_validation_class;
+  }
+
+  public CfDef setDefault_validation_class(String default_validation_class) {
+    this.default_validation_class = default_validation_class;
+    return this;
+  }
+
+  public void unsetDefault_validation_class() {
+    this.default_validation_class = null;
+  }
+
+  /** Returns true if field default_validation_class is set (has been asigned a value) and false otherwise */
+  public boolean isSetDefault_validation_class() {
+    return this.default_validation_class != null;
+  }
+
+  public void setDefault_validation_classIsSet(boolean value) {
+    if (!value) {
+      this.default_validation_class = null;
+    }
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case KEYSPACE:
@@ -765,6 +799,14 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       }
       break;
 
+    case DEFAULT_VALIDATION_CLASS:
+      if (value == null) {
+        unsetDefault_validation_class();
+      } else {
+        setDefault_validation_class((String)value);
+      }
+      break;
+
     }
   }
 
@@ -816,6 +858,9 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     case GC_GRACE_SECONDS:
       return new Integer(getGc_grace_seconds());
 
+    case DEFAULT_VALIDATION_CLASS:
+      return getDefault_validation_class();
+
     }
     throw new IllegalStateException();
   }
@@ -855,6 +900,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return isSetColumn_metadata();
     case GC_GRACE_SECONDS:
       return isSetGc_grace_seconds();
+    case DEFAULT_VALIDATION_CLASS:
+      return isSetDefault_validation_class();
     }
     throw new IllegalStateException();
   }
@@ -1002,6 +1049,15 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         return false;
     }
 
+    boolean this_present_default_validation_class = true && this.isSetDefault_validation_class();
+    boolean that_present_default_validation_class = true && that.isSetDefault_validation_class();
+    if (this_present_default_validation_class || that_present_default_validation_class) {
+      if (!(this_present_default_validation_class && that_present_default_validation_class))
+        return false;
+      if (!this.default_validation_class.equals(that.default_validation_class))
+        return false;
+    }
+
     return true;
   }
 
@@ -1144,6 +1200,15 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetDefault_validation_class()).compareTo(typedOther.isSetDefault_validation_class());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetDefault_validation_class()) {      lastComparison = TBaseHelper.compareTo(this.default_validation_class, typedOther.default_validation_class);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -1271,6 +1336,13 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 15: // DEFAULT_VALIDATION_CLASS
+          if (field.type == TType.STRING) {
+            this.default_validation_class = iprot.readString();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           TProtocolUtil.skip(iprot, field.type);
       }
@@ -1376,6 +1448,13 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       oprot.writeFieldBegin(GC_GRACE_SECONDS_FIELD_DESC);
       oprot.writeI32(this.gc_grace_seconds);
       oprot.writeFieldEnd();
+    }
+    if (this.default_validation_class != null) {
+      if (isSetDefault_validation_class()) {
+        oprot.writeFieldBegin(DEFAULT_VALIDATION_CLASS_FIELD_DESC);
+        oprot.writeString(this.default_validation_class);
+        oprot.writeFieldEnd();
+      }
     }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
@@ -1499,6 +1578,16 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       if (!first) sb.append(", ");
       sb.append("gc_grace_seconds:");
       sb.append(this.gc_grace_seconds);
+      first = false;
+    }
+    if (isSetDefault_validation_class()) {
+      if (!first) sb.append(", ");
+      sb.append("default_validation_class:");
+      if (this.default_validation_class == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.default_validation_class);
+      }
       first = false;
     }
     sb.append(")");

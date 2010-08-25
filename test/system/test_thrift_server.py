@@ -1191,7 +1191,7 @@ class TestMutations(ThriftTester):
         client.system_drop_keyspace(keyspace.name)
 
     def test_column_validators(self):
-        # regular CF
+        # columndef validation for regular CF
         ks = 'Keyspace1'
         _set_keyspace(ks)
         cd = ColumnDef('col', 'LongType', None, None)
@@ -1207,7 +1207,7 @@ class TestMutations(ThriftTester):
         e = _expect_exception(lambda: client.insert('key1', cp, col1, ConsistencyLevel.ONE), InvalidRequestException)
         assert e.why.find("failed validation") >= 0
 
-        # super CF
+        # columndef validation for super CF
         scf = CfDef('Keyspace1', 'ValidatorSuperColumnFamily', column_type='Super', column_metadata=[cd])
         client.system_add_column_family(scf)
         ks_def = client.describe_keyspace(ks)
@@ -1217,7 +1217,27 @@ class TestMutations(ThriftTester):
         client.insert('key0', scp, col0, ConsistencyLevel.ONE)
         e = _expect_exception(lambda: client.insert('key1', scp, col1, ConsistencyLevel.ONE), InvalidRequestException)
         assert e.why.find("failed validation") >= 0
-       
+
+        # columndef and cfdef default validation
+        cf = CfDef('Keyspace1', 'DefaultValidatorColumnFamily', column_metadata=[cd], default_validation_class='UTF8Type')
+        client.system_add_column_family(cf)
+        ks_def = client.describe_keyspace(ks)
+        assert 'DefaultValidatorColumnFamily' in [x.name for x in ks_def.cf_defs]
+
+        dcp = ColumnParent('DefaultValidatorColumnFamily')
+        # inserting a longtype into column 'col' is valid at the columndef level
+        client.insert('key0', dcp, col0, ConsistencyLevel.ONE)
+        # inserting a UTF8type into column 'col' fails at the columndef level
+        e = _expect_exception(lambda: client.insert('key1', dcp, col1, ConsistencyLevel.ONE), InvalidRequestException)
+        assert e.why.find("failed validation") >= 0
+        
+        # insert a longtype into column 'fcol' should fail at the cfdef level
+        col2 = Column('fcol', _i64(4224), Clock(0))
+        e = _expect_exception(lambda: client.insert('key1', dcp, col2, ConsistencyLevel.ONE), InvalidRequestException)
+        assert e.why.find("failed validation") >= 0
+        # insert a UTF8type into column 'fcol' is valid at the cfdef level
+        col3 = Column('fcol', "Stringin' it up in the Stringtel Stringifornia", Clock(0))
+        client.insert('key0', dcp, col3, ConsistencyLevel.ONE)
 
     def test_system_column_family_operations(self):
         _set_keyspace('Keyspace1')

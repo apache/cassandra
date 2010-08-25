@@ -44,5 +44,6 @@ public class RawColumnFamily
     public double read_repair_chance = CFMetaData.DEFAULT_READ_REPAIR_CHANCE;
     public boolean preload_row_cache = CFMetaData.DEFAULT_PRELOAD_ROW_CACHE;
     public int gc_grace_seconds = CFMetaData.DEFAULT_GC_GRACE_SECONDS;
+    public String default_validation_class;
     public RawColumnDefinition[] column_metadata = new RawColumnDefinition[0];
 }

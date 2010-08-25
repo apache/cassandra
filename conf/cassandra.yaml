@@ -297,6 +297,7 @@ keyspaces:
           comment: 'A column family with supercolumns, whose column names are Longs (8 bytes)'
 
         - name: Indexed1
+          default_validation_class: LongType
           column_metadata:
             - name: birthdate
               validator_class: LongType
