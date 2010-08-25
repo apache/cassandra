@@ -68,6 +68,7 @@ public class SampleColumnFamilyOutputTool extends Configured implements Tool
         job.setMapOutputValueClass(ColumnWritable.class);
         job.setInputFormatClass(SequenceFileInputFormat.class);
         
+        // TODO: no idea why this test is passing
         job.setReducerClass(ColumnFamilyOutputReducer.class);
         job.setOutputKeyClass(byte[].class);
         job.setOutputValueClass(SortedMap.class);
