@@ -27,6 +27,7 @@ public class Config
 {
     public String cluster_name = "Test Cluster";
     public String authenticator;
+    public String authority;
     
     /* Hashing strategy Random or OPHF */
     public String partitioner;

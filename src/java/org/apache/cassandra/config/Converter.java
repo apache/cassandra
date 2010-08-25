@@ -32,6 +32,8 @@ import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.TransformerException;
 import javax.xml.xpath.XPathExpressionException;
 
+import org.apache.cassandra.auth.SimpleAuthenticator;
+import org.apache.cassandra.auth.SimpleAuthority;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SkipNullRepresenter;
 import org.apache.cassandra.utils.XMLUtils;
@@ -182,6 +184,9 @@ public class Converter
             conf.disk_access_mode = Config.DiskAccessMode.valueOf(modeRaw);
             
             conf.authenticator = xmlUtils.getNodeValue("/Storage/Authenticator");
+            // handle the authc/authz split by configuring SimpleAuthority if SimpleAuthenticator is in use
+            if (conf.authenticator != null && conf.authenticator.equals(SimpleAuthenticator.class.getName()))
+                conf.authority = SimpleAuthority.class.getName();
             
             /* Hashing strategy */
             conf.partitioner = xmlUtils.getNodeValue("/Storage/Partitioner");

@@ -31,9 +31,7 @@ import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.auth.AllowAllAuthenticator;
-import org.apache.cassandra.auth.IAuthenticator;
-import org.apache.cassandra.auth.IAuthority;
+import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.Config.RequestSchedulerId;
 import org.apache.cassandra.db.ClockType;
 import org.apache.cassandra.db.ColumnFamilyType;
@@ -82,7 +80,7 @@ public class DatabaseDescriptor
     private static Config conf;
 
     private static IAuthenticator authenticator = new AllowAllAuthenticator();
-    private static IAuthority authority = new AllowAllAuthenticator();
+    private static IAuthority authority = new AllowAllAuthority();
 
     private final static String DEFAULT_CONFIGURATION = "cassandra.yaml";
 
@@ -189,12 +187,13 @@ public class DatabaseDescriptor
                 logger.info("DiskAccessMode is" + conf.disk_access_mode + ", indexAccessMode is " + indexAccessMode );
             }
 
-            /* Authentication and authorization backend, implementing IAuthenticator */
+            /* Authentication and authorization backend, implementing IAuthenticator and IAuthority */
             if (conf.authenticator != null)
-            {
                 authenticator = FBUtilities.<IAuthenticator>construct(conf.authenticator, "authenticator");
-            }
+            if (conf.authority != null)
+                authority = FBUtilities.<IAuthority>construct(conf.authority, "authority");
             authenticator.validateConfiguration();
+            authority.validateConfiguration();
             
             /* Hashing strategy */
             if (conf.partitioner == null)
@@ -604,6 +603,11 @@ public class DatabaseDescriptor
     public static IAuthenticator getAuthenticator()
     {
         return authenticator;
+    }
+
+    public static IAuthority getAuthority()
+    {
+        return authority;
     }
 
     public static boolean isThriftFramed()

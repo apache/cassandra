@@ -16,8 +16,11 @@ auto_bootstrap: false
 # See http://wiki.apache.org/cassandra/HintedHandoff
 hinted_handoff_enabled: true
 
-# authentication backend, implementing IAuthenticator; used to limit keyspace access
+# authentication backend, implementing IAuthenticator; used to identify users
 authenticator: org.apache.cassandra.auth.AllowAllAuthenticator
+
+# authorization backend, implementing IAuthority; used to limit access/provide permissions
+authority: org.apache.cassandra.auth.AllowAllAuthority
 
 # any IPartitioner may be used, including your own as long as it is on
 # the classpath.  Out of the box, Cassandra provides
