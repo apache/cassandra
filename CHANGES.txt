@@ -31,6 +31,7 @@ dev
  * remove keyspace argument from multiget_count (CASSANDRA-1422)
  * allow specifying cassandra.yaml location as (local or remote) URL
    (CASSANDRA-1126)
+ * added CMSInitiatingOccupancyFraction=80 to default GC options
 
 
 0.7-beta1

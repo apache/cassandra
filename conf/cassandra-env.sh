@@ -31,12 +31,20 @@ JMX_PORT="8080"
 # performance benefit (around 5%).
 JVM_OPTS="$JVM_OPTS -ea"
 
+# enable thread priorities, primarily so we can give periodic tasks
+# a lower priority to avoid interfering with client workload
+JVM_OPTS="$JVM_OPTS -XX:+UseThreadPriorities"
+# allows lowering thread priority without being root.  see
+# http://tech.stolsvik.com/2010/01/linux-java-thread-priorities-workaround.html
+JVM_OPTS="$JVM_OPTS -XX:ThreadPriorityPolicy=42"
+
 # min and max heap sizes should be set to the same value to avoid
 # stop-the-world GC pauses during resize, and so that we can lock the
 # heap in memory on startup to prevent any of it from being swapped
 # out.
 JVM_OPTS="$JVM_OPTS -Xms$MAX_HEAP_SIZE"
 JVM_OPTS="$JVM_OPTS -Xmx$MAX_HEAP_SIZE"
+JVM_OPTS="$JVM_OPTS -XX:+HeapDumpOnOutOfMemoryError" 
 
 # reduce the per-thread stack size to minimize the impact of Thrift
 # thread-per-client.  (Best practice is for client connections to
@@ -48,11 +56,10 @@ JVM_OPTS="$JVM_OPTS -XX:+UseParNewGC"
 JVM_OPTS="$JVM_OPTS -XX:+UseConcMarkSweepGC" 
 JVM_OPTS="$JVM_OPTS -XX:+CMSParallelRemarkEnabled" 
 JVM_OPTS="$JVM_OPTS -XX:SurvivorRatio=8" 
-JVM_OPTS="$JVM_OPTS -XX:MaxTenuringThreshold=1" 
-JVM_OPTS="$JVM_OPTS -XX:+HeapDumpOnOutOfMemoryError" 
-JVM_OPTS="$JVM_OPTS -XX:+UseThreadPriorities"
-JVM_OPTS="$JVM_OPTS -XX:ThreadPriorityPolicy=42"
+JVM_OPTS="$JVM_OPTS -XX:MaxTenuringThreshold=1"
+JVM_OPTS="$JVM_OPTS -XX:CMSInitiatingOccupancyFraction=80"
 
+# jmx
 JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.port=$JMX_PORT" 
 JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.ssl=false" 
 JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.authenticate=false" 
