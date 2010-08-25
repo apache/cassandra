@@ -41,8 +41,6 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
     public RackAwareStrategy(TokenMetadata tokenMetadata, IEndPointSnitch snitch)
     {
         super(tokenMetadata, snitch);
-        if (!(snitch instanceof EndPointSnitch))
-            throw new IllegalArgumentException(("RackAwareStrategy requires EndPointSnitch."));
     }
 
     public ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata, String table)
@@ -66,7 +64,7 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
             {
                 // First try to find one in a different data center
                 Token t = iter.next();
-                if (!((EndPointSnitch)snitch_).isInSameDataCenter(metadata.getEndPoint(primaryToken), metadata.getEndPoint(t)))
+                if (!(snitch_).isInSameDataCenter(metadata.getEndPoint(primaryToken), metadata.getEndPoint(t)))
                 {
                     // If we have already found something in a diff datacenter no need to find another
                     if (!bDataCenter)
@@ -77,8 +75,8 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
                     continue;
                 }
                 // Now  try to find one on a different rack
-                if (!((EndPointSnitch)snitch_).isOnSameRack(metadata.getEndPoint(primaryToken), metadata.getEndPoint(t)) &&
-                    ((EndPointSnitch)snitch_).isInSameDataCenter(metadata.getEndPoint(primaryToken), metadata.getEndPoint(t)))
+                if (!snitch_.isOnSameRack(metadata.getEndPoint(primaryToken), metadata.getEndPoint(t)) &&
+                    snitch_.isInSameDataCenter(metadata.getEndPoint(primaryToken), metadata.getEndPoint(t)))
                 {
                     // If we have already found something in a diff rack no need to find another
                     if (!bOtherRack)
