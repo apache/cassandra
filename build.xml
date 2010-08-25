@@ -174,42 +174,46 @@
       <taskdef name="avro-protocol" classname="org.apache.avro.specific.ProtocolTask">
         <classpath refid="cassandra.classpath" />
       </taskdef>
-      <taskdef name="avro-schema" classname="org.apache.avro.specific.SchemaTask">
-        <classpath refid="cassandra.classpath" />
-      </taskdef>
       <uptodate property="avroInterfaceUpToDate" srcfile="${interface.dir}/cassandra.genavro"
-                  targetfile="${interface.avro.dir}/cassandra.avpr" />
+                targetfile="${interface.avro.dir}/cassandra.avpr" />
       <uptodate property="avroINProtoUpToDate" srcfile="${avro.src}/internode.genavro"
-                  targetfile="${build.src.gen-java}/cassandra.avpr" />
+                targetfile="${build.dir}/internode.avpr" />
     </target>
 
-    <target name="avro-generate" depends="avro-interface-generate"
+    <target name="avro-generate"
+            depends="avro-interface-generate-client,avro-interface-generate-internode"
             description="Generates Java Avro classes for client and internal use." />
 
-    <target name="avro-interface-generate" unless="avroInterfaceUpToDate"
+    <target name="avro-interface-generate-client" unless="avroInterfaceUpToDate"
             depends="init,check-avro-generate,ivy-retrieve-build">
-      <avromacro protocolname="client" inputfile="${interface.dir}/cassandra.genavro" outputdir="${interface.avro.dir}" />
-      <avromacro protocolname="internode" inputfile="${avro.src}/internode.genavro" outputdir="${build.src}"/>
+      <avromacro protocolname="cassandra" inputfile="${interface.dir}/cassandra.genavro"
+                 jsondir="${interface.avro.dir}" outputdir="${interface.avro.dir}" />
+    </target>
+    <target name="avro-interface-generate-internode" unless="avroINProtoUpToDate"
+            depends="init,check-avro-generate,ivy-retrieve-build">
+      <avromacro protocolname="internode" inputfile="${avro.src}/internode.genavro"
+                 jsondir="${build.dir}" outputdir="${build.src}"/>
     </target>
 
     <macrodef name="avromacro">
       <attribute name="protocolname" />
       <attribute name="inputfile" />
+      <attribute name="jsondir" />
       <attribute name="outputdir" />
       <sequential>
         <echo message="Generating Avro @{protocolname} code..." />
-        <mkdir dir="@{outputdir}" />
+        <mkdir dir="@{jsondir}" />
         <!-- Generate json schema from genavro IDL -->
         <java classname="org.apache.avro.tool.Main" fork="true">
           <classpath refid="cassandra.classpath" />
           <arg value="idl" />
           <arg value="@{inputfile}" />
-          <arg value="@{outputdir}/cassandra.avpr" />
+          <arg value="@{jsondir}/@{protocolname}.avpr" />
         </java>
     
-        <!-- Generate java code from json protocol schema -->
+        <!-- Generate java code from JSON protocol schema -->
         <avro-protocol destdir="@{outputdir}/gen-java">
-            <fileset file="@{outputdir}/cassandra.avpr" />
+            <fileset file="@{jsondir}/@{protocolname}.avpr" />
         </avro-protocol>
       </sequential>
     </macrodef>
