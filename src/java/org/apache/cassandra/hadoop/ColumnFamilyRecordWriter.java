@@ -157,11 +157,19 @@ final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer,List<org.ap
             mutationsByEndpoint.put(endpoint, mutationsByKey);
         }
 
-        Map<String, List<Mutation>> cfMutation = new HashMap<String, List<Mutation>>();
-        mutationsByKey.put(key, cfMutation);
+        Map<String, List<Mutation>> cfMutation = mutationsByKey.get(key);
+        if (cfMutation == null)
+        {
+            cfMutation = new HashMap<String, List<Mutation>>();
+            mutationsByKey.put(key, cfMutation);
+        }
 
-        List<Mutation> mutationList = new ArrayList<Mutation>();
-        cfMutation.put(ConfigHelper.getOutputColumnFamily(context.getConfiguration()), mutationList);
+        List<Mutation> mutationList = cfMutation.get(ConfigHelper.getOutputColumnFamily(context.getConfiguration()));
+        if (mutationList == null)
+        {
+            mutationList = new ArrayList<Mutation>();
+            cfMutation.put(ConfigHelper.getOutputColumnFamily(context.getConfiguration()), mutationList);
+        }
 
         for (org.apache.cassandra.avro.Mutation amut : value)
             mutationList.add(avroToThrift(amut));
