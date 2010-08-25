@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
+import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.thrift.ConsistencyLevel;
@@ -35,7 +36,7 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class DatacenterQuorumResponseHandler<T> extends QuorumResponseHandler<T>
 {
-    private static final AbstractNetworkTopologySnitch snitch = (AbstractNetworkTopologySnitch) DatabaseDescriptor.getEndpointSnitch();
+    private static final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
 	private static final String localdc = snitch.getDatacenter(FBUtilities.getLocalAddress());
     private AtomicInteger localResponses;
     

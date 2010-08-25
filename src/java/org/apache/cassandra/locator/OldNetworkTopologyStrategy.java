@@ -55,8 +55,6 @@ public class OldNetworkTopologyStrategy extends AbstractReplicationStrategy
         boolean bOtherRack = false;
         while (endpoints.size() < replicas && iter.hasNext())
         {
-            AbstractNetworkTopologySnitch snitch = (AbstractNetworkTopologySnitch) this.snitch;
-
             // First try to find one in a different data center
             Token t = iter.next();
             if (!snitch.getDatacenter(metadata.getEndpoint(primaryToken)).equals(snitch.getDatacenter(metadata.getEndpoint(t))))

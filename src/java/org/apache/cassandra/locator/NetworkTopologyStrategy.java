@@ -49,14 +49,14 @@ import org.apache.cassandra.thrift.ConsistencyLevel;
  */
 public class NetworkTopologyStrategy extends AbstractReplicationStrategy
 {
-    private AbstractNetworkTopologySnitch snitch;
+    private IEndpointSnitch snitch;
     private Map<String, Integer> datacenters;
     private static final Logger logger = LoggerFactory.getLogger(NetworkTopologyStrategy.class);
 
     public NetworkTopologyStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions) throws ConfigurationException
     {
         super(table, tokenMetadata, snitch, configOptions);
-        this.snitch = (AbstractNetworkTopologySnitch)snitch;
+        this.snitch = snitch;
 
         Map<String, Integer> newDatacenters = new HashMap<String, Integer>();
         for (Entry entry : configOptions.entrySet())
