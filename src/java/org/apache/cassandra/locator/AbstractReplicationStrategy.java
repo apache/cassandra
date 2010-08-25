@@ -250,17 +250,7 @@ public abstract class AbstractReplicationStrategy
                                                                         Map<String, String> strategyOptions)
             throws ConfigurationException
     {
-        AbstractReplicationStrategy strategy;
-        Class<? extends AbstractReplicationStrategy> c;
-        try
-        {
-            c = (Class<? extends AbstractReplicationStrategy>) Class.forName(strategyClassName);
-        }
-        catch (ClassNotFoundException e)
-        {
-            throw new ConfigurationException("Invalid replication strategy class: " + strategyClassName);
-        }
-
+        Class<AbstractReplicationStrategy> c = FBUtilities.<AbstractReplicationStrategy>classForName(strategyClassName, "replication-strategy");
         return createReplicationStrategy(table, c, tokenMetadata, snitch, strategyOptions);
     }
 }

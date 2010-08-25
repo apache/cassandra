@@ -19,7 +19,9 @@
 package org.apache.cassandra.utils;
 
 import java.io.*;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.URL;
@@ -541,35 +543,17 @@ public class FBUtilities
         }
     }
 
-    public static IPartitioner newPartitioner(String partitionerClassName)
+    public static IPartitioner newPartitioner(String partitionerClassName) throws ConfigurationException
     {
         if (!partitionerClassName.contains("."))
             partitionerClassName = "org.apache.cassandra.dht." + partitionerClassName;
-
-        try
-        {
-            Class cls = Class.forName(partitionerClassName);
-            return (IPartitioner) cls.getConstructor().newInstance();
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException("Invalid partitioner class " + partitionerClassName);
-        }
+        return FBUtilities.<IPartitioner>construct(partitionerClassName, "partitioner");
     }
 
     public static AbstractType getComparator(String compareWith) throws ConfigurationException
     {
         String className = compareWith.contains(".") ? compareWith : "org.apache.cassandra.db.marshal." + compareWith;
-        Class<? extends AbstractType> typeClass;
-        try
-        {
-            typeClass = (Class<? extends AbstractType>) Class.forName(className);
-        }
-        catch (ClassNotFoundException e)
-        {
-            throw new ConfigurationException("Unable to load class " + className);
-        }
-
+        Class<? extends AbstractType> typeClass = FBUtilities.<AbstractType>classForName(className, "abstract-type");
         try
         {
             Field field = typeClass.getDeclaredField("instance");
@@ -586,6 +570,59 @@ public class FBUtilities
             ConfigurationException ex = new ConfigurationException("Invalid comparator: must define a public static instance field.");
             ex.initCause(e);
             throw ex;
+        }
+    }
+
+    /**
+     * @return The Class for the given name.
+     * @param classname Fully qualified classname.
+     * @param readable Descriptive noun for the role the class plays.
+     * @throws ConfigurationException If the class cannot be found.
+     */
+    public static <T> Class<T> classForName(String classname, String readable) throws ConfigurationException
+    {
+        try
+        {
+            return (Class<T>)Class.forName(classname);
+        }
+        catch (ClassNotFoundException e)
+        {
+            throw new ConfigurationException(String.format("Unable to find %s class '%s': is the CLASSPATH set correctly?", readable, classname));
+        }
+    }
+
+    /**
+     * Constructs an instance of the given class, which must have a no-arg constructor.
+     * TODO: Similar method for our 'instance member' singleton pattern would be nice.
+     * @param classname Fully qualified classname.
+     * @param readable Descriptive noun for the role the class plays.
+     * @throws ConfigurationException If the class cannot be found.
+     */
+    public static <T> T construct(String classname, String readable) throws ConfigurationException
+    {
+        Class<T> cls = FBUtilities.<T>classForName(classname, readable);
+        try
+        {
+            Constructor ctor = cls.getConstructor();
+            return (T)ctor.newInstance();
+        }
+        catch (NoSuchMethodException e)
+        {
+            throw new ConfigurationException(String.format("No default constructor for %s class '%s'.", readable, classname));
+        }
+        catch (IllegalAccessException e)
+        {
+            throw new ConfigurationException(String.format("Default constructor for %s class '%s' is inaccessible.", readable, classname));
+        }
+        catch (InstantiationException e)
+        {
+            throw new ConfigurationException(String.format("Cannot use abstract class '%s' as %s.", classname, readable));
+        }
+        catch (InvocationTargetException e)
+        {
+            if (e.getCause() instanceof ConfigurationException)
+                throw (ConfigurationException)e.getCause();
+            throw new ConfigurationException(String.format("Error instantiating %s class '%s'.", readable, classname), e);
         }
     }
 

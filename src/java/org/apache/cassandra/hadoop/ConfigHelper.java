@@ -20,6 +20,7 @@ package org.apache.cassandra.hadoop;
  * 
  */
 
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.utils.FBUtilities;
@@ -254,6 +255,13 @@ public class ConfigHelper
 
     public static IPartitioner getPartitioner(Configuration conf)
     {
-        return FBUtilities.newPartitioner(conf.get(PARTITIONER_CONFIG)); 
+        try
+        {
+            return FBUtilities.newPartitioner(conf.get(PARTITIONER_CONFIG)); 
+        }
+        catch (ConfigurationException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 }

@@ -19,9 +19,7 @@
 package org.apache.cassandra.config;
 
 import java.io.*;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -35,6 +33,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.auth.IAuthenticator;
+import org.apache.cassandra.auth.IAuthority;
 import org.apache.cassandra.config.Config.RequestSchedulerId;
 import org.apache.cassandra.db.ClockType;
 import org.apache.cassandra.db.ColumnFamilyType;
@@ -83,6 +82,7 @@ public class DatabaseDescriptor
     private static Config conf;
 
     private static IAuthenticator authenticator = new AllowAllAuthenticator();
+    private static IAuthority authority = new AllowAllAuthenticator();
 
     private final static String DEFAULT_CONFIGURATION = "cassandra.yaml";
 
@@ -192,17 +192,8 @@ public class DatabaseDescriptor
             /* Authentication and authorization backend, implementing IAuthenticator */
             if (conf.authenticator != null)
             {
-                try
-                {
-                    Class cls = Class.forName(conf.authenticator);
-                    authenticator = (IAuthenticator) cls.getConstructor().newInstance();
-                }
-                catch (ClassNotFoundException e)
-                {
-                    throw new ConfigurationException("Invalid authenticator class " + conf.authenticator);
-                }
+                authenticator = FBUtilities.<IAuthenticator>construct(conf.authenticator, "authenticator");
             }
-
             authenticator.validateConfiguration();
             
             /* Hashing strategy */
@@ -404,43 +395,7 @@ public class DatabaseDescriptor
 
     private static IEndpointSnitch createEndpointSnitch(String endpointSnitchClassName) throws ConfigurationException
     {
-        IEndpointSnitch snitch;
-        Class cls;
-        try
-        {
-            cls = Class.forName(endpointSnitchClassName);
-        }
-        catch (ClassNotFoundException e)
-        {
-            throw new ConfigurationException("Unable to load endpointsnitch class " + endpointSnitchClassName);
-        }
-        Constructor ctor;
-        try
-        {
-            ctor = cls.getConstructor();
-        }
-        catch (NoSuchMethodException e)
-        {
-            throw new ConfigurationException("No default constructor found in " + endpointSnitchClassName);
-        }
-        try
-        {
-            snitch = (IEndpointSnitch)ctor.newInstance();
-        }
-        catch (InstantiationException e)
-        {
-            throw new ConfigurationException("endpointsnitch class " + endpointSnitchClassName + "is abstract");
-        }
-        catch (IllegalAccessException e)
-        {
-            throw new ConfigurationException("Access to " + endpointSnitchClassName + " constructor was rejected");
-        }
-        catch (InvocationTargetException e)
-        {
-            if (e.getCause() instanceof ConfigurationException)
-                throw (ConfigurationException)e.getCause();
-            throw new ConfigurationException("Error instantiating " + endpointSnitchClassName + " " + e.getMessage());
-        }
+        IEndpointSnitch snitch = FBUtilities.<IEndpointSnitch>construct(endpointSnitchClassName, "snitch");
         return conf.dynamic_snitch ? new DynamicEndpointSnitch(snitch) : snitch;
     }
     
@@ -553,15 +508,7 @@ public class DatabaseDescriptor
             }
             String strategyClassName = keyspace.replica_placement_strategy.replace("RackUnawareStrategy", "SimpleStrategy")
                                                                           .replace("RackAwareStrategy", "OldNetworkTopologyStrategy");
-            Class<? extends AbstractReplicationStrategy> strategyClass = null;
-            try
-            {
-                strategyClass = (Class<? extends AbstractReplicationStrategy>) Class.forName(strategyClassName);
-            }
-            catch (ClassNotFoundException e)
-            {
-                throw new ConfigurationException("Invalid replicaplacementstrategy class " + keyspace.replica_placement_strategy);
-            }
+            Class<AbstractReplicationStrategy> strategyClass = FBUtilities.<AbstractReplicationStrategy>classForName(strategyClassName, "replication-strategy");
             
             /* Data replication factor */
             if (keyspace.replication_factor == null)
@@ -676,8 +623,6 @@ public class DatabaseDescriptor
 
     public static AbstractType getComparator(String compareWith) throws ConfigurationException
     {
-        Class<? extends AbstractType> typeClass;
-        
         if (compareWith == null)
             compareWith = "BytesType";
 
@@ -692,16 +637,7 @@ public class DatabaseDescriptor
         }
 
         String className = reconcileWith.indexOf('.') >= 0 ? reconcileWith : TimestampReconciler.class.getPackage().getName() + '.' + reconcileWith;
-        Class<? extends AbstractReconciler> reconcilerClass;
-        try
-        {
-            reconcilerClass = (Class<? extends AbstractReconciler>) Class.forName(className);
-        }
-        catch (ClassNotFoundException e)
-        {
-            throw new ConfigurationException("Unable to load class " + className);
-        }
-
+        Class<? extends AbstractReconciler> reconcilerClass = FBUtilities.<AbstractReconciler>classForName(className, "reconciler");
         try
         {
             Field field = reconcilerClass.getDeclaredField("instance");
