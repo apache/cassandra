@@ -18,16 +18,17 @@
 
 package org.apache.cassandra.config;
 
-import java.io.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.*;
-import org.apache.avro.Schema;
+
 import org.apache.avro.util.Utf8;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
+import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.ClockType;
@@ -39,8 +40,6 @@ import org.apache.cassandra.db.StatisticsTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -57,15 +56,32 @@ public final class CFMetaData
 
     private static final AtomicInteger idGen = new AtomicInteger(MIN_CF_ID);
     
-    private static final Map<Integer, String> currentCfNames = new HashMap<Integer, String>();
+    private static final BiMap<Pair<String, String>, Integer> cfIdMap = HashBiMap.create();
     
-    private static final BiMap<Pair<String, String>, Integer> cfIdMap = HashBiMap.<Pair<String, String>, Integer>create();
-    
-    public static final CFMetaData StatusCf = new CFMetaData(Table.SYSTEM_TABLE, SystemTable.STATUS_CF, ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, TimestampReconciler.instance, "persistent metadata for the local node", 0, false, 0.01, 0, DEFAULT_GC_GRACE_SECONDS, 0, Collections.<byte[],ColumnDefinition>emptyMap());
-    public static final CFMetaData HintsCf = new CFMetaData(Table.SYSTEM_TABLE, HintedHandOffManager.HINTS_CF, ColumnFamilyType.Super, ClockType.Timestamp, BytesType.instance, BytesType.instance, TimestampReconciler.instance, "hinted handoff data", 0, false, 0.01, 0, DEFAULT_GC_GRACE_SECONDS, 1, Collections.<byte[], ColumnDefinition>emptyMap());
-    public static final CFMetaData MigrationsCf = new CFMetaData(Table.SYSTEM_TABLE, Migration.MIGRATIONS_CF, ColumnFamilyType.Standard, ClockType.Timestamp, TimeUUIDType.instance, null, TimestampReconciler.instance, "individual schema mutations", 0, false, 0.01, 0, DEFAULT_GC_GRACE_SECONDS, 2, Collections.<byte[], ColumnDefinition>emptyMap());
-    public static final CFMetaData SchemaCf = new CFMetaData(Table.SYSTEM_TABLE, Migration.SCHEMA_CF, ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, TimestampReconciler.instance, "current state of the schema", 0, false, 0.01, 0, DEFAULT_GC_GRACE_SECONDS, 3, Collections. <byte[], ColumnDefinition>emptyMap());
-    public static final CFMetaData StatisticsCf = new CFMetaData(Table.SYSTEM_TABLE, StatisticsTable.STATISTICS_CF, ColumnFamilyType.Super, ClockType.Timestamp, UTF8Type.instance, BytesType.instance, TimestampReconciler.instance, "persistent CF statistics for the local node", 0, false, 0.01, DEFAULT_GC_GRACE_SECONDS, 0, 4, Collections.<byte[], ColumnDefinition>emptyMap());
+    public static final CFMetaData StatusCf = newSystemTable(SystemTable.STATUS_CF, 0, "persistent metadata for the local node", BytesType.instance, null);
+    public static final CFMetaData HintsCf = newSystemTable(HintedHandOffManager.HINTS_CF, 1, "hinted handoff data", BytesType.instance, BytesType.instance);
+    public static final CFMetaData MigrationsCf = newSystemTable(Migration.MIGRATIONS_CF, 2, "individual schema mutations", TimeUUIDType.instance, null);
+    public static final CFMetaData SchemaCf = newSystemTable(Migration.SCHEMA_CF, 3, "current state of the schema", UTF8Type.instance, null);
+    public static final CFMetaData StatisticsCf = newSystemTable(StatisticsTable.STATISTICS_CF, 4, "persistent CF statistics for the local node", UTF8Type.instance, BytesType.instance);
+
+    private static CFMetaData newSystemTable(String cfName, int cfId, String comment, AbstractType comparator, AbstractType subComparator)
+    {
+        return new CFMetaData(Table.SYSTEM_TABLE,
+                              cfName,
+                              subComparator == null ? ColumnFamilyType.Standard : ColumnFamilyType.Super,
+                              ClockType.Timestamp,
+                              comparator,
+                              subComparator,
+                              TimestampReconciler.instance,
+                              comment,
+                              0,
+                              false,
+                              0.01,
+                              0,
+                              0,
+                              cfId,
+                              Collections.<byte[], ColumnDefinition>emptyMap());
+    }
 
     /**
      * @return An immutable mapping of (ksname,cfname) to id.
@@ -168,7 +184,6 @@ public final class CFMetaData
         else
         {
             cfIdMap.put(key, cfm.cfId);
-            currentCfNames.put(cfm.cfId, cfm.cfName);
         }
     }
 
@@ -194,7 +209,6 @@ public final class CFMetaData
     public static void purge(CFMetaData cfm)
     {
         cfIdMap.remove(new Pair<String, String>(cfm.tableName, cfm.cfName));
-        currentCfNames.remove(cfm.cfId);
     }
 
     // a quick and dirty pretty printer for describing the column family...
