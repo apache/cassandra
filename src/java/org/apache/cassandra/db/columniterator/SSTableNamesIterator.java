@@ -46,85 +46,91 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
     private ColumnFamily cf;
     private Iterator<IColumn> iter;
     public final SortedSet<byte[]> columns;
-    public final DecoratedKey decoratedKey;
+    public final DecoratedKey key;
 
-    public SSTableNamesIterator(SSTableReader ssTable, DecoratedKey key, SortedSet<byte[]> columnNames)
+    public SSTableNamesIterator(SSTableReader sstable, DecoratedKey key, SortedSet<byte[]> columns)
     {
-        this (ssTable, null, key, columnNames);
-    }
+        assert columns != null;
+        this.columns = columns;
+        this.key = key;
 
-    public SSTableNamesIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, SortedSet<byte[]> columnNames)
-    {
-        boolean closeFileWhenDone = file == null;
-        
+        FileDataInput file = sstable.getFileDataInput(key, DatabaseDescriptor.getIndexedReadBufferSizeInKB() * 1024);
+        if (file == null)
+            return;
+
         try
         {
-            assert columnNames != null;
-
-            this.columns = columnNames;
-            this.decoratedKey = key;
-
-            // open the sstable file, if we don't have one passed to use from range scan
-            if (file == null)
+            DecoratedKey keyInDisk = SSTableReader.decodeKey(sstable.getPartitioner(),
+                                                             sstable.getDescriptor(),
+                                                             FBUtilities.readShortByteArray(file));
+            assert keyInDisk.equals(key) : String.format("%s != %s in %s", keyInDisk, key, file.getPath());
+            SSTableReader.readRowSize(file, sstable.getDescriptor());
+            read(sstable, file);
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+        finally
+        {
+            try
             {
-                file = sstable.getFileDataInput(decoratedKey, DatabaseDescriptor.getIndexedReadBufferSizeInKB() * 1024);
-                if (file == null)
-                    return;
-                DecoratedKey keyInDisk = SSTableReader.decodeKey(sstable.getPartitioner(),
-                                                                 sstable.getDescriptor(),
-                                                                 FBUtilities.readShortByteArray(file));
-                assert keyInDisk.equals(decoratedKey)
-                       : String.format("%s != %s in %s", keyInDisk, decoratedKey, file.getPath());
-                SSTableReader.readRowSize(file, sstable.getDescriptor());
+                file.close();
             }
-
-            // read the requested columns into `cf`
-            /* Read the bloom filter summarizing the columns */
-            BloomFilter bf = IndexHelper.defreezeBloomFilter(file);
-            List<IndexHelper.IndexInfo> indexList = IndexHelper.deserializeIndex(file);
-
-            // we can stop early if bloom filter says none of the columns actually exist -- but,
-            // we can't stop before initializing the cf above, in case there's a relevant tombstone
-            cf = ColumnFamily.serializer().deserializeFromSSTableNoColumns(sstable.createColumnFamily(), file);
-
-            List<byte[]> filteredColumnNames1 = new ArrayList<byte[]>(columnNames.size());
-            for (byte[] name : columnNames)
+            catch (IOException ioe)
             {
-                if (bf.isPresent(name))
-                {
-                    filteredColumnNames1.add(name);
-                }
+                logger.warn("error closing " + file.getPath());
             }
-            List<byte[]> filteredColumnNames = filteredColumnNames1;
-            if (filteredColumnNames.isEmpty())
-                return;
+        }
+    }
 
-            if (indexList == null)
-                readSimpleColumns(file, columnNames, filteredColumnNames);
-            else
-                readIndexedColumns(sstable, file, columnNames, filteredColumnNames, indexList);
+    public SSTableNamesIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, SortedSet<byte[]> columns)
+    {
+        assert columns != null;
+        this.columns = columns;
+        this.key = key;
 
-            // create an iterator view of the columns we read
-            iter = cf.getSortedColumns().iterator();
+        try
+        {
+            read(sstable, file);
         }
         catch (IOException ioe)
         {
             throw new IOError(ioe);
         }
-        finally
+    }
+
+    private void read(SSTableReader sstable, FileDataInput file)
+    throws IOException
+    {
+
+        // read the requested columns into `cf`
+        /* Read the bloom filter summarizing the columns */
+        BloomFilter bf = IndexHelper.defreezeBloomFilter(file);
+        List<IndexHelper.IndexInfo> indexList = IndexHelper.deserializeIndex(file);
+
+        // we can stop early if bloom filter says none of the columns actually exist -- but,
+        // we can't stop before initializing the cf above, in case there's a relevant tombstone
+        cf = ColumnFamily.serializer().deserializeFromSSTableNoColumns(sstable.createColumnFamily(), file);
+
+        List<byte[]> filteredColumnNames = new ArrayList<byte[]>(columns.size());
+        for (byte[] name : columns)
         {
-            if (closeFileWhenDone && file != null)
+            if (bf.isPresent(name))
             {
-                try
-                {
-                    file.close();
-                }
-                catch (IOException ioe)
-                {
-                    logger.warn("error closing " + file.getPath());
-                }
+                filteredColumnNames.add(name);
             }
         }
+        if (filteredColumnNames.isEmpty())
+            return;
+
+        if (indexList == null)
+            readSimpleColumns(file, columns, filteredColumnNames);
+        else
+            readIndexedColumns(sstable, file, columns, filteredColumnNames, indexList);
+
+        // create an iterator view of the columns we read
+        iter = cf.getSortedColumns().iterator();
     }
 
     private void readSimpleColumns(FileDataInput file, SortedSet<byte[]> columnNames, List<byte[]> filteredColumnNames) throws IOException
@@ -183,7 +189,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
 
     public DecoratedKey getKey()
     {
-        return decoratedKey;
+        return key;
     }
 
     public ColumnFamily getColumnFamily()

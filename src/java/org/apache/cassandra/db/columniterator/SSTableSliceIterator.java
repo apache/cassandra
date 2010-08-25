@@ -38,19 +38,37 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class SSTableSliceIterator implements IColumnIterator
 {
-    private final FileDataInput file;
+    private final FileDataInput fileToClose;
     private IColumnIterator reader;
-    private boolean closeFileWhenDone = false;
-    private DecoratedKey decoratedKey;
+    private DecoratedKey key;
 
-    public SSTableSliceIterator(SSTableReader ssTable, DecoratedKey key, byte[] startColumn, byte[] finishColumn, boolean reversed)
+    public SSTableSliceIterator(SSTableReader sstable, DecoratedKey key, byte[] startColumn, byte[] finishColumn, boolean reversed)
     {
-        this(ssTable, null, key, startColumn, finishColumn, reversed);
+        this.key = key;
+        fileToClose = sstable.getFileDataInput(this.key, DatabaseDescriptor.getSlicedReadBufferSizeInKB() * 1024);
+        if (fileToClose == null)
+            return;
+
+        try
+        {
+            DecoratedKey keyInDisk = SSTableReader.decodeKey(sstable.getPartitioner(),
+                                                             sstable.getDescriptor(),
+                                                             FBUtilities.readShortByteArray(fileToClose));
+            assert keyInDisk.equals(key)
+                   : String.format("%s != %s in %s", keyInDisk, key, fileToClose.getPath());
+            SSTableReader.readRowSize(fileToClose, sstable.getDescriptor());
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+
+        reader = createReader(sstable, fileToClose, startColumn, finishColumn, reversed);
     }
 
     /**
      * An iterator for a slice within an SSTable
-     * @param ssTable The SSTable to iterate over
+     * @param sstable The SSTable to iterate over
      * @param file Optional parameter that input is read from.  If null is passed, this class creates an appropriate one automatically.
      * If this class creates, it will close the underlying file when #close() is called.
      * If a caller passes a non-null argument, this class will NOT close the underlying file when the iterator is closed (i.e. the caller is responsible for closing the file)
@@ -60,43 +78,23 @@ public class SSTableSliceIterator implements IColumnIterator
      * @param finishColumn The end of the slice
      * @param reversed Results are returned in reverse order iff reversed is true.
      */
-    public SSTableSliceIterator(SSTableReader ssTable, FileDataInput file, DecoratedKey key, byte[] startColumn, byte[] finishColumn, boolean reversed)
+    public SSTableSliceIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, byte[] startColumn, byte[] finishColumn, boolean reversed)
     {
-        this.decoratedKey = key;
+        this.key = key;
+        fileToClose = null;
+        reader = createReader(sstable, file, startColumn, finishColumn, reversed);
+    }
 
-        if (file == null)
-        {
-            closeFileWhenDone = true; //if we create it, we close it
-            file = ssTable.getFileDataInput(decoratedKey, DatabaseDescriptor.getSlicedReadBufferSizeInKB() * 1024);
-            if (file == null)
-            {
-                this.file = null;
-                return;
-            }
-            try
-            {
-                DecoratedKey keyInDisk = SSTableReader.decodeKey(ssTable.getPartitioner(),
-                                                                 ssTable.getDescriptor(),
-                                                                 FBUtilities.readShortByteArray(file));
-                assert keyInDisk.equals(decoratedKey)
-                       : String.format("%s != %s in %s", keyInDisk, decoratedKey, file.getPath());
-                SSTableReader.readRowSize(file, ssTable.getDescriptor());
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
-        }
-        this.file = file;
-
-        reader = startColumn.length == 0 && !reversed
+    private static IColumnIterator createReader(SSTableReader ssTable, FileDataInput file, byte[] startColumn, byte[] finishColumn, boolean reversed)
+    {
+        return startColumn.length == 0 && !reversed
                  ? new SimpleSliceReader(ssTable, file, finishColumn)
                  : new IndexedSliceReader(ssTable, file, startColumn, finishColumn, reversed);
     }
-    
+
     public DecoratedKey getKey()
     {
-        return decoratedKey;
+        return key;
     }
 
     public ColumnFamily getColumnFamily() throws IOException
@@ -121,8 +119,8 @@ public class SSTableSliceIterator implements IColumnIterator
 
     public void close() throws IOException
     {
-        if (closeFileWhenDone && file != null)
-            file.close();
+        if (fileToClose != null)
+            fileToClose.close();
     }
 
 }
