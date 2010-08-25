@@ -1,4 +1,3 @@
-package org.apache.cassandra.auth;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -20,23 +19,34 @@ package org.apache.cassandra.auth;
  * 
  */
 
-import java.util.Map;
+package org.apache.cassandra.auth;
 
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.thrift.AuthenticationException;
+import java.util.Collections;
+import java.util.Set;
 
-public interface IAuthenticator
+/**
+ * An authenticated user and her groups.
+ */
+public class AuthenticatedUser
 {
-    /**
-     * @return The user that a connection is initialized with, or 'null' if a user must call login().
-     */
-    public AuthenticatedUser defaultUser();
+    public final String username;
+    public final Set<String> groups;
 
-    /**
-     * @param credentials An implementation specific collection of identifying information.
-     * @return A successfully authenticated user: should throw AuthenticationException rather than ever returning null.
-     */
-    public AuthenticatedUser authenticate(Map<String,String> credentials) throws AuthenticationException;
+    public AuthenticatedUser(String username)
+    {
+        this.username = username;
+        this.groups = Collections.emptySet();
+    }
 
-    public void validateConfiguration() throws ConfigurationException;
+    public AuthenticatedUser(String username, Set<String> groups)
+    {
+        this.username = username;
+        this.groups = Collections.unmodifiableSet(groups);
+    }
+
+    @Override
+    public String toString()
+    {
+        return String.format("#<User %s groups=%s>", username, groups);
+    }
 }

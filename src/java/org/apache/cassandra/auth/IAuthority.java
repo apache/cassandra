@@ -1,4 +1,3 @@
-package org.apache.cassandra.auth;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -20,23 +19,19 @@ package org.apache.cassandra.auth;
  * 
  */
 
-import java.util.Map;
+package org.apache.cassandra.auth;
 
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.thrift.AuthenticationException;
+import org.apache.cassandra.thrift.AccessLevel;
 
-public interface IAuthenticator
+public interface IAuthority
 {
     /**
-     * @return The user that a connection is initialized with, or 'null' if a user must call login().
+     * @param user An authenticated user from a previous call to IAuthenticator.authenticate.
+     * @param keyspace The resource to calculate permissions for.
+     * @return An AccessLevel representing the permissions for the user and resource: should never return null.
      */
-    public AuthenticatedUser defaultUser();
-
-    /**
-     * @param credentials An implementation specific collection of identifying information.
-     * @return A successfully authenticated user: should throw AuthenticationException rather than ever returning null.
-     */
-    public AuthenticatedUser authenticate(Map<String,String> credentials) throws AuthenticationException;
+    public AccessLevel authorize(AuthenticatedUser user, String keyspace);
 
     public void validateConfiguration() throws ConfigurationException;
 }
