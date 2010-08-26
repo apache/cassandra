@@ -40,11 +40,7 @@ import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 import static com.google.common.base.Charsets.UTF_8;
 
@@ -113,16 +109,16 @@ public class DefsTable
     }
     
     /** gets all the files that belong to a given column family. */
-    public static Collection<File> getFiles(String table, final String cf)
+    public static Set<File> getFiles(String table, final String cf)
     {
-        List<File> found = new ArrayList<File>();
+        Set<File> found = new HashSet<File>();
         for (String path : DatabaseDescriptor.getAllDataFileLocationsForTable(table))
         {
             File[] dbFiles = new File(path).listFiles(new FileFilter()
             {
                 public boolean accept(File pathname)
                 {
-                    return pathname.getName().startsWith(cf + "-") && pathname.getName().endsWith(".db") && pathname.exists();        
+                    return pathname.getName().startsWith(cf + "-") && pathname.getName().endsWith(".db") && pathname.exists();
                 }
             });
             found.addAll(Arrays.asList(dbFiles));
