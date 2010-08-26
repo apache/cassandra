@@ -2,6 +2,7 @@
  * Allow using DynamicEndpointSnitch with RackAwareStrategy (CASSANDRA-1429)
  * remove the remaining vestiges of the unfinished DatacenterShardStrategy 
    (replaced by NetworkTopologyStrategy in 0.7)
+ * handle zero-length (or missing) rows during HH paging (CASSANDRA-1432)
 
 
 0.6.5

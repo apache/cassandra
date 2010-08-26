@@ -120,6 +120,13 @@ public class HintedHandOffManager
                 ColumnFamily cf = cfs.getColumnFamily(filter);
                 if (pagingFinished(cf, startColumn))
                     break;
+                if (cf.getColumnNames().isEmpty())
+                {
+                    if (logger_.isDebugEnabled())
+                        logger_.debug("Nothing to hand off for " + key);
+                    break;
+                }
+
                 startColumn = cf.getColumnNames().last();
                 RowMutation rm = new RowMutation(tableName, key);
                 rm.add(cf);
