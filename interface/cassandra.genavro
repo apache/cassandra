@@ -111,7 +111,7 @@ protocol Cassandra {
         union { double, null } key_cache_size;
         union { double, null } read_repair_chance;
         union { int, null } gc_grace_seconds;
-        union { string, null } default_validation_class;
+        union { null, string } default_validation_class = null;
         union { int, null } id;
         union { array<ColumnDef>, null } column_metadata;
     }

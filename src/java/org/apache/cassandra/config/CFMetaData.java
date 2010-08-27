@@ -27,6 +27,7 @@ import org.apache.avro.util.Utf8;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
+import org.apache.cassandra.config.avro.ColumnDef;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.SerDeUtils;
@@ -199,8 +200,7 @@ public final class CFMetaData
     /** clones an existing CFMetaData using the same id. */
     public static CFMetaData rename(CFMetaData cfm, String newName)
     {
-        CFMetaData newCfm = new CFMetaData(cfm.tableName, newName, cfm.cfType, cfm.clockType, cfm.comparator, cfm.subcolumnComparator, cfm.reconciler, cfm.comment, cfm.rowCacheSize, cfm.preloadRowCache, cfm.keyCacheSize, cfm.readRepairChance, cfm.gcGraceSeconds, cfm.defaultValidator, cfm.cfId, cfm.column_metadata);
-        return newCfm;
+        return new CFMetaData(cfm.tableName, newName, cfm.cfType, cfm.clockType, cfm.comparator, cfm.subcolumnComparator, cfm.reconciler, cfm.comment, cfm.rowCacheSize, cfm.preloadRowCache, cfm.keyCacheSize, cfm.readRepairChance, cfm.gcGraceSeconds, cfm.defaultValidator, cfm.cfId, cfm.column_metadata);
     }
     
     /** clones existing CFMetaData. keeps the id but changes the table name.*/
@@ -262,17 +262,18 @@ public final class CFMetaData
             if (cf.subcomparator_type != null)
                 subcolumnComparator = DatabaseDescriptor.getComparator(cf.subcomparator_type.toString());
             reconciler = DatabaseDescriptor.getReconciler(cf.reconciler.toString());
-            validator = DatabaseDescriptor.getComparator(cf.default_validation_class.toString());
+            validator = cf.default_validation_class == null
+                        ? BytesType.instance
+                        : DatabaseDescriptor.getComparator(cf.default_validation_class.toString());
         }
         catch (Exception ex)
         {
             throw new RuntimeException("Could not inflate CFMetaData for " + cf, ex);
         }
         Map<byte[], ColumnDefinition> column_metadata = new TreeMap<byte[], ColumnDefinition>(FBUtilities.byteArrayComparator);
-        Iterator<org.apache.cassandra.config.avro.ColumnDef> cditer = cf.column_metadata.iterator();
-        while (cditer.hasNext())
+        for (ColumnDef aColumn_metadata : cf.column_metadata)
         {
-            ColumnDefinition cd = ColumnDefinition.inflate(cditer.next());
+            ColumnDefinition cd = ColumnDefinition.inflate(aColumn_metadata);
             column_metadata.put(cd.name, cd);
         }
         return new CFMetaData(cf.keyspace.toString(), cf.name.toString(), ColumnFamilyType.create(cf.column_type.toString()), ClockType.create(cf.clock_type.toString()), comparator, subcolumnComparator, reconciler, cf.comment.toString(), cf.row_cache_size, cf.preload_row_cache, cf.key_cache_size, cf.read_repair_chance, cf.gc_grace_seconds, validator, cf.id, column_metadata);
