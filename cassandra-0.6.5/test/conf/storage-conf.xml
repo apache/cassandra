@@ -1,0 +1,85 @@
+<!--
+ ~ Licensed to the Apache Software Foundation (ASF) under one
+ ~ or more contributor license agreements.  See the NOTICE file
+ ~ distributed with this work for additional information
+ ~ regarding copyright ownership.  The ASF licenses this file
+ ~ to you under the Apache License, Version 2.0 (the
+ ~ "License"); you may not use this file except in compliance
+ ~ with the License.  You may obtain a copy of the License at
+ ~
+ ~    http://www.apache.org/licenses/LICENSE-2.0
+ ~
+ ~ Unless required by applicable law or agreed to in writing,
+ ~ software distributed under the License is distributed on an
+ ~ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ ~ KIND, either express or implied.  See the License for the
+ ~ specific language governing permissions and limitations
+ ~ under the License.
+ -->
+<Storage>
+   <ClusterName>Test Cluster</ClusterName>
+   <FlushDataBufferSizeInMB>1</FlushDataBufferSizeInMB>
+   <FlushIndexBufferSizeInMB>0.1</FlushIndexBufferSizeInMB>
+   <CommitLogSync>batch</CommitLogSync>
+   <CommitLogSyncBatchWindowInMS>1.0</CommitLogSyncBatchWindowInMS>
+   <Partitioner>org.apache.cassandra.dht.CollatingOrderPreservingPartitioner</Partitioner>
+   <RpcTimeoutInMillis>5000</RpcTimeoutInMillis>
+   <ListenAddress>127.0.0.1</ListenAddress>
+   <StoragePort>7010</StoragePort>
+   <ThriftPort>9170</ThriftPort>
+   <ColumnIndexSizeInKB>4</ColumnIndexSizeInKB>
+   <CommitLogDirectory>build/test/cassandra/commitlog</CommitLogDirectory>
+   <CommitLogRotationThresholdInMB>128</CommitLogRotationThresholdInMB>
+   <DataFileDirectories>
+     <DataFileDirectory>build/test/cassandra/data</DataFileDirectory>
+   </DataFileDirectories>
+   <BootstrapFileDirectory>build/test/cassandra/bootstrap</BootstrapFileDirectory>
+   <DiskAccessMode>mmap</DiskAccessMode>
+   <MemtableThroughputInMB>1</MemtableThroughputInMB>
+   <MemtableOperationsInMillions>0.00002</MemtableOperationsInMillions> <!-- 20 -->
+   <Keyspaces>
+     <Keyspace Name = "Keyspace1">
+       <ColumnFamily Name="Standard1" RowsCached="10%" KeysCached="0"/>
+       <ColumnFamily Name="Standard2"/>
+       <ColumnFamily Name="Standard3" KeysCached="50%"/>
+       <ColumnFamily Name="Standard4" KeysCached="100%"/>
+       <ColumnFamily CompareWith="LongType" Name="StandardLong1"/>
+       <ColumnFamily CompareWith="LongType" Name="StandardLong2"/>
+       <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="LongType" Name="Super1" RowsCached="1000" KeysCached="0"/>
+       <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="LongType" Name="Super2"/>
+       <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="LongType" Name="Super3"/>
+       <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="UTF8Type" Name="Super4"/>
+       <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
+       <ReplicationFactor>1</ReplicationFactor>
+       <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
+     </Keyspace>
+     <Keyspace Name = "Keyspace2">
+       <ColumnFamily Name="Standard1"/>
+       <ColumnFamily Name="Standard3"/>
+       <ColumnFamily ColumnType="Super" Name="Super3"/>
+       <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="TimeUUIDType" Name="Super4"/>
+       <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
+       <ReplicationFactor>1</ReplicationFactor>
+       <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
+     </Keyspace>
+     <Keyspace Name = "Keyspace3">
+       <ColumnFamily Name="Standard1"/>
+       <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
+       <ReplicationFactor>5</ReplicationFactor>
+       <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
+     </Keyspace>
+     <Keyspace Name = "Keyspace4">
+       <ColumnFamily Name="Standard1"/>
+       <ColumnFamily Name="Standard3"/>
+       <ColumnFamily ColumnType="Super" Name="Super3"/>
+       <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="TimeUUIDType" Name="Super4"/>
+       <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
+       <ReplicationFactor>3</ReplicationFactor>
+       <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
+     </Keyspace>
+   </Keyspaces>
+   <Seeds>
+     <!-- Add names of hosts that are deemed contact points -->
+     <Seed>127.0.0.1</Seed>
+   </Seeds>
+</Storage>

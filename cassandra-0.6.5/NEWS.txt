@@ -1,0 +1,184 @@
+0.6.1
+=====
+
+Upgrading
+---------
+    - We try to keep minor versions 100% compatible (data format,
+      commitlog format, network format) within the major series, but
+      we introduced a network-level incompatibility in this 0.6.1.
+      Thus, if you are upgrading from 0.6.0 to any higher version
+      (0.6.1, 0.6.2, etc.) then you will need to restart your entire
+      cluster with the new version, instead of being able to do a
+      rolling restart.
+
+
+0.6.0
+=====
+
+Features
+--------
+    - row caching: configure with the RowsCached attribute in
+      ColumnFamily definition
+    - Hadoop map/reduce support: see contrib/word_count for an example
+    - experimental authentication support, described under
+      Authenticator in storage.conf
+
+Configuraton
+------------
+    - MemtableSizeInMB has been replaced by MemtableThroughputInMB which
+      triggers a memtable flush when the specified amount of data has 
+      been written, including overwrites.
+    - MemtableObjectCountInMillions has been replaced by the
+      MemtableOperationsInMillions directive which causes a memtable flush
+      to occur after the specified number of operations.
+    - Like MemtableSizeInMB, BinaryMemtableSizeInMB has been replaced by
+      BinaryMemtableThroughputInMB.
+    - Replication factor is now per-keyspace, rather than global.
+    - KeysCachedFraction is deprecated in favor of KeysCached
+    - RowWarningThresholdInMB added, to warn before very large rows
+      get big enough to threaten node stability
+
+Thrift API
+----------
+    - removed deprecated get_key_range method
+    - added batch_mutate meethod
+    - deprecated multiget and batch_insert methods in favor of
+      multiget_slice and batch_mutate, respectively
+    - added ConsistencyLevel.ANY, for when you want write
+      availability even when it may not be readable immediately.
+      Unlike CL.ZERO, though, it will throw an exception if
+      it cannot be written *somewhere*.
+
+JMX metrics
+-----------
+    - read and write statistics are reported as lifetime totals,
+      instead of averages over the last minute.  average-since-last
+      requested are also available for convenience.
+    - cache hit rate statistics are now available from JMX under
+      org.apache.cassandra.db.Caches
+    - compaction JMX metrics are moved to
+      org.apache.cassandra.db.CompactionManager.  PendingTasks is now
+      a much better estimate of compactions remaining, and the
+      progress of the current compaction has been added.
+    - commitlog JMX metrics are moved to org.apache.cassandra.db.Commitlog
+    - progress of data streaming during bootstrap, loadbalance, or other
+      data migration, is available under 
+      org.apache.cassandra.streaming.StreamingService.
+      See http://wiki.apache.org/cassandra/Streaming for details.
+
+Installation/Upgrade
+--------------------
+    - 0.6 network traffic is not compatible with earlier versions.  You
+      will need to shut down all your nodes at once, upgrade, then restart.
+
+
+
+0.5.0
+=====
+
+0. The commitlog format has changed (but sstable format has not). 
+   When upgrading from 0.4, empty the commitlog either by running 
+   bin/nodeprobe flush on each machine and waiting for the flush to finish,
+   or simply remove the commitlog directory if you only have test data.
+   (If more writes come in after the flush command, starting 0.5 will error
+   out; if that happens, just go back to 0.4 and flush again.)
+   The format changed twice: from 0.4 to beta1, and from beta2 to RC1.
+
+.5 The gossip protocol has changed, meaning 0.5 nodes cannot coexist
+   in a cluster of 0.4 nodes or vice versa; you must upgrade your
+   whole cluster at the same time.
+
+1. Bootstrap, move, load balancing, and active repair have been added.
+   See http://wiki.apache.org/cassandra/Operations.  When upgrading
+   from 0.4, leave autobootstrap set to false for the first restart
+   of your old nodes.
+
+2. Performance improvements across the board, especially on the write
+   path (over 100% improvement in stress.py throughput).
+
+3. Configuration:
+     - Added "comment" field to ColumnFamily definition.
+     - Added MemtableFlushAfterMinutes, a global replacement for the 
+       old per-CF FlushPeriodInMinutes setting
+     - Key cache settings
+
+4. Thrift:
+     - Added get_range_slice, deprecating get_key_range
+
+
+
+0.4.2
+=====
+
+1. Improve default garbage collector options significantly --
+   throughput will be 30% higher or more.
+
+
+
+0.4.1
+=====
+
+1. SnapshotBeforeCompaction configuration option allows snapshotting
+   before each compaction, which allows rolling back to any version
+   of the data.
+
+
+
+0.4.0
+=====
+
+1. On-disk data format has changed to allow billions of keys/rows per
+   node instead of only millions.  The new format is incompatible with 0.3;
+   see 0.3 notes below for how to import data from a 0.3 install.
+
+2. Cassandra now supports multiple keyspaces.  Typically you will have
+   one keyspace per application, allowing applications to be able to
+   create and modify ColumnFamilies at will without worrying about
+   collisions with others in the same cluster.
+
+3. Many Thrift API changes and documentation.  See 
+   http://wiki.apache.org/cassandra/API
+
+4. Removed the web interface in favor of JMX and bin/nodeprobe, which
+   has significantly enhanced functionality.
+
+5. Renamed configuration "<Table>" to "<Keyspace>".
+
+6. Added commitlog fsync; see "<CommitLogSync>" in configuration.
+
+
+
+0.3.0
+=====
+
+1. With enough and large enough keys in a ColumnFamily, Cassandra will
+   run out of memory trying to perform compactions (data file merges).
+   The size of what is stored in memory is (S + 16) * (N + M) where S
+   is the size of the key (usually 2 bytes per character), N is the
+   number of keys and M, is the map overhead (which can be guestimated
+   at around 32 bytes per key).
+   So, if you have 10-character keys and 1GB of headroom in your heap
+   space for compaction, you can expect to store about 17M keys
+   before running into problems.
+   See https://issues.apache.org/jira/browse/CASSANDRA-208
+
+2. Because fixing #1 requires a data file format change, 0.4 will not
+   be binary-compatible with 0.3 data files.  A client-side upgrade
+   can be done relatively easily with the following algorithm:
+     for key in old_client.get_key_range(everything):
+         columns = old_client.get_slice or get_slice_super(key, all columns)
+     new_client.batch_insert or batch_insert_super(key, columns)
+   The inner loop can be trivially parallelized for speed.
+
+3. Commitlog does not fsync before reporting a write successful.
+   Using blocking writes mitigates this to some degree, since all
+   nodes that were part of the write quorum would have to fail
+   before sync for data to be lost.
+   See https://issues.apache.org/jira/browse/CASSANDRA-182
+
+Additionally, row size (that is, all the data associated with a single
+key in a given ColumnFamily) is limited by available memory, because
+compaction deserializes each row before merging.
+
+See https://issues.apache.org/jira/browse/CASSANDRA-16
+   
