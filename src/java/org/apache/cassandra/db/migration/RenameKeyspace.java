@@ -36,6 +36,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.commons.lang.StringUtils;
+
 public class RenameKeyspace extends Migration
 {
     private String oldName;
@@ -119,26 +121,17 @@ public class RenameKeyspace extends Migration
     
     private static void renameKsStorageFiles(String oldKs, String newKs) throws IOException
     {
-        IOException mostRecentProblem = null;
-        Set<String> cfNames = DatabaseDescriptor.getTableDefinition(oldKs).cfMetaData().keySet();
-        for (String cfName : cfNames)
+        ArrayList<File> failed = new ArrayList<File>();
+        for (String dataDir : DatabaseDescriptor.getAllDataFileLocations())
         {
-            for (File existing : DefsTable.getFiles(oldKs, cfName))
-            {
-                try
-                {
-                    File newParent = new File(existing.getParentFile().getParent(), newKs);
-                    newParent.mkdirs();
-                    FileUtils.renameWithConfirm(existing, new File(newParent, existing.getName()));
-                }
-                catch (IOException ex)
-                {
-                    mostRecentProblem = ex;
-                }
-            }
+            File ksDir = new File(dataDir, oldKs);
+            if (ksDir.exists())
+                if (!ksDir.renameTo(new File(dataDir, newKs)))
+                    failed.add(ksDir);
         }
-        if (mostRecentProblem != null)
-            throw new IOException("One or more IOExceptions encountered while renaming files. Most recent problem is included.", mostRecentProblem);
+
+        if (!failed.isEmpty())
+            throw new IOException("One or more problems encountered while renaming " + StringUtils.join(failed, ","));
     }
     
     public void subdeflate(org.apache.cassandra.db.migration.avro.Migration mi)

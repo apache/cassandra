@@ -38,6 +38,7 @@ dev
  * Add CfDef.default_validation_class (CASSANDRA-891)
  * fix EstimatedHistogram.max (CASSANDRA-1413)
  * handle zero-length (or missing) rows during HH paging (CASSANDRA-1432)
+ * include secondary indexes during schema migrations (CASSANDRA-1406)
 
 
 0.7-beta1

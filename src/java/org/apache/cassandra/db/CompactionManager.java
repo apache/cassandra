@@ -76,53 +76,6 @@ public class CompactionManager implements CompactionManagerMBean
 
     private CompactionExecutor executor = new CompactionExecutor();
     private Map<ColumnFamilyStore, Integer> estimatedCompactions = new NonBlockingHashMap<ColumnFamilyStore, Integer>();
-
-    /** cleans up data files for CFs that have been dropped. */
-    public Future submitGraveyardCleanup()
-    {
-        Callable c =  new Callable()
-        {
-            public Object call() throws Exception
-            {
-                logger.debug("Cleaning up abandoned column families...");
-                ColumnFamily dropped = SystemTable.getDroppedCFs();
-                if (dropped == null)
-                    // there is nothing that needs to be cleaned up.
-                    return null;
-                Collection<IColumn> successes = new ArrayList<IColumn>();
-                for (IColumn col : dropped.getSortedColumns())
-                {
-                    if (!col.isMarkedForDelete())
-                    {
-                        final String[] parts = new String(col.name()).split("-");
-                        // table-cfname-cfid
-                        for (String dataDir : DatabaseDescriptor.getAllDataFileLocationsForTable(parts[0]))
-                        {
-                            File dir = new File(dataDir);
-                            if (dir.exists())
-                            {
-                                File[] dbFiles = dir.listFiles(new FileFilter()
-                                {
-                                    public boolean accept(File pathname)
-                                    {
-                                        return pathname.getName().startsWith(parts[1] + "-") && pathname.exists();
-                                    }
-                                });
-                                for (File f : dbFiles)
-                                {
-                                    FileUtils.deleteWithConfirm(f);
-                                }
-                            }
-                        }
-                        successes.add(col);
-                    }
-                }
-                SystemTable.deleteDroppedCfMarkers(successes);
-                return null;
-            }
-        };
-        return executor.submit(c);
-    }
     
     /**
      * Call this whenever a compaction might be needed on the given columnfamily.

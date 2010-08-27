@@ -227,28 +227,7 @@ public abstract class Migration
                              now);
         return rm;
     }
-    
-    static void cleanupDeadFiles(boolean wait)
-    {
-        Future cleanup = CompactionManager.instance.submitGraveyardCleanup();
-        if (wait)
-        {
-            // notify the compaction manager that it needs to clean up the dropped cf files.
-            try
-            {
-                cleanup.get();
-            }
-            catch (InterruptedException e)
-            {
-                throw new RuntimeException(e);
-            }
-            catch (ExecutionException e)
-            {
-                throw new RuntimeException(e);
-            }
-        } 
-    }
-    
+        
     public byte[] serialize() throws IOException
     {
         // super deflate

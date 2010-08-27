@@ -18,10 +18,12 @@
 
 package org.apache.cassandra.db;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.commons.lang.StringUtils;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
@@ -218,8 +220,12 @@ public class DefsTest extends CleanupHelper
         assert !success : "This mutation should have failed since the CF no longer exists.";
 
         // verify that the files are gone.
-        assert DefsTable.getFiles(cfm.tableName, cfm.cfName).size() == 0;
-    }    
+        for (File file : DefsTable.getFiles(cfm.tableName, cfm.cfName))
+        {
+            if (file.getPath().endsWith("Data.db") && !new File(file.getPath().replace("Data.db", "Compacted")).exists())
+                throw new AssertionError("undeleted file " + file);
+        }
+    }
     
     @Test
     public void renameCf() throws ConfigurationException, IOException, ExecutionException, InterruptedException
@@ -373,7 +379,6 @@ public class DefsTest extends CleanupHelper
         assert newKs.cfMetaData().containsKey(cfName);
         assert newKs.cfMetaData().get(cfName).tableName.equals(newKsName);
         assert DefsTable.getFiles(newKs.name, cfName).size() > 0;
-        assert DefsTable.getFiles(oldKs.name, cfName).size() == 0;
         
         // read on old should fail.
         try

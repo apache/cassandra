@@ -73,7 +73,6 @@ public class DropKeyspace extends Migration
             if (!clientMode)
             {
                 table.dropCf(cfm.cfId);
-                SystemTable.markForRemoval(cfm);
             }
         }
                         
@@ -83,8 +82,6 @@ public class DropKeyspace extends Migration
         if (!clientMode)
         {
             CommitLog.instance().forceNewSegment();
-            Migration.cleanupDeadFiles(blockOnFileDeletion);
-            
             // clear up any local hinted data for this keyspace.
             HintedHandOffManager.renameHints(name, null);
         }

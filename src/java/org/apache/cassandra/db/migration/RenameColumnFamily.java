@@ -87,8 +87,6 @@ public class RenameColumnFamily extends Migration
     {
         // leave it up to operators to ensure there are no writes going on durng the file rename. Just know that
         // attempting row mutations on oldcfName right now would be really bad.
-        if (!clientMode)
-            renameCfStorageFiles(tableName, oldName, newName);
         
         // reset defs.
         KSMetaData oldKsm = DatabaseDescriptor.getTableDefinition(tableName);
@@ -111,28 +109,6 @@ public class RenameColumnFamily extends Migration
             Table.open(ksm.name).renameCf(cfId, newName);
             CommitLog.instance().forceNewSegment();
         }
-    }
-    
-    // if this errors out, we are in a world of hurt.
-    private static void renameCfStorageFiles(String table, String oldCfName, String newCfName) throws IOException
-    {
-        // complete as much of the job as possible.  Don't let errors long the way prevent as much renaming as possible
-        // from happening.
-        IOException mostRecentProblem = null;
-        for (File existing : DefsTable.getFiles(table, oldCfName))
-        {
-            try
-            {
-                String newFileName = existing.getName().replaceFirst("\\w+-", newCfName + "-");
-                FileUtils.renameWithConfirm(existing, new File(existing.getParent(), newFileName));
-            }
-            catch (IOException ex)
-            {
-                mostRecentProblem = ex;
-            }
-        }
-        if (mostRecentProblem != null)
-            throw new IOException("One or more IOExceptions encountered while renaming files. Most recent problem is included.", mostRecentProblem);
     }
     
     public void subdeflate(org.apache.cassandra.db.migration.avro.Migration mi)

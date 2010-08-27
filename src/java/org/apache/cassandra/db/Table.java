@@ -19,7 +19,6 @@
 package org.apache.cassandra.db;
 
 import java.io.IOError;
-import java.lang.management.ManagementFactory;
 import java.util.*;
 import java.io.IOException;
 import java.io.File;
@@ -36,9 +35,6 @@ import org.apache.cassandra.dht.LocalToken;
 import org.apache.cassandra.io.sstable.SSTableDeletingReference;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
-
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
 
 import org.apache.commons.lang.ArrayUtils;
 
@@ -251,10 +247,7 @@ public class Table
         }
 
         for (CFMetaData cfm : new ArrayList<CFMetaData>(DatabaseDescriptor.getTableDefinition(table).cfMetaData().values()))
-        {
-            ColumnFamilyStore cfs = ColumnFamilyStore.createColumnFamilyStore(table, cfm.cfName);
-            columnFamilyStores.put(cfm.cfId, cfs);
-        }
+            initCf(cfm.cfId, cfm.cfName);
 
         // check 10x as often as the lifetime, so we can exceed lifetime by 10% at most
         int checkMs = DatabaseDescriptor.getMemtableLifetimeMS() / 10;
@@ -271,28 +264,33 @@ public class Table
         flushTimer.schedule(flushTask, checkMs, checkMs);
     }
     
-    /** removes a cf from internal structures (doesn't change disk files). */
     public void dropCf(Integer cfId) throws IOException
     {
         assert columnFamilyStores.containsKey(cfId);
         ColumnFamilyStore cfs = columnFamilyStores.remove(cfId);
-        if (cfs != null)
+        if (cfs == null)
+            return;
+        
+        unloadCf(cfs);
+        cfs.removeAllSSTables();
+    }
+    
+    // disassociate a cfs from this table instance.
+    private void unloadCf(ColumnFamilyStore cfs) throws IOException
+    {
+        try
         {
-            try
-            {
-                cfs.forceBlockingFlush();
-            }
-            catch (ExecutionException e)
-            {
-                throw new IOException(e);
-            }
-            catch (InterruptedException e)
-            {
-                throw new IOException(e);
-            }
-            
-            cfs.unregisterMBean();
+            cfs.forceBlockingFlush();
         }
+        catch (ExecutionException e)
+        {
+            throw new IOException(e);
+        }
+        catch (InterruptedException e)
+        {
+            throw new IOException(e);
+        }
+        cfs.unregisterMBean();
     }
     
     /** adds a cf to internal structures, ends up creating disk files). */
@@ -306,7 +304,10 @@ public class Table
     /** basically a combined drop and add */
     public void renameCf(Integer cfId, String newName) throws IOException
     {
-        dropCf(cfId);
+        assert columnFamilyStores.containsKey(cfId);
+        ColumnFamilyStore cfs = columnFamilyStores.remove(cfId);
+        unloadCf(cfs);
+        cfs.renameSSTables(newName);
         initCf(cfId, newName);
     }
 

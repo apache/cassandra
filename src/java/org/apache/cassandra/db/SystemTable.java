@@ -51,7 +51,6 @@ public class SystemTable
     public static final String STATUS_CF = "LocationInfo"; // keep the old CF string for backwards-compatibility
     private static final byte[] LOCATION_KEY = "L".getBytes(UTF_8);
     private static final byte[] BOOTSTRAP_KEY = "Bootstrap".getBytes(UTF_8);
-    private static final byte[] GRAVEYARD_KEY = "Graveyard".getBytes(UTF_8);
     private static final byte[] COOKIE_KEY = "Cookies".getBytes(UTF_8);
     private static final byte[] BOOTSTRAP = "B".getBytes(UTF_8);
     private static final byte[] TOKEN = "Token".getBytes(UTF_8);
@@ -326,38 +325,6 @@ public class SystemTable
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
         cf.addColumn(new Column(BOOTSTRAP, new byte[] { (byte) (isBootstrapped ? 1 : 0) }, new TimestampClock(System.currentTimeMillis())));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, BOOTSTRAP_KEY);
-        rm.add(cf);
-        try
-        {
-            rm.apply();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static ColumnFamily getDroppedCFs() throws IOException
-    {
-        ColumnFamilyStore cfs = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(SystemTable.STATUS_CF);
-        return cfs.getColumnFamily(QueryFilter.getSliceFilter(decorate(GRAVEYARD_KEY), new QueryPath(STATUS_CF), "".getBytes(), "".getBytes(), false, 100));
-    }
-    
-    public static void deleteDroppedCfMarkers(Collection<IColumn> cols) throws IOException
-    {
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, GRAVEYARD_KEY);
-        long now = System.currentTimeMillis();
-        for (IColumn col : cols)
-            rm.delete(new QueryPath(STATUS_CF, null, col.name()), new TimestampClock(now));
-        rm.apply();
-    }
-    
-    /** when a cf is dropped, it needs to be marked so its files get deleted at some point. */
-    public static void markForRemoval(CFMetaData cfm)
-    {
-        ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
-        cf.addColumn(new Column((cfm.tableName + "-" + cfm.cfName + "-" + cfm.cfId).getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, new TimestampClock(System.currentTimeMillis())));
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, GRAVEYARD_KEY);
         rm.add(cf);
         try
         {
