@@ -1,4 +1,5 @@
 dev
+ * always use UTF-8 for hint keys (CASSANDRA-1439)
  * remove cassandra.yaml dependency from Hadoop and Pig (CASSADRA-1322)
  * expose CfDef metadata in describe_keyspaces (CASSANDRA-1633)
  * restore use of mmap_index_only option (CASSANDRA-1241)

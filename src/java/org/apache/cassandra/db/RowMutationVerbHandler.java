@@ -32,6 +32,9 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static com.google.common.base.Charsets.UTF_8;
+
+
 public class RowMutationVerbHandler implements IVerbHandler
 {
     private static Logger logger_ = LoggerFactory.getLogger(RowMutationVerbHandler.class);
@@ -53,7 +56,7 @@ public class RowMutationVerbHandler implements IVerbHandler
             {
                 assert hintedBytes.length > 0;
                 ByteBuffer bb = ByteBuffer.wrap(hintedBytes);
-                byte[] addressBytes = new byte[FBUtilities.getLocalAddress().getAddress().length];
+                byte[] addressBytes = new byte[FBUtilities.getLocalAddress().getHostAddress().getBytes(UTF_8).length];
                 while (bb.remaining() > 0)
                 {
                     bb.get(addressBytes);

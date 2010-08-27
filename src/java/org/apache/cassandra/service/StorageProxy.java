@@ -30,6 +30,7 @@ import javax.management.ObjectName;
 
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Multimap;
+import static com.google.common.base.Charsets.UTF_8;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -179,7 +180,8 @@ public class StorageProxy implements StorageProxyMBean
     private static void addHintHeader(Message message, InetAddress target)
     {
         byte[] oldHint = message.getHeader(RowMutation.HINT);
-        byte[] hint = oldHint == null ? target.getAddress() : ArrayUtils.addAll(oldHint, target.getAddress());
+        byte[] address = target.getHostAddress().getBytes(UTF_8);
+        byte[] hint = oldHint == null ? address : ArrayUtils.addAll(oldHint, address);
         message.setHeader(RowMutation.HINT, hint);
     }
 

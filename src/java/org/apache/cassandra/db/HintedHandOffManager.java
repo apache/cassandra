@@ -202,7 +202,7 @@ public class HintedHandOffManager
         // 3. Delete the subcolumn if the write was successful
         // 4. Force a flush
         // 5. Do major compaction to clean up all deletes etc.
-        DecoratedKey epkey =  StorageService.getPartitioner().decorateKey(endpoint.getAddress());
+        DecoratedKey epkey =  StorageService.getPartitioner().decorateKey(endpoint.getHostAddress().getBytes(UTF_8));
         int rowsReplayed = 0;
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
         byte[] startColumn = ArrayUtils.EMPTY_BYTE_ARRAY;
@@ -223,7 +223,7 @@ public class HintedHandOffManager
                         String[] parts = getTableAndCFNames(tableCF.name());
                         if (sendMessage(endpoint, parts[0], parts[1], keyColumn.name()))
                         {
-                            deleteHintKey(endpoint.getAddress(), keyColumn.name(), tableCF.name(), tableCF.clock());
+                            deleteHintKey(endpoint.getHostAddress().getBytes(UTF_8), keyColumn.name(), tableCF.name(), tableCF.clock());
                             rowsReplayed++;
                         }
                         else
