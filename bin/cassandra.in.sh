@@ -46,6 +46,7 @@ JVM_OPTS=" \
         -XX:+CMSParallelRemarkEnabled \
         -XX:SurvivorRatio=8 \
         -XX:MaxTenuringThreshold=1 \
+        -XX:CMSInitiatingOccupancyFraction=80 \
         -XX:+HeapDumpOnOutOfMemoryError \
         -Dcom.sun.management.jmxremote.port=8080 \
         -Dcom.sun.management.jmxremote.ssl=false \
