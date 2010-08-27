@@ -114,6 +114,7 @@
         <delete dir="${build.classes}" />
         <delete dir="${build.src.gen-java}" />
         <delete dir="${interface.avro.dir}" />
+        <delete file="${build.dir}/internode.avpr" />
     </target>
     <target depends="clean" name="cleanall"/>
 
