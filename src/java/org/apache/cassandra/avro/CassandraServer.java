@@ -45,6 +45,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.AllowAllAuthenticator;
+import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -67,7 +68,6 @@ import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.AccessLevel;
 
 import static org.apache.cassandra.avro.AvroRecordFactory.*;
 import static org.apache.cassandra.avro.ErrorFactory.*;
@@ -713,7 +713,7 @@ public class CassandraServer implements Cassandra {
     @Override
     public CharSequence system_add_column_family(CfDef cfDef) throws AvroRemoteException, InvalidRequestException
     {
-        checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
+        checkKeyspaceAndLoginAuthorized(Permission.WRITE);
         try
         {
             applyMigrationOnStage(new AddColumnFamily(convertToCFMetaData(cfDef)));
@@ -764,11 +764,11 @@ public class CassandraServer implements Cassandra {
         return StorageProxy.checkSchemaAgreement();
     }
 
-    protected void checkKeyspaceAndLoginAuthorized(AccessLevel level) throws InvalidRequestException
+    protected void checkKeyspaceAndLoginAuthorized(Permission perm) throws InvalidRequestException
     {
         try
         {
-            clientState.hasKeyspaceAccess(level);
+            clientState.hasKeyspaceAccess(perm);
         }
         catch (org.apache.cassandra.thrift.InvalidRequestException e)
         {
@@ -887,7 +887,7 @@ public class CassandraServer implements Cassandra {
     public CharSequence system_rename_column_family(CharSequence old_name, CharSequence new_name)
     throws AvroRemoteException, InvalidRequestException
     {
-        checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
+        checkKeyspaceAndLoginAuthorized(Permission.WRITE);
         
         try
         {
@@ -911,7 +911,7 @@ public class CassandraServer implements Cassandra {
     @Override
     public CharSequence system_drop_column_family(CharSequence column_family) throws AvroRemoteException, InvalidRequestException
     {
-        checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
+        checkKeyspaceAndLoginAuthorized(Permission.WRITE);
         
         try
         {
