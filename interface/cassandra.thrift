@@ -317,20 +317,6 @@ struct TokenRange {
     3: required list<string> endpoints,
 }
 
-/** The AccessLevel is an enum that expresses the authorized access level granted to an API user:
- *
- *      NONE       No access permitted.
- *      READONLY   Only read access is allowed.
- *      READWRITE  Read and write access is allowed.
- *      FULL       Read, write, and remove access is allowed.
-*/
-enum AccessLevel {
-    NONE = 0,
-    READONLY = 16,
-    READWRITE = 32,
-    FULL = 64,
-}
-
 /**
     Authentication requests can contain any data, dependent on the IAuthenticator used
 */
