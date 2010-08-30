@@ -22,21 +22,20 @@ package org.apache.cassandra.auth;
 
 
 import java.io.*;
+import java.util.EnumSet;
 import java.util.Properties;
-import java.util.Map;
 
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.thrift.AccessLevel;
 
 public class SimpleAuthority implements IAuthority
 {
     public final static String ACCESS_FILENAME_PROPERTY = "access.properties";
 
     @Override
-    public AccessLevel authorize(AuthenticatedUser user, String keyspace)
+    public EnumSet<Permission> authorize(AuthenticatedUser user, String keyspace)
     {
         String afilename = System.getProperty(ACCESS_FILENAME_PROPERTY);
-        AccessLevel authorized = AccessLevel.NONE;
+        EnumSet<Permission> authorized = Permission.NONE;
         try
         {
             FileInputStream in = new FileInputStream(afilename);
@@ -51,11 +50,11 @@ public class SimpleAuthority implements IAuthority
             // note we keep the message here and for other authorization problems exactly the same to prevent attackers
             // from guessing what keyspaces are valid
             if (null == props.getProperty(keyspace))
-                return AccessLevel.NONE;
+                return authorized;
 
             for (String allow : props.getProperty(keyspace).split(","))
                 if (allow.equals(user.username))
-                    authorized = AccessLevel.FULL;
+                    authorized = Permission.ALL;
         }
         catch (IOException e)
         {

@@ -20,18 +20,18 @@ package org.apache.cassandra.auth;
  * 
  */
 
+import java.util.EnumSet;
 import java.util.Map;
 
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.thrift.AccessLevel;
 import org.apache.cassandra.thrift.AuthorizationException;
 
 public class AllowAllAuthority implements IAuthority
 {
     @Override
-    public AccessLevel authorize(AuthenticatedUser user, String keyspace)
+    public EnumSet<Permission> authorize(AuthenticatedUser user, String keyspace)
     {
-        return AccessLevel.FULL;
+        return Permission.ALL;
     }
 
     @Override    

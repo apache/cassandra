@@ -23,16 +23,22 @@ package org.apache.cassandra.auth;
 
 import java.util.EnumSet;
 
-import org.apache.cassandra.config.ConfigurationException;
-
-public interface IAuthority
+/**
+ * An enum encapsulating the set of possible permissions that an authenticated user can have for a resource.
+ *
+ * IAuthority implementations may encode permissions using ordinals, so the Enum order must never change.
+ */
+public enum Permission
 {
-    /**
-     * @param user An authenticated user from a previous call to IAuthenticator.authenticate.
-     * @param keyspace The resource to calculate permissions for.
-     * @return An AccessLevel representing the permissions for the user and resource: should never return null.
-     */
-    public EnumSet<Permission> authorize(AuthenticatedUser user, String keyspace);
+    // view the direct children of this resource
+    READ,
+    // modify the direct children of this resource
+    WRITE,
+    // view data in all ancestors of this resource
+    READ_VALUE,
+    // modify data in all ancestors of this resource
+    WRITE_VALUE;
 
-    public void validateConfiguration() throws ConfigurationException;
+    public static final EnumSet<Permission> ALL = EnumSet.allOf(Permission.class);
+    public static final EnumSet<Permission> NONE = EnumSet.noneOf(Permission.class);
 }
