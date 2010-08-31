@@ -92,8 +92,6 @@ public class DropColumnFamily extends Migration
         if (!clientMode)
         {
             Table.open(ksm.name).dropCf(cfm.cfId);
-            // we don't really need a new segment, but let's force it to be consistent with other operations.
-            CommitLog.instance().forceNewSegment();
         }
     }
     

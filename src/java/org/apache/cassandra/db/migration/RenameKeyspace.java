@@ -112,9 +112,6 @@ public class RenameKeyspace extends Migration
         {
             Table.clear(oldKsm.name);
             Table.open(newName);
-            // this isn't strictly necessary since the set of all cfs was not modified.
-            CommitLog.instance().forceNewSegment();
-    
             HintedHandOffManager.renameHints(oldName, newName);
         }
     }

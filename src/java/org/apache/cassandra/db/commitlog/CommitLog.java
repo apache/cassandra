@@ -471,31 +471,6 @@ public class CommitLog
         }
     }
     
-    public void forceNewSegment()
-    {
-        Callable task = new Callable()
-        {
-            public Object call() throws Exception
-            {
-                sync();
-                segments.add(new CommitLogSegment());
-                return null;
-            }
-        };
-        try
-        {
-            executor.submit(task).get();
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
     void sync() throws IOException
     {
         currentSegment().sync();

@@ -1647,7 +1647,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
        
 
         setMode("Draining: replaying commit log", false);
-        CommitLog.instance().forceNewSegment();
         // want to make sure that any segments deleted as a result of flushing are gone.
         DeletionService.waitFor();
         CommitLog.recover();

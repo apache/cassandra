@@ -81,7 +81,6 @@ public class DropKeyspace extends Migration
         
         if (!clientMode)
         {
-            CommitLog.instance().forceNewSegment();
             // clear up any local hinted data for this keyspace.
             HintedHandOffManager.renameHints(name, null);
         }

@@ -47,21 +47,4 @@ public class CommitLogHeaderTest extends SchemaLoader
         clh.turnOn(65, 2);
         assert clh.getReplayPosition() == 0;
     }
-        
-    @Test
-    public void constantSize() throws IOException
-    {
-        CommitLogHeader clh0 = new CommitLogHeader();
-        clh0.turnOn(2, 34);
-        ByteArrayOutputStream out0 = new ByteArrayOutputStream();
-        CommitLogHeader.serializer.serialize(clh0, new DataOutputStream(out0));
-
-        CommitLogHeader clh1 = new CommitLogHeader();
-        for (int i = 0; i < 5; i++)
-            clh1.turnOn(i, 1000 * i);
-        ByteArrayOutputStream out1 = new ByteArrayOutputStream();
-        CommitLogHeader.serializer.serialize(clh1, new DataOutputStream(out1));
-
-        assert out0.toByteArray().length == out1.toByteArray().length;
-    }
 }

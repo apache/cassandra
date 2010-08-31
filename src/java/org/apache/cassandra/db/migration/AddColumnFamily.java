@@ -87,10 +87,6 @@ public class AddColumnFamily extends Migration
         CFMetaData.fixMaxId();
         if (!clientMode)
             Table.open(ksm.name).initCf(cfm.cfId, cfm.cfName);
-
-        if (!clientMode)
-            // force creation of a new commit log segment.
-            CommitLog.instance().forceNewSegment();
     }
 
     public void subdeflate(org.apache.cassandra.db.migration.avro.Migration mi)

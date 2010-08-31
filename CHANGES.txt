@@ -39,6 +39,7 @@ dev
  * fix EstimatedHistogram.max (CASSANDRA-1413)
  * handle zero-length (or missing) rows during HH paging (CASSANDRA-1432)
  * include secondary indexes during schema migrations (CASSANDRA-1406)
+ * fix commitlog header race during schema change (CASSANDRA-1435)
 
 
 0.7-beta1

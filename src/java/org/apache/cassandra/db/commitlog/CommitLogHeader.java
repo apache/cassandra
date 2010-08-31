@@ -43,11 +43,10 @@ public class CommitLogHeader
     public static CommitLogHeaderSerializer serializer = new CommitLogHeaderSerializer();
 
     private Map<Integer, Integer> cfDirtiedAt; // position at which each CF was last flushed
-    private final int cfCount; // we keep this in case cfcount changes in the interim (size of lastFlushedAt is not a good indication).
-    
+
     CommitLogHeader()
     {
-        this(new HashMap<Integer, Integer>(), CFMetaData.getCfToIdMap().size());
+        this(new HashMap<Integer, Integer>());
     }
     
     /*
@@ -55,11 +54,9 @@ public class CommitLogHeader
      * also builds an index of position to column family
      * Id.
     */
-    private CommitLogHeader(Map<Integer, Integer> cfDirtiedAt, int cfCount)
+    private CommitLogHeader(Map<Integer, Integer> cfDirtiedAt)
     {
-        this.cfCount = cfCount;
         this.cfDirtiedAt = cfDirtiedAt;
-        assert cfDirtiedAt.size() <= cfCount;
     }
         
     boolean isDirty(Integer cfId)
@@ -154,13 +151,10 @@ public class CommitLogHeader
     {
         public void serialize(CommitLogHeader clHeader, DataOutput dos) throws IOException
         {
-            assert clHeader.cfDirtiedAt.size() <= clHeader.cfCount;
             Checksum checksum = new CRC32();
 
             // write the first checksum after the fixed-size part, so we won't read garbage lastFlushedAt data.
-            dos.writeInt(clHeader.cfCount); // 4
             dos.writeInt(clHeader.cfDirtiedAt.size()); // 4
-            checksum.update(clHeader.cfCount);
             checksum.update(clHeader.cfDirtiedAt.size());
             dos.writeLong(checksum.getValue());
 
@@ -173,21 +167,12 @@ public class CommitLogHeader
                 checksum.update(entry.getValue());
             }
             dos.writeLong(checksum.getValue());
-
-            // keep the size constant by padding for missing flushed-at entries.  these do not affect checksum.
-            for (int i = clHeader.cfDirtiedAt.entrySet().size(); i < clHeader.cfCount; i++)
-            {
-                dos.writeInt(0);
-                dos.writeInt(0);
-            }
         }
 
         public CommitLogHeader deserialize(DataInput dis) throws IOException
         {
             Checksum checksum = new CRC32();
 
-            int cfCount = dis.readInt();
-            checksum.update(cfCount);
             int lastFlushedAtSize = dis.readInt();
             checksum.update(lastFlushedAtSize);
             if (checksum.getValue() != dis.readLong())
@@ -208,7 +193,7 @@ public class CommitLogHeader
                 throw new IOException("Invalid or corrupt commitlog header");
             }
 
-            return new CommitLogHeader(lastFlushedAt, cfCount);
+            return new CommitLogHeader(lastFlushedAt);
         }
     }
 }

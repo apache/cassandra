@@ -77,7 +77,6 @@ public class AddKeyspace extends Migration
         if (!clientMode)
         {
             Table.open(ksm.name);
-            CommitLog.instance().forceNewSegment();
         }
     }
     

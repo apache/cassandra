@@ -107,7 +107,6 @@ public class RenameColumnFamily extends Migration
         if (!clientMode)
         {
             Table.open(ksm.name).renameCf(cfId, newName);
-            CommitLog.instance().forceNewSegment();
         }
     }
     
