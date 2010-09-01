@@ -136,6 +136,11 @@ protocol Cassandra {
          array<ColumnOrSuperColumn> columns;
     }
 
+    record KeyCountMapEntry {
+        bytes key;
+        int count;
+    }
+
     enum ConsistencyLevel {
         ZERO, ONE, QUORUM, DCQUORUM, DCQUORUMSYNC, ALL
     }
@@ -182,6 +187,16 @@ protocol Cassandra {
                                         ColumnParent column_parent,
                                         SlicePredicate predicate,
                                         ConsistencyLevel consistency_level)
+    throws InvalidRequestException, UnavailableException, TimedOutException;
+
+    /**
+     * Performs a get_count in parallel on the given list of keys. The
+     * return value maps keys to the count found.
+     */ 
+    array<KeyCountMapEntry> multiget_count(array<bytes> keys,
+                                           ColumnParent column_parent,
+                                           SlicePredicate predicate,
+                                           ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException;
 
     /**

@@ -379,6 +379,37 @@ class TestRpcOperations(AvroTester):
         assert 'NewColumnFamily' not in [x['name'] for x in ks1['cf_defs']]
         assert 'Standard1' in [x['name'] for x in ks1['cf_defs']]
 
+    def test_multiget_count(self):
+        "obtaining the column count for multiple rows"
+        self.__set_keyspace('Keyspace1')
+
+        mutations = list()
+
+        for i in range(10):
+            mutation = {'column_or_supercolumn': {'column': new_column(i)}}
+            mutations.append(mutation)
+
+        mutation_params = dict()
+        mutation_params['mutation_map'] = list()
+        for i in range(3):
+            entry = {'key': 'k'+str(i), 'mutations': {'Standard1': mutations}}
+            mutation_params['mutation_map'].append(entry)
+        mutation_params['consistency_level'] = 'ONE'
+
+        self.client.request('batch_mutate', mutation_params)
+
+        count_params = dict()
+        count_params['keys'] = ['k0', 'k1', 'k2']
+        count_params['column_parent'] = {'column_family': 'Standard1'}
+        sr = {'start': '', 'finish': '', 'reversed': False, 'count': 1000}
+        count_params['predicate'] = {'slice_range': sr}
+        count_params['consistency_level'] = 'ONE'
+
+        counts = self.client.request('multiget_count', count_params)
+        for e in counts:
+            assert(e['count'] == 10), \
+                "expected 10 results for %s, got %d" % (e['key'], e['count'])
+
     def __get(self, key, cf, super_name, col_name, consistency_level='ONE'):
         """
         Given arguments for the key, column family, super column name,

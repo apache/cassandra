@@ -910,4 +910,28 @@ public class CassandraServer implements Cassandra {
     {
         return StorageService.getPartitioner().getClass().getName();
     }
+
+    @Override
+    public List<KeyCountMapEntry> multiget_count(List<ByteBuffer> keys, ColumnParent columnParent, SlicePredicate predicate, ConsistencyLevel consistencyLevel)
+    throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
+    {
+        if (logger.isDebugEnabled())
+            logger.debug("multiget_count");
+        
+        checkKeyspaceAndLoginAuthorized(Permission.READ_VALUE);
+        String keyspace = clientState.getKeyspace();
+        
+        List<KeyCountMapEntry> counts = new ArrayList<KeyCountMapEntry>();
+        List<CoscsMapEntry> columnFamiliesMap = multigetSliceInternal(keyspace, keys, columnParent, predicate, consistencyLevel);
+        
+        for (CoscsMapEntry cf : columnFamiliesMap)
+        {
+            KeyCountMapEntry countEntry = new KeyCountMapEntry();
+            countEntry.key = cf.key;
+            countEntry.count = cf.columns.size();
+            counts.add(countEntry);
+        }
+        
+        return counts;
+    }
 }
