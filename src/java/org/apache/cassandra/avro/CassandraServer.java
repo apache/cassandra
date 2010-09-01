@@ -41,6 +41,8 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.avro.util.Utf8;
 import org.apache.cassandra.avro.InvalidRequestException;
+import org.apache.cassandra.db.migration.DropKeyspace;
+import org.apache.cassandra.db.migration.RenameKeyspace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -902,6 +904,56 @@ public class CassandraServer implements Cassandra {
         try
         {
             applyMigrationOnStage(new DropColumnFamily(clientState.getKeyspace(), column_family.toString(), true));
+            return DatabaseDescriptor.getDefsVersion().toString();
+        }
+        catch (ConfigurationException e)
+        {
+            InvalidRequestException ex = newInvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (IOException e)
+        {
+            InvalidRequestException ex = newInvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+    }
+
+    @Override
+    public CharSequence system_drop_keyspace(CharSequence keyspace) throws AvroRemoteException, InvalidRequestException
+    {
+        if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
+            throw newInvalidRequestException("Unable to create new keyspace while authentication is enabled.");
+        
+        try
+        {
+            applyMigrationOnStage(new DropKeyspace(keyspace.toString(), true));
+            return DatabaseDescriptor.getDefsVersion().toString();
+        }
+        catch (ConfigurationException e)
+        {
+            InvalidRequestException ex = newInvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (IOException e)
+        {
+            InvalidRequestException ex = newInvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+    }
+
+
+    @Override
+    public CharSequence system_rename_keyspace(CharSequence old_name, CharSequence new_name) throws AvroRemoteException, InvalidRequestException
+    {
+        checkKeyspaceAndLoginAuthorized(Permission.WRITE);
+        
+        try
+        {
+            applyMigrationOnStage(new RenameKeyspace(old_name.toString(), new_name.toString()));
             return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)

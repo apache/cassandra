@@ -252,6 +252,12 @@ protocol Cassandra {
     
     string system_drop_column_family(string column_family)
     throws InvalidRequestException;
+    
+    string system_drop_keyspace(string keyspace)
+    throws InvalidRequestException;
+    
+    string system_rename_keyspace(string old_name, string new_name)
+    throws InvalidRequestException;
 
     array<string> describe_keyspaces();
     
