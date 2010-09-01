@@ -979,6 +979,18 @@ public class CassandraServer implements Cassandra {
     }
 
     @Override
+    public List<CharSequence> describe_splits(CharSequence keyspace, CharSequence cfName, CharSequence start_token, CharSequence end_token, int keys_per_split) {
+        Token.TokenFactory<?> tf = StorageService.getPartitioner().getTokenFactory();
+        List<Token> tokens = StorageService.instance.getSplits(keyspace.toString(), cfName.toString(), new Range(tf.fromString(start_token.toString()), tf.fromString(end_token.toString())), keys_per_split);
+        List<CharSequence> splits = new ArrayList<CharSequence>(tokens.size());
+        for (Token token : tokens)
+        {
+            splits.add(tf.toString(token));
+        }
+        return splits;
+    }
+
+    @Override
     public List<KeyCountMapEntry> multiget_count(List<ByteBuffer> keys, ColumnParent columnParent, SlicePredicate predicate, ConsistencyLevel consistencyLevel)
     throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
     {

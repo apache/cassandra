@@ -295,6 +295,19 @@ protocol Cassandra {
     string describe_version();
 
     string describe_partitioner();
+
+    /**
+     * experimental API for hadoop/parallel query support.
+     * may change violently and without warning.
+     *
+     * returns list of token strings such that first subrange is (list[0], list[1]],
+     * next is (list[1], list[2]], etc.
+     */
+    array<string> describe_splits(string keyspace,
+                                  string cfName,
+                                  string start_token,
+                                  string end_token,
+                                  int keys_per_split);
     
     /** 
      * Get the token ring: a map of ranges to host addresses, represented as
