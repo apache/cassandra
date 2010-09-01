@@ -17,7 +17,20 @@
 
 from . import AvroTester
 import avro_utils
+from time import time
 from avro.ipc import AvroRemoteException
+
+def new_column(suffix, stamp=None, ttl=0):
+    ts = isinstance(stamp, (long,int)) and stamp or timestamp()
+    column = dict()
+    column['name'] = 'name-%s' % suffix
+    column['value'] = 'value-%s' % suffix
+    column['clock'] = {'timestamp': ts}
+    column['ttl'] = ttl
+    return column
+
+def timestamp():
+    return long(time() * 1e6)
 
 class TestStandardOperations(AvroTester):
     """
@@ -25,7 +38,7 @@ class TestStandardOperations(AvroTester):
     """
     def test_insert_simple(self):       # Also tests get
         "setting and getting a simple column"
-        self.client.request('set_keyspace', {'keyspace': keyspace_name})
+        self.client.request('set_keyspace', {'keyspace': 'Keyspace1'})
 
         params = dict()
         params['key'] = 'key1'
@@ -43,12 +56,12 @@ class TestStandardOperations(AvroTester):
 
         cosc = self.client.request('get', read_params)
 
-        assert_cosc(cosc)
-        assert_columns_match(cosc['column'], params['column'])
+        avro_utils.assert_cosc(cosc)
+        avro_utils.assert_columns_match(cosc['column'], params['column'])
 
     def test_remove_simple(self):
         "removing a simple column"
-        self.client.request('set_keyspace', {'keyspace': keyspace_name})
+        self.client.request('set_keyspace', {'keyspace': 'Keyspace1'})
 
         params = dict()
         params['key'] = 'key1'
@@ -66,7 +79,7 @@ class TestStandardOperations(AvroTester):
 
         cosc = self.client.request('get', read_params)
 
-        assert_cosc(cosc)
+        avro_utils.assert_cosc(cosc)
 
         remove_params = read_params
         remove_params['clock'] = {'timestamp': timestamp()}
@@ -78,7 +91,7 @@ class TestStandardOperations(AvroTester):
 
     def test_batch_mutate(self):
         "batching addition/removal mutations"
-        self.client.request('set_keyspace', {'keyspace': keyspace_name})
+        self.client.request('set_keyspace', {'keyspace': 'Keyspace1'})
 
         mutations = list()
        
@@ -100,8 +113,8 @@ class TestStandardOperations(AvroTester):
         for i in range(3):
             column = new_column(i)
             cosc = self.__get('key1', 'Standard1', None, column['name'])
-            assert_cosc(cosc)
-            assert_columns_match(cosc['column'], column)
+            avro_utils.assert_cosc(cosc)
+            avro_utils.assert_columns_match(cosc['column'], column)
 
         # Add one more column; remove one column
         extra_column = new_column(3); remove_column = new_column(0)
@@ -125,12 +138,12 @@ class TestStandardOperations(AvroTester):
 
         # Ensure successful column addition
         cosc = self.__get('key1', 'Standard1', None, extra_column['name'])
-        assert_cosc(cosc)
-        assert_columns_match(cosc['column'], extra_column)
+        avro_utils.assert_cosc(cosc)
+        avro_utils.assert_columns_match(cosc['column'], extra_column)
 
     def test_get_slice_simple(self):
         "performing a slice of simple columns"
-        self.client.request('set_keyspace', {'keyspace': keyspace_name})
+        self.client.request('set_keyspace', {'keyspace': 'Keyspace1'})
 
         columns = list(); mutations = list()
 
@@ -159,9 +172,9 @@ class TestStandardOperations(AvroTester):
 
         coscs = self.client.request('get_slice', slice_params)
 
-        for cosc in coscs: assert_cosc(cosc)
-        assert_columns_match(coscs[0]['column'], columns[0])
-        assert_columns_match(coscs[1]['column'], columns[4])
+        for cosc in coscs: avro_utils.assert_cosc(cosc)
+        avro_utils.assert_columns_match(coscs[0]['column'], columns[0])
+        avro_utils.assert_columns_match(coscs[1]['column'], columns[4])
 
         # Slicing on a range of column names
         slice_range = dict()
@@ -173,14 +186,14 @@ class TestStandardOperations(AvroTester):
 
         coscs = self.client.request('get_slice', slice_params)
 
-        for cosc in coscs: assert_cosc(cosc)
+        for cosc in coscs: avro_utils.assert_cosc(cosc)
         assert len(coscs) == 4, "expected 4 results, got %d" % len(coscs)
-        assert_columns_match(coscs[0]['column'], columns[2])
-        assert_columns_match(coscs[3]['column'], columns[5])
+        avro_utils.assert_columns_match(coscs[0]['column'], columns[2])
+        avro_utils.assert_columns_match(coscs[3]['column'], columns[5])
 
     def test_multiget_slice_simple(self):
         "performing a slice of simple columns, multiple keys"
-        self.client.request('set_keyspace', {'keyspace': keyspace_name})
+        self.client.request('set_keyspace', {'keyspace': 'Keyspace1'})
 
         columns = list(); mutation_params = dict()
 
@@ -226,7 +239,7 @@ class TestStandardOperations(AvroTester):
 
     def test_get_count(self):
         "counting columns"
-        self.client.request('set_keyspace', {'keyspace': keyspace_name})
+        self.client.request('set_keyspace', {'keyspace': 'Keyspace1'})
 
         mutations = list()
 
@@ -253,7 +266,7 @@ class TestStandardOperations(AvroTester):
 
     def test_multiget_count(self):
         "obtaining the column count for multiple rows"
-        self.client.request('set_keyspace', {'keyspace': keyspace_name})
+        self.client.request('set_keyspace', {'keyspace': 'Keyspace1'})
 
         mutations = list()
 
@@ -281,4 +294,24 @@ class TestStandardOperations(AvroTester):
         for e in counts:
             assert(e['count'] == 10), \
                 "expected 10 results for %s, got %d" % (e['key'], e['count'])
+        
+    def __get(self, key, cf, super_name, col_name, consistency_level='ONE'):
+        """
+        Given arguments for the key, column family, super column name,
+        column name, and consistency level, returns a dictionary 
+        representing a ColumnOrSuperColumn record.
+
+        Raises an AvroRemoteException if the column is not found.
+        """
+        params = dict()
+        params['key'] = key
+        params['column_path'] = dict()
+        params['column_path']['column_family'] = cf
+        params['column_path']['column'] = col_name
+        params['consistency_level'] = consistency_level
+
+        if (super_name):
+            params['super_column'] = super_name
+
+        return self.client.request('get', params)
 

@@ -17,11 +17,37 @@
 
 from . import AvroTester
 from avro.ipc import AvroRemoteException
+import avro_utils
 
 class TestSuperOperations(AvroTester):
     """
     Operations on Super column families
     """
-    pass
-    def test_test(self):
-        pass
+    def test_insert_super(self):
+        "setting and getting a super column"
+        self.client.request('set_keyspace', {'keyspace': 'Keyspace1'})
+
+        params = dict()
+        params['key'] = 'key1'
+        params['column_parent'] = dict()
+        params['column_parent']['column_family'] = 'Super1'
+        params['column_parent']['super_column'] = 'sc1'
+        params['column'] = dict()
+        params['column']['name'] = avro_utils.i64(1)
+        params['column']['value'] = 'v1'
+        params['column']['clock'] = { 'timestamp' : 0 }
+        params['consistency_level'] = 'ONE'
+        self.client.request('insert', params)
+
+        read_params = dict()
+        read_params['key'] = params['key']
+        read_params['column_path'] = dict()
+        read_params['column_path']['column_family'] = 'Super1'
+        read_params['column_path']['super_column'] = params['column_parent']['super_column']
+        read_params['column_path']['column'] = params['column']['name']
+        read_params['consistency_level'] = 'ONE'
+
+        cosc = self.client.request('get', read_params)
+
+        avro_utils.assert_cosc(cosc)
+        avro_utils.assert_columns_match(cosc['column'], params['column'])

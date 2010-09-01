@@ -18,65 +18,9 @@ from . import AvroTester
 from time import time
 from random import randint
 from avro.ipc import AvroRemoteException
-import struct
-
-def i64(i):
-    return struct.pack('>q', i)
-
-def timestamp():
-    return long(time() * 1e6)
-
-def new_column(suffix, stamp=None, ttl=0):
-    ts = isinstance(stamp, (long,int)) and stamp or timestamp()
-    column = dict()
-    column['name'] = 'name-%s' % suffix
-    column['value'] = 'value-%s' % suffix
-    column['clock'] = {'timestamp': ts}
-    column['ttl'] = ttl
-    return column
-
-def assert_columns_match(colA, colB):
-    assert colA['name'] == colB['name'], \
-            "column name mismatch: %s != %s" % (colA['name'], colB['name'])
-    assert colA['value'] == colB['value'], \
-            "column value mismatch: %s != %s" % (colA['value'], colB['value'])
-
-def assert_cosc(thing, with_supercolumn=False):
-    containing = with_supercolumn and 'super_column' or 'column'
-    assert isinstance(thing, dict), "Expected dict, got %s" % type(thing)
-    assert thing.has_key(containing) and thing[containing].has_key('name'), \
-            "Invalid or missing \"%s\" member" % containing
 
 class TestRpcOperations(AvroTester):
-    def test_insert_super(self):
-        "setting and getting a super column"
-        self.__set_keyspace('Keyspace1')
-
-        params = dict()
-        params['key'] = 'key1'
-        params['column_parent'] = dict()
-        params['column_parent']['column_family'] = 'Super1'
-        params['column_parent']['super_column'] = 'sc1'
-        params['column'] = dict()
-        params['column']['name'] = i64(1)
-        params['column']['value'] = 'v1'
-        params['column']['clock'] = { 'timestamp' : 0 }
-        params['consistency_level'] = 'ONE'
-        self.client.request('insert', params)
-
-        read_params = dict()
-        read_params['key'] = params['key']
-        read_params['column_path'] = dict()
-        read_params['column_path']['column_family'] = 'Super1'
-        read_params['column_path']['super_column'] = params['column_parent']['super_column']
-        read_params['column_path']['column'] = params['column']['name']
-        read_params['consistency_level'] = 'ONE'
-
-        cosc = self.client.request('get', read_params)
-
-        assert_cosc(cosc)
-        assert_columns_match(cosc['column'], params['column'])
-
+    
     def test_describe_keyspaces(self):
         "retrieving a list of all keyspaces"
         keyspaces = self.client.request('describe_keyspaces', {})
@@ -108,28 +52,5 @@ class TestRpcOperations(AvroTester):
         part = "org.apache.cassandra.dht.CollatingOrderPreservingPartitioner"
         result = self.client.request('describe_partitioner', {})
         assert result == part, "got %s, expected %s" % (result, part)
-       
-    def __get(self, key, cf, super_name, col_name, consistency_level='ONE'):
-        """
-        Given arguments for the key, column family, super column name,
-        column name, and consistency level, returns a dictionary 
-        representing a ColumnOrSuperColumn record.
-
-        Raises an AvroRemoteException if the column is not found.
-        """
-        params = dict()
-        params['key'] = key
-        params['column_path'] = dict()
-        params['column_path']['column_family'] = cf
-        params['column_path']['column'] = col_name
-        params['consistency_level'] = consistency_level
-
-        if (super_name):
-            params['super_column'] = super_name
-
-        return self.client.request('get', params)
-
-    def __set_keyspace(self, keyspace_name):
-        self.client.request('set_keyspace', {'keyspace': keyspace_name})
 
 # vi:ai sw=4 ts=4 tw=0 et
