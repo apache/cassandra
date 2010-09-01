@@ -22,6 +22,9 @@ package org.apache.cassandra.avro;
 
 
 import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.avro.generic.GenericArray;
 import org.apache.avro.util.Utf8;
 
@@ -122,6 +125,13 @@ class ErrorFactory
     {
         return newInvalidRequestException(new Utf8(why));
     }
+
+    static InvalidRequestException newInvalidRequestException(org.apache.cassandra.thrift.InvalidRequestException e)
+    {
+        InvalidRequestException exception = newInvalidRequestException(e.why);
+        exception.initCause(e);
+        return exception;
+    }
     
     static NotFoundException newNotFoundException(Utf8 why)
     {
@@ -168,9 +178,25 @@ class ErrorFactory
     {
         return newUnavailableException(new Utf8(why));
     }
+
+    static UnavailableException newUnavailableException(Throwable t) 
+    {
+        UnavailableException exception = newUnavailableException(t.getMessage());
+        exception.initCause(t);
+        return exception;
+    }
     
     static UnavailableException newUnavailableException()
     {
         return newUnavailableException(new Utf8());
+    }
+    
+    public static TokenRange newTokenRange(String startRange, String endRange, List<? extends CharSequence> endpoints)
+    {
+        TokenRange tRange = new TokenRange();
+        tRange.start_token = startRange;
+        tRange.end_token = endRange;
+        tRange.endpoints = (List<CharSequence>) endpoints;
+        return tRange;
     }
 }

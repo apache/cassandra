@@ -65,6 +65,8 @@ import org.apache.cassandra.db.migration.AddKeyspace;
 import org.apache.cassandra.db.migration.DropColumnFamily;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.db.migration.RenameColumnFamily;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.service.ClientState;
@@ -746,10 +748,10 @@ public class CassandraServer implements Cassandra {
         return API_VERSION;
     }
     
-    public Map<String, List<String>> check_schema_agreement()
+    public Map<CharSequence, List<CharSequence>> check_schema_agreement()
     {
-        logger.debug("checking schema agreement");      
-        return StorageProxy.checkSchemaAgreement();
+        logger.debug("checking schema agreement");
+        return (Map) StorageProxy.checkSchemaAgreement();
     }
 
     protected void checkKeyspaceAndLoginAuthorized(Permission perm) throws InvalidRequestException
@@ -998,5 +1000,54 @@ public class CassandraServer implements Cassandra {
         }
         
         return counts;
+    }
+
+    public List<TokenRange> describe_ring(CharSequence keyspace) throws AvroRemoteException, InvalidRequestException
+    {
+        if (keyspace == null || !DatabaseDescriptor.getNonSystemTables().contains(keyspace))
+            throw newInvalidRequestException("There is no ring for the keyspace: " + keyspace);
+        List<TokenRange> ranges = new ArrayList<TokenRange>();
+        Token.TokenFactory<?> tf = StorageService.getPartitioner().getTokenFactory();
+        for (Map.Entry<Range, List<String>> entry : StorageService.instance.getRangeToEndpointMap(keyspace.toString()).entrySet())
+        {
+            Range range = entry.getKey();
+            List<String> endpoints = entry.getValue();
+            ranges.add(newTokenRange(tf.toString(range.left), tf.toString(range.right), endpoints));
+        }
+        return ranges;
+    }
+
+    public Void truncate(CharSequence columnFamily) throws AvroRemoteException, InvalidRequestException, UnavailableException
+    {
+        if (logger.isDebugEnabled())
+            logger.debug("truncating {} in {}", columnFamily, clientState.getKeyspace());
+
+        try
+        {
+            clientState.hasKeyspaceAccess(Permission.WRITE_VALUE);
+            schedule();
+            StorageProxy.truncateBlocking(clientState.getKeyspace(), columnFamily.toString());
+        }
+        catch (org.apache.cassandra.thrift.InvalidRequestException e)
+        {
+            throw newInvalidRequestException(e);
+        }
+        catch (org.apache.cassandra.thrift.UnavailableException e)
+        {
+            throw newUnavailableException(e);
+        }
+        catch (TimeoutException e)
+        {
+            throw newUnavailableException(e);
+        }
+        catch (IOException e)
+        {
+            throw newUnavailableException(e);
+        }
+        finally
+        {
+            release();
+        }
+        return null;
     }
 }

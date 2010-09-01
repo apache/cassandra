@@ -67,6 +67,12 @@ protocol Cassandra {
         union { SliceRange, null } slice_range;
     }
 
+	record TokenRange {
+		string start_token;
+		string end_token;
+		array<string> endpoints;
+	}
+
     record Deletion {
         Clock clock;
         union { bytes, null } super_column;
@@ -242,6 +248,27 @@ protocol Cassandra {
                       ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException;
 
+    /**
+     * Truncate will mark and entire column family as deleted. From the user's
+     * perspective a successful call to truncate will result in complete data
+     * deletion from column family. Internally, however, disk space will not be
+     * immediately released, as with all deletes in Cassandra, this one only
+     * marks the data as deleted. The operation succeeds only if all hosts in
+     * the cluster at available and will throw an UnavailableException if some
+     * hosts are down.
+     */
+    void truncate(string column_family)
+    throws InvalidRequestException, UnavailableException;
+
+    /** 
+     * Ask the cluster if they all are using the same migration id. Returns a
+     * map of version->hosts-on-that-version. Hosts that did not respond will
+     * be under the key DatabaseDescriptor.INITIAL_VERSION. Agreement can be
+     * determined by checking if the size of the map is 1. 
+     */
+    map<array<string>> check_schema_agreement()
+    throws InvalidRequestException;
+
     string system_add_column_family(CfDef cf_def)
     throws InvalidRequestException;
 
@@ -268,4 +295,11 @@ protocol Cassandra {
     string describe_version();
 
     string describe_partitioner();
+    
+    /** 
+     * Get the token ring: a map of ranges to host addresses, represented as
+     * an array of TokenRange->start-end range and list of host addresses.
+     */
+    array<TokenRange> describe_ring(string keyspace)
+    throws InvalidRequestException;
 }
