@@ -22,6 +22,34 @@ class TestMetaOperations(AvroTester):
     """
     Cluster meta operations.
     """
-    pass
-    def test_test(self):
-        pass
+    def test_describe_keyspaces(self):
+        "retrieving a list of all keyspaces"
+        keyspaces = self.client.request('describe_keyspaces', {})
+        assert 'Keyspace1' in keyspaces, "Keyspace1 not in " + keyspaces
+
+    def test_describe_keyspace(self):
+        "retrieving a keyspace metadata"
+        ks1 = self.client.request('describe_keyspace',
+                {'keyspace': "Keyspace1"})
+        assert ks1['replication_factor'] == 1
+        cf0 = ks1['cf_defs'][0]
+        assert cf0['comparator_type'] == "org.apache.cassandra.db.marshal.BytesType"
+
+    def test_describe_cluster_name(self):
+        "retrieving the cluster name"
+        name = self.client.request('describe_cluster_name', {})
+        assert 'Test' in name, "'Test' not in '" + name + "'"
+
+    def test_describe_version(self):
+        "getting the remote api version string"
+        vers = self.client.request('describe_version', {})
+        assert isinstance(vers, (str,unicode)), "api version is not a string"
+        segs = vers.split('.')
+        assert len(segs) == 3 and len([i for i in segs if i.isdigit()]) == 3, \
+               "incorrect api version format: " + vers
+
+    def test_describe_partitioner(self):
+        "getting the partitioner"
+        part = "org.apache.cassandra.dht.CollatingOrderPreservingPartitioner"
+        result = self.client.request('describe_partitioner', {})
+        assert result == part, "got %s, expected %s" % (result, part)
