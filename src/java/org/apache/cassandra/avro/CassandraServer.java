@@ -279,7 +279,7 @@ public class CassandraServer implements Cassandra {
     }
     
     @Override
-    public GenericArray<ColumnOrSuperColumn> get_slice(ByteBuffer key, ColumnParent columnParent,
+    public List<ColumnOrSuperColumn> get_slice(ByteBuffer key, ColumnParent columnParent,
             SlicePredicate predicate, ConsistencyLevel consistencyLevel)
     throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -293,7 +293,7 @@ public class CassandraServer implements Cassandra {
         return multigetSliceInternal(clientState.getKeyspace(), keys, columnParent, predicate, consistencyLevel).iterator().next().columns;
     }
     
-    private GenericArray<CoscsMapEntry> multigetSliceInternal(String keyspace, GenericArray<ByteBuffer> keys,
+    private List<CoscsMapEntry> multigetSliceInternal(String keyspace, List<ByteBuffer> keys,
             ColumnParent columnParent, SlicePredicate predicate, ConsistencyLevel consistencyLevel)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -331,12 +331,12 @@ public class CassandraServer implements Cassandra {
         return getSlice(commands, consistencyLevel);
     }
     
-    private GenericArray<CoscsMapEntry> getSlice(List<ReadCommand> commands, ConsistencyLevel consistencyLevel)
+    private List<CoscsMapEntry> getSlice(List<ReadCommand> commands, ConsistencyLevel consistencyLevel)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         Map<DecoratedKey<?>, ColumnFamily> columnFamilies = readColumnFamily(commands, consistencyLevel);
         Schema sch = Schema.createArray(CoscsMapEntry.SCHEMA$);
-        GenericArray<CoscsMapEntry> columnFamiliesList = new GenericData.Array<CoscsMapEntry>(commands.size(), sch);
+        List<CoscsMapEntry> columnFamiliesList = new GenericData.Array<CoscsMapEntry>(commands.size(), sch);
         
         for (ReadCommand cmd : commands)
         {
@@ -360,7 +360,7 @@ public class CassandraServer implements Cassandra {
     }
 
     @Override
-    public GenericArray<CoscsMapEntry> multiget_slice(GenericArray<ByteBuffer> keys, ColumnParent columnParent,
+    public List<CoscsMapEntry> multiget_slice(List<ByteBuffer> keys, ColumnParent columnParent,
             SlicePredicate predicate, ConsistencyLevel consistencyLevel)
     throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -442,7 +442,7 @@ public class CassandraServer implements Cassandra {
     }
 
     @Override
-    public Void batch_mutate(GenericArray<MutationsMapEntry> mutationMap, ConsistencyLevel consistencyLevel)
+    public Void batch_mutate(List<MutationsMapEntry> mutationMap, ConsistencyLevel consistencyLevel)
     throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
@@ -453,9 +453,9 @@ public class CassandraServer implements Cassandra {
         for (MutationsMapEntry pair: mutationMap)
         {
             AvroValidation.validateKey(pair.key.array());
-            Map<CharSequence, GenericArray<Mutation>> cfToMutations = pair.mutations;
+            Map<CharSequence, List<Mutation>> cfToMutations = pair.mutations;
             
-            for (Map.Entry<CharSequence, GenericArray<Mutation>> cfMutations : cfToMutations.entrySet())
+            for (Map.Entry<CharSequence, List<Mutation>> cfMutations : cfToMutations.entrySet())
             {
                 String cfName = cfMutations.getKey().toString();
                 
@@ -493,11 +493,11 @@ public class CassandraServer implements Cassandra {
     }
     
     // FIXME: This is copypasta from o.a.c.db.RowMutation, (RowMutation.getRowMutation uses Thrift types directly).
-    private static RowMutation getRowMutationFromMutations(String keyspace, byte[] key, Map<CharSequence, GenericArray<Mutation>> cfMap)
+    private static RowMutation getRowMutationFromMutations(String keyspace, byte[] key, Map<CharSequence, List<Mutation>> cfMap)
     {
         RowMutation rm = new RowMutation(keyspace, key);
         
-        for (Map.Entry<CharSequence, GenericArray<Mutation>> entry : cfMap.entrySet())
+        for (Map.Entry<CharSequence, List<Mutation>> entry : cfMap.entrySet())
         {
             String cfName = entry.getKey().toString();
             
