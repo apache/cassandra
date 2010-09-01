@@ -213,7 +213,7 @@ protocol Cassandra {
     string system_add_column_family(CfDef cf_def)
     throws InvalidRequestException;
 
-    void system_add_keyspace(KsDef ks_def) throws InvalidRequestException;
+    string system_add_keyspace(KsDef ks_def) throws InvalidRequestException;
     
     string system_rename_column_family(string old_name, string new_name)
     throws InvalidRequestException;

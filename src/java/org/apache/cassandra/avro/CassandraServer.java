@@ -617,56 +617,32 @@ public class CassandraServer implements Cassandra {
     }
 
     @Override
-    public Void system_add_keyspace(KsDef ksDef) throws AvroRemoteException, InvalidRequestException
+    public CharSequence system_add_keyspace(KsDef ksDef) throws AvroRemoteException, InvalidRequestException
     {
-        if (StageManager.getStage(StageManager.MIGRATION_STAGE).getQueue().size() > 0)
-            throw newInvalidRequestException("This node appears to be handling gossiped migrations.");
+        if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
+            throw newInvalidRequestException("Unable to create new keyspace while authentication is enabled.");
+        
+        if (StorageService.instance.getLiveNodes().size() < ksDef.replication_factor)
+            throw newInvalidRequestException("Not enough live nodes to support this keyspace");
+        
+        //generate a meaningful error if the user setup keyspace and/or column definition incorrectly
+        for (CfDef cf : ksDef.cf_defs) 
+        {
+            if (!cf.keyspace.equals(ksDef.name))
+            {
+                throw newInvalidRequestException("CsDef (" + cf.name +") had a keyspace definition that did not match KsDef");
+            }
+        }
         
         try
         {
             Collection<CFMetaData> cfDefs = new ArrayList<CFMetaData>((int)ksDef.cf_defs.size());
             for (CfDef cfDef : ksDef.cf_defs)
-            {
-                String cfType, compare, subCompare, reconcilerName, validate;
-                cfType = cfDef.column_type == null ? D_CF_CFTYPE : cfDef.column_type.toString();
-                ClockType clockType = ClockType.create(cfDef.clock_type == null ? D_CF_CFCLOCKTYPE : cfDef.clock_type.toString());
-                compare = cfDef.comparator_type == null ? D_CF_COMPTYPE : cfDef.comparator_type.toString();
-                validate = cfDef.default_validation_class == null ? D_CF_COMPTYPE : cfDef.default_validation_class.toString();
-                subCompare = cfDef.subcomparator_type == null ? D_CF_SUBCOMPTYPE : cfDef.subcomparator_type.toString();
-                reconcilerName = cfDef.reconciler == null  ? D_CF_RECONCILER : cfDef.reconciler.toString();
-                
-                AbstractReconciler reconciler = DatabaseDescriptor.getReconciler(reconcilerName);
-                if (reconciler == null)
-                {
-                    if (clockType == ClockType.Timestamp)    
-                        reconciler = TimestampReconciler.instance; // default
-                    else
-                        throw new ConfigurationException("No reconciler specified for column family " + cfDef.name.toString());
-
-                }
-
-                if (cfDef.id != null)
-                    logger.warn("Ignoring 'id' field specified for new column family (%s, %s)", cfDef.keyspace, cfDef.name);
-
-                CFMetaData cfmeta = new CFMetaData(cfDef.keyspace.toString(),
-                                                   cfDef.name.toString(),
-                                                   ColumnFamilyType.create(cfType),
-                                                   clockType,
-                                                   DatabaseDescriptor.getComparator(compare),
-                                                   subCompare.length() == 0 ? null : DatabaseDescriptor.getComparator(subCompare),
-                                                   reconciler,
-                                                   cfDef.comment == null ? "" : cfDef.comment.toString(),
-                                                   cfDef.row_cache_size == null ? CFMetaData.DEFAULT_ROW_CACHE_SIZE : cfDef.row_cache_size,
-                                                   cfDef.preload_row_cache == null ? CFMetaData.DEFAULT_PRELOAD_ROW_CACHE : cfDef.preload_row_cache,
-                                                   cfDef.key_cache_size == null ? CFMetaData.DEFAULT_KEY_CACHE_SIZE : cfDef.key_cache_size,
-                                                   cfDef.read_repair_chance == null ? CFMetaData.DEFAULT_READ_REPAIR_CHANCE : cfDef.read_repair_chance,
-                                                   cfDef.gc_grace_seconds == null ? CFMetaData.DEFAULT_GC_GRACE_SECONDS : cfDef.gc_grace_seconds,
-                                                   DatabaseDescriptor.getComparator(validate),
-                                                   Collections.<byte[], ColumnDefinition>emptyMap());
-                cfDefs.add(cfmeta);
+            {    
+                cfDefs.add(convertToCFMetaData(cfDef));
             }
 
-
+            // convert Map<CharSequence, CharSequence> to Map<String, String> 
             Map<String, String> strategyOptions = null;
             if (ksDef.strategy_options != null && !ksDef.strategy_options.isEmpty())
             {
@@ -677,16 +653,15 @@ public class CassandraServer implements Cassandra {
                 }
             }
 
-
             KSMetaData ksmeta = new KSMetaData(
                     ksDef.name.toString(),
                     (Class<? extends AbstractReplicationStrategy>)Class.forName(ksDef.strategy_class.toString()),
                     strategyOptions,
-                    (int)ksDef.replication_factor,
+                    ksDef.replication_factor,
                     cfDefs.toArray(new CFMetaData[cfDefs.size()]));
-            AddKeyspace add = new AddKeyspace(ksmeta);
-            add.apply();
-            add.announce();
+            applyMigrationOnStage(new AddKeyspace(ksmeta));
+            return DatabaseDescriptor.getDefsVersion().toString();
+            
         }
         catch (ClassNotFoundException e)
         {
@@ -706,8 +681,6 @@ public class CassandraServer implements Cassandra {
             ire.initCause(e);
             throw ire;
         }
-        
-        return null;
     }
 
     @Override
