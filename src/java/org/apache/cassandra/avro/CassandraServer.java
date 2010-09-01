@@ -95,7 +95,7 @@ public class CassandraServer implements Cassandra {
     public final static String D_COLDEF_INDEXNAME = null;
     
     // thread local state containing session information
-    private final ClientState clientState = new ClientState();
+    final ClientState clientState = new ClientState();
 
     /*
      * RequestScheduler to perform the scheduling of incoming requests

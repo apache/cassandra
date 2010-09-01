@@ -20,9 +20,15 @@ package org.apache.cassandra.service;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.RejectedExecutionException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.mortbay.thread.ThreadPool;
 
 /**
  * The <code>CassandraDaemon</code> is an abstraction for a Cassandra daemon
@@ -36,6 +42,8 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
     private static Logger logger = LoggerFactory
             .getLogger(AbstractCassandraDaemon.class);
     
+    public static final int MIN_WORKER_THREADS = 64;
+
     /**
      * This is a hook for concrete daemons to initialize themselves suitably.
      * 
@@ -123,4 +131,67 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
         destroy();
     }
     
+    /**
+     * A subclass of Java's ThreadPoolExecutor which implements Jetty's ThreadPool
+     * interface (for integration with Avro), and performs ClientState cleanup.
+     */
+    public static class CleaningThreadPool extends ThreadPoolExecutor implements ThreadPool
+    {
+        private ClientState state;
+        public CleaningThreadPool(ClientState state, int minWorkerThread, int maxWorkerThreads)
+        {
+            super(minWorkerThread, maxWorkerThreads, 60, TimeUnit.SECONDS, new SynchronousQueue<Runnable>());
+            this.state = state;
+        }
+
+        @Override
+        protected void afterExecute(Runnable r, Throwable t)
+        {
+            super.afterExecute(r, t);
+            state.logout();
+        }
+
+        /*********************************************************************/
+        /**   The following are cribbed from org.mortbay.thread.concurrent   */
+        /*********************************************************************/
+
+        @Override
+        public boolean dispatch(Runnable job)
+        {
+            try
+            {       
+                execute(job);
+                return true;
+            }
+            catch(RejectedExecutionException e)
+            {
+                logger.error("Failed to dispatch thread:", e);
+                return false;
+            }
+        }
+
+        @Override
+        public int getIdleThreads()
+        {
+            return getPoolSize()-getActiveCount();
+        }
+
+        @Override
+        public int getThreads()
+        {
+            return getPoolSize();
+        }
+
+        @Override
+        public boolean isLowOnThreads()
+        {
+            return getActiveCount()>=getMaximumPoolSize();
+        }
+
+        @Override
+        public void join() throws InterruptedException
+        {
+            this.awaitTermination(Long.MAX_VALUE,TimeUnit.MILLISECONDS);
+        }
+    }
 }

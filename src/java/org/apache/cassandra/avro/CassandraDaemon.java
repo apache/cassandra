@@ -23,7 +23,9 @@ import java.net.InetAddress;
 import java.util.UUID;
 
 import org.apache.avro.ipc.HttpServer;
+import org.apache.avro.ipc.ResponderServlet;
 import org.apache.avro.specific.SpecificResponder;
+
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.CompactionManager;
@@ -38,13 +40,17 @@ import org.apache.cassandra.utils.Mx4jTool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// see CASSANDRA-1440
+import org.mortbay.jetty.servlet.Context;
+import org.mortbay.jetty.servlet.ServletHolder;
+
 /**
  * The Avro analogue to org.apache.cassandra.service.CassandraDaemon.
  *
  */
 public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassandraDaemon {
     private static Logger logger = LoggerFactory.getLogger(CassandraDaemon.class);
-    private HttpServer server;
+    private org.mortbay.jetty.Server server;
     private InetAddress listenAddr;
     private int listenPort;
     
@@ -129,24 +135,46 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
     {
         if (logger.isDebugEnabled())
             logger.debug(String.format("Binding avro service to %s:%s", listenAddr, listenPort));
-        SpecificResponder responder = new SpecificResponder(Cassandra.class, new CassandraServer());
+        CassandraServer cassandraServer = new CassandraServer();
+        SpecificResponder responder = new SpecificResponder(Cassandra.class, cassandraServer);
         
         logger.info("Listening for avro clients...");
         Mx4jTool.maybeLoad();
+
         // FIXME: This isn't actually binding to listenAddr (it should).
-        server = new HttpServer(responder, listenPort);
-        server.start();
+        server = new org.mortbay.jetty.Server(listenPort);
+        server.setThreadPool(new CleaningThreadPool(cassandraServer.clientState,
+                                                    MIN_WORKER_THREADS,
+                                                    Integer.MAX_VALUE));
+        try
+        {
+            // see CASSANDRA-1440
+            ResponderServlet servlet = new ResponderServlet(responder);
+            new Context(server, "/").addServlet(new ServletHolder(servlet), "/*");
+
+            server.start();
+        }
+        catch (Exception e)
+        {
+            throw new IOException("Could not start Avro server.", e);
+        }
     }
     
     /** hook for JSVC */
     public void stop()
     {
         logger.info("Cassandra shutting down...");
-        server.close();
+        try
+        {
+            server.stop();
+        }
+        catch (Exception e)
+        {
+            logger.error("Avro server did not exit cleanly.", e);
+        }
     }
     
     public static void main(String[] args) {
         new CassandraDaemon().activate();
     }
-
 }

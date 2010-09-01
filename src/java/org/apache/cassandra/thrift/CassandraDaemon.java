@@ -23,7 +23,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -180,23 +179,11 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
 
         // ThreadPool Server
         CustomTThreadPoolServer.Options options = new CustomTThreadPoolServer.Options();
-        options.minWorkerThreads = 64;
+        options.minWorkerThreads = MIN_WORKER_THREADS;
 
-        SynchronousQueue<Runnable> executorQueue = new SynchronousQueue<Runnable>();
-
-        ExecutorService executorService = new ThreadPoolExecutor(options.minWorkerThreads,
-                                                                 options.maxWorkerThreads,
-                                                                 60,
-                                                                 TimeUnit.SECONDS,
-                                                                 executorQueue)
-        {
-            @Override
-            protected void afterExecute(Runnable r, Throwable t)
-            {
-                super.afterExecute(r, t);
-                cassandraServer.clientState.logout();
-            }
-        };
+        ExecutorService executorService = new CleaningThreadPool(cassandraServer.clientState,
+                                                                 options.minWorkerThreads,
+                                                                 options.maxWorkerThreads);
         serverEngine = new CustomTThreadPoolServer(new TProcessorFactory(processor),
                                              tServerSocket,
                                              inTransportFactory,
