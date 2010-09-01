@@ -18,6 +18,7 @@
 from . import AvroTester
 import avro_utils
 from time import time
+import struct
 from avro.ipc import AvroRemoteException
 
 def new_column(suffix, stamp=None, ttl=0):
@@ -59,6 +60,31 @@ class TestStandardOperations(AvroTester):
         avro_utils.assert_cosc(cosc)
         avro_utils.assert_columns_match(cosc['column'], params['column'])
 
+    def test_insert_unicode(self):
+        "send some unicode to the server"
+        self.client.request('set_keyspace', {'keyspace': 'Keyspace1'})
+        params = dict();
+        params['key'] = 'key1'
+        params['column_parent'] = {'column_family': 'Standard1'}
+        params['column'] = dict()
+        params['column']['name'] = struct.pack('bbbbbbbbbb',36,-62,-94,-30,-126,-84,-16,-92,-83,-94)
+        params['column']['value'] = struct.pack('bbbbbbbbbb',36,-62,-94,-30,-126,-84,-16,-92,-83,-94)
+        params['column']['clock'] = {'timestamp': timestamp()}
+        params['column']['ttl'] = None
+        params['consistency_level'] = 'ONE'
+        self.client.request('insert', params)
+        
+        read_params = dict();
+        read_params['key'] = params['key']
+        read_params['column_path'] = dict()
+        read_params['column_path']['column_family'] = 'Standard1'
+        read_params['column_path']['column'] = params['column']['name']
+        read_params['consistency_level'] = 'ONE'
+        cosc = self.client.request('get', read_params)
+
+        avro_utils.assert_cosc(cosc)
+        avro_utils.assert_columns_match(cosc['column'], params['column'])
+        
     def test_remove_simple(self):
         "removing a simple column"
         self.client.request('set_keyspace', {'keyspace': 'Keyspace1'})
