@@ -18,14 +18,43 @@
 from . import AvroTester
 from avro.ipc import AvroRemoteException
 import avro_utils
+import time
+    
+def _make_write_params(key, cf, sc, c, v, clock=0, cl='ONE'):
+    params = dict()
+    params['key'] = key
+    params['column_parent'] = dict()
+    params['column_parent']['column_family'] = cf
+    params['column_parent']['super_column'] = sc
+    params['column'] = dict()
+    params['column']['name'] = c
+    params['column']['value'] = v
+    params['column']['clock'] = { 'timestamp' : clock }
+    params['consistency_level'] = cl
+    return params
+    
+def _make_read_params(key, cf, sc, c, cl):
+    params = dict()
+    params['key'] = key
+    column_path = dict()
+    column_path['column_family'] = cf
+    column_path['super_column'] = sc
+    column_path['column'] = c
+    params['column_path'] = column_path
+    params['consistency_level'] = cl
+    return params
 
 class TestSuperOperations(AvroTester):
+
+    def _set_keyspace(self, keyspace):
+        self.client.request('set_keyspace', {'keyspace': keyspace})
+        
     """
     Operations on Super column families
     """
     def test_insert_super(self):
         "setting and getting a super column"
-        self.client.request('set_keyspace', {'keyspace': 'Keyspace1'})
+        self._set_keyspace('Keyspace1')
 
         params = dict()
         params['key'] = 'key1'
@@ -51,3 +80,22 @@ class TestSuperOperations(AvroTester):
 
         avro_utils.assert_cosc(cosc)
         avro_utils.assert_columns_match(cosc['column'], params['column'])
+    
+    def test_missing_super(self):
+        self._set_keyspace('Keyspace1')
+        avro_utils.assert_raises(AvroRemoteException,
+                self.client.request,
+                'get',
+                _make_read_params('key1', 'Super1', 'sc1', avro_utils.i64(1), 'ONE'))
+        self._insert_super()
+        avro_utils.assert_raises(AvroRemoteException,
+                self.client.request,
+                'get',
+                _make_read_params('key1', 'Super1', 'sc1', avro_utils.i64(1), 'ONE'))
+
+    def _insert_super(self, key='key1'):
+        self.client.request('insert', _make_write_params(key, 'Super1', 'sc1', avro_utils.i64(4), 'value4', 0, 'ONE'))
+        self.client.request('insert', _make_write_params(key, 'Super1', 'sc2', avro_utils.i64(5), 'value5', 0, 'ONE'))
+        self.client.request('insert', _make_write_params(key, 'Super1', 'sc2', avro_utils.i64(6), 'value6', 0, 'ONE'))
+        time.sleep(0.1)
+
