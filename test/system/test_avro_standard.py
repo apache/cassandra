@@ -16,6 +16,7 @@
 # limitations under the License.
 
 from . import AvroTester
+import avro_utils
 from avro.ipc import AvroRemoteException
 
 class TestStandardOperations(AvroTester):
@@ -72,7 +73,7 @@ class TestStandardOperations(AvroTester):
 
         self.client.request('remove', remove_params)
 
-        assert_raises(AvroRemoteException,
+        avro_utils.assert_raises(AvroRemoteException,
                 self.client.request, 'get', read_params)
 
     def test_batch_mutate(self):
@@ -119,7 +120,7 @@ class TestStandardOperations(AvroTester):
         self.client.request('batch_mutate', params)
 
         # Ensure successful column removal
-        assert_raises(AvroRemoteException,
+        avro_utils.assert_raises(AvroRemoteException,
                 self.__get, 'key1', 'Standard1', None, remove_column['name'])
 
         # Ensure successful column addition

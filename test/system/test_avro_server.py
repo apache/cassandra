@@ -47,11 +47,6 @@ def assert_cosc(thing, with_supercolumn=False):
     assert thing.has_key(containing) and thing[containing].has_key('name'), \
             "Invalid or missing \"%s\" member" % containing
 
-def assert_raises(excClass, func, *args, **kwargs):
-    try: r = func(*args, **kwargs)
-    except excClass: pass
-    else: raise Exception('expected %s; got %s' % (excClass.__name__, r))
-
 class TestRpcOperations(AvroTester):
     def test_insert_super(self):
         "setting and getting a super column"
@@ -113,80 +108,7 @@ class TestRpcOperations(AvroTester):
         part = "org.apache.cassandra.dht.CollatingOrderPreservingPartitioner"
         result = self.client.request('describe_partitioner', {})
         assert result == part, "got %s, expected %s" % (result, part)
-              
-    def test_system_column_family_operations(self):
-        "adding, renaming, and removing column families"
-        self.__set_keyspace('Keyspace1')
-        
-        # create
-        columnDef = dict()
-        columnDef['name'] = b'ValidationColumn'
-        columnDef['validation_class'] = 'BytesType'
-        
-        cfDef = dict()
-        cfDef['keyspace'] = 'Keyspace1'
-        cfDef['name'] = 'NewColumnFamily'
-        cfDef['column_metadata'] = [columnDef]
-        s = self.client.request('system_add_column_family', {'cf_def' : cfDef})
-        assert isinstance(s, unicode), \
-            'returned type is %s, (not \'unicode\')' % type(s)
-        
-        ks1 = self.client.request(
-            'describe_keyspace', {'keyspace' : 'Keyspace1'})
-        assert 'NewColumnFamily' in [x['name'] for x in ks1['cf_defs']]
-
-        # rename
-        self.client.request('system_rename_column_family',
-            {'old_name' : 'NewColumnFamily', 'new_name': 'RenameColumnFamily'})
-        ks1 = self.client.request(
-            'describe_keyspace', {'keyspace' : 'Keyspace1'})
-        assert 'RenameColumnFamily' in [x['name'] for x in ks1['cf_defs']]
-
-        # drop
-        self.client.request('system_drop_column_family',
-            {'column_family' : 'RenameColumnFamily'})
-        ks1 = self.client.request(
-                'describe_keyspace', {'keyspace' : 'Keyspace1'})
-        assert 'RenameColumnFamily' not in [x['name'] for x in ks1['cf_defs']]
-        assert 'NewColumnFamily' not in [x['name'] for x in ks1['cf_defs']]
-        assert 'Standard1' in [x['name'] for x in ks1['cf_defs']]
-
-    def test_system_keyspace_operations(self):
-        "adding, renaming, and removing keyspaces"
-        
-        # create
-        keyspace = dict()
-        keyspace['name'] = 'CreateKeyspace'
-        keyspace['strategy_class'] = 'org.apache.cassandra.locator.SimpleStrategy'
-        keyspace['replication_factor'] = 1
-        keyspace['strategy_options'] = {}
-        cfdef = dict();
-        cfdef['keyspace'] = 'CreateKeyspace'
-        cfdef['name'] = 'CreateKsCf'
-        keyspace['cf_defs'] = [cfdef]
-        
-        s = self.client.request('system_add_keyspace', {'ks_def' : keyspace})
-        assert isinstance(s, unicode), 'returned type is %s, (not \'unicode\')' % type(s)
-        
-        # rename
-        self.client.request('set_keyspace', {'keyspace' : 'CreateKeyspace'})
-        s = self.client.request(
-                'system_rename_keyspace', {'old_name' : 'CreateKeyspace', 'new_name' : 'RenameKeyspace'})
-        assert isinstance(s, unicode), 'returned type is %s, (not \'unicode\')' % type(s)
-        renameks = self.client.request('describe_keyspace',
-                {'keyspace': 'RenameKeyspace'})
-        assert renameks['name'] == 'RenameKeyspace'
-        assert renameks['cf_defs'][0]['name'] == 'CreateKsCf'
-        
-        # drop
-        s = self.client.request('system_drop_keyspace', {'keyspace' : 'RenameKeyspace'})
-        assert isinstance(s, unicode), 'returned type is %s, (not \'unicode\')' % type(s)
-        assert_raises(AvroRemoteException,
-                      self.client.request,
-                      'describe_keyspace',
-                      {'keyspace' : 'RenameKeyspace'})
-        
-        
+       
     def __get(self, key, cf, super_name, col_name, consistency_level='ONE'):
         """
         Given arguments for the key, column family, super column name,
