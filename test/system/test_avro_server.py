@@ -410,6 +410,42 @@ class TestRpcOperations(AvroTester):
             assert(e['count'] == 10), \
                 "expected 10 results for %s, got %d" % (e['key'], e['count'])
 
+    def test_system_keyspace_operations(self):
+        "adding, renaming, and removing keyspaces"
+        
+        # create
+        keyspace = dict()
+        keyspace['name'] = 'CreateKeyspace'
+        keyspace['strategy_class'] = 'org.apache.cassandra.locator.SimpleStrategy'
+        keyspace['replication_factor'] = 1
+        keyspace['strategy_options'] = {}
+        cfdef = dict();
+        cfdef['keyspace'] = 'CreateKeyspace'
+        cfdef['name'] = 'CreateKsCf'
+        keyspace['cf_defs'] = [cfdef]
+        
+        s = self.client.request('system_add_keyspace', {'ks_def' : keyspace})
+        assert isinstance(s, unicode), 'returned type is %s, (not \'unicode\')' % type(s)
+        
+        # rename
+        self.client.request('set_keyspace', {'keyspace' : 'CreateKeyspace'})
+        s = self.client.request(
+                'system_rename_keyspace', {'old_name' : 'CreateKeyspace', 'new_name' : 'RenameKeyspace'})
+        assert isinstance(s, unicode), 'returned type is %s, (not \'unicode\')' % type(s)
+        renameks = self.client.request('describe_keyspace',
+                {'keyspace': 'RenameKeyspace'})
+        assert renameks['name'] == 'RenameKeyspace'
+        assert renameks['cf_defs'][0]['name'] == 'CreateKsCf'
+        
+        # drop
+        s = self.client.request('system_drop_keyspace', {'keyspace' : 'RenameKeyspace'})
+        assert isinstance(s, unicode), 'returned type is %s, (not \'unicode\')' % type(s)
+        assert_raises(AvroRemoteException,
+                      self.client.request,
+                      'describe_keyspace',
+                      {'keyspace' : 'RenameKeyspace'})
+        
+        
     def __get(self, key, cf, super_name, col_name, consistency_level='ONE'):
         """
         Given arguments for the key, column family, super column name,
