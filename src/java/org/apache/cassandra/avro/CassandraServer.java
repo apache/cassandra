@@ -1062,4 +1062,93 @@ public class CassandraServer implements Cassandra {
         }
         return null;
     }
+
+    @Override
+    public List<KeySlice> get_indexed_slices(ColumnParent column_parent, IndexClause index_clause, SlicePredicate column_predicate, ConsistencyLevel consistency_level)
+    throws InvalidRequestException, UnavailableException, TimedOutException
+    {
+        if (logger.isDebugEnabled())
+            logger.debug("scan");
+
+        try
+        {
+            clientState.hasKeyspaceAccess(Permission.READ_VALUE);
+        }
+        catch (org.apache.cassandra.thrift.InvalidRequestException thriftE) {
+            throw newInvalidRequestException(thriftE);
+        }
+
+        String keyspace = clientState.getKeyspace();
+        AvroValidation.validateColumnParent(keyspace, column_parent);
+        AvroValidation.validatePredicate(keyspace, column_parent, column_predicate);
+        AvroValidation.validateIndexClauses(keyspace, column_parent.column_family.toString(), index_clause);
+
+        List<Row> rows;
+        try
+        {
+            rows = StorageProxy.scan(keyspace.toString(),
+                                     column_parent.column_family.toString(),
+                                     thriftIndexClause(index_clause),
+                                     thriftSlicePredicate(column_predicate),
+                                     thriftConsistencyLevel(consistency_level));
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (TimeoutException e)
+        {
+            throw new TimedOutException();
+        }
+        return avronateKeySlices(rows, column_parent, column_predicate);
+    }
+
+    private List<KeySlice> avronateKeySlices(List<Row> rows, ColumnParent column_parent, SlicePredicate predicate)
+    {
+        List<KeySlice> keySlices = new ArrayList<KeySlice>(rows.size());
+        boolean reversed = predicate.slice_range != null && predicate.slice_range.reversed;
+        for (Row row : rows)
+        {
+            List<ColumnOrSuperColumn> avronatedColumns = avronateColumnFamily(row.cf, column_parent.super_column != null, reversed);
+            keySlices.add(newKeySlice(row.key.key, avronatedColumns));
+        }
+
+        return keySlices;
+    }
+    
+    private org.apache.cassandra.thrift.SlicePredicate thriftSlicePredicate(SlicePredicate avro_pred) {
+        List<byte[]> bufs = new ArrayList<byte[]>();
+        for(ByteBuffer buf : avro_pred.column_names)
+            bufs.add(buf.array());
+
+        return new org.apache.cassandra.thrift.SlicePredicate().setColumn_names(bufs).setSlice_range(thriftSliceRange(avro_pred.slice_range));
+    }
+
+    private org.apache.cassandra.thrift.SliceRange thriftSliceRange(SliceRange avro_range) {
+        return new org.apache.cassandra.thrift.SliceRange(avro_range.start.array(), avro_range.finish.array(), avro_range.reversed, avro_range.count);
+    }
+
+    private org.apache.cassandra.thrift.IndexClause thriftIndexClause(IndexClause avro_clause) {
+        List<org.apache.cassandra.thrift.IndexExpression> expressions = new ArrayList<org.apache.cassandra.thrift.IndexExpression>();
+        for(IndexExpression exp : avro_clause.expressions)
+            expressions.add(thriftIndexExpression(exp));
+
+        return new org.apache.cassandra.thrift.IndexClause(expressions, avro_clause.start_key.array(), avro_clause.count);
+    }
+
+    private org.apache.cassandra.thrift.IndexExpression thriftIndexExpression(IndexExpression avro_exp) {
+        return new org.apache.cassandra.thrift.IndexExpression(avro_exp.column_name.array(), thriftIndexOperator(avro_exp.op), avro_exp.value.array());
+    }
+
+    private org.apache.cassandra.thrift.IndexOperator thriftIndexOperator(IndexOperator avro_op) {
+        switch (avro_op)
+        {
+            case EQ: return org.apache.cassandra.thrift.IndexOperator.EQ;
+            case GTE: return org.apache.cassandra.thrift.IndexOperator.GTE;
+            case GT: return org.apache.cassandra.thrift.IndexOperator.GT;
+            case LTE: return org.apache.cassandra.thrift.IndexOperator.LTE;
+            case LT: return org.apache.cassandra.thrift.IndexOperator.LT;
+        }
+        return null;
+    }
 }

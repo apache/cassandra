@@ -110,6 +110,15 @@ public class AvroRecordFactory
         entry.columns = columns;
         return entry;
     }
+
+    public static KeySlice newKeySlice(byte[] key, List<ColumnOrSuperColumn> columns) {
+        KeySlice slice = new KeySlice();
+        ByteBuffer wrappedKey = (key != null) ? ByteBuffer.wrap(key) : null;
+        slice.key = wrappedKey;
+        slice.columns = columns;
+        return slice;
+    }
+
 }
 
 class ErrorFactory

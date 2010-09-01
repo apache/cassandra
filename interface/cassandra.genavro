@@ -73,6 +73,27 @@ protocol Cassandra {
 		array<string> endpoints;
 	}
 
+    enum IndexOperator {
+        EQ, GTE, GT, LTE, LT
+    }
+
+    record IndexExpression {
+        bytes column_name;
+        IndexOperator op;
+        bytes value;
+    }
+
+    record IndexClause {
+        array<IndexExpression> expressions;
+        bytes start_key;
+        int count;
+    }
+
+    record KeySlice {
+        bytes key;
+        array<ColumnOrSuperColumn> columns;
+    }
+
     record Deletion {
         Clock clock;
         union { bytes, null } super_column;
@@ -220,6 +241,16 @@ protocol Cassandra {
                                            ColumnParent column_parent,
                                            SlicePredicate predicate,
                                            ConsistencyLevel consistency_level)
+    throws InvalidRequestException, UnavailableException, TimedOutException;
+
+    /** 
+     * Returns the subset of columns specified in SlicePredicate for 
+     * the rows matching the IndexClause.
+     */
+    array<KeySlice> get_indexed_slices(ColumnParent column_parent,
+                                      IndexClause index_clause,
+                                      SlicePredicate column_predicate,
+                                      ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException;
 
     /**

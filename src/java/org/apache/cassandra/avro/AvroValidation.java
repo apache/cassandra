@@ -24,6 +24,7 @@ package org.apache.cassandra.avro;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Set;
 
 import org.apache.avro.util.Utf8;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -31,6 +32,7 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IClock;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.TimestampClock;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
@@ -297,4 +299,19 @@ public class AvroValidation
         else
             validateColumns(keyspace, cp, predicate.column_names);
     }
+
+    static void validateIndexClauses(String keyspace, String columnFamily, IndexClause index_clause)
+    throws InvalidRequestException
+    {
+        if (index_clause.expressions.isEmpty())
+            throw newInvalidRequestException("index clause list may not be empty");
+        Set<byte[]> indexedColumns = Table.open(keyspace).getColumnFamilyStore(columnFamily).getIndexedColumns();
+        for (IndexExpression expression : index_clause.expressions)
+        {
+            if (expression.op.equals(IndexOperator.EQ) && indexedColumns.contains(expression.column_name))
+                return;
+        }
+        throw newInvalidRequestException("No indexed columns present in index clause with operator EQ");
+    }
+
 }
