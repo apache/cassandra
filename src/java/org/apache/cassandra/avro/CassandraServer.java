@@ -104,6 +104,19 @@ public class CassandraServer implements Cassandra {
     }
 
     @Override
+    public Void login(AuthenticationRequest auth_request) throws AuthenticationException, AuthorizationException 
+    {
+        try
+        {
+            clientState.login(auth_request.credentials);
+        }
+        catch (org.apache.cassandra.thrift.AuthenticationException thriftE) {
+            throw new AuthenticationException();
+        }
+        return null;
+    }
+
+    @Override
     public ColumnOrSuperColumn get(ByteBuffer key, ColumnPath columnPath, ConsistencyLevel consistencyLevel)
     throws AvroRemoteException, InvalidRequestException, NotFoundException, UnavailableException, TimedOutException {
         if (logger.isDebugEnabled())

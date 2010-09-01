@@ -50,7 +50,7 @@ public class SimpleAuthenticator implements IAuthenticator
     }
 
     @Override
-    public AuthenticatedUser authenticate(Map<String,String> credentials) throws AuthenticationException
+    public AuthenticatedUser authenticate(Map<? extends CharSequence,? extends CharSequence> credentials) throws AuthenticationException
     {
         String pmode_plain = System.getProperty(PMODE_PROPERTY);
         PasswordMode mode = PasswordMode.PLAIN;
@@ -75,11 +75,19 @@ public class SimpleAuthenticator implements IAuthenticator
 
         String pfilename = System.getProperty(PASSWD_FILENAME_PROPERTY);
 
-        String username = credentials.get(USERNAME_KEY);
-        if (null == username) throw new AuthenticationException("Authentication request was missing the required key '" + USERNAME_KEY + "'");
+        String username = null;
+        CharSequence user = credentials.get(USERNAME_KEY);
+        if (null == user) 
+            throw new AuthenticationException("Authentication request was missing the required key '" + USERNAME_KEY + "'");
+        else
+            username = user.toString();
 
-        String password = credentials.get(PASSWORD_KEY);
-        if (null == password) throw new AuthenticationException("Authentication request was missing the required key '" + PASSWORD_KEY + "'");
+        String password = null;
+        CharSequence pass = credentials.get(PASSWORD_KEY);
+        if (null == pass) 
+            throw new AuthenticationException("Authentication request was missing the required key '" + PASSWORD_KEY + "'");
+        else
+            password = pass.toString();
 
         boolean authenticated = false;
 

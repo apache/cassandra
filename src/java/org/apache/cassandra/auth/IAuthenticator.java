@@ -36,7 +36,7 @@ public interface IAuthenticator
      * @param credentials An implementation specific collection of identifying information.
      * @return A successfully authenticated user: should throw AuthenticationException rather than ever returning null.
      */
-    public AuthenticatedUser authenticate(Map<String,String> credentials) throws AuthenticationException;
+    public AuthenticatedUser authenticate(Map<? extends CharSequence,? extends CharSequence> credentials) throws AuthenticationException;
 
     public void validateConfiguration() throws ConfigurationException;
 }

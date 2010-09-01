@@ -36,7 +36,7 @@ public class AllowAllAuthenticator implements IAuthenticator
     }
 
     @Override
-    public AuthenticatedUser authenticate(Map<String,String> credentials) throws AuthenticationException
+    public AuthenticatedUser authenticate(Map<? extends CharSequence,? extends CharSequence> credentials) throws AuthenticationException
     {
         return USER;
     }

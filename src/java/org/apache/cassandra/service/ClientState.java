@@ -90,7 +90,7 @@ public class ClientState
     /**
      * Attempts to login this client with the given credentials map.
      */
-    public void login(Map<String,String> credentials) throws AuthenticationException
+    public void login(Map<? extends CharSequence,? extends CharSequence> credentials) throws AuthenticationException
     {
         AuthenticatedUser user = DatabaseDescriptor.getAuthenticator().authenticate(credentials);
         if (logger.isDebugEnabled())

@@ -140,6 +140,10 @@ protocol Cassandra {
         bytes key;
         int count;
     }
+    
+    record AuthenticationRequest {
+         map<string> credentials;
+    }
 
     enum ConsistencyLevel {
         ZERO, ONE, QUORUM, DCQUORUM, DCQUORUMSYNC, ALL
@@ -160,6 +164,19 @@ protocol Cassandra {
     error TimedOutException {
         union { string, null } why;
     }
+
+    error AuthenticationException {
+        union { string, null } why;
+    }
+
+    error AuthorizationException {
+        union { string, null } why;
+    }
+
+    void login (AuthenticationRequest auth_request)
+    throws AuthenticationException, AuthorizationException;
+
+    void set_keyspace(string keyspace) throws InvalidRequestException;
 
     ColumnOrSuperColumn get(bytes key,
                             ColumnPath column_path,
@@ -235,8 +252,6 @@ protocol Cassandra {
     
     string system_drop_column_family(string column_family)
     throws InvalidRequestException;
-
-    void set_keyspace(string keyspace) throws InvalidRequestException;
 
     array<string> describe_keyspaces();
     
