@@ -80,6 +80,14 @@ class TestSuperOperations(AvroTester):
 
         avro_utils.assert_cosc(cosc)
         avro_utils.assert_columns_match(cosc['column'], params['column'])
+
+    def test_slice_super(self):
+        self._set_keyspace('Keyspace1')
+        self._insert_super()
+        p = {'slice_range': {'start': '', 'finish': '', 'reversed': False, 'count': 10}}
+        parent = {'column_family': 'Super1', 'super_column': 'sc1'}
+        cosc = self.client.request('get_slice', {'key': 'key1', 'column_parent': parent, 'predicate': p, 'consistency_level': 'ONE'})
+        avro_utils.assert_cosc(cosc[0])
     
     def test_missing_super(self):
         self._set_keyspace('Keyspace1')
