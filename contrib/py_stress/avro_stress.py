@@ -251,13 +251,13 @@ class RangeSlicer(Operation):
         p = {'slice_range': {'start': '', 'finish': '', 'reversed': False, 'count': columns_per_key}}
         if 'super' == options.cftype:
             while current < end:
-                keyrange = {'start': fmt % current, 'finish': fmt % last, 'count' = options.rangecount)
+                keyrange = {'start': fmt % current, 'finish': fmt % last, 'count': options.rangecount}
                 res = []
                 for j in xrange(supers_per_key):
                     parent = {'column_family': 'Super1', 'super_column': 'S' + str(j)} 
                     begin = time.time()
                     try:
-                        res = self.cclient.request('get_range_slices', {'column_parent': parent, 'predicate': p, 'range': keyrange, 'consistency_level': consistency})
+                        res = self.cclient.request('get_range_slices', {'column_parent': parent, 'slice_predicate': p, 'range': keyrange, 'consistency_level': consistency})
                         if not res: raise RuntimeError("Key %s not found" % key)
                     except KeyboardInterrupt:
                         raise
@@ -272,14 +272,14 @@ class RangeSlicer(Operation):
                 last = current + len(r) + 1
                 self.keycounts[self.idx] += len(r)
         else:
-            parent = ColumnParent('Standard1')
+            parent = {'column_family': 'Standard1'}
             while current < end:
                 start = fmt % current 
                 finish = fmt % last
-                keyrange = KeyRange(start, finish, count = options.rangecount)
+                keyrange = {'start': start, 'finish': finish, 'count': options.rangecount}
                 begin = time.time()
                 try:
-                    r = self.cclient.get_range_slices(parent, p, keyrange, consistency)
+                    r = self.cclient.request('get_range_slices', {'column_parent': parent, 'slice_predicate': p, 'range': keyrange, 'consistency_level': consistency})
                     if not r: raise RuntimeError("Range not found:", start, finish)
                 except KeyboardInterrupt:
                     raise
