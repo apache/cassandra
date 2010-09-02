@@ -248,9 +248,9 @@ public class NodeCmd {
         // get a list of column family stores
         Iterator<Map.Entry<String, ColumnFamilyStoreMBean>> cfamilies = probe.getColumnFamilyStoreMBeanProxies();
 
-        for (;cfamilies.hasNext();)
+        while (cfamilies.hasNext())
         {
-            Map.Entry<String, ColumnFamilyStoreMBean> entry = cfamilies.next();
+            Entry<String, ColumnFamilyStoreMBean> entry = cfamilies.next();
             String tableName = entry.getKey();
             ColumnFamilyStoreMBean cfsProxy = entry.getValue();
 

@@ -425,7 +425,7 @@ class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, Colum
     public ColumnFamilyStoreMBeanIterator(MBeanServerConnection mbeanServerConn)
     throws MalformedObjectNameException, NullPointerException, IOException
     {
-        ObjectName query = new ObjectName("org.apache.cassandra.db:type=ColumnFamilyStores,*");
+        ObjectName query = new ObjectName("org.apache.cassandra.db:type=ColumnFamilies,*");
         resIter = mbeanServerConn.queryNames(query, null).iterator();
         this.mbeanServerConn = mbeanServerConn;
     }

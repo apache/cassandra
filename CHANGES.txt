@@ -40,6 +40,7 @@ dev
  * handle zero-length (or missing) rows during HH paging (CASSANDRA-1432)
  * include secondary indexes during schema migrations (CASSANDRA-1406)
  * fix commitlog header race during schema change (CASSANDRA-1435)
+ * fix ColumnFamilyStoreMBeanIterator to use new type name (CASSANDRA-1433)
 
 
 0.7-beta1
