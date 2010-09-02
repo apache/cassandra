@@ -135,9 +135,9 @@ class ErrorFactory
         return newInvalidRequestException(new Utf8(why));
     }
 
-    static InvalidRequestException newInvalidRequestException(org.apache.cassandra.thrift.InvalidRequestException e)
+    static InvalidRequestException newInvalidRequestException(Throwable e)
     {
-        InvalidRequestException exception = newInvalidRequestException(e.why);
+        InvalidRequestException exception = newInvalidRequestException(e.getMessage());
         exception.initCause(e);
         return exception;
     }

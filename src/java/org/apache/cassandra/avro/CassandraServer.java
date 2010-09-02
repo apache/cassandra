@@ -180,11 +180,11 @@ public class CassandraServer implements Cassandra {
         // which throw Thrift exceptions directly.
         catch (org.apache.cassandra.thrift.UnavailableException e)
         {
-            throw new UnavailableException();
+            throw newUnavailableException(e);
         }
         catch (org.apache.cassandra.thrift.InvalidRequestException e)
         {
-            throw new InvalidRequestException();
+            throw newInvalidRequestException(e);
         }
         finally
         {
@@ -450,7 +450,7 @@ public class CassandraServer implements Cassandra {
         }
         catch (org.apache.cassandra.thrift.UnavailableException thriftE)
         {
-            throw new UnavailableException();
+            throw newUnavailableException(thriftE);
         }
         finally
         {
@@ -592,15 +592,11 @@ public class CassandraServer implements Cassandra {
             // this means call() threw an exception. deal with it directly.
             if (e.getCause() != null)
             {
-                InvalidRequestException ex = newInvalidRequestException(e.getCause().getMessage());
-                ex.initCause(e.getCause());
-                throw ex;
+                throw newInvalidRequestException(e.getCause());
             }
             else
             {
-                InvalidRequestException ex = newInvalidRequestException(e.getMessage());
-                ex.initCause(e);
-                throw ex;
+                throw newInvalidRequestException(e);
             }
         }
     }
@@ -682,21 +678,15 @@ public class CassandraServer implements Cassandra {
         }
         catch (ClassNotFoundException e)
         {
-            InvalidRequestException ire = newInvalidRequestException(e.getMessage());
-            ire.initCause(e);
-            throw ire;
+            throw newInvalidRequestException(e);
         }
         catch (ConfigurationException e)
         {
-            InvalidRequestException ire = newInvalidRequestException(e.getMessage());
-            ire.initCause(e);
-            throw ire;
+            throw newInvalidRequestException(e);
         }
         catch (IOException e)
         {
-            InvalidRequestException ire = newInvalidRequestException(e.getMessage());
-            ire.initCause(e);
-            throw ire;
+            throw newInvalidRequestException(e);
         }
     }
 
@@ -710,15 +700,11 @@ public class CassandraServer implements Cassandra {
             return DatabaseDescriptor.getDefsVersion().toString();
         } catch (ConfigurationException e)
         {
-            InvalidRequestException ex = newInvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
+            throw newInvalidRequestException(e);
         }
         catch (IOException e)
         {
-            InvalidRequestException ex = newInvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
+            throw newInvalidRequestException(e);
         }
     }
 
@@ -886,15 +872,11 @@ public class CassandraServer implements Cassandra {
         }
         catch (ConfigurationException e)
         {
-            InvalidRequestException ex = newInvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
+            throw newInvalidRequestException(e);
         }
         catch (IOException e)
         {
-            InvalidRequestException ex = newInvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
+            throw newInvalidRequestException(e);
         }
     }
 
@@ -910,15 +892,11 @@ public class CassandraServer implements Cassandra {
         }
         catch (ConfigurationException e)
         {
-            InvalidRequestException ex = newInvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
+            throw newInvalidRequestException(e);
         }
         catch (IOException e)
         {
-            InvalidRequestException ex = newInvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
+            throw newInvalidRequestException(e);
         }
     }
 
@@ -935,15 +913,11 @@ public class CassandraServer implements Cassandra {
         }
         catch (ConfigurationException e)
         {
-            InvalidRequestException ex = newInvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
+            throw newInvalidRequestException(e);
         }
         catch (IOException e)
         {
-            InvalidRequestException ex = newInvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
+            throw newInvalidRequestException(e);
         }
     }
 
@@ -960,15 +934,11 @@ public class CassandraServer implements Cassandra {
         }
         catch (ConfigurationException e)
         {
-            InvalidRequestException ex = newInvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
+            throw newInvalidRequestException(e);
         }
         catch (IOException e)
         {
-            InvalidRequestException ex = newInvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
+            throw newInvalidRequestException(e);
         }
     }
 
@@ -1016,7 +986,7 @@ public class CassandraServer implements Cassandra {
 
     public List<TokenRange> describe_ring(CharSequence keyspace) throws AvroRemoteException, InvalidRequestException
     {
-        if (keyspace == null || !DatabaseDescriptor.getNonSystemTables().contains(keyspace))
+        if (keyspace == null || keyspace.toString().equals(Table.SYSTEM_TABLE))
             throw newInvalidRequestException("There is no ring for the keyspace: " + keyspace);
         List<TokenRange> ranges = new ArrayList<TokenRange>();
         Token.TokenFactory<?> tf = StorageService.getPartitioner().getTokenFactory();
