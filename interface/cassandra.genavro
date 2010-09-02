@@ -89,6 +89,22 @@ protocol Cassandra {
         int count;
     }
 
+    /**
+     * The semantics of start keys and tokens are slightly different.
+     * Keys are start-inclusive; tokens are start-exclusive.  Token
+     * ranges may also wrap -- that is, the end token may be less
+     * than the start one.  Thus, a range from keyX to keyX is a
+     * one-element range, but a range from tokenY to tokenY is the
+     * full ring.
+     */
+    record KeyRange {
+        union { bytes, null } start_key;
+        union { bytes, null } end_key;
+        union { string, null } start_token;
+        union { string, null } end_token;
+        int count;
+    }
+
     record KeySlice {
         bytes key;
         array<ColumnOrSuperColumn> columns;
@@ -346,4 +362,12 @@ protocol Cassandra {
      */
     array<TokenRange> describe_ring(string keyspace)
     throws InvalidRequestException;
+
+    /**
+     *returns a subset of columns for a contiguous range of keys.
+     */
+    array<KeySlice> get_range_slices(ColumnParent column_parent,
+                                     SlicePredicate predicate,
+                                     KeyRange range,
+                                     union { ConsistencyLevel, null } consistency_level);
 }

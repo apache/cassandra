@@ -36,6 +36,10 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.TimestampClock;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.RandomPartitioner;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.avro.ErrorFactory.newInvalidRequestException;
@@ -298,6 +302,42 @@ public class AvroValidation
             validateRange(keyspace, cp, predicate.slice_range);
         else
             validateColumns(keyspace, cp, predicate.column_names);
+    }
+
+    public static void validateKeyRange(KeyRange range)
+    throws InvalidRequestException
+    {
+        if ((range.start_key == null) != (range.end_key == null))
+        {
+            throw newInvalidRequestException("start key and end key must either both be non-null, or both be null");
+        }
+        if ((range.start_token == null) != (range.end_token == null))
+        {
+            throw newInvalidRequestException("start token and end token must either both be non-null, or both be null");
+        }
+        if ((range.start_key == null) == (range.start_token == null))
+        {
+            throw newInvalidRequestException("exactly one of {start key, end key} or {start token, end token} must be specified");
+        }
+
+        if (range.start_key != null)
+        {
+            IPartitioner p = StorageService.getPartitioner();
+            Token startToken = p.getToken(range.start_key.array());
+            Token endToken = p.getToken(range.end_key.array());
+            if (startToken.compareTo(endToken) > 0 && !endToken.equals(p.getMinimumToken()))
+            {
+                if (p instanceof RandomPartitioner)
+                    throw newInvalidRequestException("start key's md5 sorts after end key's md5.  this is not allowed; you probably should not specify end key at all, under RandomPartitioner");
+                else
+                    throw newInvalidRequestException("start key must sort before (or equal to) finish key in your partitioner!");
+            }
+        }
+
+        if (range.count <= 0)
+        {
+            throw newInvalidRequestException("maxRows must be positive");
+        }
     }
 
     static void validateIndexClauses(String keyspace, String columnFamily, IndexClause index_clause)

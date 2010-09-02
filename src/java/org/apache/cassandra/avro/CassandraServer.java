@@ -43,6 +43,8 @@ import org.apache.avro.util.Utf8;
 import org.apache.cassandra.avro.InvalidRequestException;
 import org.apache.cassandra.db.migration.DropKeyspace;
 import org.apache.cassandra.db.migration.RenameKeyspace;
+import org.apache.cassandra.dht.*;
+import org.apache.cassandra.thrift.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -65,8 +67,6 @@ import org.apache.cassandra.db.migration.AddKeyspace;
 import org.apache.cassandra.db.migration.DropColumnFamily;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.db.migration.RenameColumnFamily;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.service.ClientState;
@@ -1064,6 +1064,71 @@ public class CassandraServer implements Cassandra {
     }
 
     @Override
+    public List<KeySlice> get_range_slices(ColumnParent column_parent, SlicePredicate slice_predicate, KeyRange range, ConsistencyLevel consistency_level)
+    throws InvalidRequestException, TimedOutException
+    {
+        String keyspace = clientState.getKeyspace();
+        try
+        {
+            clientState.hasKeyspaceAccess(Permission.READ_VALUE);
+        }
+        catch (org.apache.cassandra.thrift.InvalidRequestException thriftE)
+        {
+            throw newInvalidRequestException(thriftE);
+        }
+
+        AvroValidation.validateColumnParent(keyspace, column_parent);
+        AvroValidation.validatePredicate(keyspace, column_parent, slice_predicate);
+        AvroValidation.validateKeyRange(range);
+
+        List<Row> rows;
+        try
+        {
+            IPartitioner p = StorageService.getPartitioner();
+            AbstractBounds bounds;
+            if (range.start_key == null)
+            {
+                Token.TokenFactory tokenFactory = p.getTokenFactory();
+                Token left = tokenFactory.fromString(range.start_token.toString());
+                Token right = tokenFactory.fromString(range.end_token.toString());
+                bounds = new Range(left, right);
+            }
+            else
+            {
+                bounds = new Bounds(p.getToken(range.start_key.array()), p.getToken(range.end_key.array()));
+            }
+            try
+            {
+                schedule();
+                rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace,
+                                                                        thriftColumnParent(column_parent),
+                                                                        thriftSlicePredicate(slice_predicate),
+                                                                        bounds,
+                                                                        range.count),
+                                                  thriftConsistencyLevel(consistency_level));
+            }
+            catch (org.apache.cassandra.thrift.UnavailableException thriftE)
+            {
+                throw newUnavailableException(thriftE);
+            }
+            finally
+            {
+                release();
+            }
+            assert rows != null;
+        }
+        catch (TimeoutException e)
+        {
+        	throw new TimedOutException();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        return avronateKeySlices(rows, column_parent, slice_predicate);
+    }
+
+    @Override
     public List<KeySlice> get_indexed_slices(ColumnParent column_parent, IndexClause index_clause, SlicePredicate column_predicate, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -1074,7 +1139,8 @@ public class CassandraServer implements Cassandra {
         {
             clientState.hasKeyspaceAccess(Permission.READ_VALUE);
         }
-        catch (org.apache.cassandra.thrift.InvalidRequestException thriftE) {
+        catch (org.apache.cassandra.thrift.InvalidRequestException thriftE)
+        {
             throw newInvalidRequestException(thriftE);
         }
 
@@ -1115,13 +1181,32 @@ public class CassandraServer implements Cassandra {
 
         return keySlices;
     }
-    
-    private org.apache.cassandra.thrift.SlicePredicate thriftSlicePredicate(SlicePredicate avro_pred) {
-        List<byte[]> bufs = new ArrayList<byte[]>();
-        for(ByteBuffer buf : avro_pred.column_names)
-            bufs.add(buf.array());
 
-        return new org.apache.cassandra.thrift.SlicePredicate().setColumn_names(bufs).setSlice_range(thriftSliceRange(avro_pred.slice_range));
+    private org.apache.cassandra.thrift.ColumnParent thriftColumnParent(ColumnParent avro_column_parent)
+    {
+        org.apache.cassandra.thrift.ColumnParent cp = new org.apache.cassandra.thrift.ColumnParent(avro_column_parent.column_family.toString());
+        if (avro_column_parent.super_column != null)
+            cp.super_column = avro_column_parent.super_column.array();
+
+        return cp;
+    }
+
+    private org.apache.cassandra.thrift.SlicePredicate thriftSlicePredicate(SlicePredicate avro_pred) {
+        // One or the other are set, so check for nulls of either
+
+        List<byte[]> bufs = null;
+        if (avro_pred.column_names != null)
+        {
+            bufs = new ArrayList<byte[]>();
+            for(ByteBuffer buf : avro_pred.column_names)
+                bufs.add(buf.array());
+        }
+
+        org.apache.cassandra.thrift.SliceRange slice_range = (avro_pred.slice_range != null)
+                                                                ? thriftSliceRange(avro_pred.slice_range)
+                                                                : null;
+
+        return new org.apache.cassandra.thrift.SlicePredicate().setColumn_names(bufs).setSlice_range(slice_range);
     }
 
     private org.apache.cassandra.thrift.SliceRange thriftSliceRange(SliceRange avro_range) {
