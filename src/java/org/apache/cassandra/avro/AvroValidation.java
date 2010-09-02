@@ -348,7 +348,7 @@ public class AvroValidation
         Set<byte[]> indexedColumns = Table.open(keyspace).getColumnFamilyStore(columnFamily).getIndexedColumns();
         for (IndexExpression expression : index_clause.expressions)
         {
-            if (expression.op.equals(IndexOperator.EQ) && indexedColumns.contains(expression.column_name))
+            if (expression.op.equals(IndexOperator.EQ) && indexedColumns.contains(expression.column_name.array()))
                 return;
         }
         throw newInvalidRequestException("No indexed columns present in index clause with operator EQ");
