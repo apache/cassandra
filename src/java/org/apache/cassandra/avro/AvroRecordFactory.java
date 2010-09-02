@@ -51,7 +51,7 @@ public class AvroRecordFactory
         return newColumn(ByteBuffer.wrap(name), ByteBuffer.wrap(value), clock);
     }
     
-    public static SuperColumn newSuperColumn(ByteBuffer name, GenericArray<Column> columns)
+    public static SuperColumn newSuperColumn(ByteBuffer name, List<Column> columns)
     {
         SuperColumn column = new SuperColumn();
         column.name = name;
@@ -59,7 +59,7 @@ public class AvroRecordFactory
         return column;
     }
     
-    public static SuperColumn newSuperColumn(byte[] name, GenericArray<Column> columns)
+    public static SuperColumn newSuperColumn(byte[] name, List<Column> columns)
     {
         return newSuperColumn(ByteBuffer.wrap(name), columns);
     }

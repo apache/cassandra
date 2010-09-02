@@ -200,12 +200,12 @@ public class CassandraServer implements Cassandra {
     }
     
     // Don't playa hate, avronate.
-    private GenericArray<Column> avronateSubColumns(Collection<IColumn> columns)
+    private List<Column> avronateSubColumns(Collection<IColumn> columns)
     {
         if (columns == null || columns.isEmpty())
             return EMPTY_SUBCOLUMNS;
         
-        GenericData.Array<Column> avroColumns = new GenericData.Array<Column>(columns.size(), Column.SCHEMA$);
+        List<Column> avroColumns = new ArrayList<Column>(columns.size());
 
         for (IColumn column : columns)
         {
@@ -256,7 +256,7 @@ public class CassandraServer implements Cassandra {
         ArrayList<ColumnOrSuperColumn> avroSuperColumns = new ArrayList<ColumnOrSuperColumn>(columns.size());
         for (IColumn column: columns)
         {
-            GenericArray<Column> subColumns = avronateSubColumns(column.getSubColumns());
+            List<Column> subColumns = avronateSubColumns(column.getSubColumns());
             if (subColumns.size() == 0)
                 continue;
             SuperColumn superColumn = newSuperColumn(column.name(), subColumns);
