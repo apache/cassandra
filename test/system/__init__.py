@@ -202,5 +202,36 @@ class AvroTester(BaseTester):
         })
 
         self.client.request('system_add_keyspace', {'ks_def': keyspace1})
+        
+        keyspace2 = dict()
+        keyspace2['name'] = 'Keyspace2'
+        keyspace2['replication_factor'] = 1
+        keyspace2['strategy_class'] = 'org.apache.cassandra.locator.SimpleStrategy'
+        
+        keyspace2['cf_defs'] = [{
+            'keyspace': 'Keyspace2',
+            'name': 'Standard1',
+        }]
+        
+        keyspace2['cf_defs'].append({
+            'keyspace': 'Keyspace2',
+            'name': 'Standard3',
+        })
+        
+        keyspace2['cf_defs'].append({
+            'keyspace': 'Keyspace2',
+            'name': 'Super3',
+            'column_type': 'Super',
+            'subcomparator_type': 'BytesType',
+        })
+        
+        keyspace2['cf_defs'].append({
+            'keyspace': 'Keyspace2',
+            'name': 'Super4',
+            'column_type': 'Super',
+            'subcomparator_type': 'TimeUUIDType',
+        });
+        
+        self.client.request('system_add_keyspace', {'ks_def': keyspace2})
 
 # vim:ai sw=4 ts=4 tw=0 et
