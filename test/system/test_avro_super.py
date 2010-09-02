@@ -44,6 +44,16 @@ def _make_read_params(key, cf, sc, c, cl):
     params['consistency_level'] = cl
     return params
 
+def _col(name, value, clock, ttl=None):
+    return {'name':name, 'value':value, 'clock': {'timestamp':clock}, 'ttl': ttl}
+
+def _super_col(name, columns):
+    return {'name': name, 'columns': columns}
+
+_SUPER_COLUMNS = [_super_col('sc1', [_col(avro_utils.i64(4), 'value4', 0)]), 
+                  _super_col('sc2', [_col(avro_utils.i64(5), 'value5', 0), 
+                                     _col(avro_utils.i64(6), 'value6', 0)])]
+
 class TestSuperOperations(AvroTester):
 
     def _set_keyspace(self, keyspace):
@@ -52,36 +62,14 @@ class TestSuperOperations(AvroTester):
     """
     Operations on Super column families
     """
-    def test_insert_super(self):
-        "setting and getting a super column"
+    def test_super_insert(self):
+        "simple super column insert"
         self._set_keyspace('Keyspace1')
-
-        params = dict()
-        params['key'] = 'key1'
-        params['column_parent'] = dict()
-        params['column_parent']['column_family'] = 'Super1'
-        params['column_parent']['super_column'] = 'sc1'
-        params['column'] = dict()
-        params['column']['name'] = avro_utils.i64(1)
-        params['column']['value'] = 'v1'
-        params['column']['clock'] = { 'timestamp' : 0 }
-        params['consistency_level'] = 'ONE'
-        self.client.request('insert', params)
-
-        read_params = dict()
-        read_params['key'] = params['key']
-        read_params['column_path'] = dict()
-        read_params['column_path']['column_family'] = 'Super1'
-        read_params['column_path']['super_column'] = params['column_parent']['super_column']
-        read_params['column_path']['column'] = params['column']['name']
-        read_params['consistency_level'] = 'ONE'
-
-        cosc = self.client.request('get', read_params)
-
-        avro_utils.assert_cosc(cosc)
-        avro_utils.assert_columns_match(cosc['column'], params['column'])
-
+        self._insert_super()
+        self._verify_super()
+        
     def test_slice_super(self):
+        "tests simple insert and get_slice"
         self._set_keyspace('Keyspace1')
         self._insert_super()
         p = {'slice_range': {'start': '', 'finish': '', 'reversed': False, 'count': 10}}
@@ -90,6 +78,7 @@ class TestSuperOperations(AvroTester):
         avro_utils.assert_cosc(cosc[0])
     
     def test_missing_super(self):
+        "verifies that inserting doesn't yield false positives."
         self._set_keyspace('Keyspace1')
         avro_utils.assert_raises(AvroRemoteException,
                 self.client.request,
@@ -105,5 +94,13 @@ class TestSuperOperations(AvroTester):
         self.client.request('insert', _make_write_params(key, 'Super1', 'sc1', avro_utils.i64(4), 'value4', 0, 'ONE'))
         self.client.request('insert', _make_write_params(key, 'Super1', 'sc2', avro_utils.i64(5), 'value5', 0, 'ONE'))
         self.client.request('insert', _make_write_params(key, 'Super1', 'sc2', avro_utils.i64(6), 'value6', 0, 'ONE'))
-        time.sleep(0.1)
-
+    
+    def _big_slice(self, key, column_parent):
+        p = {'slice_range': {'start': '', 'finish': '', 'reversed': False, 'count': 1000}}
+        return self.client.request('get_slice',  {'key': key, 'column_parent': column_parent, 'predicate': p, 'consistency_level': 'ONE'})
+        
+    def _verify_super(self, supercf='Super1', key='key1'):
+        col = self.client.request('get', _make_read_params(key, supercf, 'sc1', avro_utils.i64(4), 'ONE'))['column']
+        avro_utils.assert_columns_match(col, {'name': avro_utils.i64(4), 'value': 'value4', 'timestamp': 0})
+        slice = [result['super_column'] for result in self._big_slice(key, {'column_family': supercf})]
+        assert slice == _SUPER_COLUMNS, _SUPER_COLUMNS
