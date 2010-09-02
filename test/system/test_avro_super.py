@@ -44,15 +44,37 @@ def _make_read_params(key, cf, sc, c, cl):
     params['consistency_level'] = cl
     return params
 
-def _col(name, value, clock, ttl=None):
-    return {'name':name, 'value':value, 'clock': {'timestamp':clock}, 'ttl': ttl}
-
 def _super_col(name, columns):
     return {'name': name, 'columns': columns}
 
-_SUPER_COLUMNS = [_super_col('sc1', [_col(avro_utils.i64(4), 'value4', 0)]), 
-                  _super_col('sc2', [_col(avro_utils.i64(5), 'value5', 0), 
-                                     _col(avro_utils.i64(6), 'value6', 0)])]
+def SlicePredicate(**kwargs):
+    return kwargs
+
+def SliceRange(start='', finish='', reversed=False, count=10):
+    return {'start': start, 'finish': finish, 'reversed':reversed, 'count': count}
+
+def ColumnParent(*args, **kwargs):
+    cp = {}
+    if args[0]:
+        cp['column_family'] = args[0]
+    if args[1]:
+        cp['super_column'] = args[1]
+    if not args:
+        cp = kwargs
+    return cp
+
+def Clock(timestamp=0):
+    return {'timestamp': timestamp}
+
+def Column(name, value, clock, ttl=None):
+    return {'name':name, 'value':value, 'clock': clock, 'ttl': ttl}
+
+def _i64(i):
+    return avro_utils.i64(i)
+    
+_SUPER_COLUMNS = [_super_col('sc1', [Column(avro_utils.i64(4), 'value4', Clock(0))]), 
+                  _super_col('sc2', [Column(avro_utils.i64(5), 'value5', Clock(0)), 
+                                     Column(avro_utils.i64(6), 'value6', Clock(0))])]
 
 class TestSuperOperations(AvroTester):
 
@@ -89,7 +111,29 @@ class TestSuperOperations(AvroTester):
                 self.client.request,
                 'get',
                 _make_read_params('key1', 'Super1', 'sc1', avro_utils.i64(1), 'ONE'))
+        
+    def test_super_get(self):
+        "read back a super column"
+        self._set_keyspace('Keyspace1')
+        self._insert_super()
+        result = self.client.request('get', _make_read_params('key1', 'Super1', 'sc2', None, 'ONE'))['super_column']
+        assert result == _SUPER_COLUMNS[1], result
+    
+    def test_super_subcolumn_limit(self):
+        "test get_slice honors subcolumn reversal and limit"
+        self._set_keyspace('Keyspace1')
+        self._insert_super()
+        p = SlicePredicate(slice_range=SliceRange('', '', False, 1))
+        column_parent = ColumnParent('Super1', 'sc2')
+        slice = [result['column'] for result in self.client.request('get_slice', {'key': 'key1', 'column_parent': column_parent, 'predicate': p, 'consistency_level': 'ONE'})]
+        assert slice == [Column(_i64(5), 'value5', Clock(0))], slice
+        p = SlicePredicate(slice_range=SliceRange('', '', True, 1))
+        slice = [result['column'] for result in self.client.request('get_slice', {'key': 'key1', 'column_parent': column_parent, 'predicate': p, 'consistency_level': 'ONE'})]
+        assert slice == [Column(_i64(6), 'value6', Clock(0))], slice
 
+    
+    # internal helper functions.
+    
     def _insert_super(self, key='key1'):
         self.client.request('insert', _make_write_params(key, 'Super1', 'sc1', avro_utils.i64(4), 'value4', 0, 'ONE'))
         self.client.request('insert', _make_write_params(key, 'Super1', 'sc2', avro_utils.i64(5), 'value5', 0, 'ONE'))
@@ -104,3 +148,4 @@ class TestSuperOperations(AvroTester):
         avro_utils.assert_columns_match(col, {'name': avro_utils.i64(4), 'value': 'value4', 'timestamp': 0})
         slice = [result['super_column'] for result in self._big_slice(key, {'column_family': supercf})]
         assert slice == _SUPER_COLUMNS, _SUPER_COLUMNS
+        
