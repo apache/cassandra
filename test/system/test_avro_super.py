@@ -131,7 +131,47 @@ class TestSuperOperations(AvroTester):
         slice = [result['column'] for result in self.client.request('get_slice', {'key': 'key1', 'column_parent': column_parent, 'predicate': p, 'consistency_level': 'ONE'})]
         assert slice == [Column(_i64(6), 'value6', Clock(0))], slice
 
+    def test_time_uuid(self):
+        "test operation on timeuuid subcolumns in super columns"
+        import uuid
+        L = []
+        self._set_keyspace('Keyspace2')
+        # 100 isn't enough to fail reliably if the comparator is borked
+        for i in xrange(500):
+            L.append(uuid.uuid1())
+            self.client.request('insert', {'key': 'key1', 'column_parent': ColumnParent('Super4', 'sc1'), 'column': Column(L[-1].bytes, 'value%s' % i, Clock(i)), 'consistency_level': 'ONE'})
+        slice = self._big_slice('key1', ColumnParent('Super4', 'sc1'))
+        assert len(slice) == 500, len(slice)
+        for i in xrange(500):
+            u = slice[i]['column']
+            assert u['value'] == 'value%s' % i
+            assert u['name'] == L[i].bytes
+
+        p = SlicePredicate(slice_range=SliceRange('', '', True, 1))
+        column_parent = ColumnParent('Super4', 'sc1')
+        slice = [result['column'] for result in self.client.request('get_slice', {'key': 'key1', 'column_parent': column_parent, 'predicate': p, 'consistency_level': 'ONE'})]
+        assert slice == [Column(L[-1].bytes, 'value499', Clock(499))], slice
+
+        p = SlicePredicate(slice_range=SliceRange('', L[2].bytes, False, 1000))
+        column_parent = ColumnParent('Super4', 'sc1')
+        slice = [result['column'] for result in self.client.request('get_slice', {'key': 'key1', 'column_parent': column_parent, 'predicate': p, 'consistency_level': 'ONE'})]
+        assert slice == [Column(L[0].bytes, 'value0', Clock(0)),
+                         Column(L[1].bytes, 'value1', Clock(1)),
+                         Column(L[2].bytes, 'value2', Clock(2))], slice
+
+        p = SlicePredicate(slice_range=SliceRange(L[2].bytes, '', True, 1000))
+        column_parent = ColumnParent('Super4', 'sc1')
+        slice = [result['column'] for result in self.client.request('get_slice', {'key': 'key1', 'column_parent': column_parent, 'predicate': p, 'consistency_level': 'ONE'})]
+        assert slice == [Column(L[2].bytes, 'value2', Clock(2)),
+                         Column(L[1].bytes, 'value1', Clock(1)),
+                         Column(L[0].bytes, 'value0', Clock(0))], slice
+
+        p = SlicePredicate(slice_range=SliceRange(L[2].bytes, '', False, 1))
+        column_parent = ColumnParent('Super4', 'sc1')
+        slice = [result['column'] for result in self.client.request('get_slice', {'key': 'key1', 'column_parent': column_parent, 'predicate': p, 'consistency_level': 'ONE'})]
+        assert slice == [Column(L[2].bytes, 'value2', Clock(2))], slice
     
+        
     # internal helper functions.
     
     def _insert_super(self, key='key1'):
