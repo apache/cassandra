@@ -385,4 +385,10 @@
    ~ ten days.
   -->
   <GCGraceSeconds>864000</GCGraceSeconds>
+
+  <!--
+   ~ Enables or disables Read Repair.
+   ~ See http://wiki.apache.org/cassandra/ReadRepair
+  -->
+  <DoConsistencyChecksBoolean>true</DoConsistencyChecksBoolean>
 </Storage>
