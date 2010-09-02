@@ -1067,12 +1067,6 @@ public class CassandraServer implements Cassandra {
     public List<KeySlice> get_range_slices(ColumnParent column_parent, SlicePredicate slice_predicate, KeyRange range, ConsistencyLevel consistency_level)
     throws InvalidRequestException, TimedOutException
     {
-        //Mirrors default CL value in thrift
-        if (consistency_level == null)
-        {
-            consistency_level = ConsistencyLevel.ONE;
-        }
-
         String keyspace = clientState.getKeyspace();
         try
         {

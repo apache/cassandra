@@ -369,5 +369,6 @@ protocol Cassandra {
     array<KeySlice> get_range_slices(ColumnParent column_parent,
                                      SlicePredicate predicate,
                                      KeyRange range,
-                                     union { ConsistencyLevel, null } consistency_level);
+                                     ConsistencyLevel consistency_level)
+    throws InvalidRequestException, UnavailableException, TimedOutException;
 }
