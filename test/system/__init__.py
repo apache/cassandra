@@ -201,6 +201,12 @@ class AvroTester(BaseTester):
             'key_cache_size': 0
         })
 
+        keyspace1['cf_defs'].append({
+            'keyspace': 'Keyspace1',
+            'name': 'Indexed1',
+            'column_metadata': [{'name': 'birthdate', 'validation_class': 'LongType', 'index_type': 'KEYS', 'index_name': 'birthdate'}],
+        })
+
         self.client.request('system_add_keyspace', {'ks_def': keyspace1})
         
         keyspace2 = dict()

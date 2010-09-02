@@ -57,6 +57,9 @@ def _read_multi_key_column_count():
 def timestamp():
     return long(time() * 1e6)
 
+def i64(i):
+    return struct.pack('<d', i)
+
 class TestStandardOperations(AvroTester):
     """
     Operations on Standard column families
@@ -337,6 +340,37 @@ class TestStandardOperations(AvroTester):
         counts = self.client.request('multiget_count', _read_multi_key_column_count())
         for e in counts:
             assert(e['count'] == 0)
+
+    def test_index_slice(self):
+        self.client.request('set_keyspace', {'keyspace': 'Keyspace1'})
+        cp = dict(column_family='Indexed1')
+        self.client.request('insert', dict(key='key1', column_parent=cp, column=dict(name='birthdate', value=i64(1), clock={'timestamp': 0}), consistency_level='ONE'))
+        self.client.request('insert', dict(key='key2', column_parent=cp, column=dict(name='birthdate', value=i64(2), clock={'timestamp': 0}), consistency_level='ONE'))
+        self.client.request('insert', dict(key='key2', column_parent=cp, column=dict(name='b', value=i64(2), clock={'timestamp': 0}), consistency_level='ONE'))
+        self.client.request('insert', dict(key='key3', column_parent=cp, column=dict(name='birthdate', value=i64(3), clock={'timestamp': 0}), consistency_level='ONE'))
+        self.client.request('insert', dict(key='key3', column_parent=cp, column=dict(name='b', value=i64(3), clock={'timestamp': 0}), consistency_level='ONE'))
+
+        # simple query on one index expression
+        sp = dict(slice_range=dict(start='', finish='', reversed=False, count=1000))
+        clause = dict(expressions=[dict(column_name='birthdate', op='EQ', value=i64(1))], start_key='', count=100)
+        result = self.client.request('get_indexed_slices', dict(column_parent=cp, index_clause=clause, column_predicate=sp, consistency_level='ONE'))
+        assert len(result) == 1, result
+        assert result[0]['key'] == 'key1'
+        assert len(result[0]['columns']) == 1, result[0]['columns']
+
+        # solo unindexed expression is invalid
+        clause = dict(expressions=[dict(column_name='b', op='EQ', value=i64(1))], start_key='', count=100)
+        avro_utils.assert_raises(AvroRemoteException,
+            self.client.request, 'get_indexed_slices', dict(column_parent=cp, index_clause=clause, column_predicate=sp, consistency_level='ONE'))
+
+        # but unindexed expression added to indexed one is ok
+        clause = dict(expressions=[dict(column_name='b', op='EQ', value=i64(3)),
+                                   dict(column_name='birthdate', op='EQ', value=i64(3))],
+                                   start_key='', count=100)
+        result = self.client.request('get_indexed_slices', dict(column_parent=cp, index_clause=clause, column_predicate=sp, consistency_level='ONE'))
+        assert len(result) == 1, result
+        assert result[0]['key'] == 'key3'
+        assert len(result[0]['columns']) == 2, result[0]['columns']
 
     def __get(self, key, cf, super_name, col_name, consistency_level='ONE'):
         """
