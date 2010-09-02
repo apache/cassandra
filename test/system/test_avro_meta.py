@@ -16,6 +16,7 @@
 # limitations under the License.
 
 from . import AvroTester
+import avro_utils
 from avro.ipc import AvroRemoteException
 
 class TestMetaOperations(AvroTester):
@@ -28,7 +29,7 @@ class TestMetaOperations(AvroTester):
         assert 'Keyspace1' in keyspaces, "Keyspace1 not in " + keyspaces
 
     def test_describe_keyspace(self):
-        "retrieving a keyspace metadata"
+        "retrieving meta-data for keyspace"
         ks1 = self.client.request('describe_keyspace',
                 {'keyspace': "Keyspace1"})
         assert ks1['replication_factor'] == 1
@@ -53,3 +54,13 @@ class TestMetaOperations(AvroTester):
         part = "org.apache.cassandra.dht.CollatingOrderPreservingPartitioner"
         result = self.client.request('describe_partitioner', {})
         assert result == part, "got %s, expected %s" % (result, part)
+
+    def test_describe_ring(self):
+        "getting ring meta-data"
+        result = self.client.request('describe_ring', {'keyspace':'Keyspace1'})
+        assert result[0]['endpoints'] == ['127.0.0.1']
+
+    def test_describe_ring_on_invalid_keyspace(self):
+        "getting ring meta-data w/ an invalid keyspace"
+        avro_utils.assert_raises(AvroRemoteException, self.client.request,
+                      'describe_ring', {'keyspace':'system'})

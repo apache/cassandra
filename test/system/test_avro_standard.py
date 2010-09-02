@@ -30,6 +30,30 @@ def new_column(suffix, stamp=None, ttl=0):
     column['ttl'] = ttl
     return column
 
+def _create_multi_key_column():
+    mutations = list()
+
+    for i in range(10):
+        mutation = {'column_or_supercolumn': {'column': new_column(i)}}
+        mutations.append(mutation)
+
+    mutation_params = dict()
+    mutation_params['mutation_map'] = list()
+    for i in range(3):
+        entry = {'key': 'k'+str(i), 'mutations': {'Standard1': mutations}}
+        mutation_params['mutation_map'].append(entry)
+    mutation_params['consistency_level'] = 'ONE'
+    return mutation_params
+
+def _read_multi_key_column_count():
+    count_params = dict()
+    count_params['keys'] = ['k0', 'k1', 'k2']
+    count_params['column_parent'] = {'column_family': 'Standard1'}
+    sr = {'start': '', 'finish': '', 'reversed': False, 'count': 1000}
+    count_params['predicate'] = {'slice_range': sr}
+    count_params['consistency_level'] = 'ONE'
+    return count_params
+
 def timestamp():
     return long(time() * 1e6)
 
@@ -294,33 +318,26 @@ class TestStandardOperations(AvroTester):
         "obtaining the column count for multiple rows"
         self.client.request('set_keyspace', {'keyspace': 'Keyspace1'})
 
-        mutations = list()
+        self.client.request('batch_mutate', _create_multi_key_column())
 
-        for i in range(10):
-            mutation = {'column_or_supercolumn': {'column': new_column(i)}}
-            mutations.append(mutation)
-
-        mutation_params = dict()
-        mutation_params['mutation_map'] = list()
-        for i in range(3):
-            entry = {'key': 'k'+str(i), 'mutations': {'Standard1': mutations}}
-            mutation_params['mutation_map'].append(entry)
-        mutation_params['consistency_level'] = 'ONE'
-
-        self.client.request('batch_mutate', mutation_params)
-
-        count_params = dict()
-        count_params['keys'] = ['k0', 'k1', 'k2']
-        count_params['column_parent'] = {'column_family': 'Standard1'}
-        sr = {'start': '', 'finish': '', 'reversed': False, 'count': 1000}
-        count_params['predicate'] = {'slice_range': sr}
-        count_params['consistency_level'] = 'ONE'
-
-        counts = self.client.request('multiget_count', count_params)
+        counts = self.client.request('multiget_count', _read_multi_key_column_count())
         for e in counts:
             assert(e['count'] == 10), \
                 "expected 10 results for %s, got %d" % (e['key'], e['count'])
-        
+
+    def test_truncate(self):
+        "truncate a column family"
+        self.client.request('set_keyspace', {'keyspace': 'Keyspace1'})
+
+        self.client.request('batch_mutate', _create_multi_key_column())
+
+        # truncate Standard1
+        self.client.request('truncate',{'column_family':'Standard1'})
+
+        counts = self.client.request('multiget_count', _read_multi_key_column_count())
+        for e in counts:
+            assert(e['count'] == 0)
+
     def __get(self, key, cf, super_name, col_name, consistency_level='ONE'):
         """
         Given arguments for the key, column family, super column name,
