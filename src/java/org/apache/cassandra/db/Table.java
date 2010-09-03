@@ -301,6 +301,14 @@ public class Table
         columnFamilyStores.put(cfId, ColumnFamilyStore.createColumnFamilyStore(name, cfName));
     }
     
+    public void reloadCf(Integer cfId) throws IOException
+    {
+        ColumnFamilyStore cfs = columnFamilyStores.remove(cfId);
+        assert cfs != null;
+        unloadCf(cfs);
+        initCf(cfId, cfs.getColumnFamilyName());
+    }
+    
     /** basically a combined drop and add */
     public void renameCf(Integer cfId, String newName) throws IOException
     {

@@ -26,6 +26,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.db.migration.UpdateColumnFamily;
 import org.apache.cassandra.db.migration.UpdateKeyspace;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
@@ -457,27 +458,7 @@ public class CassandraServer implements Cassandra.Iface
 
         List<CfDef> cfDefs = new ArrayList<CfDef>();
         for (CFMetaData cfm : ksm.cfMetaData().values())
-        {
-            CfDef def = new CfDef(cfm.tableName, cfm.cfName);
-            if (cfm.subcolumnComparator != null)
-            {
-                def.setSubcomparator_type(cfm.subcolumnComparator.getClass().getName());
-                def.setColumn_type("Super");
-            }
-            def.setComparator_type(cfm.comparator.getClass().getName());
-
-            List<ColumnDef> cdef_list = new ArrayList<ColumnDef>();
-            for (ColumnDefinition col_definition : cfm.column_metadata.values())
-            {
-                ColumnDef cdef = new ColumnDef(col_definition.name, col_definition.validator.getClass().getName());
-                cdef.setIndex_name(col_definition.index_name);
-                cdef.setIndex_type(col_definition.index_type);
-                cdef_list.add(cdef);
-            }
-
-            def.setColumn_metadata(cdef_list);
-            cfDefs.add(def);
-        }
+            cfDefs.add(CFMetaData.convertToThrift(cfm));
         return new KsDef(ksm.name, ksm.strategyClass.getName(), ksm.replicationFactor, cfDefs);
     }
 
@@ -869,7 +850,7 @@ public class CassandraServer implements Cassandra.Iface
     /** update an existing keyspace, but do not allow column family modifications. */
     public String system_update_keyspace(KsDef ks_def) throws InvalidRequestException, TException
     {
-        checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
+        clientState.hasKeyspaceAccess(Permission.WRITE);
         
         if (ks_def.getCf_defs() != null && ks_def.getCf_defs().size() > 0)
             throw new InvalidRequestException("Keyspace update must not contain any column family definitions.");
@@ -905,8 +886,34 @@ public class CassandraServer implements Cassandra.Iface
 
     public String system_update_column_family(CfDef cf_def) throws InvalidRequestException, TException
     {
-        checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
-        return null;
+        clientState.hasKeyspaceAccess(Permission.WRITE);
+        
+        if (cf_def.keyspace == null || cf_def.name == null)
+            throw new InvalidRequestException("Keyspace and CF name must be set.");
+        
+        CFMetaData oldCfm = DatabaseDescriptor.getCFMetaData(CFMetaData.getId(cf_def.keyspace, cf_def.name));
+        if (oldCfm == null) 
+            throw new InvalidRequestException("Could not find column family definition to modify.");
+        
+        try
+        {
+            CFMetaData newCfm = oldCfm.apply(cf_def);
+            UpdateColumnFamily update = new UpdateColumnFamily(oldCfm, newCfm);
+            applyMigrationOnStage(update);
+            return DatabaseDescriptor.getDefsVersion().toString();
+        }
+        catch (ConfigurationException e)
+        {
+            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (IOException e)
+        {
+            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
     }
 
     private CFMetaData convertToCFMetaData(CfDef cf_def) throws InvalidRequestException, ConfigurationException

@@ -1260,6 +1260,27 @@ class TestMutations(ThriftTester):
         client.system_add_column_family(newcf)
         ks1 = client.describe_keyspace('Keyspace1')
         assert 'NewColumnFamily' in [x.name for x in ks1.cf_defs]
+        cfid = [x.id for x in ks1.cf_defs if x.name=='NewColumnFamily'][0]
+        assert cfid > 1000
+        
+        # modify invalid
+        modified_cf = CfDef('Keyspace1', 'NewColumnFamily', column_metadata=[cd])
+        modified_cf.id = cfid
+        def fail_invalid_field():
+            modified_cf.comparator_type = 'LongType'
+            client.system_update_column_family(modified_cf)
+        _expect_exception(fail_invalid_field, InvalidRequestException)
+        
+        # modify valid
+        modified_cf.comparator_type = 'BytesType' # revert back to old value.
+        modified_cf.row_cache_size = 25
+        modified_cf.gc_grace_seconds = 1
+        client.system_update_column_family(modified_cf)
+        ks1 = client.describe_keyspace('Keyspace1')
+        server_cf = [x for x in ks1.cf_defs if x.name=='NewColumnFamily'][0]
+        assert server_cf
+        assert server_cf.row_cache_size == 25
+        assert server_cf.gc_grace_seconds == 1
         
         # rename
         client.system_rename_column_family('NewColumnFamily', 'RenameColumnFamily')

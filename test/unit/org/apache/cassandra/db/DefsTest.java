@@ -23,7 +23,10 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.locator.OldNetworkTopologyStrategy;
+import org.apache.cassandra.thrift.CfDef;
+import org.apache.cassandra.thrift.ColumnDef;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
@@ -505,5 +508,143 @@ public class DefsTest extends CleanupHelper
         assert newFetchedKs.replicationFactor != oldKs.replicationFactor;
         assert newFetchedKs.strategyClass.equals(newKs.strategyClass);
         assert !newFetchedKs.strategyClass.equals(oldKs.strategyClass);
+    }
+    
+    @Test
+    public void testUpdateColumnFamilyNoIndexes() throws ConfigurationException, IOException, ExecutionException, InterruptedException
+    {
+        // create a keyspace with a cf to update.
+        CFMetaData cf = new CFMetaData("UpdatedCfKs", "Standard1added", ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, TimestampReconciler.instance, "A new cf that will be updated", 0, false, 1.0, 0, 864000, BytesType.instance, Collections.<byte[], ColumnDefinition>emptyMap());
+        KSMetaData ksm = new KSMetaData(cf.tableName, SimpleStrategy.class, null, 1, cf);
+        new AddKeyspace(ksm).apply();
+        
+        assert DatabaseDescriptor.getTableDefinition(cf.tableName) != null;
+        assert DatabaseDescriptor.getTableDefinition(cf.tableName) == ksm;
+        
+        // updating certain fields should fail.
+        CfDef cf_def = new CfDef();
+        cf_def.setId(cf.cfId);
+        cf_def.setKeyspace(cf.tableName);
+        cf_def.setName(cf.cfName);
+        cf_def.setColumn_type(cf.cfType.name());
+        cf_def.setClock_type(cf.clockType.name());
+        cf_def.setComment(cf.comment);
+        cf_def.setComparator_type(cf.comparator.getClass().getName());
+        cf_def.setSubcomparator_type(null);
+        cf_def.setGc_grace_seconds(cf.gcGraceSeconds);
+        cf_def.setKey_cache_size(cf.keyCacheSize);
+        cf_def.setPreload_row_cache(cf.preloadRowCache);
+        cf_def.setRead_repair_chance(cf.readRepairChance);
+        cf_def.setRow_cache_size(43.3);
+        cf_def.setColumn_metadata(new ArrayList<ColumnDef>());
+        cf_def.setReconciler("org.apache.cassandra.db.clock.TimestampReconciiler");
+        cf_def.setDefault_validation_class("BytesType");
+        
+        // test valid operations.
+        cf_def.setComment("Modified comment");
+        CFMetaData updateCfm = cf.apply(cf_def);
+        new UpdateColumnFamily(cf, updateCfm).apply();
+        cf = updateCfm;
+        
+        cf_def.setRow_cache_size(2d);
+        updateCfm = cf.apply(cf_def);
+        new UpdateColumnFamily(cf, updateCfm).apply();
+        cf = updateCfm;
+        
+        cf_def.setKey_cache_size(3d);
+        updateCfm = cf.apply(cf_def);
+        new UpdateColumnFamily(cf, updateCfm).apply();
+        cf = updateCfm;
+        
+        cf_def.setRead_repair_chance(0.23);
+        updateCfm = cf.apply(cf_def);
+        new UpdateColumnFamily(cf, updateCfm).apply();
+        cf = updateCfm;
+        
+        cf_def.setGc_grace_seconds(12);
+        updateCfm = cf.apply(cf_def);
+        new UpdateColumnFamily(cf, updateCfm).apply();
+        cf = updateCfm;
+        
+        cf_def.setPreload_row_cache(!cf_def.preload_row_cache);
+        updateCfm = cf.apply(cf_def);
+        new UpdateColumnFamily(cf, updateCfm).apply();
+        cf = updateCfm;
+        
+        cf_def.setDefault_validation_class("UTF8Type");
+        updateCfm = cf.apply(cf_def);
+        new UpdateColumnFamily(cf, updateCfm).apply();
+        cf = updateCfm;
+        
+        // can't test changing the reconciler because there is only one impl.
+        
+        // check the cumulative affect.
+        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).comment.equals(cf_def.comment);
+        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).rowCacheSize == cf_def.row_cache_size;
+        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).keyCacheSize == cf_def.key_cache_size;
+        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).readRepairChance == cf_def.read_repair_chance;
+        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).gcGraceSeconds == cf_def.gc_grace_seconds;
+        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).preloadRowCache == cf_def.preload_row_cache;
+        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).defaultValidator == UTF8Type.instance;
+        
+        // make sure some invalid operations fail.
+        int oldId = cf_def.id;
+        try
+        {
+            cf_def.setId(cf_def.getId() + 1);
+            updateCfm = cf.apply(cf_def);
+            throw new AssertionError("Should have blown up when you used a different id.");
+        }
+        catch (ConfigurationException expected) 
+        {
+            cf_def.setId(oldId);    
+        }
+        
+        String oldStr = cf_def.getName();
+        try
+        {
+            cf_def.setName(cf_def.getName() + "_renamed");
+            updateCfm = cf.apply(cf_def);
+            throw new AssertionError("Should have blown up when you used a different name.");
+        }
+        catch (ConfigurationException expected)
+        {
+            cf_def.setName(oldStr);
+        }
+        
+        oldStr = cf_def.getKeyspace();
+        try
+        {
+            cf_def.setKeyspace(oldStr + "_renamed");
+            updateCfm = cf.apply(cf_def);
+            throw new AssertionError("Should have blown up when you used a different keyspace.");
+        }
+        catch (ConfigurationException expected)
+        {
+            cf_def.setKeyspace(oldStr);
+        }
+        
+        try
+        {
+            cf_def.setColumn_type(ColumnFamilyType.Super.name());
+            updateCfm = cf.apply(cf_def);
+            throw new AssertionError("Should have blwon up when you used a different cf type.");
+        }
+        catch (ConfigurationException expected)
+        {
+            cf_def.setColumn_type(ColumnFamilyType.Standard.name());
+        }
+        
+        oldStr = cf_def.getComparator_type();
+        try 
+        {
+            cf_def.setComparator_type(BytesType.class.getSimpleName());
+            updateCfm = cf.apply(cf_def);
+            throw new AssertionError("Should have blown up when you used a different comparator.");
+        }
+        catch (ConfigurationException expected)
+        {
+            cf_def.setComparator_type(UTF8Type.class.getSimpleName());
+        }
     }
 }

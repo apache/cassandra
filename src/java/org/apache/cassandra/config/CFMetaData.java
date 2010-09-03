@@ -18,12 +18,14 @@
 
 package org.apache.cassandra.config;
 
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.*;
 
 import org.apache.avro.util.Utf8;
+import org.apache.cassandra.config.avro.CfDef;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
@@ -94,14 +96,6 @@ public final class CFMetaData
     }
     
     /**
-     * @return An immutable mapping of id to (ksname,cfname).
-     */
-    public static final Map<Integer, Pair<String, String>> getIdToCfMap()
-    {
-        return Collections.unmodifiableMap(cfIdMap.inverse());
-    }
-    
-    /**
      * @return The (ksname,cfname) pair for the given id, or null if it has been dropped.
      */
     public static final Pair<String,String> getCF(Integer cfId)
@@ -124,6 +118,7 @@ public final class CFMetaData
         idGen.set(cfIdMap.size() == 0 ? MIN_CF_ID : Math.max(Collections.max(cfIdMap.values()) + 1, MIN_CF_ID));
     }
     
+    public final Integer cfId;
     public final String tableName;            // name of table which has this column family
     public final String cfName;               // name of the column family
     public final ColumnFamilyType cfType;     // type: super, standard, etc.
@@ -135,10 +130,10 @@ public final class CFMetaData
     public final double rowCacheSize; // default 0
     public final double keyCacheSize; // default 0.01
     public final double readRepairChance; //chance 0 to 1, of doing a read repair; defaults 1.0 (always)
-    public final Integer cfId;
-    public boolean preloadRowCache;
+    public final boolean preloadRowCache;
     public final int gcGraceSeconds; // default 864000 (ten days)
     public final AbstractType defaultValidator; // values are longs, strings, bytes (no-op)...
+    // NOTE: if you find yourself adding members to this class, make sure you keep the convert methods in lockstep.
 
     public final Map<byte[], ColumnDefinition> column_metadata;
 
@@ -341,5 +336,83 @@ public final class CFMetaData
         if (columnDefinition != null)
             validator = columnDefinition.validator;
         return validator;
+    }
+    
+    // merges some final fields from this CFM with modifiable fields from CfDef into a new CFMetaData.
+    public CFMetaData apply(org.apache.cassandra.thrift.CfDef cf_def) throws ConfigurationException
+    {
+        // validate
+        if (cf_def.id != cfId)
+            throw new ConfigurationException("ids do not match.");
+        if (!cf_def.keyspace.equals(tableName))
+            throw new ConfigurationException("keyspaces do not match.");
+        if (!cf_def.name.equals(cfName))
+            throw new ConfigurationException("names do not match.");
+        if (!cf_def.column_type.equals(cfType.name()))
+            throw new ConfigurationException("types do not match.");
+        if (!cf_def.clock_type.equals(clockType.name()))
+            throw new ConfigurationException("clock types do not match.");
+        if (comparator != DatabaseDescriptor.getComparator(cf_def.comparator_type))
+            throw new ConfigurationException("comparators do not match.");
+        if (cf_def.subcomparator_type == null || cf_def.subcomparator_type.equals(""))
+        {
+            if (subcolumnComparator != null)
+                throw new ConfigurationException("subcolumncomparators do not match.");
+            // else, it's null and we're good.
+        }
+        else if (subcolumnComparator != DatabaseDescriptor.getComparator(cf_def.subcomparator_type))
+            throw new ConfigurationException("subcolumncomparators do not match.");
+        
+        return new CFMetaData(tableName, 
+                              cfName, 
+                              cfType, 
+                              clockType, 
+                              comparator, 
+                              subcolumnComparator, 
+                              reconciler, 
+                              cf_def.comment, 
+                              cf_def.row_cache_size, 
+                              cf_def.preload_row_cache, 
+                              cf_def.key_cache_size, 
+                              cf_def.read_repair_chance, 
+                              cf_def.gc_grace_seconds, 
+                              DatabaseDescriptor.getComparator(cf_def.default_validation_class == null ? null : cf_def.default_validation_class), 
+                              cfId, 
+                              column_metadata);
+    }
+    
+    // converts CFM to thrift CfDef
+    public static org.apache.cassandra.thrift.CfDef convertToThrift(CFMetaData cfm)
+    {
+        org.apache.cassandra.thrift.CfDef def = new org.apache.cassandra.thrift.CfDef(cfm.tableName, cfm.cfName);
+        def.setId(cfm.cfId);
+        def.setColumn_type(cfm.cfType.name());
+        def.setClock_type(cfm.clockType.name());
+        def.setComparator_type(cfm.comparator.getClass().getName());
+        if (cfm.subcolumnComparator != null)
+        {
+            def.setSubcomparator_type(cfm.subcolumnComparator.getClass().getName());
+            def.setColumn_type("Super");
+        }
+        def.setReconciler(cfm.reconciler == null ? "" : cfm.reconciler.getClass().getName());
+        def.setComment(cfm.comment == null ? "" : cfm.comment);
+        def.setRow_cache_size(cfm.rowCacheSize);
+        def.setPreload_row_cache(cfm.preloadRowCache);
+        def.setKey_cache_size(cfm.keyCacheSize);
+        def.setRead_repair_chance(cfm.readRepairChance);
+        def.setGc_grace_seconds(cfm.gcGraceSeconds);
+        def.setDefault_validation_class(cfm.defaultValidator.getClass().getName());
+        List< org.apache.cassandra.thrift.ColumnDef> column_meta = new ArrayList< org.apache.cassandra.thrift.ColumnDef>();
+        for (ColumnDefinition cd : cfm.column_metadata.values())
+        {
+            org.apache.cassandra.thrift.ColumnDef tcd = new org.apache.cassandra.thrift.ColumnDef();
+            tcd.setIndex_name(cd.index_name);
+            tcd.setIndex_type(cd.index_type);
+            tcd.setName(cd.name);
+            tcd.setValidation_class(cd.validator.getClass().getName());
+            column_meta.add(tcd);
+        }
+        def.setColumn_metadata(column_meta);
+        return def;
     }
 }
