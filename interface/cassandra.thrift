@@ -354,6 +354,7 @@ struct CfDef {
     13: optional list<ColumnDef> column_metadata,
     14: optional i32 gc_grace_seconds,
     15: optional string default_validation_class,
+    16: optional i32 id,
 }
 
 /* describes a keyspace. */
@@ -552,4 +553,11 @@ service Cassandra {
   string system_rename_keyspace(1:required string old_name, 2:required string new_name)
     throws (1:InvalidRequestException ire),
   
+  /** updates properties of a keyspace. returns the new schema id. */
+  string system_update_keyspace(1:required KsDef ks_def)
+    throws (1:InvalidRequestException ire),
+        
+  /** updates properties of a column family. returns the new schema id. */
+  string system_update_column_family(1:required CfDef cf_def)
+    throws (1:InvalidRequestException ire),
 }

@@ -278,6 +278,20 @@ public class Cassandra {
      */
     public String system_rename_keyspace(String old_name, String new_name) throws InvalidRequestException, TException;
 
+    /**
+     * updates properties of a keyspace. returns the new schema id.
+     * 
+     * @param ks_def
+     */
+    public String system_update_keyspace(KsDef ks_def) throws InvalidRequestException, TException;
+
+    /**
+     * updates properties of a column family. returns the new schema id.
+     * 
+     * @param cf_def
+     */
+    public String system_update_column_family(CfDef cf_def) throws InvalidRequestException, TException;
+
   }
 
   public interface AsyncIface {
@@ -335,6 +349,10 @@ public class Cassandra {
     public void system_drop_keyspace(String keyspace, AsyncMethodCallback<AsyncClient.system_drop_keyspace_call> resultHandler) throws TException;
 
     public void system_rename_keyspace(String old_name, String new_name, AsyncMethodCallback<AsyncClient.system_rename_keyspace_call> resultHandler) throws TException;
+
+    public void system_update_keyspace(KsDef ks_def, AsyncMethodCallback<AsyncClient.system_update_keyspace_call> resultHandler) throws TException;
+
+    public void system_update_column_family(CfDef cf_def, AsyncMethodCallback<AsyncClient.system_update_column_family_call> resultHandler) throws TException;
 
   }
 
@@ -1492,6 +1510,84 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "system_rename_keyspace failed: unknown result");
     }
 
+    public String system_update_keyspace(KsDef ks_def) throws InvalidRequestException, TException
+    {
+      send_system_update_keyspace(ks_def);
+      return recv_system_update_keyspace();
+    }
+
+    public void send_system_update_keyspace(KsDef ks_def) throws TException
+    {
+      oprot_.writeMessageBegin(new TMessage("system_update_keyspace", TMessageType.CALL, ++seqid_));
+      system_update_keyspace_args args = new system_update_keyspace_args();
+      args.setKs_def(ks_def);
+      args.write(oprot_);
+      oprot_.writeMessageEnd();
+      oprot_.getTransport().flush();
+    }
+
+    public String recv_system_update_keyspace() throws InvalidRequestException, TException
+    {
+      TMessage msg = iprot_.readMessageBegin();
+      if (msg.type == TMessageType.EXCEPTION) {
+        TApplicationException x = TApplicationException.read(iprot_);
+        iprot_.readMessageEnd();
+        throw x;
+      }
+      if (msg.seqid != seqid_) {
+        throw new TApplicationException(TApplicationException.BAD_SEQUENCE_ID, "system_update_keyspace failed: out of sequence response");
+      }
+      system_update_keyspace_result result = new system_update_keyspace_result();
+      result.read(iprot_);
+      iprot_.readMessageEnd();
+      if (result.isSetSuccess()) {
+        return result.success;
+      }
+      if (result.ire != null) {
+        throw result.ire;
+      }
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "system_update_keyspace failed: unknown result");
+    }
+
+    public String system_update_column_family(CfDef cf_def) throws InvalidRequestException, TException
+    {
+      send_system_update_column_family(cf_def);
+      return recv_system_update_column_family();
+    }
+
+    public void send_system_update_column_family(CfDef cf_def) throws TException
+    {
+      oprot_.writeMessageBegin(new TMessage("system_update_column_family", TMessageType.CALL, ++seqid_));
+      system_update_column_family_args args = new system_update_column_family_args();
+      args.setCf_def(cf_def);
+      args.write(oprot_);
+      oprot_.writeMessageEnd();
+      oprot_.getTransport().flush();
+    }
+
+    public String recv_system_update_column_family() throws InvalidRequestException, TException
+    {
+      TMessage msg = iprot_.readMessageBegin();
+      if (msg.type == TMessageType.EXCEPTION) {
+        TApplicationException x = TApplicationException.read(iprot_);
+        iprot_.readMessageEnd();
+        throw x;
+      }
+      if (msg.seqid != seqid_) {
+        throw new TApplicationException(TApplicationException.BAD_SEQUENCE_ID, "system_update_column_family failed: out of sequence response");
+      }
+      system_update_column_family_result result = new system_update_column_family_result();
+      result.read(iprot_);
+      iprot_.readMessageEnd();
+      if (result.isSetSuccess()) {
+        return result.success;
+      }
+      if (result.ire != null) {
+        throw result.ire;
+      }
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "system_update_column_family failed: unknown result");
+    }
+
   }
   public static class AsyncClient extends TAsyncClient implements AsyncIface {
     public static class Factory implements TAsyncClientFactory<AsyncClient> {
@@ -2431,6 +2527,68 @@ public class Cassandra {
       }
     }
 
+    public void system_update_keyspace(KsDef ks_def, AsyncMethodCallback<system_update_keyspace_call> resultHandler) throws TException {
+      checkReady();
+      system_update_keyspace_call method_call = new system_update_keyspace_call(ks_def, resultHandler, this, protocolFactory, transport);
+      manager.call(method_call);
+    }
+
+    public static class system_update_keyspace_call extends TAsyncMethodCall {
+      private KsDef ks_def;
+      public system_update_keyspace_call(KsDef ks_def, AsyncMethodCallback<system_update_keyspace_call> resultHandler, TAsyncClient client, TProtocolFactory protocolFactory, TNonblockingTransport transport) throws TException {
+        super(client, protocolFactory, transport, resultHandler, false);
+        this.ks_def = ks_def;
+      }
+
+      public void write_args(TProtocol prot) throws TException {
+        prot.writeMessageBegin(new TMessage("system_update_keyspace", TMessageType.CALL, 0));
+        system_update_keyspace_args args = new system_update_keyspace_args();
+        args.setKs_def(ks_def);
+        args.write(prot);
+        prot.writeMessageEnd();
+      }
+
+      public String getResult() throws InvalidRequestException, TException {
+        if (getState() != State.RESPONSE_READ) {
+          throw new IllegalStateException("Method call not finished!");
+        }
+        TMemoryInputTransport memoryTransport = new TMemoryInputTransport(getFrameBuffer().array());
+        TProtocol prot = client.getProtocolFactory().getProtocol(memoryTransport);
+        return (new Client(prot)).recv_system_update_keyspace();
+      }
+    }
+
+    public void system_update_column_family(CfDef cf_def, AsyncMethodCallback<system_update_column_family_call> resultHandler) throws TException {
+      checkReady();
+      system_update_column_family_call method_call = new system_update_column_family_call(cf_def, resultHandler, this, protocolFactory, transport);
+      manager.call(method_call);
+    }
+
+    public static class system_update_column_family_call extends TAsyncMethodCall {
+      private CfDef cf_def;
+      public system_update_column_family_call(CfDef cf_def, AsyncMethodCallback<system_update_column_family_call> resultHandler, TAsyncClient client, TProtocolFactory protocolFactory, TNonblockingTransport transport) throws TException {
+        super(client, protocolFactory, transport, resultHandler, false);
+        this.cf_def = cf_def;
+      }
+
+      public void write_args(TProtocol prot) throws TException {
+        prot.writeMessageBegin(new TMessage("system_update_column_family", TMessageType.CALL, 0));
+        system_update_column_family_args args = new system_update_column_family_args();
+        args.setCf_def(cf_def);
+        args.write(prot);
+        prot.writeMessageEnd();
+      }
+
+      public String getResult() throws InvalidRequestException, TException {
+        if (getState() != State.RESPONSE_READ) {
+          throw new IllegalStateException("Method call not finished!");
+        }
+        TMemoryInputTransport memoryTransport = new TMemoryInputTransport(getFrameBuffer().array());
+        TProtocol prot = client.getProtocolFactory().getProtocol(memoryTransport);
+        return (new Client(prot)).recv_system_update_column_family();
+      }
+    }
+
   }
 
   public static class Processor implements TProcessor {
@@ -2465,6 +2623,8 @@ public class Cassandra {
       processMap_.put("system_add_keyspace", new system_add_keyspace());
       processMap_.put("system_drop_keyspace", new system_drop_keyspace());
       processMap_.put("system_rename_keyspace", new system_rename_keyspace());
+      processMap_.put("system_update_keyspace", new system_update_keyspace());
+      processMap_.put("system_update_column_family", new system_update_column_family());
     }
 
     protected static interface ProcessFunction {
@@ -3498,6 +3658,82 @@ public class Cassandra {
           return;
         }
         oprot.writeMessageBegin(new TMessage("system_rename_keyspace", TMessageType.REPLY, seqid));
+        result.write(oprot);
+        oprot.writeMessageEnd();
+        oprot.getTransport().flush();
+      }
+
+    }
+
+    private class system_update_keyspace implements ProcessFunction {
+      public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
+      {
+        system_update_keyspace_args args = new system_update_keyspace_args();
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("system_update_keyspace", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
+        iprot.readMessageEnd();
+        system_update_keyspace_result result = new system_update_keyspace_result();
+        try {
+          result.success = iface_.system_update_keyspace(args.ks_def);
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+        } catch (Throwable th) {
+          LOGGER.error("Internal error processing system_update_keyspace", th);
+          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing system_update_keyspace");
+          oprot.writeMessageBegin(new TMessage("system_update_keyspace", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
+        oprot.writeMessageBegin(new TMessage("system_update_keyspace", TMessageType.REPLY, seqid));
+        result.write(oprot);
+        oprot.writeMessageEnd();
+        oprot.getTransport().flush();
+      }
+
+    }
+
+    private class system_update_column_family implements ProcessFunction {
+      public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
+      {
+        system_update_column_family_args args = new system_update_column_family_args();
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("system_update_column_family", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
+        iprot.readMessageEnd();
+        system_update_column_family_result result = new system_update_column_family_result();
+        try {
+          result.success = iface_.system_update_column_family(args.cf_def);
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+        } catch (Throwable th) {
+          LOGGER.error("Internal error processing system_update_column_family", th);
+          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing system_update_column_family");
+          oprot.writeMessageBegin(new TMessage("system_update_column_family", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
+        oprot.writeMessageBegin(new TMessage("system_update_column_family", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
         oprot.getTransport().flush();
@@ -25573,6 +25809,1322 @@ public class Cassandra {
     @Override
     public String toString() {
       StringBuilder sb = new StringBuilder("system_rename_keyspace_result(");
+      boolean first = true;
+
+      sb.append("success:");
+      if (this.success == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.success);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ire:");
+      if (this.ire == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.ire);
+      }
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws TException {
+      // check for required fields
+    }
+
+  }
+
+  public static class system_update_keyspace_args implements TBase<system_update_keyspace_args, system_update_keyspace_args._Fields>, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("system_update_keyspace_args");
+
+    private static final TField KS_DEF_FIELD_DESC = new TField("ks_def", TType.STRUCT, (short)1);
+
+    public KsDef ks_def;
+
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements TFieldIdEnum {
+      KS_DEF((short)1, "ks_def");
+
+      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+      static {
+        for (_Fields field : EnumSet.allOf(_Fields.class)) {
+          byName.put(field.getFieldName(), field);
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, or null if its not found.
+       */
+      public static _Fields findByThriftId(int fieldId) {
+        switch(fieldId) {
+          case 1: // KS_DEF
+            return KS_DEF;
+          default:
+            return null;
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, throwing an exception
+       * if it is not found.
+       */
+      public static _Fields findByThriftIdOrThrow(int fieldId) {
+        _Fields fields = findByThriftId(fieldId);
+        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+        return fields;
+      }
+
+      /**
+       * Find the _Fields constant that matches name, or null if its not found.
+       */
+      public static _Fields findByName(String name) {
+        return byName.get(name);
+      }
+
+      private final short _thriftId;
+      private final String _fieldName;
+
+      _Fields(short thriftId, String fieldName) {
+        _thriftId = thriftId;
+        _fieldName = fieldName;
+      }
+
+      public short getThriftFieldId() {
+        return _thriftId;
+      }
+
+      public String getFieldName() {
+        return _fieldName;
+      }
+    }
+
+    // isset id assignments
+
+    public static final Map<_Fields, FieldMetaData> metaDataMap;
+    static {
+      Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
+      tmpMap.put(_Fields.KS_DEF, new FieldMetaData("ks_def", TFieldRequirementType.REQUIRED, 
+          new StructMetaData(TType.STRUCT, KsDef.class)));
+      metaDataMap = Collections.unmodifiableMap(tmpMap);
+      FieldMetaData.addStructMetaDataMap(system_update_keyspace_args.class, metaDataMap);
+    }
+
+    public system_update_keyspace_args() {
+    }
+
+    public system_update_keyspace_args(
+      KsDef ks_def)
+    {
+      this();
+      this.ks_def = ks_def;
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public system_update_keyspace_args(system_update_keyspace_args other) {
+      if (other.isSetKs_def()) {
+        this.ks_def = new KsDef(other.ks_def);
+      }
+    }
+
+    public system_update_keyspace_args deepCopy() {
+      return new system_update_keyspace_args(this);
+    }
+
+    @Deprecated
+    public system_update_keyspace_args clone() {
+      return new system_update_keyspace_args(this);
+    }
+
+    public KsDef getKs_def() {
+      return this.ks_def;
+    }
+
+    public system_update_keyspace_args setKs_def(KsDef ks_def) {
+      this.ks_def = ks_def;
+      return this;
+    }
+
+    public void unsetKs_def() {
+      this.ks_def = null;
+    }
+
+    /** Returns true if field ks_def is set (has been asigned a value) and false otherwise */
+    public boolean isSetKs_def() {
+      return this.ks_def != null;
+    }
+
+    public void setKs_defIsSet(boolean value) {
+      if (!value) {
+        this.ks_def = null;
+      }
+    }
+
+    public void setFieldValue(_Fields field, Object value) {
+      switch (field) {
+      case KS_DEF:
+        if (value == null) {
+          unsetKs_def();
+        } else {
+          setKs_def((KsDef)value);
+        }
+        break;
+
+      }
+    }
+
+    public void setFieldValue(int fieldID, Object value) {
+      setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
+    }
+
+    public Object getFieldValue(_Fields field) {
+      switch (field) {
+      case KS_DEF:
+        return getKs_def();
+
+      }
+      throw new IllegalStateException();
+    }
+
+    public Object getFieldValue(int fieldId) {
+      return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+    public boolean isSet(_Fields field) {
+      switch (field) {
+      case KS_DEF:
+        return isSetKs_def();
+      }
+      throw new IllegalStateException();
+    }
+
+    public boolean isSet(int fieldID) {
+      return isSet(_Fields.findByThriftIdOrThrow(fieldID));
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof system_update_keyspace_args)
+        return this.equals((system_update_keyspace_args)that);
+      return false;
+    }
+
+    public boolean equals(system_update_keyspace_args that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_ks_def = true && this.isSetKs_def();
+      boolean that_present_ks_def = true && that.isSetKs_def();
+      if (this_present_ks_def || that_present_ks_def) {
+        if (!(this_present_ks_def && that_present_ks_def))
+          return false;
+        if (!this.ks_def.equals(that.ks_def))
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public int compareTo(system_update_keyspace_args other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      system_update_keyspace_args typedOther = (system_update_keyspace_args)other;
+
+      lastComparison = Boolean.valueOf(isSetKs_def()).compareTo(typedOther.isSetKs_def());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetKs_def()) {        lastComparison = TBaseHelper.compareTo(this.ks_def, typedOther.ks_def);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      return 0;
+    }
+
+    public void read(TProtocol iprot) throws TException {
+      TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == TType.STOP) { 
+          break;
+        }
+        switch (field.id) {
+          case 1: // KS_DEF
+            if (field.type == TType.STRUCT) {
+              this.ks_def = new KsDef();
+              this.ks_def.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
+        }
+        iprot.readFieldEnd();
+      }
+      iprot.readStructEnd();
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      validate();
+    }
+
+    public void write(TProtocol oprot) throws TException {
+      validate();
+
+      oprot.writeStructBegin(STRUCT_DESC);
+      if (this.ks_def != null) {
+        oprot.writeFieldBegin(KS_DEF_FIELD_DESC);
+        this.ks_def.write(oprot);
+        oprot.writeFieldEnd();
+      }
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("system_update_keyspace_args(");
+      boolean first = true;
+
+      sb.append("ks_def:");
+      if (this.ks_def == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.ks_def);
+      }
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws TException {
+      // check for required fields
+      if (ks_def == null) {
+        throw new TProtocolException("Required field 'ks_def' was not present! Struct: " + toString());
+      }
+    }
+
+  }
+
+  public static class system_update_keyspace_result implements TBase<system_update_keyspace_result, system_update_keyspace_result._Fields>, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("system_update_keyspace_result");
+
+    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRING, (short)0);
+    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
+
+    public String success;
+    public InvalidRequestException ire;
+
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements TFieldIdEnum {
+      SUCCESS((short)0, "success"),
+      IRE((short)1, "ire");
+
+      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+      static {
+        for (_Fields field : EnumSet.allOf(_Fields.class)) {
+          byName.put(field.getFieldName(), field);
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, or null if its not found.
+       */
+      public static _Fields findByThriftId(int fieldId) {
+        switch(fieldId) {
+          case 0: // SUCCESS
+            return SUCCESS;
+          case 1: // IRE
+            return IRE;
+          default:
+            return null;
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, throwing an exception
+       * if it is not found.
+       */
+      public static _Fields findByThriftIdOrThrow(int fieldId) {
+        _Fields fields = findByThriftId(fieldId);
+        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+        return fields;
+      }
+
+      /**
+       * Find the _Fields constant that matches name, or null if its not found.
+       */
+      public static _Fields findByName(String name) {
+        return byName.get(name);
+      }
+
+      private final short _thriftId;
+      private final String _fieldName;
+
+      _Fields(short thriftId, String fieldName) {
+        _thriftId = thriftId;
+        _fieldName = fieldName;
+      }
+
+      public short getThriftFieldId() {
+        return _thriftId;
+      }
+
+      public String getFieldName() {
+        return _fieldName;
+      }
+    }
+
+    // isset id assignments
+
+    public static final Map<_Fields, FieldMetaData> metaDataMap;
+    static {
+      Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
+      tmpMap.put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRING)));
+      tmpMap.put(_Fields.IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      metaDataMap = Collections.unmodifiableMap(tmpMap);
+      FieldMetaData.addStructMetaDataMap(system_update_keyspace_result.class, metaDataMap);
+    }
+
+    public system_update_keyspace_result() {
+    }
+
+    public system_update_keyspace_result(
+      String success,
+      InvalidRequestException ire)
+    {
+      this();
+      this.success = success;
+      this.ire = ire;
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public system_update_keyspace_result(system_update_keyspace_result other) {
+      if (other.isSetSuccess()) {
+        this.success = other.success;
+      }
+      if (other.isSetIre()) {
+        this.ire = new InvalidRequestException(other.ire);
+      }
+    }
+
+    public system_update_keyspace_result deepCopy() {
+      return new system_update_keyspace_result(this);
+    }
+
+    @Deprecated
+    public system_update_keyspace_result clone() {
+      return new system_update_keyspace_result(this);
+    }
+
+    public String getSuccess() {
+      return this.success;
+    }
+
+    public system_update_keyspace_result setSuccess(String success) {
+      this.success = success;
+      return this;
+    }
+
+    public void unsetSuccess() {
+      this.success = null;
+    }
+
+    /** Returns true if field success is set (has been asigned a value) and false otherwise */
+    public boolean isSetSuccess() {
+      return this.success != null;
+    }
+
+    public void setSuccessIsSet(boolean value) {
+      if (!value) {
+        this.success = null;
+      }
+    }
+
+    public InvalidRequestException getIre() {
+      return this.ire;
+    }
+
+    public system_update_keyspace_result setIre(InvalidRequestException ire) {
+      this.ire = ire;
+      return this;
+    }
+
+    public void unsetIre() {
+      this.ire = null;
+    }
+
+    /** Returns true if field ire is set (has been asigned a value) and false otherwise */
+    public boolean isSetIre() {
+      return this.ire != null;
+    }
+
+    public void setIreIsSet(boolean value) {
+      if (!value) {
+        this.ire = null;
+      }
+    }
+
+    public void setFieldValue(_Fields field, Object value) {
+      switch (field) {
+      case SUCCESS:
+        if (value == null) {
+          unsetSuccess();
+        } else {
+          setSuccess((String)value);
+        }
+        break;
+
+      case IRE:
+        if (value == null) {
+          unsetIre();
+        } else {
+          setIre((InvalidRequestException)value);
+        }
+        break;
+
+      }
+    }
+
+    public void setFieldValue(int fieldID, Object value) {
+      setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
+    }
+
+    public Object getFieldValue(_Fields field) {
+      switch (field) {
+      case SUCCESS:
+        return getSuccess();
+
+      case IRE:
+        return getIre();
+
+      }
+      throw new IllegalStateException();
+    }
+
+    public Object getFieldValue(int fieldId) {
+      return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+    public boolean isSet(_Fields field) {
+      switch (field) {
+      case SUCCESS:
+        return isSetSuccess();
+      case IRE:
+        return isSetIre();
+      }
+      throw new IllegalStateException();
+    }
+
+    public boolean isSet(int fieldID) {
+      return isSet(_Fields.findByThriftIdOrThrow(fieldID));
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof system_update_keyspace_result)
+        return this.equals((system_update_keyspace_result)that);
+      return false;
+    }
+
+    public boolean equals(system_update_keyspace_result that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_success = true && this.isSetSuccess();
+      boolean that_present_success = true && that.isSetSuccess();
+      if (this_present_success || that_present_success) {
+        if (!(this_present_success && that_present_success))
+          return false;
+        if (!this.success.equals(that.success))
+          return false;
+      }
+
+      boolean this_present_ire = true && this.isSetIre();
+      boolean that_present_ire = true && that.isSetIre();
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
+          return false;
+        if (!this.ire.equals(that.ire))
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public int compareTo(system_update_keyspace_result other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      system_update_keyspace_result typedOther = (system_update_keyspace_result)other;
+
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(this.success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetIre()) {        lastComparison = TBaseHelper.compareTo(this.ire, typedOther.ire);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      return 0;
+    }
+
+    public void read(TProtocol iprot) throws TException {
+      TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == TType.STOP) { 
+          break;
+        }
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.STRING) {
+              this.success = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 1: // IRE
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
+        }
+        iprot.readFieldEnd();
+      }
+      iprot.readStructEnd();
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      validate();
+    }
+
+    public void write(TProtocol oprot) throws TException {
+      oprot.writeStructBegin(STRUCT_DESC);
+
+      if (this.isSetSuccess()) {
+        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
+        oprot.writeString(this.success);
+        oprot.writeFieldEnd();
+      } else if (this.isSetIre()) {
+        oprot.writeFieldBegin(IRE_FIELD_DESC);
+        this.ire.write(oprot);
+        oprot.writeFieldEnd();
+      }
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("system_update_keyspace_result(");
+      boolean first = true;
+
+      sb.append("success:");
+      if (this.success == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.success);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ire:");
+      if (this.ire == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.ire);
+      }
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws TException {
+      // check for required fields
+    }
+
+  }
+
+  public static class system_update_column_family_args implements TBase<system_update_column_family_args, system_update_column_family_args._Fields>, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("system_update_column_family_args");
+
+    private static final TField CF_DEF_FIELD_DESC = new TField("cf_def", TType.STRUCT, (short)1);
+
+    public CfDef cf_def;
+
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements TFieldIdEnum {
+      CF_DEF((short)1, "cf_def");
+
+      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+      static {
+        for (_Fields field : EnumSet.allOf(_Fields.class)) {
+          byName.put(field.getFieldName(), field);
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, or null if its not found.
+       */
+      public static _Fields findByThriftId(int fieldId) {
+        switch(fieldId) {
+          case 1: // CF_DEF
+            return CF_DEF;
+          default:
+            return null;
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, throwing an exception
+       * if it is not found.
+       */
+      public static _Fields findByThriftIdOrThrow(int fieldId) {
+        _Fields fields = findByThriftId(fieldId);
+        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+        return fields;
+      }
+
+      /**
+       * Find the _Fields constant that matches name, or null if its not found.
+       */
+      public static _Fields findByName(String name) {
+        return byName.get(name);
+      }
+
+      private final short _thriftId;
+      private final String _fieldName;
+
+      _Fields(short thriftId, String fieldName) {
+        _thriftId = thriftId;
+        _fieldName = fieldName;
+      }
+
+      public short getThriftFieldId() {
+        return _thriftId;
+      }
+
+      public String getFieldName() {
+        return _fieldName;
+      }
+    }
+
+    // isset id assignments
+
+    public static final Map<_Fields, FieldMetaData> metaDataMap;
+    static {
+      Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
+      tmpMap.put(_Fields.CF_DEF, new FieldMetaData("cf_def", TFieldRequirementType.REQUIRED, 
+          new StructMetaData(TType.STRUCT, CfDef.class)));
+      metaDataMap = Collections.unmodifiableMap(tmpMap);
+      FieldMetaData.addStructMetaDataMap(system_update_column_family_args.class, metaDataMap);
+    }
+
+    public system_update_column_family_args() {
+    }
+
+    public system_update_column_family_args(
+      CfDef cf_def)
+    {
+      this();
+      this.cf_def = cf_def;
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public system_update_column_family_args(system_update_column_family_args other) {
+      if (other.isSetCf_def()) {
+        this.cf_def = new CfDef(other.cf_def);
+      }
+    }
+
+    public system_update_column_family_args deepCopy() {
+      return new system_update_column_family_args(this);
+    }
+
+    @Deprecated
+    public system_update_column_family_args clone() {
+      return new system_update_column_family_args(this);
+    }
+
+    public CfDef getCf_def() {
+      return this.cf_def;
+    }
+
+    public system_update_column_family_args setCf_def(CfDef cf_def) {
+      this.cf_def = cf_def;
+      return this;
+    }
+
+    public void unsetCf_def() {
+      this.cf_def = null;
+    }
+
+    /** Returns true if field cf_def is set (has been asigned a value) and false otherwise */
+    public boolean isSetCf_def() {
+      return this.cf_def != null;
+    }
+
+    public void setCf_defIsSet(boolean value) {
+      if (!value) {
+        this.cf_def = null;
+      }
+    }
+
+    public void setFieldValue(_Fields field, Object value) {
+      switch (field) {
+      case CF_DEF:
+        if (value == null) {
+          unsetCf_def();
+        } else {
+          setCf_def((CfDef)value);
+        }
+        break;
+
+      }
+    }
+
+    public void setFieldValue(int fieldID, Object value) {
+      setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
+    }
+
+    public Object getFieldValue(_Fields field) {
+      switch (field) {
+      case CF_DEF:
+        return getCf_def();
+
+      }
+      throw new IllegalStateException();
+    }
+
+    public Object getFieldValue(int fieldId) {
+      return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+    public boolean isSet(_Fields field) {
+      switch (field) {
+      case CF_DEF:
+        return isSetCf_def();
+      }
+      throw new IllegalStateException();
+    }
+
+    public boolean isSet(int fieldID) {
+      return isSet(_Fields.findByThriftIdOrThrow(fieldID));
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof system_update_column_family_args)
+        return this.equals((system_update_column_family_args)that);
+      return false;
+    }
+
+    public boolean equals(system_update_column_family_args that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_cf_def = true && this.isSetCf_def();
+      boolean that_present_cf_def = true && that.isSetCf_def();
+      if (this_present_cf_def || that_present_cf_def) {
+        if (!(this_present_cf_def && that_present_cf_def))
+          return false;
+        if (!this.cf_def.equals(that.cf_def))
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public int compareTo(system_update_column_family_args other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      system_update_column_family_args typedOther = (system_update_column_family_args)other;
+
+      lastComparison = Boolean.valueOf(isSetCf_def()).compareTo(typedOther.isSetCf_def());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetCf_def()) {        lastComparison = TBaseHelper.compareTo(this.cf_def, typedOther.cf_def);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      return 0;
+    }
+
+    public void read(TProtocol iprot) throws TException {
+      TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == TType.STOP) { 
+          break;
+        }
+        switch (field.id) {
+          case 1: // CF_DEF
+            if (field.type == TType.STRUCT) {
+              this.cf_def = new CfDef();
+              this.cf_def.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
+        }
+        iprot.readFieldEnd();
+      }
+      iprot.readStructEnd();
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      validate();
+    }
+
+    public void write(TProtocol oprot) throws TException {
+      validate();
+
+      oprot.writeStructBegin(STRUCT_DESC);
+      if (this.cf_def != null) {
+        oprot.writeFieldBegin(CF_DEF_FIELD_DESC);
+        this.cf_def.write(oprot);
+        oprot.writeFieldEnd();
+      }
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("system_update_column_family_args(");
+      boolean first = true;
+
+      sb.append("cf_def:");
+      if (this.cf_def == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.cf_def);
+      }
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws TException {
+      // check for required fields
+      if (cf_def == null) {
+        throw new TProtocolException("Required field 'cf_def' was not present! Struct: " + toString());
+      }
+    }
+
+  }
+
+  public static class system_update_column_family_result implements TBase<system_update_column_family_result, system_update_column_family_result._Fields>, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("system_update_column_family_result");
+
+    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRING, (short)0);
+    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
+
+    public String success;
+    public InvalidRequestException ire;
+
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements TFieldIdEnum {
+      SUCCESS((short)0, "success"),
+      IRE((short)1, "ire");
+
+      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+      static {
+        for (_Fields field : EnumSet.allOf(_Fields.class)) {
+          byName.put(field.getFieldName(), field);
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, or null if its not found.
+       */
+      public static _Fields findByThriftId(int fieldId) {
+        switch(fieldId) {
+          case 0: // SUCCESS
+            return SUCCESS;
+          case 1: // IRE
+            return IRE;
+          default:
+            return null;
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, throwing an exception
+       * if it is not found.
+       */
+      public static _Fields findByThriftIdOrThrow(int fieldId) {
+        _Fields fields = findByThriftId(fieldId);
+        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+        return fields;
+      }
+
+      /**
+       * Find the _Fields constant that matches name, or null if its not found.
+       */
+      public static _Fields findByName(String name) {
+        return byName.get(name);
+      }
+
+      private final short _thriftId;
+      private final String _fieldName;
+
+      _Fields(short thriftId, String fieldName) {
+        _thriftId = thriftId;
+        _fieldName = fieldName;
+      }
+
+      public short getThriftFieldId() {
+        return _thriftId;
+      }
+
+      public String getFieldName() {
+        return _fieldName;
+      }
+    }
+
+    // isset id assignments
+
+    public static final Map<_Fields, FieldMetaData> metaDataMap;
+    static {
+      Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
+      tmpMap.put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRING)));
+      tmpMap.put(_Fields.IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      metaDataMap = Collections.unmodifiableMap(tmpMap);
+      FieldMetaData.addStructMetaDataMap(system_update_column_family_result.class, metaDataMap);
+    }
+
+    public system_update_column_family_result() {
+    }
+
+    public system_update_column_family_result(
+      String success,
+      InvalidRequestException ire)
+    {
+      this();
+      this.success = success;
+      this.ire = ire;
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public system_update_column_family_result(system_update_column_family_result other) {
+      if (other.isSetSuccess()) {
+        this.success = other.success;
+      }
+      if (other.isSetIre()) {
+        this.ire = new InvalidRequestException(other.ire);
+      }
+    }
+
+    public system_update_column_family_result deepCopy() {
+      return new system_update_column_family_result(this);
+    }
+
+    @Deprecated
+    public system_update_column_family_result clone() {
+      return new system_update_column_family_result(this);
+    }
+
+    public String getSuccess() {
+      return this.success;
+    }
+
+    public system_update_column_family_result setSuccess(String success) {
+      this.success = success;
+      return this;
+    }
+
+    public void unsetSuccess() {
+      this.success = null;
+    }
+
+    /** Returns true if field success is set (has been asigned a value) and false otherwise */
+    public boolean isSetSuccess() {
+      return this.success != null;
+    }
+
+    public void setSuccessIsSet(boolean value) {
+      if (!value) {
+        this.success = null;
+      }
+    }
+
+    public InvalidRequestException getIre() {
+      return this.ire;
+    }
+
+    public system_update_column_family_result setIre(InvalidRequestException ire) {
+      this.ire = ire;
+      return this;
+    }
+
+    public void unsetIre() {
+      this.ire = null;
+    }
+
+    /** Returns true if field ire is set (has been asigned a value) and false otherwise */
+    public boolean isSetIre() {
+      return this.ire != null;
+    }
+
+    public void setIreIsSet(boolean value) {
+      if (!value) {
+        this.ire = null;
+      }
+    }
+
+    public void setFieldValue(_Fields field, Object value) {
+      switch (field) {
+      case SUCCESS:
+        if (value == null) {
+          unsetSuccess();
+        } else {
+          setSuccess((String)value);
+        }
+        break;
+
+      case IRE:
+        if (value == null) {
+          unsetIre();
+        } else {
+          setIre((InvalidRequestException)value);
+        }
+        break;
+
+      }
+    }
+
+    public void setFieldValue(int fieldID, Object value) {
+      setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
+    }
+
+    public Object getFieldValue(_Fields field) {
+      switch (field) {
+      case SUCCESS:
+        return getSuccess();
+
+      case IRE:
+        return getIre();
+
+      }
+      throw new IllegalStateException();
+    }
+
+    public Object getFieldValue(int fieldId) {
+      return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+    public boolean isSet(_Fields field) {
+      switch (field) {
+      case SUCCESS:
+        return isSetSuccess();
+      case IRE:
+        return isSetIre();
+      }
+      throw new IllegalStateException();
+    }
+
+    public boolean isSet(int fieldID) {
+      return isSet(_Fields.findByThriftIdOrThrow(fieldID));
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof system_update_column_family_result)
+        return this.equals((system_update_column_family_result)that);
+      return false;
+    }
+
+    public boolean equals(system_update_column_family_result that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_success = true && this.isSetSuccess();
+      boolean that_present_success = true && that.isSetSuccess();
+      if (this_present_success || that_present_success) {
+        if (!(this_present_success && that_present_success))
+          return false;
+        if (!this.success.equals(that.success))
+          return false;
+      }
+
+      boolean this_present_ire = true && this.isSetIre();
+      boolean that_present_ire = true && that.isSetIre();
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
+          return false;
+        if (!this.ire.equals(that.ire))
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public int compareTo(system_update_column_family_result other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      system_update_column_family_result typedOther = (system_update_column_family_result)other;
+
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(this.success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetIre()) {        lastComparison = TBaseHelper.compareTo(this.ire, typedOther.ire);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      return 0;
+    }
+
+    public void read(TProtocol iprot) throws TException {
+      TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == TType.STOP) { 
+          break;
+        }
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.STRING) {
+              this.success = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 1: // IRE
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
+        }
+        iprot.readFieldEnd();
+      }
+      iprot.readStructEnd();
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      validate();
+    }
+
+    public void write(TProtocol oprot) throws TException {
+      oprot.writeStructBegin(STRUCT_DESC);
+
+      if (this.isSetSuccess()) {
+        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
+        oprot.writeString(this.success);
+        oprot.writeFieldEnd();
+      } else if (this.isSetIre()) {
+        oprot.writeFieldBegin(IRE_FIELD_DESC);
+        this.ire.write(oprot);
+        oprot.writeFieldEnd();
+      }
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("system_update_column_family_result(");
       boolean first = true;
 
       sb.append("success:");

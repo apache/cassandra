@@ -863,7 +863,19 @@ public class CassandraServer implements Cassandra.Iface
             throw ex;
         }
     }
+
+
+    public String system_update_keyspace(KsDef ks_def) throws InvalidRequestException, TException
+    {
+        throw new InvalidRequestException("Not implemented");
+    }
+
     
+    public String system_update_column_family(CfDef cf_def) throws InvalidRequestException, TException
+    {
+        throw new InvalidRequestException("Not implemented");
+    }
+
     private CFMetaData convertToCFMetaData(CfDef cf_def) throws InvalidRequestException, ConfigurationException
     {
         ColumnFamilyType cfType = ColumnFamilyType.create(cf_def.column_type);
