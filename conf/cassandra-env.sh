@@ -58,7 +58,7 @@ JVM_OPTS="$JVM_OPTS -XX:+CMSParallelRemarkEnabled"
 JVM_OPTS="$JVM_OPTS -XX:SurvivorRatio=8" 
 JVM_OPTS="$JVM_OPTS -XX:MaxTenuringThreshold=1"
 JVM_OPTS="$JVM_OPTS -XX:CMSInitiatingOccupancyFraction=75"
-JVM_OPTS="$JVM_OPTS -XX:UseCMSInitiatingOccupancyOnly"
+JVM_OPTS="$JVM_OPTS -XX:+UseCMSInitiatingOccupancyOnly"
 
 # jmx: metrics and administration interface
 # 
