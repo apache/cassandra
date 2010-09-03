@@ -57,6 +57,9 @@ Upgrading
 
 Thrift API
 ----------
+    - Multiget key collection is now a set, rather than a list
+      (for dynamic languages, this is a non-issue since really any
+      iterable is accepted)
     - Row keys are now bytes: keys stored by versions prior to 0.7.0 will be
       returned as UTF-8 encoded bytes. OrderPreservingPartitioner and
       CollatingOrderPreservingPartitioner continue to expect that keys contain

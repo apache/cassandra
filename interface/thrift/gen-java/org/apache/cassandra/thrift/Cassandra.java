@@ -94,7 +94,7 @@ public class Cassandra {
      * @param predicate
      * @param consistency_level
      */
-    public Map<byte[],List<ColumnOrSuperColumn>> multiget_slice(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
+    public Map<byte[],List<ColumnOrSuperColumn>> multiget_slice(Set<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
      * Perform a get_count in parallel on the given list<binary> keys. The return value maps keys to the count found.
@@ -104,7 +104,7 @@ public class Cassandra {
      * @param predicate
      * @param consistency_level
      */
-    public Map<byte[],Integer> multiget_count(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
+    public Map<byte[],Integer> multiget_count(Set<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
      * returns a subset of columns for a contiguous range of keys.
@@ -292,9 +292,9 @@ public class Cassandra {
 
     public void get_count(byte[] key, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level, AsyncMethodCallback<AsyncClient.get_count_call> resultHandler) throws TException;
 
-    public void multiget_slice(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level, AsyncMethodCallback<AsyncClient.multiget_slice_call> resultHandler) throws TException;
+    public void multiget_slice(Set<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level, AsyncMethodCallback<AsyncClient.multiget_slice_call> resultHandler) throws TException;
 
-    public void multiget_count(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level, AsyncMethodCallback<AsyncClient.multiget_count_call> resultHandler) throws TException;
+    public void multiget_count(Set<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level, AsyncMethodCallback<AsyncClient.multiget_count_call> resultHandler) throws TException;
 
     public void get_range_slices(ColumnParent column_parent, SlicePredicate predicate, KeyRange range, ConsistencyLevel consistency_level, AsyncMethodCallback<AsyncClient.get_range_slices_call> resultHandler) throws TException;
 
@@ -596,13 +596,13 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_count failed: unknown result");
     }
 
-    public Map<byte[],List<ColumnOrSuperColumn>> multiget_slice(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    public Map<byte[],List<ColumnOrSuperColumn>> multiget_slice(Set<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
       send_multiget_slice(keys, column_parent, predicate, consistency_level);
       return recv_multiget_slice();
     }
 
-    public void send_multiget_slice(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws TException
+    public void send_multiget_slice(Set<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("multiget_slice", TMessageType.CALL, ++seqid_));
       multiget_slice_args args = new multiget_slice_args();
@@ -644,13 +644,13 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "multiget_slice failed: unknown result");
     }
 
-    public Map<byte[],Integer> multiget_count(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    public Map<byte[],Integer> multiget_count(Set<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
       send_multiget_count(keys, column_parent, predicate, consistency_level);
       return recv_multiget_count();
     }
 
-    public void send_multiget_count(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws TException
+    public void send_multiget_count(Set<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("multiget_count", TMessageType.CALL, ++seqid_));
       multiget_count_args args = new multiget_count_args();
@@ -1689,18 +1689,18 @@ public class Cassandra {
       }
     }
 
-    public void multiget_slice(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level, AsyncMethodCallback<multiget_slice_call> resultHandler) throws TException {
+    public void multiget_slice(Set<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level, AsyncMethodCallback<multiget_slice_call> resultHandler) throws TException {
       checkReady();
       multiget_slice_call method_call = new multiget_slice_call(keys, column_parent, predicate, consistency_level, resultHandler, this, protocolFactory, transport);
       manager.call(method_call);
     }
 
     public static class multiget_slice_call extends TAsyncMethodCall {
-      private List<byte[]> keys;
+      private Set<byte[]> keys;
       private ColumnParent column_parent;
       private SlicePredicate predicate;
       private ConsistencyLevel consistency_level;
-      public multiget_slice_call(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level, AsyncMethodCallback<multiget_slice_call> resultHandler, TAsyncClient client, TProtocolFactory protocolFactory, TNonblockingTransport transport) throws TException {
+      public multiget_slice_call(Set<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level, AsyncMethodCallback<multiget_slice_call> resultHandler, TAsyncClient client, TProtocolFactory protocolFactory, TNonblockingTransport transport) throws TException {
         super(client, protocolFactory, transport, resultHandler, false);
         this.keys = keys;
         this.column_parent = column_parent;
@@ -1729,18 +1729,18 @@ public class Cassandra {
       }
     }
 
-    public void multiget_count(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level, AsyncMethodCallback<multiget_count_call> resultHandler) throws TException {
+    public void multiget_count(Set<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level, AsyncMethodCallback<multiget_count_call> resultHandler) throws TException {
       checkReady();
       multiget_count_call method_call = new multiget_count_call(keys, column_parent, predicate, consistency_level, resultHandler, this, protocolFactory, transport);
       manager.call(method_call);
     }
 
     public static class multiget_count_call extends TAsyncMethodCall {
-      private List<byte[]> keys;
+      private Set<byte[]> keys;
       private ColumnParent column_parent;
       private SlicePredicate predicate;
       private ConsistencyLevel consistency_level;
-      public multiget_count_call(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level, AsyncMethodCallback<multiget_count_call> resultHandler, TAsyncClient client, TProtocolFactory protocolFactory, TNonblockingTransport transport) throws TException {
+      public multiget_count_call(Set<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level, AsyncMethodCallback<multiget_count_call> resultHandler, TAsyncClient client, TProtocolFactory protocolFactory, TNonblockingTransport transport) throws TException {
         super(client, protocolFactory, transport, resultHandler, false);
         this.keys = keys;
         this.column_parent = column_parent;
@@ -8155,12 +8155,12 @@ public class Cassandra {
   public static class multiget_slice_args implements TBase<multiget_slice_args, multiget_slice_args._Fields>, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("multiget_slice_args");
 
-    private static final TField KEYS_FIELD_DESC = new TField("keys", TType.LIST, (short)1);
+    private static final TField KEYS_FIELD_DESC = new TField("keys", TType.SET, (short)1);
     private static final TField COLUMN_PARENT_FIELD_DESC = new TField("column_parent", TType.STRUCT, (short)2);
     private static final TField PREDICATE_FIELD_DESC = new TField("predicate", TType.STRUCT, (short)3);
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)4);
 
-    public List<byte[]> keys;
+    public Set<byte[]> keys;
     public ColumnParent column_parent;
     public SlicePredicate predicate;
     /**
@@ -8246,7 +8246,7 @@ public class Cassandra {
     static {
       Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
       tmpMap.put(_Fields.KEYS, new FieldMetaData("keys", TFieldRequirementType.REQUIRED, 
-          new ListMetaData(TType.LIST, 
+          new SetMetaData(TType.SET, 
               new FieldValueMetaData(TType.STRING))));
       tmpMap.put(_Fields.COLUMN_PARENT, new FieldMetaData("column_parent", TFieldRequirementType.REQUIRED, 
           new StructMetaData(TType.STRUCT, ColumnParent.class)));
@@ -8264,7 +8264,7 @@ public class Cassandra {
     }
 
     public multiget_slice_args(
-      List<byte[]> keys,
+      Set<byte[]> keys,
       ColumnParent column_parent,
       SlicePredicate predicate,
       ConsistencyLevel consistency_level)
@@ -8281,7 +8281,7 @@ public class Cassandra {
      */
     public multiget_slice_args(multiget_slice_args other) {
       if (other.isSetKeys()) {
-        List<byte[]> __this__keys = new ArrayList<byte[]>();
+        Set<byte[]> __this__keys = new HashSet<byte[]>();
         for (byte[] other_element : other.keys) {
           byte[] temp_binary_element = new byte[other_element.length];
           System.arraycopy(other_element, 0, temp_binary_element, 0, other_element.length);
@@ -8319,16 +8319,16 @@ public class Cassandra {
 
     public void addToKeys(byte[] elem) {
       if (this.keys == null) {
-        this.keys = new ArrayList<byte[]>();
+        this.keys = new HashSet<byte[]>();
       }
       this.keys.add(elem);
     }
 
-    public List<byte[]> getKeys() {
+    public Set<byte[]> getKeys() {
       return this.keys;
     }
 
-    public multiget_slice_args setKeys(List<byte[]> keys) {
+    public multiget_slice_args setKeys(Set<byte[]> keys) {
       this.keys = keys;
       return this;
     }
@@ -8434,7 +8434,7 @@ public class Cassandra {
         if (value == null) {
           unsetKeys();
         } else {
-          setKeys((List<byte[]>)value);
+          setKeys((Set<byte[]>)value);
         }
         break;
 
@@ -8625,17 +8625,17 @@ public class Cassandra {
         }
         switch (field.id) {
           case 1: // KEYS
-            if (field.type == TType.LIST) {
+            if (field.type == TType.SET) {
               {
-                TList _list42 = iprot.readListBegin();
-                this.keys = new ArrayList<byte[]>(_list42.size);
-                for (int _i43 = 0; _i43 < _list42.size; ++_i43)
+                TSet _set42 = iprot.readSetBegin();
+                this.keys = new HashSet<byte[]>(2*_set42.size);
+                for (int _i43 = 0; _i43 < _set42.size; ++_i43)
                 {
                   byte[] _elem44;
                   _elem44 = iprot.readBinary();
                   this.keys.add(_elem44);
                 }
-                iprot.readListEnd();
+                iprot.readSetEnd();
               }
             } else { 
               TProtocolUtil.skip(iprot, field.type);
@@ -8682,12 +8682,12 @@ public class Cassandra {
       if (this.keys != null) {
         oprot.writeFieldBegin(KEYS_FIELD_DESC);
         {
-          oprot.writeListBegin(new TList(TType.STRING, this.keys.size()));
+          oprot.writeSetBegin(new TSet(TType.STRING, this.keys.size()));
           for (byte[] _iter45 : this.keys)
           {
             oprot.writeBinary(_iter45);
           }
-          oprot.writeListEnd();
+          oprot.writeSetEnd();
         }
         oprot.writeFieldEnd();
       }
@@ -9383,12 +9383,12 @@ public class Cassandra {
   public static class multiget_count_args implements TBase<multiget_count_args, multiget_count_args._Fields>, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("multiget_count_args");
 
-    private static final TField KEYS_FIELD_DESC = new TField("keys", TType.LIST, (short)1);
+    private static final TField KEYS_FIELD_DESC = new TField("keys", TType.SET, (short)1);
     private static final TField COLUMN_PARENT_FIELD_DESC = new TField("column_parent", TType.STRUCT, (short)2);
     private static final TField PREDICATE_FIELD_DESC = new TField("predicate", TType.STRUCT, (short)3);
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)4);
 
-    public List<byte[]> keys;
+    public Set<byte[]> keys;
     public ColumnParent column_parent;
     public SlicePredicate predicate;
     /**
@@ -9474,7 +9474,7 @@ public class Cassandra {
     static {
       Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
       tmpMap.put(_Fields.KEYS, new FieldMetaData("keys", TFieldRequirementType.REQUIRED, 
-          new ListMetaData(TType.LIST, 
+          new SetMetaData(TType.SET, 
               new FieldValueMetaData(TType.STRING))));
       tmpMap.put(_Fields.COLUMN_PARENT, new FieldMetaData("column_parent", TFieldRequirementType.REQUIRED, 
           new StructMetaData(TType.STRUCT, ColumnParent.class)));
@@ -9492,7 +9492,7 @@ public class Cassandra {
     }
 
     public multiget_count_args(
-      List<byte[]> keys,
+      Set<byte[]> keys,
       ColumnParent column_parent,
       SlicePredicate predicate,
       ConsistencyLevel consistency_level)
@@ -9509,7 +9509,7 @@ public class Cassandra {
      */
     public multiget_count_args(multiget_count_args other) {
       if (other.isSetKeys()) {
-        List<byte[]> __this__keys = new ArrayList<byte[]>();
+        Set<byte[]> __this__keys = new HashSet<byte[]>();
         for (byte[] other_element : other.keys) {
           byte[] temp_binary_element = new byte[other_element.length];
           System.arraycopy(other_element, 0, temp_binary_element, 0, other_element.length);
@@ -9547,16 +9547,16 @@ public class Cassandra {
 
     public void addToKeys(byte[] elem) {
       if (this.keys == null) {
-        this.keys = new ArrayList<byte[]>();
+        this.keys = new HashSet<byte[]>();
       }
       this.keys.add(elem);
     }
 
-    public List<byte[]> getKeys() {
+    public Set<byte[]> getKeys() {
       return this.keys;
     }
 
-    public multiget_count_args setKeys(List<byte[]> keys) {
+    public multiget_count_args setKeys(Set<byte[]> keys) {
       this.keys = keys;
       return this;
     }
@@ -9662,7 +9662,7 @@ public class Cassandra {
         if (value == null) {
           unsetKeys();
         } else {
-          setKeys((List<byte[]>)value);
+          setKeys((Set<byte[]>)value);
         }
         break;
 
@@ -9853,17 +9853,17 @@ public class Cassandra {
         }
         switch (field.id) {
           case 1: // KEYS
-            if (field.type == TType.LIST) {
+            if (field.type == TType.SET) {
               {
-                TList _list55 = iprot.readListBegin();
-                this.keys = new ArrayList<byte[]>(_list55.size);
-                for (int _i56 = 0; _i56 < _list55.size; ++_i56)
+                TSet _set55 = iprot.readSetBegin();
+                this.keys = new HashSet<byte[]>(2*_set55.size);
+                for (int _i56 = 0; _i56 < _set55.size; ++_i56)
                 {
                   byte[] _elem57;
                   _elem57 = iprot.readBinary();
                   this.keys.add(_elem57);
                 }
-                iprot.readListEnd();
+                iprot.readSetEnd();
               }
             } else { 
               TProtocolUtil.skip(iprot, field.type);
@@ -9910,12 +9910,12 @@ public class Cassandra {
       if (this.keys != null) {
         oprot.writeFieldBegin(KEYS_FIELD_DESC);
         {
-          oprot.writeListBegin(new TList(TType.STRING, this.keys.size()));
+          oprot.writeSetBegin(new TSet(TType.STRING, this.keys.size()));
           for (byte[] _iter58 : this.keys)
           {
             oprot.writeBinary(_iter58);
           }
-          oprot.writeListEnd();
+          oprot.writeSetEnd();
         }
         oprot.writeFieldEnd();
       }
