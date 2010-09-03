@@ -200,6 +200,27 @@ class AvroTester(BaseTester):
             'preload_row_cache': False,
             'key_cache_size': 0
         })
+        
+        keyspace1['cf_defs'].append({
+            'keyspace': 'Keyspace1',
+            'name': 'Super2',
+            'column_type': 'Super',
+            'subcomparator_type': 'LongType',
+        })
+        
+        keyspace1['cf_defs'].append({
+            'keyspace': 'Keyspace1',
+            'name': 'Super3',
+            'column_type': 'Super',
+            'subcomparator_type': 'LongType',
+        })
+        
+        keyspace1['cf_defs'].append({
+            'keyspace': 'Keyspace1',
+            'name': 'Super4',
+            'column_type': 'Super',
+            'subcomparator_type': 'UTF8Type',
+        })
 
         keyspace1['cf_defs'].append({
             'keyspace': 'Keyspace1',

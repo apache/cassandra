@@ -47,6 +47,9 @@ def _make_read_params(key, cf, sc, c, cl):
 def _super_col(name, columns):
     return {'name': name, 'columns': columns}
 
+def Mutation(**kwargs):
+    return kwargs
+    
 def SlicePredicate(**kwargs):
     return kwargs
 
@@ -55,12 +58,28 @@ def SliceRange(start='', finish='', reversed=False, count=10):
 
 def ColumnParent(*args, **kwargs):
     cp = {}
-    if args[0]:
+    if args and args[0]:
         cp['column_family'] = args[0]
-    if args[1]:
+    if args and args[1]:
         cp['super_column'] = args[1]
-    if not args:
-        cp = kwargs
+    for k,v in kwargs.items():
+        cp[k] = v
+    return cp
+
+def Deletion(*args, **kwargs):
+    cp = {}
+    if args and args[0]:
+        cp['clock'] = args[0]
+    for k,v in kwargs.items():
+        cp[k] = v
+    return cp
+   
+def ColumnPath(*args, **kwargs):
+    cp = {}
+    if args and args[0]:
+        cp['column_family'] = args[0]
+    for k,v in kwargs.items():
+        cp[k] = v
     return cp
 
 def Clock(timestamp=0):
@@ -71,11 +90,29 @@ def Column(name, value, clock, ttl=None):
 
 def _i64(i):
     return avro_utils.i64(i)
+
+def waitfor(secs, fn, *args, **kwargs):
+    start = time.time()
+    success = False
+    last_exception = None
+    while not success and time.time() < start + secs:
+        try:
+            fn(*args, **kwargs)
+            success = True
+        except KeyboardInterrupt:
+            raise
+        except Exception, e:
+            last_exception = e
+            pass
+    if not success and last_exception:
+        raise last_exception
+
+ZERO_WAIT = 5
     
 _SUPER_COLUMNS = [_super_col('sc1', [Column(avro_utils.i64(4), 'value4', Clock(0))]), 
                   _super_col('sc2', [Column(avro_utils.i64(5), 'value5', Clock(0)), 
                                      Column(avro_utils.i64(6), 'value6', Clock(0))])]
-
+    
 class TestSuperOperations(AvroTester):
 
     def _set_keyspace(self, keyspace):
@@ -130,7 +167,7 @@ class TestSuperOperations(AvroTester):
         p = SlicePredicate(slice_range=SliceRange('', '', True, 1))
         slice = [result['column'] for result in self.client.request('get_slice', {'key': 'key1', 'column_parent': column_parent, 'predicate': p, 'consistency_level': 'ONE'})]
         assert slice == [Column(_i64(6), 'value6', Clock(0))], slice
-
+     
     def test_time_uuid(self):
         "test operation on timeuuid subcolumns in super columns"
         import uuid
@@ -171,6 +208,34 @@ class TestSuperOperations(AvroTester):
         slice = [result['column'] for result in self.client.request('get_slice', {'key': 'key1', 'column_parent': column_parent, 'predicate': p, 'consistency_level': 'ONE'})]
         assert slice == [Column(L[2].bytes, 'value2', Clock(2))], slice
     
+    def test_batch_mutate_remove_super_columns_with_standard_under(self):
+        "batch mutate with deletions in super columns"
+        self._set_keyspace('Keyspace1')
+        column_families = ['Super1', 'Super2']
+        keys = ['key_%d' % i for i in range(11,21)]
+        self._insert_super()
+
+        mutations = []
+        for sc in _SUPER_COLUMNS:
+            names = []
+            for c in sc['columns']:
+                names.append(c['name'])
+            mutations.append(Mutation(deletion=Deletion(Clock(20), super_column=c['name'], predicate=SlicePredicate(column_names=names))))
+
+        mutation_map = dict((column_family, mutations) for column_family in column_families)
+
+        keyed_mutations = [{'key': key, 'mutations': mutation_map} for key in keys]
+
+        def _assert_no_columnpath(key, column_path):
+            self._assert_no_columnpath(key, column_path)
+            
+        self.client.request('batch_mutate', {'mutation_map': keyed_mutations, 'consistency_level': 'ZERO'})
+        for column_family in column_families:
+            for sc in _SUPER_COLUMNS:
+                for c in sc['columns']:
+                    for key in keys:
+                        waitfor(ZERO_WAIT, _assert_no_columnpath, key, ColumnPath(column_family, super_column=sc['name'], column=c['name']))
+                        
         
     # internal helper functions.
     
@@ -188,4 +253,12 @@ class TestSuperOperations(AvroTester):
         avro_utils.assert_columns_match(col, {'name': avro_utils.i64(4), 'value': 'value4', 'timestamp': 0})
         slice = [result['super_column'] for result in self._big_slice(key, {'column_family': supercf})]
         assert slice == _SUPER_COLUMNS, _SUPER_COLUMNS
+    
+    def _assert_no_columnpath(self, key, column_path):
+        try:
+            self.client.request('get', {'key': key, 'column_path': column_path, 'consistency_level': 'ONE'})
+            assert False, ('columnpath %s existed in %s when it should not' % (column_path, key))
+        except AvroRemoteException:
+            assert True, 'column did not exist'
+
         
