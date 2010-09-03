@@ -47,6 +47,8 @@ import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.thrift.SuperColumn;
 import org.apache.cassandra.utils.FBUtilities;
+
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.OutputFormat;
 import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
@@ -75,10 +77,10 @@ import org.apache.thrift.transport.TSocket;
  * @see OutputFormat
  * 
  */
-final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer,List<org.apache.cassandra.avro.Mutation>>
+final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer,List<org.apache.cassandra.avro.Mutation>> implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cassandra.avro.Mutation>>
 {
-    // The task attempt context this writer is associated with.
-    private final TaskAttemptContext context;
+    // The configuration this writer is associated with.
+    private final Configuration conf;
     
     // The batched set of mutations grouped by endpoints.
     private Map<InetAddress,Map<byte[],Map<String,List<Mutation>>>> mutationsByEndpoint;
@@ -104,15 +106,20 @@ final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer,List<org.ap
      */
     ColumnFamilyRecordWriter(TaskAttemptContext context) throws IOException
     {
-        this.context = context;
-        this.mutationsByEndpoint = new HashMap<InetAddress,Map<byte[],Map<String,List<Mutation>>>>();
-        this.ringCache = new RingCache(ConfigHelper.getOutputKeyspace(context.getConfiguration()),
-                                       ConfigHelper.getPartitioner(context.getConfiguration()),
-                                       ConfigHelper.getInitialAddress(context.getConfiguration()),
-                                       ConfigHelper.getRpcPort(context.getConfiguration()));
-        this.batchThreshold = context.getConfiguration().getLong(ColumnFamilyOutputFormat.BATCH_THRESHOLD, Long.MAX_VALUE);
+        this(context.getConfiguration());
     }
     
+    ColumnFamilyRecordWriter(Configuration conf) throws IOException
+    {
+        this.conf = conf;
+        this.mutationsByEndpoint = new HashMap<InetAddress,Map<byte[],Map<String,List<Mutation>>>>();
+        this.ringCache = new RingCache(ConfigHelper.getOutputKeyspace(conf),
+                                       ConfigHelper.getPartitioner(conf),
+                                       ConfigHelper.getInitialAddress(conf),
+                                       ConfigHelper.getRpcPort(conf));
+        this.batchThreshold = conf.getLong(ColumnFamilyOutputFormat.BATCH_THRESHOLD, Long.MAX_VALUE);
+    }
+
     /**
      * Return the endpoint responsible for the given key. The selected endpoint
      * one whose token range contains the given key.
@@ -145,7 +152,7 @@ final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer,List<org.ap
      * @throws IOException
      */
     @Override
-    public synchronized void write(ByteBuffer keybuff, List<org.apache.cassandra.avro.Mutation> value) throws IOException, InterruptedException
+    public synchronized void write(ByteBuffer keybuff, List<org.apache.cassandra.avro.Mutation> value) throws IOException
     {
         maybeFlush();
         byte[] key = copy(keybuff);
@@ -164,11 +171,11 @@ final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer,List<org.ap
             mutationsByKey.put(key, cfMutation);
         }
 
-        List<Mutation> mutationList = cfMutation.get(ConfigHelper.getOutputColumnFamily(context.getConfiguration()));
+        List<Mutation> mutationList = cfMutation.get(ConfigHelper.getOutputColumnFamily(conf));
         if (mutationList == null)
         {
             mutationList = new ArrayList<Mutation>();
-            cfMutation.put(ConfigHelper.getOutputColumnFamily(context.getConfiguration()), mutationList);
+            cfMutation.put(ConfigHelper.getOutputColumnFamily(conf), mutationList);
         }
 
         for (org.apache.cassandra.avro.Mutation amut : value)
@@ -254,6 +261,13 @@ final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer,List<org.ap
         flush();
     }
 
+    /** Fills the deprecated RecordWriter interface for streaming. */
+    @Deprecated @Override
+    public void close(org.apache.hadoop.mapred.Reporter reporter) throws IOException
+    {
+        flush();
+    }
+
     /**
      * Flush the mutations cache, iff more mutations have been cached than
      * {@link #batchThreshold}.
@@ -284,7 +298,7 @@ final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer,List<org.ap
             List<Future<?>> mutationFutures = new ArrayList<Future<?>>();
             for (Map.Entry<InetAddress, Map<byte[], Map<String, List<Mutation>>>> entry : mutationsByEndpoint.entrySet())
             {
-                mutationFutures.add(executor.submit(new EndpointCallable(context, entry.getKey(), entry.getValue())));
+                mutationFutures.add(executor.submit(new EndpointCallable(conf, entry.getKey(), entry.getValue())));
             }
             // wait until we have all the results back
             for (Future<?> mutationFuture : mutationFutures)
@@ -321,7 +335,7 @@ final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer,List<org.ap
     public class EndpointCallable implements Callable<Void>
     {
         // The task attempt context associated with this callable.
-        private TaskAttemptContext taskContext;
+        private Configuration conf;
         // The endpoint of the primary replica for the rows being mutated
         private InetAddress endpoint;
         // The mutations to be performed in the node referenced by {@link
@@ -332,13 +346,14 @@ final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer,List<org.ap
          * Constructs an {@link EndpointCallable} for the given endpoint and set
          * of mutations.
          *
+         * @param conf      job configuration
          * @param endpoint  the endpoint wherein to execute the mutations
          * @param mutations the mutation map expected by
          *                  {@link Cassandra.Client#batch_mutate(Map, ConsistencyLevel)}
          */
-        public EndpointCallable(TaskAttemptContext taskContext, InetAddress endpoint, Map<byte[], Map<String, List<Mutation>>> mutations)
+        public EndpointCallable(Configuration conf, InetAddress endpoint, Map<byte[], Map<String, List<Mutation>>> mutations)
         {
-            this.taskContext = taskContext;
+            this.conf = conf;
             this.endpoint = endpoint;
             this.mutations = mutations;
         }
@@ -352,8 +367,8 @@ final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer,List<org.ap
             TSocket socket = null;
             try
             {
-                socket = new TSocket(endpoint.getHostName(), ConfigHelper.getRpcPort(taskContext.getConfiguration()));
-                Cassandra.Client client = ColumnFamilyOutputFormat.createAuthenticatedClient(socket, taskContext);
+                socket = new TSocket(endpoint.getHostName(), ConfigHelper.getRpcPort(conf));
+                Cassandra.Client client = ColumnFamilyOutputFormat.createAuthenticatedClient(socket, conf);
                 client.batch_mutate(mutations, ConsistencyLevel.ONE);
                 return null;
             }

@@ -28,6 +28,7 @@
     <dependency org="commons-logging" name="commons-logging" rev="1.1.1"/>
     <dependency org="org.apache.rat" name="apache-rat" rev="0.6" />
     <dependency org="com.cloudera.hadoop" name="hadoop-core" rev="0.20.2-320"/>
+    <dependency org="com.cloudera.hadoop" name="hadoop-streaming" rev="0.20.2-320"/>
     <dependency org="net.sf.jopt-simple" name="jopt-simple" rev="3.2"/>
 
     <dependency org="net.java.dev.jna" name="jna" rev="3.2.7"/>

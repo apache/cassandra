@@ -47,6 +47,8 @@ dev
  * change multiget key collection from list to set (CASSANDRA-1329)
  * ability to modify keyspaces and column family definitions on a live cluster
    (CASSANDRA-1285)
+ * support for Hadoop Streaming [non-jvm map/reduce via stdin/out]
+   (CASSANDRA-1368)
 
 
 0.7-beta1

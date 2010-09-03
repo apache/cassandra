@@ -15,7 +15,8 @@ Features
     - Optional per-Column time-to-live field allows expiring data without
       have to issue explicit remove commands
     - `truncate` thrift method allows clearing an entire ColumnFamily at once
-    - Hadoop OutputFormat support
+    - Hadoop OutputFormat and Streaming [non-jvm map/reduce via stdin/out]
+      support
     - Up to 8x faster reads from row cache
     - A new ByteOrderedPartitioner supports bytes keys with arbitrary content,
       and orders keys by their byte value.  This should be used in new

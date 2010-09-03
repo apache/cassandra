@@ -169,6 +169,11 @@ protocol Cassandra {
         array<CfDef> cf_defs;
     }
     
+    record StreamingMutation {
+        bytes key;
+        Mutation mutation;
+    }
+
     record MutationsMapEntry {
         bytes key;
         map<array<Mutation>> mutations;

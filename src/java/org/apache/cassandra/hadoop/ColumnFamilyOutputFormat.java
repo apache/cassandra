@@ -69,6 +69,7 @@ import org.slf4j.LoggerFactory;
  * </p>
  */
 public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutation>>
+    implements org.apache.hadoop.mapred.OutputFormat<ByteBuffer,List<Mutation>>
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyOutputFormat.class);
     
@@ -85,13 +86,17 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
     @Override
     public void checkOutputSpecs(JobContext context)
     {
-        Configuration conf = context.getConfiguration();
+        checkOutputSpecs(context.getConfiguration());
+    }
+
+    private void checkOutputSpecs(Configuration conf)
+    {
         if (ConfigHelper.getOutputKeyspace(conf) == null || ConfigHelper.getOutputColumnFamily(conf) == null)
         {
             throw new UnsupportedOperationException("you must set the keyspace and columnfamily with setColumnFamily()");
         }
     }
-    
+
     /**
      * The OutputCommitter for this format does not write any data to the DFS.
      * 
@@ -107,6 +112,20 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
         return new NullOutputCommitter();
     }
     
+    /** Fills the deprecated OutputFormat interface for streaming. */
+    @Deprecated @Override
+    public void checkOutputSpecs(org.apache.hadoop.fs.FileSystem filesystem, org.apache.hadoop.mapred.JobConf job) throws IOException
+    {
+        checkOutputSpecs(job);
+    }
+
+    /** Fills the deprecated OutputFormat interface for streaming. */
+    @Deprecated @Override
+    public ColumnFamilyRecordWriter getRecordWriter(org.apache.hadoop.fs.FileSystem filesystem, org.apache.hadoop.mapred.JobConf job, String name, org.apache.hadoop.util.Progressable progress) throws IOException
+    {
+        return new ColumnFamilyRecordWriter(job);
+    }
+
     /**
      * Get the {@link RecordWriter} for the given task.
      * 
@@ -116,7 +135,7 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
      * @throws IOException
      */
     @Override
-    public RecordWriter<ByteBuffer,List<Mutation>> getRecordWriter(final TaskAttemptContext context) throws IOException, InterruptedException
+    public ColumnFamilyRecordWriter getRecordWriter(final TaskAttemptContext context) throws IOException, InterruptedException
     {
         return new ColumnFamilyRecordWriter(context);
     }
@@ -126,30 +145,29 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
      * keyspace, and is logged in with the configured credentials.
      *
      * @param socket  a socket pointing to a particular node, seed or otherwise
-     * @param context a job context
+     * @param conf a job configuration
      * @return a cassandra client
      * @throws InvalidRequestException
      * @throws TException
      * @throws AuthenticationException
      * @throws AuthorizationException
      */
-    public static Cassandra.Client createAuthenticatedClient(TSocket socket, JobContext context)
+    public static Cassandra.Client createAuthenticatedClient(TSocket socket, Configuration conf)
     throws InvalidRequestException, TException, AuthenticationException, AuthorizationException
     {
         TBinaryProtocol binaryProtocol = new TBinaryProtocol(new TFramedTransport(socket));
         Cassandra.Client client = new Cassandra.Client(binaryProtocol);
         socket.open();
-        client.set_keyspace(ConfigHelper.getOutputKeyspace(context.getConfiguration()));
-        if (ConfigHelper.getOutputKeyspaceUserName(context.getConfiguration()) != null)
+        client.set_keyspace(ConfigHelper.getOutputKeyspace(conf));
+        if (ConfigHelper.getOutputKeyspaceUserName(conf) != null)
         {
             Map<String, String> creds = new HashMap<String, String>();
-            creds.put(SimpleAuthenticator.USERNAME_KEY, ConfigHelper.getOutputKeyspaceUserName(context.getConfiguration()));
-            creds.put(SimpleAuthenticator.PASSWORD_KEY, ConfigHelper.getOutputKeyspacePassword(context.getConfiguration()));
+            creds.put(SimpleAuthenticator.USERNAME_KEY, ConfigHelper.getOutputKeyspaceUserName(conf));
+            creds.put(SimpleAuthenticator.PASSWORD_KEY, ConfigHelper.getOutputKeyspacePassword(conf));
             AuthenticationRequest authRequest = new AuthenticationRequest(creds);
             client.login(authRequest);
         }
         return client;
-
     }
 
     /**
