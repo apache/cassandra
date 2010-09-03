@@ -40,6 +40,26 @@ class TestSystemOperations(AvroTester):
         s = self.client.request('system_add_keyspace', {'ks_def' : keyspace})
         assert isinstance(s, unicode), 'returned type is %s, (not \'unicode\')' % type(s)
         
+        self.client.request('set_keyspace', {'keyspace' : 'CreateKeyspace'})
+        
+        # modify invalid
+        modified_keyspace = {'name': 'CreateKeyspace', 
+                             'strategy_class': 'org.apache.cassandra.locator.OldNetworkTopologyStrategy',
+                             'strategy_options': {}, 
+                             'replication_factor': 2, 
+                             'cf_defs': []}
+        avro_utils.assert_raises(AvroRemoteException,
+                self.client.request,
+                'system_update_keyspace',
+                {'ks_def': modified_keyspace})
+        
+        # modify valid
+        modified_keyspace['replication_factor'] = 1
+        self.client.request('system_update_keyspace', {'ks_def': modified_keyspace})
+        modks = self.client.request('describe_keyspace', {'keyspace': 'CreateKeyspace'})
+        assert modks['replication_factor'] == modified_keyspace['replication_factor']
+        assert modks['strategy_class'] == modified_keyspace['strategy_class']
+        
         # rename
         self.client.request('set_keyspace', {'keyspace' : 'CreateKeyspace'})
         s = self.client.request(
@@ -57,6 +77,7 @@ class TestSystemOperations(AvroTester):
                       self.client.request,
                       'describe_keyspace',
                       {'keyspace' : 'RenameKeyspace'})
+        
     def test_system_column_family_operations(self):
         "adding, renaming, and removing column families"
         self.client.request('set_keyspace', {'keyspace': 'Keyspace1'})
@@ -70,6 +91,7 @@ class TestSystemOperations(AvroTester):
         cfDef['keyspace'] = 'Keyspace1'
         cfDef['name'] = 'NewColumnFamily'
         cfDef['column_metadata'] = [columnDef]
+        
         s = self.client.request('system_add_column_family', {'cf_def' : cfDef})
         assert isinstance(s, unicode), \
             'returned type is %s, (not \'unicode\')' % type(s)
@@ -77,7 +99,27 @@ class TestSystemOperations(AvroTester):
         ks1 = self.client.request(
             'describe_keyspace', {'keyspace' : 'Keyspace1'})
         assert 'NewColumnFamily' in [x['name'] for x in ks1['cf_defs']]
+        cfDef = [x for x in ks1['cf_defs'] if x['name']=='NewColumnFamily'][0]
+        assert cfDef['id'] > 1000, str(cfid)
 
+        # modify invalid
+        cfDef['comparator_type'] = 'LongType' 
+        avro_utils.assert_raises(AvroRemoteException,
+                self.client.request,
+                'system_update_column_family',
+                {'cf_def': cfDef})
+        
+        # modify valid
+        cfDef['comparator_type'] = 'BytesType' # revert back to old value.
+        cfDef['row_cache_size'] = 25
+        cfDef['gc_grace_seconds'] = 1
+        self.client.request('system_update_column_family', {'cf_def': cfDef})
+        ks1 = self.client.request('describe_keyspace', {'keyspace': 'Keyspace1'})
+        server_cf = [x for x in ks1['cf_defs'] if x['name']=='NewColumnFamily'][0]
+        assert server_cf
+        assert server_cf['row_cache_size'] == 25
+        assert server_cf['gc_grace_seconds'] == 1
+        
         # rename
         self.client.request('system_rename_column_family',
             {'old_name' : 'NewColumnFamily', 'new_name': 'RenameColumnFamily'})

@@ -43,8 +43,11 @@ import org.apache.avro.util.Utf8;
 import org.apache.cassandra.avro.InvalidRequestException;
 import org.apache.cassandra.db.migration.DropKeyspace;
 import org.apache.cassandra.db.migration.RenameKeyspace;
+import org.apache.cassandra.db.migration.UpdateColumnFamily;
+import org.apache.cassandra.db.migration.UpdateKeyspace;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -709,6 +712,87 @@ public class CassandraServer implements Cassandra {
     }
 
     @Override
+    public CharSequence system_update_column_family(CfDef cf_def) throws AvroRemoteException, InvalidRequestException
+    {
+        checkKeyspaceAndLoginAuthorized(Permission.WRITE);
+        
+        if (cf_def.keyspace == null || cf_def.name == null)
+            throw newInvalidRequestException("Keyspace and CF name must be set.");
+        
+        CFMetaData oldCfm = DatabaseDescriptor.getCFMetaData(CFMetaData.getId(cf_def.keyspace.toString(), cf_def.name.toString()));
+        if (oldCfm == null) 
+            throw newInvalidRequestException("Could not find column family definition to modify.");
+        
+        try
+        {
+            CFMetaData newCfm = oldCfm.apply(cf_def);
+            UpdateColumnFamily update = new UpdateColumnFamily(oldCfm, newCfm);
+            applyMigrationOnStage(update);
+            return DatabaseDescriptor.getDefsVersion().toString();
+        }
+        catch (ConfigurationException e)
+        {
+            InvalidRequestException ex = newInvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (IOException e)
+        {
+            InvalidRequestException ex = newInvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+    }
+
+    @Override
+    public CharSequence system_update_keyspace(KsDef ks_def) throws AvroRemoteException, InvalidRequestException
+    {
+        checkKeyspaceAndLoginAuthorized(Permission.WRITE);
+        
+        if (ks_def.cf_defs != null && ks_def.cf_defs.size() > 0)
+            throw newInvalidRequestException("Keyspace update must not contain any column family definitions.");
+        
+        if (StorageService.instance.getLiveNodes().size() < ks_def.replication_factor)
+            throw newInvalidRequestException("Not enough live nodes to support this keyspace");
+        if (DatabaseDescriptor.getTableDefinition(ks_def.name.toString()) == null)
+            throw newInvalidRequestException("Keyspace does not exist.");
+        
+        try
+        {
+            // convert Map<CharSequence, CharSequence> to Map<String, String> 
+            Map<String, String> strategyOptions = null;
+            if (ks_def.strategy_options != null && !ks_def.strategy_options.isEmpty())
+            {
+                strategyOptions = new HashMap<String, String>();
+                for (Map.Entry<CharSequence, CharSequence> option : ks_def.strategy_options.entrySet())
+                {
+                    strategyOptions.put(option.getKey().toString(), option.getValue().toString());
+                }
+            }
+            
+            KSMetaData ksm = new KSMetaData(
+                    ks_def.name.toString(), 
+                    (Class<? extends AbstractReplicationStrategy>) FBUtilities.<AbstractReplicationStrategy>classForName(ks_def.strategy_class.toString(), "keyspace replication strategy"),
+                    strategyOptions,
+                    ks_def.replication_factor);
+            applyMigrationOnStage(new UpdateKeyspace(ksm));
+            return DatabaseDescriptor.getDefsVersion().toString();
+        }
+        catch (ConfigurationException e)
+        {
+            InvalidRequestException ex = newInvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (IOException e)
+        {
+            InvalidRequestException ex = newInvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+    }
+
+    @Override
     public GenericArray<CharSequence> describe_keyspaces() throws AvroRemoteException
     {
         Set<String> keyspaces = DatabaseDescriptor.getTables();
@@ -802,35 +886,6 @@ public class CassandraServer implements Cassandra {
                               DatabaseDescriptor.getComparator(validate),
                               ColumnDefinition.fromColumnDefs((Iterable<ColumnDef>) cf_def.column_metadata));
     }
-    
-    private CfDef convertToCfDef(CFMetaData cfMetadata) throws InvalidRequestException
-    {
-        CfDef cfDef = new CfDef();
-        if (cfMetadata.subcolumnComparator != null)
-        {
-            cfDef.subcomparator_type = cfMetadata.subcolumnComparator.getClass().getName();
-            cfDef.column_type = "Super";
-        }
-        cfDef.keyspace = cfMetadata.tableName;
-        cfDef.name = cfMetadata.cfName;
-        cfDef.clock_type = cfMetadata.clockType.name();
-        cfDef.column_type = cfMetadata.cfType.name();
-        cfDef.comment = cfMetadata.comment;
-        cfDef.comparator_type = cfMetadata.comparator.getClass().getName();
-        
-        GenericArray<ColumnDef> column_metadata = new GenericData.Array<ColumnDef>(cfMetadata.column_metadata.size(), Schema.createArray(ColumnDef.SCHEMA$));
-        for (ColumnDefinition col_definition : cfMetadata.column_metadata.values())
-        {
-            ColumnDef cdef = new ColumnDef();
-            cdef.name = ByteBuffer.wrap(col_definition.name);
-            cdef.validation_class = col_definition.validator.getClass().getName();
-            cdef.index_name = col_definition.index_name;
-            cdef.index_type = IndexType.valueOf(col_definition.index_type.name());
-            column_metadata.add(cdef);
-        }
-        cfDef.column_metadata = column_metadata;
-        return cfDef;
-    }
 
     @Override
     public KsDef describe_keyspace(CharSequence keyspace) throws AvroRemoteException, NotFoundException
@@ -852,7 +907,7 @@ public class CassandraServer implements Cassandra {
         GenericArray<CfDef> cfDefs = new GenericData.Array<CfDef>(ksMetadata.cfMetaData().size(), Schema.createArray(CfDef.SCHEMA$));
         for (CFMetaData cfm : ksMetadata.cfMetaData().values())
         {
-            cfDefs.add(convertToCfDef(cfm));
+            cfDefs.add(CFMetaData.convertToAvro(cfm));
         }
         ksDef.cf_defs = cfDefs;
         

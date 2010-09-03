@@ -338,6 +338,48 @@ public final class CFMetaData
         return validator;
     }
     
+    public CFMetaData apply(org.apache.cassandra.avro.CfDef cf_def) throws ConfigurationException
+    {
+        // validate.
+        if (cf_def.id != cfId)
+            throw new ConfigurationException(String.format("ids do not match. %d, %d", cf_def.id, cfId));
+        if (!cf_def.keyspace.toString().equals(tableName))
+            throw new ConfigurationException(String.format("keyspaces do not match. %s, %s", cf_def.keyspace, tableName));
+        if (!cf_def.name.toString().equals(cfName))
+            throw new ConfigurationException("names do not match.");
+        if (!cf_def.column_type.toString().equals(cfType.name()))
+            throw new ConfigurationException("types do not match.");
+        if (!cf_def.clock_type.toString().equals(clockType.name()))
+            throw new ConfigurationException("clock types do not match.");
+        if (comparator != DatabaseDescriptor.getComparator(cf_def.comparator_type.toString()))
+            throw new ConfigurationException("comparators do not match.");
+        if (cf_def.subcomparator_type == null || cf_def.subcomparator_type.equals(""))
+        {
+            if (subcolumnComparator != null)
+                throw new ConfigurationException("subcolumncomparators do not match.");
+            // else, it's null and we're good.
+        }
+        else if (subcolumnComparator != DatabaseDescriptor.getComparator(cf_def.subcomparator_type.toString()))
+            throw new ConfigurationException("subcolumncomparators do not match.");
+        
+        return new CFMetaData(tableName, 
+                              cfName, 
+                              cfType, 
+                              clockType, 
+                              comparator, 
+                              subcolumnComparator, 
+                              reconciler, 
+                              cf_def.comment == null ? "" : cf_def.comment.toString(), 
+                              cf_def.row_cache_size, 
+                              cf_def.preload_row_cache, 
+                              cf_def.key_cache_size, 
+                              cf_def.read_repair_chance, 
+                              cf_def.gc_grace_seconds, 
+                              DatabaseDescriptor.getComparator(cf_def.default_validation_class == null ? (String)null : cf_def.default_validation_class.toString()), 
+                              cfId, 
+                              column_metadata);
+    }
+    
     // merges some final fields from this CFM with modifiable fields from CfDef into a new CFMetaData.
     public CFMetaData apply(org.apache.cassandra.thrift.CfDef cf_def) throws ConfigurationException
     {
@@ -402,7 +444,7 @@ public final class CFMetaData
         def.setRead_repair_chance(cfm.readRepairChance);
         def.setGc_grace_seconds(cfm.gcGraceSeconds);
         def.setDefault_validation_class(cfm.defaultValidator.getClass().getName());
-        List< org.apache.cassandra.thrift.ColumnDef> column_meta = new ArrayList< org.apache.cassandra.thrift.ColumnDef>();
+        List<org.apache.cassandra.thrift.ColumnDef> column_meta = new ArrayList< org.apache.cassandra.thrift.ColumnDef>(cfm.column_metadata.size());
         for (ColumnDefinition cd : cfm.column_metadata.values())
         {
             org.apache.cassandra.thrift.ColumnDef tcd = new org.apache.cassandra.thrift.ColumnDef();
@@ -413,6 +455,43 @@ public final class CFMetaData
             column_meta.add(tcd);
         }
         def.setColumn_metadata(column_meta);
+        return def;
+    }
+    
+    // converts CFM to avro CfDef
+    public static org.apache.cassandra.avro.CfDef convertToAvro(CFMetaData cfm)
+    {
+        org.apache.cassandra.avro.CfDef def = new org.apache.cassandra.avro.CfDef();
+        def.name = cfm.cfName;
+        def.keyspace = cfm.tableName;
+        def.id = cfm.cfId;
+        def.column_type = cfm.cfType.name();
+        def.clock_type = cfm.clockType.name();
+        def.comparator_type = cfm.comparator.getClass().getName();
+        if (cfm.subcolumnComparator != null)
+        {
+            def.subcomparator_type = cfm.subcolumnComparator.getClass().getName();
+            def.column_type = "Super";
+        }
+        def.reconciler = cfm.reconciler == null ? "" : cfm.reconciler.getClass().getName();
+        def.comment = cfm.comment == null ? "" : cfm.comment;
+        def.row_cache_size = cfm.rowCacheSize;
+        def.preload_row_cache = cfm.preloadRowCache;
+        def.key_cache_size = cfm.keyCacheSize;
+        def.read_repair_chance = cfm.readRepairChance;
+        def.gc_grace_seconds = cfm.gcGraceSeconds;
+        def.default_validation_class = cfm.defaultValidator.getClass().getName();
+        List<org.apache.cassandra.avro.ColumnDef> column_meta = new ArrayList<org.apache.cassandra.avro.ColumnDef>(cfm.column_metadata.size());
+        for (ColumnDefinition cd : cfm.column_metadata.values())
+        {
+            org.apache.cassandra.avro.ColumnDef tcd = new org.apache.cassandra.avro.ColumnDef();
+            tcd.index_name = cd.index_name;
+            tcd.index_type = org.apache.cassandra.avro.IndexType.valueOf(cd.index_type.name());
+            tcd.name = ByteBuffer.wrap(cd.name);
+            tcd.validation_class = cd.validator.getClass().getName();
+            column_meta.add(tcd);
+        }
+        def.column_metadata = column_meta;   
         return def;
     }
 }

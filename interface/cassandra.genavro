@@ -332,6 +332,12 @@ protocol Cassandra {
     
     string system_rename_keyspace(string old_name, string new_name)
     throws InvalidRequestException;
+    
+    string system_update_column_family(CfDef cf_def)
+    throws InvalidRequestException;
+    
+    string system_update_keyspace(KsDef ks_def)
+    throws InvalidRequestException;
 
     array<string> describe_keyspaces();
     
