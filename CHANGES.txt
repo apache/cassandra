@@ -3,7 +3,8 @@
  * remove the remaining vestiges of the unfinished DatacenterShardStrategy 
    (replaced by NetworkTopologyStrategy in 0.7)
  * handle zero-length (or missing) rows during HH paging (CASSANDRA-1432)
- * add CMSInitiatingOccupancyFraction=80 to default JVM options
+ * add CMSInitiatingOccupancyFraction=75 and UseCMSInitiatingOccupancyOnly
+   to default JVM options
  * decrease jvm heap for cassandra-cli (CASSANDRA-1446)
  * document DoConsistencyChecksBoolean option to disable Read Repair
 
