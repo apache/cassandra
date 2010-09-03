@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.cassandra.locator.OldNetworkTopologyStrategy;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
@@ -458,5 +458,52 @@ public class DefsTest extends CleanupHelper
         assert cfam.getColumn("col0".getBytes()) != null;
         IColumn col = cfam.getColumn("col0".getBytes());
         assert Arrays.equals("value0".getBytes(), col.value());
+    }
+    
+    @Test
+    public void testUpdateKeyspace() throws ConfigurationException, IOException, ExecutionException, InterruptedException
+    {
+        // create a keyspace to serve as existing.
+        CFMetaData cf = new CFMetaData("UpdatedKeyspace", "AddedStandard1", ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, TimestampReconciler.instance, "A new cf for a new ks", 0, false, 1.0, 0, 864000, BytesType.instance, Collections.<byte[], ColumnDefinition>emptyMap());
+        KSMetaData oldKs = new KSMetaData(cf.tableName, SimpleStrategy.class, null, 5, cf);
+        
+        new AddKeyspace(oldKs).apply();
+        
+        assert DatabaseDescriptor.getTableDefinition(cf.tableName) != null;
+        assert DatabaseDescriptor.getTableDefinition(cf.tableName) == oldKs;
+        
+        // anything with cf defs should fail.
+        CFMetaData cf2 = new CFMetaData(cf.tableName, "AddedStandard2", ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, TimestampReconciler.instance, "A new cf for a new ks", 0, false, 1.0, 0, 864000, BytesType.instance, Collections.<byte[], ColumnDefinition>emptyMap());
+        KSMetaData newBadKs = new KSMetaData(cf.tableName, SimpleStrategy.class, null, 4, cf2);
+        try
+        {
+            new UpdateKeyspace(newBadKs).apply();
+            throw new AssertionError("Should not have been able to update a KS with a KS that described column families.");
+        }
+        catch (ConfigurationException ex)
+        {
+            // expected.
+        }
+        
+        // names should match.
+        KSMetaData newBadKs2 = new KSMetaData(cf.tableName + "trash", SimpleStrategy.class, null, 4);
+        try
+        {
+            new UpdateKeyspace(newBadKs2).apply();
+            throw new AssertionError("Should not have been able to update a KS with an invalid KS name.");
+        }
+        catch (ConfigurationException ex)
+        {
+            // expected.
+        }
+        
+        KSMetaData newKs = new KSMetaData(cf.tableName, OldNetworkTopologyStrategy.class, null, 1);
+        new UpdateKeyspace(newKs).apply();
+        
+        KSMetaData newFetchedKs = DatabaseDescriptor.getKSMetaData(newKs.name);
+        assert newFetchedKs.replicationFactor == newKs.replicationFactor;
+        assert newFetchedKs.replicationFactor != oldKs.replicationFactor;
+        assert newFetchedKs.strategyClass.equals(newKs.strategyClass);
+        assert !newFetchedKs.strategyClass.equals(oldKs.strategyClass);
     }
 }

@@ -66,7 +66,7 @@ import static com.google.common.base.Charsets.UTF_8;
  */
 public abstract class Migration
 {
-    private static final Logger logger = LoggerFactory.getLogger(Migration.class);
+    protected static final Logger logger = LoggerFactory.getLogger(Migration.class);
     
     public static final String NAME_VALIDATOR_REGEX = "\\w+";
     public static final String MIGRATIONS_CF = "Migrations";

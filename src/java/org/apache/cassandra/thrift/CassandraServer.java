@@ -26,6 +26,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.db.migration.UpdateKeyspace;
+import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -476,7 +478,7 @@ public class CassandraServer implements Cassandra.Iface
             def.setColumn_metadata(cdef_list);
             cfDefs.add(def);
         }
-        return new KsDef(ksm.name, ksm.strategyClass.toString(), ksm.replicationFactor, cfDefs);
+        return new KsDef(ksm.name, ksm.strategyClass.getName(), ksm.replicationFactor, cfDefs);
     }
 
     public List<KeySlice> get_range_slices(ColumnParent column_parent, SlicePredicate predicate, KeyRange range, ConsistencyLevel consistency_level)
@@ -864,16 +866,47 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-
+    /** update an existing keyspace, but do not allow column family modifications. */
     public String system_update_keyspace(KsDef ks_def) throws InvalidRequestException, TException
     {
-        throw new InvalidRequestException("Not implemented");
+        checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
+        
+        if (ks_def.getCf_defs() != null && ks_def.getCf_defs().size() > 0)
+            throw new InvalidRequestException("Keyspace update must not contain any column family definitions.");
+        
+        if (StorageService.instance.getLiveNodes().size() < ks_def.replication_factor)
+            throw new InvalidRequestException("Not enough live nodes to support this keyspace");
+        if (DatabaseDescriptor.getTableDefinition(ks_def.name) == null)
+            throw new InvalidRequestException("Keyspace does not exist.");
+        
+        try
+        {
+            KSMetaData ksm = new KSMetaData(
+                    ks_def.name, 
+                    (Class<? extends AbstractReplicationStrategy>)FBUtilities.<AbstractReplicationStrategy>classForName(ks_def.strategy_class, "keyspace replication strategy"),
+                    ks_def.strategy_options,
+                    ks_def.replication_factor);
+            applyMigrationOnStage(new UpdateKeyspace(ksm));
+            return DatabaseDescriptor.getDefsVersion().toString();
+        }
+        catch (ConfigurationException e)
+        {
+            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (IOException e)
+        {
+            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
     }
 
-    
     public String system_update_column_family(CfDef cf_def) throws InvalidRequestException, TException
     {
-        throw new InvalidRequestException("Not implemented");
+        checkKeyspaceAndLoginAuthorized(AccessLevel.FULL);
+        return null;
     }
 
     private CFMetaData convertToCFMetaData(CfDef cf_def) throws InvalidRequestException, ConfigurationException

@@ -107,6 +107,12 @@ protocol InterNode {
         string old_ksname;
         string new_ksname;
     }
+    
+    @namespace("org.apache.cassandra.db.migration.avro")
+    record UpdateKeyspace {
+        org.apache.cassandra.config.avro.KsDef oldKs;
+        org.apache.cassandra.config.avro.KsDef newKs;
+    }
 
     @namespace("org.apache.cassandra.db.migration.avro")
     record Migration {
@@ -114,6 +120,6 @@ protocol InterNode {
         org.apache.cassandra.utils.avro.UUID new_version;
         bytes row_mutation;
         string classname;
-        union { AddColumnFamily,DropColumnFamily,RenameColumnFamily,AddKeyspace,DropKeyspace,RenameKeyspace } migration;
+        union { AddColumnFamily,DropColumnFamily,RenameColumnFamily,AddKeyspace,DropKeyspace,RenameKeyspace,UpdateKeyspace } migration;
     }
 }

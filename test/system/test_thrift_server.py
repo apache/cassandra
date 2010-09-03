@@ -1163,6 +1163,19 @@ class TestMutations(ThriftTester):
         
         _set_keyspace('CreateKeyspace')
         
+        # modify invlid
+        modified_keyspace = KsDef('CreateKeyspace', 'org.apache.cassandra.locator.OldNetworkTopologyStrategy', {}, 2, [])
+        def fail_too_high_rf():
+            client.system_update_keyspace(modified_keyspace)
+        _expect_exception(fail_too_high_rf, InvalidRequestException)
+        
+        # modify valid
+        modified_keyspace.replication_factor = 1
+        client.system_update_keyspace(modified_keyspace)
+        modks = client.describe_keyspace('CreateKeyspace')
+        assert modks.replication_factor == modified_keyspace.replication_factor
+        assert modks.strategy_class == modified_keyspace.strategy_class
+        
         # rename
         client.system_rename_keyspace('CreateKeyspace', 'RenameKeyspace')
         renameks = client.describe_keyspace('RenameKeyspace')
@@ -1176,7 +1189,7 @@ class TestMutations(ThriftTester):
         def get_second_ks():
             client.describe_keyspace('RenameKeyspace')
         _expect_exception(get_second_ks, NotFoundException)
-    
+        
     def test_create_then_drop_ks(self):
         keyspace = KsDef('AddThenDrop', 
                 strategy_class='org.apache.cassandra.locator.SimpleStrategy',
