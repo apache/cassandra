@@ -333,26 +333,22 @@ public class Converter
     {
         try
         {
-            String configname;
+            String oldConfigName;
+
             ClassLoader loader = Converter.class.getClassLoader();
             URL scpurl = loader.getResource(PREVIOUS_CONF_FILE);
             if (scpurl == null)
                 scpurl = loader.getResource("storage-conf.xml");
             
             if (scpurl != null)
-                configname = scpurl.getFile();
+                oldConfigName = scpurl.getFile();
             else 
                 throw new ConfigurationException("Error finding previous configuration file.");
+            System.out.println("Found previous configuration: " + oldConfigName);
+            loadPreviousConfig(oldConfigName);
             
-            System.out.println("Found previous configuration: " + configname);
-            
-            loadPreviousConfig(configname);
-            
-            configname = configname.replace("cassandra.xml", "cassandra.yaml");
-            
-            System.out.println("Creating new configuration: " + configname);
-            
-            dumpConfig(configname);
+            System.out.println("Creating new configuration cassandra.yaml");
+            dumpConfig("cassandra.yaml");
         } 
         catch (IOException e)
         {
