@@ -2,8 +2,21 @@
 # See http://wiki.apache.org/cassandra/StorageConfiguration for
 # explanations of configuration directives.
 
-# name of the cluster
+# The name of the cluster. This is mainly used to prevent machines in
+# one logical cluster from joining another.
 cluster_name: 'Test Cluster'
+
+# If you are using an order-preserving partitioner and you know your key
+# distribution, you can specify the token for this node to use. (Keys
+# are sent to the node with the "closest" token, so distributing your
+# tokens equally along the key distribution space will spread keys
+# evenly across your cluster.)  This setting is only checked the first
+# time a node is started. 
+
+# This can also be useful with RandomPartitioner to force equal spacing
+# of tokens around the hash space, especially for clusters with a small
+# number of nodes.
+initial_token:
 
 # Set to true to make new [non-seed] nodes automatically migrate data
 # to themselves from the pre-existing nodes in the cluster.  Defaults
@@ -25,13 +38,34 @@ authority: org.apache.cassandra.auth.AllowAllAuthority
 # any IPartitioner may be used, including your own as long as it is on
 # the classpath.  Out of the box, Cassandra provides
 # org.apache.cassandra.dht.RandomPartitioner
+# org.apache.cassandra.dht.ByteOrderedPartitioner,
 # org.apache.cassandra.dht.OrderPreservingPartitioner, and
 # org.apache.cassandra.dht.CollatingOrderPreservingPartitioner.
+# (CollatingOPP colates according to EN,US rules, not naive byte
+# ordering.  Use this as an example if you need locale-aware collation.)
 partitioner: org.apache.cassandra.dht.RandomPartitioner
 
 # directories where Cassandra should store data on disk.
 data_file_directories:
     - /var/lib/cassandra/data
+
+# commit log
+commitlog_directory: /var/lib/cassandra/commitlog
+
+# Size to allow commitlog to grow to before creating a new segment 
+commitlog_rotation_threshold_in_mb: 128
+
+# commitlog_sync may be either "periodic" or "batch." 
+# When in batch mode, Cassandra won't ack writes until the commit log
+# has been fsynced to disk.  It will wait up to
+# CommitLogSyncBatchWindowInMS milliseconds for other writes, before
+# performing the sync.
+commitlog_sync: periodic
+
+# the other option is "timed," where writes may be acked immediately
+# and the CommitLog is simply synced every commitlog_sync_period_in_ms
+# milliseconds.
+commitlog_sync_period_in_ms: 10000
 
 # Addresses of hosts that are deemed contact points. 
 # Cassandra nodes use this list of hosts to find each other and learn
@@ -90,6 +124,10 @@ thrift_framed_transport_size_in_mb: 15
 # internal thrift overhead.
 thrift_max_message_length_in_mb: 16
 
+# Whether or not to take a snapshot before each compaction.  Be
+# careful using this option, since Cassandra won't clean up the
+# snapshots for you.  Mostly useful if you're paranoid when there
+# is a data format change.
 snapshot_before_compaction: false
 
 # change this to increase the compaction thread's priority.  In java, 1 is the
@@ -111,27 +149,19 @@ memtable_throughput_in_mb: 64
 # Number of objects in millions in the memtable before it is flushed
 memtable_operations_in_millions: 0.3
 
+# Add column indexes to a row after its contents reach this size.
+# Increase if your column values are large, or if you have a very large
+# number of columns.  The competing causes are, Cassandra has to
+# deserialize this much of the row to read a single column, so you want
+# it to be small - at least if you do many partial-row reads - but all
+# the index data is read for each access, so you don't want to generate
+# that wastefully either.
 column_index_size_in_kb: 64
 
+# Size limit for rows being compacted in memory.  Larger rows will spill
+# over to disk and use a slower two-pass compaction process.  A message
+# will be logged specifying the row key.
 in_memory_compaction_limit_in_mb: 64
-
-# commit log
-commitlog_directory: /var/lib/cassandra/commitlog
-
-# Size to allow commitlog to grow to before creating a new segment 
-commitlog_rotation_threshold_in_mb: 128
-
-# commitlog_sync may be either "periodic" or "batch." 
-# When in batch mode, Cassandra won't ack writes until the commit log
-# has been fsynced to disk.  It will wait up to
-# CommitLogSyncBatchWindowInMS milliseconds for other writes, before
-# performing the sync.
-commitlog_sync: periodic
-
-# the other option is "timed," where writes may be acked immediately
-# and the CommitLog is simply synced every commitlog_sync_period_in_ms
-# milliseconds.
-commitlog_sync_period_in_ms: 10000
 
 # Time to wait for a reply from other nodes before failing the command 
 rpc_timeout_in_ms: 10000
