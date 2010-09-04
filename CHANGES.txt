@@ -7,6 +7,8 @@
    to default JVM options
  * decrease jvm heap for cassandra-cli (CASSANDRA-1446)
  * document DoConsistencyChecksBoolean option to disable Read Repair
+ * remove failed bootstrap attempt from pending ranges when gossip times
+   it out after 1h (CASSANDRA-1463)
 
 
 0.6.5

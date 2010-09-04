@@ -216,6 +216,10 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
      */
     public void removeEndPoint(InetAddress endpoint)
     {
+        // do subscribers first so anything in the subscriber that depends on gossiper state won't get confused
+        for (IEndPointStateChangeSubscriber subscriber : subscribers_)
+            subscriber.onRemove(endpoint);
+
         liveEndpoints_.remove(endpoint);
         unreachableEndpoints_.remove(endpoint);
         endPointStateMap_.remove(endpoint);

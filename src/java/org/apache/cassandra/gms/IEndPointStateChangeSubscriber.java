@@ -45,4 +45,6 @@ public interface IEndPointStateChangeSubscriber
     public void onAlive(InetAddress endpoint, EndPointState state);
 
     public void onDead(InetAddress endpoint, EndPointState state);
+
+    public void onRemove(InetAddress endpoint);
 }
