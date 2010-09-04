@@ -46,7 +46,7 @@ import org.slf4j.LoggerFactory;
  * of the three above mentioned messages updates the Failure Detector with the liveness information.
  */
 
-public class Gossiper implements IFailureDetectionEventListener, IEndpointStateChangePublisher
+public class Gossiper implements IFailureDetectionEventListener
 {
     private class GossipTimerTask extends TimerTask
     {
@@ -151,12 +151,19 @@ public class Gossiper implements IFailureDetectionEventListener, IEndpointStateC
         FailureDetector.instance.registerFailureDetectionEventListener(this);
     }
 
-    /** Register with the Gossiper for EndpointState notifications */
+    /**
+     * Register for interesting state changes.
+     * @param subscriber module which implements the IEndpointStateChangeSubscriber
+     */
     public void register(IEndpointStateChangeSubscriber subscriber)
     {
         subscribers_.add(subscriber);
     }
 
+    /**
+     * Unregister interest for state changes.
+     * @param subcriber module which implements the IEndpointStateChangeSubscriber
+     */
     public void unregister(IEndpointStateChangeSubscriber subscriber)
     {
         subscribers_.remove(subscriber);
