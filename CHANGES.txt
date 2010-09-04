@@ -49,6 +49,8 @@ dev
    (CASSANDRA-1285)
  * support for Hadoop Streaming [non-jvm map/reduce via stdin/out]
    (CASSANDRA-1368)
+ * Move persistent sstable stats from the system table to an sstable component
+   (CASSANDRA-1430)
 
 
 0.7-beta1
