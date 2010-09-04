@@ -30,7 +30,6 @@ import java.util.TimerTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.StatisticsTable;
 import org.apache.cassandra.io.DeletionService;
 import org.apache.cassandra.io.util.FileUtils;
 
@@ -95,8 +94,8 @@ public class SSTableDeletingReference extends PhantomReference<SSTableReader>
             {
                 FileUtils.deleteWithConfirm(new File(SSTable.indexFilename(path)));
                 FileUtils.deleteWithConfirm(new File(SSTable.filterFilename(path)));
+                FileUtils.deleteWithConfirm(new File(SSTable.statisticsFilename(path)));
                 FileUtils.deleteWithConfirm(new File(SSTable.compactedFilename(path)));
-                StatisticsTable.deleteSSTableStatistics(datafile.getAbsolutePath());
             }
             catch (IOException e)
             {

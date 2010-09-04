@@ -143,18 +143,14 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     private void loadStatistics(Descriptor desc) throws IOException
     {
-        // skip loading stats for the system table, or we will infinitely recurse
-        if (desc.ksname.equals(Table.SYSTEM_TABLE))
+        if (!new File(desc.filenameFor(SSTable.COMPONENT_STATS)).exists())
             return;
         if (logger.isDebugEnabled())
             logger.debug("Load statistics for " + desc);
-        long[] rowsizes = StatisticsTable.getSSTableRowSizeStatistics(desc.filenameFor(SSTable.COMPONENT_DATA));
-        long[] colcounts = StatisticsTable.getSSTableColumnCountStatistics(desc.filenameFor(SSTable.COMPONENT_DATA));
-        if (rowsizes.length > 0)
-        {
-            estimatedRowSize = new EstimatedHistogram(rowsizes);
-            estimatedColumnCount = new EstimatedHistogram(colcounts);
-        }
+        DataInputStream dis = new DataInputStream(new FileInputStream(desc.filenameFor(SSTable.COMPONENT_STATS)));
+        estimatedRowSize = EstimatedHistogram.serializer.deserialize(dis);
+        estimatedColumnCount = EstimatedHistogram.serializer.deserialize(dis);
+        dis.close();
     }
 
     public static SSTableReader open(Descriptor desc) throws IOException

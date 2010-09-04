@@ -37,7 +37,7 @@ import org.apache.cassandra.io.util.SegmentedFile;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.utils.EstimatedHistogram;
 
 public class SSTableWriter extends SSTable
 {
@@ -140,17 +140,12 @@ public class SSTableWriter extends SSTable
         // main data
         dataFile.close(); // calls force
 
+        // write sstable statistics
+        writeStatistics(desc);
+
         // remove the 'tmp' marker from all components
         final Descriptor newdesc = rename(desc);
 
-        Runnable runnable = new WrappedRunnable()
-        {
-            protected void runMayThrow() throws IOException
-            {
-                StatisticsTable.persistSSTableStatistics(newdesc, estimatedRowSize, estimatedColumnCount);
-            }
-        };
-        ColumnFamilyStore.submitPostFlush(runnable);
 
         // finalize in-memory state for the reader
         SegmentedFile ifile = iwriter.builder.complete(newdesc.filenameFor(SSTable.COMPONENT_INDEX));
@@ -159,6 +154,14 @@ public class SSTableWriter extends SSTable
         iwriter = null;
         dbuilder = null;
         return sstable;
+    }
+
+    private void writeStatistics(Descriptor desc) throws IOException
+    {
+        DataOutputStream dos = new DataOutputStream(new FileOutputStream(desc.filenameFor(SSTable.COMPONENT_STATS)));
+        EstimatedHistogram.serializer.serialize(estimatedRowSize, dos);
+        EstimatedHistogram.serializer.serialize(estimatedColumnCount, dos);
+        dos.close();
     }
 
     static Descriptor rename(Descriptor tmpdesc)

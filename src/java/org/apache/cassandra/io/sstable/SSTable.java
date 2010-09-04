@@ -32,7 +32,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.db.StatisticsTable;
 import org.apache.cassandra.utils.EstimatedHistogram;
 
 /**
@@ -54,6 +53,7 @@ public abstract class SSTable
     public static final String COMPONENT_DATA = "Data.db";
     public static final String COMPONENT_INDEX = "Index.db";
     public static final String COMPONENT_FILTER = "Filter.db";
+    public static final String COMPONENT_STATS = "Statistics.db";
 
     public static final String COMPONENT_COMPACTED = "Compacted";
 
@@ -63,7 +63,7 @@ public abstract class SSTable
 
     public static final String TEMPFILE_MARKER = "tmp";
 
-    public static List<String> components = Collections.unmodifiableList(Arrays.asList(COMPONENT_FILTER, COMPONENT_INDEX, COMPONENT_DATA));
+    public static List<String> components = Collections.unmodifiableList(Arrays.asList(COMPONENT_FILTER, COMPONENT_INDEX, COMPONENT_DATA, COMPONENT_STATS));
     protected EstimatedHistogram estimatedRowSize = new EstimatedHistogram(150);
     protected EstimatedHistogram estimatedColumnCount = new EstimatedHistogram(114);
 
@@ -132,6 +132,7 @@ public abstract class SSTable
                 FileUtils.deleteWithConfirm(new File(dataFilename));
                 FileUtils.deleteWithConfirm(new File(SSTable.indexFilename(dataFilename)));
                 FileUtils.deleteWithConfirm(new File(SSTable.filterFilename(dataFilename)));
+                FileUtils.deleteWithConfirm(new File(SSTable.statisticsFilename(dataFilename)));
                 FileUtils.deleteWithConfirm(new File(SSTable.compactedFilename(dataFilename)));
             }
             catch (IOException e)
@@ -154,9 +155,19 @@ public abstract class SSTable
         return Descriptor.fromFilename(dataFile).filenameFor(COMPONENT_FILTER);
     }
 
+    protected static String statisticsFilename(String dataFile)
+    {
+        return Descriptor.fromFilename(dataFile).filenameFor(COMPONENT_STATS);
+    }
+
     public String filterFilename()
     {
         return desc.filenameFor(COMPONENT_FILTER);
+    }
+
+    public String statisticsFilename()
+    {
+        return desc.filenameFor(COMPONENT_STATS);
     }
 
     public String getFilename()

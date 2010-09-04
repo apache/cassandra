@@ -97,17 +97,12 @@ public class Table
                 if (tableInstance == null)
                 {
                     // do some housekeeping on the column families.
-                    Collection<Runnable> systemTableUpdates = new ArrayList<Runnable>();
                     for (CFMetaData cfm : DatabaseDescriptor.getTableDefinition(table).cfMetaData().values())
                     {
                         ColumnFamilyStore.scrubDataDirectories(table, cfm.cfName);
-                        systemTableUpdates.addAll(ColumnFamilyStore.deleteCompactedFiles(table, cfm.cfName)); 
                     }
                     tableInstance = new Table(table);
                     instances.put(table, tableInstance);
-                    
-                    for (Runnable r : systemTableUpdates)
-                        r.run();
                 }
             }
         }

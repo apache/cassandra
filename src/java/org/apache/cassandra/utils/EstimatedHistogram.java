@@ -18,8 +18,13 @@
 */
 package org.apache.cassandra.utils;
 
+import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.Arrays;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+
+import org.apache.cassandra.io.ICompactSerializer;
 
 public class EstimatedHistogram
 {
@@ -38,6 +43,8 @@ public class EstimatedHistogram
 
     final AtomicLongArray buckets;
 
+    public static EstimatedHistogramSerializer serializer = new EstimatedHistogramSerializer();
+
     public EstimatedHistogram()
     {
         this(90);
@@ -53,6 +60,14 @@ public class EstimatedHistogram
     {
         makeOffsets(bucketData.length - 1);
         buckets = new AtomicLongArray(bucketData);
+    }
+
+    public EstimatedHistogram(long[] offsets, long[] bucketData)
+    {
+        assert bucketData.length == offsets.length +1;
+        bucketOffsets = offsets;
+        buckets = new AtomicLongArray(bucketData);
+        numBuckets = bucketData.length;
     }
 
     private void makeOffsets(int size)
@@ -143,5 +158,33 @@ public class EstimatedHistogram
             }
         }
         return median;
+    }
+
+    public static class EstimatedHistogramSerializer implements ICompactSerializer<EstimatedHistogram>
+    {
+        public void serialize(EstimatedHistogram eh, DataOutputStream dos) throws IOException
+        {
+            long[] offsets = eh.getBucketOffsets();
+            long[] buckets = eh.get(false);
+            dos.writeInt(buckets.length);
+            for (int i = 0; i < buckets.length; i++)
+            {
+                dos.writeLong(offsets[i == 0 ? 0 : i - 1]);
+                dos.writeLong(buckets[i]);
+            }
+        }
+
+        public EstimatedHistogram deserialize(DataInputStream dis) throws IOException
+        {
+            int size = dis.readInt();
+            long[] offsets = new long[size - 1];
+            long[] buckets = new long[size];
+
+            for (int i = 0; i < size; i++) {
+                offsets[i == 0 ? 0 : i - 1] = dis.readLong();
+                buckets[i] = dis.readLong();
+            }
+            return new EstimatedHistogram(offsets, buckets);
+        }
     }
 }

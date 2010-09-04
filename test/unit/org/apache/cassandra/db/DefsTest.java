@@ -51,7 +51,6 @@ public class DefsTest extends CleanupHelper
         assert CFMetaData.HintsCf.cfId == 1;    
         assert CFMetaData.MigrationsCf.cfId == 2;    
         assert CFMetaData.SchemaCf.cfId == 3;    
-        assert CFMetaData.StatisticsCf.cfId == 4;    
     }
     
     @Test

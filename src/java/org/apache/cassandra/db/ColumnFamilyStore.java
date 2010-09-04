@@ -382,37 +382,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
     
-    // returns runnables that need to update the system table.
-    static Collection<Runnable> deleteCompactedFiles(String table, String columnFamily)
-    {
-        Collection<Runnable> runnables = new ArrayList<Runnable>();
-        for (File file : files(table, columnFamily))
-        {
-            if (file.getName().contains("-Data.db"))
-            {
-                final String delPath = file.getAbsolutePath();
-                if (SSTable.deleteIfCompacted(delPath))
-                {
-                    runnables.add(new Runnable()
-                    {
-                        public void run()
-                        {
-                            try
-                            {
-                                StatisticsTable.deleteSSTableStatistics(delPath);
-                            }
-                            catch (IOException ex)
-                            {
-                                throw new RuntimeException(ex);
-                            }
-                        }
-                    });
-                }
-            }
-        }
-        return runnables;
-    }
-
     private static Set<File> files(String table, String columnFamily)
     {
         assert table != null;

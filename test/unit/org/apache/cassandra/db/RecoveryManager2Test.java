@@ -48,11 +48,6 @@ public class RecoveryManager2Test extends CleanupHelper
         ColumnFamilyStore cfs = table1.getColumnFamilyStore("Standard1");
         cfs.forceBlockingFlush();
 
-        // forceBlockingFlush above adds persistent stats to the current commit log segment
-        // it ends up in the same segment as key99 meaning that segment still has unwritten data
-        // thus the commit log replays it when recover is called below
-        Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(StatisticsTable.STATISTICS_CF).forceBlockingFlush();
-
         // remove all SSTable/MemTables
         cfs.clearUnsafe();
 
