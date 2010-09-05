@@ -58,6 +58,8 @@ Upgrading
 
 Thrift API
 ----------
+    - The Cassandra server now defaults to framed mode, rather than
+      unframed.  Unframed is obsolete and will be removed in the future.
     - Multiget key collection is now a set, rather than a list
       (for dynamic languages, this is a non-issue since really any
       iterable is accepted)
