@@ -18,10 +18,12 @@
 
 package org.apache.cassandra.db;
 
+import java.nio.ByteBuffer;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.*;
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 
@@ -222,6 +224,38 @@ public class TableTest extends CleanupHelper
         };
 
         reTest(table.getColumnFamilyStore("Standard1"), verify);
+    }
+
+    @Test
+    public void testReversedWithFlushing() throws IOException, ExecutionException, InterruptedException
+    {
+        final Table table = Table.open("Keyspace1");
+        final ColumnFamilyStore cfs = table.getColumnFamilyStore("StandardLong1");
+        final DecoratedKey ROW = Util.dk("row4");
+
+        for (int i = 0; i < 10; i++)
+        {
+            RowMutation rm = new RowMutation("Keyspace1", ROW.key);
+            ColumnFamily cf = ColumnFamily.create("Keyspace1", "StandardLong1");
+            cf.addColumn(new Column(FBUtilities.toByteArray((long)i), ArrayUtils.EMPTY_BYTE_ARRAY, new TimestampClock(0)));
+            rm.add(cf);
+            rm.apply();
+        }
+
+        cfs.forceBlockingFlush();
+
+        for (int i = 10; i < 20; i++)
+        {
+            RowMutation rm = new RowMutation("Keyspace1", ROW.key);
+            ColumnFamily cf = ColumnFamily.create("Keyspace1", "StandardLong1");
+            cf.addColumn(new Column(FBUtilities.toByteArray((long)i), ArrayUtils.EMPTY_BYTE_ARRAY, new TimestampClock(0)));
+            rm.add(cf);
+            rm.apply();
+
+            cf = cfs.getColumnFamily(ROW, new QueryPath("StandardLong1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 1);
+            assertEquals(1, cf.getColumnNames().size());
+            assertEquals(i, ByteBuffer.wrap(cf.getColumnNames().iterator().next()).getLong());
+        }
     }
 
     private void validateGetSliceNoMatch(Table table) throws IOException

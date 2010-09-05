@@ -51,6 +51,8 @@ dev
    (CASSANDRA-1368)
  * Move persistent sstable stats from the system table to an sstable component
    (CASSANDRA-1430)
+ * apply reversed flag during collation from different data sources
+   (CASSANDRA-1450)
 
 
 0.7-beta1

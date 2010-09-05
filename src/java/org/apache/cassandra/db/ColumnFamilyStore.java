@@ -894,7 +894,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private ColumnFamily getColumnFamily(QueryFilter filter, int gcBefore)
     {
-        assert columnFamily.equals(filter.getColumnFamilyName());
+        assert columnFamily.equals(filter.getColumnFamilyName()) : filter.getColumnFamilyName();
 
         long start = System.nanoTime();
         try
@@ -1014,7 +1014,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
             }
 
-            Comparator<IColumn> comparator = QueryFilter.getColumnComparator(getComparator());
+            Comparator<IColumn> comparator = filter.filter.getColumnComparator(getComparator());
             Iterator collated = IteratorUtils.collatedIterator(comparator, iterators);
             filter.collectCollatedColumns(returnCF, collated, gcBefore);
             // Caller is responsible for final removeDeletedCF.  This is important for cacheRow to work correctly:

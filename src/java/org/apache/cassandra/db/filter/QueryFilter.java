@@ -84,7 +84,8 @@ public class QueryFilter
         return superFilter.getSSTableColumnIterator(sstable.metadata, file, key);
     }
 
-    public static Comparator<IColumn> getColumnComparator(final AbstractType comparator)
+    // here so it can be used by SQF and NQF.  non-package callers should call IFilter.getColumnComparator
+    static Comparator<IColumn> getColumnComparator(final Comparator<byte[]> comparator)
     {
         return new Comparator<IColumn>()
         {

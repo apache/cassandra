@@ -125,7 +125,7 @@ public class RowIteratorFactory
 
             protected Row getReduced()
             {
-                Comparator<IColumn> colComparator = QueryFilter.getColumnComparator(comparator);
+                Comparator<IColumn> colComparator = filter.filter.getColumnComparator(comparator);
                 Iterator<IColumn> colCollated = IteratorUtils.collatedIterator(colComparator, colIters);
 
                 ColumnFamily returnCF = null;
