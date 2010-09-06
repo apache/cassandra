@@ -745,7 +745,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         restoreReplicaCount(endpoint);
         Gossiper.instance.removeEndpoint(endpoint);
-        tokenMetadata_.removeEndpoint(endpoint);
+        // gossiper onRemove will take care of TokenMetadata
         HintedHandOffManager.deleteHintsForEndPoint(endpoint);
     }
 
@@ -963,7 +963,13 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             deliverHints(endpoint);
     }
 
-    public void onDead(InetAddress endpoint, EndpointState state) 
+    public void onRemove(InetAddress endpoint)
+    {
+        tokenMetadata_.removeEndpoint(endpoint);
+        calculatePendingRanges();
+    }
+
+    public void onDead(InetAddress endpoint, EndpointState state)
     {
         MessagingService.instance.convict(endpoint);
     }

@@ -77,6 +77,8 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     }
 
     public void onDead(InetAddress endpoint, EndpointState state) { }
+
+    public void onRemove(InetAddress endpoint) { }
     
     /** will either push or pull an updating depending on who is behind. */
     public static void rectify(UUID theirVersion, InetAddress endpoint)

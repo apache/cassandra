@@ -185,24 +185,10 @@ public class TokenMetadata
         }
     }
 
-    public void removeLeavingEndpoint(InetAddress endpoint)
+    public void removeEndpoint(InetAddress endpoint)
     {
         assert endpoint != null;
 
-        lock.writeLock().lock();
-        try
-        {
-            leavingEndpoints.remove(endpoint);
-        }
-        finally
-        {
-            lock.writeLock().unlock();
-        }
-    }
-
-    public void removeEndpoint(InetAddress endpoint)
-    {
-        assert tokenToEndpointMap.containsValue(endpoint);
         lock.writeLock().lock();
         try
         {

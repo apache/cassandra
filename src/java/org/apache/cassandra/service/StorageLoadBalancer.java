@@ -224,6 +224,8 @@ public class StorageLoadBalancer implements IEndpointStateChangeSubscriber
 
     public void onDead(InetAddress endpoint, EndpointState state) {}
 
+    public void onRemove(InetAddress endpoint) {}
+
 /*
     private boolean isMoveable()
     {

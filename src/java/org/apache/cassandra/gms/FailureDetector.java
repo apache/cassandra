@@ -124,14 +124,16 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     
     public boolean isAlive(InetAddress ep)
     {
-       /* If the endpoint in question is the local endpoint return true. */
-        InetAddress localHost = FBUtilities.getLocalAddress();
-        if (localHost.equals(ep))
+        if (ep.equals(FBUtilities.getLocalAddress()))
             return true;
 
-    	/* Incoming port is assumed to be the Storage port. We need to change it to the control port */
         EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(ep);
-        return epState.isAlive();
+        // we could assert not-null, but having isAlive fail screws a node over so badly that
+        // it's worth being defensive here so minor bugs don't cause disproportionate
+        // badness.  (See CASSANDRA-1463 for an example).
+        if (epState == null)
+            logger_.error("unknown endpoint " + ep);
+        return epState != null && epState.isAlive();
     }
     
     public void report(InetAddress ep)

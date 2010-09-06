@@ -18,53 +18,35 @@
 
 package org.apache.cassandra.net;
 
-import java.io.IOException;
 import java.net.InetAddress;
 
 import org.apache.cassandra.concurrent.StageManager;
 
 class OutboundTcpConnectionPool
 {
-    private InetAddress remoteEp_;
-    private OutboundTcpConnection cmdCon;
-    private OutboundTcpConnection ackCon;
+    private final OutboundTcpConnection cmdCon;
+    private final OutboundTcpConnection ackCon;
 
     OutboundTcpConnectionPool(InetAddress remoteEp)
     {
-        remoteEp_ = remoteEp;
+         cmdCon = new OutboundTcpConnection(remoteEp);
+         ackCon = new OutboundTcpConnection(remoteEp);                                             
     }
 
     /**
      * returns the appropriate connection based on message type.
      * returns null if a connection could not be established.
      */
-    synchronized OutboundTcpConnection getConnection(Message msg)
+    OutboundTcpConnection getConnection(Message msg)
     {
-        if (StageManager.RESPONSE_STAGE.equals(msg.getMessageType())
-            || StageManager.GOSSIP_STAGE.equals(msg.getMessageType()))
-        {
-            if (ackCon == null)
-            {
-                ackCon = new OutboundTcpConnection(this, remoteEp_);
-                ackCon.start();
-            }
-            return ackCon;
-        }
-        else
-        {
-            if (cmdCon == null)
-            {
-                cmdCon = new OutboundTcpConnection(this, remoteEp_);
-                cmdCon.start();
-            }
-            return cmdCon;
-        }
+        return msg.getMessageType().equals(StageManager.RESPONSE_STAGE) || msg.getMessageType().equals(StageManager.GOSSIP_STAGE)
+               ? ackCon
+               : cmdCon;
     }
 
     synchronized void reset()
     {
         for (OutboundTcpConnection con : new OutboundTcpConnection[] { cmdCon, ackCon })
-            if (con != null)
-                con.closeSocket();
+            con.closeSocket();
     }
 }

@@ -51,6 +51,9 @@ dev
    (CASSANDRA-1368)
  * Move persistent sstable stats from the system table to an sstable component
    (CASSANDRA-1430)
+ * remove failed bootstrap attempt from pending ranges when gossip times
+   it out after 1h (CASSANDRA-1463)
+ * eager-create tcp connections to other cluster members (CASSANDRA-1465)
  * apply reversed flag during collation from different data sources
    (CASSANDRA-1450)
 

@@ -42,16 +42,14 @@ public class OutboundTcpConnection extends Thread
     private static final ByteBuffer CLOSE_SENTINEL = ByteBuffer.allocate(0);
     private static final int OPEN_RETRY_DELAY = 100; // ms between retries
 
-    private final OutboundTcpConnectionPool pool;
     private final InetAddress endpoint;
     private final BlockingQueue<ByteBuffer> queue = new LinkedBlockingQueue<ByteBuffer>();
     private DataOutputStream output;
     private Socket socket;
 
-    public OutboundTcpConnection(final OutboundTcpConnectionPool pool, final InetAddress remoteEp)
+    public OutboundTcpConnection(InetAddress remoteEp)
     {
         super("WRITE-" + remoteEp);
-        this.pool = pool;
         this.endpoint = remoteEp;
     }
 
