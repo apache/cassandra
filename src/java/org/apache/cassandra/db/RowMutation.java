@@ -216,7 +216,7 @@ public class RowMutation
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         serializer().serialize(this, dos);
-        return new Message(FBUtilities.getLocalAddress(), Stage.MUTATION, verb, bos.toByteArray());
+        return new Message(FBUtilities.getLocalAddress(), verb, bos.toByteArray());
     }
 
     public static RowMutation getRowMutationFromMutations(String keyspace, byte[] key, Map<String, List<Mutation>> cfmap)

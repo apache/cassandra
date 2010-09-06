@@ -54,6 +54,8 @@ dev
  * remove failed bootstrap attempt from pending ranges when gossip times
    it out after 1h (CASSANDRA-1463)
  * eager-create tcp connections to other cluster members (CASSANDRA-1465)
+ * enumerate stages and derive stage from message type instead of 
+   transmitting separately (CASSANDRA-1465)
  * apply reversed flag during collation from different data sources
    (CASSANDRA-1450)
 

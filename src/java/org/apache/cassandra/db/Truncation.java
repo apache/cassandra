@@ -74,16 +74,7 @@ public class Truncation
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         serializer().serialize(this, dos);
-        return new Message(FBUtilities.getLocalAddress(), Stage.MUTATION, StorageService.Verb.TRUNCATE,
-                bos.toByteArray());
-    }
-
-
-    public DataOutputBuffer getSerializedBuffer() throws IOException
-    {
-        DataOutputBuffer buffer = new DataOutputBuffer();
-        Truncation.serializer().serialize(this, buffer);
-        return buffer;
+        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.TRUNCATE, bos.toByteArray());
     }
 
     public String toString()

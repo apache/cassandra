@@ -578,10 +578,7 @@ public class AntiEntropyService
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 DataOutputStream dos = new DataOutputStream(bos);
                 SERIALIZER.serialize(request, dos);
-                return new Message(FBUtilities.getLocalAddress(),
-                                   Stage.AE_SERVICE,
-                                   StorageService.Verb.TREE_REQUEST,
-                                   bos.toByteArray());
+                return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.TREE_REQUEST, bos.toByteArray());
             }
             catch(IOException e)
             {
@@ -644,7 +641,7 @@ public class AntiEntropyService
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 DataOutputStream dos = new DataOutputStream(bos);
                 SERIALIZER.serialize(validator, dos);
-                return new Message(local, Stage.AE_SERVICE, StorageService.Verb.TREE_RESPONSE, bos.toByteArray());
+                return new Message(local, StorageService.Verb.TREE_RESPONSE, bos.toByteArray());
             }
             catch(IOException e)
             {

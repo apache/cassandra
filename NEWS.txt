@@ -33,9 +33,9 @@ Upgrading
     to http://wiki.apache.org/cassandra/ClientOptions for a list of
     higher-level clients that have been updated to support the 0.7 API.
 
-    The Cassandra inter-node protocol is incompatible with 0.6.x releases,
-    meaning you will have to bring your cluster down prior to upgrading;
-    you cannot mix 0.6 and 0.7 nodes.
+    The Cassandra inter-node protocol is incompatible with 0.6.x
+    releases (and with 0.7 beta1), meaning you will have to bring your
+    cluster down prior to upgrading: you cannot mix 0.6 and 0.7 nodes.
     
     The hints schema was changed from 0.6 to 0.7. Cassandra automatically
     snapshots and then truncates the hints column family as part of 

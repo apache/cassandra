@@ -130,6 +130,29 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     }
     public static final Verb[] VERBS = Verb.values();
 
+    public static final EnumMap<StorageService.Verb, Stage> verbStages = new EnumMap<StorageService.Verb, Stage>(StorageService.Verb.class)
+    {{
+        put(Verb.MUTATION, Stage.MUTATION);
+        put(Verb.BINARY, Stage.MUTATION);
+        put(Verb.READ, Stage.READ);
+        put(Verb.READ_RESPONSE, Stage.RESPONSE);
+        put(Verb.STREAM_STATUS, Stage.MISC); // TODO does this really belong on misc? I've just copied old behavior here
+        put(Verb.STREAM_REQUEST, Stage.STREAM);
+        put(Verb.RANGE_SLICE, Stage.READ);
+        put(Verb.BOOTSTRAP_TOKEN, Stage.MISC);
+        put(Verb.TREE_REQUEST, Stage.AE_SERVICE);
+        put(Verb.TREE_RESPONSE, Stage.RESPONSE);
+        put(Verb.GOSSIP_DIGEST_ACK, Stage.GOSSIP);
+        put(Verb.GOSSIP_DIGEST_ACK2, Stage.GOSSIP);
+        put(Verb.GOSSIP_DIGEST_SYN, Stage.GOSSIP);
+        put(Verb.DEFINITIONS_ANNOUNCE, Stage.READ);
+        put(Verb.DEFINITIONS_UPDATE_RESPONSE, Stage.READ);
+        put(Verb.TRUNCATE, Stage.MUTATION);
+        put(Verb.SCHEMA_CHECK, Stage.MIGRATION);
+        put(Verb.INDEX_SCAN, Stage.READ);
+    }};
+
+
     private static IPartitioner partitioner_ = DatabaseDescriptor.getPartitioner();
 
     public static final StorageService instance = new StorageService();

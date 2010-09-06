@@ -165,7 +165,7 @@ class ConsistencyChecker implements Runnable
             ReadResponse.serializer().serialize(readResponse, out);
             byte[] bytes = new byte[out.getLength()];
             System.arraycopy(out.getData(), 0, bytes, 0, bytes.length);
-            responses_.add(new Message(FBUtilities.getLocalAddress(), Stage.RESPONSE, StorageService.Verb.READ_RESPONSE, bytes));
+            responses_.add(new Message(FBUtilities.getLocalAddress(), StorageService.Verb.READ_RESPONSE, bytes));
         }
 
         // synchronized so the " == majority" is safe

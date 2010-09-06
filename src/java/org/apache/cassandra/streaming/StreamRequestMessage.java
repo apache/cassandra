@@ -97,7 +97,7 @@ class StreamRequestMessage
         {
             throw new IOError(e);
         }
-        return new Message(FBUtilities.getLocalAddress(), Stage.STREAM, StorageService.Verb.STREAM_REQUEST, bos.toByteArray() );
+        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.STREAM_REQUEST, bos.toByteArray() );
     }
 
     public String toString()

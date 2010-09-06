@@ -95,7 +95,7 @@ class FileStatus
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
         FileStatus.serializer().serialize(this, dos);
-        return new Message(FBUtilities.getLocalAddress(), Stage.MISC, StorageService.Verb.STREAM_STATUS, bos.toByteArray());
+        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.STREAM_STATUS, bos.toByteArray());
     }
 
     private static class FileStatusSerializer implements ICompactSerializer<FileStatus>
