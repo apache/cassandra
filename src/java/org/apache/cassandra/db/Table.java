@@ -32,6 +32,8 @@ import com.google.common.collect.Iterables;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.LocalToken;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableDeletingReference;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -98,9 +100,8 @@ public class Table
                 {
                     // do some housekeeping on the column families.
                     for (CFMetaData cfm : DatabaseDescriptor.getTableDefinition(table).cfMetaData().values())
-                    {
                         ColumnFamilyStore.scrubDataDirectories(table, cfm.cfName);
-                    }
+                    // open and store the table
                     tableInstance = new Table(table);
                     instances.put(table, tableInstance);
                 }

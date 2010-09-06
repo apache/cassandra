@@ -24,6 +24,7 @@ import java.io.IOError;
 import java.io.IOException;
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
+import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -31,6 +32,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.DeletionService;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
 
 public class SSTableDeletingReference extends PhantomReference<SSTableReader>
@@ -41,7 +44,8 @@ public class SSTableDeletingReference extends PhantomReference<SSTableReader>
     public static final int RETRY_DELAY = 10000;
 
     private final SSTableTracker tracker;
-    public final String path;
+    public final Descriptor desc;
+    public final Set<Component> components;
     private final long size;
     private boolean deleteOnCleanup;
 
@@ -49,7 +53,8 @@ public class SSTableDeletingReference extends PhantomReference<SSTableReader>
     {
         super(referent, q);
         this.tracker = tracker;
-        this.path = referent.getFilename();
+        this.desc = referent.getDescriptor();
+        this.components = referent.getComponents();
         this.size = referent.bytesOnDisk();
     }
 
@@ -63,9 +68,8 @@ public class SSTableDeletingReference extends PhantomReference<SSTableReader>
         if (deleteOnCleanup)
         {
             // this is tricky because the mmapping might not have been finalized yet,
-            // and delete will fail until it is.  additionally, we need to make sure to
+            // and delete will fail (on Windows) until it is.  additionally, we need to make sure to
             // delete the data file first, so on restart the others will be recognized as GCable
-            // even if the compaction marker gets deleted next.
             timer.schedule(new CleanupTask(), RETRY_DELAY);
         }
     }
@@ -77,7 +81,8 @@ public class SSTableDeletingReference extends PhantomReference<SSTableReader>
         @Override
         public void run()
         {
-            File datafile = new File(path);
+            // retry until we can successfully delete the DATA component: see above
+            File datafile = new File(desc.filenameFor(Component.DATA));
             if (!datafile.delete())
             {
                 if (attempts++ < DeletionService.MAX_RETRIES)
@@ -87,22 +92,13 @@ public class SSTableDeletingReference extends PhantomReference<SSTableReader>
                 }
                 else
                 {
-                    throw new RuntimeException("Unable to delete " + path);
+                    throw new RuntimeException("Unable to delete " + datafile);
                 }
             }
-            try
-            {
-                FileUtils.deleteWithConfirm(new File(SSTable.indexFilename(path)));
-                FileUtils.deleteWithConfirm(new File(SSTable.filterFilename(path)));
-                FileUtils.deleteWithConfirm(new File(SSTable.statisticsFilename(path)));
-                FileUtils.deleteWithConfirm(new File(SSTable.compactedFilename(path)));
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
+            // let the remainder be cleaned up by conditionalDelete
+            components.remove(Component.DATA);
+            SSTable.conditionalDelete(desc, components);
             tracker.spaceReclaimed(size);
-            logger.info("Deleted " + path);
         }
     }
 }

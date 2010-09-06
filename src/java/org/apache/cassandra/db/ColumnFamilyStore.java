@@ -27,8 +27,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import com.google.common.collect.Iterables;
 import org.apache.commons.collections.IteratorUtils;
@@ -53,6 +51,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.LocalByPartionerType;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -64,6 +63,7 @@ import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LatencyTracker;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 import javax.management.MBeanServer;
@@ -104,14 +104,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                new NamedThreadFactory("FLUSH-WRITER-POOL"));
     private static ExecutorService postFlushExecutor = new JMXEnabledThreadPoolExecutor("MEMTABLE-POST-FLUSHER");
     
-    private static final FilenameFilter DB_NAME_FILTER = new FilenameFilter()
-    {
-        public boolean accept(File dir, String name)
-        {
-            return name.matches("[^\\.][\\S]+?[\\.db]");
-        }
-    };
-
     private Set<Memtable> memtablesPendingFlush = new ConcurrentSkipListSet<Memtable>();
 
     public final String table;
@@ -154,34 +146,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (logger.isDebugEnabled())
             logger.debug("Starting CFS {}", columnFamily);
         
-        // scan for data files corresponding to this CF
-        List<File> sstableFiles = new ArrayList<File>();
-        
-        for (File file : files(table, columnFamilyName))
-        {
-            if (file.getName().contains("-Data.db"))
-            {
-                sstableFiles.add(file.getAbsoluteFile());
-            }
-        }
-        Collections.sort(sstableFiles, new FileUtils.FileComparator());
-
-        /* Load the index files and the Bloom Filters associated with them. */
+        // scan for sstables corresponding to this cf and load them
         List<SSTableReader> sstables = new ArrayList<SSTableReader>();
-        for (File file : sstableFiles)
+        for (Map.Entry<Descriptor,Set<Component>> sstableFiles : files(table, columnFamilyName).entrySet())
         {
-            String filename = file.getAbsolutePath();
-            if (SSTable.deleteIfCompacted(filename))
-                continue;
-
             SSTableReader sstable;
             try
             {
-                sstable = SSTableReader.open(Descriptor.fromFilename(filename), metadata, this.partitioner);
+                sstable = SSTableReader.open(sstableFiles.getKey(), sstableFiles.getValue(), metadata, this.partitioner);
             }
             catch (IOException ex)
             {
-                logger.error("Corrupt file " + filename + "; skipped", ex);
+                logger.error("Corrupt sstable " + sstableFiles + "; skipped", ex);
                 continue;
             }
             sstables.add(sstable);
@@ -311,68 +287,44 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public static synchronized ColumnFamilyStore createColumnFamilyStore(String table, String columnFamily, IPartitioner partitioner, CFMetaData metadata)
     {
-        /*
-         * Get all data files associated with old Memtables for this table.
-         * These files are named as follows <Table>-1.db, ..., <Table>-n.db. Get
-         * the max which in this case is n and increment it to use it for next
-         * index.
-         */
+        // get the max generation number, to prevent generation conflicts
         List<Integer> generations = new ArrayList<Integer>();
-        String[] dataFileDirectories = DatabaseDescriptor.getAllDataFileLocationsForTable(table);
-        for (String directory : dataFileDirectories)
-        {
-            File fileDir = new File(directory);
-            File[] files = fileDir.listFiles(DB_NAME_FILTER);
-            
-            for (File file : files)
-            {
-                if (file.isDirectory())
-                    continue;
-                String filename = file.getAbsolutePath();
-                String cfName = getColumnFamilyFromFileName(filename);
-
-                if (cfName.equals(columnFamily))
-                {
-                    generations.add(getGenerationFromFileName(filename));
-                }
-            }
-        }
+        for (Descriptor desc : files(table, columnFamily).keySet())
+            generations.add(desc.generation);
         Collections.sort(generations);
         int value = (generations.size() > 0) ? (generations.get(generations.size() - 1)) : 0;
 
         return new ColumnFamilyStore(table, columnFamily, partitioner, value, metadata);
     }
     
-    // remove unnecessary files from the cf directory. these include temp files, orphans and zero-length files.
+    /**
+     * Removes unnecessary files from the cf directory at startup: these include temp files, orphans, zero-length files
+     * and compacted sstables. Files that cannot be recognized will be ignored.
+     * @return A list of Descriptors that were removed.
+     */
     static void scrubDataDirectories(String table, String columnFamily)
     {
-        /* look for and remove orphans. An orphan is a -Filter.db or -Index.db with no corresponding -Data.db. */
-        Pattern auxFilePattern = Pattern.compile("(.*)(-Filter\\.db$|-Index\\.db$)");
-        for (File file : files(table, columnFamily))
+        for (Map.Entry<Descriptor,Set<Component>> sstableFiles : files(table, columnFamily).entrySet())
         {
-            String filename = file.getName();
-            Matcher matcher = auxFilePattern.matcher(file.getAbsolutePath());
-            if (matcher.matches())
-            {
-                String basePath = matcher.group(1);
-                if (!new File(basePath + "-Data.db").exists())
-                {
-                    logger.info(String.format("Removing orphan %s", file.getAbsolutePath()));
-                    try
-                    {
-                        FileUtils.deleteWithConfirm(file);
-                    }
-                    catch (IOException e)
-                    {
-                        throw new IOError(e);
-                    }
-                }
-            }
-            else if (((file.length() == 0 && !filename.endsWith("-Compacted")) || (filename.contains("-" + SSTable.TEMPFILE_MARKER))))
+            Descriptor desc = sstableFiles.getKey();
+            Set<Component> components = sstableFiles.getValue();
+
+            if (SSTable.conditionalDelete(desc, components))
+                // was compacted or temporary: deleted.
+                continue;
+
+            File dataFile = new File(desc.filenameFor(Component.DATA));
+            if (components.contains(Component.DATA) && dataFile.length() > 0)
+                // everything appears to be in order... moving on.
+                continue;
+
+            // missing the DATA file! all components are orphaned
+            logger.warn("Removing orphans for {}: {}", desc, components);
+            for (Component component : components)
             {
                 try
                 {
-                    FileUtils.deleteWithConfirm(file);
+                    FileUtils.deleteWithConfirm(desc.filenameFor(component));
                 }
                 catch (IOException e)
                 {
@@ -382,26 +334,36 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
     
-    private static Set<File> files(String table, String columnFamily)
+    /**
+     * Collects a map of sstable components.
+     */
+    private static Map<Descriptor,Set<Component>> files(String keyspace, final String columnFamily)
     {
-        assert table != null;
-        assert columnFamily != null;
-        Set<File> fileSet = new HashSet<File>();
-        for (String directory : DatabaseDescriptor.getAllDataFileLocationsForTable(table))
+        final Map<Descriptor,Set<Component>> sstables = new HashMap<Descriptor,Set<Component>>();
+        for (String directory : DatabaseDescriptor.getAllDataFileLocationsForTable(keyspace))
         {
-            File[] files = new File(directory).listFiles(DB_NAME_FILTER);
-            if (files == null)
-                continue;
-            for (File file : files)
+            // NB: we never "accept" a file in the FilenameFilter sense: they are added to the sstable map
+            new File(directory).list(new FilenameFilter()
             {
-                if (file.isDirectory())
-                    continue;
-                String cfName = getColumnFamilyFromFileName(file.getAbsolutePath());
-                if (cfName.equals(columnFamily))
-                    fileSet.add(file);
-            }
+                @Override
+                public boolean accept(File dir, String name)
+                {
+                    Pair<Descriptor,Component> component = SSTable.tryComponentFromFilename(dir, name);
+                    if (component != null && component.left.cfname.equals(columnFamily))
+                    {
+                        Set<Component> components = sstables.get(component.left);
+                        if (components == null)
+                        {
+                            components = new HashSet<Component>();
+                            sstables.put(component.left, components);
+                        }
+                        components.add(component.right);
+                    }
+                    return false;
+                }
+            });
         }
-        return fileSet;
+        return sstables;
     }
 
     /**
@@ -410,16 +372,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public String getColumnFamilyName()
     {
         return columnFamily;
-    }
-
-    private static String getColumnFamilyFromFileName(String filename)
-    {
-        return Descriptor.fromFilename(filename).cfname;
-    }
-
-    public static int getGenerationFromFileName(String filename)
-    {
-        return Descriptor.fromFilename(filename).generation;
     }
 
     /*
@@ -439,11 +391,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public String getTempSSTablePath(String directory)
     {
         Descriptor desc = new Descriptor(new File(directory),
-                table,
-                columnFamily,
-                                                         fileIndexGenerator.incrementAndGet(),
-                                                         true);
-        return desc.filenameFor("Data.db");
+                                         table,
+                                         columnFamily,
+                                         fileIndexGenerator.incrementAndGet(),
+                                         true);
+        return desc.filenameFor(Component.DATA);
     }
 
     /** flush the given memtable and swap in a new one for its CFS, if it hasn't been frozen already.  threadsafe. */
@@ -1336,25 +1288,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             try
             {
                 // mkdir
-                File sourceFile = new File(ssTable.getFilename());
-                File dataDirectory = sourceFile.getParentFile().getParentFile();
+                File dataDirectory = ssTable.getDescriptor().directory.getParentFile();
                 String snapshotDirectoryPath = Table.getSnapshotPath(dataDirectory.getAbsolutePath(), table, snapshotName);
                 FileUtils.createDirectory(snapshotDirectoryPath);
 
                 // hard links
-                File targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
-                FileUtils.createHardLink(sourceFile, targetLink);
-
-                sourceFile = new File(ssTable.indexFilename());
-                targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
-                FileUtils.createHardLink(sourceFile, targetLink);
-
-                sourceFile = new File(ssTable.filterFilename());
-                targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
-                FileUtils.createHardLink(sourceFile, targetLink);
+                for (Component component : ssTable.getComponents())
+                {
+                    File sourceFile = new File(ssTable.getDescriptor().filenameFor(component));
+                    File targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
+                    FileUtils.createHardLink(sourceFile, targetLink);
+                }
                 if (logger.isDebugEnabled())
-                    logger.debug("Snapshot for " + table + " table data file " + sourceFile.getAbsolutePath() +
-                        " created as " + targetLink.getAbsolutePath());
+                    logger.debug("Snapshot for " + table + " keyspace data file " + ssTable.getFilename() +
+                        " created in " + snapshotDirectoryPath);
             }
             catch (IOException e)
             {

@@ -55,10 +55,16 @@ public class SSTableWriter extends SSTable
 
     public SSTableWriter(String filename, long keyCount, CFMetaData metadata, IPartitioner partitioner) throws IOException
     {
-        super(filename, metadata, partitioner);
+        super(Descriptor.fromFilename(filename), metadata, partitioner);
         iwriter = new IndexWriter(desc, partitioner, keyCount);
         dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
         dataFile = new BufferedRandomAccessFile(getFilename(), "rw", DatabaseDescriptor.getInMemoryCompactionLimit());
+
+        // the set of required components
+        components.add(Component.DATA);
+        components.add(Component.FILTER);
+        components.add(Component.PRIMARY_INDEX);
+        components.add(Component.STATS);
     }
 
     private long beforeAppend(DecoratedKey decoratedKey) throws IOException
@@ -144,13 +150,13 @@ public class SSTableWriter extends SSTable
         writeStatistics(desc);
 
         // remove the 'tmp' marker from all components
-        final Descriptor newdesc = rename(desc);
+        final Descriptor newdesc = rename(desc, components);
 
 
         // finalize in-memory state for the reader
         SegmentedFile ifile = iwriter.builder.complete(newdesc.filenameFor(SSTable.COMPONENT_INDEX));
         SegmentedFile dfile = dbuilder.complete(newdesc.filenameFor(SSTable.COMPONENT_DATA));
-        SSTableReader sstable = SSTableReader.internalOpen(newdesc, metadata, partitioner, ifile, dfile, iwriter.summary, iwriter.bf, maxDataAge, estimatedRowSize, estimatedColumnCount);
+        SSTableReader sstable = SSTableReader.internalOpen(newdesc, components, metadata, partitioner, ifile, dfile, iwriter.summary, iwriter.bf, maxDataAge, estimatedRowSize, estimatedColumnCount);
         iwriter = null;
         dbuilder = null;
         return sstable;
@@ -164,12 +170,12 @@ public class SSTableWriter extends SSTable
         dos.close();
     }
 
-    static Descriptor rename(Descriptor tmpdesc)
+    static Descriptor rename(Descriptor tmpdesc, Set<Component> components)
     {
         Descriptor newdesc = tmpdesc.asTemporary(false);
         try
         {
-            for (String component : components)
+            for (Component component : components)
                 FBUtilities.renameWithConfirm(tmpdesc.filenameFor(component), newdesc.filenameFor(component));
         }
         catch (IOException e)
@@ -326,8 +332,10 @@ public class SSTableWriter extends SSTable
             throw new RuntimeException(String.format("Cannot recover SSTable with version %s (current version %s).",
                                                      desc.version, Descriptor.CURRENT_VERSION));
 
+        // FIXME: once maybeRecover is recovering BMIs, it should return the recovered
+        // components
         maybeRecover(desc);
-        return SSTableReader.open(rename(desc));
+        return SSTableReader.open(rename(desc, SSTable.componentsFor(desc)));
     }
 
     /**

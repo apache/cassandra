@@ -26,6 +26,8 @@ import java.util.StringTokenizer;
 
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.utils.Pair;
+
 /**
  * A SSTable is described by the keyspace and column family it contains data
  * for, a generation (where higher generations contain more recent data) and
@@ -76,6 +78,11 @@ public class Descriptor
         isLatestVersion = version.compareTo(CURRENT_VERSION) == 0;
     }
 
+    public String filenameFor(Component component)
+    {
+        return filenameFor(component.name());
+    }
+
     /**
      * @param suffix A component suffix, such as 'Data.db'/'Index.db'/etc
      * @return A filename for this descriptor with the given suffix.
@@ -95,9 +102,7 @@ public class Descriptor
     }
 
     /**
-     * Filename of the form "<ksname>/<cfname>-[tmp-][<version>-]<gen>-*"
-     * @param filename A full SSTable filename, including the directory.
-     * @return A SSTable.Descriptor for the filename.
+     * @see #fromFilename(directory, name)
      */
     public static Descriptor fromFilename(String filename)
     {
@@ -105,7 +110,15 @@ public class Descriptor
         assert separatorPos != -1 : "Filename must include parent directory.";
         File directory = new File(filename.substring(0, separatorPos));
         String name = filename.substring(separatorPos+1, filename.length());
+        return fromFilename(directory, name).left;
+    }
 
+    /**
+     * Filename of the form "<ksname>/<cfname>-[tmp-][<version>-]<gen>-<component>"
+     * @return A Descriptor for the SSTable, and the Component remainder.
+     */
+    static Pair<Descriptor,String> fromFilename(File directory, String name)
+    {
         // name of parent directory is keyspace name
         String ksname = directory.getName();
 
@@ -134,7 +147,10 @@ public class Descriptor
         }
         int generation = Integer.parseInt(nexttok);
 
-        return new Descriptor(version, directory, ksname, cfname, generation, temporary);
+        // component suffix
+        String component = st.nextToken();
+
+        return new Pair<Descriptor,String>(new Descriptor(version, directory, ksname, cfname, generation, temporary), component);
     }
 
     /**

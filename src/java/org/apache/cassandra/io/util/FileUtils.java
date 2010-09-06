@@ -38,6 +38,11 @@ public class FileUtils
     private static final double gb_ = 1024*1024*1024d;
     private static final double tb_ = 1024*1024*1024*1024d;
 
+    public static void deleteWithConfirm(String file) throws IOException
+    {
+        deleteWithConfirm(new File(file));
+    }
+
     public static void deleteWithConfirm(File file) throws IOException
     {
         assert file.exists() : "attempted to delete non-existing file " + file.getName();

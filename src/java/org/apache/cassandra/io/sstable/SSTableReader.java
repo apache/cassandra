@@ -86,7 +86,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                     }
                     catch (IOException e)
                     {
-                        logger.error("Error deleting " + r.path, e);
+                        logger.error("Error deleting " + r.desc, e);
                     }
                 }
             }
@@ -155,36 +155,21 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     public static SSTableReader open(Descriptor desc) throws IOException
     {
-        return open(desc, DatabaseDescriptor.getCFMetaData(desc.ksname, desc.cfname), StorageService.getPartitioner());
+        Set<Component> components = SSTable.componentsFor(desc);
+        return open(desc, components, DatabaseDescriptor.getCFMetaData(desc.ksname, desc.cfname), StorageService.getPartitioner());
     }
 
-    public static SSTableReader open(Descriptor descriptor, CFMetaData metadata, IPartitioner partitioner) throws IOException
+    public static SSTableReader open(Descriptor descriptor, Set<Component> components, CFMetaData metadata, IPartitioner partitioner) throws IOException
     {
         assert partitioner != null;
 
         long start = System.currentTimeMillis();
         logger.info("Sampling index for " + descriptor);
 
-        SSTableReader sstable;
-        // FIXME: version conditional readers here
-        if (true)
-        {
-            sstable = internalOpen(descriptor, metadata, partitioner);
-        }
-
-        if (logger.isDebugEnabled())
-            logger.debug("INDEX LOAD TIME for " + descriptor + ": " + (System.currentTimeMillis() - start) + " ms.");
-
-        return sstable;
-    }
-
-    /** Open a RowIndexedReader which needs its state loaded from disk. */
-    static SSTableReader internalOpen(Descriptor desc, CFMetaData metadata, IPartitioner partitioner) throws IOException
-    {
-        SSTableReader sstable = new SSTableReader(desc, metadata, partitioner, null, null, null, null, System.currentTimeMillis());
+        SSTableReader sstable = new SSTableReader(descriptor, components, metadata, partitioner, null, null, null, null, System.currentTimeMillis(), null, null);
 
         // versions before 'c' encoded keys as utf-16 before hashing to the filter
-        if (desc.hasStringsInBloomFilter)
+        if (descriptor.hasStringsInBloomFilter)
         {
             sstable.load(true);
         }
@@ -193,56 +178,39 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
             sstable.load(false);
             sstable.loadBloomFilter();
         }
-        sstable.loadStatistics(desc);
+        sstable.loadStatistics(descriptor);
+
+        if (logger.isDebugEnabled())
+            logger.debug("INDEX LOAD TIME for " + descriptor + ": " + (System.currentTimeMillis() - start) + " ms.");
 
         return sstable;
     }
 
+    /**
+     * Open a RowIndexedReader which already has its state initialized (by SSTableWriter).
+     */
+    static SSTableReader internalOpen(Descriptor desc, Set<Component> components, CFMetaData metadata, IPartitioner partitioner, SegmentedFile ifile, SegmentedFile dfile, IndexSummary isummary, BloomFilter bf, long maxDataAge, EstimatedHistogram rowsize,
+                                      EstimatedHistogram columncount) throws IOException
+    {
+        assert desc != null && partitioner != null && ifile != null && dfile != null && isummary != null && bf != null;
+        return new SSTableReader(desc, components, metadata, partitioner, ifile, dfile, isummary, bf, maxDataAge, rowsize, columncount);
+    }
+
     private SSTableReader(Descriptor desc,
+                          Set<Component> components,
                           CFMetaData metadata,
                           IPartitioner partitioner,
                           SegmentedFile ifile,
                           SegmentedFile dfile,
                           IndexSummary indexSummary,
                           BloomFilter bloomFilter,
-                          long maxDataAge)
-            throws IOException
-    {
-        super(desc, metadata, partitioner);
-        this.maxDataAge = maxDataAge;
-
-
-        this.ifile = ifile;
-        this.dfile = dfile;
-        this.indexSummary = indexSummary;
-        this.bf = bloomFilter;
-    }
-
-    /**
-     * Open a RowIndexedReader which already has its state initialized (by SSTableWriter).
-     */
-    static SSTableReader internalOpen(Descriptor desc, CFMetaData metadata, IPartitioner partitioner, SegmentedFile ifile, SegmentedFile dfile, IndexSummary isummary, BloomFilter bf, long maxDataAge, EstimatedHistogram rowsize,
-                                      EstimatedHistogram columncount) throws IOException
-    {
-        assert desc != null && partitioner != null && ifile != null && dfile != null && isummary != null && bf != null;
-        return new SSTableReader(desc, metadata, partitioner, ifile, dfile, isummary, bf, maxDataAge, rowsize, columncount);
-    }
-
-    SSTableReader(Descriptor desc,
-                  CFMetaData metadata,
-                  IPartitioner partitioner,
-                  SegmentedFile ifile,
-                  SegmentedFile dfile,
-                  IndexSummary indexSummary,
-                  BloomFilter bloomFilter,
-                  long maxDataAge,
-                  EstimatedHistogram rowsize,
-                  EstimatedHistogram columncount)
+                          long maxDataAge,
+                          EstimatedHistogram rowsize,
+                          EstimatedHistogram columncount)
     throws IOException
     {
-        super(desc, metadata, partitioner);
+        super(desc, components, metadata, partitioner);
         this.maxDataAge = maxDataAge;
-
 
         this.ifile = ifile;
         this.dfile = dfile;
@@ -261,7 +229,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     void loadBloomFilter() throws IOException
     {
-        DataInputStream stream = new DataInputStream(new FileInputStream(filterFilename()));
+        DataInputStream stream = new DataInputStream(new FileInputStream(desc.filenameFor(Component.FILTER)));
         try
         {
             bf = BloomFilter.serializer().deserialize(stream);
@@ -282,7 +250,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
         // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
         indexSummary = new IndexSummary();
-        BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(), "r");
+        BufferedRandomAccessFile input = new BufferedRandomAccessFile(desc.filenameFor(Component.PRIMARY_INDEX), "r");
         try
         {
             long indexSize = input.length();
@@ -313,8 +281,8 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
         // finalize the state of the reader
         indexSummary.complete();
-        ifile = ibuilder.complete(indexFilename());
-        dfile = dbuilder.complete(getFilename());
+        ifile = ibuilder.complete(desc.filenameFor(Component.PRIMARY_INDEX));
+        dfile = dbuilder.complete(desc.filenameFor(Component.DATA));
     }
 
     /** get the position in the index file to start scanning to find the given key (at most indexInterval keys away) */
@@ -503,7 +471,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
             logger.debug("Marking " + getFilename() + " compacted");
         try
         {
-            if (!new File(compactedFilename()).createNewFile())
+            if (!new File(desc.filenameFor(Component.COMPACTED_MARKER)).createNewFile())
                 throw new IOException("Unable to create compaction marker");
         }
         catch (IOException e)

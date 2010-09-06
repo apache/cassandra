@@ -20,11 +20,10 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOError;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.Arrays;
+import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +32,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * This class is built on top of the SequenceFile. It stores
@@ -50,31 +50,33 @@ public abstract class SSTable
 {
     static final Logger logger = LoggerFactory.getLogger(SSTable.class);
 
-    public static final String COMPONENT_DATA = "Data.db";
-    public static final String COMPONENT_INDEX = "Index.db";
-    public static final String COMPONENT_FILTER = "Filter.db";
-    public static final String COMPONENT_STATS = "Statistics.db";
+    // TODO: replace with 'Component' objects
+    public static final String COMPONENT_DATA = Component.Type.DATA.repr;
+    public static final String COMPONENT_INDEX = Component.Type.PRIMARY_INDEX.repr;
+    public static final String COMPONENT_FILTER = Component.Type.FILTER.repr;
+    public static final String COMPONENT_STATS = Component.Type.STATS.repr;
 
-    public static final String COMPONENT_COMPACTED = "Compacted";
+    public static final String COMPONENT_COMPACTED = Component.Type.COMPACTED_MARKER.repr;
 
     protected final Descriptor desc;
+    protected final Set<Component> components;
     public final CFMetaData metadata;
     protected final IPartitioner partitioner;
 
     public static final String TEMPFILE_MARKER = "tmp";
 
-    public static List<String> components = Collections.unmodifiableList(Arrays.asList(COMPONENT_FILTER, COMPONENT_INDEX, COMPONENT_DATA, COMPONENT_STATS));
     protected EstimatedHistogram estimatedRowSize = new EstimatedHistogram(150);
     protected EstimatedHistogram estimatedColumnCount = new EstimatedHistogram(114);
 
-    protected SSTable(String filename, CFMetaData metadata, IPartitioner partitioner)
-    {
-        this(Descriptor.fromFilename(filename), metadata, partitioner);
-    }
-
     protected SSTable(Descriptor desc, CFMetaData metadata, IPartitioner partitioner)
     {
+        this(desc, new HashSet<Component>(), metadata, partitioner);
+    }
+
+    protected SSTable(Descriptor desc, Set<Component> components, CFMetaData metadata, IPartitioner partitioner)
+    {
         this.desc = desc;
+        this.components = components;
         this.metadata = metadata;
         this.partitioner = partitioner;
     }
@@ -99,19 +101,9 @@ public abstract class SSTable
         return desc;
     }
 
-    public static String indexFilename(String dataFile)
+    public Set<Component> getComponents()
     {
-        return Descriptor.fromFilename(dataFile).filenameFor(COMPONENT_INDEX);
-    }
-
-    public String indexFilename()
-    {
-        return desc.filenameFor(COMPONENT_INDEX);
-    }
-
-    protected static String compactedFilename(String dataFile)
-    {
-        return Descriptor.fromFilename(dataFile).filenameFor(COMPONENT_COMPACTED);
+        return components;
     }
 
     /**
@@ -121,53 +113,36 @@ public abstract class SSTable
      * we write a marker to `compactedFilename` when a file is compacted;
      * if such a marker exists on startup, the file should be removed.
      *
+     * This method will also remove SSTables that are marked as temporary.
+     *
      * @return true if the file was deleted
      */
-    public static boolean deleteIfCompacted(String dataFilename)
+    public static boolean conditionalDelete(Descriptor desc, Set<Component> components)
     {
-        if (new File(compactedFilename(dataFilename)).exists())
+        if (!components.contains(Component.COMPACTED_MARKER) && !desc.temporary)
+            // not compacted or temporary
+            return false;
+        try
         {
-            try
+            // remove the DATA component first if it exists
+            if (components.contains(Component.DATA))
+                FileUtils.deleteWithConfirm(desc.filenameFor(Component.DATA));
+            for (Component component : components)
             {
-                FileUtils.deleteWithConfirm(new File(dataFilename));
-                FileUtils.deleteWithConfirm(new File(SSTable.indexFilename(dataFilename)));
-                FileUtils.deleteWithConfirm(new File(SSTable.filterFilename(dataFilename)));
-                FileUtils.deleteWithConfirm(new File(SSTable.statisticsFilename(dataFilename)));
-                FileUtils.deleteWithConfirm(new File(SSTable.compactedFilename(dataFilename)));
+                if (component.equals(Component.DATA) || component.equals(Component.COMPACTED_MARKER))
+                    continue;
+                FileUtils.deleteWithConfirm(desc.filenameFor(component));
             }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
-            logger.info("Deleted " + dataFilename);
-            return true;
+            // remove the COMPACTED_MARKER component last if it exists
+            if (components.contains(Component.COMPACTED_MARKER))
+                FileUtils.deleteWithConfirm(desc.filenameFor(Component.COMPACTED_MARKER));
         }
-        return false;
-    }
-
-    protected String compactedFilename()
-    {
-        return desc.filenameFor(COMPONENT_COMPACTED);
-    }
-
-    protected static String filterFilename(String dataFile)
-    {
-        return Descriptor.fromFilename(dataFile).filenameFor(COMPONENT_FILTER);
-    }
-
-    protected static String statisticsFilename(String dataFile)
-    {
-        return Descriptor.fromFilename(dataFile).filenameFor(COMPONENT_STATS);
-    }
-
-    public String filterFilename()
-    {
-        return desc.filenameFor(COMPONENT_FILTER);
-    }
-
-    public String statisticsFilename()
-    {
-        return desc.filenameFor(COMPONENT_STATS);
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+        logger.info("Deleted " + desc);
+        return true;
     }
 
     public String getFilename()
@@ -185,6 +160,41 @@ public abstract class SSTable
         return desc.ksname;
     }
 
+    /**
+     * @return A Descriptor,Component pair, or null if not a valid sstable component.
+     */
+    public static Pair<Descriptor,Component> tryComponentFromFilename(File dir, String name)
+    {
+        try
+        {
+            return Component.fromFilename(dir, name);
+        }
+        catch (Exception e)
+        {
+            logger.warn("Invalid file '{}' in data directory {}.", name, dir);
+            return null;
+        }
+    }
+
+    /**
+     * Discovers existing components for the descriptor. Slow: only intended for use outside the critical path.
+     */
+    static Set<Component> componentsFor(final Descriptor desc) throws IOException
+    {
+        final Set<Component> components = new HashSet<Component>();
+        desc.directory.list(new FilenameFilter()
+        {
+            public boolean accept(File dir, String name)
+            {
+                Pair<Descriptor,Component> component = tryComponentFromFilename(dir, name);
+                if (component != null && component.left.equals(desc))
+                    components.add(component.right);
+                return false;
+            }
+        });
+        return components;
+    }
+
     public static long getTotalBytes(Iterable<SSTableReader> sstables)
     {
         long sum = 0;
@@ -198,9 +208,9 @@ public abstract class SSTable
     public long bytesOnDisk()
     {
         long bytes = 0;
-        for (String cname : components)
+        for (Component component : components)
         {
-            bytes += new File(desc.filenameFor(cname)).length();
+            bytes += new File(desc.filenameFor(component)).length();
         }
         return bytes;
     }

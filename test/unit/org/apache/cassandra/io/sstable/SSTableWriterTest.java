@@ -80,8 +80,8 @@ public class SSTableWriterTest extends CleanupHelper {
         
         SSTableReader orig = SSTableUtils.writeRawSSTable("Keyspace1", "Indexed1", entries);        
         // whack the index to trigger the recover
-        new File(orig.indexFilename()).delete();
-        new File(orig.filterFilename()).delete();
+        new File(orig.desc.filenameFor(Component.PRIMARY_INDEX)).delete();
+        new File(orig.desc.filenameFor(Component.FILTER)).delete();
         
         SSTableReader sstr = SSTableWriter.recoverAndOpen(orig.desc);
         
