@@ -26,6 +26,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.thrift.*;
 import org.apache.thrift.protocol.TBinaryProtocol;
+import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 
@@ -47,12 +48,10 @@ public class TestRingCache
     {
         /* Establish a thrift connection to the cassandra instance */
         TSocket socket = new TSocket(server, port);
-        TTransport transport;
         System.out.println(" connected to " + server + ":" + port + ".");
-        transport = socket;
-        TBinaryProtocol binaryProtocol = new TBinaryProtocol(transport);
+        TBinaryProtocol binaryProtocol = new TBinaryProtocol(new TFramedTransport(socket));
         Cassandra.Client cassandraClient = new Cassandra.Client(binaryProtocol);
-        transport.open();
+        socket.open();
         thriftClient = cassandraClient;
     }
 
