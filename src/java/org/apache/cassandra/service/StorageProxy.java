@@ -37,6 +37,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -197,7 +198,7 @@ public class StorageProxy implements StorageProxyMBean
                 responseHandler.response(null);
             }
         };
-        StageManager.getStage(StageManager.MUTATION_STAGE).execute(runnable);
+        StageManager.getStage(Stage.MUTATION).execute(runnable);
     }
 
     /**
@@ -244,7 +245,7 @@ public class StorageProxy implements StorageProxyMBean
                 if (localFutures == null)
                     localFutures = new ArrayList<Future<Object>>();
                 Callable<Object> callable = new weakReadLocalCallable(command);
-                localFutures.add(StageManager.getStage(StageManager.READ_STAGE).submit(callable));
+                localFutures.add(StageManager.getStage(Stage.READ).submit(callable));
             }
             else
             {
@@ -493,7 +494,7 @@ public class StorageProxy implements StorageProxyMBean
         final String myVersion = DatabaseDescriptor.getDefsVersion().toString();
         final Map<InetAddress, UUID> versions = new ConcurrentHashMap<InetAddress, UUID>();
         final Set<InetAddress> liveHosts = Gossiper.instance.getLiveMembers();
-        final Message msg = new Message(FBUtilities.getLocalAddress(), StageManager.MIGRATION_STAGE, StorageService.Verb.SCHEMA_CHECK, ArrayUtils.EMPTY_BYTE_ARRAY);
+        final Message msg = new Message(FBUtilities.getLocalAddress(), Stage.MIGRATION, StorageService.Verb.SCHEMA_CHECK, ArrayUtils.EMPTY_BYTE_ARRAY);
         final CountDownLatch latch = new CountDownLatch(liveHosts.size());
         // an empty message acts as a request to the SchemaCheckVerbHandler.
         MessagingService.instance.sendRR(msg, liveHosts.toArray(new InetAddress[]{}), new IAsyncCallback() 

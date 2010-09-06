@@ -18,14 +18,13 @@
 
 package org.apache.cassandra.concurrent;
 
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentReaders;
 import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentWriters;
@@ -38,33 +37,25 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentWriter
  */
 public class StageManager
 {
-    private static Map<String, ThreadPoolExecutor> stages = new HashMap<String, ThreadPoolExecutor>();
-
-    public final static String READ_STAGE = "ROW-READ-STAGE";
-    public final static String MUTATION_STAGE = "ROW-MUTATION-STAGE";
-    public final static String STREAM_STAGE = "STREAM-STAGE";
-    public final static String GOSSIP_STAGE = "GS";
-    public static final String RESPONSE_STAGE = "RESPONSE-STAGE";
-    public final static String AE_SERVICE_STAGE = "AE-SERVICE-STAGE";
-    private static final String LOADBALANCE_STAGE = "LOAD-BALANCER-STAGE";
-    public static final String MIGRATION_STAGE = "MIGRATION-STAGE";
+    private static EnumMap<Stage, ThreadPoolExecutor> stages = new EnumMap<Stage, ThreadPoolExecutor>(Stage.class);
 
     public static final long KEEPALIVE = 60; // seconds to keep "extra" threads alive for when idle
 
     static
     {
-        stages.put(MUTATION_STAGE, multiThreadedConfigurableStage(MUTATION_STAGE, getConcurrentWriters()));
-        stages.put(READ_STAGE, multiThreadedConfigurableStage(READ_STAGE, getConcurrentReaders()));        
-        stages.put(RESPONSE_STAGE, multiThreadedStage(RESPONSE_STAGE, Math.max(2, Runtime.getRuntime().availableProcessors())));
+        stages.put(Stage.MUTATION, multiThreadedConfigurableStage(Stage.MUTATION, getConcurrentWriters()));
+        stages.put(Stage.READ, multiThreadedConfigurableStage(Stage.READ, getConcurrentReaders()));        
+        stages.put(Stage.RESPONSE, multiThreadedStage(Stage.RESPONSE, Math.max(2, Runtime.getRuntime().availableProcessors())));
         // the rest are all single-threaded
-        stages.put(STREAM_STAGE, new JMXEnabledThreadPoolExecutor(STREAM_STAGE));
-        stages.put(GOSSIP_STAGE, new JMXEnabledThreadPoolExecutor("GOSSIP_STAGE"));
-        stages.put(AE_SERVICE_STAGE, new JMXEnabledThreadPoolExecutor(AE_SERVICE_STAGE));
-        stages.put(LOADBALANCE_STAGE, new JMXEnabledThreadPoolExecutor(LOADBALANCE_STAGE));
-        stages.put(MIGRATION_STAGE, new JMXEnabledThreadPoolExecutor(MIGRATION_STAGE));
+        stages.put(Stage.STREAM, new JMXEnabledThreadPoolExecutor(Stage.STREAM));
+        stages.put(Stage.GOSSIP, new JMXEnabledThreadPoolExecutor(Stage.GOSSIP));
+        stages.put(Stage.AE_SERVICE, new JMXEnabledThreadPoolExecutor(Stage.AE_SERVICE));
+        stages.put(Stage.LOADBALANCE, new JMXEnabledThreadPoolExecutor(Stage.LOADBALANCE));
+        stages.put(Stage.MIGRATION, new JMXEnabledThreadPoolExecutor(Stage.MIGRATION));
+        stages.put(Stage.MISC, new JMXEnabledThreadPoolExecutor(Stage.MISC));
     }
 
-    private static ThreadPoolExecutor multiThreadedStage(String name, int numThreads)
+    private static ThreadPoolExecutor multiThreadedStage(Stage stage, int numThreads)
     {
         // avoid running afoul of requirement in DebuggableThreadPoolExecutor that single-threaded executors
         // must have unbounded queues
@@ -75,10 +66,10 @@ public class StageManager
                                                 KEEPALIVE,
                                                 TimeUnit.SECONDS,
                                                 new LinkedBlockingQueue<Runnable>(),
-                                                new NamedThreadFactory(name));
+                                                new NamedThreadFactory(stage + "_STAGE"));
     }
     
-    private static ThreadPoolExecutor multiThreadedConfigurableStage(String name, int numThreads)
+    private static ThreadPoolExecutor multiThreadedConfigurableStage(Stage stage, int numThreads)
     {
         assert numThreads > 1 : "multi-threaded stages must have at least 2 threads";
         
@@ -87,16 +78,16 @@ public class StageManager
                                                      KEEPALIVE,
                                                      TimeUnit.SECONDS,
                                                      new LinkedBlockingQueue<Runnable>(),
-                                                     new NamedThreadFactory(name));
+                                                     new NamedThreadFactory(stage + "_STAGE"));
     }
 
     /**
      * Retrieve a stage from the StageManager
-     * @param stageName name of the stage to be retrieved.
+     * @param stage name of the stage to be retrieved.
     */
-    public static ThreadPoolExecutor getStage(String stageName)
+    public static ThreadPoolExecutor getStage(Stage stage)
     {
-        return stages.get(stageName);
+        return stages.get(stage);
     }
     
     /**
@@ -104,8 +95,7 @@ public class StageManager
      */
     public static void shutdownNow()
     {
-        Set<String> stages = StageManager.stages.keySet();
-        for (String stage : stages)
+        for (Stage stage : Stage.values())
         {
             StageManager.stages.get(stage).shutdownNow();
         }

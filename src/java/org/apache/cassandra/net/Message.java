@@ -23,6 +23,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.service.StorageService;
@@ -53,7 +54,7 @@ public class Message
         body_ = body;
     }
 
-    public Message(InetAddress from, String messageType, StorageService.Verb verb, byte[] body)
+    public Message(InetAddress from, Stage messageType, StorageService.Verb verb, byte[] body)
     {
         this(new Header(from, messageType, verb), body);
     }    
@@ -78,7 +79,7 @@ public class Message
         return header_.getFrom();
     }
 
-    public String getMessageType()
+    public Stage getMessageType()
     {
         return header_.getMessageType();
     }
@@ -101,7 +102,7 @@ public class Message
     // TODO should take byte[] + length so we don't have to copy to a byte[] of exactly the right len
     public Message getReply(InetAddress from, byte[] args)
     {
-        Header header = new Header(getMessageId(), from, StageManager.RESPONSE_STAGE, StorageService.Verb.READ_RESPONSE);
+        Header header = new Header(getMessageId(), from, Stage.RESPONSE, StorageService.Verb.READ_RESPONSE);
         return new Message(header, args);
     }
     

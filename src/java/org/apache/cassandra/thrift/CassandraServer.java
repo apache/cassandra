@@ -25,6 +25,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.db.migration.UpdateColumnFamily;
 import org.apache.cassandra.db.migration.UpdateKeyspace;
@@ -636,7 +637,7 @@ public class CassandraServer implements Cassandra.Iface
     // InvalidRequestException. atypical failures will throw a RuntimeException.
     private static void applyMigrationOnStage(final Migration m) throws InvalidRequestException
     {
-        Future f = StageManager.getStage(StageManager.MIGRATION_STAGE).submit(new Callable()
+        Future f = StageManager.getStage(Stage.MIGRATION).submit(new Callable()
         {
             public Object call() throws Exception
             {

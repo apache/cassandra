@@ -31,6 +31,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
@@ -240,7 +241,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
 
     void flushAES() throws Exception
     {
-        final ThreadPoolExecutor stage = StageManager.getStage(StageManager.AE_SERVICE_STAGE);
+        final ThreadPoolExecutor stage = StageManager.getStage(Stage.AE_SERVICE);
         final Callable noop = new Callable<Object>()
         {
             public Boolean call()

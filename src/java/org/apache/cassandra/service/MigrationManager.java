@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service;
 
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -120,7 +121,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         for (IColumn col : migrations)
         {
             final Migration migration = Migration.deserialize(col.value());
-            Future update = StageManager.getStage(StageManager.MIGRATION_STAGE).submit(new Runnable() 
+            Future update = StageManager.getStage(Stage.MIGRATION).submit(new Runnable()
             {
                 public void run()
                 {
@@ -179,7 +180,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     private static Message makeVersionMessage(UUID version)
     {
         byte[] body = version.toString().getBytes();
-        return new Message(FBUtilities.getLocalAddress(), StageManager.READ_STAGE, StorageService.Verb.DEFINITIONS_ANNOUNCE, body);
+        return new Message(FBUtilities.getLocalAddress(), Stage.READ, StorageService.Verb.DEFINITIONS_ANNOUNCE, body);
     }
     
     // other half of transformation is in DefinitionsUpdateResponseVerbHandler.
@@ -198,7 +199,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         }
         dout.close();
         byte[] body = bout.toByteArray();
-        return new Message(FBUtilities.getLocalAddress(), StageManager.MUTATION_STAGE, StorageService.Verb.DEFINITIONS_UPDATE_RESPONSE, body);
+        return new Message(FBUtilities.getLocalAddress(), Stage.MUTATION, StorageService.Verb.DEFINITIONS_UPDATE_RESPONSE, body);
     }
     
     // other half of this transformation is in MigrationManager.

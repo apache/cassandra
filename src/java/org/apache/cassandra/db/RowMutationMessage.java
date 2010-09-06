@@ -25,6 +25,7 @@ import java.io.IOException;
 
 import javax.xml.bind.annotation.XmlElement;
 
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
@@ -51,7 +52,7 @@ public class RowMutationMessage
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
         RowMutationMessage.serializer().serialize(this, dos);
-        return new Message(FBUtilities.getLocalAddress(), StageManager.MUTATION_STAGE, verb, bos.toByteArray());
+        return new Message(FBUtilities.getLocalAddress(), Stage.MUTATION, verb, bos.toByteArray());
     }
     
     @XmlElement(name="RowMutation")

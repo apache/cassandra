@@ -22,6 +22,7 @@ package org.apache.cassandra.db;
 import java.io.*;
 import java.util.Arrays;
 
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.ICompactSerializer2;
@@ -67,7 +68,7 @@ public class IndexScanCommand
             throw new IOError(e);
         }
         return new Message(FBUtilities.getLocalAddress(),
-                           StageManager.READ_STAGE,
+                           Stage.READ,
                            StorageService.Verb.INDEX_SCAN,
                            Arrays.copyOf(dob.getData(), dob.getLength()));
     }

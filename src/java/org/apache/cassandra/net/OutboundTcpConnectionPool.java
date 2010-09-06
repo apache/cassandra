@@ -20,7 +20,7 @@ package org.apache.cassandra.net;
 
 import java.net.InetAddress;
 
-import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.concurrent.Stage;
 
 class OutboundTcpConnectionPool
 {
@@ -39,9 +39,8 @@ class OutboundTcpConnectionPool
      */
     OutboundTcpConnection getConnection(Message msg)
     {
-        return msg.getMessageType().equals(StageManager.RESPONSE_STAGE) || msg.getMessageType().equals(StageManager.GOSSIP_STAGE)
-               ? ackCon
-               : cmdCon;
+        Stage stage = msg.getMessageType();
+        return stage == Stage.RESPONSE || stage == Stage.GOSSIP ? ackCon : cmdCon;
     }
 
     synchronized void reset()

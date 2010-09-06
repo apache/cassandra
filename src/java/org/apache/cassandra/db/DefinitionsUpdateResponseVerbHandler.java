@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db;
 
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -55,7 +56,7 @@ public class DefinitionsUpdateResponseVerbHandler implements IVerbHandler
                 {
                     final Migration m = Migration.deserialize(col.value());
                     assert m.getVersion().equals(version);
-                    StageManager.getStage(StageManager.MIGRATION_STAGE).submit(new WrappedRunnable()
+                    StageManager.getStage(Stage.MIGRATION).submit(new WrappedRunnable()
                     {
                         @Override
                         protected void runMayThrow() throws Exception

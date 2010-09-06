@@ -68,9 +68,6 @@ public class MessagingService
     /* Lookup table for registering message handlers based on the verb. */
     private static Map<StorageService.Verb, IVerbHandler> verbHandlers_;
 
-    /* Thread pool to handle messages without a specialized stage */
-    private static ExecutorService defaultExecutor_;
-    
     /* Thread pool to handle messaging write activities */
     private static ExecutorService streamExecutor_;
     
@@ -103,8 +100,6 @@ public class MessagingService
         */
         callbackMap_ = new ExpiringMap<String, IAsyncCallback>((long) (1.1 * DatabaseDescriptor.getRpcTimeout()));
         taskCompletionMap_ = new ExpiringMap<String, IAsyncResult>((long) (1.1 * DatabaseDescriptor.getRpcTimeout()));
-
-        defaultExecutor_ = new JMXEnabledThreadPoolExecutor("MISCELLANEOUS-POOL");
 
         streamExecutor_ = new JMXEnabledThreadPoolExecutor("MESSAGE-STREAMING-POOL");
         TimerTask logDropped = new TimerTask()
@@ -344,8 +339,6 @@ public class MessagingService
     /** blocks until the processing pools are empty and done. */
     public static void waitFor() throws InterruptedException
     {
-        while (!defaultExecutor_.isTerminated())
-            defaultExecutor_.awaitTermination(5, TimeUnit.SECONDS);
         while (!streamExecutor_.isTerminated())
             streamExecutor_.awaitTermination(5, TimeUnit.SECONDS);
     }
@@ -363,7 +356,6 @@ public class MessagingService
             throw new IOError(e);
         }
 
-        defaultExecutor_.shutdownNow();
         streamExecutor_.shutdownNow();
 
         /* shut down the cachetables */
@@ -379,17 +371,8 @@ public class MessagingService
 
         Runnable runnable = new MessageDeliveryTask(message);
         ExecutorService stage = StageManager.getStage(message.getMessageType());
-
-        if (stage == null)
-        {
-            if (logger_.isDebugEnabled())
-                logger_.debug("Running " + message.getMessageType() + " on default stage");
-            defaultExecutor_.execute(runnable);
-        }
-        else
-        {
-            stage.execute(runnable);
-        }
+        assert stage != null;
+        stage.execute(runnable);
     }
 
     public static IAsyncCallback getRegisteredCallback(String key)

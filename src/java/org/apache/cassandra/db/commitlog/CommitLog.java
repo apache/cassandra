@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.commitlog;
 
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -310,7 +311,7 @@ public class CommitLog
                             }
                         }
                     };
-                    futures.add(StageManager.getStage(StageManager.MUTATION_STAGE).submit(runnable));
+                    futures.add(StageManager.getStage(Stage.MUTATION).submit(runnable));
                     if (futures.size() > MAX_OUTSTANDING_REPLAY_COUNT)
                     {
                         FBUtilities.waitOnFutures(futures);

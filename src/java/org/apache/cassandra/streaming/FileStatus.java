@@ -26,6 +26,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
@@ -94,7 +95,7 @@ class FileStatus
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
         FileStatus.serializer().serialize(this, dos);
-        return new Message(FBUtilities.getLocalAddress(), "", StorageService.Verb.STREAM_STATUS, bos.toByteArray());
+        return new Message(FBUtilities.getLocalAddress(), Stage.MISC, StorageService.Verb.STREAM_STATUS, bos.toByteArray());
     }
 
     private static class FileStatusSerializer implements ICompactSerializer<FileStatus>

@@ -28,6 +28,7 @@ import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.RawColumnDefinition;
@@ -1485,7 +1486,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                             latch.countDown();
                     }
                 };
-                StageManager.getStage(StageManager.STREAM_STAGE).execute(new Runnable()
+                StageManager.getStage(Stage.STREAM).execute(new Runnable()
                 {
                     public void run()
                     {
@@ -1632,7 +1633,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     /** shuts node off to writes, empties memtables and the commit log. */
     public synchronized void drain() throws IOException, InterruptedException, ExecutionException
     {
-        ExecutorService mutationStage = StageManager.getStage(StageManager.MUTATION_STAGE);
+        ExecutorService mutationStage = StageManager.getStage(Stage.MUTATION);
         if (mutationStage.isTerminated())
         {
             logger_.warn("Cannot drain node (did it already happen?)");
@@ -1711,7 +1712,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Migration migration = null;
         try
         {
-            migration = StageManager.getStage(StageManager.MIGRATION_STAGE).submit(call).get();
+            migration = StageManager.getStage(Stage.MIGRATION).submit(call).get();
         }
         catch (InterruptedException e)
         {

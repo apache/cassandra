@@ -67,6 +67,11 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
         }
     }
 
+    public JMXEnabledThreadPoolExecutor(Stage stage)
+    {
+        this(stage + "_STAGE");
+    }
+
     private void unregisterMBean()
     {
         try

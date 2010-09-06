@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
@@ -52,7 +53,7 @@ public abstract class ReadCommand
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         ReadCommand.serializer().serialize(this, dos);
-        return new Message(FBUtilities.getLocalAddress(), StageManager.READ_STAGE, StorageService.Verb.READ, bos.toByteArray());
+        return new Message(FBUtilities.getLocalAddress(), Stage.READ, StorageService.Verb.READ, bos.toByteArray());
     }
 
     public final QueryPath queryPath;
