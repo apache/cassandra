@@ -87,12 +87,14 @@ public class SSTableDeletingReference extends PhantomReference<SSTableReader>
             {
                 if (attempts++ < DeletionService.MAX_RETRIES)
                 {
-                    timer.schedule(this, RETRY_DELAY);
+                    timer.schedule(new CleanupTask(), RETRY_DELAY); // re-using TimerTasks is not allowed
                     return;
                 }
                 else
                 {
-                    throw new RuntimeException("Unable to delete " + datafile);
+                    // don't throw an exception; it will prevent any future tasks from running in this Timer
+                    logger.error("Unable to delete " + datafile + " (it will be removed on server restart)");
+                    return;
                 }
             }
             // let the remainder be cleaned up by conditionalDelete
