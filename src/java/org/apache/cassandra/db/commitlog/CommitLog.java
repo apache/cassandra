@@ -176,7 +176,8 @@ public class CommitLog
         for (File f : files)
         {
             FileUtils.delete(CommitLogHeader.getHeaderPathFromSegmentPath(f.getAbsolutePath())); // may not actually exist
-            FileUtils.deleteWithConfirm(f);
+            if (!f.delete())
+                logger.error("Unable to remove " + f + "; you should remove it manually or next restart will replay it again (harmless, but time-consuming)");
         }
         logger.info("Log replay complete");
     }
@@ -190,13 +191,12 @@ public class CommitLog
 
         for (File file : clogs)
         {
-            BufferedRandomAccessFile reader = null;
+            int bufferSize = (int)Math.min(file.length(), 32 * 1024 * 1024);
+            BufferedRandomAccessFile reader = new BufferedRandomAccessFile(file.getAbsolutePath(), "r", bufferSize);
+
             try
             {
                 CommitLogHeader clHeader = null;
-                int bufferSize = (int)Math.min(file.length(), 32 * 1024 * 1024);
-                reader = new BufferedRandomAccessFile(file.getAbsolutePath(), "r", bufferSize);
-
                 int replayPosition = 0;
                 String headerPath = CommitLogHeader.getHeaderPathFromSegmentPath(file.getAbsolutePath());
                 try
