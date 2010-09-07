@@ -29,8 +29,10 @@ class OutboundTcpConnectionPool
 
     OutboundTcpConnectionPool(InetAddress remoteEp)
     {
-         cmdCon = new OutboundTcpConnection(remoteEp);
-         ackCon = new OutboundTcpConnection(remoteEp);                                             
+        cmdCon = new OutboundTcpConnection(remoteEp);
+        cmdCon.start();
+        ackCon = new OutboundTcpConnection(remoteEp);
+        ackCon.start();
     }
 
     /**
