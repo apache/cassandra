@@ -1669,25 +1669,22 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         setMode("Draining: emptying MessageService pools", false);
         MessagingService.waitFor();
        
+        setMode("Draining: clearing mutation stage", false);
+        mutationStage.shutdown();
+        mutationStage.awaitTermination(3600, TimeUnit.SECONDS);
+
         // lets flush.
         setMode("Draining: flushing column families", false);
         for (String tableName : DatabaseDescriptor.getNonSystemTables())
             for (Future f : Table.open(tableName).flush())
                 f.get();
-       
 
-        setMode("Draining: replaying commit log", false);
+        ColumnFamilyStore.postFlushExecutor.shutdown();
+        ColumnFamilyStore.postFlushExecutor.awaitTermination(60, TimeUnit.SECONDS);
+       
         // want to make sure that any segments deleted as a result of flushing are gone.
         DeletionService.waitFor();
-        CommitLog.recover();
-       
-        // commit log recovery just sends work to the mutation stage. (there could have already been work there anyway.  
-        // Either way, we need to let this one drain naturally, and then we're finished.
-        setMode("Draining: clearing mutation stage", false);
-        mutationStage.shutdown();
-        while (!mutationStage.isTerminated())
-            mutationStage.awaitTermination(5, TimeUnit.SECONDS);
-       
+
         setMode("Node is drained", true);
     }
 
