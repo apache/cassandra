@@ -11,6 +11,7 @@
    it out after 1h (CASSANDRA-1463)
  * eager-create tcp connections to other cluster members (CASSANDRA-1465)
  * make sure to close CommitLog files after replay (CASSANDRA-1348)
+ * bulletproof sstable deletion process (CASSANDRA-1458)
 
 
 0.6.5
