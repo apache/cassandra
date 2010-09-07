@@ -111,8 +111,7 @@ public class CassandraServer implements Cassandra {
         requestScheduler = DatabaseDescriptor.getRequestScheduler();
     }
 
-    @Override
-    public Void login(AuthenticationRequest auth_request) throws AuthenticationException, AuthorizationException 
+    public Void login(AuthenticationRequest auth_request) throws AuthenticationException, AuthorizationException
     {
         try
         {
@@ -124,7 +123,6 @@ public class CassandraServer implements Cassandra {
         return null;
     }
 
-    @Override
     public ColumnOrSuperColumn get(ByteBuffer key, ColumnPath columnPath, ConsistencyLevel consistencyLevel)
     throws AvroRemoteException, InvalidRequestException, NotFoundException, UnavailableException, TimedOutException {
         if (logger.isDebugEnabled())
@@ -299,7 +297,6 @@ public class CassandraServer implements Cassandra {
             return avronateColumns(cf.getSortedColumns(), reverseOrder);
     }
     
-    @Override
     public List<ColumnOrSuperColumn> get_slice(ByteBuffer key, ColumnParent columnParent,
             SlicePredicate predicate, ConsistencyLevel consistencyLevel)
     throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
@@ -370,7 +367,6 @@ public class CassandraServer implements Cassandra {
         return columnFamiliesList;
     }
 
-    @Override
     public int get_count(ByteBuffer key, ColumnParent columnParent, SlicePredicate predicate, ConsistencyLevel consistencyLevel)
     throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -380,7 +376,6 @@ public class CassandraServer implements Cassandra {
         return (int)get_slice(key, columnParent, predicate, consistencyLevel).size();
     }
 
-    @Override
     public List<CoscsMapEntry> multiget_slice(List<ByteBuffer> keys, ColumnParent columnParent,
             SlicePredicate predicate, ConsistencyLevel consistencyLevel)
     throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
@@ -391,7 +386,6 @@ public class CassandraServer implements Cassandra {
         return multigetSliceInternal(clientState.getKeyspace(), keys, columnParent, predicate, consistencyLevel);
     }
 
-    @Override
     public Void insert(ByteBuffer key, ColumnParent parent, Column column, ConsistencyLevel consistencyLevel)
     throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -421,7 +415,6 @@ public class CassandraServer implements Cassandra {
         return null;
     }
     
-    @Override
     public Void remove(ByteBuffer key, ColumnPath columnPath, Clock clock, ConsistencyLevel consistencyLevel)
     throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -462,7 +455,6 @@ public class CassandraServer implements Cassandra {
         }
     }
 
-    @Override
     public Void batch_mutate(List<MutationsMapEntry> mutationMap, ConsistencyLevel consistencyLevel)
     throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -619,7 +611,6 @@ public class CassandraServer implements Cassandra {
         return null;
     }
 
-    @Override
     public Void set_keyspace(CharSequence keyspace) throws InvalidRequestException
     {
         String keyspaceStr = keyspace.toString();
@@ -633,7 +624,6 @@ public class CassandraServer implements Cassandra {
         return null;
     }
 
-    @Override
     public CharSequence system_add_keyspace(KsDef ksDef) throws AvroRemoteException, InvalidRequestException
     {
         if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
@@ -694,7 +684,6 @@ public class CassandraServer implements Cassandra {
         }
     }
 
-    @Override
     public CharSequence system_add_column_family(CfDef cfDef) throws AvroRemoteException, InvalidRequestException
     {
         checkKeyspaceAndLoginAuthorized(Permission.WRITE);
@@ -712,7 +701,6 @@ public class CassandraServer implements Cassandra {
         }
     }
 
-    @Override
     public CharSequence system_update_column_family(CfDef cf_def) throws AvroRemoteException, InvalidRequestException
     {
         checkKeyspaceAndLoginAuthorized(Permission.WRITE);
@@ -745,7 +733,6 @@ public class CassandraServer implements Cassandra {
         }
     }
 
-    @Override
     public CharSequence system_update_keyspace(KsDef ks_def) throws AvroRemoteException, InvalidRequestException
     {
         checkKeyspaceAndLoginAuthorized(Permission.WRITE);
@@ -793,7 +780,6 @@ public class CassandraServer implements Cassandra {
         }
     }
 
-    @Override
     public GenericArray<CharSequence> describe_keyspaces() throws AvroRemoteException
     {
         Set<String> keyspaces = DatabaseDescriptor.getTables();
@@ -806,14 +792,12 @@ public class CassandraServer implements Cassandra {
         return avroResults;
     }
 
-    @Override
     public Utf8 describe_cluster_name() throws AvroRemoteException
     {
         return new Utf8(DatabaseDescriptor.getClusterName());
     }
     
 
-    @Override
     public Utf8 describe_version() throws AvroRemoteException
     {
         return API_VERSION;
@@ -888,7 +872,6 @@ public class CassandraServer implements Cassandra {
                               ColumnDefinition.fromColumnDefs((Iterable<ColumnDef>) cf_def.column_metadata));
     }
 
-    @Override
     public KsDef describe_keyspace(CharSequence keyspace) throws AvroRemoteException, NotFoundException
     {
         KSMetaData ksMetadata = DatabaseDescriptor.getTableDefinition(keyspace.toString());
@@ -915,7 +898,6 @@ public class CassandraServer implements Cassandra {
         return ksDef;
     }
 
-    @Override
     public CharSequence system_rename_column_family(CharSequence old_name, CharSequence new_name)
     throws AvroRemoteException, InvalidRequestException
     {
@@ -936,7 +918,6 @@ public class CassandraServer implements Cassandra {
         }
     }
 
-    @Override
     public CharSequence system_drop_column_family(CharSequence column_family) throws AvroRemoteException, InvalidRequestException
     {
         checkKeyspaceAndLoginAuthorized(Permission.WRITE);
@@ -956,7 +937,6 @@ public class CassandraServer implements Cassandra {
         }
     }
 
-    @Override
     public CharSequence system_drop_keyspace(CharSequence keyspace) throws AvroRemoteException, InvalidRequestException
     {
         if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
@@ -977,8 +957,6 @@ public class CassandraServer implements Cassandra {
         }
     }
 
-
-    @Override
     public CharSequence system_rename_keyspace(CharSequence old_name, CharSequence new_name) throws AvroRemoteException, InvalidRequestException
     {
         checkKeyspaceAndLoginAuthorized(Permission.WRITE);
@@ -998,13 +976,11 @@ public class CassandraServer implements Cassandra {
         }
     }
 
-    @Override
     public CharSequence describe_partitioner() throws AvroRemoteException
     {
         return StorageService.getPartitioner().getClass().getName();
     }
 
-    @Override
     public List<CharSequence> describe_splits(CharSequence keyspace, CharSequence cfName, CharSequence start_token, CharSequence end_token, int keys_per_split) {
         Token.TokenFactory<?> tf = StorageService.getPartitioner().getTokenFactory();
         List<Token> tokens = StorageService.instance.getSplits(keyspace.toString(), cfName.toString(), new Range(tf.fromString(start_token.toString()), tf.fromString(end_token.toString())), keys_per_split);
@@ -1016,7 +992,6 @@ public class CassandraServer implements Cassandra {
         return splits;
     }
 
-    @Override
     public List<KeyCountMapEntry> multiget_count(List<ByteBuffer> keys, ColumnParent columnParent, SlicePredicate predicate, ConsistencyLevel consistencyLevel)
     throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -1089,7 +1064,6 @@ public class CassandraServer implements Cassandra {
         return null;
     }
 
-    @Override
     public List<KeySlice> get_range_slices(ColumnParent column_parent, SlicePredicate slice_predicate, KeyRange range, ConsistencyLevel consistency_level)
     throws InvalidRequestException, TimedOutException
     {
@@ -1154,7 +1128,6 @@ public class CassandraServer implements Cassandra {
         return avronateKeySlices(rows, column_parent, slice_predicate);
     }
 
-    @Override
     public List<KeySlice> get_indexed_slices(ColumnParent column_parent, IndexClause index_clause, SlicePredicate column_predicate, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
