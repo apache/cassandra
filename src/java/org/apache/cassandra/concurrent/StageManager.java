@@ -50,7 +50,6 @@ public class StageManager
         stages.put(Stage.STREAM, new JMXEnabledThreadPoolExecutor(Stage.STREAM));
         stages.put(Stage.GOSSIP, new JMXEnabledThreadPoolExecutor(Stage.GOSSIP));
         stages.put(Stage.AE_SERVICE, new JMXEnabledThreadPoolExecutor(Stage.AE_SERVICE));
-        stages.put(Stage.LOADBALANCE, new JMXEnabledThreadPoolExecutor(Stage.LOADBALANCE));
         stages.put(Stage.MIGRATION, new JMXEnabledThreadPoolExecutor(Stage.MIGRATION));
         stages.put(Stage.MISC, new JMXEnabledThreadPoolExecutor(Stage.MISC));
     }

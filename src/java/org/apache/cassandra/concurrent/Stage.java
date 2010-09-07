@@ -8,7 +8,6 @@ public enum Stage
     GOSSIP,
     RESPONSE,
     AE_SERVICE,
-    LOADBALANCE,
     MIGRATION,
     MISC,
 }
