@@ -61,6 +61,7 @@ dev
  * make failure to remove comitlog segment non-fatal (CASSANDRA-1348)
  * correct ordering of drain operations so CL.recover is no longer 
    necessary (CASSANDRA-1408)
+ * removed keyspace from describe_splits method (CASSANDRA-1425)
 
 
 0.7-beta1

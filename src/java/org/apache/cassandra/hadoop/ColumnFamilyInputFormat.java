@@ -173,14 +173,19 @@ public class ColumnFamilyInputFormat extends InputFormat<byte[], SortedMap<byte[
     private List<String> getSubSplits(String keyspace, String cfName, TokenRange range, Configuration conf) throws IOException
     {
         // TODO handle failure of range replicas & retry
-        Cassandra.Client client = createConnection(range.endpoints.get(0), ConfigHelper.getRpcPort(conf), true);
-        int splitsize = ConfigHelper.getInputSplitSize(conf);
         List<String> splits;
+        int splitsize = ConfigHelper.getInputSplitSize(conf);
         try
         {
-            splits = client.describe_splits(keyspace, cfName, range.start_token, range.end_token, splitsize);
+            Cassandra.Client client = createConnection(range.endpoints.get(0), ConfigHelper.getRpcPort(conf), true);
+            client.set_keyspace(keyspace);
+            splits = client.describe_splits(cfName, range.start_token, range.end_token, splitsize);
         }
         catch (TException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (InvalidRequestException e)
         {
             throw new RuntimeException(e);
         }

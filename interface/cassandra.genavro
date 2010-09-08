@@ -361,8 +361,7 @@ protocol Cassandra {
      * returns list of token strings such that first subrange is (list[0], list[1]],
      * next is (list[1], list[2]], etc.
      */
-    array<string> describe_splits(string keyspace,
-                                  string cfName,
+    array<string> describe_splits(string cfName,
                                   string start_token,
                                   string end_token,
                                   int keys_per_split);
