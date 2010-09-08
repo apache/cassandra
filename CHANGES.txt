@@ -62,6 +62,8 @@ dev
  * correct ordering of drain operations so CL.recover is no longer 
    necessary (CASSANDRA-1408)
  * removed keyspace from describe_splits method (CASSANDRA-1425)
+ * rename check_schema_agreement to describe_schema_versions
+   (CASSANDRA-1478)
 
 
 0.7-beta1

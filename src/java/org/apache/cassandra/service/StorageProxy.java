@@ -487,7 +487,7 @@ public class StorageProxy implements StorageProxyMBean
      * migration id. This is useful for determining if a schema change has propagated through the cluster. Disagreement
      * is assumed if any node fails to respond.
      */
-    public static Map<String, List<String>> checkSchemaAgreement()
+    public static Map<String, List<String>> describeSchemaVersions()
     {
         final Map<String, List<String>> results = new HashMap<String, List<String>>();
         

@@ -989,10 +989,10 @@ public class CassandraServer implements Cassandra.Iface
         clientState.setKeyspace(keyspace);
     }
 
-    public Map<String, List<String>> check_schema_agreement() throws TException, InvalidRequestException
+    public Map<String, List<String>> describe_schema_versions() throws TException, InvalidRequestException
     {
         logger.debug("checking schema agreement");      
-        return StorageProxy.checkSchemaAgreement();
+        return StorageProxy.describeSchemaVersions();
     }
 
     // main method moved to CassandraDaemon

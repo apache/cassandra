@@ -40,14 +40,12 @@ import org.apache.avro.generic.GenericArray;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.avro.util.Utf8;
-import org.apache.cassandra.avro.InvalidRequestException;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.migration.DropKeyspace;
 import org.apache.cassandra.db.migration.RenameKeyspace;
 import org.apache.cassandra.db.migration.UpdateColumnFamily;
 import org.apache.cassandra.db.migration.UpdateKeyspace;
 import org.apache.cassandra.dht.*;
-import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +55,6 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
@@ -806,7 +803,7 @@ public class CassandraServer implements Cassandra {
     public Map<CharSequence, List<CharSequence>> check_schema_agreement()
     {
         logger.debug("checking schema agreement");
-        return (Map) StorageProxy.checkSchemaAgreement();
+        return (Map) StorageProxy.describeSchemaVersions();
     }
 
     protected void checkKeyspaceAndLoginAuthorized(Permission perm) throws InvalidRequestException

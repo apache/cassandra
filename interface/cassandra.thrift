@@ -484,11 +484,11 @@ service Cassandra {
   // rather than user data.  The nodeprobe program provides usage examples.
   
   /** 
-   * ask the cluster if they all are using the same migration id. returns a map of version->hosts-on-that-version.
-   * hosts that did not respond will be under the key DatabaseDescriptor.INITIAL_VERSION. agreement can be determined
-   * by checking if the size of the map is 1. 
+   * for each schema version present in the cluster, returns a list of nodes at that version.
+   * hosts that do not respond will be under the key DatabaseDescriptor.INITIAL_VERSION. 
+   * the cluster is all on the same version if the size of the map is 1. 
    */
-  map<string, list<string>> check_schema_agreement()
+  map<string, list<string>> describe_schema_versions()
        throws (1: InvalidRequestException ire),
 
   /** list the defined keyspaces in this cluster */

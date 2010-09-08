@@ -36,7 +36,7 @@ import java.util.HashSet;
 import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
-import java.util.Arrays;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -176,7 +176,7 @@ public class Cassandra {
      * hosts that did not respond will be under the key DatabaseDescriptor.INITIAL_VERSION. agreement can be determined
      * by checking if the size of the map is 1.
      */
-    public Map<String,List<String>> check_schema_agreement() throws InvalidRequestException, TException;
+    public Map<String,List<String>> describe_schema_versions() throws InvalidRequestException, TException;
 
     /**
      * list the defined keyspaces in this cluster
@@ -977,7 +977,7 @@ public class Cassandra {
       return;
     }
 
-    public Map<String,List<String>> check_schema_agreement() throws InvalidRequestException, TException
+    public Map<String,List<String>> describe_schema_versions() throws InvalidRequestException, TException
     {
       send_check_schema_agreement();
       return recv_check_schema_agreement();
@@ -3206,7 +3206,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         check_schema_agreement_result result = new check_schema_agreement_result();
         try {
-          result.success = iface_.check_schema_agreement();
+          result.success = iface_.describe_schema_versions();
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
