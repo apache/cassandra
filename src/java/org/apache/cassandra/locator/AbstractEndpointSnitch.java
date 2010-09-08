@@ -38,7 +38,7 @@ public abstract class AbstractEndpointSnitch implements IEndpointSnitch
     /* list of subscribers that are notified when cached values from this snitch are invalidated */
     protected List<AbstractReplicationStrategy> subscribers = new CopyOnWriteArrayList<AbstractReplicationStrategy>();
     
-    private volatile Map<Token, ArrayList<InetAddress>> cachedEndpoints = new NonBlockingHashMap<Token, ArrayList<InetAddress>>();
+    private final Map<Token, ArrayList<InetAddress>> cachedEndpoints = new NonBlockingHashMap<Token, ArrayList<InetAddress>>();
     
     public ArrayList<InetAddress> getCachedEndpoints(Token t)
     {
