@@ -36,7 +36,7 @@ import java.util.HashSet;
 import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
-
+import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -172,9 +172,9 @@ public class Cassandra {
     public void truncate(String cfname) throws InvalidRequestException, UnavailableException, TException;
 
     /**
-     * ask the cluster if they all are using the same migration id. returns a map of version->hosts-on-that-version.
-     * hosts that did not respond will be under the key DatabaseDescriptor.INITIAL_VERSION. agreement can be determined
-     * by checking if the size of the map is 1.
+     * for each schema version present in the cluster, returns a list of nodes at that version.
+     * hosts that do not respond will be under the key DatabaseDescriptor.INITIAL_VERSION.
+     * the cluster is all on the same version if the size of the map is 1.
      */
     public Map<String,List<String>> describe_schema_versions() throws InvalidRequestException, TException;
 
@@ -321,7 +321,7 @@ public class Cassandra {
 
     public void truncate(String cfname, AsyncMethodCallback<AsyncClient.truncate_call> resultHandler) throws TException;
 
-    public void check_schema_agreement(AsyncMethodCallback<AsyncClient.check_schema_agreement_call> resultHandler) throws TException;
+    public void describe_schema_versions(AsyncMethodCallback<AsyncClient.describe_schema_versions_call> resultHandler) throws TException;
 
     public void describe_keyspaces(AsyncMethodCallback<AsyncClient.describe_keyspaces_call> resultHandler) throws TException;
 
@@ -979,20 +979,20 @@ public class Cassandra {
 
     public Map<String,List<String>> describe_schema_versions() throws InvalidRequestException, TException
     {
-      send_check_schema_agreement();
-      return recv_check_schema_agreement();
+      send_describe_schema_versions();
+      return recv_describe_schema_versions();
     }
 
-    public void send_check_schema_agreement() throws TException
+    public void send_describe_schema_versions() throws TException
     {
-      oprot_.writeMessageBegin(new TMessage("check_schema_agreement", TMessageType.CALL, ++seqid_));
-      check_schema_agreement_args args = new check_schema_agreement_args();
+      oprot_.writeMessageBegin(new TMessage("describe_schema_versions", TMessageType.CALL, ++seqid_));
+      describe_schema_versions_args args = new describe_schema_versions_args();
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
     }
 
-    public Map<String,List<String>> recv_check_schema_agreement() throws InvalidRequestException, TException
+    public Map<String,List<String>> recv_describe_schema_versions() throws InvalidRequestException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -1001,9 +1001,9 @@ public class Cassandra {
         throw x;
       }
       if (msg.seqid != seqid_) {
-        throw new TApplicationException(TApplicationException.BAD_SEQUENCE_ID, "check_schema_agreement failed: out of sequence response");
+        throw new TApplicationException(TApplicationException.BAD_SEQUENCE_ID, "describe_schema_versions failed: out of sequence response");
       }
-      check_schema_agreement_result result = new check_schema_agreement_result();
+      describe_schema_versions_result result = new describe_schema_versions_result();
       result.read(iprot_);
       iprot_.readMessageEnd();
       if (result.isSetSuccess()) {
@@ -1012,7 +1012,7 @@ public class Cassandra {
       if (result.ire != null) {
         throw result.ire;
       }
-      throw new TApplicationException(TApplicationException.MISSING_RESULT, "check_schema_agreement failed: unknown result");
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "describe_schema_versions failed: unknown result");
     }
 
     public List<KsDef> describe_keyspaces() throws TException
@@ -2088,20 +2088,20 @@ public class Cassandra {
       }
     }
 
-    public void check_schema_agreement(AsyncMethodCallback<check_schema_agreement_call> resultHandler) throws TException {
+    public void describe_schema_versions(AsyncMethodCallback<describe_schema_versions_call> resultHandler) throws TException {
       checkReady();
-      check_schema_agreement_call method_call = new check_schema_agreement_call(resultHandler, this, protocolFactory, transport);
+      describe_schema_versions_call method_call = new describe_schema_versions_call(resultHandler, this, protocolFactory, transport);
       manager.call(method_call);
     }
 
-    public static class check_schema_agreement_call extends TAsyncMethodCall {
-      public check_schema_agreement_call(AsyncMethodCallback<check_schema_agreement_call> resultHandler, TAsyncClient client, TProtocolFactory protocolFactory, TNonblockingTransport transport) throws TException {
+    public static class describe_schema_versions_call extends TAsyncMethodCall {
+      public describe_schema_versions_call(AsyncMethodCallback<describe_schema_versions_call> resultHandler, TAsyncClient client, TProtocolFactory protocolFactory, TNonblockingTransport transport) throws TException {
         super(client, protocolFactory, transport, resultHandler, false);
       }
 
       public void write_args(TProtocol prot) throws TException {
-        prot.writeMessageBegin(new TMessage("check_schema_agreement", TMessageType.CALL, 0));
-        check_schema_agreement_args args = new check_schema_agreement_args();
+        prot.writeMessageBegin(new TMessage("describe_schema_versions", TMessageType.CALL, 0));
+        describe_schema_versions_args args = new describe_schema_versions_args();
         args.write(prot);
         prot.writeMessageEnd();
       }
@@ -2112,7 +2112,7 @@ public class Cassandra {
         }
         TMemoryInputTransport memoryTransport = new TMemoryInputTransport(getFrameBuffer().array());
         TProtocol prot = client.getProtocolFactory().getProtocol(memoryTransport);
-        return (new Client(prot)).recv_check_schema_agreement();
+        return (new Client(prot)).recv_describe_schema_versions();
       }
     }
 
@@ -2604,7 +2604,7 @@ public class Cassandra {
       processMap_.put("remove", new remove());
       processMap_.put("batch_mutate", new batch_mutate());
       processMap_.put("truncate", new truncate());
-      processMap_.put("check_schema_agreement", new check_schema_agreement());
+      processMap_.put("describe_schema_versions", new describe_schema_versions());
       processMap_.put("describe_keyspaces", new describe_keyspaces());
       processMap_.put("describe_cluster_name", new describe_cluster_name());
       processMap_.put("describe_version", new describe_version());
@@ -3188,37 +3188,37 @@ public class Cassandra {
 
     }
 
-    private class check_schema_agreement implements ProcessFunction {
+    private class describe_schema_versions implements ProcessFunction {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
-        check_schema_agreement_args args = new check_schema_agreement_args();
+        describe_schema_versions_args args = new describe_schema_versions_args();
         try {
           args.read(iprot);
         } catch (TProtocolException e) {
           iprot.readMessageEnd();
           TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
-          oprot.writeMessageBegin(new TMessage("check_schema_agreement", TMessageType.EXCEPTION, seqid));
+          oprot.writeMessageBegin(new TMessage("describe_schema_versions", TMessageType.EXCEPTION, seqid));
           x.write(oprot);
           oprot.writeMessageEnd();
           oprot.getTransport().flush();
           return;
         }
         iprot.readMessageEnd();
-        check_schema_agreement_result result = new check_schema_agreement_result();
+        describe_schema_versions_result result = new describe_schema_versions_result();
         try {
           result.success = iface_.describe_schema_versions();
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
-          LOGGER.error("Internal error processing check_schema_agreement", th);
-          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing check_schema_agreement");
-          oprot.writeMessageBegin(new TMessage("check_schema_agreement", TMessageType.EXCEPTION, seqid));
+          LOGGER.error("Internal error processing describe_schema_versions", th);
+          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing describe_schema_versions");
+          oprot.writeMessageBegin(new TMessage("describe_schema_versions", TMessageType.EXCEPTION, seqid));
           x.write(oprot);
           oprot.writeMessageEnd();
           oprot.getTransport().flush();
           return;
         }
-        oprot.writeMessageBegin(new TMessage("check_schema_agreement", TMessageType.REPLY, seqid));
+        oprot.writeMessageBegin(new TMessage("describe_schema_versions", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
         oprot.getTransport().flush();
@@ -16828,8 +16828,8 @@ public class Cassandra {
 
   }
 
-  public static class check_schema_agreement_args implements TBase<check_schema_agreement_args, check_schema_agreement_args._Fields>, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("check_schema_agreement_args");
+  public static class describe_schema_versions_args implements TBase<describe_schema_versions_args, describe_schema_versions_args._Fields>, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("describe_schema_versions_args");
 
 
 
@@ -16892,25 +16892,25 @@ public class Cassandra {
     static {
       Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
       metaDataMap = Collections.unmodifiableMap(tmpMap);
-      FieldMetaData.addStructMetaDataMap(check_schema_agreement_args.class, metaDataMap);
+      FieldMetaData.addStructMetaDataMap(describe_schema_versions_args.class, metaDataMap);
     }
 
-    public check_schema_agreement_args() {
+    public describe_schema_versions_args() {
     }
 
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public check_schema_agreement_args(check_schema_agreement_args other) {
+    public describe_schema_versions_args(describe_schema_versions_args other) {
     }
 
-    public check_schema_agreement_args deepCopy() {
-      return new check_schema_agreement_args(this);
+    public describe_schema_versions_args deepCopy() {
+      return new describe_schema_versions_args(this);
     }
 
     @Deprecated
-    public check_schema_agreement_args clone() {
-      return new check_schema_agreement_args(this);
+    public describe_schema_versions_args clone() {
+      return new describe_schema_versions_args(this);
     }
 
     public void setFieldValue(_Fields field, Object value) {
@@ -16947,12 +16947,12 @@ public class Cassandra {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof check_schema_agreement_args)
-        return this.equals((check_schema_agreement_args)that);
+      if (that instanceof describe_schema_versions_args)
+        return this.equals((describe_schema_versions_args)that);
       return false;
     }
 
-    public boolean equals(check_schema_agreement_args that) {
+    public boolean equals(describe_schema_versions_args that) {
       if (that == null)
         return false;
 
@@ -16964,13 +16964,13 @@ public class Cassandra {
       return 0;
     }
 
-    public int compareTo(check_schema_agreement_args other) {
+    public int compareTo(describe_schema_versions_args other) {
       if (!getClass().equals(other.getClass())) {
         return getClass().getName().compareTo(other.getClass().getName());
       }
 
       int lastComparison = 0;
-      check_schema_agreement_args typedOther = (check_schema_agreement_args)other;
+      describe_schema_versions_args typedOther = (describe_schema_versions_args)other;
 
       return 0;
     }
@@ -17006,7 +17006,7 @@ public class Cassandra {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("check_schema_agreement_args(");
+      StringBuilder sb = new StringBuilder("describe_schema_versions_args(");
       boolean first = true;
 
       sb.append(")");
@@ -17019,8 +17019,8 @@ public class Cassandra {
 
   }
 
-  public static class check_schema_agreement_result implements TBase<check_schema_agreement_result, check_schema_agreement_result._Fields>, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("check_schema_agreement_result");
+  public static class describe_schema_versions_result implements TBase<describe_schema_versions_result, describe_schema_versions_result._Fields>, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("describe_schema_versions_result");
 
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.MAP, (short)0);
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
@@ -17102,13 +17102,13 @@ public class Cassandra {
       tmpMap.put(_Fields.IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
-      FieldMetaData.addStructMetaDataMap(check_schema_agreement_result.class, metaDataMap);
+      FieldMetaData.addStructMetaDataMap(describe_schema_versions_result.class, metaDataMap);
     }
 
-    public check_schema_agreement_result() {
+    public describe_schema_versions_result() {
     }
 
-    public check_schema_agreement_result(
+    public describe_schema_versions_result(
       Map<String,List<String>> success,
       InvalidRequestException ire)
     {
@@ -17120,7 +17120,7 @@ public class Cassandra {
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public check_schema_agreement_result(check_schema_agreement_result other) {
+    public describe_schema_versions_result(describe_schema_versions_result other) {
       if (other.isSetSuccess()) {
         Map<String,List<String>> __this__success = new HashMap<String,List<String>>();
         for (Map.Entry<String, List<String>> other_element : other.success.entrySet()) {
@@ -17144,13 +17144,13 @@ public class Cassandra {
       }
     }
 
-    public check_schema_agreement_result deepCopy() {
-      return new check_schema_agreement_result(this);
+    public describe_schema_versions_result deepCopy() {
+      return new describe_schema_versions_result(this);
     }
 
     @Deprecated
-    public check_schema_agreement_result clone() {
-      return new check_schema_agreement_result(this);
+    public describe_schema_versions_result clone() {
+      return new describe_schema_versions_result(this);
     }
 
     public int getSuccessSize() {
@@ -17168,7 +17168,7 @@ public class Cassandra {
       return this.success;
     }
 
-    public check_schema_agreement_result setSuccess(Map<String,List<String>> success) {
+    public describe_schema_versions_result setSuccess(Map<String,List<String>> success) {
       this.success = success;
       return this;
     }
@@ -17192,7 +17192,7 @@ public class Cassandra {
       return this.ire;
     }
 
-    public check_schema_agreement_result setIre(InvalidRequestException ire) {
+    public describe_schema_versions_result setIre(InvalidRequestException ire) {
       this.ire = ire;
       return this;
     }
@@ -17272,12 +17272,12 @@ public class Cassandra {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof check_schema_agreement_result)
-        return this.equals((check_schema_agreement_result)that);
+      if (that instanceof describe_schema_versions_result)
+        return this.equals((describe_schema_versions_result)that);
       return false;
     }
 
-    public boolean equals(check_schema_agreement_result that) {
+    public boolean equals(describe_schema_versions_result that) {
       if (that == null)
         return false;
 
@@ -17307,13 +17307,13 @@ public class Cassandra {
       return 0;
     }
 
-    public int compareTo(check_schema_agreement_result other) {
+    public int compareTo(describe_schema_versions_result other) {
       if (!getClass().equals(other.getClass())) {
         return getClass().getName().compareTo(other.getClass().getName());
       }
 
       int lastComparison = 0;
-      check_schema_agreement_result typedOther = (check_schema_agreement_result)other;
+      describe_schema_versions_result typedOther = (describe_schema_versions_result)other;
 
       lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
       if (lastComparison != 0) {
@@ -17427,7 +17427,7 @@ public class Cassandra {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("check_schema_agreement_result(");
+      StringBuilder sb = new StringBuilder("describe_schema_versions_result(");
       boolean first = true;
 
       sb.append("success:");
