@@ -64,6 +64,7 @@ dev
  * removed keyspace from describe_splits method (CASSANDRA-1425)
  * rename check_schema_agreement to describe_schema_versions
    (CASSANDRA-1478)
+ * fix QUORUM calculation for RF > 3 (CASSANDRA-1487)
 
 
 0.7-beta1

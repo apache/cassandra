@@ -836,11 +836,6 @@ public class DatabaseDescriptor
         return tables.get(table).replicationFactor;
     }
 
-    public static int getQuorum(String table)
-    {
-        return (tables.get(table).replicationFactor / 2) + 1;
-    }
-
     public static long getRpcTimeout()
     {
         return conf.rpc_timeout_in_ms;

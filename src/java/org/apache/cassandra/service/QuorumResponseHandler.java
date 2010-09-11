@@ -109,7 +109,7 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
             case ANY:
                 return 1;
             case QUORUM:
-                return (DatabaseDescriptor.getQuorum(table)/ 2) + 1;
+                return (DatabaseDescriptor.getReplicationFactor(table) / 2) + 1;
             case ALL:
                 return DatabaseDescriptor.getReplicationFactor(table);
             default:
