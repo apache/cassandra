@@ -134,6 +134,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {{
         put(Verb.MUTATION, Stage.MUTATION);
         put(Verb.BINARY, Stage.MUTATION);
+        put(Verb.READ_REPAIR, Stage.MUTATION);
         put(Verb.READ, Stage.READ);
         put(Verb.READ_RESPONSE, Stage.RESPONSE);
         put(Verb.STREAM_STATUS, Stage.MISC); // TODO does this really belong on misc? I've just copied old behavior here
