@@ -67,6 +67,8 @@
  * fix QUORUM calculation for RF > 3 (CASSANDRA-1487)
  * remove tombstones during non-major compactions when bloom filter
    verifies that row does not exist in other sstables (CASSANDRA-1074)
+ * nodes that coordinated a loadbalance in the past could not be seen by
+   newly added nodes (CASSANDRA-1467)
 
 
 0.7-beta1
