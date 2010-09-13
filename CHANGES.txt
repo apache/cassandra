@@ -13,6 +13,9 @@
  * make sure to close CommitLog files after replay (CASSANDRA-1348)
  * bulletproof sstable deletion process (CASSANDRA-1458)
  * Switch system.LocationInfo CF from UTF8Type to BytesType (CASSANDRA-1492)
+ * avoid ConcurrentModificationException in Gossiper after removing
+   a dead StorageProxy client, decommissioned node, or partially
+   bootstrapped one (CASSANDRA-1494)
 
 
 0.6.5

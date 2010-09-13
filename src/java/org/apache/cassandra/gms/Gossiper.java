@@ -405,6 +405,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
                     {
                         logger_.info("FatClient " + endpoint + " has been silent for " + FatClientTimeout_ + "ms, removing from gossip");
                         removeEndPoint(endpoint);
+                        break; // avoid CME. this is fixed better in 0.7
                     }
                 }
 
