@@ -26,10 +26,13 @@ import java.io.IOError;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.slf4j.Logger;
@@ -51,12 +54,19 @@ public class PrecompactedRow extends AbstractCompactedRow
         this.buffer = buffer;
     }
 
-    public PrecompactedRow(List<SSTableIdentityIterator> rows, boolean major, int gcBefore)
+    public PrecompactedRow(ColumnFamilyStore cfStore, List<SSTableIdentityIterator> rows, boolean major, int gcBefore)
     {
         super(rows.get(0).getKey());
         buffer = new DataOutputBuffer();
 
-        if (rows.size() > 1 || major)
+        Set<SSTable> sstables = new HashSet<SSTable>();
+        for (SSTableIdentityIterator row : rows)
+        {
+            sstables.add(row.getSSTable());
+        }
+        boolean shouldPurge = major || !cfStore.isKeyInRemainingSSTables(key, sstables);
+
+        if (rows.size() > 1 || shouldPurge)
         {
             ColumnFamily cf = null;
             for (SSTableIdentityIterator row : rows)
@@ -80,7 +90,7 @@ public class PrecompactedRow extends AbstractCompactedRow
                     cf.addAll(thisCF);
                 }
             }
-            ColumnFamily cfPurged = major ? ColumnFamilyStore.removeDeleted(cf, gcBefore) : cf;
+            ColumnFamily cfPurged = shouldPurge ? ColumnFamilyStore.removeDeleted(cf, gcBefore) : cf;
             if (cfPurged == null)
                 return;
             columnCount = ColumnFamily.serializer().serializeWithIndexes(cfPurged, buffer);

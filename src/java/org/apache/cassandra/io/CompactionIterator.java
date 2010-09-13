@@ -23,7 +23,6 @@ package org.apache.cassandra.io;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.IOError;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -36,12 +35,9 @@ import org.apache.commons.collections.iterators.CollatingIterator;
 
 import org.apache.cassandra.utils.ReducingIterator;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 
 public class CompactionIterator extends ReducingIterator<SSTableIdentityIterator, AbstractCompactedRow> implements Closeable
 {
@@ -50,6 +46,7 @@ public class CompactionIterator extends ReducingIterator<SSTableIdentityIterator
     protected static final int FILE_BUFFER_SIZE = 1024 * 1024;
 
     protected final List<SSTableIdentityIterator> rows = new ArrayList<SSTableIdentityIterator>();
+    private final ColumnFamilyStore cfs;
     private final int gcBefore;
     private final boolean major;
 
@@ -57,13 +54,13 @@ public class CompactionIterator extends ReducingIterator<SSTableIdentityIterator
     private long bytesRead;
     private long row;
 
-    public CompactionIterator(Iterable<SSTableReader> sstables, int gcBefore, boolean major) throws IOException
+    public CompactionIterator(ColumnFamilyStore cfs, Iterable<SSTableReader> sstables, int gcBefore, boolean major) throws IOException
     {
-        this(getCollatingIterator(sstables), gcBefore, major);
+        this(cfs, getCollatingIterator(sstables), gcBefore, major);
     }
 
     @SuppressWarnings("unchecked")
-    protected CompactionIterator(Iterator iter, int gcBefore, boolean major)
+    protected CompactionIterator(ColumnFamilyStore cfs, Iterator iter, int gcBefore, boolean major)
     {
         super(iter);
         row = 0;
@@ -72,6 +69,7 @@ public class CompactionIterator extends ReducingIterator<SSTableIdentityIterator
         {
             totalBytes += scanner.getFileLength();
         }
+        this.cfs = cfs;
         this.gcBefore = gcBefore;
         this.major = major;
     }
@@ -133,9 +131,9 @@ public class CompactionIterator extends ReducingIterator<SSTableIdentityIterator
         {
             logger.info(String.format("Compacting large row %s (%d bytes) incrementally",
                                       FBUtilities.bytesToHex(rows.get(0).getKey().key), rowSize));
-            return new LazilyCompactedRow(rows, major, gcBefore);
+            return new LazilyCompactedRow(cfs, rows, major, gcBefore);
         }
-        return new PrecompactedRow(rows, major, gcBefore);
+        return new PrecompactedRow(cfs, rows, major, gcBefore);
     }
 
     public void close() throws IOException

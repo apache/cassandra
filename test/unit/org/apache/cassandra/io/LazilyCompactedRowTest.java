@@ -51,10 +51,11 @@ import static junit.framework.Assert.assertEquals;
 
 public class LazilyCompactedRowTest extends CleanupHelper
 {
-    private void assertBytes(Collection<SSTableReader> sstables, int gcBefore, boolean major) throws IOException
+    private void assertBytes(ColumnFamilyStore cfs, int gcBefore, boolean major) throws IOException
     {
-        CompactionIterator ci1 = new CompactionIterator(sstables, gcBefore, major);
-        LazyCompactionIterator ci2 = new LazyCompactionIterator(sstables, gcBefore, major);
+        Collection<SSTableReader> sstables = cfs.getSSTables();
+        CompactionIterator ci1 = new CompactionIterator(cfs, sstables, gcBefore, major);
+        LazyCompactionIterator ci2 = new LazyCompactionIterator(cfs, sstables, gcBefore, major);
 
         while (true)
         {
@@ -128,7 +129,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
         rm.apply();
         cfs.forceBlockingFlush();
 
-        assertBytes(cfs.getSSTables(), Integer.MAX_VALUE, true);
+        assertBytes(cfs, Integer.MAX_VALUE, true);
     }
 
     @Test
@@ -146,7 +147,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
         rm.apply();
         cfs.forceBlockingFlush();
 
-        assertBytes(cfs.getSSTables(), Integer.MAX_VALUE, true);
+        assertBytes(cfs, Integer.MAX_VALUE, true);
     }
 
     @Test
@@ -166,7 +167,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
         rm.apply();
         cfs.forceBlockingFlush();
 
-        assertBytes(cfs.getSSTables(), Integer.MAX_VALUE, true);
+        assertBytes(cfs, Integer.MAX_VALUE, true);
     }
 
     @Test
@@ -187,7 +188,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
         rm.apply();
         cfs.forceBlockingFlush();
 
-        assertBytes(cfs.getSSTables(), Integer.MAX_VALUE, true);
+        assertBytes(cfs, Integer.MAX_VALUE, true);
     }
 
     @Test
@@ -209,20 +210,23 @@ public class LazilyCompactedRowTest extends CleanupHelper
             cfs.forceBlockingFlush();
         }
 
-        assertBytes(cfs.getSSTables(), Integer.MAX_VALUE, true);
+        assertBytes(cfs, Integer.MAX_VALUE, true);
     }
 
     private static class LazyCompactionIterator extends CompactionIterator
     {
-        public LazyCompactionIterator(Iterable<SSTableReader> sstables, int gcBefore, boolean major) throws IOException
+        private final ColumnFamilyStore cfStore;
+
+        public LazyCompactionIterator(ColumnFamilyStore cfStore, Iterable<SSTableReader> sstables, int gcBefore, boolean major) throws IOException
         {
-            super(sstables, gcBefore, major);
+            super(cfStore, sstables, gcBefore, major);
+            this.cfStore = cfStore;
         }
 
         @Override
         protected AbstractCompactedRow getCompactedRow()
         {
-            return new LazilyCompactedRow(rows, true, Integer.MAX_VALUE);
+            return new LazilyCompactedRow(cfStore, rows, true, Integer.MAX_VALUE);
         }
     }
 }

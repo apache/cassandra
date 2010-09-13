@@ -65,6 +65,8 @@ dev
  * rename check_schema_agreement to describe_schema_versions
    (CASSANDRA-1478)
  * fix QUORUM calculation for RF > 3 (CASSANDRA-1487)
+ * remove tombstones during non-major compactions when bloom filter
+   verifies that row does not exist in other sstables (CASSANDRA-1074)
 
 
 0.7-beta1

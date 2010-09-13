@@ -33,10 +33,10 @@ import org.apache.commons.collections.iterators.CollatingIterator;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.IIterableColumns;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ReducingIterator;
 
 /**
@@ -53,7 +53,7 @@ import org.apache.cassandra.utils.ReducingIterator;
 public class LazilyCompactedRow extends AbstractCompactedRow implements IIterableColumns
 {
     private final List<SSTableIdentityIterator> rows;
-    private final boolean major;
+    private final boolean shouldPurge;
     private final int gcBefore;
     private final DataOutputBuffer headerBuffer;
     private ColumnFamily emptyColumnFamily;
@@ -61,15 +61,16 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
     private int columnCount;
     private long columnSerializedSize;
 
-    public LazilyCompactedRow(List<SSTableIdentityIterator> rows, boolean major, int gcBefore)
+    public LazilyCompactedRow(ColumnFamilyStore cfStore, List<SSTableIdentityIterator> rows, boolean major, int gcBefore)
     {
         super(rows.get(0).getKey());
-        this.major = major;
         this.gcBefore = gcBefore;
         this.rows = new ArrayList<SSTableIdentityIterator>(rows);
 
+        Set<SSTable> sstables = new HashSet<SSTable>();
         for (SSTableIdentityIterator row : rows)
         {
+            sstables.add(row.getSSTable());
             ColumnFamily cf = row.getColumnFamily();
 
             if (emptyColumnFamily == null)
@@ -77,6 +78,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
             else
                 emptyColumnFamily.delete(cf);
         }
+        this.shouldPurge = major || !cfStore.isKeyInRemainingSSTables(key, sstables);
 
         // initialize row header so isEmpty can be called
         headerBuffer = new DataOutputBuffer();
@@ -89,7 +91,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
 
     public void write(DataOutput out) throws IOException
     {
-        if (rows.size() == 1 && !major)
+        if (rows.size() == 1 && !shouldPurge)
         {
             SSTableIdentityIterator row = rows.get(0);
             out.writeLong(row.getDataSize());
@@ -203,7 +205,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         {
             assert container != null;
             IColumn reduced = container.iterator().next();
-            ColumnFamily purged = major ? ColumnFamilyStore.removeDeleted(container, gcBefore) : container;
+            ColumnFamily purged = shouldPurge ? ColumnFamilyStore.removeDeleted(container, gcBefore) : container;
             if (purged == null || !purged.iterator().hasNext())
             {
                 container.clear();

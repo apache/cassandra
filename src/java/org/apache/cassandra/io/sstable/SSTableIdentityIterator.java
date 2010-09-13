@@ -87,6 +87,11 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         return columnFamily;
     }
 
+    public SSTableReader getSSTable()
+    {
+        return sstable;
+    }
+
     public boolean hasNext()
     {
         return file.getFilePointer() < finishedAt;

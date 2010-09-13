@@ -614,6 +614,24 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
+    /**
+     * Uses bloom filters to check if key may be present in any sstable in this
+     * ColumnFamilyStore, minus a set of provided ones.
+     *
+     * Because BFs are checked, negative returns ensure that the key is not
+     * present in the checked SSTables, but positive ones doesn't ensure key
+     * presence.
+     */
+    public boolean isKeyInRemainingSSTables(DecoratedKey key, Set<SSTable> sstablesToIgnore)
+    {
+        for (SSTableReader sstable : ssTables)
+        {
+            if (!sstablesToIgnore.contains(sstable) && sstable.getBloomFilter().isPresent(key.key))
+                return true;
+        }
+        return false;
+    }
+
     /*
      * Called after the Memtable flushes its in-memory data, or we add a file
      * via bootstrap. This information is
