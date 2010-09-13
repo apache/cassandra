@@ -76,6 +76,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
 
     // this must be a char that cannot be present in any token
     public final static char Delimiter = ',';
+    private final static String DelimiterStr = new String(new char[] {Delimiter});
 
     public final static String STATE_BOOTSTRAPPING = "BOOT";
     public final static String STATE_NORMAL = "NORMAL";
@@ -83,7 +84,6 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     public final static String STATE_LEFT = "LEFT";
 
     public final static String REMOVE_TOKEN = "remove";
-    public final static String LEFT_NORMALLY = "left";
 
     /* All verb handler identifiers */
     public enum Verb
@@ -475,6 +475,23 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
      * Nodes can start in either bootstrap or normal mode, and from bootstrap mode can change mode to normal.
      * A node in bootstrap mode needs to have pendingranges set in TokenMetadata; a node in normal mode
      * should instead be part of the token ring.
+     * 
+     * Normal state progression of a node should be like this:
+     * STATE_BOOTSTRAPPING,token
+     *   if bootstrapping. stays this way until all files are received.
+     * STATE_NORMAL,token 
+     *   ready to serve reads and writes.
+     * STATE_NORMAL,token,REMOVE_TOKEN,token
+     *   specialized normal state in which this node acts as a proxy to tell the cluster about a dead node whose 
+     *   token is being removed. this value becomes the permanent state of this node (unless it coordinates another
+     *   removetoken in the future).
+     * STATE_LEAVING,token 
+     *   get ready to leave the cluster as part of a decommission or move
+     * STATE_LEFT,token 
+     *   set after decommission or move is completed.
+     * 
+     * Note: Any time a node state changes from STATE_NORMAL, it will not be visible to new nodes. So it follows that
+     * you should never bootstrap a new node during a removetoken, decommission or move.
      */
     public void onChange(InetAddress endpoint, String apStateName, ApplicationState apState)
     {
@@ -482,31 +499,31 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
             return;
 
         String apStateValue = apState.getValue();
-        int index = apStateValue.indexOf(Delimiter);
-        assert (index != -1);
+        String[] pieces = apStateValue.split(DelimiterStr, -1);
+        assert (pieces.length > 0);        
 
-        String moveName = apStateValue.substring(0, index);
-        String moveValue = apStateValue.substring(index+1);
+        String moveName = pieces[0];
 
         if (moveName.equals(STATE_BOOTSTRAPPING))
-            handleStateBootstrap(endpoint, moveValue);
+            handleStateBootstrap(endpoint, pieces);
         else if (moveName.equals(STATE_NORMAL))
-            handleStateNormal(endpoint, moveValue);
+            handleStateNormal(endpoint, pieces);
         else if (moveName.equals(STATE_LEAVING))
-            handleStateLeaving(endpoint, moveValue);
+            handleStateLeaving(endpoint, pieces);
         else if (moveName.equals(STATE_LEFT))
-            handleStateLeft(endpoint, moveValue);
+            handleStateLeft(endpoint, pieces);
     }
 
     /**
      * Handle node bootstrap
      *
      * @param endPoint bootstrapping node
-     * @param moveValue bootstrap token as string
+     * @param pieces STATE_BOOTSTRAPPING,bootstrap token as string
      */
-    private void handleStateBootstrap(InetAddress endPoint, String moveValue)
+    private void handleStateBootstrap(InetAddress endPoint, String[] pieces)
     {
-        Token token = getPartitioner().getTokenFactory().fromString(moveValue);
+        assert pieces.length == 2;
+        Token token = getPartitioner().getTokenFactory().fromString(pieces[1]);        
 
         if (logger_.isDebugEnabled())
             logger_.debug("Node " + endPoint + " state bootstrapping, token " + token);
@@ -535,11 +552,12 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
      * in reads.
      *
      * @param endPoint node
-     * @param moveValue token as string
+     * @param pieces STATE_NORMAL,token[,other_state,token]
      */
-    private void handleStateNormal(InetAddress endPoint, String moveValue)
+    private void handleStateNormal(InetAddress endPoint, String[] pieces)
     {
-        Token token = getPartitioner().getTokenFactory().fromString(moveValue);
+        assert pieces.length >= 2;
+        Token token = getPartitioner().getTokenFactory().fromString(pieces[1]);        
 
         if (logger_.isDebugEnabled())
             logger_.debug("Node " + endPoint + " state normal, token " + token);
@@ -554,6 +572,30 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         else
             logger_.info("Will not change my token ownership to " + endPoint);
         
+        if (pieces.length > 2)
+        {
+            if (REMOVE_TOKEN.equals(pieces[2]))
+            { 
+                // remove token was called on a dead node.
+                Token tokenThatLeft = getPartitioner().getTokenFactory().fromString(pieces[3]);
+                InetAddress endpointThatLeft = tokenMetadata_.getEndPoint(tokenThatLeft);
+                // let's make sure that we're not removing ourselves. This can happen when a node
+                // enters ring as a replacement for a removed node. removeToken for the old node is
+                // still in gossip, so we will see it.
+                if (FBUtilities.getLocalAddress().equals(endpointThatLeft))
+                {
+                    logger_.info("Received removeToken gossip about myself. Is this node a replacement for a removed one?");
+                    return;
+                }
+                logger_.debug("Token " + tokenThatLeft + " removed manually (endpoint was " + ((endpointThatLeft == null) ? "unknown" : endpointThatLeft) + ")");
+                if (endpointThatLeft != null)
+                {
+                    removeEndPointLocally(endpointThatLeft);
+                }
+                tokenMetadata_.removeBootstrapToken(tokenThatLeft);
+            }
+        }
+        
         calculatePendingRanges();
         if (!isClientMode)
             SystemTable.updateToken(endPoint, token);
@@ -563,11 +605,12 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
      * Handle node preparing to leave the ring
      *
      * @param endPoint node
-     * @param moveValue token as string
+     * @param pieces STATE_LEAVING,token
      */
-    private void handleStateLeaving(InetAddress endPoint, String moveValue)
+    private void handleStateLeaving(InetAddress endPoint, String[] pieces)
     {
-        Token token = getPartitioner().getTokenFactory().fromString(moveValue);
+        assert pieces.length == 2;
+        Token token = getPartitioner().getTokenFactory().fromString(pieces[1]);
 
         if (logger_.isDebugEnabled())
             logger_.debug("Node " + endPoint + " state leaving, token " + token);
@@ -593,55 +636,29 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     }
 
     /**
-     * Handle node leaving the ring. This can be either because the node was removed manually by
-     * removetoken command or because of decommission or loadbalance
+     * Handle node leaving the ring. This can be either because of decommission or loadbalance
      *
-     * @param endPoint If reason for leaving is decommission or loadbalance (LEFT_NORMALLY),
-     * endPoint is the leaving node. If reason manual removetoken (REMOVE_TOKEN), endPoint
-     * parameter is ignored and the operation is based on the token inside moveValue.
-     * @param moveValue (REMOVE_TOKEN|LEFT_NORMALLY)<Delimiter><token>
+     * @param endPoint If reason for leaving is decommission or loadbalance
+     * endpoint is the leaving node.
+     * @param pieces STATE_LEFT,token
      */
-    private void handleStateLeft(InetAddress endPoint, String moveValue)
+    private void handleStateLeft(InetAddress endPoint, String[] pieces)
     {
-        int index = moveValue.indexOf(Delimiter);
-        assert (index != -1);
-        String typeOfState = moveValue.substring(0, index);
-        Token token = getPartitioner().getTokenFactory().fromString(moveValue.substring(index + 1));
+        assert pieces.length == 2;
+        Token token = getPartitioner().getTokenFactory().fromString(pieces[1]);        
 
         // endPoint itself is leaving
-        if (typeOfState.equals(LEFT_NORMALLY))
-        {
-            if (logger_.isDebugEnabled())
-                logger_.debug("Node " + endPoint + " state left, token " + token);
+        if (logger_.isDebugEnabled())
+            logger_.debug("Node " + endPoint + " state left, token " + token);
+        
 
-            // If the node is member, remove all references to it. If not, call
-            // removeBootstrapToken just in case it is there (very unlikely chain of events)
-            if (tokenMetadata_.isMember(endPoint))
-            {
-                if (!tokenMetadata_.getToken(endPoint).equals(token))
-                    logger_.warn("Node " + endPoint + " 'left' token mismatch. Long network partition?");
-                tokenMetadata_.removeEndpoint(endPoint);
-            }
-        }
-        else
+        // If the node is member, remove all references to it. If not, call
+        // removeBootstrapToken just in case it is there (very unlikely chain of events)
+        if (tokenMetadata_.isMember(endPoint))
         {
-            // if we're here, endPoint is not leaving but broadcasting remove token command
-            assert (typeOfState.equals(REMOVE_TOKEN));
-            InetAddress endPointThatLeft = tokenMetadata_.getEndPoint(token);
-            // let's make sure that we're not removing ourselves. This can happen when a node
-            // enters ring as a replacement for a removed node. removeToken for the old node is
-            // still in gossip, so we will see it.
-            if (FBUtilities.getLocalAddress().equals(endPointThatLeft))
-            {
-                logger_.info("Received removeToken gossip about myself. Is this node a replacement for a removed one?");
-                return;
-            }
-            if (logger_.isDebugEnabled())
-                logger_.debug("Token " + token + " removed manually (endpoint was " + ((endPointThatLeft == null) ? "unknown" : endPointThatLeft) + ")");
-            if (endPointThatLeft != null)
-            {
-                removeEndPointLocally(endPointThatLeft);
-            }
+            if (!tokenMetadata_.getToken(endPoint).equals(token))
+                logger_.warn("Node " + endPoint + " 'left' token mismatch. Long network partition?");
+            tokenMetadata_.removeEndpoint(endPoint);
         }
 
         // remove token from bootstrap tokens just in case it is still there
@@ -1356,7 +1373,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         tokenMetadata_.removeEndpoint(FBUtilities.getLocalAddress());
         calculatePendingRanges();
 
-        Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_LEFT + Delimiter + LEFT_NORMALLY + Delimiter + getLocalToken().toString()));
+        Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_LEFT + Delimiter + partitioner_.getTokenFactory().toString(getLocalToken())));
         try
         {
             Thread.sleep(2 * Gossiper.intervalInMillis_);
@@ -1493,14 +1510,8 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
             calculatePendingRanges();
         }
 
-        // This is not the cleanest way as we're adding STATE_LEFT for
-        // a foreign token to our own EP state. Another way would be
-        // to add new AP state for this command, but that would again
-        // increase the amount of data to be gossiped in the cluster -
-        // not good. REMOVE_TOKEN|LEFT_NORMALLY is used to distinguish
-        // between ``removetoken command and normal state left, so it is
-        // not so bad.
-        Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_LEFT + Delimiter + REMOVE_TOKEN + Delimiter + token.toString()));
+        // bundle two states together. include this nodes state to keep the status quo, but indicate the leaving token so that it can be dealt with.
+        Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_NORMAL + Delimiter + partitioner_.getTokenFactory().toString(getLocalToken()) + Delimiter + REMOVE_TOKEN + Delimiter + partitioner_.getTokenFactory().toString(token)));
     }
 
     public WriteResponseHandler getWriteResponseHandler(int blockFor, ConsistencyLevel consistency_level, String table)

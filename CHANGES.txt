@@ -16,6 +16,8 @@
  * avoid ConcurrentModificationException in Gossiper after removing
    a dead StorageProxy client, decommissioned node, or partially
    bootstrapped one (CASSANDRA-1494)
+ * nodes that coordinated a loadbalance in the past could not be seen by
+   newly added nodes (CASSANDRA-1467)
 
 
 0.6.5
