@@ -70,6 +70,18 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         }
     }
     
+    public String getAllEndpointStates()
+    {
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<InetAddress, EndpointState> entry : Gossiper.instance.endpointStateMap_.entrySet())
+        {
+            sb.append(entry.getKey()).append("\n");
+            for (Map.Entry<String, ApplicationState> state : entry.getValue().applicationState_.entrySet())
+                sb.append("  ").append(state.getKey()).append(":").append(state.getValue().getValue()).append("\n");
+        }
+        return sb.toString();
+    }
+
     /**
      * Dump the inter arrival times for examination if necessary.
      */

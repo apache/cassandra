@@ -25,4 +25,6 @@ public interface FailureDetectorMBean
     public void setPhiConvictThreshold(int phi);
 
     public int getPhiConvictThreshold();
+    
+    public String getAllEndpointStates();
 }
