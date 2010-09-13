@@ -504,7 +504,7 @@ public class DatabaseDescriptor
             systemMeta.cfMetaData.put(SystemTable.STATUS_CF, new CFMetaData(Table.SYSTEM_TABLE,
                                                                             SystemTable.STATUS_CF,
                                                                             "Standard",
-                                                                            new UTF8Type(),
+                                                                            new BytesType(),
                                                                             null,
                                                                             "persistent metadata for the local node",
                                                                             0.0,
