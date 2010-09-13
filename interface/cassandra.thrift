@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "14.0.0"
+const string VERSION = "15.0.0"
 
 
 #
@@ -344,9 +344,9 @@ struct CfDef {
     3: optional string column_type="Standard",
     4: optional string clock_type="Timestamp",
     5: optional string comparator_type="BytesType",
-    6: optional string subcomparator_type="",
-    7: optional string reconciler="",
-    8: optional string comment="",
+    6: optional string subcomparator_type,
+    7: optional string reconciler,
+    8: optional string comment,
     9: optional double row_cache_size=0,
     10: optional bool preload_row_cache=0,
     11: optional double key_cache_size=200000,

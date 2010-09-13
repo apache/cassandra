@@ -944,7 +944,7 @@ public class CassandraServer implements Cassandra.Iface
                               cfType,
                               clockType,
                               DatabaseDescriptor.getComparator(cf_def.comparator_type),
-                              cf_def.subcomparator_type.length() == 0 ? null : DatabaseDescriptor.getComparator(cf_def.subcomparator_type),
+                              cf_def.subcomparator_type == null ? null : DatabaseDescriptor.getComparator(cf_def.subcomparator_type),
                               reconciler,
                               cf_def.comment,
                               cf_def.row_cache_size,

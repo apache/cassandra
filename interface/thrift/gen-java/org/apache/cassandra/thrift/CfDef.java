@@ -242,12 +242,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
 
     this.comparator_type = "BytesType";
 
-    this.subcomparator_type = "";
-
-    this.reconciler = "";
-
-    this.comment = "";
-
     this.row_cache_size = (double)0;
 
     this.preload_row_cache = false;
