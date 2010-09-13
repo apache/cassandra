@@ -34,12 +34,12 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     private final DecoratedKey key;
     private final long finishedAt;
     private final BufferedRandomAccessFile file;
-    private final SSTableReader sstable;
+    public final SSTableReader sstable;
     private final long dataStart;
-    private final long dataSize;
+    public final long dataSize;
 
     private final ColumnFamily columnFamily;
-    private final int columnCount;
+    public final int columnCount;
     private final long columnPosition;
 
     /**
@@ -87,11 +87,6 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         return columnFamily;
     }
 
-    public SSTableReader getSSTable()
-    {
-        return sstable;
-    }
-
     public boolean hasNext()
     {
         return file.getFilePointer() < finishedAt;
@@ -124,11 +119,6 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         return file.getPath();
     }
 
-    public long getDataSize()
-    {
-        return dataSize;
-    }
-
     public void echoData(DataOutput out) throws IOException
     {
         file.seek(dataStart);
@@ -136,11 +126,6 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         {
             out.write(file.readByte());
         }
-    }
-
-    public int getColumnCount()
-    {
-        return columnCount;
     }
 
     public ColumnFamily getColumnFamilyWithColumns() throws IOException

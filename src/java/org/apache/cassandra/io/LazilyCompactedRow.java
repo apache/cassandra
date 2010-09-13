@@ -70,7 +70,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         Set<SSTable> sstables = new HashSet<SSTable>();
         for (SSTableIdentityIterator row : rows)
         {
-            sstables.add(row.getSSTable());
+            sstables.add(row.sstable);
             ColumnFamily cf = row.getColumnFamily();
 
             if (emptyColumnFamily == null)
@@ -94,7 +94,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         if (rows.size() == 1 && !shouldPurge)
         {
             SSTableIdentityIterator row = rows.get(0);
-            out.writeLong(row.getDataSize());
+            out.writeLong(row.dataSize);
             row.echoData(out);
             return;
         }
@@ -148,7 +148,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
     {
         int n = 0;
         for (SSTableIdentityIterator row : rows)
-            n += row.getColumnCount();
+            n += row.columnCount;
         return n;
     }
 

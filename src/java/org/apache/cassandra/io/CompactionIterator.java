@@ -124,7 +124,7 @@ public class CompactionIterator extends ReducingIterator<SSTableIdentityIterator
         long rowSize = 0;
         for (SSTableIdentityIterator row : rows)
         {
-            rowSize += row.getDataSize();
+            rowSize += row.dataSize;
         }
 
         if (rowSize > DatabaseDescriptor.getInMemoryCompactionLimit())

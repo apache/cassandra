@@ -62,7 +62,7 @@ public class PrecompactedRow extends AbstractCompactedRow
         Set<SSTable> sstables = new HashSet<SSTable>();
         for (SSTableIdentityIterator row : rows)
         {
-            sstables.add(row.getSSTable());
+            sstables.add(row.sstable);
         }
         boolean shouldPurge = major || !cfStore.isKeyInRemainingSSTables(key, sstables);
 
@@ -101,7 +101,7 @@ public class PrecompactedRow extends AbstractCompactedRow
             try
             {
                 rows.get(0).echoData(buffer);
-                columnCount = rows.get(0).getColumnCount();
+                columnCount = rows.get(0).columnCount;
             }
             catch (IOException e)
             {
