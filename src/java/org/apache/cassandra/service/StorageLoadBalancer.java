@@ -375,17 +375,3 @@ public class StorageLoadBalancer implements IEndpointStateChangeSubscriber
     }
 }
 
-class MoveMessage
-{
-    private final Token targetToken_;
-
-    MoveMessage(Token targetToken)
-    {
-        targetToken_ = targetToken;
-    }
-
-    Token getTargetToken()
-    {
-        return targetToken_;
-    }
-}
