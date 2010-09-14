@@ -19,25 +19,13 @@
 package org.apache.cassandra.thrift;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.util.UUID;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.config.ConfigurationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.CompactionManager;
-import org.apache.cassandra.db.SystemTable;
-import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.migration.Migration;
-import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.CLibrary;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Mx4jTool;
 import org.apache.thrift.TProcessorFactory;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocolFactory;
@@ -46,8 +34,6 @@ import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TServerSocket;
 import org.apache.thrift.transport.TTransportException;
 import org.apache.thrift.transport.TTransportFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * This class supports two methods for creating a Cassandra node daemon, 
@@ -65,78 +51,7 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
 
     protected void setup() throws IOException
     {
-        FBUtilities.tryMlockall();
-
-        int listenPort = DatabaseDescriptor.getRpcPort();
-        InetAddress listenAddr = DatabaseDescriptor.getRpcAddress();
-        
-        /* 
-         * If ThriftAddress was left completely unconfigured, then assume
-         * the same default as ListenAddress
-         */
-        if (listenAddr == null)
-            listenAddr = FBUtilities.getLocalAddress();
-        
-        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler()
-        {
-            public void uncaughtException(Thread t, Throwable e)
-            {
-                logger.error("Uncaught exception in thread " + t, e);
-                if (e instanceof OutOfMemoryError)
-                {
-                    System.exit(100);
-                }
-            }
-        });
-        
-        // check the system table for mismatched partitioner.
-        try
-        {
-            SystemTable.checkHealth();
-        }
-        catch (ConfigurationException e)
-        {
-            logger.error("Fatal exception during initialization", e);
-            System.exit(100);
-        }
-
-        try
-        {
-            DatabaseDescriptor.loadSchemas();
-        }
-        catch (IOException e)
-        {
-            logger.error("Fatal exception during initialization", e);
-            System.exit(100);
-        }
-        
-        // initialize keyspaces
-        for (String table : DatabaseDescriptor.getTables())
-        {
-            if (logger.isDebugEnabled())
-                logger.debug("opening keyspace " + table);
-            Table.open(table);
-        }
-
-        // replay the log if necessary and check for compaction candidates
-        CommitLog.recover();
-        CompactionManager.instance.checkAllColumnFamilies();
-        
-        // check to see if CL.recovery modified the lastMigrationId. if it did, we need to re apply migrations. this isn't
-        // the same as merely reloading the schema (which wouldn't perform file deletion after a DROP). The solution
-        // is to read those migrations from disk and apply them.
-        UUID currentMigration = DatabaseDescriptor.getDefsVersion();
-        UUID lastMigration = Migration.getLastMigrationId();
-        if ((lastMigration != null) && (lastMigration.timestamp() > currentMigration.timestamp()))
-        {
-            MigrationManager.applyMigrations(currentMigration, lastMigration);
-        }
-        
-        SystemTable.purgeIncompatibleHints();
-        
-        // start server internals
-        StorageService.instance.initServer();
-        
+        super.setup();                
         // now we start listening for clients
         final CassandraServer cassandraServer = new CassandraServer();
         Cassandra.Processor processor = new Cassandra.Processor(cassandraServer);
@@ -176,7 +91,6 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
             outTransportFactory = new TTransportFactory();
         }
 
-
         // ThreadPool Server
         CustomTThreadPoolServer.Options options = new CustomTThreadPoolServer.Options();
         options.minWorkerThreads = MIN_WORKER_THREADS;
@@ -198,7 +112,6 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
     public void start()
     {
         logger.info("Listening for thrift clients...");
-        Mx4jTool.maybeLoad();
         serverEngine.serve();
     }
 

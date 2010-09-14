@@ -20,14 +20,25 @@ package org.apache.cassandra.service;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.util.UUID;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.RejectedExecutionException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.CompactionManager;
+import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Mx4jTool;
 import org.mortbay.thread.ThreadPool;
 
 /**
@@ -42,15 +53,95 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
     private static Logger logger = LoggerFactory
             .getLogger(AbstractCassandraDaemon.class);
     
+    protected InetAddress listenAddr;
+    protected int listenPort;
+    
     public static final int MIN_WORKER_THREADS = 64;
 
     /**
      * This is a hook for concrete daemons to initialize themselves suitably.
-     * 
+     *
+     * Subclasses should override this to finish the job (listening on ports, etc.)
+     *
      * @throws IOException
      */
-    protected abstract void setup() throws IOException;
-    
+    protected void setup() throws IOException
+    {
+    	FBUtilities.tryMlockall();
+
+        listenPort = DatabaseDescriptor.getRpcPort();
+        listenAddr = DatabaseDescriptor.getRpcAddress();
+        
+        /* 
+         * If ThriftAddress was left completely unconfigured, then assume
+         * the same default as ListenAddress
+         */
+        if (listenAddr == null)
+            listenAddr = FBUtilities.getLocalAddress();
+        
+        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler()
+        {
+            public void uncaughtException(Thread t, Throwable e)
+            {
+                logger.error("Fatal exception in thread " + t, e);
+                if (e instanceof OutOfMemoryError)
+                {
+                    System.exit(100);
+                }
+            }
+        });
+        
+        // check the system table for mismatched partitioner.
+        try
+        {
+            SystemTable.checkHealth();
+        }
+        catch (ConfigurationException e)
+        {
+            logger.error("Fatal exception during initialization", e);
+            System.exit(100);
+        }
+        
+        try
+        {
+            DatabaseDescriptor.loadSchemas();
+        }
+        catch (IOException e)
+        {
+            logger.error("Fatal exception during initialization", e);
+            System.exit(100);
+        }
+
+        // initialize keyspaces
+        for (String table : DatabaseDescriptor.getTables())
+        {
+            if (logger.isDebugEnabled())
+                logger.debug("opening keyspace " + table);
+            Table.open(table);
+        }
+
+        // replay the log if necessary and check for compaction candidates
+        CommitLog.recover();
+        CompactionManager.instance.checkAllColumnFamilies();
+        
+        // check to see if CL.recovery modified the lastMigrationId. if it did, we need to re apply migrations. this isn't
+        // the same as merely reloading the schema (which wouldn't perform file deletion after a DROP). The solution
+        // is to read those migrations from disk and apply them.
+        UUID currentMigration = DatabaseDescriptor.getDefsVersion();
+        UUID lastMigration = Migration.getLastMigrationId();
+        if ((lastMigration != null) && (lastMigration.timestamp() > currentMigration.timestamp()))
+        {
+            MigrationManager.applyMigrations(currentMigration, lastMigration);
+        }
+        
+        SystemTable.purgeIncompatibleHints();
+
+        // start server internals
+        StorageService.instance.initServer();
+
+        Mx4jTool.maybeLoad();
+    }
+
     /**
      * Initialize the Cassandra Daemon based on the given <a
      * href="http://commons.apache.org/daemon/jsvc.html">Commons
@@ -155,7 +246,6 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
         /**   The following are cribbed from org.mortbay.thread.concurrent   */
         /*********************************************************************/
 
-        @Override
         public boolean dispatch(Runnable job)
         {
             try
@@ -170,25 +260,21 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
             }
         }
 
-        @Override
         public int getIdleThreads()
         {
             return getPoolSize()-getActiveCount();
         }
 
-        @Override
         public int getThreads()
         {
             return getPoolSize();
         }
 
-        @Override
         public boolean isLowOnThreads()
         {
             return getActiveCount()>=getMaximumPoolSize();
         }
 
-        @Override
         public void join() throws InterruptedException
         {
             this.awaitTermination(Long.MAX_VALUE,TimeUnit.MILLISECONDS);
