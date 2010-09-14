@@ -64,9 +64,7 @@ public class StreamOutSession
         streams.remove(context);
     }
 
-    // we need sequential and random access to the files. hence, the map and the list.
-    private final List<PendingFile> files = new ArrayList<PendingFile>();
-    private final Map<String, PendingFile> fileMap = new HashMap<String, PendingFile>();
+    private final Map<String, PendingFile> files = new LinkedHashMap<String, PendingFile>();
     
     private final Pair<InetAddress, Long> context;
     private final SimpleCondition condition = new SimpleCondition();
@@ -94,14 +92,13 @@ public class StreamOutSession
         {
             if (logger.isDebugEnabled())
                 logger.debug("Adding file {} to be streamed.", pendingFile.getFilename());
-            files.add(pendingFile);
-            fileMap.put(pendingFile.getFilename(), pendingFile);
+            files.put(pendingFile.getFilename(), pendingFile);
         }
     }
     
     public void retry(String file)
     {
-        PendingFile pf = fileMap.get(file);
+        PendingFile pf = files.get(file);
         if (pf != null)
             streamFile(pf);
     }
@@ -115,9 +112,8 @@ public class StreamOutSession
 
     public void finishAndStartNext(String pfname) throws IOException
     {
-        PendingFile pf = fileMap.remove(pfname);
-        files.remove(pf);
-
+        files.remove(pfname);
+        
         if (files.isEmpty())
         {
             if (logger.isDebugEnabled())
@@ -127,14 +123,13 @@ public class StreamOutSession
         }
         else
         {
-            streamFile(files.get(0));
+            streamFile(files.values().iterator().next());
         }
     }
 
     public void removePending(PendingFile pf)
     {
-        files.remove(pf);
-        fileMap.remove(pf.getFilename());
+        files.remove(pf.getFilename());
         if (files.isEmpty())
             close();
     }
@@ -151,9 +146,9 @@ public class StreamOutSession
         }
     }
 
-    List<PendingFile> getFiles()
+    Collection<PendingFile> getFiles()
     {
-        return Collections.unmodifiableList(files);
+        return files.values();
     }
 
     public static Set<InetAddress> getDestinations()
