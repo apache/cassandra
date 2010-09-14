@@ -23,24 +23,23 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Multimaps;
-
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** each context gets its own StreamInSession. So there may be >1 StreamInManager per host */
+/** each context gets its own StreamInSession. So there may be >1 Session per host */
 public class StreamInSession
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamInSession.class);
 
-    private static ConcurrentMap<StreamContext, StreamInSession> streamManagers = new ConcurrentHashMap<StreamContext, StreamInSession>(0);
-    public static final Multimap<StreamContext, PendingFile> activeStreams = Multimaps.synchronizedMultimap(HashMultimap.<StreamContext, PendingFile>create());
-    public static final Multimap<InetAddress, StreamContext> sourceHosts = Multimaps.synchronizedMultimap(HashMultimap.<InetAddress, StreamContext>create());
-    
+    private static ConcurrentMap<StreamContext, StreamInSession> sessions = new NonBlockingHashMap<StreamContext, StreamInSession>();
+    private final Set<PendingFile> activeStreams = new HashSet<PendingFile>();
+
     private final List<PendingFile> pendingFiles = new ArrayList<PendingFile>();
     private final StreamContext context;
 
@@ -49,24 +48,44 @@ public class StreamInSession
         this.context = context;
     }
 
-    public synchronized static StreamInSession get(StreamContext context)
+    public static StreamInSession create(InetAddress host)
     {
-        StreamInSession session = streamManagers.get(context);
+        StreamContext context = new StreamContext(host);
+        StreamInSession session = new StreamInSession(context);
+        sessions.put(context, session);
+        return session;
+    }
+
+    public static StreamInSession get(InetAddress host, long sessionId)
+    {
+        StreamContext context = new StreamContext(host, sessionId);
+
+        StreamInSession session = sessions.get(context);
         if (session == null)
         {
             StreamInSession possibleNew = new StreamInSession(context);
-            if ((session = streamManagers.putIfAbsent(context, possibleNew)) == null)
+            if ((session = sessions.putIfAbsent(context, possibleNew)) == null)
             {
                 session = possibleNew;
-                sourceHosts.put(context.host, context);
             }
         }
         return session;
     }
 
-    public void addFilesToRequest(List<PendingFile> pendingFiles)
+    // FIXME hack for "initiated" streams.  replace w/ integration w/ pendingfiles
+    public void addActiveStream(PendingFile file)
     {
-        for(PendingFile file : pendingFiles)
+        activeStreams.add(file);
+    }
+
+    public void removeActiveStream(PendingFile file)
+    {
+        activeStreams.remove(file);
+    }
+
+    public void addFilesToRequest(List<PendingFile> files)
+    {
+        for(PendingFile file : files)
         {
             if(logger.isDebugEnabled())
                 logger.debug("Adding file {} to Stream Request queue", file.getFilename());
@@ -82,41 +101,61 @@ public class StreamInSession
     {
         pendingFiles.remove(lastFile);
         if (pendingFiles.size() > 0)
-            StreamIn.requestFile(context, pendingFiles.get(0));
+            requestFile(pendingFiles.get(0));
         else
         {
             if (StorageService.instance.isBootstrapMode())
-                StorageService.instance.removeBootstrapSource(context.host, lastFile.desc.ksname);
+                StorageService.instance.removeBootstrapSource(getHost(), lastFile.desc.ksname);
             remove();
         }
     }
     
     public void remove()
     {
-        if (streamManagers.containsKey(context))
-            streamManagers.remove(context);
-        sourceHosts.remove(context.host, context);
+        sessions.remove(context);
+    }
+
+    public void requestFile(PendingFile file)
+    {
+        if (logger.isDebugEnabled())
+            logger.debug("Requesting file {} from source {}", file.getFilename(), getHost());
+        Message message = new StreamRequestMessage(FBUtilities.getLocalAddress(), file, getSessionId()).makeMessage();
+        MessagingService.instance.sendOneWay(message, getHost());
+    }
+
+    public long getSessionId()
+    {
+        return context.sessionId;
+    }
+
+    public InetAddress getHost()
+    {
+        return context.host;
     }
 
     /** query method to determine which hosts are streaming to this node. */
-    public static Set<StreamContext> getSources()
+    public static Set<InetAddress> getSources()
     {
-        HashSet<StreamContext> set = new HashSet<StreamContext>();
-        set.addAll(streamManagers.keySet());
-        set.addAll(activeStreams.keySet());
+        HashSet<InetAddress> set = new HashSet<InetAddress>();
+        for (StreamInSession session : sessions.values())
+        {
+            set.add(session.getHost());
+        }
         return set;
     }
 
     /** query the status of incoming files. */
     public static List<PendingFile> getIncomingFiles(InetAddress host)
     {
-        // avoid returning null.
         List<PendingFile> list = new ArrayList<PendingFile>();
-        for (StreamContext context : sourceHosts.get(host))
+        for (Map.Entry<StreamContext, StreamInSession> entry : sessions.entrySet())
         {
-            if (streamManagers.containsKey(context))
-                list.addAll(streamManagers.get(context).pendingFiles);
-            list.addAll(activeStreams.get(context));
+            if (entry.getKey().host.equals(host))
+            {
+                StreamInSession session = entry.getValue();
+                list.addAll(session.pendingFiles);
+                list.addAll(session.activeStreams);
+            }
         }
         return list;
     }

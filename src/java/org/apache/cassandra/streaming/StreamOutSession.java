@@ -20,90 +20,47 @@ package org.apache.cassandra.streaming;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
-
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.SimpleCondition;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Multimaps;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.SimpleCondition;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
  * This class manages the streaming of multiple files one after the other.
 */
 public class StreamOutSession
 {   
-    private static Logger logger = LoggerFactory.getLogger( StreamOutSession.class );
+    private static final Logger logger = LoggerFactory.getLogger( StreamOutSession.class );
         
-    // one host may have multiple stream contexts (think of them as sessions). each context gets its own manager.
-    private static ConcurrentMap<StreamContext, StreamOutSession> streamManagers = new ConcurrentHashMap<StreamContext, StreamOutSession>();
-    public static final Multimap<InetAddress, StreamContext> destHosts = Multimaps.synchronizedMultimap(HashMultimap.<InetAddress, StreamContext>create());
+    // one host may have multiple stream sessions.
+    private static final ConcurrentMap<StreamContext, StreamOutSession> streams = new NonBlockingHashMap<StreamContext, StreamOutSession>();
 
-    public static StreamOutSession get(StreamContext context)
+    public static StreamOutSession create(InetAddress host)
     {
-        StreamOutSession session = streamManagers.get(context);
-        if (session == null)
-        {
-            StreamOutSession possibleNew = new StreamOutSession(context);
-            if ((session = streamManagers.putIfAbsent(context, possibleNew)) == null)
-            {
-                session = possibleNew;
-                destHosts.put(context.host, context);
-            }
-        }
+        return create(host, System.nanoTime());
+    }
+
+    public static StreamOutSession create(InetAddress host, long sessionId)
+    {
+        StreamContext context = new StreamContext(host, sessionId);
+        StreamOutSession session = new StreamOutSession(context);
+        streams.put(context, session);
         return session;
     }
-    
-    public static void remove(StreamContext context)
+
+    public static StreamOutSession get(InetAddress host, long sessionId)
     {
-        if (streamManagers.containsKey(context) && streamManagers.get(context).files.size() == 0)
-        {
-            streamManagers.remove(context);
-            destHosts.remove(context.host, context);
-        }
+        return streams.get(new StreamContext(host, sessionId));
     }
 
-    public static Set<InetAddress> getDestinations()
+    public void close()
     {
-        // the results of streamManagers.keySet() isn't serializable, so create a new set.
-        Set<InetAddress> hosts = new HashSet<InetAddress>();
-        hosts.addAll(destHosts.keySet());
-        return hosts;
-    }
-    
-    /** 
-     * this method exists so that we don't have to call StreamOutManager.get() which has a nasty side-effect of 
-     * indicating that we are streaming to a particular host.
-     **/     
-    public static List<PendingFile> getPendingFiles(StreamContext context)
-    {
-        List<PendingFile> list = new ArrayList<PendingFile>();
-        StreamOutSession session = streamManagers.get(context);
-        if (session != null)
-            list.addAll(session.getFiles());
-        return list;
-    }
-
-    public static List<PendingFile> getOutgoingFiles(InetAddress host)
-    {
-        List<PendingFile> list = new ArrayList<PendingFile>();
-        for(StreamContext context : destHosts.get(host))
-        {
-            list.addAll(getPendingFiles(context));
-        }
-        return list;
+        streams.remove(context);
     }
 
     // we need sequential and random access to the files. hence, the map and the list.
@@ -116,6 +73,16 @@ public class StreamOutSession
     private StreamOutSession(StreamContext context)
     {
         this.context = context;
+    }
+
+    public InetAddress getHost()
+    {
+        return context.host;
+    }
+
+    public long getSessionId()
+    {
+        return context.sessionId;
     }
     
     public void addFilesToStream(List<PendingFile> pendingFiles)
@@ -142,7 +109,7 @@ public class StreamOutSession
     {
         if (logger.isDebugEnabled())
             logger.debug("Streaming {} ...", pf);
-        MessagingService.instance.stream(new StreamHeader(context.sessionId, pf, true), context.host);
+        MessagingService.instance.stream(new StreamHeader(getSessionId(), pf, true), getHost());
     }
 
     public void finishAndStartNext(String pfname) throws IOException
@@ -150,14 +117,16 @@ public class StreamOutSession
         PendingFile pf = fileMap.remove(pfname);
         files.remove(pf);
 
-        if (files.size() > 0)
-            streamFile(files.get(0));
-        else
+        if (files.isEmpty())
         {
             if (logger.isDebugEnabled())
-                logger.debug("Signalling that streaming is done for {} session {}", context.host, context.sessionId);
-            remove(context);
+                logger.debug("Signalling that streaming is done for {} session {}", getHost(), getSessionId());
+            close();
             condition.signalAll();
+        }
+        else
+        {
+            streamFile(files.get(0));
         }
     }
 
@@ -165,8 +134,8 @@ public class StreamOutSession
     {
         files.remove(pf);
         fileMap.remove(pf.getFilename());
-        if (files.size() == 0)
-            remove(context);
+        if (files.isEmpty())
+            close();
     }
 
     public void waitForStreamCompletion()
@@ -184,5 +153,26 @@ public class StreamOutSession
     List<PendingFile> getFiles()
     {
         return Collections.unmodifiableList(files);
+    }
+
+    public static Set<InetAddress> getDestinations()
+    {
+        Set<InetAddress> hosts = new HashSet<InetAddress>();
+        for (StreamOutSession session : streams.values())
+        {
+            hosts.add(session.getHost());
+        }
+        return hosts;
+    }
+
+    public static List<PendingFile> getOutgoingFiles(InetAddress host)
+    {
+        List<PendingFile> list = new ArrayList<PendingFile>();
+        for (Map.Entry<StreamContext, StreamOutSession> entry : streams.entrySet())
+        {
+            if (entry.getKey().host.equals(host))
+                list.addAll(entry.getValue().getFiles());
+        }
+        return list;
     }
 }

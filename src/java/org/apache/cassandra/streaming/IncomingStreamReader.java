@@ -22,6 +22,7 @@ import java.net.InetSocketAddress;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 import java.io.*;
+import java.util.Arrays;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,14 +32,15 @@ import org.apache.cassandra.utils.Pair;
 
 public class IncomingStreamReader
 {
-    private static Logger logger = LoggerFactory.getLogger(IncomingStreamReader.class);
+    private static final Logger logger = LoggerFactory.getLogger(IncomingStreamReader.class);
+
     private PendingFile pendingFile;
     private PendingFile lastFile;
     private FileStatus streamStatus;
-    private SocketChannel socketChannel;
-    private StreamContext context;
+    private final SocketChannel socketChannel;
     // indicates an transfer initiated by the source, as opposed to one requested by the recipient
-    private boolean initiatedTransfer;
+    private final boolean initiatedTransfer;
+    private final StreamInSession session;
 
     public IncomingStreamReader(StreamHeader header, SocketChannel socketChannel) throws IOException
     {
@@ -49,15 +51,15 @@ public class IncomingStreamReader
         // lastFile has the old context, which was registered in the manager.
         lastFile = header.getStreamFile();
         initiatedTransfer = header.initiatedTransfer;
-        context = new StreamContext(remoteAddress.getAddress(), header.getSessionId());
-        StreamInSession.activeStreams.put(context, pendingFile);
         assert pendingFile != null;
+        session = StreamInSession.get(remoteAddress.getAddress(), header.getSessionId());
+        session.addActiveStream(pendingFile);
         // For transfers setup the status and for replies to requests, prepare the list
         // of available files to request.
         if (initiatedTransfer)
             streamStatus = new FileStatus(lastFile.getFilename(), header.getSessionId());
         else if (header.getPendingFiles() != null)
-            StreamInSession.get(context).addFilesToRequest(header.getPendingFiles());
+            session.addFilesToRequest(header.getPendingFiles());
     }
 
     public void read() throws IOException
@@ -89,7 +91,7 @@ public class IncomingStreamReader
             if (initiatedTransfer)
                 handleFileStatus(FileStatus.Action.STREAM);
             else
-                StreamIn.requestFile(context, lastFile);
+                session.requestFile(lastFile);
 
             /* Delete the orphaned file. */
             FileUtils.deleteWithConfirm(new File(pendingFile.getFilename()));
@@ -98,7 +100,7 @@ public class IncomingStreamReader
         finally
         {
             fc.close();
-            StreamInSession.activeStreams.remove(context, pendingFile);
+            session.removeActiveStream(pendingFile);
         }
 
         if (logger.isDebugEnabled())
@@ -108,13 +110,13 @@ public class IncomingStreamReader
         else
         {
             FileStatusHandler.addSSTable(pendingFile);
-            StreamInSession.get(context).finishAndRequestNext(lastFile);
+            session.finishAndRequestNext(lastFile);
         }
     }
 
     private void handleFileStatus(FileStatus.Action action) throws IOException
     {
         streamStatus.setAction(action);
-        FileStatusHandler.onStatusChange(context, pendingFile, streamStatus);
+        FileStatusHandler.onStatusChange(session, pendingFile, streamStatus);
     }
 }

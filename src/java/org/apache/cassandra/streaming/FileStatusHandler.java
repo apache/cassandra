@@ -38,13 +38,13 @@ class FileStatusHandler
 {
     private static Logger logger = LoggerFactory.getLogger(FileStatusHandler.class);
 
-    public static void onStatusChange(StreamContext context, PendingFile pendingFile, FileStatus streamStatus) throws IOException
+    public static void onStatusChange(StreamInSession session, PendingFile pendingFile, FileStatus streamStatus) throws IOException
     {
         if (FileStatus.Action.STREAM == streamStatus.getAction())
         {
             // file needs to be restreamed
-            logger.warn("Streaming of file {} from {} failed: requesting a retry.", pendingFile, context);
-            MessagingService.instance.sendOneWay(streamStatus.makeStreamStatusMessage(), context.host);
+            logger.warn("Streaming of file {} from {} failed: requesting a retry.", pendingFile, session);
+            MessagingService.instance.sendOneWay(streamStatus.makeStreamStatusMessage(), session.getHost());
             return;
         }
         assert FileStatus.Action.DELETE == streamStatus.getAction() :
@@ -54,8 +54,8 @@ class FileStatusHandler
 
         // send a StreamStatus message telling the source node it can delete this file
         if (logger.isDebugEnabled())
-            logger.debug("Sending a streaming finished message for {} to {}", pendingFile, context);
-        MessagingService.instance.sendOneWay(streamStatus.makeStreamStatusMessage(), context.host);
+            logger.debug("Sending a streaming finished message for {} to {}", pendingFile, session);
+        MessagingService.instance.sendOneWay(streamStatus.makeStreamStatusMessage(), session.getHost());
     }
 
     public static void addSSTable(PendingFile pendingFile)

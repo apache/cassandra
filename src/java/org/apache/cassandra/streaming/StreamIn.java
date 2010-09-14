@@ -51,22 +51,9 @@ public class StreamIn
 
         if (logger.isDebugEnabled())
             logger.debug("Requesting from {} ranges {}", source, StringUtils.join(ranges, ", "));
-        StreamContext context = new StreamContext(source);
-        StreamInSession.get(context);
-        Message message = new StreamRequestMessage(FBUtilities.getLocalAddress(), ranges, tableName, context.sessionId).makeMessage();
+        StreamInSession session = StreamInSession.create(source);
+        Message message = new StreamRequestMessage(FBUtilities.getLocalAddress(), ranges, tableName, session.getSessionId()).makeMessage();
         MessagingService.instance.sendOneWay(message, source);
-    }
-
-    /**
-     * Request for transferring a single file. This happens subsequent of #requestRanges() being called.
-     * @param file Pending File that needs to be transferred
-     */
-    public static void requestFile(StreamContext context, PendingFile file)
-    {
-        if (logger.isDebugEnabled())
-            logger.debug("Requesting file {} from source {}", file.getFilename(), context.host);
-        Message message = new StreamRequestMessage(FBUtilities.getLocalAddress(), file, context.sessionId).makeMessage();
-        MessagingService.instance.sendOneWay(message, context.host);
     }
 
     /** Translates remote files to local files by creating a local sstable per remote sstable. */

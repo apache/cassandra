@@ -54,15 +54,16 @@ public class StreamRequestVerbHandler implements IVerbHandler
 
             if (srm.file != null)
             {
-                // single file request.
+                // single file re-request.
                 StreamHeader header = new StreamHeader(srm.sessionId, srm.file, false);
                 MessagingService.instance.stream(header, message.getFrom());
-                StreamOutSession.get(new StreamContext(message.getFrom(), srm.sessionId)).removePending(srm.file);
+                StreamOutSession.get(message.getFrom(), srm.sessionId).removePending(srm.file);
             }
             else
             {
                 // range request.
-                StreamOut.transferRangesForRequest(new StreamContext(message.getFrom(), srm.sessionId), srm.table, srm.ranges, null);
+                StreamOutSession session = StreamOutSession.create(message.getFrom(), srm.sessionId);
+                StreamOut.transferRangesForRequest(session, srm.table, srm.ranges, null);
             }
         }
         catch (IOException ex)

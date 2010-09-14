@@ -54,10 +54,10 @@ public class StreamingService implements StreamingServiceMBean
     {
         StringBuilder sb = new StringBuilder();
         sb.append("Receiving from:\n");
-        for (StreamContext source : StreamInSession.getSources())
+        for (InetAddress source : StreamInSession.getSources())
         {
-            sb.append(String.format(" %s:\n", source.host.getHostAddress()));
-            for (PendingFile pf : StreamInSession.getIncomingFiles(source.host))
+            sb.append(String.format(" %s:\n", source.getHostAddress()));
+            for (PendingFile pf : StreamInSession.getIncomingFiles(source))
             {
                 sb.append(String.format("  %s\n", pf.toString()));
             }
@@ -99,13 +99,7 @@ public class StreamingService implements StreamingServiceMBean
     /** hosts sending incoming streams */
     public Set<InetAddress> getStreamSources()
     {
-        Set<InetAddress> sources = new HashSet<InetAddress>();
-
-        for(StreamContext context : StreamInSession.getSources())
-        {
-            sources.add(context.host);
-        }
-        return sources;
+        return StreamInSession.getSources();
     }
 
     /** details about incoming streams. */

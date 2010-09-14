@@ -41,7 +41,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.AbstractCompactedRow;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.streaming.StreamContext;
 import org.apache.cassandra.streaming.StreamIn;
 import org.apache.cassandra.streaming.StreamOut;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
@@ -538,9 +537,9 @@ public class AntiEntropyService
                 {
                     protected void runMayThrow() throws Exception
                     {
-                        StreamContext context = new StreamContext(request.endpoint);
-                        StreamOut.transferSSTables(context, request.cf.left, sstables, ranges);
-                        StreamOutSession.remove(context);
+                        StreamOutSession session = StreamOutSession.create(request.endpoint);
+                        StreamOut.transferSSTables(session, request.cf.left, sstables, ranges);
+                        session.close();
                     }
                 });
                 // request ranges from the remote node

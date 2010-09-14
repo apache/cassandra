@@ -66,17 +66,16 @@ public class StreamOut
     {
         assert ranges.size() > 0;
         
-        StreamContext context = new StreamContext(target);
         // this is so that this target shows up as a destination while anticompaction is happening.
-        StreamOutSession.get(context);
+        StreamOutSession session = StreamOutSession.create(target);
 
-        logger.info("Beginning transfer process to {} for ranges {}", context, StringUtils.join(ranges, ", "));
+        logger.info("Beginning transfer process to {} for ranges {}", target, StringUtils.join(ranges, ", "));
 
         try
         {
             Table table = flushSSTable(tableName);
             // send the matching portion of every sstable in the keyspace
-            transferSSTables(context, tableName, table.getAllSSTables(), ranges);
+            transferSSTables(session, tableName, table.getAllSSTables(), ranges);
         }
         catch (IOException e)
         {
@@ -84,7 +83,7 @@ public class StreamOut
         }
         finally
         {
-            StreamOutSession.remove(context);
+            session.close();
         }
         if (callback != null)
             callback.run();
@@ -120,17 +119,17 @@ public class StreamOut
     /**
      * Split out files for all tables on disk locally for each range and then stream them to the target endpoint.
     */
-    public static void transferRangesForRequest(StreamContext context, String tableName, Collection<Range> ranges, Runnable callback)
+    public static void transferRangesForRequest(StreamOutSession session, String tableName, Collection<Range> ranges, Runnable callback)
     {
         assert ranges.size() > 0;
 
-        logger.info("Beginning transfer process to {} for ranges {}", context, StringUtils.join(ranges, ", "));
+        logger.info("Beginning transfer process to {} for ranges {}", session.getHost(), StringUtils.join(ranges, ", "));
 
         try
         {
             Table table = flushSSTable(tableName);
             // send the matching portion of every sstable in the keyspace
-            transferSSTablesForRequest(context, tableName, table.getAllSSTables(), ranges);
+            transferSSTablesForRequest(session, tableName, table.getAllSSTables(), ranges);
         }
         catch (IOException e)
         {
@@ -144,21 +143,21 @@ public class StreamOut
     /**
      * Transfers matching portions of a group of sstables from a single table to the target endpoint.
      */
-    public static void transferSSTables(StreamContext context, String table, Collection<SSTableReader> sstables, Collection<Range> ranges) throws IOException
+    public static void transferSSTables(StreamOutSession session, String table, Collection<SSTableReader> sstables, Collection<Range> ranges) throws IOException
     {
         List<PendingFile> pending = createPendingFiles(sstables, ranges);
 
         if (pending.size() > 0)
         {
-            StreamHeader header = new StreamHeader(context.sessionId, pending.get(0), true);
-            StreamOutSession.get(context).addFilesToStream(pending);
+            StreamHeader header = new StreamHeader(session.getSessionId(), pending.get(0), true);
+            session.addFilesToStream(pending);
 
-            logger.info("Streaming file {} to {}", header.getStreamFile(), context.host);
-            MessagingService.instance.stream(header, context.host);
+            logger.info("Streaming file {} to {}", header.getStreamFile(), session.getHost());
+            MessagingService.instance.stream(header, session.getHost());
 
-            logger.info("Waiting for transfer to {} to complete", context);
-            StreamOutSession.get(context).waitForStreamCompletion();
-            logger.info("Done with transfer to {}", context);
+            logger.info("Waiting for transfer to {} to complete", session.getHost());
+            session.waitForStreamCompletion();
+            logger.info("Done with transfer to {}", session.getHost());
         }
     }
 
@@ -166,27 +165,27 @@ public class StreamOut
      * Transfers the first file for matching portions of a group of sstables and appends a list of other files
      * to the header for the requesting destination to take control of the rest of the transfers
      */
-    private static void transferSSTablesForRequest(StreamContext context, String table, Collection<SSTableReader> sstables, Collection<Range> ranges) throws IOException
+    private static void transferSSTablesForRequest(StreamOutSession session, String table, Collection<SSTableReader> sstables, Collection<Range> ranges) throws IOException
     {
         List<PendingFile> pending = createPendingFiles(sstables, ranges);
         if (pending.size() > 0)
         {
-            StreamHeader header = new StreamHeader(context.sessionId, pending.get(0), pending, false);
+            StreamHeader header = new StreamHeader(session.getSessionId(), pending.get(0), pending, false);
             // In case this happens to be a re-request due to some error condition on the destination side
-            if (StreamOutSession.getPendingFiles(context).size() == 0)
-                StreamOutSession.get(context).addFilesToStream(pending);
+            if (session.getFiles().isEmpty())
+                session.addFilesToStream(pending);
 
-            logger.info("Streaming file {} to {}", header.getStreamFile(), context.host);
-            MessagingService.instance.stream(header, context.host);
-            StreamOutSession.get(context).removePending(header.getStreamFile());
+            logger.info("Streaming file {} to {}", header.getStreamFile(), session.getHost());
+            MessagingService.instance.stream(header, session.getHost());
+            session.removePending(header.getStreamFile());
         }
         else
         {
-            FileStatus status = new FileStatus("", context.sessionId);
+            FileStatus status = new FileStatus("", session.getSessionId());
             status.setAction(FileStatus.Action.EMPTY);
             Message message = status.makeStreamStatusMessage();
             message.setHeader(StreamOut.TABLE_NAME, table.getBytes());
-            MessagingService.instance.sendOneWay(message, context.host);
+            MessagingService.instance.sendOneWay(message, session.getHost());
         }
     }
 
