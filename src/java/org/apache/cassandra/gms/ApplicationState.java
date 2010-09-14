@@ -21,8 +21,12 @@ package org.apache.cassandra.gms;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.UUID;
 
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.service.StorageService;
 
 
 /**
@@ -39,66 +43,105 @@ import org.apache.cassandra.io.ICompactSerializer;
 
 public class ApplicationState implements Comparable<ApplicationState>
 {
-    private static ICompactSerializer<ApplicationState> serializer_;
-    static
-    {
-        serializer_ = new ApplicationStateSerializer();
-    }
-    
-    int version_;
-    String state_;
+    public static final ICompactSerializer<ApplicationState> serializer = new ApplicationStateSerializer();
 
-        
-    ApplicationState(String state, int version)
+    // this must be a char that cannot be present in any token
+    public final static char DELIMITER = ',';
+    public final static String DELIMITER_STR = new String(new char[] { DELIMITER });
+
+    public final static String STATE_MOVE = "MOVE";
+    public final static String STATE_BOOTSTRAPPING = "BOOT";
+    public final static String STATE_NORMAL = "NORMAL";
+    public final static String STATE_LEAVING = "LEAVING";
+    public final static String STATE_LEFT = "LEFT";
+    public final static String STATE_LOAD = "LOAD";
+    public static final String STATE_MIGRATION = "MIGRATION";
+
+    public final static String REMOVE_TOKEN = "remove";
+
+    public final int version;
+    public final String state;
+
+    private ApplicationState(String state, int version)
     {
-        state_ = state;
-        version_ = version;
+        this.state = state;
+        this.version = version;
     }
 
-    public static ICompactSerializer<ApplicationState> serializer()
+    private ApplicationState(String state)
     {
-        return serializer_;
-    }
-    
-    /**
-     * Wraps the specified state into a ApplicationState instance.
-     * @param state string representation of arbitrary state.
-     */
-    public ApplicationState(String state)
-    {
-        state_ = state;
-        version_ = VersionGenerator.getNextVersion();
-    }
-        
-    public String getValue()
-    {
-        return state_;
-    }
-    
-    int getStateVersion()
-    {
-        return version_;
+        this.state = state;
+        version = VersionGenerator.getNextVersion();
     }
 
     public int compareTo(ApplicationState apState)
     {
-        return this.version_ - apState.getStateVersion();
-    }
-}
-
-class ApplicationStateSerializer implements ICompactSerializer<ApplicationState>
-{
-    public void serialize(ApplicationState appState, DataOutputStream dos) throws IOException
-    {
-        dos.writeUTF(appState.state_);
-        dos.writeInt(appState.version_);
+        return this.version - apState.version;
     }
 
-    public ApplicationState deserialize(DataInputStream dis) throws IOException
+    public static class ApplicationStateFactory
     {
-        String state = dis.readUTF();
-        int version = dis.readInt();
-        return new ApplicationState(state, version);
+        IPartitioner partitioner;
+
+        public ApplicationStateFactory(IPartitioner partitioner)
+        {
+            this.partitioner = partitioner;
+        }
+
+        public ApplicationState bootstrapping(Token token)
+        {
+            return new ApplicationState(ApplicationState.STATE_BOOTSTRAPPING + ApplicationState.DELIMITER + partitioner.getTokenFactory().toString(token));
+        }
+
+        public ApplicationState normal(Token token)
+        {
+            return new ApplicationState(ApplicationState.STATE_NORMAL + ApplicationState.DELIMITER + partitioner.getTokenFactory().toString(token));
+        }
+
+        public ApplicationState load(double load)
+        {
+            return new ApplicationState(String.valueOf(load));
+        }
+
+        public ApplicationState migration(UUID newVersion)
+        {
+            return new ApplicationState(newVersion.toString());
+        }
+
+        public ApplicationState leaving(Token token)
+        {
+            return new ApplicationState(ApplicationState.STATE_LEAVING + ApplicationState.DELIMITER + partitioner.getTokenFactory().toString(token));
+        }
+
+        public ApplicationState left(Token token)
+        {
+            return new ApplicationState(ApplicationState.STATE_LEFT + ApplicationState.DELIMITER + partitioner.getTokenFactory().toString(token));
+        }
+
+        public ApplicationState removeNonlocal(Token localToken, Token token)
+        {
+            return new ApplicationState(ApplicationState.STATE_NORMAL
+                                        + ApplicationState.DELIMITER + partitioner.getTokenFactory().toString(localToken)
+                                        + ApplicationState.DELIMITER + ApplicationState.REMOVE_TOKEN
+                                        + ApplicationState.DELIMITER + partitioner.getTokenFactory().toString(token));
+        }
+
+    }
+
+    private static class ApplicationStateSerializer implements ICompactSerializer<ApplicationState>
+    {
+        public void serialize(ApplicationState appState, DataOutputStream dos) throws IOException
+        {
+            dos.writeUTF(appState.state);
+            dos.writeInt(appState.version);
+        }
+
+        public ApplicationState deserialize(DataInputStream dis) throws IOException
+        {
+            String state = dis.readUTF();
+            int version = dis.readInt();
+            return new ApplicationState(state, version);
+        }
     }
 }
 

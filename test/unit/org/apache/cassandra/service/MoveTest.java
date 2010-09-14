@@ -53,6 +53,7 @@ public class MoveTest extends CleanupHelper
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
+        ApplicationState.ApplicationStateFactory stateFactory = new ApplicationState.ApplicationStateFactory(partitioner);
 
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
 
@@ -79,8 +80,8 @@ public class MoveTest extends CleanupHelper
 
         // Third node leaves
         ss.onChange(hosts.get(LEAVING_NODE),
-                StorageService.MOVE_STATE,
-                new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(LEAVING_NODE))));
+                ApplicationState.STATE_MOVE,
+                stateFactory.leaving(endpointTokens.get(LEAVING_NODE)));
         assertTrue(tmd.isLeaving(hosts.get(LEAVING_NODE)));
 
         AbstractReplicationStrategy strategy;
@@ -123,6 +124,7 @@ public class MoveTest extends CleanupHelper
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
+        ApplicationState.ApplicationStateFactory stateFactory = new ApplicationState.ApplicationStateFactory(partitioner);
 
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
 
@@ -136,13 +138,13 @@ public class MoveTest extends CleanupHelper
         // nodes 6, 8 and 9 leave
         final int[] LEAVING = new int[] {6, 8, 9};
         for (int leaving : LEAVING)
-            ss.onChange(hosts.get(leaving), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(leaving))));
+            ss.onChange(hosts.get(leaving), ApplicationState.STATE_MOVE, stateFactory.leaving(endpointTokens.get(leaving)));
 
         // boot two new nodes with keyTokens.get(5) and keyTokens.get(7)
         InetAddress boot1 = InetAddress.getByName("127.0.1.1");
-        ss.onChange(boot1, StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_BOOTSTRAPPING + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(5))));
+        ss.onChange(boot1, ApplicationState.STATE_MOVE, stateFactory.bootstrapping(keyTokens.get(5)));
         InetAddress boot2 = InetAddress.getByName("127.0.1.2");
-        ss.onChange(boot2, StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_BOOTSTRAPPING + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(7))));
+        ss.onChange(boot2, ApplicationState.STATE_MOVE, stateFactory.bootstrapping(keyTokens.get(7)));
 
         Collection<InetAddress> endpoints = null;
 
@@ -294,9 +296,9 @@ public class MoveTest extends CleanupHelper
 
         // Now finish node 6 and node 9 leaving, as well as boot1 (after this node 8 is still
         // leaving and boot2 in progress
-        ss.onChange(hosts.get(LEAVING[0]), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEFT + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(LEAVING[0]))));
-        ss.onChange(hosts.get(LEAVING[2]), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEFT + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(LEAVING[2]))));
-        ss.onChange(boot1, StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_NORMAL + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(5))));
+        ss.onChange(hosts.get(LEAVING[0]), ApplicationState.STATE_MOVE, stateFactory.left(endpointTokens.get(LEAVING[0])));
+        ss.onChange(hosts.get(LEAVING[2]), ApplicationState.STATE_MOVE, stateFactory.left(endpointTokens.get(LEAVING[2])));
+        ss.onChange(boot1, ApplicationState.STATE_MOVE, stateFactory.normal(keyTokens.get(5)));
 
         // adjust precalcuated results.  this changes what the epected endpoints are.
         expectedEndpoints.get("Keyspace1").get(new BigIntegerToken("55")).removeAll(makeAddrs("127.0.0.7", "127.0.0.8"));
@@ -409,6 +411,7 @@ public class MoveTest extends CleanupHelper
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
+        ApplicationState.ApplicationStateFactory stateFactory = new ApplicationState.ApplicationStateFactory(partitioner);
 
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
 
@@ -420,7 +423,7 @@ public class MoveTest extends CleanupHelper
         createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 7);
 
         // node 2 leaves
-        ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(2))));
+        ss.onChange(hosts.get(2), ApplicationState.STATE_MOVE, stateFactory.leaving(endpointTokens.get(2)));
 
         // don't bother to test pending ranges here, that is extensively tested by other
         // tests. Just check that the node is in appropriate lists.
@@ -429,14 +432,14 @@ public class MoveTest extends CleanupHelper
         assertTrue(tmd.getBootstrapTokens().isEmpty());
 
         // Bootstrap the node immedidiately to keyTokens.get(4) without going through STATE_LEFT
-        ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_BOOTSTRAPPING + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(4))));
+        ss.onChange(hosts.get(2), ApplicationState.STATE_MOVE, stateFactory.bootstrapping(keyTokens.get(4)));
 
         assertFalse(tmd.isMember(hosts.get(2)));
         assertFalse(tmd.isLeaving(hosts.get(2)));
         assertTrue(tmd.getBootstrapTokens().get(keyTokens.get(4)).equals(hosts.get(2)));
 
         // Bootstrap node hosts.get(3) to keyTokens.get(1)
-        ss.onChange(hosts.get(3), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_BOOTSTRAPPING + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(1))));
+        ss.onChange(hosts.get(3), ApplicationState.STATE_MOVE, stateFactory.bootstrapping(keyTokens.get(1)));
 
         assertFalse(tmd.isMember(hosts.get(3)));
         assertFalse(tmd.isLeaving(hosts.get(3)));
@@ -444,7 +447,7 @@ public class MoveTest extends CleanupHelper
         assertTrue(tmd.getBootstrapTokens().get(keyTokens.get(1)).equals(hosts.get(3)));
 
         // Bootstrap node hosts.get(2) further to keyTokens.get(3)
-        ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_BOOTSTRAPPING + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(3))));
+        ss.onChange(hosts.get(2), ApplicationState.STATE_MOVE, stateFactory.bootstrapping(keyTokens.get(3)));
 
         assertFalse(tmd.isMember(hosts.get(2)));
         assertFalse(tmd.isLeaving(hosts.get(2)));
@@ -453,8 +456,8 @@ public class MoveTest extends CleanupHelper
         assertTrue(tmd.getBootstrapTokens().get(keyTokens.get(1)).equals(hosts.get(3)));
 
         // Go to normal again for both nodes
-        ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_NORMAL + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(3))));
-        ss.onChange(hosts.get(3), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_NORMAL + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(2))));
+        ss.onChange(hosts.get(2), ApplicationState.STATE_MOVE, stateFactory.normal(keyTokens.get(3)));
+        ss.onChange(hosts.get(3), ApplicationState.STATE_MOVE, stateFactory.normal(keyTokens.get(2)));
 
         assertTrue(tmd.isMember(hosts.get(2)));
         assertFalse(tmd.isLeaving(hosts.get(2)));
@@ -475,6 +478,7 @@ public class MoveTest extends CleanupHelper
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
+        ApplicationState.ApplicationStateFactory stateFactory = new ApplicationState.ApplicationStateFactory(partitioner);
 
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
 
@@ -486,21 +490,21 @@ public class MoveTest extends CleanupHelper
         createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 6);
 
         // node 2 leaves
-        ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(2))));
+        ss.onChange(hosts.get(2), ApplicationState.STATE_MOVE, stateFactory.leaving(endpointTokens.get(2)));
 
         assertTrue(tmd.isLeaving(hosts.get(2)));
         assertTrue(tmd.getToken(hosts.get(2)).equals(endpointTokens.get(2)));
 
         // back to normal
-        ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_NORMAL + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(2))));
+        ss.onChange(hosts.get(2), ApplicationState.STATE_MOVE, stateFactory.normal(keyTokens.get(2)));
 
         assertTrue(tmd.getLeavingEndpoints().isEmpty());
         assertTrue(tmd.getToken(hosts.get(2)).equals(keyTokens.get(2)));
 
-        // node 3 goes through leave and left and then jumps to normal
-        ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(2))));
-        ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEFT + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(2))));
-        ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_NORMAL + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(4))));
+        // node 3 goes through leave and left and then jumps to normal at its new token
+        ss.onChange(hosts.get(2), ApplicationState.STATE_MOVE, stateFactory.leaving(keyTokens.get(2)));
+        ss.onChange(hosts.get(2), ApplicationState.STATE_MOVE, stateFactory.left(keyTokens.get(2)));
+        ss.onChange(hosts.get(2), ApplicationState.STATE_MOVE, stateFactory.normal(keyTokens.get(4)));
 
         assertTrue(tmd.getBootstrapTokens().isEmpty());
         assertTrue(tmd.getLeavingEndpoints().isEmpty());
@@ -516,6 +520,7 @@ public class MoveTest extends CleanupHelper
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
+        ApplicationState.ApplicationStateFactory stateFactory = new ApplicationState.ApplicationStateFactory(partitioner);
 
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
 
@@ -527,28 +532,28 @@ public class MoveTest extends CleanupHelper
         createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 6);
 
         // node 2 leaves with _different_ token
-        ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(0))));
+        ss.onChange(hosts.get(2), ApplicationState.STATE_MOVE, stateFactory.leaving(keyTokens.get(0)));
 
         assertTrue(tmd.getToken(hosts.get(2)).equals(keyTokens.get(0)));
         assertTrue(tmd.isLeaving(hosts.get(2)));
         assertTrue(tmd.getEndpoint(endpointTokens.get(2)) == null);
 
         // go to boostrap
-        ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_BOOTSTRAPPING + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(1))));
+        ss.onChange(hosts.get(2), ApplicationState.STATE_MOVE, stateFactory.bootstrapping(keyTokens.get(1)));
 
         assertFalse(tmd.isLeaving(hosts.get(2)));
         assertTrue(tmd.getBootstrapTokens().size() == 1);
         assertTrue(tmd.getBootstrapTokens().get(keyTokens.get(1)).equals(hosts.get(2)));
 
         // jump to leaving again
-        ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEAVING + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(1))));
+        ss.onChange(hosts.get(2), ApplicationState.STATE_MOVE, stateFactory.leaving(keyTokens.get(1)));
 
         assertTrue(tmd.getEndpoint(keyTokens.get(1)).equals(hosts.get(2)));
         assertTrue(tmd.isLeaving(hosts.get(2)));
         assertTrue(tmd.getBootstrapTokens().isEmpty());
 
         // go to state left
-        ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEFT + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(1))));
+        ss.onChange(hosts.get(2), ApplicationState.STATE_MOVE, stateFactory.left(keyTokens.get(1)));
 
         assertFalse(tmd.isMember(hosts.get(2)));
         assertFalse(tmd.isLeaving(hosts.get(2)));
@@ -563,6 +568,7 @@ public class MoveTest extends CleanupHelper
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
+        ApplicationState.ApplicationStateFactory stateFactory = new ApplicationState.ApplicationStateFactory(partitioner);
 
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
 
@@ -574,19 +580,19 @@ public class MoveTest extends CleanupHelper
         createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 7);
 
         // node hosts.get(2) goes jumps to left
-        ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEFT + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(2))));
+        ss.onChange(hosts.get(2), ApplicationState.STATE_MOVE, stateFactory.left(endpointTokens.get(2)));
 
         assertFalse(tmd.isMember(hosts.get(2)));
 
         // node hosts.get(4) goes to bootstrap
-        ss.onChange(hosts.get(3), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_BOOTSTRAPPING + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(1))));
+        ss.onChange(hosts.get(3), ApplicationState.STATE_MOVE, stateFactory.bootstrapping(keyTokens.get(1)));
 
         assertFalse(tmd.isMember(hosts.get(3)));
         assertTrue(tmd.getBootstrapTokens().size() == 1);
         assertTrue(tmd.getBootstrapTokens().get(keyTokens.get(1)).equals(hosts.get(3)));
 
         // and then directly to 'left'
-        ss.onChange(hosts.get(2), StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_LEFT + StorageService.Delimiter + partitioner.getTokenFactory().toString(keyTokens.get(1))));
+        ss.onChange(hosts.get(2), ApplicationState.STATE_MOVE, stateFactory.left(keyTokens.get(1)));
 
         assertTrue(tmd.getBootstrapTokens().size() == 0);
         assertFalse(tmd.isMember(hosts.get(2)));
@@ -611,7 +617,7 @@ public class MoveTest extends CleanupHelper
         for (int i=0; i<endpointTokens.size(); i++)
         {
             InetAddress ep = InetAddress.getByName("127.0.0." + String.valueOf(i + 1));
-            ss.onChange(ep, StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_NORMAL + StorageService.Delimiter + partitioner.getTokenFactory().toString(endpointTokens.get(i))));
+            ss.onChange(ep, ApplicationState.STATE_MOVE, new ApplicationState.ApplicationStateFactory(partitioner).normal(endpointTokens.get(i)));
             hosts.add(ep);
         }
 

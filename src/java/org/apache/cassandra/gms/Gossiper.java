@@ -26,8 +26,6 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.net.InetAddress;
 
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -206,7 +204,7 @@ public class Gossiper implements IFailureDetectionEventListener
 
         for (ApplicationState value : appStateMap.values())
         {
-            int stateVersion = value.getStateVersion();
+            int stateVersion = value.version;
             versions.add( stateVersion );
         }
 
@@ -477,7 +475,7 @@ public class Gossiper implements IFailureDetectionEventListener
             for (Entry<String, ApplicationState> entry : appStateMap.entrySet())
             {
                 ApplicationState appState = entry.getValue();
-                if ( appState.getStateVersion() > version )
+                if ( appState.version > version )
                 {
                     if ( reqdEndpointState == null )
                     {
@@ -485,7 +483,7 @@ public class Gossiper implements IFailureDetectionEventListener
                     }
                     final String key = entry.getKey();
                     if (logger_.isTraceEnabled())
-                        logger_.trace("Adding state " + key + ": " + appState.getValue());
+                        logger_.trace("Adding state " + key + ": " + appState.state);
                     reqdEndpointState.addApplicationState(key, appState);
                 }
             }
@@ -714,8 +712,8 @@ public class Gossiper implements IFailureDetectionEventListener
             /* If the generations are the same then apply state if the remote version is greater than local version. */
             if ( remoteGeneration == localGeneration )
             {
-                int remoteVersion = remoteAppState.getStateVersion();
-                int localVersion = localAppState.getStateVersion();
+                int remoteVersion = remoteAppState.version;
+                int localVersion = localAppState.version;
 
                 if ( remoteVersion > localVersion )
                 {

@@ -77,7 +77,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         {
             sb.append(entry.getKey()).append("\n");
             for (Map.Entry<String, ApplicationState> state : entry.getValue().applicationState_.entrySet())
-                sb.append("  ").append(state.getKey()).append(":").append(state.getValue().getValue()).append("\n");
+                sb.append("  ").append(state.getKey()).append(":").append(state.getValue().state).append("\n");
         }
         return sb.toString();
     }

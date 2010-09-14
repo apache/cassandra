@@ -28,13 +28,12 @@ import org.slf4j.LoggerFactory;
 class LoadDisseminator extends TimerTask
 {
     private final static Logger logger_ = LoggerFactory.getLogger(LoadDisseminator.class);
-    protected final static String loadInfo_= "LOAD-INFORMATION";
-    
+
     public void run()
     {
-        String diskUtilization = String.valueOf(StorageService.instance.getLoad());
         if (logger_.isDebugEnabled())
           logger_.debug("Disseminating load info ...");
-        Gossiper.instance.addLocalApplicationState(LoadDisseminator.loadInfo_, new ApplicationState(diskUtilization));
+        Gossiper.instance.addLocalApplicationState(ApplicationState.STATE_LOAD,
+                                                   StorageService.stateFactory.load(StorageService.instance.getLoad()));
     }
 }

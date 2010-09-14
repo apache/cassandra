@@ -27,7 +27,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
@@ -194,9 +193,9 @@ public class StorageLoadBalancer implements IEndpointStateChangeSubscriber
 
     public void onChange(InetAddress endpoint, String stateName, ApplicationState state)
     {
-        if (!stateName.equals(LoadDisseminator.loadInfo_))
+        if (!stateName.equals(ApplicationState.STATE_LOAD))
             return;
-        loadInfo_.put(endpoint, Double.parseDouble(state.getValue()));
+        loadInfo_.put(endpoint, Double.parseDouble(state.state));
 
         /*
         // clone load information to perform calculations
@@ -213,10 +212,10 @@ public class StorageLoadBalancer implements IEndpointStateChangeSubscriber
 
     public void onJoin(InetAddress endpoint, EndpointState epState)
     {
-        ApplicationState loadState = epState.getApplicationState(LoadDisseminator.loadInfo_);
+        ApplicationState loadState = epState.getApplicationState(ApplicationState.STATE_LOAD);
         if (loadState != null)
         {
-            onChange(endpoint, LoadDisseminator.loadInfo_, loadState);
+            onChange(endpoint, ApplicationState.STATE_LOAD, loadState);
         }
     }
 

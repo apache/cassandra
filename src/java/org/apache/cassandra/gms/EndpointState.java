@@ -158,7 +158,7 @@ class EndpointStateSerializer implements ICompactSerializer<EndpointState>
             if (appState != null)
             {
                 dos.writeUTF(key);
-                ApplicationState.serializer().serialize(appState, dos);
+                ApplicationState.serializer.serialize(appState, dos);
             }
         }
     }
@@ -177,7 +177,7 @@ class EndpointStateSerializer implements ICompactSerializer<EndpointState>
             }
 
             String key = dis.readUTF();
-            ApplicationState appState = ApplicationState.serializer().deserialize(dis);            
+            ApplicationState appState = ApplicationState.serializer.deserialize(dis);
             epState.addApplicationState(key, appState);            
         }
         return epState;

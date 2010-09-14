@@ -83,7 +83,7 @@ public class BootStrapperTest extends CleanupHelper
             Range range = ss.getPrimaryRangeForEndpoint(bootstrapSource);
             Token token = StorageService.getPartitioner().midpoint(range.left, range.right);
             assert range.contains(token);
-            ss.onChange(bootstrapAddrs[i], StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_BOOTSTRAPPING + StorageService.Delimiter + StorageService.getPartitioner().getTokenFactory().toString(token)));
+            ss.onChange(bootstrapAddrs[i], ApplicationState.STATE_MOVE, StorageService.stateFactory.bootstrapping(token));
         }
         
         // any further attempt to bootsrtap should fail since every node in the cluster is splitting.
@@ -100,7 +100,7 @@ public class BootStrapperTest extends CleanupHelper
         // indicate that one of the nodes is done. see if the node it was bootstrapping from is still available.
         Range range = ss.getPrimaryRangeForEndpoint(addrs[2]);
         Token token = StorageService.getPartitioner().midpoint(range.left, range.right);
-        ss.onChange(bootstrapAddrs[2], StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_NORMAL + StorageService.Delimiter + StorageService.getPartitioner().getTokenFactory().toString(token)));
+        ss.onChange(bootstrapAddrs[2], ApplicationState.STATE_MOVE, StorageService.stateFactory.normal(token));
         load.put(bootstrapAddrs[2], 0d);
         InetAddress addr = BootStrapper.getBootstrapSource(ss.getTokenMetadata(), load);
         assert addr != null && addr.equals(addrs[2]);
@@ -130,9 +130,9 @@ public class BootStrapperTest extends CleanupHelper
 
         InetAddress myEndpoint = InetAddress.getByName("127.0.0.1");
         Range range5 = ss.getPrimaryRangeForEndpoint(five);
-        Token fakeToken = ((IPartitioner)StorageService.getPartitioner()).midpoint(range5.left, range5.right);
+        Token fakeToken = StorageService.getPartitioner().midpoint(range5.left, range5.right);
         assert range5.contains(fakeToken);
-        ss.onChange(myEndpoint, StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_BOOTSTRAPPING + StorageService.Delimiter + ss.getPartitioner().getTokenFactory().toString(fakeToken)));
+        ss.onChange(myEndpoint, ApplicationState.STATE_MOVE, StorageService.stateFactory.bootstrapping(fakeToken));
         tmd = ss.getTokenMetadata();
 
         InetAddress source4 = BootStrapper.getBootstrapSource(tmd, load);

@@ -52,7 +52,6 @@ import java.util.concurrent.Future;
 
 public class MigrationManager implements IEndpointStateChangeSubscriber
 {
-    public static final String MIGRATION_STATE = "MIGRATION";
     private static final Logger logger = LoggerFactory.getLogger(MigrationManager.class);
     
     /** I'm not going to act here. */
@@ -60,19 +59,19 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
 
     public void onChange(InetAddress endpoint, String stateName, ApplicationState state)
     {
-        if (!MIGRATION_STATE.equals(stateName))
+        if (!ApplicationState.STATE_MIGRATION.equals(stateName))
             return;
-        UUID theirVersion = UUID.fromString(state.getValue());
+        UUID theirVersion = UUID.fromString(state.state);
         rectify(theirVersion, endpoint);
     }
 
     /** gets called after a this node joins a cluster */
     public void onAlive(InetAddress endpoint, EndpointState state)
     { 
-        ApplicationState appState = state.getApplicationState(MIGRATION_STATE);
+        ApplicationState appState = state.getApplicationState(ApplicationState.STATE_MIGRATION);
         if (appState != null)
         {
-            UUID theirVersion = UUID.fromString(appState.getValue());
+            UUID theirVersion = UUID.fromString(appState.state);
             rectify(theirVersion, endpoint);
         }
     }
