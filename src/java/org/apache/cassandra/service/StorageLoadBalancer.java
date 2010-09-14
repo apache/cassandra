@@ -22,14 +22,13 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.cassandra.gms.EndpointState;
+import org.apache.cassandra.gms.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
+
 import java.net.InetAddress;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -191,11 +190,11 @@ public class StorageLoadBalancer implements IEndpointStateChangeSubscriber
         Gossiper.instance.register(this);
     }
 
-    public void onChange(InetAddress endpoint, String stateName, ApplicationState state)
+    public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value)
     {
-        if (!stateName.equals(ApplicationState.STATE_LOAD))
+        if (state != ApplicationState.LOAD)
             return;
-        loadInfo_.put(endpoint, Double.parseDouble(state.state));
+        loadInfo_.put(endpoint, Double.parseDouble(value.value));
 
         /*
         // clone load information to perform calculations
@@ -212,10 +211,10 @@ public class StorageLoadBalancer implements IEndpointStateChangeSubscriber
 
     public void onJoin(InetAddress endpoint, EndpointState epState)
     {
-        ApplicationState loadState = epState.getApplicationState(ApplicationState.STATE_LOAD);
-        if (loadState != null)
+        VersionedValue localValue = epState.getApplicationState(ApplicationState.LOAD);
+        if (localValue != null)
         {
-            onChange(endpoint, ApplicationState.STATE_LOAD, loadState);
+            onChange(endpoint, ApplicationState.LOAD, localValue);
         }
     }
 

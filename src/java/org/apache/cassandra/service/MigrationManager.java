@@ -26,6 +26,7 @@ import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.net.Message;
@@ -57,21 +58,21 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     /** I'm not going to act here. */
     public void onJoin(InetAddress endpoint, EndpointState epState) { }
 
-    public void onChange(InetAddress endpoint, String stateName, ApplicationState state)
+    public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value)
     {
-        if (!ApplicationState.STATE_MIGRATION.equals(stateName))
+        if (state != ApplicationState.SCHEMA)
             return;
-        UUID theirVersion = UUID.fromString(state.state);
+        UUID theirVersion = UUID.fromString(value.value);
         rectify(theirVersion, endpoint);
     }
 
     /** gets called after a this node joins a cluster */
     public void onAlive(InetAddress endpoint, EndpointState state)
     { 
-        ApplicationState appState = state.getApplicationState(ApplicationState.STATE_MIGRATION);
-        if (appState != null)
+        VersionedValue value = state.getApplicationState(ApplicationState.SCHEMA);
+        if (value != null)
         {
-            UUID theirVersion = UUID.fromString(appState.state);
+            UUID theirVersion = UUID.fromString(value.value);
             rectify(theirVersion, endpoint);
         }
     }

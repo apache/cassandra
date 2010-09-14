@@ -40,7 +40,7 @@ public interface IEndpointStateChangeSubscriber
      */
     public void onJoin(InetAddress endpoint, EndpointState epState);
 
-    public void onChange(InetAddress endpoint, String stateName, ApplicationState state);
+    public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value);
 
     public void onAlive(InetAddress endpoint, EndpointState state);
 

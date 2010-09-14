@@ -141,7 +141,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
 
     private static IPartitioner partitioner_ = DatabaseDescriptor.getPartitioner();
-    public static final ApplicationState.ApplicationStateFactory stateFactory = new ApplicationState.ApplicationStateFactory(partitioner_);
+    public static final VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner_);
 
     public static final StorageService instance = new StorageService();
 
@@ -210,7 +210,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         isBootstrapMode = false;
         SystemTable.setBootstrapped(true);
         setToken(getLocalToken());
-        Gossiper.instance.addLocalApplicationState(ApplicationState.STATE_MOVE, stateFactory.normal(getLocalToken()));
+        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.normal(getLocalToken()));
         logger_.info("Bootstrap/move completed! Now serving reads.");
         setMode("Normal", false);
     }
@@ -423,7 +423,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 isBootstrapMode = false;
                 SystemTable.setBootstrapped(true);
                 tokenMetadata_.updateNormalToken(token, FBUtilities.getLocalAddress());
-                Gossiper.instance.addLocalApplicationState(ApplicationState.STATE_MOVE, stateFactory.normal(token));
+                Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.normal(token));
                 setMode("Normal", false);
             }
             // don't finish startup (enabling thrift) until after bootstrap is done
@@ -444,7 +444,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             SystemTable.setBootstrapped(true);
             Token token = storageMetadata_.getToken();
             tokenMetadata_.updateNormalToken(token, FBUtilities.getLocalAddress());
-            Gossiper.instance.addLocalApplicationState(ApplicationState.STATE_MOVE, stateFactory.normal(token));
+            Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.normal(token));
             setMode("Normal", false);
         } 
         
@@ -465,7 +465,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         isBootstrapMode = true;
         SystemTable.updateToken(token); // DON'T use setToken, that makes us part of the ring locally which is incorrect until we are done bootstrapping
-        Gossiper.instance.addLocalApplicationState(ApplicationState.STATE_MOVE, stateFactory.normal(token));
+        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.normal(token));
         setMode("Joining: sleeping " + RING_DELAY + " ms for pending range setup", true);
         try
         {
@@ -593,24 +593,24 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * Note: Any time a node state changes from STATE_NORMAL, it will not be visible to new nodes. So it follows that
      * you should never bootstrap a new node during a removetoken, decommission or move.
      */
-    public void onChange(InetAddress endpoint, String apStateName, ApplicationState apState)
+    public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value)
     {
-        if (!ApplicationState.STATE_MOVE.equals(apStateName))
+        if (state != ApplicationState.STATUS)
             return;
 
-        String apStateValue = apState.state;
-        String[] pieces = apStateValue.split(ApplicationState.DELIMITER_STR, -1);
+        String apStateValue = value.value;
+        String[] pieces = apStateValue.split(VersionedValue.DELIMITER_STR, -1);
         assert (pieces.length > 0);
 
         String moveName = pieces[0];
 
-        if (moveName.equals(ApplicationState.STATE_BOOTSTRAPPING))
+        if (moveName.equals(VersionedValue.STATUS_BOOTSTRAPPING))
             handleStateBootstrap(endpoint, pieces);
-        else if (moveName.equals(ApplicationState.STATE_NORMAL))
+        else if (moveName.equals(VersionedValue.STATUS_NORMAL))
             handleStateNormal(endpoint, pieces);
-        else if (moveName.equals(ApplicationState.STATE_LEAVING))
+        else if (moveName.equals(VersionedValue.STATUS_LEAVING))
             handleStateLeaving(endpoint, pieces);
-        else if (moveName.equals(ApplicationState.STATE_LEFT))
+        else if (moveName.equals(VersionedValue.STATUS_LEFT))
             handleStateLeft(endpoint, pieces);
     }
 
@@ -674,7 +674,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         
         if (pieces.length > 2)
         {
-            if (ApplicationState.REMOVE_TOKEN.equals(pieces[2]))
+            if (VersionedValue.REMOVE_TOKEN.equals(pieces[2]))
             { 
                 // remove token was called on a dead node.
                 Token tokenThatLeft = getPartitioner().getTokenFactory().fromString(pieces[3]);
@@ -981,7 +981,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public void onJoin(InetAddress endpoint, EndpointState epState)
     {
-        for (Map.Entry<String,ApplicationState> entry : epState.getApplicationStateMap().entrySet())
+        for (Map.Entry<ApplicationState, VersionedValue> entry : epState.getApplicationStateMap().entrySet())
         {
             onChange(endpoint, entry.getKey(), entry.getValue());
         }
@@ -1432,7 +1432,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     private void startLeaving()
     {
-        Gossiper.instance.addLocalApplicationState(ApplicationState.STATE_MOVE, stateFactory.leaving(getLocalToken()));
+        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.leaving(getLocalToken()));
         tokenMetadata_.addLeavingEndpoint(FBUtilities.getLocalAddress());
         calculatePendingRanges();
     }
@@ -1475,7 +1475,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         tokenMetadata_.removeEndpoint(FBUtilities.getLocalAddress());
         calculatePendingRanges();
 
-        Gossiper.instance.addLocalApplicationState(ApplicationState.STATE_MOVE, stateFactory.left(getLocalToken()));
+        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.left(getLocalToken()));
         try
         {
             Thread.sleep(2 * Gossiper.intervalInMillis_);
@@ -1613,7 +1613,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
 
         // bundle two states together. include this nodes state to keep the status quo, but indicate the leaving token so that it can be dealt with.
-        Gossiper.instance.addLocalApplicationState(ApplicationState.STATE_MOVE, stateFactory.removeNonlocal(getLocalToken(), token));
+        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.removeNonlocal(getLocalToken(), token));
     }
 
     public boolean isClientMode()

@@ -47,6 +47,8 @@ import org.slf4j.LoggerFactory;
 
 public class Gossiper implements IFailureDetectionEventListener
 {
+    static final ApplicationState[] STATES = ApplicationState.values();
+
     private class GossipTimerTask extends TimerTask
     {
         public void run()
@@ -161,7 +163,7 @@ public class Gossiper implements IFailureDetectionEventListener
 
     /**
      * Unregister interest for state changes.
-     * @param subcriber module which implements the IEndpointStateChangeSubscriber
+     * @param subscriber module which implements the IEndpointStateChangeSubscriber
      */
     public void unregister(IEndpointStateChangeSubscriber subscriber)
     {
@@ -200,9 +202,8 @@ public class Gossiper implements IFailureDetectionEventListener
     {
         List<Integer> versions = new ArrayList<Integer>();
         versions.add( epState.getHeartBeatState().getHeartBeatVersion() );
-        Map<String, ApplicationState> appStateMap = epState.getApplicationStateMap();
 
-        for (ApplicationState value : appStateMap.values())
+        for (VersionedValue value : epState.getApplicationStateMap().values())
         {
             int stateVersion = value.version;
             versions.add( stateVersion );
@@ -470,21 +471,20 @@ public class Gossiper implements IFailureDetectionEventListener
             {
                 reqdEndpointState = new EndpointState(epState.getHeartBeatState());
             }
-            Map<String, ApplicationState> appStateMap = epState.getApplicationStateMap();
             /* Accumulate all application states whose versions are greater than "version" variable */
-            for (Entry<String, ApplicationState> entry : appStateMap.entrySet())
+            for (Entry<ApplicationState, VersionedValue> entry : epState.getApplicationStateMap().entrySet())
             {
-                ApplicationState appState = entry.getValue();
-                if ( appState.version > version )
+                VersionedValue value = entry.getValue();
+                if ( value.version > version )
                 {
                     if ( reqdEndpointState == null )
                     {
                         reqdEndpointState = new EndpointState(epState.getHeartBeatState());
                     }
-                    final String key = entry.getKey();
+                    final ApplicationState key = entry.getKey();
                     if (logger_.isTraceEnabled())
-                        logger_.trace("Adding state " + key + ": " + appState.state);
-                    reqdEndpointState.addApplicationState(key, appState);
+                        logger_.trace("Adding state " + key + ": " + value.value);
+                    reqdEndpointState.addApplicationState(key, value);
                 }
             }
         }
@@ -681,19 +681,19 @@ public class Gossiper implements IFailureDetectionEventListener
 
     void applyApplicationStateLocally(InetAddress addr, EndpointState localStatePtr, EndpointState remoteStatePtr)
     {
-        Map<String, ApplicationState> localAppStateMap = localStatePtr.getApplicationStateMap();
+        Map<ApplicationState, VersionedValue> localAppStateMap = localStatePtr.getApplicationStateMap();
 
-        for (Map.Entry<String,ApplicationState> remoteEntry : remoteStatePtr.getApplicationStateMap().entrySet())
+        for (Entry<ApplicationState, VersionedValue> remoteEntry : remoteStatePtr.getApplicationStateMap().entrySet())
         {
-            String remoteKey = remoteEntry.getKey();
-            ApplicationState remoteAppState = remoteEntry.getValue();
-            ApplicationState localAppState = localAppStateMap.get(remoteKey);
+            ApplicationState remoteKey = remoteEntry.getKey();
+            VersionedValue remoteValue = remoteEntry.getValue();
+            VersionedValue localValue = localAppStateMap.get(remoteKey);
 
             /* If state doesn't exist locally for this key then just apply it */
-            if ( localAppState == null )
+            if ( localValue == null )
             {
-                localStatePtr.addApplicationState(remoteKey, remoteAppState);
-                doNotifications(addr, remoteKey, remoteAppState);
+                localStatePtr.addApplicationState(remoteKey, remoteValue);
+                doNotifications(addr, remoteKey, remoteValue);
                 continue;
             }
 
@@ -704,31 +704,31 @@ public class Gossiper implements IFailureDetectionEventListener
             /* If the remoteGeneration is greater than localGeneration then apply state blindly */
             if ( remoteGeneration > localGeneration )
             {
-                localStatePtr.addApplicationState(remoteKey, remoteAppState);
-                doNotifications(addr, remoteKey, remoteAppState);
+                localStatePtr.addApplicationState(remoteKey, remoteValue);
+                doNotifications(addr, remoteKey, remoteValue);
                 continue;
             }
 
             /* If the generations are the same then apply state if the remote version is greater than local version. */
             if ( remoteGeneration == localGeneration )
             {
-                int remoteVersion = remoteAppState.version;
-                int localVersion = localAppState.version;
+                int remoteVersion = remoteValue.version;
+                int localVersion = localValue.version;
 
                 if ( remoteVersion > localVersion )
                 {
-                    localStatePtr.addApplicationState(remoteKey, remoteAppState);
-                    doNotifications(addr, remoteKey, remoteAppState);
+                    localStatePtr.addApplicationState(remoteKey, remoteValue);
+                    doNotifications(addr, remoteKey, remoteValue);
                 }
             }
         }
     }
 
-    void doNotifications(InetAddress addr, String stateName, ApplicationState state)
+    void doNotifications(InetAddress addr, ApplicationState state, VersionedValue value)
     {
         for (IEndpointStateChangeSubscriber subscriber : subscribers_)
         {
-            subscriber.onChange(addr, stateName, state);
+            subscriber.onChange(addr, state, value);
         }
     }
 
@@ -863,12 +863,12 @@ public class Gossiper implements IFailureDetectionEventListener
         gossipTimer_.schedule( new GossipTimerTask(), Gossiper.intervalInMillis_, Gossiper.intervalInMillis_);
     }
 
-    public void addLocalApplicationState(String key, ApplicationState appState)
+    public void addLocalApplicationState(ApplicationState state, VersionedValue value)
     {
         assert !StorageService.instance.isClientMode();
         EndpointState epState = endpointStateMap_.get(localEndpoint_);
         assert epState != null;
-        epState.addApplicationState(key, appState);
+        epState.addApplicationState(state, value);
     }
 
     public void stop()

@@ -21,12 +21,13 @@ package org.apache.cassandra.gms;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.*;
-import org.apache.cassandra.io.ICompactSerializer;
+import java.util.Map;
 
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.io.ICompactSerializer;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
  * This abstraction represents both the HeartBeatState and the ApplicationState in an EndpointState
@@ -38,7 +39,7 @@ public class EndpointState
     private final static ICompactSerializer<EndpointState> serializer_ = new EndpointStateSerializer();
 
     volatile HeartBeatState hbState_;
-    final Map<String, ApplicationState> applicationState_ = new NonBlockingHashMap<String, ApplicationState>();
+    final Map<ApplicationState, VersionedValue> applicationState_ = new NonBlockingHashMap<ApplicationState, VersionedValue>();
     
     /* fields below do not get serialized */
     volatile long updateTimestamp_;
@@ -76,7 +77,7 @@ public class EndpointState
         hbState_ = hbState;
     }
 
-    public ApplicationState getApplicationState(String key)
+    public VersionedValue getApplicationState(ApplicationState key)
     {
         return applicationState_.get(key);
     }
@@ -85,16 +86,16 @@ public class EndpointState
      * TODO replace this with operations that don't expose private state
      */
     @Deprecated
-    public Map<String, ApplicationState> getApplicationStateMap()
+    public Map<ApplicationState, VersionedValue> getApplicationStateMap()
     {
         return applicationState_;
     }
     
-    void addApplicationState(String key, ApplicationState appState)
+    void addApplicationState(ApplicationState key, VersionedValue value)
     {
-        applicationState_.put(key, appState);        
+        applicationState_.put(key, value);
     }
-    
+
     /* getters and setters */
     long getUpdateTimestamp()
     {
@@ -152,13 +153,13 @@ class EndpointStateSerializer implements ICompactSerializer<EndpointState>
         /* serialize the map of ApplicationState objects */
         int size = epState.applicationState_.size();
         dos.writeInt(size);
-        for (String key : epState.applicationState_.keySet())
+        for (Map.Entry<ApplicationState, VersionedValue> entry : epState.applicationState_.entrySet())
         {
-            ApplicationState appState = epState.applicationState_.get(key);
-            if (appState != null)
+            VersionedValue value = entry.getValue();
+            if (value != null)
             {
-                dos.writeUTF(key);
-                ApplicationState.serializer.serialize(appState, dos);
+                dos.writeInt(entry.getKey().ordinal());
+                VersionedValue.serializer.serialize(value, dos);
             }
         }
     }
@@ -176,9 +177,9 @@ class EndpointStateSerializer implements ICompactSerializer<EndpointState>
                 break;
             }
 
-            String key = dis.readUTF();
-            ApplicationState appState = ApplicationState.serializer.deserialize(dis);
-            epState.addApplicationState(key, appState);            
+            int key = dis.readInt();
+            VersionedValue value = VersionedValue.serializer.deserialize(dis);
+            epState.addApplicationState(Gossiper.STATES[key], value);
         }
         return epState;
     }

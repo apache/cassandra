@@ -33,7 +33,7 @@ class LoadDisseminator extends TimerTask
     {
         if (logger_.isDebugEnabled())
           logger_.debug("Disseminating load info ...");
-        Gossiper.instance.addLocalApplicationState(ApplicationState.STATE_LOAD,
-                                                   StorageService.stateFactory.load(StorageService.instance.getLoad()));
+        Gossiper.instance.addLocalApplicationState(ApplicationState.LOAD,
+                                                   StorageService.valueFactory.load(StorageService.instance.getLoad()));
     }
 }
