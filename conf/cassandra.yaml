@@ -143,11 +143,14 @@ binary_memtable_throughput_in_mb: 256
 # This needs to be large enough that it won't cause a flush storm
 # of all your memtables flushing at once because none has hit
 # the size or count thresholds yet.
-memtable_flush_after_mins: 60
+# defaults to 60
+#memtable_flush_after_mins: 60
 # Size of the memtable in memory before it is flushed
-memtable_throughput_in_mb: 64
+# if left undefined, 1/8 of the heap will be used
+#memtable_throughput_in_mb: 256
 # Number of objects in millions in the memtable before it is flushed
-memtable_operations_in_millions: 0.3
+# if left undefined, the memtable_throughput_in_mb / 64 * 0.3 will be used
+#memtable_operations_in_millions: 1.2 
 
 # Add column indexes to a row after its contents reach this size.
 # Increase if your column values are large, or if you have a very large

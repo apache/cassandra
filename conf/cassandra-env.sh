@@ -14,10 +14,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+calculate_heap_size()
+{
+    system_memory=`free -m | awk '/Mem:/ {print $2}'`
+    MAX_HEAP_SIZE=$((system_memory / 2))M
+}
 
 # The amount of memory to allocate to the JVM at startup, you almost
-# certainly want to adjust this for your environment.
-MAX_HEAP_SIZE="1G" 
+# certainly want to adjust this for your environment. If left commented
+# out, the heap size will be automatically determined by calculate_heap_size
+# MAX_HEAP_SIZE="4G"
+
+if [ "x$MAX_HEAP_SIZE" = "x" ]; then
+    calculate_heap_size
+    echo "Using adaptive heap size: " $MAX_HEAP_SIZE
+fi
 
 # Specifies the default port over which Cassandra will be available for
 # JMX connections.
