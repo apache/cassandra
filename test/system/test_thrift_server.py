@@ -1152,6 +1152,31 @@ class TestMutations(ThriftTester):
             client.system_rename_column_family('Standard1', 'in-validcf')
         _expect_exception(invalid_rename, InvalidRequestException)
     
+    def test_cf_recreate(self):
+        keyspace = 'Keyspace1'
+        cf_name = 'RecreatedCf'
+        _set_keyspace(keyspace)
+        
+        # create
+        newcf = CfDef(keyspace, cf_name)
+        client.system_add_column_family(newcf)
+        
+        # insert
+        client.insert('key0', ColumnParent(cf_name), Column('colA', 'colA-value', Clock(0)), ConsistencyLevel.ONE)
+        col1 = client.get_slice('key0', ColumnParent(cf_name), SlicePredicate(slice_range=SliceRange('', '', False, 100)), ConsistencyLevel.ONE)[0].column
+        assert col1.name == 'colA' and col1.value == 'colA-value'
+                
+        # drop
+        client.system_drop_column_family(cf_name) 
+                
+        # recreate
+        client.system_add_column_family(newcf)
+        
+        # query
+        cosc_list = client.get_slice('key0', ColumnParent(cf_name), SlicePredicate(slice_range=SliceRange('', '', False, 100)), ConsistencyLevel.ONE)
+        # this was failing prior to CASSANDRA-1477.
+        assert len(cosc_list) == 0
+        
     def test_system_keyspace_operations(self):
         """ Test keyspace (add, drop, rename) operations """
         # create

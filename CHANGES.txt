@@ -70,6 +70,8 @@
  * nodes that coordinated a loadbalance in the past could not be seen by
    newly added nodes (CASSANDRA-1467)
  * exposed endpoint states (gossip details) via jmx (CASSANDRA-1467)
+ * ensure that compacted sstables are not included when new readers are
+   instantiated (CASSANDRA-1477)
 
 
 0.7-beta1
