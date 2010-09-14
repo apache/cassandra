@@ -37,6 +37,7 @@ public class IncomingStreamReader
     private FileStatus streamStatus;
     private SocketChannel socketChannel;
     private StreamContext context;
+    // indicates an transfer initiated by the source, as opposed to one requested by the recipient
     private boolean initiatedTransfer;
 
     public IncomingStreamReader(StreamHeader header, SocketChannel socketChannel) throws IOException

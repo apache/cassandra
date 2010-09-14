@@ -539,7 +539,7 @@ public class AntiEntropyService
                     protected void runMayThrow() throws Exception
                     {
                         StreamContext context = new StreamContext(request.endpoint);
-                        StreamOut.transferSSTables(context, request.cf.left, sstables, ranges);
+                        StreamOut.transferSSTables(context, sstables, ranges);
                         StreamOutManager.remove(context);
                     }
                 });

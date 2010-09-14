@@ -46,7 +46,7 @@ public class StreamHeader
     private PendingFile file;
     private long sessionId;
     
-    // indicates an initiated transfer as opposed to a request
+    // indicates an transfer initiated by the source, as opposed to one requested by the recipient
     protected final boolean initiatedTransfer;
     
     // this list will only be non-null when the first of a batch of files are being sent. it avoids having to have
@@ -55,10 +55,7 @@ public class StreamHeader
 
     public StreamHeader(long sessionId, PendingFile file, boolean initiatedTransfer)
     {
-        this.sessionId = sessionId;
-        this.file = file;
-        this.initiatedTransfer = initiatedTransfer;
-        pending = null;
+        this(sessionId, file, null, initiatedTransfer);
     }
 
     public StreamHeader(long sessionId, PendingFile file, List<PendingFile> pending, boolean initiatedTransfer)
