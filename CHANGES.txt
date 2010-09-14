@@ -72,6 +72,7 @@
  * exposed endpoint states (gossip details) via jmx (CASSANDRA-1467)
  * ensure that compacted sstables are not included when new readers are
    instantiated (CASSANDRA-1477)
+ * by default, calculate heap size and memtable thresholds at runtime (CASSANDRA-1469)
 
 
 0.7-beta1
