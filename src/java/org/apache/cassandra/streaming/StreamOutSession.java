@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.SimpleCondition;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -38,7 +39,7 @@ public class StreamOutSession
     private static final Logger logger = LoggerFactory.getLogger( StreamOutSession.class );
         
     // one host may have multiple stream sessions.
-    private static final ConcurrentMap<StreamContext, StreamOutSession> streams = new NonBlockingHashMap<StreamContext, StreamOutSession>();
+    private static final ConcurrentMap<Pair<InetAddress, Long>, StreamOutSession> streams = new NonBlockingHashMap<Pair<InetAddress, Long>, StreamOutSession>();
 
     public static StreamOutSession create(InetAddress host)
     {
@@ -47,7 +48,7 @@ public class StreamOutSession
 
     public static StreamOutSession create(InetAddress host, long sessionId)
     {
-        StreamContext context = new StreamContext(host, sessionId);
+        Pair<InetAddress, Long> context = new Pair<InetAddress, Long>(host, sessionId);
         StreamOutSession session = new StreamOutSession(context);
         streams.put(context, session);
         return session;
@@ -55,7 +56,7 @@ public class StreamOutSession
 
     public static StreamOutSession get(InetAddress host, long sessionId)
     {
-        return streams.get(new StreamContext(host, sessionId));
+        return streams.get(new Pair<InetAddress, Long>(host, sessionId));
     }
 
     public void close()
@@ -67,22 +68,22 @@ public class StreamOutSession
     private final List<PendingFile> files = new ArrayList<PendingFile>();
     private final Map<String, PendingFile> fileMap = new HashMap<String, PendingFile>();
     
-    private final StreamContext context;
+    private final Pair<InetAddress, Long> context;
     private final SimpleCondition condition = new SimpleCondition();
     
-    private StreamOutSession(StreamContext context)
+    private StreamOutSession(Pair<InetAddress, Long> context)
     {
         this.context = context;
     }
 
     public InetAddress getHost()
     {
-        return context.host;
+        return context.left;
     }
 
     public long getSessionId()
     {
-        return context.sessionId;
+        return context.right;
     }
     
     public void addFilesToStream(List<PendingFile> pendingFiles)
@@ -168,9 +169,9 @@ public class StreamOutSession
     public static List<PendingFile> getOutgoingFiles(InetAddress host)
     {
         List<PendingFile> list = new ArrayList<PendingFile>();
-        for (Map.Entry<StreamContext, StreamOutSession> entry : streams.entrySet())
+        for (Map.Entry<Pair<InetAddress, Long>, StreamOutSession> entry : streams.entrySet())
         {
-            if (entry.getKey().host.equals(host))
+            if (entry.getKey().left.equals(host))
                 list.addAll(entry.getValue().getFiles());
         }
         return list;

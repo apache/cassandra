@@ -20,7 +20,6 @@ package org.apache.cassandra.streaming;
 
 import java.net.InetAddress;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import org.apache.cassandra.net.Message;
@@ -28,6 +27,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import org.apache.cassandra.utils.Pair;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,20 +37,20 @@ public class StreamInSession
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamInSession.class);
 
-    private static ConcurrentMap<StreamContext, StreamInSession> sessions = new NonBlockingHashMap<StreamContext, StreamInSession>();
+    private static ConcurrentMap<Pair<InetAddress, Long>, StreamInSession> sessions = new NonBlockingHashMap<Pair<InetAddress, Long>, StreamInSession>();
     private final Set<PendingFile> activeStreams = new HashSet<PendingFile>();
 
     private final List<PendingFile> pendingFiles = new ArrayList<PendingFile>();
-    private final StreamContext context;
+    private final Pair<InetAddress, Long> context;
 
-    private StreamInSession(StreamContext context)
+    private StreamInSession(Pair<InetAddress, Long> context)
     {
         this.context = context;
     }
 
     public static StreamInSession create(InetAddress host)
     {
-        StreamContext context = new StreamContext(host);
+        Pair<InetAddress, Long> context = new Pair<InetAddress, Long>(host, System.nanoTime());
         StreamInSession session = new StreamInSession(context);
         sessions.put(context, session);
         return session;
@@ -58,7 +58,7 @@ public class StreamInSession
 
     public static StreamInSession get(InetAddress host, long sessionId)
     {
-        StreamContext context = new StreamContext(host, sessionId);
+        Pair<InetAddress, Long> context = new Pair<InetAddress, Long>(host, sessionId);
 
         StreamInSession session = sessions.get(context);
         if (session == null)
@@ -125,12 +125,12 @@ public class StreamInSession
 
     public long getSessionId()
     {
-        return context.sessionId;
+        return context.right;
     }
 
     public InetAddress getHost()
     {
-        return context.host;
+        return context.left;
     }
 
     /** query method to determine which hosts are streaming to this node. */
@@ -148,9 +148,9 @@ public class StreamInSession
     public static List<PendingFile> getIncomingFiles(InetAddress host)
     {
         List<PendingFile> list = new ArrayList<PendingFile>();
-        for (Map.Entry<StreamContext, StreamInSession> entry : sessions.entrySet())
+        for (Map.Entry<Pair<InetAddress, Long>, StreamInSession> entry : sessions.entrySet())
         {
-            if (entry.getKey().host.equals(host))
+            if (entry.getKey().left.equals(host))
             {
                 StreamInSession session = entry.getValue();
                 list.addAll(session.pendingFiles);
