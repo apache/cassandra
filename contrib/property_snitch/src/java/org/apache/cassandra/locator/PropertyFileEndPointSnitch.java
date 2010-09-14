@@ -27,7 +27,6 @@ import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
-import java.util.StringTokenizer;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -39,7 +38,8 @@ import org.apache.log4j.Logger;
  * PropertyFileEndPointSnitch is used by Digg to determine if two IP's are in the same
  * datacenter or on the same rack.
  */
-public class PropertyFileEndPointSnitch extends EndPointSnitch implements PropertyFileEndPointSnitchMBean {
+public class PropertyFileEndPointSnitch extends EndPointSnitch implements PropertyFileEndPointSnitchMBean
+{
     /**
      * The default rack property file to be read.
      */
@@ -57,13 +57,16 @@ public class PropertyFileEndPointSnitch extends EndPointSnitch implements Proper
     private static Map<InetAddress, String[]> endpointMap = new HashMap<InetAddress, String[]>();
     private static String[] defaultDCRack;
 
-    public PropertyFileEndPointSnitch() throws IOException {
+    public PropertyFileEndPointSnitch() throws IOException
+    {
         reloadConfiguration();
-        try {
+        try
+        {
             MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
             mbs.registerMBean(this, new ObjectName(MBEAN_OBJECT_NAME));
         }
-        catch (Exception e) {
+        catch (Exception e)
+        {
             throw new RuntimeException(e);
         }
     }
@@ -74,7 +77,8 @@ public class PropertyFileEndPointSnitch extends EndPointSnitch implements Proper
      * @param endPoint endPoint to process
      * @return a array of string with the first index being the data center and the second being the rack
      */
-    public String[] getEndPointInfo(InetAddress endPoint) {
+    public String[] getEndPointInfo(InetAddress endPoint)
+    {
         String[] value = endpointMap.get(endPoint);
         if (value == null)
         {
@@ -91,45 +95,47 @@ public class PropertyFileEndPointSnitch extends EndPointSnitch implements Proper
      * @param endPoint the endPoint to process
      * @return string of data center
      */
-    public String getDataCenterForEndPoint(InetAddress endPoint) {
+    public String getDataCenterForEndPoint(InetAddress endPoint)
+    {
         return getEndPointInfo(endPoint)[0];
     }
 
-    public String getLocation(InetAddress endPoint) {
+    public String getLocation(InetAddress endPoint)
+    {
         return getEndPointInfo(endPoint)[0];
     }
+
     /**
      * Return the rack for which an endpoint resides in
      *
      * @param endPoint the endPoint to process
      * @return string of rack
      */
-    public String getRackForEndPoint(InetAddress endPoint) {
+    public String getRackForEndPoint(InetAddress endPoint)
+    {
         return getEndPointInfo(endPoint)[1];
     }
 
     @Override
-    public boolean isInSameDataCenter(InetAddress host, InetAddress host2)
-            throws UnknownHostException {
-        if (runInBaseMode) {
+    public boolean isInSameDataCenter(InetAddress host, InetAddress host2) throws UnknownHostException
+    {
+        if (runInBaseMode)
             return super.isInSameDataCenter(host, host2);
-        }
         return getDataCenterForEndPoint(host).equals(getDataCenterForEndPoint(host2));
     }
 
     @Override
-    public boolean isOnSameRack(InetAddress host, InetAddress host2)
-            throws UnknownHostException {
-        if (runInBaseMode) {
+    public boolean isOnSameRack(InetAddress host, InetAddress host2) throws UnknownHostException
+    {
+        if (runInBaseMode)
             return super.isOnSameRack(host, host2);
-        }
-        if (!isInSameDataCenter(host, host2)) {
+        if (!isInSameDataCenter(host, host2))
             return false;
-        }
         return getRackForEndPoint(host).equals(getRackForEndPoint(host2));
     }
 
-    public String displayConfiguration() {
+    public String displayConfiguration()
+    {
         StringBuffer configurationString = new StringBuffer("Current rack configuration\n=================\n");
         for (Map.Entry<InetAddress, String[]> entry : endpointMap.entrySet())
         {
@@ -139,39 +145,45 @@ public class PropertyFileEndPointSnitch extends EndPointSnitch implements Proper
         return configurationString.toString();
     }
 
-    public void reloadConfiguration() throws IOException {
+    public void reloadConfiguration() throws IOException
+    {
         String rackPropertyFilename = System.getProperty("rackFile", DEFAULT_RACK_PROPERTY_FILE);
         endpointMap.clear();
-        try {
+        try
+        {
             Properties properties = new Properties();
             properties.load(new FileReader(rackPropertyFilename));
-            for (Map.Entry<Object, Object> entry : properties.entrySet()) {
+            for (Map.Entry<Object, Object> entry : properties.entrySet())
+            {
                 String key = (String) entry.getKey();
                 String value = (String) entry.getValue();
 
-                if (key.equals("default")) {
+                if (key.equals("default"))
+                {
                     defaultDCRack = value.split(":");
                     if (defaultDCRack.length < 2)
-                        defaultDCRack = new String[]{"default", "default"};
+                        defaultDCRack = new String[]{ "default", "default" };
                 }
-                else {
+                else
+                {
                     InetAddress host = InetAddress.getByName(key.replace("/", ""));
                     String[] token = value.split(":");
                     if (token.length < 2)
-                        token = new String[]{"default", "default"};
+                        token = new String[]{ "default", "default" };
                     endpointMap.put(host, token);
                 }
             }
             runInBaseMode = false;
         }
-        catch (FileNotFoundException fnfe) {
+        catch (FileNotFoundException fnfe)
+        {
             logger_.error("Could not find " + rackPropertyFilename + ", using default EndPointSnitch", fnfe);
             runInBaseMode = true;
         }
-        catch (IOException ioe) {
+        catch (IOException ioe)
+        {
             logger_.error("Could not process " + rackPropertyFilename, ioe);
             throw ioe;
         }
     }
-
 }
