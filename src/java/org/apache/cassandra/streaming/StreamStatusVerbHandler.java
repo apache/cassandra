@@ -50,15 +50,15 @@ public class StreamStatusVerbHandler implements IVerbHandler
             switch (streamStatus.getAction())
             {
                 case DELETE:
-                    StreamOutManager.get(context).finishAndStartNext(streamStatus.getFile());
+                    StreamOutSession.get(context).finishAndStartNext(streamStatus.getFile());
                     break;
                 case STREAM:
                     logger.warn("Need to re-stream file {} to {}", streamStatus.getFile(), message.getFrom());
-                    StreamOutManager.get(context).retry(streamStatus.getFile());
+                    StreamOutSession.get(context).retry(streamStatus.getFile());
                     break;
                 case EMPTY:
                     logger.error("Did not find matching ranges on {}", message.getFrom());
-                    StreamInManager.get(context).remove();
+                    StreamInSession.get(context).remove();
                     if (StorageService.instance.isBootstrapMode())
                         StorageService.instance.removeBootstrapSource(message.getFrom(), new String(message.getHeader(StreamOut.TABLE_NAME)));
                     break;

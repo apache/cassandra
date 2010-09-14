@@ -48,7 +48,7 @@ import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.streaming.StreamOutManager;
+import org.apache.cassandra.streaming.StreamOutSession;
 import org.apache.cassandra.utils.*;
 
 /**
@@ -540,7 +540,7 @@ public class AntiEntropyService
                     {
                         StreamContext context = new StreamContext(request.endpoint);
                         StreamOut.transferSSTables(context, request.cf.left, sstables, ranges);
-                        StreamOutManager.remove(context);
+                        StreamOutSession.remove(context);
                     }
                 });
                 // request ranges from the remote node

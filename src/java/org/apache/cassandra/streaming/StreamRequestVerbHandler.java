@@ -57,7 +57,7 @@ public class StreamRequestVerbHandler implements IVerbHandler
                 // single file request.
                 StreamHeader header = new StreamHeader(srm.sessionId, srm.file, false);
                 MessagingService.instance.stream(header, message.getFrom());
-                StreamOutManager.get(new StreamContext(message.getFrom(), srm.sessionId)).removePending(srm.file);
+                StreamOutSession.get(new StreamContext(message.getFrom(), srm.sessionId)).removePending(srm.file);
             }
             else
             {

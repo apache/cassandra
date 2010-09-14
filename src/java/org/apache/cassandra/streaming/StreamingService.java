@@ -54,19 +54,19 @@ public class StreamingService implements StreamingServiceMBean
     {
         StringBuilder sb = new StringBuilder();
         sb.append("Receiving from:\n");
-        for (StreamContext source : StreamInManager.getSources())
+        for (StreamContext source : StreamInSession.getSources())
         {
             sb.append(String.format(" %s:\n", source.host.getHostAddress()));
-            for (PendingFile pf : StreamInManager.getIncomingFiles(source.host))
+            for (PendingFile pf : StreamInSession.getIncomingFiles(source.host))
             {
                 sb.append(String.format("  %s\n", pf.toString()));
             }
         }
         sb.append("Sending to:\n");
-        for (InetAddress dest : StreamOutManager.getDestinations())
+        for (InetAddress dest : StreamOutSession.getDestinations())
         {
             sb.append(String.format(" %s:\n", dest.getHostAddress()));
-            for (PendingFile pf : StreamOutManager.getOutgoingFiles(dest))
+            for (PendingFile pf : StreamOutSession.getOutgoingFiles(dest))
             {
                 sb.append(String.format("  %s\n", pf.toString()));
             }
@@ -77,7 +77,7 @@ public class StreamingService implements StreamingServiceMBean
     /** hosts receiving outgoing streams. */
     public Set<InetAddress> getStreamDestinations()
     {
-        return StreamOutManager.getDestinations();
+        return StreamOutSession.getDestinations();
     }
 
     /** outgoing streams */
@@ -91,7 +91,7 @@ public class StreamingService implements StreamingServiceMBean
         if (!existingDestinations.contains(dest))
             return files;
         
-        for (PendingFile f : StreamOutManager.getOutgoingFiles(dest))
+        for (PendingFile f : StreamOutSession.getOutgoingFiles(dest))
             files.add(String.format("%s", f.toString()));
         return files;
     }
@@ -101,7 +101,7 @@ public class StreamingService implements StreamingServiceMBean
     {
         Set<InetAddress> sources = new HashSet<InetAddress>();
 
-        for(StreamContext context : StreamInManager.getSources())
+        for(StreamContext context : StreamInSession.getSources())
         {
             sources.add(context.host);
         }
@@ -112,7 +112,7 @@ public class StreamingService implements StreamingServiceMBean
     public List<String> getIncomingFiles(String host) throws IOException
     {
         List<String> files = new ArrayList<String>();
-        for (PendingFile pf : StreamInManager.getIncomingFiles(InetAddress.getByName(host)))
+        for (PendingFile pf : StreamInSession.getIncomingFiles(InetAddress.getByName(host)))
         {
             files.add(String.format("%s: %s", pf.desc.ksname, pf.toString()));
         }

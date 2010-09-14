@@ -43,27 +43,27 @@ import com.google.common.collect.Multimaps;
 /**
  * This class manages the streaming of multiple files one after the other.
 */
-public class StreamOutManager
+public class StreamOutSession
 {   
-    private static Logger logger = LoggerFactory.getLogger( StreamOutManager.class );
+    private static Logger logger = LoggerFactory.getLogger( StreamOutSession.class );
         
     // one host may have multiple stream contexts (think of them as sessions). each context gets its own manager.
-    private static ConcurrentMap<StreamContext, StreamOutManager> streamManagers = new ConcurrentHashMap<StreamContext, StreamOutManager>();
+    private static ConcurrentMap<StreamContext, StreamOutSession> streamManagers = new ConcurrentHashMap<StreamContext, StreamOutSession>();
     public static final Multimap<InetAddress, StreamContext> destHosts = Multimaps.synchronizedMultimap(HashMultimap.<InetAddress, StreamContext>create());
 
-    public static StreamOutManager get(StreamContext context)
+    public static StreamOutSession get(StreamContext context)
     {
-        StreamOutManager manager = streamManagers.get(context);
-        if (manager == null)
+        StreamOutSession session = streamManagers.get(context);
+        if (session == null)
         {
-            StreamOutManager possibleNew = new StreamOutManager(context);
-            if ((manager = streamManagers.putIfAbsent(context, possibleNew)) == null)
+            StreamOutSession possibleNew = new StreamOutSession(context);
+            if ((session = streamManagers.putIfAbsent(context, possibleNew)) == null)
             {
-                manager = possibleNew;
+                session = possibleNew;
                 destHosts.put(context.host, context);
             }
         }
-        return manager;
+        return session;
     }
     
     public static void remove(StreamContext context)
@@ -90,9 +90,9 @@ public class StreamOutManager
     public static List<PendingFile> getPendingFiles(StreamContext context)
     {
         List<PendingFile> list = new ArrayList<PendingFile>();
-        StreamOutManager manager = streamManagers.get(context);
-        if (manager != null)
-            list.addAll(manager.getFiles());
+        StreamOutSession session = streamManagers.get(context);
+        if (session != null)
+            list.addAll(session.getFiles());
         return list;
     }
 
@@ -113,7 +113,7 @@ public class StreamOutManager
     private final StreamContext context;
     private final SimpleCondition condition = new SimpleCondition();
     
-    private StreamOutManager(StreamContext context)
+    private StreamOutSession(StreamContext context)
     {
         this.context = context;
     }

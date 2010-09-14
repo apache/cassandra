@@ -50,14 +50,14 @@ public class IncomingStreamReader
         lastFile = header.getStreamFile();
         initiatedTransfer = header.initiatedTransfer;
         context = new StreamContext(remoteAddress.getAddress(), header.getSessionId());
-        StreamInManager.activeStreams.put(context, pendingFile);
+        StreamInSession.activeStreams.put(context, pendingFile);
         assert pendingFile != null;
         // For transfers setup the status and for replies to requests, prepare the list
         // of available files to request.
         if (initiatedTransfer)
             streamStatus = new FileStatus(lastFile.getFilename(), header.getSessionId());
         else if (header.getPendingFiles() != null)
-            StreamInManager.get(context).addFilesToRequest(header.getPendingFiles());
+            StreamInSession.get(context).addFilesToRequest(header.getPendingFiles());
     }
 
     public void read() throws IOException
@@ -98,7 +98,7 @@ public class IncomingStreamReader
         finally
         {
             fc.close();
-            StreamInManager.activeStreams.remove(context, pendingFile);
+            StreamInSession.activeStreams.remove(context, pendingFile);
         }
 
         if (logger.isDebugEnabled())
@@ -108,7 +108,7 @@ public class IncomingStreamReader
         else
         {
             FileStatusHandler.addSSTable(pendingFile);
-            StreamInManager.get(context).finishAndRequestNext(lastFile);
+            StreamInSession.get(context).finishAndRequestNext(lastFile);
         }
     }
 

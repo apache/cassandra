@@ -52,7 +52,7 @@ public class StreamIn
         if (logger.isDebugEnabled())
             logger.debug("Requesting from {} ranges {}", source, StringUtils.join(ranges, ", "));
         StreamContext context = new StreamContext(source);
-        StreamInManager.get(context);
+        StreamInSession.get(context);
         Message message = new StreamRequestMessage(FBUtilities.getLocalAddress(), ranges, tableName, context.sessionId).makeMessage();
         MessagingService.instance.sendOneWay(message, source);
     }

@@ -32,36 +32,36 @@ import org.apache.cassandra.service.StorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** each context gets its own StreamInManager. So there may be >1 StreamInManager per host */
-public class StreamInManager
+/** each context gets its own StreamInSession. So there may be >1 StreamInManager per host */
+public class StreamInSession
 {
-    private static final Logger logger = LoggerFactory.getLogger(StreamInManager.class);
+    private static final Logger logger = LoggerFactory.getLogger(StreamInSession.class);
 
-    private static ConcurrentMap<StreamContext, StreamInManager> streamManagers = new ConcurrentHashMap<StreamContext, StreamInManager>(0);
+    private static ConcurrentMap<StreamContext, StreamInSession> streamManagers = new ConcurrentHashMap<StreamContext, StreamInSession>(0);
     public static final Multimap<StreamContext, PendingFile> activeStreams = Multimaps.synchronizedMultimap(HashMultimap.<StreamContext, PendingFile>create());
     public static final Multimap<InetAddress, StreamContext> sourceHosts = Multimaps.synchronizedMultimap(HashMultimap.<InetAddress, StreamContext>create());
     
     private final List<PendingFile> pendingFiles = new ArrayList<PendingFile>();
     private final StreamContext context;
 
-    private StreamInManager(StreamContext context)
+    private StreamInSession(StreamContext context)
     {
         this.context = context;
     }
 
-    public synchronized static StreamInManager get(StreamContext context)
+    public synchronized static StreamInSession get(StreamContext context)
     {
-        StreamInManager manager = streamManagers.get(context);
-        if (manager == null)
+        StreamInSession session = streamManagers.get(context);
+        if (session == null)
         {
-            StreamInManager possibleNew = new StreamInManager(context);
-            if ((manager = streamManagers.putIfAbsent(context, possibleNew)) == null)
+            StreamInSession possibleNew = new StreamInSession(context);
+            if ((session = streamManagers.putIfAbsent(context, possibleNew)) == null)
             {
-                manager = possibleNew;
+                session = possibleNew;
                 sourceHosts.put(context.host, context);
             }
         }
-        return manager;
+        return session;
     }
 
     public void addFilesToRequest(List<PendingFile> pendingFiles)

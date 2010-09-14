@@ -68,7 +68,7 @@ public class StreamOut
         
         StreamContext context = new StreamContext(target);
         // this is so that this target shows up as a destination while anticompaction is happening.
-        StreamOutManager.get(context);
+        StreamOutSession.get(context);
 
         logger.info("Beginning transfer process to {} for ranges {}", context, StringUtils.join(ranges, ", "));
 
@@ -84,7 +84,7 @@ public class StreamOut
         }
         finally
         {
-            StreamOutManager.remove(context);
+            StreamOutSession.remove(context);
         }
         if (callback != null)
             callback.run();
@@ -151,13 +151,13 @@ public class StreamOut
         if (pending.size() > 0)
         {
             StreamHeader header = new StreamHeader(context.sessionId, pending.get(0), true);
-            StreamOutManager.get(context).addFilesToStream(pending);
+            StreamOutSession.get(context).addFilesToStream(pending);
 
             logger.info("Streaming file {} to {}", header.getStreamFile(), context.host);
             MessagingService.instance.stream(header, context.host);
 
             logger.info("Waiting for transfer to {} to complete", context);
-            StreamOutManager.get(context).waitForStreamCompletion();
+            StreamOutSession.get(context).waitForStreamCompletion();
             logger.info("Done with transfer to {}", context);
         }
     }
@@ -173,12 +173,12 @@ public class StreamOut
         {
             StreamHeader header = new StreamHeader(context.sessionId, pending.get(0), pending, false);
             // In case this happens to be a re-request due to some error condition on the destination side
-            if (StreamOutManager.getPendingFiles(context).size() == 0)
-                StreamOutManager.get(context).addFilesToStream(pending);
+            if (StreamOutSession.getPendingFiles(context).size() == 0)
+                StreamOutSession.get(context).addFilesToStream(pending);
 
             logger.info("Streaming file {} to {}", header.getStreamFile(), context.host);
             MessagingService.instance.stream(header, context.host);
-            StreamOutManager.get(context).removePending(header.getStreamFile());
+            StreamOutSession.get(context).removePending(header.getStreamFile());
         }
         else
         {
