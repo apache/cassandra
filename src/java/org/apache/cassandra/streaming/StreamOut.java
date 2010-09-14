@@ -76,7 +76,7 @@ public class StreamOut
         {
             Table table = flushSSTable(tableName);
             // send the matching portion of every sstable in the keyspace
-            transferSSTables(context, table.getAllSSTables(), ranges);
+            transferSSTables(context, tableName, table.getAllSSTables(), ranges);
         }
         catch (IOException e)
         {
@@ -144,7 +144,7 @@ public class StreamOut
     /**
      * Transfers matching portions of a group of sstables from a single table to the target endpoint.
      */
-    public static void transferSSTables(StreamContext context, Collection<SSTableReader> sstables, Collection<Range> ranges) throws IOException
+    public static void transferSSTables(StreamContext context, String table, Collection<SSTableReader> sstables, Collection<Range> ranges) throws IOException
     {
         List<PendingFile> pending = createPendingFiles(sstables, ranges);
 

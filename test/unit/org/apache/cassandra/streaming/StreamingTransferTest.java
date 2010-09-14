@@ -34,6 +34,8 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.sstable.SSTableUtils;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.StreamContext;
+import org.apache.cassandra.streaming.StreamOut;
 import org.apache.cassandra.utils.FBUtilities;
 
 import org.junit.BeforeClass;
@@ -66,7 +68,7 @@ public class StreamingTransferTest extends CleanupHelper
         List<Range> ranges = new ArrayList<Range>();
         ranges.add(new Range(p.getMinimumToken(), p.getToken("key".getBytes())));
         ranges.add(new Range(p.getToken("key2".getBytes()), p.getMinimumToken()));
-        StreamOut.transferSSTables(new StreamContext(LOCAL), Arrays.asList(sstable), ranges);
+        StreamOut.transferSSTables(new StreamContext(LOCAL), tablename, Arrays.asList(sstable), ranges);
 
         // confirm that the SSTable was transferred and registered
         ColumnFamilyStore cfstore = Table.open(tablename).getColumnFamilyStore(cfname);
@@ -106,7 +108,7 @@ public class StreamingTransferTest extends CleanupHelper
         List<Range> ranges = new ArrayList<Range>();
         ranges.add(new Range(p.getMinimumToken(), p.getToken("transfer1".getBytes())));
         ranges.add(new Range(p.getToken("test2".getBytes()), p.getMinimumToken()));
-        StreamOut.transferSSTables(new StreamContext(LOCAL), Arrays.asList(sstable, sstable2), ranges);
+        StreamOut.transferSSTables(new StreamContext(LOCAL), tablename, Arrays.asList(sstable, sstable2), ranges);
 
         // confirm that the SSTable was transferred and registered
         ColumnFamilyStore cfstore = Table.open(tablename).getColumnFamilyStore(cfname);
