@@ -421,11 +421,17 @@ public class NodeCmd {
         }
         else if (cmdName.equals("cleanup"))
         {
-            probe.forceTableCleanup();
+            if (arguments.length > 1)
+                probe.forceTableCleanup(arguments[1]);
+            else
+                probe.forceTableCleanup();
         }
         else if (cmdName.equals("compact"))
         {
-            probe.forceTableCompaction();
+            if (arguments.length > 1)
+                probe.forceTableCompaction(arguments[1]);
+            else
+                probe.forceTableCompaction();
         }
         else if (cmdName.equals("cfstats"))
         {

@@ -1120,10 +1120,22 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
     }
 
+    public void forceTableCleanup(String tableName) throws IOException
+    {
+        Table table = getValidTable(tableName);
+        table.forceCleanup();
+    }
+    
     public void forceTableCompaction() throws IOException
     {
         for (Table table : Table.all())
             table.forceCompaction();
+    }
+
+    public void forceTableCompaction(String tableName) throws IOException
+    {
+        Table table = getValidTable(tableName);
+        table.forceCompaction();
     }
 
     /**

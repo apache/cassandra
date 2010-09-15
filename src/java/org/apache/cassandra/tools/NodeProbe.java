@@ -132,10 +132,20 @@ public class NodeProbe
     {
         ssProxy.forceTableCleanup();
     }
-    
+
+    public void forceTableCleanup(String tableName) throws IOException
+    {
+        ssProxy.forceTableCleanup(tableName);
+    }
+
     public void forceTableCompaction() throws IOException
     {
         ssProxy.forceTableCompaction();
+    }
+
+    public void forceTableCompaction(String tableName) throws IOException
+    {
+        ssProxy.forceTableCompaction(tableName);
     }
 
     public void forceTableFlush(String tableName, String... columnFamilies) throws IOException
