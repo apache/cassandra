@@ -73,6 +73,8 @@
  * ensure that compacted sstables are not included when new readers are
    instantiated (CASSANDRA-1477)
  * by default, calculate heap size and memtable thresholds at runtime (CASSANDRA-1469)
+ * fix races dealing with adding/dropping keyspaces and column families in
+   rapid succession (CASSANDRA-1477)
 
 
 0.7-beta1
