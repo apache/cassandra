@@ -35,21 +35,36 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
  * This class manages the streaming of multiple files one after the other.
 */
 public class StreamOutSession
-{   
+{
     private static final Logger logger = LoggerFactory.getLogger( StreamOutSession.class );
-        
+
     // one host may have multiple stream sessions.
     private static final ConcurrentMap<Pair<InetAddress, Long>, StreamOutSession> streams = new NonBlockingHashMap<Pair<InetAddress, Long>, StreamOutSession>();
 
+    private final Map<String, PendingFile> files = new LinkedHashMap<String, PendingFile>();
+    private final Pair<InetAddress, Long> context;
+    private final Runnable callback;
+    private final SimpleCondition condition = new SimpleCondition();
+
     public static StreamOutSession create(InetAddress host)
     {
-        return create(host, System.nanoTime());
+        return create(host, System.nanoTime(), null);
+    }
+
+    public static StreamOutSession create(InetAddress host, Runnable callback)
+    {
+        return create(host, System.nanoTime(), callback);
     }
 
     public static StreamOutSession create(InetAddress host, long sessionId)
     {
+        return create(host, sessionId, null);
+    }
+
+    public static StreamOutSession create(InetAddress host, long sessionId, Runnable callback)
+    {
         Pair<InetAddress, Long> context = new Pair<InetAddress, Long>(host, sessionId);
-        StreamOutSession session = new StreamOutSession(context);
+        StreamOutSession session = new StreamOutSession(context, callback);
         streams.put(context, session);
         return session;
     }
@@ -62,16 +77,14 @@ public class StreamOutSession
     public void close()
     {
         streams.remove(context);
+        if(callback != null) 
+            callback.run();
     }
 
-    private final Map<String, PendingFile> files = new LinkedHashMap<String, PendingFile>();
-    
-    private final Pair<InetAddress, Long> context;
-    private final SimpleCondition condition = new SimpleCondition();
-    
-    private StreamOutSession(Pair<InetAddress, Long> context)
+    private StreamOutSession(Pair<InetAddress, Long> context, Runnable cb)
     {
         this.context = context;
+        this.callback = cb;
     }
 
     public InetAddress getHost()

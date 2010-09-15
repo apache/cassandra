@@ -58,9 +58,7 @@ public class StreamStatusVerbHandler implements IVerbHandler
                     break;
                 case EMPTY:
                     logger.error("Did not find matching ranges on {}", message.getFrom());
-                    StreamInSession.get(message.getFrom(), streamStatus.getSessionId()).remove();
-                    if (StorageService.instance.isBootstrapMode())
-                        StorageService.instance.removeBootstrapSource(message.getFrom(), new String(message.getHeader(StreamOut.TABLE_NAME)));
+                    StreamInSession.get(message.getFrom(), streamStatus.getSessionId()).close();
                     break;
                 default:
                     throw new RuntimeException("Cannot handle FileStatus.Action: " + streamStatus.getAction());

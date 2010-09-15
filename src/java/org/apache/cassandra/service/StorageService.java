@@ -176,36 +176,13 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     /* Are we starting this node in bootstrap mode? */
     private boolean isBootstrapMode;
-    private Multimap<InetAddress, String> bootstrapSet;
     /* when intialized as a client, we shouldn't write to the system table. */
     private boolean isClientMode;
     private boolean initialized;
     private String operationMode;
     private MigrationManager migrationManager = new MigrationManager();
 
-    public void addBootstrapSource(InetAddress s, String table)
-    {
-        if (logger_.isDebugEnabled())
-            logger_.debug(String.format("Added %s/%s as a bootstrap source", s, table));
-        bootstrapSet.put(s, table);
-    }
-
-    public void removeBootstrapSource(InetAddress s, String table)
-    {
-        if (table == null)
-            bootstrapSet.removeAll(s);
-        else
-            bootstrapSet.remove(s, table);
-        if (logger_.isDebugEnabled())
-            logger_.debug(String.format("Removed %s/%s as a bootstrap source; remaining is [%s]", s, table == null ? "<ALL>" : table, StringUtils.join(bootstrapSet.keySet(), ", ")));
-
-        if (bootstrapSet.isEmpty())
-        {
-            finishBootstrapping();
-        }
-    }
-
-    private void finishBootstrapping()
+    public void finishBootstrapping()
     {
         isBootstrapMode = false;
         SystemTable.setBootstrapped(true);
@@ -235,8 +212,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             throw new RuntimeException(e);
         }
-
-        bootstrapSet = Multimaps.synchronizedSetMultimap(HashMultimap.<InetAddress, String>create());
 
         /* register the verb handlers */
         MessagingService.instance.registerVerbHandlers(Verb.BINARY, new BinaryVerbHandler());
@@ -1513,7 +1488,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             }
 
             setMode("Leaving: streaming data to other nodes", true);
-            final Set<Map.Entry<Range, InetAddress>> pending = Collections.synchronizedSet(new HashSet<Map.Entry<Range, InetAddress>>(rangesMM.entries()));
+            final Set<Map.Entry<Range, InetAddress>> pending = new HashSet<Map.Entry<Range, InetAddress>>(rangesMM.entries());
             for (final Map.Entry<Range, InetAddress> entry : rangesMM.entries())
             {
                 final Range range = entry.getKey();
@@ -1522,9 +1497,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 {
                     public void run()
                     {
-                        pending.remove(entry);
-                        if (pending.isEmpty())
-                            latch.countDown();
+                        synchronized(pending)
+                        {
+                            pending.remove(entry);
+                            if (pending.isEmpty())
+                                latch.countDown();
+                        }
                     }
                 };
                 StageManager.getStage(Stage.STREAM).execute(new Runnable()

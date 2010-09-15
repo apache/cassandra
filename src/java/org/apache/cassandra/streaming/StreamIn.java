@@ -47,11 +47,16 @@ public class StreamIn
      */
     public static void requestRanges(InetAddress source, String tableName, Collection<Range> ranges)
     {
+        requestRanges(source, tableName, ranges, null);
+    }
+
+    public static void requestRanges(InetAddress source, String tableName, Collection<Range> ranges, Runnable callback)
+    {
         assert ranges.size() > 0;
 
         if (logger.isDebugEnabled())
             logger.debug("Requesting from {} ranges {}", source, StringUtils.join(ranges, ", "));
-        StreamInSession session = StreamInSession.create(source);
+        StreamInSession session = StreamInSession.create(source, callback);
         Message message = new StreamRequestMessage(FBUtilities.getLocalAddress(), ranges, tableName, session.getSessionId()).makeMessage();
         MessagingService.instance.sendOneWay(message, source);
     }

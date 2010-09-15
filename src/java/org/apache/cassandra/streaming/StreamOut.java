@@ -67,7 +67,7 @@ public class StreamOut
         assert ranges.size() > 0;
         
         // this is so that this target shows up as a destination while anticompaction is happening.
-        StreamOutSession session = StreamOutSession.create(target);
+        StreamOutSession session = StreamOutSession.create(target, callback);
 
         logger.info("Beginning transfer process to {} for ranges {}", target, StringUtils.join(ranges, ", "));
 
@@ -85,8 +85,6 @@ public class StreamOut
         {
             session.close();
         }
-        if (callback != null)
-            callback.run();
     }
 
     /**
@@ -119,7 +117,7 @@ public class StreamOut
     /**
      * Split out files for all tables on disk locally for each range and then stream them to the target endpoint.
     */
-    public static void transferRangesForRequest(StreamOutSession session, String tableName, Collection<Range> ranges, Runnable callback)
+    public static void transferRangesForRequest(StreamOutSession session, String tableName, Collection<Range> ranges)
     {
         assert ranges.size() > 0;
 
@@ -135,9 +133,6 @@ public class StreamOut
         {
             throw new IOError(e);
         }
-
-        if (callback != null)
-            callback.run();
     }
 
     /**

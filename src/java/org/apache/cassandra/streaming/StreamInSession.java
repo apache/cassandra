@@ -42,16 +42,23 @@ public class StreamInSession
 
     private final List<PendingFile> pendingFiles = new ArrayList<PendingFile>();
     private final Pair<InetAddress, Long> context;
+    private final Runnable callback;
 
-    private StreamInSession(Pair<InetAddress, Long> context)
+    private StreamInSession(Pair<InetAddress, Long> context, Runnable callback)
     {
         this.context = context;
+        this.callback = callback;
     }
 
     public static StreamInSession create(InetAddress host)
     {
+        return create(host, null);
+    }
+
+    public static StreamInSession create(InetAddress host, Runnable callback)
+    {
         Pair<InetAddress, Long> context = new Pair<InetAddress, Long>(host, System.nanoTime());
-        StreamInSession session = new StreamInSession(context);
+        StreamInSession session = new StreamInSession(context, callback);
         sessions.put(context, session);
         return session;
     }
@@ -63,7 +70,7 @@ public class StreamInSession
         StreamInSession session = sessions.get(context);
         if (session == null)
         {
-            StreamInSession possibleNew = new StreamInSession(context);
+            StreamInSession possibleNew = new StreamInSession(context, null);
             if ((session = sessions.putIfAbsent(context, possibleNew)) == null)
             {
                 session = possibleNew;
@@ -104,15 +111,15 @@ public class StreamInSession
             requestFile(pendingFiles.get(0));
         else
         {
-            if (StorageService.instance.isBootstrapMode())
-                StorageService.instance.removeBootstrapSource(getHost(), lastFile.desc.ksname);
-            remove();
+            close();
         }
     }
-    
-    public void remove()
+
+    public void close()
     {
         sessions.remove(context);
+        if (callback != null)
+            callback.run();
     }
 
     public void requestFile(PendingFile file)

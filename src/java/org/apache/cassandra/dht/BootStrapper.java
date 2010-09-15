@@ -18,31 +18,33 @@
 
 package org.apache.cassandra.dht;
 
- import java.util.*;
- import java.util.concurrent.locks.Condition;
  import java.io.IOException;
  import java.io.UnsupportedEncodingException;
  import java.net.InetAddress;
+ import java.util.*;
+ import java.util.concurrent.locks.Condition;
 
+ import com.google.common.collect.ArrayListMultimap;
+ import com.google.common.collect.HashMultimap;
+ import com.google.common.collect.Multimap;
+ import org.apache.commons.lang.ArrayUtils;
  import org.apache.commons.lang.StringUtils;
  import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+ import org.slf4j.LoggerFactory;
 
- import org.apache.commons.lang.ArrayUtils;
-
- import org.apache.cassandra.concurrent.Stage;
- import org.apache.cassandra.locator.TokenMetadata;
- import org.apache.cassandra.locator.AbstractReplicationStrategy;
- import org.apache.cassandra.net.*;
- import org.apache.cassandra.service.StorageService;
- import org.apache.cassandra.streaming.StreamIn;
- import org.apache.cassandra.utils.SimpleCondition;
- import org.apache.cassandra.utils.FBUtilities;
  import org.apache.cassandra.config.DatabaseDescriptor;
  import org.apache.cassandra.gms.FailureDetector;
  import org.apache.cassandra.gms.IFailureDetector;
- import com.google.common.collect.Multimap;
- import com.google.common.collect.ArrayListMultimap;
+ import org.apache.cassandra.locator.AbstractReplicationStrategy;
+ import org.apache.cassandra.locator.TokenMetadata;
+ import org.apache.cassandra.net.IAsyncCallback;
+ import org.apache.cassandra.net.IVerbHandler;
+ import org.apache.cassandra.net.Message;
+ import org.apache.cassandra.net.MessagingService;
+ import org.apache.cassandra.service.StorageService;
+ import org.apache.cassandra.streaming.StreamIn;
+ import org.apache.cassandra.utils.FBUtilities;
+ import org.apache.cassandra.utils.SimpleCondition;
 
 
 public class BootStrapper
@@ -64,22 +66,49 @@ public class BootStrapper
         this.token = token;
         tokenMetadata = tmd;
     }
-    
+
     public void startBootstrap() throws IOException
     {
         if (logger.isDebugEnabled())
             logger.debug("Beginning bootstrap process");
+
+        final Multimap<InetAddress, String> bootstrapNodes = HashMultimap.create();
+        final Multimap<String, Map.Entry<InetAddress, Collection<Range>>> rangesToFetch = HashMultimap.create();
+
         for (String table : DatabaseDescriptor.getNonSystemTables())
         {
-            Multimap<Range, InetAddress> rangesWithSourceTarget = getRangesWithSources(table);
-            /* Send messages to respective folks to stream data over to me */
-            for (Map.Entry<InetAddress, Collection<Range>> entry : getWorkMap(rangesWithSourceTarget).asMap().entrySet())
+            Map<InetAddress, Collection<Range>> workMap = getWorkMap(getRangesWithSources(table)).asMap();
+            for (Map.Entry<InetAddress, Collection<Range>> entry : workMap.entrySet())
             {
-                InetAddress source = entry.getKey();
-                StorageService.instance.addBootstrapSource(source, table);
+                bootstrapNodes.put(entry.getKey(), table);
+                rangesToFetch.put(table, entry);
+            }
+        }
+
+        for (final String table : rangesToFetch.keySet())
+        {
+            /* Send messages to respective folks to stream data over to me */
+            for (Map.Entry<InetAddress, Collection<Range>> entry : rangesToFetch.get(table))
+            {
+                final InetAddress source = entry.getKey();
+                final Runnable callback = new Runnable()
+                {
+                    public void run()
+                    {
+                        synchronized (bootstrapNodes)
+                        {
+                            bootstrapNodes.remove(source, table);
+                            if (logger.isDebugEnabled())
+                                logger.debug(String.format("Removed %s/%s as a bootstrap source; remaining is [%s]",
+                                                           source, table, StringUtils.join(bootstrapNodes.keySet(), ", ")));
+                            if (bootstrapNodes.isEmpty())
+                                StorageService.instance.finishBootstrapping();
+                        }
+                    }
+                };
                 if (logger.isDebugEnabled())
-                    logger.debug("Requesting from " + source + " ranges " + StringUtils.join(entry.getValue(), ", "));
-                StreamIn.requestRanges(source, table, entry.getValue());
+                    logger.debug("Bootstrapping from " + source + " ranges " + StringUtils.join(entry.getValue(), ", "));
+                StreamIn.requestRanges(source, table, entry.getValue(), callback);
             }
         }
     }
