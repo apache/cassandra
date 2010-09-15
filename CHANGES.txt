@@ -20,6 +20,7 @@
    avoid synchronization bottleneck (CASSANDRA-1481)
  * nodes that coordinated a loadbalance in the past could not be seen by
    newly added nodes (CASSANDRA-1467)
+ * use JNA, if present, to take snapshots (CASSANDRA-1371)
 
 
 0.6.5

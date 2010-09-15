@@ -60,5 +60,11 @@ public class StorageServiceServerTest
         List<Token> toks = Collections.emptyList();
         assertEquals(Collections.emptyList(), StorageService.instance.getAllRanges(toks));
     }
-}
 
+    @Test
+    public void testSnapshot() throws IOException
+    {
+        // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
+        StorageService.instance.takeAllSnapshot(null);
+    }
+}

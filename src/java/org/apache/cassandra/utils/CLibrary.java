@@ -49,8 +49,9 @@ public final class CLibrary
     }
 
     public static native int mlockall(int flags);
-
     public static native int munlockall();
+
+    public static native int link(String from, String to);
 
     private CLibrary() {}
 }
