@@ -58,9 +58,9 @@ def SliceRange(start='', finish='', reversed=False, count=10):
 
 def ColumnParent(*args, **kwargs):
     cp = {}
-    if args and args[0]:
+    if args and len(args) > 0:
         cp['column_family'] = args[0]
-    if args and args[1]:
+    if args and len(args) > 1:
         cp['super_column'] = args[1]
     for k,v in kwargs.items():
         cp[k] = v
@@ -68,7 +68,7 @@ def ColumnParent(*args, **kwargs):
 
 def Deletion(*args, **kwargs):
     cp = {}
-    if args and args[0]:
+    if args and len(args) > 0:
         cp['clock'] = args[0]
     for k,v in kwargs.items():
         cp[k] = v
@@ -76,7 +76,7 @@ def Deletion(*args, **kwargs):
    
 def ColumnPath(*args, **kwargs):
     cp = {}
-    if args and args[0]:
+    if args and len(args) > 0:
         cp['column_family'] = args[0]
     for k,v in kwargs.items():
         cp[k] = v

@@ -19,6 +19,13 @@ import avro_utils
 from . import AvroTester
 from avro.ipc import AvroRemoteException
 
+# cheat a little until these are moved into avro_utils.
+from test_avro_super import Clock as Clock
+from test_avro_super import ColumnParent as ColumnParent
+from test_avro_super import SlicePredicate as SlicePredicate
+from test_avro_super import SliceRange as SliceRange
+from test_avro_super import Column as Column
+
 class TestSystemOperations(AvroTester):
     """
     Cassandra system operations.
@@ -135,4 +142,38 @@ class TestSystemOperations(AvroTester):
         assert 'RenameColumnFamily' not in [x['name'] for x in ks1['cf_defs']]
         assert 'NewColumnFamily' not in [x['name'] for x in ks1['cf_defs']]
         assert 'Standard1' in [x['name'] for x in ks1['cf_defs']]
+    
+    def test_cf_recreate(self):
+        "ensures that keyspaces and column familes can be dropped and recreated in short order"
+        for x in range(1):
+            keyspace = 'test_cf_recreate'
+            cf_name = 'recreate_cf'
+            
+            # create
+            newcf = {'keyspace': keyspace, 'name': cf_name}
+            newks = {'name': keyspace,
+                     'strategy_class': 'org.apache.cassandra.locator.SimpleStrategy',
+                     'strategy_options': {},
+                     'replication_factor': 1,
+                     'cf_defs': [newcf]}
+            self.client.request('system_add_keyspace', {'ks_def': newks})
+            self.client.request('set_keyspace', {'keyspace': keyspace})
+            
+            # insert
+            self.client.request('insert', {'key': 'key0', 'column_parent': ColumnParent(cf_name), 'column': Column('colA', 'colA-value', Clock(0)), 'consistency_level': 'ONE' })
+            col1 = self.client.request('get_slice', {'key': 'key0', 'column_parent': ColumnParent(cf_name), 'predicate': SlicePredicate(slice_range=SliceRange('', '', False, 100)), 'consistency_level': 'ONE'})[0]['column']
+            assert col1['name'] == 'colA' and col1['value'] == 'colA-value', col1
+                    
+            # drop
+            self.client.request('system_drop_column_family', {'column_family': cf_name})
+            
+            # recreate
+            self.client.request('system_add_column_family', {'cf_def': newcf})
+            
+            # query
+            cosc_list = self.client.request('get_slice', {'key': 'key0', 'column_parent': ColumnParent(cf_name), 'predicate': SlicePredicate(slice_range=SliceRange('', '', False, 100)), 'consistency_level': 'ONE'})
+            # this was failing prior to CASSANDRA-1477.
+            assert len(cosc_list) == 0 , 'cosc length test failed'
+            
+            self.client.request('system_drop_keyspace', {'keyspace': keyspace})
 
