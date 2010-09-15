@@ -148,7 +148,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         
         // scan for sstables corresponding to this cf and load them
         List<SSTableReader> sstables = new ArrayList<SSTableReader>();
-        for (Map.Entry<Descriptor,Set<Component>> sstableFiles : files(table, columnFamilyName).entrySet())
+        for (Map.Entry<Descriptor,Set<Component>> sstableFiles : files(table, columnFamilyName, false).entrySet())
         {
             SSTableReader sstable;
             try
@@ -289,7 +289,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         // get the max generation number, to prevent generation conflicts
         List<Integer> generations = new ArrayList<Integer>();
-        for (Descriptor desc : files(table, columnFamily).keySet())
+        for (Descriptor desc : files(table, columnFamily, true).keySet())
             generations.add(desc.generation);
         Collections.sort(generations);
         int value = (generations.size() > 0) ? (generations.get(generations.size() - 1)) : 0;
@@ -304,7 +304,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     static void scrubDataDirectories(String table, String columnFamily)
     {
-        for (Map.Entry<Descriptor,Set<Component>> sstableFiles : files(table, columnFamily).entrySet())
+        for (Map.Entry<Descriptor,Set<Component>> sstableFiles : files(table, columnFamily, true).entrySet())
         {
             Descriptor desc = sstableFiles.getKey();
             Set<Component> components = sstableFiles.getValue();
@@ -337,7 +337,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /**
      * Collects a map of sstable components.
      */
-    private static Map<Descriptor,Set<Component>> files(String keyspace, final String columnFamily)
+    private static Map<Descriptor,Set<Component>> files(String keyspace, final String columnFamily, final boolean includeCompacted)
     {
         final Map<Descriptor,Set<Component>> sstables = new HashMap<Descriptor,Set<Component>>();
         for (String directory : DatabaseDescriptor.getAllDataFileLocationsForTable(keyspace))
@@ -351,13 +351,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     Pair<Descriptor,Component> component = SSTable.tryComponentFromFilename(dir, name);
                     if (component != null && component.left.cfname.equals(columnFamily))
                     {
-                        Set<Component> components = sstables.get(component.left);
-                        if (components == null)
+                        if (includeCompacted || !new File(component.left.filenameFor(Component.COMPACTED_MARKER)).exists())
                         {
-                            components = new HashSet<Component>();
-                            sstables.put(component.left, components);
+                            Set<Component> components = sstables.get(component.left);
+                            if (components == null)
+                            {
+                                components = new HashSet<Component>();
+                                sstables.put(component.left, components);
+                            }
+                            components.add(component.right);
                         }
-                        components.add(component.right);
+                        else
+                            logger.debug("not including compacted sstable " + component.left.cfname + "-" + component.left.generation);
                     }
                     return false;
                 }

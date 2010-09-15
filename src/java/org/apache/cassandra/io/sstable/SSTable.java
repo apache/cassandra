@@ -167,13 +167,7 @@ public abstract class SSTable
     {
         try
         {
-            Pair<Descriptor, Component> pair = Component.fromFilename(dir, name);
-            
-            // if there exists a compaction marker, we want to return null to indicate an invalid sstable.
-            if (new File(pair.left.filenameFor(Component.COMPACTED_MARKER)).exists())
-                return null;
-            else
-                return pair;
+            return Component.fromFilename(dir, name);
         }
         catch (Exception e)
         {
