@@ -537,8 +537,8 @@ public class AntiEntropyService
                 {
                     protected void runMayThrow() throws Exception
                     {
-                        StreamOutSession session = StreamOutSession.create(request.endpoint);
-                        StreamOut.transferSSTables(session, request.cf.left, sstables, ranges);
+                        StreamOutSession session = StreamOutSession.create(request.cf.left, request.endpoint, null);
+                        StreamOut.transferSSTables(session, sstables, ranges);
                         session.close();
                     }
                 });

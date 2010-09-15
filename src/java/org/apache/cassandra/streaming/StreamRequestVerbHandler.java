@@ -48,23 +48,11 @@ public class StreamRequestVerbHandler implements IVerbHandler
         try
         {
             StreamRequestMessage srm = StreamRequestMessage.serializer().deserialize(new DataInputStream(bufIn));
-
             if (logger.isDebugEnabled())
                 logger.debug(srm.toString());
 
-            if (srm.file != null)
-            {
-                // single file re-request.
-                StreamHeader header = new StreamHeader(srm.sessionId, srm.file, false);
-                MessagingService.instance.stream(header, message.getFrom());
-                StreamOutSession.get(message.getFrom(), srm.sessionId).removePending(srm.file);
-            }
-            else
-            {
-                // range request.
-                StreamOutSession session = StreamOutSession.create(message.getFrom(), srm.sessionId);
-                StreamOut.transferRangesForRequest(session, srm.table, srm.ranges);
-            }
+            StreamOutSession session = StreamOutSession.create(srm.table, message.getFrom(), srm.sessionId);
+            StreamOut.transferRangesForRequest(session, srm.ranges);
         }
         catch (IOException ex)
         {

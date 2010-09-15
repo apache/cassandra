@@ -75,6 +75,7 @@
  * by default, calculate heap size and memtable thresholds at runtime (CASSANDRA-1469)
  * fix races dealing with adding/dropping keyspaces and column families in
    rapid succession (CASSANDRA-1477)
+ * clean up of Streaming system (CASSANDRA-1503, 1504, 1506)
 
 
 0.7-beta1

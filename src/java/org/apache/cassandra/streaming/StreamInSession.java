@@ -22,8 +22,6 @@ import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -38,21 +36,16 @@ public class StreamInSession
     private static final Logger logger = LoggerFactory.getLogger(StreamInSession.class);
 
     private static ConcurrentMap<Pair<InetAddress, Long>, StreamInSession> sessions = new NonBlockingHashMap<Pair<InetAddress, Long>, StreamInSession>();
-    private final Set<PendingFile> activeStreams = new HashSet<PendingFile>();
 
-    private final List<PendingFile> pendingFiles = new ArrayList<PendingFile>();
+    private final List<PendingFile> files = new ArrayList<PendingFile>();
     private final Pair<InetAddress, Long> context;
     private final Runnable callback;
+    private String table;
 
     private StreamInSession(Pair<InetAddress, Long> context, Runnable callback)
     {
         this.context = context;
         this.callback = callback;
-    }
-
-    public static StreamInSession create(InetAddress host)
-    {
-        return create(host, null);
     }
 
     public static StreamInSession create(InetAddress host, Runnable callback)
@@ -79,55 +72,34 @@ public class StreamInSession
         return session;
     }
 
-    // FIXME hack for "initiated" streams.  replace w/ integration w/ pendingfiles
-    public void addActiveStream(PendingFile file)
+    public void setTable(String table)
     {
-        activeStreams.add(file);
+        this.table = table;
     }
 
-    public void removeActiveStream(PendingFile file)
-    {
-        activeStreams.remove(file);
-    }
-
-    public void addFilesToRequest(List<PendingFile> files)
+    public void addFiles(Collection<PendingFile> files)
     {
         for(PendingFile file : files)
         {
             if(logger.isDebugEnabled())
                 logger.debug("Adding file {} to Stream Request queue", file.getFilename());
-            this.pendingFiles.add(file);
+            this.files.add(file);
         }
     }
 
-    /**
-     * Complete the transfer process of the existing file and then request
-     * the next file in the list
-     */
-    public void finishAndRequestNext(PendingFile lastFile)
+    public void remove(PendingFile file)
     {
-        pendingFiles.remove(lastFile);
-        if (pendingFiles.size() > 0)
-            requestFile(pendingFiles.get(0));
-        else
+        files.remove(file);
+    }
+
+    public void closeIfFinished()
+    {
+        if (files.isEmpty())
         {
-            close();
+            if (callback != null)
+                callback.run();
+            sessions.remove(context);
         }
-    }
-
-    public void close()
-    {
-        sessions.remove(context);
-        if (callback != null)
-            callback.run();
-    }
-
-    public void requestFile(PendingFile file)
-    {
-        if (logger.isDebugEnabled())
-            logger.debug("Requesting file {} from source {}", file.getFilename(), getHost());
-        Message message = new StreamRequestMessage(FBUtilities.getLocalAddress(), file, getSessionId()).makeMessage();
-        MessagingService.instance.sendOneWay(message, getHost());
     }
 
     public long getSessionId()
@@ -160,8 +132,7 @@ public class StreamInSession
             if (entry.getKey().left.equals(host))
             {
                 StreamInSession session = entry.getValue();
-                list.addAll(session.pendingFiles);
-                list.addAll(session.activeStreams);
+                list.addAll(session.files);
             }
         }
         return list;

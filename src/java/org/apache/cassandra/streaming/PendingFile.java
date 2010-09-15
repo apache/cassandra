@@ -36,14 +36,9 @@ import org.apache.cassandra.utils.Pair;
  */
 public class PendingFile
 {
-    private static ICompactSerializer<PendingFile> serializer_;
+    private static PendingFileSerializer serializer_ = new PendingFileSerializer();
 
-    static
-    {
-        serializer_ = new PendingFileSerializer();
-    }
-
-    public static ICompactSerializer<PendingFile> serializer()
+    public static PendingFileSerializer serializer()
     {
         return serializer_;
     }
@@ -88,10 +83,16 @@ public class PendingFile
         return getFilename() + "/" + sections;
     }
 
-    private static class PendingFileSerializer implements ICompactSerializer<PendingFile>
+    public static class PendingFileSerializer implements ICompactSerializer<PendingFile>
     {
         public void serialize(PendingFile sc, DataOutputStream dos) throws IOException
         {
+            if (sc == null)
+            {
+                dos.writeUTF("");
+                return;
+            }
+
             dos.writeUTF(sc.desc.filenameFor(sc.component));
             dos.writeUTF(sc.component);
             dos.writeInt(sc.sections.size());
@@ -103,7 +104,11 @@ public class PendingFile
 
         public PendingFile deserialize(DataInputStream dis) throws IOException
         {
-            Descriptor desc = Descriptor.fromFilename(dis.readUTF());
+            String filename = dis.readUTF();
+            if (filename.isEmpty())
+                return null;
+            
+            Descriptor desc = Descriptor.fromFilename(filename);
             String component = dis.readUTF();
             int count = dis.readInt();
             List<Pair<Long,Long>> sections = new ArrayList<Pair<Long,Long>>(count);

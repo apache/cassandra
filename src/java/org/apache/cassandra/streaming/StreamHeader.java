@@ -25,6 +25,8 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import org.apache.cassandra.io.ICompactSerializer;
@@ -43,86 +45,58 @@ public class StreamHeader
         return serializer;
     }
 
-    private PendingFile file;
-    private long sessionId;
-    
-    // indicates an transfer initiated by the source, as opposed to one requested by the recipient
-    protected final boolean initiatedTransfer;
-    
-    // this list will only be non-null when the first of a batch of files are being sent. it avoids having to have
-    // a separate message indicating which files to expect.
-    private final List<PendingFile> pending;
+    public final String table;
 
-    public StreamHeader(long sessionId, PendingFile file, boolean initiatedTransfer)
+    /** file being sent on initial stream */
+    public final PendingFile file;
+
+    /** session is tuple of (host, sessionid) */
+    public final long sessionId;
+
+    /** files to add to the session */
+    public final Collection<PendingFile> pendingFiles;
+
+    public StreamHeader(String table, long sessionId, PendingFile file)
     {
-        this(sessionId, file, null, initiatedTransfer);
+        this(table, sessionId, file, Collections.<PendingFile>emptyList());
     }
 
-    public StreamHeader(long sessionId, PendingFile file, List<PendingFile> pending, boolean initiatedTransfer)
+    public StreamHeader(String table, long sessionId, PendingFile first, Collection<PendingFile> pendingFiles)
     {
+        this.table = table;
         this.sessionId  = sessionId;
-        this.file = file;
-        this.initiatedTransfer = initiatedTransfer;
-        this.pending = pending;
-    }
-
-    public List<PendingFile> getPendingFiles()
-    {
-        return pending;
-    }
-
-    public PendingFile getStreamFile()
-    {
-        return file;
-    }
-
-    public long getSessionId()
-    {
-        return sessionId;
+        this.file = first;
+        this.pendingFiles = pendingFiles;
     }
 
     private static class StreamHeaderSerializer implements ICompactSerializer<StreamHeader>
     {
         public void serialize(StreamHeader sh, DataOutputStream dos) throws IOException
         {
-            dos.writeLong(sh.getSessionId());
-            PendingFile.serializer().serialize(sh.getStreamFile(), dos);
-            dos.writeBoolean(sh.initiatedTransfer);
-            if (sh.pending != null)
+            dos.writeUTF(sh.table);
+            dos.writeLong(sh.sessionId);
+            PendingFile.serializer().serialize(sh.file, dos);
+            dos.writeInt(sh.pendingFiles.size());
+            for(PendingFile file : sh.pendingFiles)
             {
-                dos.writeInt(sh.getPendingFiles().size());
-                for(PendingFile file : sh.getPendingFiles())
-                {
-                    PendingFile.serializer().serialize(file, dos);
-                }
+                PendingFile.serializer().serialize(file, dos);
             }
-            else
-                dos.writeInt(0);
         }
 
         public StreamHeader deserialize(DataInputStream dis) throws IOException
         {
-           long sessionId = dis.readLong();
-           PendingFile file = PendingFile.serializer().deserialize(dis);
-           boolean initiatedTransfer = dis.readBoolean();
-           int size = dis.readInt();
-           StreamHeader header;
+            String table = dis.readUTF();
+            long sessionId = dis.readLong();
+            PendingFile file = PendingFile.serializer().deserialize(dis);
+            int size = dis.readInt();
 
-           if (size > 0)
-           {
-               List<PendingFile> pendingFiles = new ArrayList<PendingFile>(size);
-               for (int i=0; i<size; i++)
-               {
-                   pendingFiles.add(PendingFile.serializer().deserialize(dis));
-               }
-               header = new StreamHeader(sessionId, file, pendingFiles, initiatedTransfer);
-           }
-           else
-           {
-               header = new StreamHeader(sessionId, file, initiatedTransfer);
-           }
+            List<PendingFile> pendingFiles = new ArrayList<PendingFile>(size);
+            for (int i = 0; i < size; i++)
+            {
+                pendingFiles.add(PendingFile.serializer().deserialize(dis));
+            }
 
-           return header;
+            return new StreamHeader(table, sessionId, file, pendingFiles);
         }
     }
 }

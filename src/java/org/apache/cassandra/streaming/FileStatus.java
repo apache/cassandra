@@ -26,7 +26,6 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
@@ -39,11 +38,9 @@ class FileStatus
     static enum Action
     {
         // was received successfully, and can be deleted from the source node
-        DELETE,
+        FINISHED,
         // needs to be streamed (or restreamed)
-        STREAM,
-        // No matching Ranges, this should not happen in almost all cases
-        EMPTY
+        RETRY,
     }
 
     static
@@ -56,38 +53,15 @@ class FileStatus
         return serializer;
     }
 
-    private final long sessionId;
-    private final String file;
-    private Action action;
+    public final long sessionId;
+    public final String file;
+    public final Action action;
 
-    /**
-     * Create a FileStatus with the default Action: STREAM.
-     */
-    public FileStatus(String file, long sessionId)
+    public FileStatus(String file, long sessionId, Action action)
     {
         this.file = file;
-        this.action = Action.STREAM;
-        this.sessionId = sessionId;
-    }
-
-    public String getFile()
-    {
-        return file;
-    }
-
-    public void setAction(Action action)
-    {
         this.action = action;
-    }
-
-    public Action getAction()
-    {
-        return action;
-    }
-
-    public long getSessionId()
-    {
-        return sessionId;
+        this.sessionId = sessionId;
     }
 
     public Message makeStreamStatusMessage() throws IOException
@@ -102,28 +76,17 @@ class FileStatus
     {
         public void serialize(FileStatus streamStatus, DataOutputStream dos) throws IOException
         {
-            dos.writeLong(streamStatus.getSessionId());
-            dos.writeUTF(streamStatus.getFile());
-            dos.writeInt(streamStatus.getAction().ordinal());
+            dos.writeLong(streamStatus.sessionId);
+            dos.writeUTF(streamStatus.file);
+            dos.writeInt(streamStatus.action.ordinal());
         }
 
         public FileStatus deserialize(DataInputStream dis) throws IOException
         {
             long sessionId = dis.readLong();
             String targetFile = dis.readUTF();
-            FileStatus streamStatus = new FileStatus(targetFile, sessionId);
-
-            int ordinal = dis.readInt();
-            if (ordinal == Action.DELETE.ordinal())
-                streamStatus.setAction(Action.DELETE);
-            else if (ordinal == Action.STREAM.ordinal())
-                streamStatus.setAction(Action.STREAM);
-            else if (ordinal == Action.EMPTY.ordinal())
-                streamStatus.setAction(Action.EMPTY);
-            else
-                throw new IOException("Bad FileStatus.Action: " + ordinal);
-
-            return streamStatus;
+            Action action = Action.values()[dis.readInt()];
+            return new FileStatus(targetFile, sessionId, action);
         }
     }
 }

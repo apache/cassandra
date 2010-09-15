@@ -66,7 +66,7 @@ public class StreamingTransferTest extends CleanupHelper
         List<Range> ranges = new ArrayList<Range>();
         ranges.add(new Range(p.getMinimumToken(), p.getToken("key".getBytes())));
         ranges.add(new Range(p.getToken("key2".getBytes()), p.getMinimumToken()));
-        StreamOut.transferSSTables(StreamOutSession.create(LOCAL), tablename, Arrays.asList(sstable), ranges);
+        StreamOut.transferSSTables(StreamOutSession.create(tablename, LOCAL, null), Arrays.asList(sstable), ranges);
 
         // confirm that the SSTable was transferred and registered
         ColumnFamilyStore cfstore = Table.open(tablename).getColumnFamilyStore(cfname);
@@ -106,7 +106,7 @@ public class StreamingTransferTest extends CleanupHelper
         List<Range> ranges = new ArrayList<Range>();
         ranges.add(new Range(p.getMinimumToken(), p.getToken("transfer1".getBytes())));
         ranges.add(new Range(p.getToken("test2".getBytes()), p.getMinimumToken()));
-        StreamOut.transferSSTables(StreamOutSession.create(LOCAL), tablename, Arrays.asList(sstable, sstable2), ranges);
+        StreamOut.transferSSTables(StreamOutSession.create(tablename, LOCAL, null), Arrays.asList(sstable, sstable2), ranges);
 
         // confirm that the SSTable was transferred and registered
         ColumnFamilyStore cfstore = Table.open(tablename).getColumnFamilyStore(cfname);

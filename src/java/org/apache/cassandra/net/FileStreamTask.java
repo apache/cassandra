@@ -73,22 +73,23 @@ public class FileStreamTask extends WrappedRunnable
             }
         }
         if (logger.isDebugEnabled())
-          logger.debug("Done streaming " + header.getStreamFile());
+            logger.debug("Done streaming " + header.file);
     }
 
     private void stream(SocketChannel channel) throws IOException
     {
-        RandomAccessFile raf = new RandomAccessFile(new File(header.getStreamFile().getFilename()), "r");
+        ByteBuffer buffer = MessagingService.constructStreamHeader(header, false);
+        channel.write(buffer);
+        assert buffer.remaining() == 0;
+        if (header.file == null)
+            return;
+
+        RandomAccessFile raf = new RandomAccessFile(new File(header.file.getFilename()), "r");
         try
         {
             FileChannel fc = raf.getChannel();
-
-            ByteBuffer buffer = MessagingService.constructStreamHeader(header, false);
-            channel.write(buffer);
-            assert buffer.remaining() == 0;
-            
             // stream sections of the file as returned by PendingFile.currentSection
-            for (Pair<Long, Long> section : header.getStreamFile().sections)
+            for (Pair<Long, Long> section : header.file.sections)
             {
                 long length = section.right - section.left;
                 long bytesTransferred = 0;
@@ -136,7 +137,7 @@ public class FileStreamTask extends WrappedRunnable
                     throw e;
 
                 long waitms = DatabaseDescriptor.getRpcTimeout() * (long)Math.pow(2, attempts);
-                logger.warn("Failed attempt " + attempts + " to connect to " + to + " to stream " + header.getStreamFile() + ". Retrying in " + waitms + " ms. (" + e + ")");
+                logger.warn("Failed attempt " + attempts + " to connect to " + to + " to stream " + header.file + ". Retrying in " + waitms + " ms. (" + e + ")");
                 try
                 {
                     Thread.sleep(waitms);

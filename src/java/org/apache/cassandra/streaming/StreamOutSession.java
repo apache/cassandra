@@ -23,6 +23,7 @@ import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,30 +42,20 @@ public class StreamOutSession
     // one host may have multiple stream sessions.
     private static final ConcurrentMap<Pair<InetAddress, Long>, StreamOutSession> streams = new NonBlockingHashMap<Pair<InetAddress, Long>, StreamOutSession>();
 
-    private final Map<String, PendingFile> files = new LinkedHashMap<String, PendingFile>();
-    private final Pair<InetAddress, Long> context;
-    private final Runnable callback;
-    private final SimpleCondition condition = new SimpleCondition();
-
-    public static StreamOutSession create(InetAddress host)
+    public static StreamOutSession create(String table, InetAddress host, Runnable callback)
     {
-        return create(host, System.nanoTime(), null);
+        return create(table, host, System.nanoTime(), callback);
     }
 
-    public static StreamOutSession create(InetAddress host, Runnable callback)
+    public static StreamOutSession create(String table, InetAddress host, long sessionId)
     {
-        return create(host, System.nanoTime(), callback);
+        return create(table, host, sessionId, null);
     }
 
-    public static StreamOutSession create(InetAddress host, long sessionId)
-    {
-        return create(host, sessionId, null);
-    }
-
-    public static StreamOutSession create(InetAddress host, long sessionId, Runnable callback)
+    public static StreamOutSession create(String table, InetAddress host, long sessionId, Runnable callback)
     {
         Pair<InetAddress, Long> context = new Pair<InetAddress, Long>(host, sessionId);
-        StreamOutSession session = new StreamOutSession(context, callback);
+        StreamOutSession session = new StreamOutSession(table, context, callback);
         streams.put(context, session);
         return session;
     }
@@ -74,17 +65,19 @@ public class StreamOutSession
         return streams.get(new Pair<InetAddress, Long>(host, sessionId));
     }
 
-    public void close()
-    {
-        streams.remove(context);
-        if(callback != null) 
-            callback.run();
-    }
+    private final Map<String, PendingFile> files = new LinkedHashMap<String, PendingFile>();
 
-    private StreamOutSession(Pair<InetAddress, Long> context, Runnable cb)
+    public final String table;
+    private final Pair<InetAddress, Long> context;
+    private final SimpleCondition condition = new SimpleCondition();
+    private final Runnable callback;
+    private String currentFile;
+
+    private StreamOutSession(String table, Pair<InetAddress, Long> context, Runnable callback)
     {
+        this.table = table;
         this.context = context;
-        this.callback = cb;
+        this.callback = callback;
     }
 
     public InetAddress getHost()
@@ -109,23 +102,22 @@ public class StreamOutSession
         }
     }
     
-    public void retry(String file)
+    public void retry()
     {
-        PendingFile pf = files.get(file);
-        if (pf != null)
-            streamFile(pf);
+        streamFile(files.get(currentFile));
     }
 
     private void streamFile(PendingFile pf)
     {
         if (logger.isDebugEnabled())
             logger.debug("Streaming {} ...", pf);
-        MessagingService.instance.stream(new StreamHeader(getSessionId(), pf, true), getHost());
+        currentFile = pf.getFilename();
+        MessagingService.instance.stream(new StreamHeader(table, getSessionId(), pf), getHost());
     }
 
-    public void finishAndStartNext(String pfname) throws IOException
+    public void startNext() throws IOException
     {
-        files.remove(pfname);
+        files.remove(currentFile);
         
         if (files.isEmpty())
         {
@@ -138,6 +130,13 @@ public class StreamOutSession
         {
             streamFile(files.values().iterator().next());
         }
+    }
+
+    public void close()
+    {
+        streams.remove(context);
+        if (callback != null)
+            callback.run();
     }
 
     public void removePending(PendingFile pf)
@@ -183,5 +182,20 @@ public class StreamOutSession
                 list.addAll(entry.getValue().getFiles());
         }
         return list;
+    }
+
+    public void validateCurrentFile(String file)
+    {
+        if (!file.equals(currentFile))
+            throw new IllegalStateException(String.format("target reports current file is %s but is %s", file, currentFile));
+    }
+
+    public void begin()
+    {
+        PendingFile first = files.isEmpty() ? null : files.values().iterator().next();
+        currentFile = first == null ? null : first.getFilename();
+        StreamHeader header = new StreamHeader(table, getSessionId(), first, files.values());
+        logger.info("Streaming files {} to {}", StringUtils.join(files.values(), ","), getHost());
+        MessagingService.instance.stream(header, getHost());
     }
 }

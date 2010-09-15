@@ -38,48 +38,46 @@ public class IncomingStreamReader
 {
     private static final Logger logger = LoggerFactory.getLogger(IncomingStreamReader.class);
 
-    private PendingFile pendingFile;
-    private PendingFile lastFile;
-    private FileStatus streamStatus;
+    private final PendingFile localFile;
+    private final PendingFile remoteFile;
     private final SocketChannel socketChannel;
-    // indicates an transfer initiated by the source, as opposed to one requested by the recipient
-    private final boolean initiatedTransfer;
     private final StreamInSession session;
 
     public IncomingStreamReader(StreamHeader header, SocketChannel socketChannel) throws IOException
     {
         this.socketChannel = socketChannel;
         InetSocketAddress remoteAddress = (InetSocketAddress)socketChannel.socket().getRemoteSocketAddress();
+
+        session = StreamInSession.get(remoteAddress.getAddress(), header.sessionId);
+        session.addFiles(header.pendingFiles);
+        session.setTable(header.table);
         // pendingFile gets the new context for the local node.
-        pendingFile = StreamIn.getContextMapping(header.getStreamFile());
-        // lastFile has the old context, which was registered in the manager.
-        lastFile = header.getStreamFile();
-        initiatedTransfer = header.initiatedTransfer;
-        assert pendingFile != null;
-        session = StreamInSession.get(remoteAddress.getAddress(), header.getSessionId());
-        session.addActiveStream(pendingFile);
-        // For transfers setup the status and for replies to requests, prepare the list
-        // of available files to request.
-        if (initiatedTransfer)
-            streamStatus = new FileStatus(lastFile.getFilename(), header.getSessionId());
-        else if (header.getPendingFiles() != null)
-            session.addFilesToRequest(header.getPendingFiles());
+        remoteFile = header.file;
+        localFile = remoteFile != null ? StreamIn.getContextMapping(remoteFile) : null;
     }
 
     public void read() throws IOException
     {
+        if (remoteFile != null)
+            readFile();
+
+        session.closeIfFinished();
+    }
+
+    private void readFile() throws IOException
+    {
         if (logger.isDebugEnabled())
         {
             logger.debug("Receiving stream");
-            logger.debug("Creating file for {}", pendingFile.getFilename());
+            logger.debug("Creating file for {}", localFile.getFilename());
         }
-        FileOutputStream fos = new FileOutputStream(pendingFile.getFilename(), true);
+        FileOutputStream fos = new FileOutputStream(localFile.getFilename(), true);
         FileChannel fc = fos.getChannel();
 
         long offset = 0;
         try
         {
-            for (Pair<Long, Long> section : pendingFile.sections)
+            for (Pair<Long, Long> section : localFile.sections)
             {
                 long length = section.right - section.left;
                 long bytesRead = 0;
@@ -92,51 +90,42 @@ public class IncomingStreamReader
         {
             logger.debug("Receiving stream: recovering from IO error");
             /* Ask the source node to re-stream this file. */
-            if (initiatedTransfer)
-                handleFileStatus(FileStatus.Action.STREAM);
-            else
-                session.requestFile(lastFile);
+            handleFileStatus(FileStatus.Action.RETRY);
 
             /* Delete the orphaned file. */
-            FileUtils.deleteWithConfirm(new File(pendingFile.getFilename()));
+            FileUtils.deleteWithConfirm(new File(localFile.getFilename()));
             throw ex;
         }
         finally
         {
             fc.close();
-            session.removeActiveStream(pendingFile);
         }
 
         if (logger.isDebugEnabled())
-            logger.debug("Removing stream context {}", pendingFile);
-        if (initiatedTransfer)
-            handleFileStatus(FileStatus.Action.DELETE);
-        else
-        {
-            addSSTable(pendingFile);
-            session.finishAndRequestNext(lastFile);
-        }
+            logger.debug("Removing stream context {}", remoteFile);
+        handleFileStatus(FileStatus.Action.FINISHED);
     }
 
     private void handleFileStatus(FileStatus.Action action) throws IOException
     {
-        streamStatus.setAction(action);
-        
-        if (FileStatus.Action.STREAM == streamStatus.getAction())
+        FileStatus status = new FileStatus(remoteFile.getFilename(), session.getSessionId(), action);
+
+        if (FileStatus.Action.RETRY == action)
         {
             // file needs to be restreamed
-            logger.warn("Streaming of file {} from {} failed: requesting a retry.", pendingFile, session);
-            MessagingService.instance.sendOneWay(streamStatus.makeStreamStatusMessage(), session.getHost());
+            logger.warn("Streaming of file {} from {} failed: requesting a retry.", remoteFile, session);
+            MessagingService.instance.sendOneWay(status.makeStreamStatusMessage(), session.getHost());
             return;
         }
-        assert FileStatus.Action.DELETE == streamStatus.getAction() : "Unknown stream action: " + streamStatus.getAction();
 
-        addSSTable(pendingFile);
+        assert FileStatus.Action.FINISHED == action : "Unknown stream action: " + action;
 
+        addSSTable(localFile);
+        session.remove(remoteFile);
         // send a StreamStatus message telling the source node it can delete this file
         if (logger.isDebugEnabled())
-            logger.debug("Sending a streaming finished message for {} to {}", pendingFile, session);
-        MessagingService.instance.sendOneWay(streamStatus.makeStreamStatusMessage(), session.getHost());
+            logger.debug("Sending a streaming finished message for {} to {}", remoteFile, session);
+        MessagingService.instance.sendOneWay(status.makeStreamStatusMessage(), session.getHost());
     }
 
     public static void addSSTable(PendingFile pendingFile)

@@ -45,23 +45,20 @@ public class StreamStatusVerbHandler implements IVerbHandler
         try
         {
             FileStatus streamStatus = FileStatus.serializer().deserialize(new DataInputStream(bufIn));
-            StreamOutSession session = StreamOutSession.get(message.getFrom(), streamStatus.getSessionId());
+            StreamOutSession session = StreamOutSession.get(message.getFrom(), streamStatus.sessionId);
+            session.validateCurrentFile(streamStatus.file);
 
-            switch (streamStatus.getAction())
+            switch (streamStatus.action)
             {
-                case DELETE:
-                    session.finishAndStartNext(streamStatus.getFile());
+                case FINISHED:
+                    session.startNext();
                     break;
-                case STREAM:
-                    logger.warn("Need to re-stream file {} to {}", streamStatus.getFile(), message.getFrom());
-                    session.retry(streamStatus.getFile());
-                    break;
-                case EMPTY:
-                    logger.error("Did not find matching ranges on {}", message.getFrom());
-                    StreamInSession.get(message.getFrom(), streamStatus.getSessionId()).close();
+                case RETRY:
+                    logger.warn("Need to re-stream file {} to {}", streamStatus.file, message.getFrom());
+                    session.retry();
                     break;
                 default:
-                    throw new RuntimeException("Cannot handle FileStatus.Action: " + streamStatus.getAction());
+                    throw new RuntimeException("Cannot handle FileStatus.Action: " + streamStatus.action);
             }
         }
         catch (IOException ex)
