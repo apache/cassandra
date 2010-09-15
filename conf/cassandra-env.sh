@@ -16,8 +16,22 @@
 
 calculate_heap_size()
 {
-    system_memory=`free -m | awk '/Mem:/ {print $2}'`
-    MAX_HEAP_SIZE=$((system_memory / 2))M
+    case "`uname`" in
+        Linux)
+            system_memory_in_mb=`free -m | awk '/Mem:/ {print $2}'`
+            MAX_HEAP_SIZE=$((system_memory_in_mb / 2))M
+            return 0
+        ;;
+        FreeBSD)
+            system_memory_in_bytes=`sysctl hw.physmem | awk '{print $2}'`
+            MAX_HEAP_SIZE=$((system_memory_in_bytes / 1024 / 1024 / 2))M
+            return 0
+        ;;
+        *)
+            MAX_HEAP_SIZE=1024M
+            return 1
+        ;;
+    esac
 }
 
 # The amount of memory to allocate to the JVM at startup, you almost
@@ -26,8 +40,11 @@ calculate_heap_size()
 # MAX_HEAP_SIZE="4G"
 
 if [ "x$MAX_HEAP_SIZE" = "x" ]; then
-    calculate_heap_size
-    echo "Using adaptive heap size: " $MAX_HEAP_SIZE
+    if calculate_heap_size; then
+        echo "Using adaptive heap size: " $MAX_HEAP_SIZE
+    else
+        echo "Using default heap size: " $MAX_HEAP_SIZE
+    fi
 fi
 
 # Specifies the default port over which Cassandra will be available for
