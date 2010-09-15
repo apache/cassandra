@@ -98,9 +98,6 @@ public class Table
                 tableInstance = instances.get(table);
                 if (tableInstance == null)
                 {
-                    // do some housekeeping on the column families.
-                    for (CFMetaData cfm : DatabaseDescriptor.getTableDefinition(table).cfMetaData().values())
-                        ColumnFamilyStore.scrubDataDirectories(table, cfm.cfName);
                     // open and store the table
                     tableInstance = new Table(table);
                     instances.put(table, tableInstance);

@@ -27,6 +27,8 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -110,6 +112,14 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
         {
             logger.error("Fatal exception during initialization", e);
             System.exit(100);
+        }
+        
+        for (String table : DatabaseDescriptor.getTables()) 
+        {
+            for (CFMetaData cfm : DatabaseDescriptor.getTableMetaData(table).values())
+            {
+                ColumnFamilyStore.scrubDataDirectories(table, cfm.cfName);
+            }
         }
 
         // initialize keyspaces

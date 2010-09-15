@@ -302,7 +302,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * and compacted sstables. Files that cannot be recognized will be ignored.
      * @return A list of Descriptors that were removed.
      */
-    static void scrubDataDirectories(String table, String columnFamily)
+    public static void scrubDataDirectories(String table, String columnFamily)
     {
         for (Map.Entry<Descriptor,Set<Component>> sstableFiles : files(table, columnFamily, true).entrySet())
         {
