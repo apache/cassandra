@@ -73,7 +73,7 @@ public class Config
     /* Number of minutes to keep a memtable in memory */
     public Integer memtable_flush_after_mins = 60 * 60 * 1000;
     /* Size of the memtable in memory before it is dumped */
-    public Integer memtable_throughput_in_mb = (int) (Runtime.getRuntime().maxMemory() / 1024^2 / 8);
+    public Integer memtable_throughput_in_mb = (int) (Runtime.getRuntime().maxMemory() / 1048576 / 8);
     /* Number of objects in millions in the memtable before it is dumped */
     public Double memtable_operations_in_millions = memtable_throughput_in_mb / 64 * 0.3;
     
