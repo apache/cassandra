@@ -74,10 +74,13 @@ JVM_OPTS="$JVM_OPTS -Xms$MAX_HEAP_SIZE"
 JVM_OPTS="$JVM_OPTS -Xmx$MAX_HEAP_SIZE"
 JVM_OPTS="$JVM_OPTS -XX:+HeapDumpOnOutOfMemoryError" 
 
-# reduce the per-thread stack size to minimize the impact of Thrift
-# thread-per-client.  (Best practice is for client connections to
-# be pooled anyway.)
-JVM_OPTS="$JVM_OPTS -Xss128k" 
+if [ "`uname`" = "Linux" ] ; then
+    # reduce the per-thread stack size to minimize the impact of Thrift
+    # thread-per-client.  (Best practice is for client connections to
+    # be pooled anyway.) Only do so on Linux where it is known to be
+    # supported.
+    JVM_OPTS="$JVM_OPTS -Xss128k"
+fi
 
 # GC tuning options.
 JVM_OPTS="$JVM_OPTS -XX:+UseParNewGC" 
