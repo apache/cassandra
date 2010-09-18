@@ -63,6 +63,9 @@ public class Config
     
     public String rpc_address;
     public Integer rpc_port = 9160;
+    public Boolean rpc_keepalive = true;
+    public Integer rpc_send_buff_size_in_bytes;
+    public Integer rpc_recv_buff_size_in_bytes;
 
     public Integer thrift_max_message_length_in_mb = 16;
     public Integer thrift_framed_transport_size_in_mb = 15;

@@ -257,7 +257,7 @@ public class DatabaseDescriptor
             /* Local IP or hostname to bind RPC server to */
             if (conf.rpc_address != null)
                 rpcAddress = InetAddress.getByName(conf.rpc_address);
-            
+
             if (conf.thrift_framed_transport_size_in_mb > 0 && conf.thrift_max_message_length_in_mb < conf.thrift_framed_transport_size_in_mb)
             {
                 throw new ConfigurationException("thrift_max_message_length_in_mb must be greater than thrift_framed_transport_size_in_mb when using TFramedTransport");
@@ -1026,6 +1026,21 @@ public class DatabaseDescriptor
     public static InetAddress getRpcAddress()
     {
         return rpcAddress;
+    }
+
+    public static boolean getRpcKeepAlive()
+    {
+        return conf.rpc_keepalive;
+    }
+
+    public static Integer getRpcSendBufferSize()
+    {
+        return conf.rpc_send_buff_size_in_bytes;
+    }
+
+    public static Integer getRpcRecvBufferSize()
+    {
+        return conf.rpc_recv_buff_size_in_bytes;
     }
 
     public static double getCommitLogSyncBatchWindow()

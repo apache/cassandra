@@ -76,6 +76,7 @@
  * fix races dealing with adding/dropping keyspaces and column families in
    rapid succession (CASSANDRA-1477)
  * clean up of Streaming system (CASSANDRA-1503, 1504, 1506)
+ * add options to configure Thrift socket keepalive and buffer sizes (CASSANDRA-1426)
 
 
 0.7-beta1

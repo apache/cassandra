@@ -52,16 +52,20 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
     protected void setup() throws IOException
     {
         super.setup();                
+
         // now we start listening for clients
         final CassandraServer cassandraServer = new CassandraServer();
         Cassandra.Processor processor = new Cassandra.Processor(cassandraServer);
 
         // Transport
         TServerSocket tServerSocket = null;
-        
+
         try
         {
-            tServerSocket = new TServerSocket(new InetSocketAddress(listenAddr, listenPort));
+            tServerSocket = new TCustomServerSocket(new InetSocketAddress(listenAddr, listenPort),
+                                                    DatabaseDescriptor.getRpcKeepAlive(),
+                                                    DatabaseDescriptor.getRpcSendBufferSize(),
+                                                    DatabaseDescriptor.getRpcRecvBufferSize());
         }
         catch (TTransportException e)
         {
