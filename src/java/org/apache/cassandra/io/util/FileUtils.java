@@ -83,19 +83,6 @@ public class FileUtils
         }
     }
 
-    public static void createFile(String directory) throws IOException
-    {
-        File file = new File(directory);
-        if ( !file.exists() )
-            file.createNewFile();
-    }
-
-    public static boolean isExists(String filename) throws IOException
-    {
-        File file = new File(filename);
-        return file.exists();
-    }
-
     public static boolean delete(String file)
     {
         File f = new File(file);
@@ -119,17 +106,9 @@ public class FileUtils
         return bVal;
     }
 
-    public static void delete(File[] files) throws IOException
-    {
-        for ( File file : files )
-        {
-            file.delete();
-        }
-    }
-
     public static String stringifyFileSize(double value)
     {
-        double d = 0d;
+        double d;
         if ( value >= tb_ )
         {
             d = value / tb_;
@@ -160,29 +139,6 @@ public class FileUtils
             return val + " bytes";
         }        
     }
-    
-    /**
-     * calculate the total space used by a file or directory
-     * 
-     * @param path the path
-     * @return total space used.
-     */
-    public static long getUsedDiskSpaceForPath(String path)
-    {
-        File file = new File(path);
-        
-        if (file.isFile()) 
-        {
-            return file.length();
-        }
-        
-        long diskSpace = 0;
-        for (File childFile: file.listFiles())
-        {
-            diskSpace += getUsedDiskSpaceForPath(childFile.getPath());
-        }
-        return diskSpace;
-    }
 
     /**
      * Deletes all files and subdirectories under "dir".
@@ -194,9 +150,9 @@ public class FileUtils
         if (dir.isDirectory())
         {
             String[] children = dir.list();
-            for (int i = 0; i < children.length; i++)
+            for (String child : children)
             {
-                deleteRecursive(new File(dir, children[i]));
+                deleteRecursive(new File(dir, child));
             }
         }
 
