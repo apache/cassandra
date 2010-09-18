@@ -87,7 +87,7 @@ public class CassandraServiceDataCleaner {
     }
 
     /**
-     * Removes all directory content from file the system
+     * Removes all directory content from the file system
      *
      * @param dir
      * @throws IOException
@@ -95,7 +95,9 @@ public class CassandraServiceDataCleaner {
     private void cleanDir(String dir) throws IOException {
         File dirFile = new File(dir);
         if (dirFile.exists() && dirFile.isDirectory()) {
-            FileUtils.delete(dirFile.listFiles());
+            for (File f : dirFile.listFiles()) {
+                FileUtils.deleteRecursive(f);
+            }
         }
     }
 }
