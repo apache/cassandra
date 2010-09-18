@@ -51,6 +51,15 @@
   <HintedHandoffEnabled>true</HintedHandoffEnabled>
 
   <!--
+   ~ The Index Interval determines the rate of sampling of row keys
+   ~ is for a given SSTable: 1/IndexInterval keys are held in memory
+   ~ for the lifetime of the sstable for use during key lookup.
+   ~ (This is separate from the KeyCache.)  Larger intervals will result
+   ~ in lower memory usage at the cost of slower row lookup at read time.
+  -->
+  <IndexInterval>128</IndexInterval>
+
+  <!--
    ~ Keyspaces and ColumnFamilies:
    ~ A ColumnFamily is the Cassandra concept closest to a relational
    ~ table.  Keyspaces are separate groups of ColumnFamilies.  Except in

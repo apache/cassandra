@@ -42,7 +42,6 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.DeletionService;
 import org.apache.cassandra.io.IndexSummary;
-import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
@@ -1301,7 +1300,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
             }
         }
         FBUtilities.sortSampledKeys(keys, range);
-        int splits = keys.size() * SSTableReader.indexInterval() / keysPerSplit;
+        int splits = keys.size() * DatabaseDescriptor.getIndexInterval() / keysPerSplit;
 
         if (keys.size() >= splits)
         {

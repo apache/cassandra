@@ -21,6 +21,7 @@
  * nodes that coordinated a loadbalance in the past could not be seen by
    newly added nodes (CASSANDRA-1467)
  * use JNA, if present, to take snapshots (CASSANDRA-1371)
+ * make IndexInterval configurable (CASSANDRA-1488)
 
 
 0.6.5

@@ -138,6 +138,8 @@ public class DatabaseDescriptor
 
     private static IAuthenticator authenticator = new AllowAllAuthenticator();
 
+    private static int indexinterval = 128;
+
     private final static String STORAGE_CONF_FILE = "storage-conf.xml";
 
     /**
@@ -493,6 +495,14 @@ public class DatabaseDescriptor
             }
             if (logger.isDebugEnabled())
                 logger.debug("setting hintedHandoffEnabled to " + hintedHandoffEnabled);
+
+            String indexIntervalStr = xmlUtils.getNodeValue("/Storage/IndexInterval");
+            if (indexIntervalStr != null)
+            {
+                indexinterval = Integer.parseInt(indexIntervalStr);
+                if (indexinterval <= 0)
+                    throw new ConfigurationException("Index Interval must be a positive, non-zero integer.");
+            }
 
             readTablesFromXml();
             if (tables.isEmpty())
@@ -1205,5 +1215,10 @@ public class DatabaseDescriptor
     public static boolean hintedHandoffEnabled()
     {
         return hintedHandoffEnabled;
+    }
+
+    public static int getIndexInterval()
+    {
+        return indexinterval;
     }
 }

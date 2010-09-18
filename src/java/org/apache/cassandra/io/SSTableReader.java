@@ -85,11 +85,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     // in a perfect world, BUFFER_SIZE would be final, but we need to test with a smaller size to stay sane.
     static long BUFFER_SIZE = Integer.MAX_VALUE;
 
-    public static int indexInterval()
-    {
-        return IndexSummary.INDEX_INTERVAL;
-    }
-
     public static long getApproximateKeyCount(Iterable<SSTableReader> sstables)
     {
         long count = 0;
@@ -97,7 +92,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         for (SSTableReader sstable : sstables)
         {
             int indexKeyCount = sstable.getIndexPositions().size();
-            count = count + (indexKeyCount + 1) * IndexSummary.INDEX_INTERVAL;
+            count = count + (indexKeyCount + 1) * DatabaseDescriptor.getIndexInterval();
             if (logger.isDebugEnabled())
                 logger.debug("index size for bloom filter calc for file  : " + sstable.getFilename() + "   : " + count);
         }
@@ -223,7 +218,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     public long estimatedKeys()
     {
-        return indexSummary.getIndexPositions().size() * IndexSummary.INDEX_INTERVAL;
+        return indexSummary.getIndexPositions().size() * DatabaseDescriptor.getIndexInterval();
     }
 
     void loadBloomFilter() throws IOException
@@ -345,6 +340,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         // scan the on-disk index, starting at the nearest sampled position
         try
         {
+            int interval = DatabaseDescriptor.getIndexInterval();
             int i = 0;
             do
             {
@@ -398,7 +394,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                     bloomFilterTracker.addFalsePositive();
                     return null;
                 }
-            } while  (++i < IndexSummary.INDEX_INTERVAL);
+            } while  (++i < interval);
         }
         finally
         {
