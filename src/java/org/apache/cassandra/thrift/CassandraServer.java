@@ -256,11 +256,10 @@ public class CassandraServer implements Cassandra.Iface
             logger.debug("get_slice");
         
         clientState.hasKeyspaceAccess(Permission.READ_VALUE);
-
-        return multigetSliceInternal(clientState.getKeyspace(), Collections.singleton(key), column_parent, predicate, consistency_level).get(key);
+        return multigetSliceInternal(clientState.getKeyspace(), Arrays.asList(key), column_parent, predicate, consistency_level).get(key);
     }
     
-    public Map<byte[], List<ColumnOrSuperColumn>> multiget_slice(Set<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
+    public Map<byte[], List<ColumnOrSuperColumn>> multiget_slice(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
@@ -271,7 +270,7 @@ public class CassandraServer implements Cassandra.Iface
         return multigetSliceInternal(clientState.getKeyspace(), keys, column_parent, predicate, consistency_level);
     }
 
-    private Map<byte[], List<ColumnOrSuperColumn>> multigetSliceInternal(String keyspace, Set<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
+    private Map<byte[], List<ColumnOrSuperColumn>> multigetSliceInternal(String keyspace, List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         ThriftValidation.validateColumnParent(keyspace, column_parent);
@@ -338,7 +337,7 @@ public class CassandraServer implements Cassandra.Iface
         return get_slice(key, column_parent, predicate, consistency_level).size();
     }
 
-    public Map<byte[], Integer> multiget_count(Set<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
+    public Map<byte[], Integer> multiget_count(List<byte[]> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())

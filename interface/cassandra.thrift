@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "15.0.0"
+const string VERSION = "16.0.0"
 
 
 #
@@ -407,7 +407,7 @@ service Cassandra {
   /**
     Performs a get_slice for column_parent and predicate for the given keys in parallel.
   */
-  map<binary,list<ColumnOrSuperColumn>> multiget_slice(1:required set<binary> keys, 
+  map<binary,list<ColumnOrSuperColumn>> multiget_slice(1:required list<binary> keys, 
                                                        2:required ColumnParent column_parent, 
                                                        3:required SlicePredicate predicate, 
                                                        4:required ConsistencyLevel consistency_level=ONE)
@@ -416,7 +416,7 @@ service Cassandra {
   /**
     Perform a get_count in parallel on the given list<binary> keys. The return value maps keys to the count found.
   */
-  map<binary, i32> multiget_count(1:required set<binary> keys,
+  map<binary, i32> multiget_count(1:required list<binary> keys,
                 2:required ColumnParent column_parent,
                 3:required SlicePredicate predicate,
                 4:required ConsistencyLevel consistency_level=ONE)
