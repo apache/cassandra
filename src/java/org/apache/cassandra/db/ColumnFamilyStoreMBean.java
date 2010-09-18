@@ -165,4 +165,24 @@ public interface ColumnFamilyStoreMBean
     public double getBloomFilterFalseRatio();
 
     public double getRecentBloomFilterFalseRatio();
+
+    /**
+     * Gets the minimum number of sstables in queue before compaction kicks off
+     */
+    public int getMinimumCompactionThreshold();
+
+    /**
+     * Sets the minimum number of sstables in queue before compaction kicks off
+     */
+    public void setMinimumCompactionThreshold(int threshold);
+
+    /**
+     * Gets the maximum number of sstables in queue before compaction kicks off
+     */
+    public int getMaximumCompactionThreshold();
+
+    /**
+     * Sets the maximum number of sstables in queue before compaction kicks off
+     */
+    public void setMaximumCompactionThreshold(int threshold);
 }

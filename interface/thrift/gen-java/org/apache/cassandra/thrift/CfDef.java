@@ -65,6 +65,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   private static final TField GC_GRACE_SECONDS_FIELD_DESC = new TField("gc_grace_seconds", TType.I32, (short)14);
   private static final TField DEFAULT_VALIDATION_CLASS_FIELD_DESC = new TField("default_validation_class", TType.STRING, (short)15);
   private static final TField ID_FIELD_DESC = new TField("id", TType.I32, (short)16);
+  private static final TField MIN_COMPACTION_THRESHOLD_FIELD_DESC = new TField("min_compaction_threshold", TType.I32, (short)17);
+  private static final TField MAX_COMPACTION_THRESHOLD_FIELD_DESC = new TField("max_compaction_threshold", TType.I32, (short)18);
 
   public String keyspace;
   public String name;
@@ -82,6 +84,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   public int gc_grace_seconds;
   public String default_validation_class;
   public int id;
+  public int min_compaction_threshold;
+  public int max_compaction_threshold;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
@@ -100,7 +104,9 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     COLUMN_METADATA((short)13, "column_metadata"),
     GC_GRACE_SECONDS((short)14, "gc_grace_seconds"),
     DEFAULT_VALIDATION_CLASS((short)15, "default_validation_class"),
-    ID((short)16, "id");
+    ID((short)16, "id"),
+    MIN_COMPACTION_THRESHOLD((short)17, "min_compaction_threshold"),
+    MAX_COMPACTION_THRESHOLD((short)18, "max_compaction_threshold");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -147,6 +153,10 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
           return DEFAULT_VALIDATION_CLASS;
         case 16: // ID
           return ID;
+        case 17: // MIN_COMPACTION_THRESHOLD
+          return MIN_COMPACTION_THRESHOLD;
+        case 18: // MAX_COMPACTION_THRESHOLD
+          return MAX_COMPACTION_THRESHOLD;
         default:
           return null;
       }
@@ -193,7 +203,9 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   private static final int __READ_REPAIR_CHANCE_ISSET_ID = 3;
   private static final int __GC_GRACE_SECONDS_ISSET_ID = 4;
   private static final int __ID_ISSET_ID = 5;
-  private BitSet __isset_bit_vector = new BitSet(6);
+  private static final int __MIN_COMPACTION_THRESHOLD_ISSET_ID = 6;
+  private static final int __MAX_COMPACTION_THRESHOLD_ISSET_ID = 7;
+  private BitSet __isset_bit_vector = new BitSet(8);
 
   public static final Map<_Fields, FieldMetaData> metaDataMap;
   static {
@@ -230,6 +242,10 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     tmpMap.put(_Fields.DEFAULT_VALIDATION_CLASS, new FieldMetaData("default_validation_class", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
     tmpMap.put(_Fields.ID, new FieldMetaData("id", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.I32)));
+    tmpMap.put(_Fields.MIN_COMPACTION_THRESHOLD, new FieldMetaData("min_compaction_threshold", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.I32)));
+    tmpMap.put(_Fields.MAX_COMPACTION_THRESHOLD, new FieldMetaData("max_compaction_threshold", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.I32)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(CfDef.class, metaDataMap);
@@ -307,6 +323,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       this.default_validation_class = other.default_validation_class;
     }
     this.id = other.id;
+    this.min_compaction_threshold = other.min_compaction_threshold;
+    this.max_compaction_threshold = other.max_compaction_threshold;
   }
 
   public CfDef deepCopy() {
@@ -711,6 +729,52 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     __isset_bit_vector.set(__ID_ISSET_ID, value);
   }
 
+  public int getMin_compaction_threshold() {
+    return this.min_compaction_threshold;
+  }
+
+  public CfDef setMin_compaction_threshold(int min_compaction_threshold) {
+    this.min_compaction_threshold = min_compaction_threshold;
+    setMin_compaction_thresholdIsSet(true);
+    return this;
+  }
+
+  public void unsetMin_compaction_threshold() {
+    __isset_bit_vector.clear(__MIN_COMPACTION_THRESHOLD_ISSET_ID);
+  }
+
+  /** Returns true if field min_compaction_threshold is set (has been asigned a value) and false otherwise */
+  public boolean isSetMin_compaction_threshold() {
+    return __isset_bit_vector.get(__MIN_COMPACTION_THRESHOLD_ISSET_ID);
+  }
+
+  public void setMin_compaction_thresholdIsSet(boolean value) {
+    __isset_bit_vector.set(__MIN_COMPACTION_THRESHOLD_ISSET_ID, value);
+  }
+
+  public int getMax_compaction_threshold() {
+    return this.max_compaction_threshold;
+  }
+
+  public CfDef setMax_compaction_threshold(int max_compaction_threshold) {
+    this.max_compaction_threshold = max_compaction_threshold;
+    setMax_compaction_thresholdIsSet(true);
+    return this;
+  }
+
+  public void unsetMax_compaction_threshold() {
+    __isset_bit_vector.clear(__MAX_COMPACTION_THRESHOLD_ISSET_ID);
+  }
+
+  /** Returns true if field max_compaction_threshold is set (has been asigned a value) and false otherwise */
+  public boolean isSetMax_compaction_threshold() {
+    return __isset_bit_vector.get(__MAX_COMPACTION_THRESHOLD_ISSET_ID);
+  }
+
+  public void setMax_compaction_thresholdIsSet(boolean value) {
+    __isset_bit_vector.set(__MAX_COMPACTION_THRESHOLD_ISSET_ID, value);
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case KEYSPACE:
@@ -841,6 +905,22 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       }
       break;
 
+    case MIN_COMPACTION_THRESHOLD:
+      if (value == null) {
+        unsetMin_compaction_threshold();
+      } else {
+        setMin_compaction_threshold((Integer)value);
+      }
+      break;
+
+    case MAX_COMPACTION_THRESHOLD:
+      if (value == null) {
+        unsetMax_compaction_threshold();
+      } else {
+        setMax_compaction_threshold((Integer)value);
+      }
+      break;
+
     }
   }
 
@@ -898,6 +978,12 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     case ID:
       return new Integer(getId());
 
+    case MIN_COMPACTION_THRESHOLD:
+      return new Integer(getMin_compaction_threshold());
+
+    case MAX_COMPACTION_THRESHOLD:
+      return new Integer(getMax_compaction_threshold());
+
     }
     throw new IllegalStateException();
   }
@@ -941,6 +1027,10 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return isSetDefault_validation_class();
     case ID:
       return isSetId();
+    case MIN_COMPACTION_THRESHOLD:
+      return isSetMin_compaction_threshold();
+    case MAX_COMPACTION_THRESHOLD:
+      return isSetMax_compaction_threshold();
     }
     throw new IllegalStateException();
   }
@@ -1106,6 +1196,24 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         return false;
     }
 
+    boolean this_present_min_compaction_threshold = true && this.isSetMin_compaction_threshold();
+    boolean that_present_min_compaction_threshold = true && that.isSetMin_compaction_threshold();
+    if (this_present_min_compaction_threshold || that_present_min_compaction_threshold) {
+      if (!(this_present_min_compaction_threshold && that_present_min_compaction_threshold))
+        return false;
+      if (this.min_compaction_threshold != that.min_compaction_threshold)
+        return false;
+    }
+
+    boolean this_present_max_compaction_threshold = true && this.isSetMax_compaction_threshold();
+    boolean that_present_max_compaction_threshold = true && that.isSetMax_compaction_threshold();
+    if (this_present_max_compaction_threshold || that_present_max_compaction_threshold) {
+      if (!(this_present_max_compaction_threshold && that_present_max_compaction_threshold))
+        return false;
+      if (this.max_compaction_threshold != that.max_compaction_threshold)
+        return false;
+    }
+
     return true;
   }
 
@@ -1266,6 +1374,24 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetMin_compaction_threshold()).compareTo(typedOther.isSetMin_compaction_threshold());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetMin_compaction_threshold()) {      lastComparison = TBaseHelper.compareTo(this.min_compaction_threshold, typedOther.min_compaction_threshold);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetMax_compaction_threshold()).compareTo(typedOther.isSetMax_compaction_threshold());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetMax_compaction_threshold()) {      lastComparison = TBaseHelper.compareTo(this.max_compaction_threshold, typedOther.max_compaction_threshold);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -1408,6 +1534,22 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 17: // MIN_COMPACTION_THRESHOLD
+          if (field.type == TType.I32) {
+            this.min_compaction_threshold = iprot.readI32();
+            setMin_compaction_thresholdIsSet(true);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 18: // MAX_COMPACTION_THRESHOLD
+          if (field.type == TType.I32) {
+            this.max_compaction_threshold = iprot.readI32();
+            setMax_compaction_thresholdIsSet(true);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           TProtocolUtil.skip(iprot, field.type);
       }
@@ -1524,6 +1666,16 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (isSetId()) {
       oprot.writeFieldBegin(ID_FIELD_DESC);
       oprot.writeI32(this.id);
+      oprot.writeFieldEnd();
+    }
+    if (isSetMin_compaction_threshold()) {
+      oprot.writeFieldBegin(MIN_COMPACTION_THRESHOLD_FIELD_DESC);
+      oprot.writeI32(this.min_compaction_threshold);
+      oprot.writeFieldEnd();
+    }
+    if (isSetMax_compaction_threshold()) {
+      oprot.writeFieldBegin(MAX_COMPACTION_THRESHOLD_FIELD_DESC);
+      oprot.writeI32(this.max_compaction_threshold);
       oprot.writeFieldEnd();
     }
     oprot.writeFieldStop();
@@ -1664,6 +1816,18 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       if (!first) sb.append(", ");
       sb.append("id:");
       sb.append(this.id);
+      first = false;
+    }
+    if (isSetMin_compaction_threshold()) {
+      if (!first) sb.append(", ");
+      sb.append("min_compaction_threshold:");
+      sb.append(this.min_compaction_threshold);
+      first = false;
+    }
+    if (isSetMax_compaction_threshold()) {
+      if (!first) sb.append(", ");
+      sb.append("max_compaction_threshold:");
+      sb.append(this.max_compaction_threshold);
       first = false;
     }
     sb.append(")");

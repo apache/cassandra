@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db;
 
-import java.io.FileFilter;
 import java.io.IOException;
 import java.io.File;
 import java.lang.management.ManagementFactory;
@@ -57,9 +56,6 @@ public class CompactionManager implements CompactionManagerMBean
     private static final Logger logger = LoggerFactory.getLogger(CompactionManager.class);
     public static final CompactionManager instance;
 
-    private int minimumCompactionThreshold = 4; // compact this many sstables min at a time
-    private int maximumCompactionThreshold = 32; // compact this many sstables max at a time
-
     static
     {
         instance = new CompactionManager();
@@ -76,7 +72,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     private CompactionExecutor executor = new CompactionExecutor();
     private Map<ColumnFamilyStore, Integer> estimatedCompactions = new NonBlockingHashMap<ColumnFamilyStore, Integer>();
-    
+
     /**
      * Call this whenever a compaction might be needed on the given columnfamily.
      * It's okay to over-call (within reason) since the compactions are single-threaded,
@@ -88,7 +84,10 @@ public class CompactionManager implements CompactionManagerMBean
         {
             public Integer call() throws IOException
             {
-                if (minimumCompactionThreshold <= 0 || maximumCompactionThreshold <= 0)
+                Integer minThreshold = cfs.getMinimumCompactionThreshold();
+                Integer maxThreshold = cfs.getMaximumCompactionThreshold();
+
+                if (minThreshold <= 0 || maxThreshold <= 0)
                 {
                     logger.debug("Compaction is currently disabled.");
                     return 0;
@@ -99,12 +98,12 @@ public class CompactionManager implements CompactionManagerMBean
                 
                 for (List<SSTableReader> sstables : buckets)
                 {
-                    if (sstables.size() >= minimumCompactionThreshold)
+                    if (sstables.size() >= minThreshold)
                     {
                         // if we have too many to compact all at once, compact older ones first -- this avoids
                         // re-compacting files we just created.
                         Collections.sort(sstables);
-                        return doCompaction(cfs, sstables.subList(0, Math.min(sstables.size(), maximumCompactionThreshold)), (int) (System.currentTimeMillis() / 1000) - cfs.metadata.gcGraceSeconds);
+                        return doCompaction(cfs, sstables.subList(0, Math.min(sstables.size(), maxThreshold)), (int) (System.currentTimeMillis() / 1000) - cfs.metadata.gcGraceSeconds);
                     }
                 }
                 return 0;
@@ -115,12 +114,15 @@ public class CompactionManager implements CompactionManagerMBean
 
     private void updateEstimateFor(ColumnFamilyStore cfs, Set<List<SSTableReader>> buckets)
     {
+        Integer minct = cfs.getMinimumCompactionThreshold();
+        Integer maxct = cfs.getMaximumCompactionThreshold();
+
         int n = 0;
         for (List<SSTableReader> sstables : buckets)
         {
-            if (sstables.size() >= minimumCompactionThreshold)
+            if (sstables.size() >= minct)
             {
-                n += 1 + sstables.size() / (maximumCompactionThreshold - minimumCompactionThreshold);
+                n += 1 + sstables.size() / (maxct - minct);
             }
         }
         estimatedCompactions.put(cfs, n);
@@ -199,42 +201,15 @@ public class CompactionManager implements CompactionManagerMBean
         return executor.submit(callable);
     }
 
-    /**
-     * Gets the minimum number of sstables in queue before compaction kicks off
-     */
-    public int getMinimumCompactionThreshold()
-    {
-        return minimumCompactionThreshold;
-    }
-
-    /**
-     * Sets the minimum number of sstables in queue before compaction kicks off
-     */
-    public void setMinimumCompactionThreshold(int threshold)
-    {
-        minimumCompactionThreshold = threshold;
-    }
-
-    /**
-     * Gets the maximum number of sstables in queue before compaction kicks off
-     */
-    public int getMaximumCompactionThreshold()
-    {
-        return maximumCompactionThreshold;
-    }
-
-    /**
-     * Sets the maximum number of sstables in queue before compaction kicks off
-     */
-    public void setMaximumCompactionThreshold(int threshold)
-    {
-        maximumCompactionThreshold = threshold;
-    }
-
+    /* Used in tests. */
     public void disableAutoCompaction()
     {
-        minimumCompactionThreshold = 0;
-        maximumCompactionThreshold = 0;
+        for (String ksname : DatabaseDescriptor.getNonSystemTables())
+        {
+            Table ks = Table.open(ksname);
+            for (ColumnFamilyStore cfs : ks.columnFamilyStores.values())
+                cfs.disableAutoCompaction();
+        }
     }
 
     /**

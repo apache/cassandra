@@ -49,11 +49,14 @@ import org.apache.cassandra.utils.Pair;
 
 public final class CFMetaData
 {
-    public final static double DEFAULT_READ_REPAIR_CHANCE = 1.0;
-    public final static double DEFAULT_KEY_CACHE_SIZE = 200000;
     public final static double DEFAULT_ROW_CACHE_SIZE = 0.0;
+    public final static double DEFAULT_KEY_CACHE_SIZE = 200000;
+    public final static double DEFAULT_READ_REPAIR_CHANCE = 1.0;
     public final static boolean DEFAULT_PRELOAD_ROW_CACHE = false;
     public final static int DEFAULT_GC_GRACE_SECONDS = 864000;
+    public final static int DEFAULT_MIN_COMPACTION_THRESHOLD = 4;
+    public final static int DEFAULT_MAX_COMPACTION_THRESHOLD = 32;
+
     private static final int MIN_CF_ID = 1000;
 
     private static final AtomicInteger idGen = new AtomicInteger(MIN_CF_ID);
@@ -81,6 +84,8 @@ public final class CFMetaData
                               0,
                               0,
                               BytesType.instance,
+                              DEFAULT_MIN_COMPACTION_THRESHOLD,
+                              DEFAULT_MAX_COMPACTION_THRESHOLD,
                               cfId,
                               Collections.<byte[], ColumnDefinition>emptyMap());
     }
@@ -117,20 +122,23 @@ public final class CFMetaData
     }
     
     public final Integer cfId;
-    public final String tableName;            // name of table which has this column family
-    public final String cfName;               // name of the column family
-    public final ColumnFamilyType cfType;     // type: super, standard, etc.
-    public final ClockType clockType;         // clock type: timestamp, etc.
-    public final AbstractType comparator;       // name sorted, time stamp sorted etc.
-    public final AbstractType subcolumnComparator; // like comparator, for supercolumns
-    public final AbstractReconciler reconciler; // determine correct column from conflicting versions
-    public final String comment; // for humans only
-    public final double rowCacheSize; // default 0
-    public final double keyCacheSize; // default 0.01
-    public final double readRepairChance; //chance 0 to 1, of doing a read repair; defaults 1.0 (always)
-    public final boolean preloadRowCache;
-    public final int gcGraceSeconds; // default 864000 (ten days)
-    public final AbstractType defaultValidator; // values are longs, strings, bytes (no-op)...
+    public final String tableName;                  // name of table which has this column family
+    public final String cfName;                     // name of the column family
+    public final ColumnFamilyType cfType;           // type: super, standard, etc.
+    public final ClockType clockType;               // clock type: timestamp, etc.
+    public final AbstractType comparator;           // name sorted, time stamp sorted etc.
+    public final AbstractType subcolumnComparator;  // like comparator, for supercolumns
+    public final AbstractReconciler reconciler;     // determine correct column from conflicting versions
+    public final String comment;                    // for humans only
+
+    public final double rowCacheSize;               // default 0
+    public final double keyCacheSize;               // default 0.01
+    public final double readRepairChance;           // default 1.0 (always), chance [0.0,1.0] of read repair
+    public final boolean preloadRowCache;           // default false
+    public final int gcGraceSeconds;                // default 864000 (ten days)
+    public final AbstractType defaultValidator;     // default none, use comparator types
+    public final Integer minCompactionThreshold;    // default 4
+    public final Integer maxCompactionThreshold;    // default 32
     // NOTE: if you find yourself adding members to this class, make sure you keep the convert methods in lockstep.
 
     public final Map<byte[], ColumnDefinition> column_metadata;
@@ -149,6 +157,8 @@ public final class CFMetaData
                        double readRepairChance,
                        int gcGraceSeconds,
                        AbstractType defaultValidator,
+                       int minCompactionThreshold,
+                       int maxCompactionThreshold,
                        Integer cfId,
                        Map<byte[], ColumnDefinition> column_metadata)
     {
@@ -169,6 +179,8 @@ public final class CFMetaData
         this.readRepairChance = readRepairChance;
         this.gcGraceSeconds = gcGraceSeconds;
         this.defaultValidator = defaultValidator;
+        this.minCompactionThreshold = minCompactionThreshold;
+        this.maxCompactionThreshold = maxCompactionThreshold;
         this.cfId = cfId;
         this.column_metadata = Collections.unmodifiableMap(column_metadata);
     }
@@ -185,21 +197,89 @@ public final class CFMetaData
         }
     }
 
-    public CFMetaData(String tableName, String cfName, ColumnFamilyType cfType, ClockType clockType, AbstractType comparator, AbstractType subcolumnComparator, AbstractReconciler reconciler, String comment, double rowCacheSize, boolean preloadRowCache, double keyCacheSize, double readRepairChance, int gcGraceSeconds, AbstractType defaultvalidator, Map<byte[], ColumnDefinition> column_metadata)
+    public CFMetaData(String tableName,
+                      String cfName,
+                      ColumnFamilyType cfType,
+                      ClockType clockType,
+                      AbstractType comparator,
+                      AbstractType subcolumnComparator,
+                      AbstractReconciler reconciler,
+                      String comment,
+                      double rowCacheSize,
+                      boolean preloadRowCache,
+                      double keyCacheSize,
+                      double readRepairChance,
+                      int gcGraceSeconds,
+                      AbstractType defaultValidator,
+                      int minCompactionThreshold,
+                      int maxCompactionThreshold,
+                      //This constructor generates the id!
+                      Map<byte[], ColumnDefinition> column_metadata)
     {
-        this(tableName, cfName, cfType, clockType, comparator, subcolumnComparator, reconciler, comment, rowCacheSize, preloadRowCache, keyCacheSize, readRepairChance, gcGraceSeconds, defaultvalidator, nextId(), column_metadata);
+        this(tableName,
+             cfName,
+             cfType,
+             clockType,
+             comparator,
+             subcolumnComparator,
+             reconciler,
+             comment,
+             rowCacheSize,
+             preloadRowCache,
+             keyCacheSize,
+             readRepairChance,
+             gcGraceSeconds,
+             defaultValidator,
+             minCompactionThreshold,
+             maxCompactionThreshold,
+             nextId(),
+             column_metadata);
     }
 
     /** clones an existing CFMetaData using the same id. */
     public static CFMetaData rename(CFMetaData cfm, String newName)
     {
-        return new CFMetaData(cfm.tableName, newName, cfm.cfType, cfm.clockType, cfm.comparator, cfm.subcolumnComparator, cfm.reconciler, cfm.comment, cfm.rowCacheSize, cfm.preloadRowCache, cfm.keyCacheSize, cfm.readRepairChance, cfm.gcGraceSeconds, cfm.defaultValidator, cfm.cfId, cfm.column_metadata);
+        return new CFMetaData(cfm.tableName,
+                              newName,
+                              cfm.cfType,
+                              cfm.clockType,
+                              cfm.comparator,
+                              cfm.subcolumnComparator,
+                              cfm.reconciler,
+                              cfm.comment,
+                              cfm.rowCacheSize,
+                              cfm.preloadRowCache,
+                              cfm.keyCacheSize,
+                              cfm.readRepairChance,
+                              cfm.gcGraceSeconds,
+                              cfm.defaultValidator,
+                              cfm.minCompactionThreshold,
+                              cfm.maxCompactionThreshold,
+                              cfm.cfId,
+                              cfm.column_metadata);
     }
     
     /** clones existing CFMetaData. keeps the id but changes the table name.*/
     public static CFMetaData renameTable(CFMetaData cfm, String tableName)
     {
-        return new CFMetaData(tableName, cfm.cfName, cfm.cfType, cfm.clockType, cfm.comparator, cfm.subcolumnComparator, cfm.reconciler, cfm.comment, cfm.rowCacheSize, cfm.preloadRowCache, cfm.keyCacheSize, cfm.readRepairChance, cfm.gcGraceSeconds, cfm.defaultValidator, cfm.cfId, cfm.column_metadata);
+        return new CFMetaData(tableName,
+                              cfm.cfName,
+                              cfm.cfType,
+                              cfm.clockType,
+                              cfm.comparator,
+                              cfm.subcolumnComparator,
+                              cfm.reconciler,
+                              cfm.comment,
+                              cfm.rowCacheSize,
+                              cfm.preloadRowCache,
+                              cfm.keyCacheSize,
+                              cfm.readRepairChance,
+                              cfm.gcGraceSeconds,
+                              cfm.defaultValidator,
+                              cfm.minCompactionThreshold,
+                              cfm.maxCompactionThreshold,
+                              cfm.cfId,
+                              cfm.column_metadata);
     }
     
     /** used for evicting cf data out of static tracking collections. */
@@ -209,6 +289,7 @@ public final class CFMetaData
     }
 
     // a quick and dirty pretty printer for describing the column family...
+    //TODO: Make it prettier, use it in the CLI
     public String pretty()
     {
         return tableName + "." + cfName + "\n"
@@ -236,6 +317,8 @@ public final class CFMetaData
         cf.read_repair_chance = readRepairChance;
         cf.gc_grace_seconds = gcGraceSeconds;
         cf.default_validation_class = new Utf8(defaultValidator.getClass().getName());
+        cf.min_compaction_threshold = minCompactionThreshold;
+        cf.max_compaction_threshold = maxCompactionThreshold;
         cf.column_metadata = SerDeUtils.createArray(column_metadata.size(),
                                                     org.apache.cassandra.config.avro.ColumnDef.SCHEMA$);
         for (ColumnDefinition cd : column_metadata.values())
@@ -269,7 +352,24 @@ public final class CFMetaData
             ColumnDefinition cd = ColumnDefinition.inflate(aColumn_metadata);
             column_metadata.put(cd.name, cd);
         }
-        return new CFMetaData(cf.keyspace.toString(), cf.name.toString(), ColumnFamilyType.create(cf.column_type.toString()), ClockType.create(cf.clock_type.toString()), comparator, subcolumnComparator, reconciler, cf.comment.toString(), cf.row_cache_size, cf.preload_row_cache, cf.key_cache_size, cf.read_repair_chance, cf.gc_grace_seconds, validator, cf.id, column_metadata);
+        return new CFMetaData(cf.keyspace.toString(),
+                              cf.name.toString(),
+                              ColumnFamilyType.create(cf.column_type.toString()),
+                              ClockType.create(cf.clock_type.toString()),
+                              comparator,
+                              subcolumnComparator,
+                              reconciler,
+                              cf.comment.toString(),
+                              cf.row_cache_size,
+                              cf.preload_row_cache,
+                              cf.key_cache_size,
+                              cf.read_repair_chance,
+                              cf.gc_grace_seconds,
+                              validator,
+                              cf.min_compaction_threshold,
+                              cf.max_compaction_threshold,
+                              cf.id,
+                              column_metadata);
     }
 
     public boolean equals(Object obj) 
@@ -297,6 +397,8 @@ public final class CFMetaData
             .append(keyCacheSize, rhs.keyCacheSize)
             .append(readRepairChance, rhs.readRepairChance)
             .append(gcGraceSeconds, rhs.gcGraceSeconds)
+            .append(minCompactionThreshold, rhs.minCompactionThreshold)
+            .append(maxCompactionThreshold, rhs.maxCompactionThreshold)
             .append(cfId.intValue(), rhs.cfId.intValue())
             .append(column_metadata, rhs.column_metadata)
             .isEquals();
@@ -317,6 +419,9 @@ public final class CFMetaData
             .append(keyCacheSize)
             .append(readRepairChance)
             .append(gcGraceSeconds)
+            .append(defaultValidator)
+            .append(minCompactionThreshold)
+            .append(maxCompactionThreshold)
             .append(cfId)
             .append(column_metadata)
             .toHashCode();
@@ -373,8 +478,10 @@ public final class CFMetaData
                               cf_def.key_cache_size, 
                               cf_def.read_repair_chance, 
                               cf_def.gc_grace_seconds, 
-                              DatabaseDescriptor.getComparator(cf_def.default_validation_class == null ? (String)null : cf_def.default_validation_class.toString()), 
-                              cfId, 
+                              DatabaseDescriptor.getComparator(cf_def.default_validation_class == null ? (String)null : cf_def.default_validation_class.toString()),
+                              cf_def.min_compaction_threshold,
+                              cf_def.max_compaction_threshold,
+                              cfId,
                               column_metadata);
     }
     
@@ -416,8 +523,10 @@ public final class CFMetaData
                               cf_def.key_cache_size, 
                               cf_def.read_repair_chance, 
                               cf_def.gc_grace_seconds, 
-                              DatabaseDescriptor.getComparator(cf_def.default_validation_class == null ? null : cf_def.default_validation_class), 
-                              cfId, 
+                              DatabaseDescriptor.getComparator(cf_def.default_validation_class == null ? null : cf_def.default_validation_class),
+                              cf_def.min_compaction_threshold,
+                              cf_def.max_compaction_threshold,
+                              cfId,
                               column_metadata);
     }
     
@@ -442,6 +551,8 @@ public final class CFMetaData
         def.setRead_repair_chance(cfm.readRepairChance);
         def.setGc_grace_seconds(cfm.gcGraceSeconds);
         def.setDefault_validation_class(cfm.defaultValidator.getClass().getName());
+        def.setMin_compaction_threshold(cfm.minCompactionThreshold);
+        def.setMax_compaction_threshold(cfm.maxCompactionThreshold);
         List<org.apache.cassandra.thrift.ColumnDef> column_meta = new ArrayList< org.apache.cassandra.thrift.ColumnDef>(cfm.column_metadata.size());
         for (ColumnDefinition cd : cfm.column_metadata.values())
         {
@@ -479,6 +590,8 @@ public final class CFMetaData
         def.read_repair_chance = cfm.readRepairChance;
         def.gc_grace_seconds = cfm.gcGraceSeconds;
         def.default_validation_class = cfm.defaultValidator.getClass().getName();
+        def.min_compaction_threshold = cfm.minCompactionThreshold;
+        def.max_compaction_threshold = cfm.maxCompactionThreshold;
         List<org.apache.cassandra.avro.ColumnDef> column_meta = new ArrayList<org.apache.cassandra.avro.ColumnDef>(cfm.column_metadata.size());
         for (ColumnDefinition cd : cfm.column_metadata.values())
         {

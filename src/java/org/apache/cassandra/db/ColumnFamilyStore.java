@@ -131,13 +131,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private LatencyTracker writeStats = new LatencyTracker();
 
     public final CFMetaData metadata;
-    
+
+    /* These are locally held copies to be changed from the config during runtime */
+    private int minCompactionThreshold;
+    private int maxCompactionThreshold;
+
     private ColumnFamilyStore(String table, String columnFamilyName, IPartitioner partitioner, int generation, CFMetaData metadata)
     {
         assert metadata != null : "null metadata for " + table + ":" + columnFamilyName;
         this.table = table;
         columnFamily = columnFamilyName; 
         this.metadata = metadata;
+        this.minCompactionThreshold = metadata.minCompactionThreshold;
+        this.maxCompactionThreshold = metadata.maxCompactionThreshold;
         this.partitioner = partitioner;
         fileIndexGenerator.set(generation);
         memtable = new Memtable(this, this.partitioner);
@@ -192,6 +198,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                           0,
                                                           CFMetaData.DEFAULT_GC_GRACE_SECONDS,
                                                           BytesType.instance,
+                                                          CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD,
+                                                          CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD,
                                                           Collections.<byte[], ColumnDefinition>emptyMap());
             ColumnFamilyStore indexedCfs = ColumnFamilyStore.createColumnFamilyStore(table, 
                                                                                      indexedCfName,
@@ -1602,5 +1610,31 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                "table='" + table + '\'' +
                ", columnFamily='" + columnFamily + '\'' +
                ')';
+    }
+
+    public int getMinimumCompactionThreshold()
+    {
+        return minCompactionThreshold;
+    }
+    
+    public void setMinimumCompactionThreshold(int minCompactionThreshold)
+    {
+        this.minCompactionThreshold = minCompactionThreshold;
+    }
+
+    public int getMaximumCompactionThreshold()
+    {
+        return maxCompactionThreshold;
+    }
+
+    public void setMaximumCompactionThreshold(int maxCompactionThreshold)
+    {
+        this.maxCompactionThreshold = maxCompactionThreshold;
+    }
+
+    public void disableAutoCompaction()
+    {
+        this.minCompactionThreshold = 0;
+        this.maxCompactionThreshold = 0;
     }
 }

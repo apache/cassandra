@@ -586,6 +586,8 @@ public class DatabaseDescriptor
                                              cf.read_repair_chance,
                                              cf.gc_grace_seconds,
                                              default_validator,
+                                             cf.min_compaction_threshold,
+                                             cf.max_compaction_threshold,
                                              metadata);
             }
             defs.add(new KSMetaData(keyspace.name,

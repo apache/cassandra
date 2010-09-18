@@ -45,5 +45,7 @@ public class RawColumnFamily
     public boolean preload_row_cache = CFMetaData.DEFAULT_PRELOAD_ROW_CACHE;
     public int gc_grace_seconds = CFMetaData.DEFAULT_GC_GRACE_SECONDS;
     public String default_validation_class;
+    public int min_compaction_threshold = CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD;
+    public int max_compaction_threshold = CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD;
     public RawColumnDefinition[] column_metadata = new RawColumnDefinition[0];
 }

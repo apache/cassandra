@@ -41,9 +41,6 @@ import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
 import org.apache.cassandra.concurrent.IExecutorMBean;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
-import org.apache.cassandra.db.CompactionManager;
-import org.apache.cassandra.db.CompactionManagerMBean;
-import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamingService;
@@ -67,7 +64,6 @@ public class NodeProbe
     private StorageServiceMBean ssProxy;
     private MemoryMXBean memProxy;
     private RuntimeMXBean runtimeProxy;
-    private CompactionManagerMBean mcmProxy;
     private StreamingServiceMBean streamProxy;
     
     /**
@@ -112,8 +108,6 @@ public class NodeProbe
         {
             ObjectName name = new ObjectName(ssObjName);
             ssProxy = JMX.newMBeanProxy(mbeanServerConn, name, StorageServiceMBean.class);
-            name = new ObjectName(CompactionManager.MBEAN_OBJECT_NAME);
-            mcmProxy = JMX.newMBeanProxy(mbeanServerConn, name, CompactionManagerMBean.class);
             name = new ObjectName(StreamingService.MBEAN_OBJECT_NAME);
             streamProxy = JMX.newMBeanProxy(mbeanServerConn, name, StreamingServiceMBean.class);
         } catch (MalformedObjectNameException e)
@@ -324,10 +318,12 @@ public class NodeProbe
      *
      * @param outs the stream to write to
      */
-    public void getCompactionThreshold(PrintStream outs)
+    public void getCompactionThreshold(PrintStream outs, String ks, String cf)
     {
-        outs.println("Current compaction threshold: Min=" +  mcmProxy.getMinimumCompactionThreshold() +
-            ", Max=" +  mcmProxy.getMaximumCompactionThreshold());
+        ColumnFamilyStoreMBean cfsProxy = getCfsProxy(ks, cf);
+        outs.println("Current compaction thresholds for " + ks + "/" + cf + ": \n" +
+                     " min = " + cfsProxy.getMinimumCompactionThreshold() + ", " +
+                     " max = " + cfsProxy.getMaximumCompactionThreshold());
     }
 
     /**
@@ -336,13 +332,11 @@ public class NodeProbe
      * @param minimumCompactionThreshold minimum compaction threshold
      * @param maximumCompactionThreshold maximum compaction threshold
      */
-    public void setCompactionThreshold(int minimumCompactionThreshold, int maximumCompactionThreshold)
+    public void setCompactionThreshold(String ks, String cf, int minimumCompactionThreshold, int maximumCompactionThreshold)
     {
-        mcmProxy.setMinimumCompactionThreshold(minimumCompactionThreshold);
-        if (maximumCompactionThreshold >= 0)
-        {
-             mcmProxy.setMaximumCompactionThreshold(maximumCompactionThreshold);
-        }
+        ColumnFamilyStoreMBean cfsProxy = getCfsProxy(ks, cf);
+        cfsProxy.setMinimumCompactionThreshold(minimumCompactionThreshold);
+        cfsProxy.setMaximumCompactionThreshold(maximumCompactionThreshold);
     }
 
     public void setCacheCapacities(String tableName, String cfName, int keyCacheCapacity, int rowCacheCapacity)
@@ -424,6 +418,20 @@ public class NodeProbe
     public String exportSchemaToYAML() throws IOException
     {
         return ssProxy.exportSchema();
+    }
+    
+    private ColumnFamilyStoreMBean getCfsProxy(String ks, String cf) {
+        ColumnFamilyStoreMBean cfsProxy = null;
+        try {
+            cfsProxy = JMX.newMBeanProxy(mbeanServerConn,
+                    new ObjectName("org.apache.cassandra.db:type=ColumnFamilies,keyspace="+ks+",columnfamily="+cf), 
+                    ColumnFamilyStoreMBean.class);
+        }
+        catch (MalformedObjectNameException mone) {
+            System.err.println("ColumnFamilyStore for " + ks + "/" + cf + " not found.");
+            System.exit(1);
+        }
+        return cfsProxy;
     }
 }
 

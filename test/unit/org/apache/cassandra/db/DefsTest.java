@@ -85,7 +85,7 @@ public class DefsTest extends CleanupHelper
     @Test
     public void addNewCfToBogusTable() throws InterruptedException
     {
-        CFMetaData newCf = new CFMetaData("MadeUpKeyspace", "NewCF", ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, TimestampReconciler.instance, "new cf", 0, false, 1.0, 0, 864000, BytesType.instance, Collections.<byte[], ColumnDefinition>emptyMap());
+        CFMetaData newCf = addTestCF("MadeUpKeyspace", "NewCF", "new cf");
         try
         {
             new AddColumnFamily(newCf).apply();
@@ -110,7 +110,8 @@ public class DefsTest extends CleanupHelper
         assert DatabaseDescriptor.getDefsVersion().equals(prior);
 
         // add a cf.
-        CFMetaData newCf1 = new CFMetaData("Keyspace1", "MigrationCf_1", ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, TimestampReconciler.instance, "Migration CF ", 0, false, 1.0, 0, 864000, BytesType.instance, Collections.<byte[], ColumnDefinition>emptyMap());
+        CFMetaData newCf1 = addTestCF("Keyspace1", "MigrationCf_1", "Migration CF");
+
         Migration m1 = new AddColumnFamily(newCf1);
         m1.apply();
         UUID ver1 = m1.getVersion();
@@ -160,7 +161,8 @@ public class DefsTest extends CleanupHelper
         final String cf = "BrandNewCf";
         KSMetaData original = DatabaseDescriptor.getTableDefinition(ks);
 
-        CFMetaData newCf = new CFMetaData(original.name, cf, ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, TimestampReconciler.instance, "A New Column Family", 0, false, 1.0, 0, 864000, BytesType.instance, Collections.<byte[], ColumnDefinition>emptyMap());
+        CFMetaData newCf = addTestCF(original.name, cf, "A New Column Family");
+
         assert !DatabaseDescriptor.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
         new AddColumnFamily(newCf).apply();
 
@@ -279,7 +281,8 @@ public class DefsTest extends CleanupHelper
     public void addNewKS() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
         DecoratedKey dk = Util.dk("key0");
-        CFMetaData newCf = new CFMetaData("NewKeyspace1", "AddedStandard1", ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, TimestampReconciler.instance, "A new cf for a new ks", 0, false, 1.0, 0, 864000, BytesType.instance, Collections.<byte[], ColumnDefinition>emptyMap());
+        CFMetaData newCf = addTestCF("NewKeyspace1", "AddedStandard1", "A new cf for a new ks");
+
         KSMetaData newKs = new KSMetaData(newCf.tableName, SimpleStrategy.class, null, 5, newCf);
         
         new AddKeyspace(newKs).apply();
@@ -436,7 +439,7 @@ public class DefsTest extends CleanupHelper
         new AddKeyspace(newKs).apply();
         assert DatabaseDescriptor.getTableDefinition("EmptyKeyspace") != null;
 
-        CFMetaData newCf = new CFMetaData("EmptyKeyspace", "AddedLater", ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, TimestampReconciler.instance, "A new CF to add to an empty KS", 0, false, 1.0, 0, 864000, BytesType.instance, Collections.<byte[], ColumnDefinition>emptyMap());
+        CFMetaData newCf = addTestCF("EmptyKeyspace", "AddedLater", "A new CF to add to an empty KS");
 
         //should not exist until apply
         assert !DatabaseDescriptor.getTableDefinition(newKs.name).cfMetaData().containsKey(newCf.cfName);
@@ -466,7 +469,7 @@ public class DefsTest extends CleanupHelper
     public void testUpdateKeyspace() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
         // create a keyspace to serve as existing.
-        CFMetaData cf = new CFMetaData("UpdatedKeyspace", "AddedStandard1", ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, TimestampReconciler.instance, "A new cf for a new ks", 0, false, 1.0, 0, 864000, BytesType.instance, Collections.<byte[], ColumnDefinition>emptyMap());
+        CFMetaData cf = addTestCF("UpdatedKeyspace", "AddedStandard1", "A new cf for a new ks");
         KSMetaData oldKs = new KSMetaData(cf.tableName, SimpleStrategy.class, null, 5, cf);
         
         new AddKeyspace(oldKs).apply();
@@ -475,7 +478,7 @@ public class DefsTest extends CleanupHelper
         assert DatabaseDescriptor.getTableDefinition(cf.tableName) == oldKs;
         
         // anything with cf defs should fail.
-        CFMetaData cf2 = new CFMetaData(cf.tableName, "AddedStandard2", ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, TimestampReconciler.instance, "A new cf for a new ks", 0, false, 1.0, 0, 864000, BytesType.instance, Collections.<byte[], ColumnDefinition>emptyMap());
+        CFMetaData cf2 = addTestCF(cf.tableName, "AddedStandard2", "A new cf for a new ks");
         KSMetaData newBadKs = new KSMetaData(cf.tableName, SimpleStrategy.class, null, 4, cf2);
         try
         {
@@ -508,12 +511,12 @@ public class DefsTest extends CleanupHelper
         assert newFetchedKs.strategyClass.equals(newKs.strategyClass);
         assert !newFetchedKs.strategyClass.equals(oldKs.strategyClass);
     }
-    
+
     @Test
     public void testUpdateColumnFamilyNoIndexes() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
         // create a keyspace with a cf to update.
-        CFMetaData cf = new CFMetaData("UpdatedCfKs", "Standard1added", ColumnFamilyType.Standard, ClockType.Timestamp, UTF8Type.instance, null, TimestampReconciler.instance, "A new cf that will be updated", 0, false, 1.0, 0, 864000, BytesType.instance, Collections.<byte[], ColumnDefinition>emptyMap());
+        CFMetaData cf = addTestCF("UpdatedCfKs", "Standard1added", "A new cf that will be updated");
         KSMetaData ksm = new KSMetaData(cf.tableName, SimpleStrategy.class, null, 1, cf);
         new AddKeyspace(ksm).apply();
         
@@ -646,4 +649,26 @@ public class DefsTest extends CleanupHelper
             cf_def.setComparator_type(UTF8Type.class.getSimpleName());
         }
     }
+
+    private CFMetaData addTestCF(String ks, String cf, String comment)
+    {
+        return new CFMetaData(ks,
+                              cf,
+                              ColumnFamilyType.Standard,
+                              ClockType.Timestamp,
+                              UTF8Type.instance,
+                              null,
+                              TimestampReconciler.instance,
+                              comment,
+                              0,
+                              false,
+                              1.0,
+                              0,
+                              864000,
+                              BytesType.instance,
+                              4,
+                              32,
+                              Collections.<byte[], ColumnDefinition>emptyMap());
+    }
+
 }

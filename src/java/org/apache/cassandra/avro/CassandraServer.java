@@ -866,6 +866,8 @@ public class CassandraServer implements Cassandra {
                               cf_def.read_repair_chance == null ? CFMetaData.DEFAULT_READ_REPAIR_CHANCE : cf_def.read_repair_chance,
                               cf_def.gc_grace_seconds != null ? cf_def.gc_grace_seconds : CFMetaData.DEFAULT_GC_GRACE_SECONDS,
                               DatabaseDescriptor.getComparator(validate),
+                              cf_def.min_compaction_threshold == null ? CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD : cf_def.min_compaction_threshold,
+                              cf_def.max_compaction_threshold == null ? CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD : cf_def.max_compaction_threshold,
                               ColumnDefinition.fromColumnDefs((Iterable<ColumnDef>) cf_def.column_metadata));
     }
 

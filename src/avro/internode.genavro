@@ -57,6 +57,8 @@ protocol InterNode {
         union { double, null } read_repair_chance;
         union { int, null } gc_grace_seconds;
         union { null, string } default_validation_class = null;
+        union { null, int } min_compaction_threshold = null;
+        union { null, int } max_compaction_threshold = null;
         union { int, null } id;
         union { array<ColumnDef>, null } column_metadata;
     }

@@ -38,6 +38,7 @@ import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
 import org.apache.cassandra.concurrent.IExecutorMBean;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.dht.Token;
@@ -77,8 +78,8 @@ public class NodeCmd {
         String header = String.format(
                 "%nAvailable commands: ring, info, version, cleanup, compact, cfstats, snapshot [snapshotname], clearsnapshot, " +
                 "tpstats, flush, drain, repair, decommission, move, loadbalance, removetoken, " +
-                "setcachecapacity <keyspace> <cfname> <keycachecapacity> <rowcachecapacity>, " +
-                "getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold]), " +
+                "setcachecapacity [keyspace] [cfname] [keycachecapacity] [rowcachecapacity], " +
+                "getcompactionthreshold [keyspace] [cfname], setcompactionthreshold [cfname] [minthreshold] [maxthreshold], " +
                 "streams [host]");
         String usage = String.format("java %s --host <arg> <command>%n", NodeCmd.class.getName());
         hf.printHelp(usage, "", options, header);
@@ -511,9 +512,9 @@ public class NodeCmd {
         }
         else if (cmdName.equals("setcachecapacity"))
         {
-            if (cmd.getArgs().length != 5)
+            if (cmd.getArgs().length != 5) // ks cf keycachecap rowcachecap
             {
-                System.err.println("cacheinfo requires keyspace and column family name arguments, followed by key cache capacity and row cache capacity, in rows");
+                System.err.println("cacheinfo requires: Keyspace name, ColumnFamily name, key cache capacity (in keys), and row cache capacity (in rows)");
             }
             String tableName = cmd.getArgs()[1];
             String cfName = cmd.getArgs()[2];
@@ -523,21 +524,33 @@ public class NodeCmd {
         }
         else if (cmdName.equals("getcompactionthreshold"))
         {
-            probe.getCompactionThreshold(System.out);
-        }
-        else if (cmdName.equals("setcompactionthreshold"))
-        {
-            if (arguments.length < 2)
+            if (arguments.length < 3) // ks cf
             {
-                System.err.println("Missing threshold value(s)");
+                System.err.println("Missing keyspace/cfname");
                 printUsage();
                 System.exit(1);
             }
-            int minthreshold = Integer.parseInt(arguments[1]);
-            int maxthreshold = CompactionManager.instance.getMaximumCompactionThreshold();
-            if (arguments.length > 2)
+            probe.getCompactionThreshold(System.out, cmd.getArgs()[1], cmd.getArgs()[2]);
+        }
+        else if (cmdName.equals("setcompactionthreshold"))
+        {
+            if (cmd.getArgs().length != 5) // ks cf min max
             {
-                maxthreshold = Integer.parseInt(arguments[2]);
+                System.err.println("setcompactionthreshold requires: Keyspace name, ColumnFamily name, " +
+                                   "min threshold, and max threshold.");
+                printUsage();
+                System.exit(1);
+            }
+            String ks = cmd.getArgs()[1];
+            String cf = cmd.getArgs()[2];
+            int minthreshold = Integer.parseInt(arguments[3]);
+            int maxthreshold = Integer.parseInt(arguments[4]);
+
+            if ((minthreshold < 0) || (maxthreshold < 0))
+            {
+                System.err.println("Thresholds must be positive integers.");
+                printUsage();
+                System.exit(1);
             }
 
             if (minthreshold > maxthreshold)
@@ -553,10 +566,11 @@ public class NodeCmd {
                 printUsage();
                 System.exit(1);
             }
-            probe.setCompactionThreshold(minthreshold, maxthreshold);
+            probe.setCompactionThreshold(ks, cf, minthreshold, maxthreshold);
         }
         else if (cmdName.equals("streams"))
         {
+            // optional host
             String otherHost = arguments.length > 1 ? arguments[1] : null;
             nodeCmd.printStreamInfo(otherHost == null ? null : InetAddress.getByName(otherHost), System.out);
         }

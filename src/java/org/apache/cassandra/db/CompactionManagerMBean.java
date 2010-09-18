@@ -20,25 +20,6 @@ package org.apache.cassandra.db;
 
 public interface CompactionManagerMBean
 {    
-    /**
-     * Gets the minimum number of sstables in queue before compaction kicks off
-     */
-    public int getMinimumCompactionThreshold();
-
-    /**
-     * Sets the minimum number of sstables in queue before compaction kicks off
-     */
-    public void setMinimumCompactionThreshold(int threshold);
-
-    /**
-     * Gets the maximum number of sstables in queue before compaction kicks off
-     */
-    public int getMaximumCompactionThreshold();
-
-    /**
-     * Sets the maximum number of sstables in queue before compaction kicks off
-     */
-    public void setMaximumCompactionThreshold(int threshold);
 
     /**
      * @return the columnfamily currently being compacted; null if none

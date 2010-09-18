@@ -952,6 +952,8 @@ public class CassandraServer implements Cassandra.Iface
                               cf_def.read_repair_chance,
                               cf_def.isSetGc_grace_seconds() ? cf_def.gc_grace_seconds : CFMetaData.DEFAULT_GC_GRACE_SECONDS,
                               DatabaseDescriptor.getComparator(cf_def.default_validation_class),
+                              cf_def.min_compaction_threshold,
+                              cf_def.max_compaction_threshold,
                               ColumnDefinition.fromColumnDef(cf_def.column_metadata));
     }
 
