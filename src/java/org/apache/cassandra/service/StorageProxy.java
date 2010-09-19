@@ -362,18 +362,15 @@ public class StorageProxy implements StorageProxyMBean
             }
             catch (DigestMismatchException ex)
             {
-                if (randomlyReadRepair(command))
-                {
-                    AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(command.table);
-                    QuorumResponseHandler<Row> qrhRepair = rs.getQuorumResponseHandler(new ReadResponseResolver(command.table), ConsistencyLevel.QUORUM);
-                    if (logger.isDebugEnabled())
-                        logger.debug("Digest mismatch:", ex);
-                    Message messageRepair = command.makeReadMessage();
-                    MessagingService.instance.sendRR(messageRepair, commandEndpoints.get(i), qrhRepair);
-                    if (repairResponseHandlers == null)
-                        repairResponseHandlers = new ArrayList<QuorumResponseHandler<Row>>();
-                    repairResponseHandlers.add(qrhRepair);
-                }
+                AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(command.table);
+                QuorumResponseHandler<Row> qrhRepair = rs.getQuorumResponseHandler(new ReadResponseResolver(command.table), ConsistencyLevel.QUORUM);
+                if (logger.isDebugEnabled())
+                    logger.debug("Digest mismatch:", ex);
+                Message messageRepair = command.makeReadMessage();
+                MessagingService.instance.sendRR(messageRepair, commandEndpoints.get(i), qrhRepair);
+                if (repairResponseHandlers == null)
+                    repairResponseHandlers = new ArrayList<QuorumResponseHandler<Row>>();
+                repairResponseHandlers.add(qrhRepair);
             }
         }
 
