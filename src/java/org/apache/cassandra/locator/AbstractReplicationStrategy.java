@@ -40,6 +40,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.hadoop.util.StringUtils;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
@@ -76,7 +77,6 @@ public abstract class AbstractReplicationStrategy
      */
     public ArrayList<InetAddress> getNaturalEndpoints(Token searchToken) throws IllegalStateException
     {
-        int replicas = getReplicationFactor();
         Token keyToken = TokenMetadata.firstToken(tokenMetadata.sortedTokens(), searchToken);
         ArrayList<InetAddress> endpoints = snitch.getCachedEndpoints(keyToken);
         if (endpoints == null)
@@ -85,10 +85,11 @@ public abstract class AbstractReplicationStrategy
             keyToken = TokenMetadata.firstToken(tokenMetadataClone.sortedTokens(), searchToken);
             endpoints = new ArrayList<InetAddress>(calculateNaturalEndpoints(searchToken, tokenMetadataClone));
             snitch.cacheEndpoint(keyToken, endpoints);
+            // calculateNaturalEndpoints should have checked this already, this is a safety
+            assert getReplicationFactor() <= endpoints.size() : String.format("endpoints %s generated for RF of %s",
+                                                                              Arrays.toString(endpoints.toArray()),
+                                                                              getReplicationFactor());
         }
-
-        // calculateNaturalEndpoints should have checked this already, this is a safety
-        assert replicas <= endpoints.size();
 
         return new ArrayList<InetAddress>(endpoints);
     }
