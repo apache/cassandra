@@ -35,9 +35,10 @@ import static org.apache.cassandra.db.TableTest.assertColumns;
 public class CompactionsPurgeTest extends CleanupHelper
 {
     public static final String TABLE1 = "Keyspace1";
+    public static final String TABLE2 = "Keyspace2";
 
     @Test
-    public void testCompactionPurge() throws IOException, ExecutionException, InterruptedException
+    public void testMajorCompactionPurge() throws IOException, ExecutionException, InterruptedException
     {
         CompactionManager.instance.disableAutoCompaction();
 
@@ -72,22 +73,68 @@ public class CompactionsPurgeTest extends CleanupHelper
         rm.apply();
         cfs.forceBlockingFlush();
 
-        // verify that non-major compaction does no GC to ensure correctness (see CASSANDRA-604)
-        Collection<SSTableReader> sstablesIncomplete = cfs.getSSTables();
-        rm = new RowMutation(TABLE1, key + "x");
-        rm.add(new QueryPath(cfName, null, "0".getBytes()), new byte[0], 0);
-        rm.apply();
-        cfs.forceBlockingFlush();
-        CompactionManager.instance.doCompaction(cfs, sstablesIncomplete, CompactionManager.getDefaultGCBefore());
-        ColumnFamily cf = cfs.getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfName)));
-        assert cf.getColumnCount() == 10;
-
         // major compact and test that all columns but the resurrected one is completely gone
         CompactionManager.instance.submitMajor(cfs, 0, Integer.MAX_VALUE).get();
         cfs.invalidateCachedRow(key);
-        cf = cfs.getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfName)));
+        ColumnFamily cf = cfs.getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfName)));
         assertColumns(cf, "5");
         assert cf.getColumn(String.valueOf(5).getBytes()) != null;
+    }
+
+    @Test
+    public void testMinorCompactionPurge() throws IOException, ExecutionException, InterruptedException
+    {
+        CompactionManager.instance.disableAutoCompaction();
+
+        Table table = Table.open(TABLE2);
+        String cfName = "Standard1";
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+
+        RowMutation rm;
+        for (int k = 1; k <= 2; ++k) {
+            String key = "key" + k;
+
+            // inserts
+            rm = new RowMutation(TABLE2, key);
+            for (int i = 0; i < 10; i++)
+            {
+                rm.add(new QueryPath(cfName, null, String.valueOf(i).getBytes()), new byte[0], 0);
+            }
+            rm.apply();
+            cfs.forceBlockingFlush();
+
+            // deletes
+            for (int i = 0; i < 10; i++)
+            {
+                rm = new RowMutation(TABLE2, key);
+                rm.delete(new QueryPath(cfName, null, String.valueOf(i).getBytes()), 1);
+                rm.apply();
+            }
+            cfs.forceBlockingFlush();
+        }
+
+        String key1 = "key1";
+        String key2 = "key2";
+
+        // flush, remember the current sstable and then resurrect one column
+        // for first key. Then submit minor compaction on remembered sstables.
+        cfs.forceBlockingFlush();
+        Collection<SSTableReader> sstablesIncomplete = cfs.getSSTables();
+        rm = new RowMutation(TABLE2, key1);
+        rm.add(new QueryPath(cfName, null, String.valueOf(5).getBytes()), new byte[0], 2);
+        rm.apply();
+        cfs.forceBlockingFlush();
+        CompactionManager.instance.doCompaction(cfs, sstablesIncomplete, Integer.MAX_VALUE);
+
+        // verify that minor compaction does not GC when key is present
+        // in a non-compacted sstable
+        ColumnFamily cf = cfs.getColumnFamily(new IdentityQueryFilter(key1, new QueryPath(cfName)));
+        assert cf.getColumnCount() == 10;
+
+        // verify that minor compaction does GC when key is provably not
+        // present in a non-compacted sstable
+        cf = cfs.getColumnFamily(new IdentityQueryFilter(key2, new QueryPath(cfName)));
+        assert cf == null;
     }
 
     @Test

@@ -22,6 +22,8 @@
    newly added nodes (CASSANDRA-1467)
  * use JNA, if present, to take snapshots (CASSANDRA-1371)
  * make IndexInterval configurable (CASSANDRA-1488)
+ * remove tombstones during non-major compactions when bloom filter
+   verifies that row does not exist in other sstables (CASSANDRA-1074)
 
 
 0.6.5

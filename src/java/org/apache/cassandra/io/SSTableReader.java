@@ -497,6 +497,11 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         bf = BloomFilter.alwaysMatchingBloomFilter();
     }
 
+    public BloomFilter getBloomFilter()
+    {
+      return bf;
+    }
+
     public IPartitioner getPartitioner()
     {
         return partitioner;

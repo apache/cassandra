@@ -26,6 +26,8 @@ import java.io.IOException;
 import java.io.IOError;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.Iterator;
 
 import org.apache.log4j.Logger;
@@ -45,6 +47,7 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
     protected static final int FILE_BUFFER_SIZE = 1024 * 1024;
 
     private final List<IteratingRow> rows = new ArrayList<IteratingRow>();
+    private final ColumnFamilyStore cfs;
     private final int gcBefore;
     private final boolean major;
 
@@ -52,13 +55,13 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
     private long bytesRead;
     private long row;
 
-    public CompactionIterator(Iterable<SSTableReader> sstables, int gcBefore, boolean major) throws IOException
+    public CompactionIterator(ColumnFamilyStore cfs, Iterable<SSTableReader> sstables, int gcBefore, boolean major) throws IOException
     {
-        this(getCollatingIterator(sstables), gcBefore, major);
+        this(cfs, getCollatingIterator(sstables), gcBefore, major);
     }
 
     @SuppressWarnings("unchecked")
-    protected CompactionIterator(Iterator iter, int gcBefore, boolean major)
+    protected CompactionIterator(ColumnFamilyStore cfs, Iterator iter, int gcBefore, boolean major)
     {
         super(iter);
         row = 0;
@@ -67,6 +70,7 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
         {
             totalBytes += scanner.getFileLength();
         }
+        this.cfs = cfs;
         this.gcBefore = gcBefore;
         this.major = major;
     }
@@ -99,9 +103,14 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
         DataOutputBuffer buffer = new DataOutputBuffer();
         DecoratedKey key = rows.get(0).getKey();
 
+        Set<SSTable> sstables = new HashSet<SSTable>();
+        for (IteratingRow row : rows)
+            sstables.add(row.sstable);
+        boolean shouldPurge = major || !cfs.isKeyInRemainingSSTables(key, sstables);
+
         try
         {
-            if (rows.size() > 1 || major)
+            if (rows.size() > 1 || shouldPurge)
             {
                 ColumnFamily cf = null;
                 for (IteratingRow row : rows)
@@ -125,7 +134,7 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
                         cf.addAll(thisCF);
                     }
                 }
-                ColumnFamily cfPurged = major ? ColumnFamilyStore.removeDeleted(cf, gcBefore) : cf;
+                ColumnFamily cfPurged = shouldPurge ? ColumnFamilyStore.removeDeleted(cf, gcBefore) : cf;
                 if (cfPurged == null)
                     return null;
                 ColumnFamily.serializer().serializeWithIndexes(cfPurged, buffer);

@@ -37,7 +37,7 @@ public class IteratingRow extends AbstractIterator<IColumn> implements Comparabl
     private final DecoratedKey key;
     private final long finishedAt;
     private final BufferedRandomAccessFile file;
-    private SSTableReader sstable;
+    public final SSTableReader sstable;
     private long dataStart;
 
     public IteratingRow(BufferedRandomAccessFile file, SSTableReader sstable) throws IOException
