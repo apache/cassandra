@@ -331,22 +331,27 @@ class MultiGetter(Operation):
                 self.opcounts[self.idx] += 1
                 self.keycounts[self.idx] += len(keys)
         else:
-            parent = ColumnParent('Standard1')
-            keys = [key_generator() for i in xrange(keys_per_thread)]
-            start = time.time()
-            try:
-                r = self.cclient.multiget_slice(keys, parent, p, consistency)
-                if not r: raise RuntimeError("Keys %s not found" % keys)
-            except KeyboardInterrupt:
-                raise
-            except Exception, e:
-                if options.ignore:
-                    print e
-                else:
+            parent = ColumnParent('Standard1')            
+            for zslab in xrange(n_threads):
+                kpt = (keys_per_thread/n_threads)
+                keys = [key_generator() for i in xrange(kpt*zslab,kpt*(zslab+1))]
+
+
+                start = time.time()
+                try:
+                    r = self.cclient.multiget_slice(keys, parent, p, consistency)
+                    if not r: raise RuntimeError("Keys %s not found" % keys)
+                except KeyboardInterrupt:
                     raise
-            self.latencies[self.idx] += time.time() - start
-            self.opcounts[self.idx] += 1
-            self.keycounts[self.idx] += len(keys)
+                except Exception, e:
+                    if options.ignore:
+                        print e
+                    else:
+                        raise
+                    
+                self.latencies[self.idx] += time.time() - start
+                self.opcounts[self.idx] += 1
+                self.keycounts[self.idx] += len(keys)
 
 
 class OperationFactory:
