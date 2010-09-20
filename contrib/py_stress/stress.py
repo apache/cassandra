@@ -90,9 +90,9 @@ parser.add_option('-k', '--keep-going', action="store_true", dest="ignore",
                   help="ignore errors inserting or reading")
 parser.add_option('-i', '--progress-interval', type="int", default=10,
                   dest="interval", help="progress report interval (seconds)")
-parser.add_option('-g', '--get-range-slice-count', type="int", default=1000,
+parser.add_option('-g', '--keys-per-call', type="int", default=1000,
                   dest="rangecount",
-                  help="amount of keys to get_range_slices per call")
+                  help="amount of keys to get_range_slices or multiget per call")
 parser.add_option('-l', '--replication-factor', type="int", default=1,
                   dest="replication",
                   help="replication factor to use when creating needed column families")
@@ -312,31 +312,32 @@ class RangeSlicer(Operation):
 class MultiGetter(Operation):
     def run(self):
         p = SlicePredicate(slice_range=SliceRange('', '', False, columns_per_key))
+        offset = self.idx * keys_per_thread
+        count = (((self.idx+1) * keys_per_thread) - offset) / options.rangecount
         if 'super' == options.cftype:
-            keys = [key_generator() for i in xrange(keys_per_thread)]
-            for j in xrange(supers_per_key):
-                parent = ColumnParent('Super1', 'S' + str(j))
-                start = time.time()
-                try:
-                    r = self.cclient.multiget_slice(keys, parent, p, consistency)
-                    if not r: raise RuntimeError("Keys %s not found" % keys)
-                except KeyboardInterrupt:
-                    raise
-                except Exception, e:
-                    if options.ignore:
-                        print e
-                    else:
+            for x in xrange(count):
+                keys = [key_generator() for i in xrange(offset, offset + options.rangecount)]
+                for j in xrange(supers_per_key):
+                    parent = ColumnParent('Super1', 'S' + str(j))
+                    start = time.time()
+                    try:
+                        r = self.cclient.multiget_slice(keys, parent, p, consistency)
+                        if not r: raise RuntimeError("Keys %s not found" % keys)
+                    except KeyboardInterrupt:
                         raise
-                self.latencies[self.idx] += time.time() - start
-                self.opcounts[self.idx] += 1
-                self.keycounts[self.idx] += len(keys)
+                    except Exception, e:
+                        if options.ignore:
+                            print e
+                        else:
+                            raise
+                    self.latencies[self.idx] += time.time() - start
+                    self.opcounts[self.idx] += 1
+                    self.keycounts[self.idx] += len(keys)
+                    offset += options.rangecount
         else:
-            parent = ColumnParent('Standard1')            
-            for zslab in xrange(n_threads):
-                kpt = (keys_per_thread/n_threads)
-                keys = [key_generator() for i in xrange(kpt*zslab,kpt*(zslab+1))]
-
-
+            parent = ColumnParent('Standard1')
+            for x in xrange(count):
+                keys = [key_generator() for i in xrange(offset, offset + options.rangecount)]
                 start = time.time()
                 try:
                     r = self.cclient.multiget_slice(keys, parent, p, consistency)
@@ -348,10 +349,10 @@ class MultiGetter(Operation):
                         print e
                     else:
                         raise
-                    
                 self.latencies[self.idx] += time.time() - start
                 self.opcounts[self.idx] += 1
                 self.keycounts[self.idx] += len(keys)
+                offset += options.rangecount
 
 
 class OperationFactory:
