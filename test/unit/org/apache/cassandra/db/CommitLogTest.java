@@ -34,42 +34,6 @@ import org.apache.cassandra.utils.Pair;
 public class CommitLogTest extends CleanupHelper
 {
     @Test
-    public void testCleanup() throws Exception
-    {
-        int segmentCount = CommitLog.instance().getSegmentCount();
-        assert segmentCount == 1 : segmentCount + " != 1";
-
-        //must me large enough to hold persistent_stats
-        CommitLog.setSegmentSize(10000);
-
-        Table table = Table.open("Keyspace1");
-        ColumnFamilyStore store1 = table.getColumnFamilyStore("Standard1");
-        ColumnFamilyStore store2 = table.getColumnFamilyStore("Standard2");
-        RowMutation rm;
-        byte[] value = new byte[5001];
-
-        // add data, one each of Standard1/Standard2 per segment
-        for (int i = 0; i < 10; i++)
-        {
-            rm = new RowMutation("Keyspace1", "key1".getBytes());
-            rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), value, new TimestampClock(0));
-            rm.add(new QueryPath("Standard2", null, "Column1".getBytes()), value, new TimestampClock(0));
-            rm.apply();
-        }
-        assert CommitLog.instance().getSegmentCount() > 1;
-
-        // nothing should get removed after flushing just Standard1
-        store1.forceBlockingFlush();
-        segmentCount = CommitLog.instance().getSegmentCount();
-        assert segmentCount > 1 : segmentCount + " !> 1";
-
-        // after flushing Standard2 we should be able to clean out all segments
-        store2.forceBlockingFlush();
-        segmentCount = CommitLog.instance().getSegmentCount();
-        assert segmentCount == 1 : segmentCount + " != 1";
-    }
-
-    @Test
     public void testRecoveryWithEmptyHeader() throws Exception
     {
         testRecovery(new byte[0], new byte[10]);

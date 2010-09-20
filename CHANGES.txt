@@ -79,6 +79,7 @@
  * make contrib CassandraServiceDataCleaner recursive (CASSANDRA-1509)
  * min, max compaction threshold are configurable and persistent 
    per-ColumnFamily (CASSANDRA-1468)
+ * fix replaying the last mutation in a commitlog unnecessarily (CASSANDRA-1512)
 
 
 0.7-beta1

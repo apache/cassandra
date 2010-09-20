@@ -450,7 +450,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     {
                         // if we're not writing to the commit log, we are replaying the log, so marking
                         // the log header with "you can discard anything written before the context" is not valid
-                        logger.debug("Discarding {}", metadata.cfId);
                         CommitLog.instance().discardCompletedSegments(metadata.cfId, ctx);
                     }
                 }

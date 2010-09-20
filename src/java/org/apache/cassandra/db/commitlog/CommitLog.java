@@ -302,7 +302,7 @@ public class CommitLog
                                     // null means the cf has been dropped
                                     continue;
 
-                                if (finalHeader == null || (finalHeader.isDirty(columnFamily.id()) && entryLocation >= finalHeader.getPosition(columnFamily.id())))
+                                if (finalHeader == null || (finalHeader.isDirty(columnFamily.id()) && entryLocation > finalHeader.getPosition(columnFamily.id())))
                                     newRm.add(columnFamily);
                             }
                             if (!newRm.isEmpty())
@@ -338,7 +338,6 @@ public class CommitLog
         for (Table table : tablesRecovered)
             futures.addAll(table.flush());
         FBUtilities.waitOnFutures(futures);
-        logger.info("Recovery complete");
     }
 
     private CommitLogSegment currentSegment()

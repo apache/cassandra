@@ -25,6 +25,9 @@ import java.io.IOException;
 
 import org.junit.Test;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import static org.apache.cassandra.Util.column;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
@@ -32,25 +35,32 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 
 public class RecoveryManager2Test extends CleanupHelper
 {
+    private static Logger logger = LoggerFactory.getLogger(RecoveryManager2Test.class);
+
     @Test
     /* test that commit logs do not replay flushed data */
     public void testWithFlush() throws Exception
     {
         CompactionManager.instance.disableAutoCompaction();
 
+        // add a row to another CF so we test skipping mutations within a not-entirely-flushed CF
+        insertRow("Standard2", "key");
+
         for (int i = 0; i < 100; i++)
         {
             String key = "key" + i;
-            insertRow(key);
+            insertRow("Standard1", key);
         }
 
         Table table1 = Table.open("Keyspace1");
         ColumnFamilyStore cfs = table1.getColumnFamilyStore("Standard1");
+        logger.debug("forcing flush");
         cfs.forceBlockingFlush();
 
-        // remove all SSTable/MemTables
+        // remove Standard1 SSTable/MemTables
         cfs.clearUnsafe();
 
+        logger.debug("begin manual replay");
         // replay the commit log (nothing should be replayed since everything was flushed)
         CommitLog.recover();
 
@@ -59,10 +69,10 @@ public class RecoveryManager2Test extends CleanupHelper
         assert Util.getRangeSlice(cfs).isEmpty();
     }
 
-    private void insertRow(String key) throws IOException
+    private void insertRow(String cfname, String key) throws IOException
     {
         RowMutation rm = new RowMutation("Keyspace1", key.getBytes());
-        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
+        ColumnFamily cf = ColumnFamily.create("Keyspace1", cfname);
         cf.addColumn(column("col1", "val1", new TimestampClock(1L)));
         rm.add(cf);
         rm.apply();
