@@ -83,6 +83,19 @@ public class FileUtils
         }
     }
 
+    public static void createFile(String directory) throws IOException
+    {
+        File file = new File(directory);
+        if ( !file.exists() )
+            file.createNewFile();
+    }
+
+    public static boolean isExists(String filename) throws IOException
+    {
+        File file = new File(filename);
+        return file.exists();
+    }
+
     public static boolean delete(String file)
     {
         File f = new File(file);
@@ -104,6 +117,14 @@ public class FileUtils
             }
         }
         return bVal;
+    }
+
+    public static void delete(File[] files) throws IOException
+    {
+        for ( File file : files )
+        {
+            file.delete();
+        }
     }
 
     public static String stringifyFileSize(double value)
@@ -138,6 +159,29 @@ public class FileUtils
             String val = df_.format(value);
             return val + " bytes";
         }        
+    }
+    
+    /**
+     * calculate the total space used by a file or directory
+     * 
+     * @param path the path
+     * @return total space used.
+     */
+    public static long getUsedDiskSpaceForPath(String path)
+    {
+        File file = new File(path);
+        
+        if (file.isFile()) 
+        {
+            return file.length();
+        }
+        
+        long diskSpace = 0;
+        for (File childFile: file.listFiles())
+        {
+            diskSpace += getUsedDiskSpaceForPath(childFile.getPath());
+        }
+        return diskSpace;
     }
 
     /**
