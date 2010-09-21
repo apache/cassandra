@@ -67,12 +67,12 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         datacenters = Collections.unmodifiableMap(newDatacenters);
     }
 
-    public Set<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata)
+    public List<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata)
     {
         int totalReplicas = getReplicationFactor();
         Map<String, Integer> remainingReplicas = new HashMap<String, Integer>(datacenters);
         Map<String, Set<String>> dcUsedRacks = new HashMap<String, Set<String>>();
-        Set<InetAddress> endpoints = new HashSet<InetAddress>(totalReplicas);
+        List<InetAddress> endpoints = new ArrayList<InetAddress>(totalReplicas);
 
         // first pass: only collect replicas on unique racks
         for (Iterator<Token> iter = TokenMetadata.ringIterator(tokenMetadata.sortedTokens(), searchToken);

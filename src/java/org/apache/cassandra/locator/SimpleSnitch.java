@@ -24,8 +24,9 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * A simple endpoint snitch implementation does not sort addresses by
- * proximity.
+ * A simple endpoint snitch implementation that treats Strategy order as proximity,
+ * allowing non-read-repaired reads to prefer a single endpoint, which improves
+ * cache locality.
  */
 public class SimpleSnitch extends AbstractEndpointSnitch
 {

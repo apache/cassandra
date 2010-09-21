@@ -42,7 +42,6 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-import com.google.common.collect.Multimaps;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.StageManager;
@@ -813,8 +812,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // all leaving nodes are gone.
         for (Range range : affectedRanges)
         {
-            Set<InetAddress> currentEndpoints = strategy.calculateNaturalEndpoints(range.right, tm);
-            Set<InetAddress> newEndpoints = strategy.calculateNaturalEndpoints(range.right, allLeftMetadata);
+            Collection<InetAddress> currentEndpoints = strategy.calculateNaturalEndpoints(range.right, tm);
+            Collection<InetAddress> newEndpoints = strategy.calculateNaturalEndpoints(range.right, allLeftMetadata);
             newEndpoints.removeAll(currentEndpoints);
             pendingRanges.putAll(range, newEndpoints);
         }
@@ -919,7 +918,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (logger_.isDebugEnabled())
             logger_.debug("Node " + endpoint + " ranges [" + StringUtils.join(ranges, ", ") + "]");
 
-        Map<Range, Set<InetAddress>> currentReplicaEndpoints = new HashMap<Range, Set<InetAddress>>();
+        Map<Range, List<InetAddress>> currentReplicaEndpoints = new HashMap<Range, List<InetAddress>>();
 
         // Find (for each range) all nodes that store replicas for these ranges as well
         for (Range range : ranges)
@@ -941,7 +940,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // range.
         for (Range range : ranges)
         {
-            Set<InetAddress> newReplicaEndpoints = getReplicationStrategy(table).calculateNaturalEndpoints(range.right, temp);
+            Collection<InetAddress> newReplicaEndpoints = getReplicationStrategy(table).calculateNaturalEndpoints(range.right, temp);
             newReplicaEndpoints.removeAll(currentReplicaEndpoints.get(range));
             if (logger_.isDebugEnabled())
                 if (newReplicaEndpoints.isEmpty())

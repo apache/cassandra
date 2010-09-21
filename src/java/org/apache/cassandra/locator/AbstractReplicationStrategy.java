@@ -103,7 +103,7 @@ public abstract class AbstractReplicationStrategy
      * @return a copy of the natural endpoints for the given token
      * @throws IllegalStateException if the number of requested replicas is greater than the number of known endpoints
      */
-    public abstract Set<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata) throws IllegalStateException;
+    public abstract List<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata) throws IllegalStateException;
 
     public IWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints,
                                                          Multimap<InetAddress, InetAddress> hintedEndpoints,

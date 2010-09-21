@@ -37,11 +37,11 @@ public class SimpleStrategy extends AbstractReplicationStrategy
         super(table, tokenMetadata, snitch, configOptions);
     }
 
-    public Set<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
+    public List<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
     {
         int replicas = getReplicationFactor();
         ArrayList<Token> tokens = metadata.sortedTokens();
-        Set<InetAddress> endpoints = new HashSet<InetAddress>(replicas);
+        List<InetAddress> endpoints = new ArrayList<InetAddress>(replicas);
 
         if (tokens.isEmpty())
             return endpoints;

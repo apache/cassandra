@@ -184,9 +184,16 @@ rpc_timeout_in_ms: 10000
 # IEndpointSnitch, which will let Cassandra know enough
 # about your network topology to route requests efficiently.
 # Out of the box, Cassandra provides
-# org.apache.cassandra.locator.SimpleSnitch,
-# org.apache.cassandra.locator.RackInferringSnitch, and
-# org.apache.cassandra.locator.PropertyFileSnitch.
+#  - org.apache.cassandra.locator.SimpleSnitch:
+#    Treats Strategy order as proximity. This improves cache locality
+#    when disabling read repair, which can further improve throughput.
+#  - org.apache.cassandra.locator.RackInferringSnitch:
+#    Proximity is determined by rack and data center, which are
+#    assumed to correspond to the 3rd and 2nd octet of each node's
+#    IP address, respectively
+# org.apache.cassandra.locator.PropertyFileSnitch:
+#  - Proximity is determined by rack and data center, which are
+#    explicitly configured in cassandra-rack.properties.
 endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
 
 # dynamic_snitch -- This boolean controls whether the above snitch is
