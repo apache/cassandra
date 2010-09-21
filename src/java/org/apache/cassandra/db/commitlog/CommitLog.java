@@ -256,7 +256,7 @@ public class CommitLog
                             for (ColumnFamily columnFamily : columnFamilies)
                             {
                                 int id = table.getColumnFamilyId(columnFamily.name());
-                                if (!clHeader.isDirty(id) || entryLocation < clHeader.getPosition(id))
+                                if (!clHeader.isDirty(id) || entryLocation <= clHeader.getPosition(id))
                                 {
                                     rm.removeColumnFamily(columnFamily);
                                 }
@@ -291,7 +291,6 @@ public class CommitLog
         for (Table table : tablesRecovered)
             futures.addAll(table.flush());
         FBUtilities.waitOnFutures(futures);
-        logger.info("Recovery complete");
     }
 
     private CommitLogSegment currentSegment()

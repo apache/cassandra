@@ -24,6 +24,7 @@
  * make IndexInterval configurable (CASSANDRA-1488)
  * remove tombstones during non-major compactions when bloom filter
    verifies that row does not exist in other sstables (CASSANDRA-1074)
+ * fix replaying the last mutation in a commitlog unnecessarily (CASSANDRA-1512)
 
 
 0.6.5

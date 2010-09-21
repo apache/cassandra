@@ -22,7 +22,8 @@ package org.apache.cassandra.db;
 
 
 import java.io.IOException;
-import java.util.concurrent.ExecutionException;
+
+import org.apache.log4j.Logger;
 
 import org.apache.cassandra.Util;
 
@@ -35,31 +36,44 @@ import static org.apache.cassandra.Util.column;
 
 public class RecoveryManager2Test extends CleanupHelper
 {
+    private static Logger logger = Logger.getLogger(RecoveryManager2Test.class);
+
     @Test
-    public void testWithFlush() throws IOException, ExecutionException, InterruptedException
+    /* test that commit logs do not replay flushed data */
+    public void testWithFlush() throws Exception
     {
         CompactionManager.instance.disableAutoCompaction();
+
+        // add a row to another CF so we test skipping mutations within a not-entirely-flushed CF
+        insertRow("Standard2", "key");
 
         for (int i = 0; i < 100; i++)
         {
             String key = "key" + i;
-            insertRow(key);
+            insertRow("Standard1", key);
         }
 
         Table table1 = Table.open("Keyspace1");
         ColumnFamilyStore cfs = table1.getColumnFamilyStore("Standard1");
+        logger.debug("forcing flush");
         cfs.forceBlockingFlush();
 
+        // remove Standard1 SSTable/MemTables
         cfs.clearUnsafe();
-        CommitLog.recover(); // this is a no-op. is testing this useful?
 
+        logger.debug("begin manual replay");
+        // replay the commit log (nothing should be replayed since everything was flushed)
+        CommitLog.recover();
+
+        // since everything that was flushed was removed (i.e. clearUnsafe)
+        // and the commit shouldn't have replayed anything, there should be no data
         assert Util.getRangeSlice(cfs).rows.isEmpty();
     }
 
-    private void insertRow(String key) throws IOException
+    private void insertRow(String cfname, String key) throws IOException
     {
         RowMutation rm = new RowMutation("Keyspace1", key);
-        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
+        ColumnFamily cf = ColumnFamily.create("Keyspace1", cfname);
         cf.addColumn(column("col1", "val1", 1L));
         rm.add(cf);
         rm.apply();
