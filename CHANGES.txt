@@ -27,6 +27,7 @@
  * fix replaying the last mutation in a commitlog unnecessarily (CASSANDRA-1512)
  * invoke getDefaultUncaughtExceptionHandler from DTPE with the original
    exception rather than the ExecutionException wrapper (CASSANDRA-1226)
+ * RowWarningThresholdInMB=64 in sample configuration
 
 
 0.6.5
