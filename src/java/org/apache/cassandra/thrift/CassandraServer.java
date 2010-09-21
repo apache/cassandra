@@ -29,6 +29,7 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.db.migration.UpdateColumnFamily;
 import org.apache.cassandra.db.migration.UpdateKeyspace;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -748,9 +749,11 @@ public class CassandraServer implements Cassandra.Iface
         if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
             throw new InvalidRequestException("Unable to create new keyspace while authentication is enabled.");
 
-        if (StorageService.instance.getLiveNodes().size() < ks_def.replication_factor)
-            throw new InvalidRequestException("Not enough live nodes to support this keyspace");
-        
+        int totalNodes = Gossiper.instance.getLiveMembers().size() + Gossiper.instance.getUnreachableMembers().size();
+        if (totalNodes < ks_def.replication_factor)
+            throw new InvalidRequestException(String.format("%s live nodes are not enough to support replication factor %s",
+                                                            totalNodes, ks_def.replication_factor));
+
         //generate a meaningful error if the user setup keyspace and/or column definition incorrectly
         for (CfDef cf : ks_def.cf_defs) 
         {
@@ -855,8 +858,10 @@ public class CassandraServer implements Cassandra.Iface
         if (ks_def.getCf_defs() != null && ks_def.getCf_defs().size() > 0)
             throw new InvalidRequestException("Keyspace update must not contain any column family definitions.");
         
-        if (StorageService.instance.getLiveNodes().size() < ks_def.replication_factor)
-            throw new InvalidRequestException("Not enough live nodes to support this keyspace");
+        int totalNodes = Gossiper.instance.getLiveMembers().size() + Gossiper.instance.getUnreachableMembers().size();
+        if (totalNodes < ks_def.replication_factor)
+            throw new InvalidRequestException(String.format("%s live nodes are not enough to support replication factor %s",
+                                                            totalNodes, ks_def.replication_factor));
         if (DatabaseDescriptor.getTableDefinition(ks_def.name) == null)
             throw new InvalidRequestException("Keyspace does not exist.");
         

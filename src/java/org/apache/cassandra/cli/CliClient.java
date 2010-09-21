@@ -718,7 +718,7 @@ public class CliClient
 
         //defaults
         String replicaPlacementStrategy = "org.apache.cassandra.locator.SimpleStrategy";
-        int replicationFactor = 2;
+        int replicationFactor = 1;
 
         /*
          * first value is the keyspace name, after that it is all key=value
