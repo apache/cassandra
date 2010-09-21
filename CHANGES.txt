@@ -80,6 +80,8 @@
  * min, max compaction threshold are configurable and persistent 
    per-ColumnFamily (CASSANDRA-1468)
  * fix replaying the last mutation in a commitlog unnecessarily (CASSANDRA-1512)
+ * invoke getDefaultUncaughtExceptionHandler from DTPE with the original
+   exception rather than the ExecutionException wrapper (CASSANDRA-1226)
 
 
 0.7-beta1

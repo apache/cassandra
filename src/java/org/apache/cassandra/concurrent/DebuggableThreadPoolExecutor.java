@@ -92,7 +92,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
             }
             catch (ExecutionException e)
             {
-                Thread.getDefaultUncaughtExceptionHandler().uncaughtException(Thread.currentThread(), e);
+                Thread.getDefaultUncaughtExceptionHandler().uncaughtException(Thread.currentThread(), e.getCause());
             }
         }
 
