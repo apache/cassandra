@@ -38,6 +38,7 @@ public class IncomingTcpConnection extends Thread
 
     public IncomingTcpConnection(Socket socket)
     {
+        assert socket != null;
         this.socket = socket;
         try
         {
@@ -45,6 +46,7 @@ public class IncomingTcpConnection extends Thread
         }
         catch (IOException e)
         {
+            close();
             throw new IOError(e);
         }
     }
@@ -80,32 +82,29 @@ public class IncomingTcpConnection extends Thread
             {
                 if (logger.isTraceEnabled())
                     logger.trace("eof reading from socket; closing", e);
-                try
-                {
-                    socket.close();
-                }
-                catch (IOException e2)
-                {
-                    if (logger.isDebugEnabled())
-                        logger.debug("error closing socket", e2);
-                }
                 break;
             }
             catch (IOException e) 
             {
                 if (logger.isDebugEnabled())
                     logger.debug("error reading from socket; closing", e);
-                try
-                {
-                    socket.close();
-                }
-                catch (IOException e2)
-                {
-                    if (logger.isDebugEnabled())
-                        logger.debug("error closing socket", e2);
-                }
                 break;
             }
+        }
+
+        close();
+    }
+
+    private void close()
+    {
+        try
+        {
+            socket.close();
+        }
+        catch (IOException e)
+        {
+            if (logger.isDebugEnabled())
+                logger.debug("error closing socket", e);
         }
     }
 }
