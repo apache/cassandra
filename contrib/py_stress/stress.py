@@ -188,7 +188,7 @@ class Operation(Thread):
 class Inserter(Operation):
     def run(self):
         data = md5(str(get_ident())).hexdigest()
-        columns = [Column('C' + str(j), data, Clock(time.time() * 1000000)) for j in xrange(columns_per_key)]
+        columns = [Column('C' + str(j), data, time.time() * 1000000) for j in xrange(columns_per_key)]
         fmt = '%0' + str(len(str(total_keys))) + 'd'
         if 'super' == options.cftype:
             supers = [SuperColumn('S' + str(j), columns) for j in xrange(supers_per_key)]
