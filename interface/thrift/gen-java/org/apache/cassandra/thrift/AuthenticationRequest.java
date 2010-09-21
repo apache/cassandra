@@ -26,6 +26,7 @@ package org.apache.cassandra.thrift;
  */
 
 
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -272,7 +273,14 @@ public class AuthenticationRequest implements TBase<AuthenticationRequest, Authe
 
   @Override
   public int hashCode() {
-    return 0;
+    HashCodeBuilder builder = new HashCodeBuilder();
+
+    boolean present_credentials = true && (isSetCredentials());
+    builder.append(present_credentials);
+    if (present_credentials)
+      builder.append(credentials);
+
+    return builder.toHashCode();
   }
 
   public int compareTo(AuthenticationRequest other) {

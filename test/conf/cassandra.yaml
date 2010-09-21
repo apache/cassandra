@@ -43,8 +43,6 @@ keyspaces:
 
         - name: StandardLong1
           compare_with: LongType
-          clock_type: Timestamp
-          reconciler: TimestampReconciler
 
         - name: StandardLong2
           compare_with: LongType

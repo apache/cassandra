@@ -26,6 +26,7 @@ package org.apache.cassandra.thrift;
  */
 
 
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -52,10 +53,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
   private static final TField NAME_FIELD_DESC = new TField("name", TType.STRING, (short)2);
   private static final TField COLUMN_TYPE_FIELD_DESC = new TField("column_type", TType.STRING, (short)3);
-  private static final TField CLOCK_TYPE_FIELD_DESC = new TField("clock_type", TType.STRING, (short)4);
   private static final TField COMPARATOR_TYPE_FIELD_DESC = new TField("comparator_type", TType.STRING, (short)5);
   private static final TField SUBCOMPARATOR_TYPE_FIELD_DESC = new TField("subcomparator_type", TType.STRING, (short)6);
-  private static final TField RECONCILER_FIELD_DESC = new TField("reconciler", TType.STRING, (short)7);
   private static final TField COMMENT_FIELD_DESC = new TField("comment", TType.STRING, (short)8);
   private static final TField ROW_CACHE_SIZE_FIELD_DESC = new TField("row_cache_size", TType.DOUBLE, (short)9);
   private static final TField PRELOAD_ROW_CACHE_FIELD_DESC = new TField("preload_row_cache", TType.BOOL, (short)10);
@@ -71,10 +70,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   public String keyspace;
   public String name;
   public String column_type;
-  public String clock_type;
   public String comparator_type;
   public String subcomparator_type;
-  public String reconciler;
   public String comment;
   public double row_cache_size;
   public boolean preload_row_cache;
@@ -92,10 +89,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     KEYSPACE((short)1, "keyspace"),
     NAME((short)2, "name"),
     COLUMN_TYPE((short)3, "column_type"),
-    CLOCK_TYPE((short)4, "clock_type"),
     COMPARATOR_TYPE((short)5, "comparator_type"),
     SUBCOMPARATOR_TYPE((short)6, "subcomparator_type"),
-    RECONCILER((short)7, "reconciler"),
     COMMENT((short)8, "comment"),
     ROW_CACHE_SIZE((short)9, "row_cache_size"),
     PRELOAD_ROW_CACHE((short)10, "preload_row_cache"),
@@ -127,14 +122,10 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
           return NAME;
         case 3: // COLUMN_TYPE
           return COLUMN_TYPE;
-        case 4: // CLOCK_TYPE
-          return CLOCK_TYPE;
         case 5: // COMPARATOR_TYPE
           return COMPARATOR_TYPE;
         case 6: // SUBCOMPARATOR_TYPE
           return SUBCOMPARATOR_TYPE;
-        case 7: // RECONCILER
-          return RECONCILER;
         case 8: // COMMENT
           return COMMENT;
         case 9: // ROW_CACHE_SIZE
@@ -216,13 +207,9 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         new FieldValueMetaData(TType.STRING)));
     tmpMap.put(_Fields.COLUMN_TYPE, new FieldMetaData("column_type", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
-    tmpMap.put(_Fields.CLOCK_TYPE, new FieldMetaData("clock_type", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
     tmpMap.put(_Fields.COMPARATOR_TYPE, new FieldMetaData("comparator_type", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
     tmpMap.put(_Fields.SUBCOMPARATOR_TYPE, new FieldMetaData("subcomparator_type", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
-    tmpMap.put(_Fields.RECONCILER, new FieldMetaData("reconciler", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
     tmpMap.put(_Fields.COMMENT, new FieldMetaData("comment", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
@@ -253,8 +240,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
 
   public CfDef() {
     this.column_type = "Standard";
-
-    this.clock_type = "Timestamp";
 
     this.comparator_type = "BytesType";
 
@@ -292,17 +277,11 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (other.isSetColumn_type()) {
       this.column_type = other.column_type;
     }
-    if (other.isSetClock_type()) {
-      this.clock_type = other.clock_type;
-    }
     if (other.isSetComparator_type()) {
       this.comparator_type = other.comparator_type;
     }
     if (other.isSetSubcomparator_type()) {
       this.subcomparator_type = other.subcomparator_type;
-    }
-    if (other.isSetReconciler()) {
-      this.reconciler = other.reconciler;
     }
     if (other.isSetComment()) {
       this.comment = other.comment;
@@ -408,30 +387,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     }
   }
 
-  public String getClock_type() {
-    return this.clock_type;
-  }
-
-  public CfDef setClock_type(String clock_type) {
-    this.clock_type = clock_type;
-    return this;
-  }
-
-  public void unsetClock_type() {
-    this.clock_type = null;
-  }
-
-  /** Returns true if field clock_type is set (has been asigned a value) and false otherwise */
-  public boolean isSetClock_type() {
-    return this.clock_type != null;
-  }
-
-  public void setClock_typeIsSet(boolean value) {
-    if (!value) {
-      this.clock_type = null;
-    }
-  }
-
   public String getComparator_type() {
     return this.comparator_type;
   }
@@ -477,30 +432,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   public void setSubcomparator_typeIsSet(boolean value) {
     if (!value) {
       this.subcomparator_type = null;
-    }
-  }
-
-  public String getReconciler() {
-    return this.reconciler;
-  }
-
-  public CfDef setReconciler(String reconciler) {
-    this.reconciler = reconciler;
-    return this;
-  }
-
-  public void unsetReconciler() {
-    this.reconciler = null;
-  }
-
-  /** Returns true if field reconciler is set (has been asigned a value) and false otherwise */
-  public boolean isSetReconciler() {
-    return this.reconciler != null;
-  }
-
-  public void setReconcilerIsSet(boolean value) {
-    if (!value) {
-      this.reconciler = null;
     }
   }
 
@@ -801,14 +732,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       }
       break;
 
-    case CLOCK_TYPE:
-      if (value == null) {
-        unsetClock_type();
-      } else {
-        setClock_type((String)value);
-      }
-      break;
-
     case COMPARATOR_TYPE:
       if (value == null) {
         unsetComparator_type();
@@ -822,14 +745,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         unsetSubcomparator_type();
       } else {
         setSubcomparator_type((String)value);
-      }
-      break;
-
-    case RECONCILER:
-      if (value == null) {
-        unsetReconciler();
-      } else {
-        setReconciler((String)value);
       }
       break;
 
@@ -939,17 +854,11 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     case COLUMN_TYPE:
       return getColumn_type();
 
-    case CLOCK_TYPE:
-      return getClock_type();
-
     case COMPARATOR_TYPE:
       return getComparator_type();
 
     case SUBCOMPARATOR_TYPE:
       return getSubcomparator_type();
-
-    case RECONCILER:
-      return getReconciler();
 
     case COMMENT:
       return getComment();
@@ -1001,14 +910,10 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return isSetName();
     case COLUMN_TYPE:
       return isSetColumn_type();
-    case CLOCK_TYPE:
-      return isSetClock_type();
     case COMPARATOR_TYPE:
       return isSetComparator_type();
     case SUBCOMPARATOR_TYPE:
       return isSetSubcomparator_type();
-    case RECONCILER:
-      return isSetReconciler();
     case COMMENT:
       return isSetComment();
     case ROW_CACHE_SIZE:
@@ -1079,15 +984,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         return false;
     }
 
-    boolean this_present_clock_type = true && this.isSetClock_type();
-    boolean that_present_clock_type = true && that.isSetClock_type();
-    if (this_present_clock_type || that_present_clock_type) {
-      if (!(this_present_clock_type && that_present_clock_type))
-        return false;
-      if (!this.clock_type.equals(that.clock_type))
-        return false;
-    }
-
     boolean this_present_comparator_type = true && this.isSetComparator_type();
     boolean that_present_comparator_type = true && that.isSetComparator_type();
     if (this_present_comparator_type || that_present_comparator_type) {
@@ -1103,15 +999,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       if (!(this_present_subcomparator_type && that_present_subcomparator_type))
         return false;
       if (!this.subcomparator_type.equals(that.subcomparator_type))
-        return false;
-    }
-
-    boolean this_present_reconciler = true && this.isSetReconciler();
-    boolean that_present_reconciler = true && that.isSetReconciler();
-    if (this_present_reconciler || that_present_reconciler) {
-      if (!(this_present_reconciler && that_present_reconciler))
-        return false;
-      if (!this.reconciler.equals(that.reconciler))
         return false;
     }
 
@@ -1219,7 +1106,89 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
 
   @Override
   public int hashCode() {
-    return 0;
+    HashCodeBuilder builder = new HashCodeBuilder();
+
+    boolean present_keyspace = true && (isSetKeyspace());
+    builder.append(present_keyspace);
+    if (present_keyspace)
+      builder.append(keyspace);
+
+    boolean present_name = true && (isSetName());
+    builder.append(present_name);
+    if (present_name)
+      builder.append(name);
+
+    boolean present_column_type = true && (isSetColumn_type());
+    builder.append(present_column_type);
+    if (present_column_type)
+      builder.append(column_type);
+
+    boolean present_comparator_type = true && (isSetComparator_type());
+    builder.append(present_comparator_type);
+    if (present_comparator_type)
+      builder.append(comparator_type);
+
+    boolean present_subcomparator_type = true && (isSetSubcomparator_type());
+    builder.append(present_subcomparator_type);
+    if (present_subcomparator_type)
+      builder.append(subcomparator_type);
+
+    boolean present_comment = true && (isSetComment());
+    builder.append(present_comment);
+    if (present_comment)
+      builder.append(comment);
+
+    boolean present_row_cache_size = true && (isSetRow_cache_size());
+    builder.append(present_row_cache_size);
+    if (present_row_cache_size)
+      builder.append(row_cache_size);
+
+    boolean present_preload_row_cache = true && (isSetPreload_row_cache());
+    builder.append(present_preload_row_cache);
+    if (present_preload_row_cache)
+      builder.append(preload_row_cache);
+
+    boolean present_key_cache_size = true && (isSetKey_cache_size());
+    builder.append(present_key_cache_size);
+    if (present_key_cache_size)
+      builder.append(key_cache_size);
+
+    boolean present_read_repair_chance = true && (isSetRead_repair_chance());
+    builder.append(present_read_repair_chance);
+    if (present_read_repair_chance)
+      builder.append(read_repair_chance);
+
+    boolean present_column_metadata = true && (isSetColumn_metadata());
+    builder.append(present_column_metadata);
+    if (present_column_metadata)
+      builder.append(column_metadata);
+
+    boolean present_gc_grace_seconds = true && (isSetGc_grace_seconds());
+    builder.append(present_gc_grace_seconds);
+    if (present_gc_grace_seconds)
+      builder.append(gc_grace_seconds);
+
+    boolean present_default_validation_class = true && (isSetDefault_validation_class());
+    builder.append(present_default_validation_class);
+    if (present_default_validation_class)
+      builder.append(default_validation_class);
+
+    boolean present_id = true && (isSetId());
+    builder.append(present_id);
+    if (present_id)
+      builder.append(id);
+
+    boolean present_min_compaction_threshold = true && (isSetMin_compaction_threshold());
+    builder.append(present_min_compaction_threshold);
+    if (present_min_compaction_threshold)
+      builder.append(min_compaction_threshold);
+
+    boolean present_max_compaction_threshold = true && (isSetMax_compaction_threshold());
+    builder.append(present_max_compaction_threshold);
+    if (present_max_compaction_threshold)
+      builder.append(max_compaction_threshold);
+
+    return builder.toHashCode();
   }
 
   public int compareTo(CfDef other) {
@@ -1257,15 +1226,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         return lastComparison;
       }
     }
-    lastComparison = Boolean.valueOf(isSetClock_type()).compareTo(typedOther.isSetClock_type());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetClock_type()) {      lastComparison = TBaseHelper.compareTo(this.clock_type, typedOther.clock_type);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
     lastComparison = Boolean.valueOf(isSetComparator_type()).compareTo(typedOther.isSetComparator_type());
     if (lastComparison != 0) {
       return lastComparison;
@@ -1280,15 +1240,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetSubcomparator_type()) {      lastComparison = TBaseHelper.compareTo(this.subcomparator_type, typedOther.subcomparator_type);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = Boolean.valueOf(isSetReconciler()).compareTo(typedOther.isSetReconciler());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetReconciler()) {      lastComparison = TBaseHelper.compareTo(this.reconciler, typedOther.reconciler);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1426,13 +1377,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 4: // CLOCK_TYPE
-          if (field.type == TType.STRING) {
-            this.clock_type = iprot.readString();
-          } else { 
-            TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
         case 5: // COMPARATOR_TYPE
           if (field.type == TType.STRING) {
             this.comparator_type = iprot.readString();
@@ -1443,13 +1387,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         case 6: // SUBCOMPARATOR_TYPE
           if (field.type == TType.STRING) {
             this.subcomparator_type = iprot.readString();
-          } else { 
-            TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
-        case 7: // RECONCILER
-          if (field.type == TType.STRING) {
-            this.reconciler = iprot.readString();
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -1582,13 +1519,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         oprot.writeFieldEnd();
       }
     }
-    if (this.clock_type != null) {
-      if (isSetClock_type()) {
-        oprot.writeFieldBegin(CLOCK_TYPE_FIELD_DESC);
-        oprot.writeString(this.clock_type);
-        oprot.writeFieldEnd();
-      }
-    }
     if (this.comparator_type != null) {
       if (isSetComparator_type()) {
         oprot.writeFieldBegin(COMPARATOR_TYPE_FIELD_DESC);
@@ -1600,13 +1530,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       if (isSetSubcomparator_type()) {
         oprot.writeFieldBegin(SUBCOMPARATOR_TYPE_FIELD_DESC);
         oprot.writeString(this.subcomparator_type);
-        oprot.writeFieldEnd();
-      }
-    }
-    if (this.reconciler != null) {
-      if (isSetReconciler()) {
-        oprot.writeFieldBegin(RECONCILER_FIELD_DESC);
-        oprot.writeString(this.reconciler);
         oprot.writeFieldEnd();
       }
     }
@@ -1712,16 +1635,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       }
       first = false;
     }
-    if (isSetClock_type()) {
-      if (!first) sb.append(", ");
-      sb.append("clock_type:");
-      if (this.clock_type == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.clock_type);
-      }
-      first = false;
-    }
     if (isSetComparator_type()) {
       if (!first) sb.append(", ");
       sb.append("comparator_type:");
@@ -1739,16 +1652,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         sb.append("null");
       } else {
         sb.append(this.subcomparator_type);
-      }
-      first = false;
-    }
-    if (isSetReconciler()) {
-      if (!first) sb.append(", ");
-      sb.append("reconciler:");
-      if (this.reconciler == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.reconciler);
       }
       first = false;
     }

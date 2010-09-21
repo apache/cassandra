@@ -26,6 +26,7 @@ package org.apache.cassandra.thrift;
  */
 
 
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -327,7 +328,19 @@ public class SlicePredicate implements TBase<SlicePredicate, SlicePredicate._Fie
 
   @Override
   public int hashCode() {
-    return 0;
+    HashCodeBuilder builder = new HashCodeBuilder();
+
+    boolean present_column_names = true && (isSetColumn_names());
+    builder.append(present_column_names);
+    if (present_column_names)
+      builder.append(column_names);
+
+    boolean present_slice_range = true && (isSetSlice_range());
+    builder.append(present_slice_range);
+    if (present_slice_range)
+      builder.append(slice_range);
+
+    return builder.toHashCode();
   }
 
   public int compareTo(SlicePredicate other) {

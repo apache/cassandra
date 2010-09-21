@@ -212,7 +212,6 @@ public class ThriftValidation
         if (cosc.column != null)
         {
             validateTtl(cosc.column);
-            validateClock(cosc.column.clock);
             ThriftValidation.validateColumnPath(keyspace, new ColumnPath(cfName).setSuper_column(null).setColumn(cosc.column.name));
         }
 
@@ -221,7 +220,6 @@ public class ThriftValidation
             for (Column c : cosc.super_column.columns)
             {
                 validateTtl(c);
-                validateClock(c.clock);
                 ThriftValidation.validateColumnPath(keyspace, new ColumnPath(cfName).setSuper_column(cosc.super_column.name).setColumn(c.name));
             }
         }
@@ -238,15 +236,6 @@ public class ThriftValidation
         }
         // if it's not set, then it should be zero -- here we are just checking to make sure Thrift doesn't change that contract with us.
         assert column.isSetTtl() || column.ttl == 0;
-    }
-
-    public static IClock validateClock(Clock clock) throws InvalidRequestException
-    {
-        if (clock.isSetTimestamp())
-        {
-            return new TimestampClock(clock.getTimestamp());
-        }
-        throw new InvalidRequestException("Clock must have one a timestamp");
     }
 
     public static void validateMutation(String keyspace, String cfName, Mutation mut)

@@ -26,6 +26,7 @@ package org.apache.cassandra.thrift;
  */
 
 
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -521,7 +522,34 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
 
   @Override
   public int hashCode() {
-    return 0;
+    HashCodeBuilder builder = new HashCodeBuilder();
+
+    boolean present_name = true && (isSetName());
+    builder.append(present_name);
+    if (present_name)
+      builder.append(name);
+
+    boolean present_strategy_class = true && (isSetStrategy_class());
+    builder.append(present_strategy_class);
+    if (present_strategy_class)
+      builder.append(strategy_class);
+
+    boolean present_strategy_options = true && (isSetStrategy_options());
+    builder.append(present_strategy_options);
+    if (present_strategy_options)
+      builder.append(strategy_options);
+
+    boolean present_replication_factor = true;
+    builder.append(present_replication_factor);
+    if (present_replication_factor)
+      builder.append(replication_factor);
+
+    boolean present_cf_defs = true && (isSetCf_defs());
+    builder.append(present_cf_defs);
+    if (present_cf_defs)
+      builder.append(cf_defs);
+
+    return builder.toHashCode();
   }
 
   public int compareTo(KsDef other) {

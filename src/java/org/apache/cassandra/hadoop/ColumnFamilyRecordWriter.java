@@ -37,7 +37,6 @@ import java.util.concurrent.Future;
 import org.apache.cassandra.client.RingCache;
 import static org.apache.cassandra.io.SerDeUtils.copy;
 import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.Clock;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.ColumnOrSuperColumn;
 import org.apache.cassandra.thrift.ConsistencyLevel;
@@ -210,7 +209,7 @@ final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer,List<org.ap
         else
         {
             // deletion
-            Deletion deletion = new Deletion(avroToThrift(amut.deletion.clock));
+            Deletion deletion = new Deletion(amut.deletion.timestamp);
             mutation.setDeletion(deletion);
             org.apache.cassandra.avro.SlicePredicate apred = amut.deletion.predicate;
             if (amut.deletion.super_column != null)
@@ -240,12 +239,7 @@ final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer,List<org.ap
 
     private Column avroToThrift(org.apache.cassandra.avro.Column acol)
     {
-        return new Column(copy(acol.name), copy(acol.value), avroToThrift(acol.clock));
-    }
-
-    private Clock avroToThrift(org.apache.cassandra.avro.Clock aclo)
-    {
-        return new Clock(aclo.timestamp);
+        return new Column(copy(acol.name), copy(acol.value), acol.timestamp);
     }
 
     /**
@@ -262,7 +256,7 @@ final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer,List<org.ap
     }
 
     /** Fills the deprecated RecordWriter interface for streaming. */
-    @Deprecated @Override
+    @Deprecated
     public void close(org.apache.hadoop.mapred.Reporter reporter) throws IOException
     {
         flush();

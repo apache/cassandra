@@ -26,6 +26,7 @@ package org.apache.cassandra.thrift;
  */
 
 
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -482,7 +483,34 @@ public class KeyRange implements TBase<KeyRange, KeyRange._Fields>, java.io.Seri
 
   @Override
   public int hashCode() {
-    return 0;
+    HashCodeBuilder builder = new HashCodeBuilder();
+
+    boolean present_start_key = true && (isSetStart_key());
+    builder.append(present_start_key);
+    if (present_start_key)
+      builder.append(start_key);
+
+    boolean present_end_key = true && (isSetEnd_key());
+    builder.append(present_end_key);
+    if (present_end_key)
+      builder.append(end_key);
+
+    boolean present_start_token = true && (isSetStart_token());
+    builder.append(present_start_token);
+    if (present_start_token)
+      builder.append(start_token);
+
+    boolean present_end_token = true && (isSetEnd_token());
+    builder.append(present_end_token);
+    if (present_end_token)
+      builder.append(end_token);
+
+    boolean present_count = true;
+    builder.append(present_count);
+    if (present_count)
+      builder.append(count);
+
+    return builder.toHashCode();
   }
 
   public int compareTo(KeyRange other) {

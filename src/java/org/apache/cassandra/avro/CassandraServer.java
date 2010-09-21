@@ -212,16 +212,11 @@ public class CassandraServer implements Cassandra {
             if (column.isMarkedForDelete())
                 continue;
             
-            Column avroColumn = newColumn(column.name(), column.value(), avronateIClock(column.clock()));
+            Column avroColumn = newColumn(column.name(), column.value(), ((TimestampClock)column.clock()).timestamp());
             avroColumns.add(avroColumn);
         }
         
         return avroColumns;
-    }
-
-    private static Clock avronateIClock(IClock clock)
-    {
-        return newClock(((org.apache.cassandra.db.TimestampClock) clock).timestamp());
     }
 
     private GenericArray<ColumnOrSuperColumn> avronateColumns(Collection<IColumn> columns, boolean reverseOrder)
@@ -232,7 +227,7 @@ public class CassandraServer implements Cassandra {
             if (column.isMarkedForDelete())
                 continue;
             
-            Column avroColumn = newColumn(column.name(), column.value(), avronateIClock(column.clock()));
+            Column avroColumn = newColumn(column.name(), column.value(), ((TimestampClock)column.clock()).timestamp());
             
             if (column instanceof ExpiringColumn)
                 avroColumn.ttl = ((ExpiringColumn)column).getTimeToLive();
@@ -401,7 +396,7 @@ public class CassandraServer implements Cassandra {
                    parent.super_column == null ? null : parent.super_column.array(),
                    column.name.array()),
                    column.value.array(),
-                   unavronateClock(column.clock),
+                   unavronateClock(column.timestamp),
                    column.ttl == null ? 0 : column.ttl);
         }
         catch (MarshalException e)
@@ -413,7 +408,7 @@ public class CassandraServer implements Cassandra {
         return null;
     }
     
-    public Void remove(ByteBuffer key, ColumnPath columnPath, Clock clock, ConsistencyLevel consistencyLevel)
+    public Void remove(ByteBuffer key, ColumnPath columnPath, long timestamp, ConsistencyLevel consistencyLevel)
     throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
@@ -421,11 +416,10 @@ public class CassandraServer implements Cassandra {
         
         AvroValidation.validateKey(key.array());
         AvroValidation.validateColumnPath(clientState.getKeyspace(), columnPath);
-        IClock dbClock = AvroValidation.validateClock(clock);
-        
+
         RowMutation rm = new RowMutation(clientState.getKeyspace(), key.array());
         byte[] superName = columnPath.super_column == null ? null : columnPath.super_column.array();
-        rm.delete(new QueryPath(columnPath.column_family.toString(), superName), dbClock);
+        rm.delete(new QueryPath(columnPath.column_family.toString(), superName), unavronateClock(timestamp));
         
         doInsert(consistencyLevel, rm);
         
@@ -498,9 +492,9 @@ public class CassandraServer implements Cassandra {
         return null;
     }
 
-    private static IClock unavronateClock(Clock clock)
+    private static IClock unavronateClock(long timestamp)
     {
-        return new org.apache.cassandra.db.TimestampClock(clock.timestamp);
+        return new org.apache.cassandra.db.TimestampClock(timestamp);
     }
     
     // FIXME: This is copypasta from o.a.c.db.RowMutation, (RowMutation.getRowMutation uses Thrift types directly).
@@ -530,11 +524,11 @@ public class CassandraServer implements Cassandra {
         if (cosc.column == null)
         {
             for (Column column : cosc.super_column.columns)
-                rm.add(new QueryPath(cfName, cosc.super_column.name.array(), column.name.array()), column.value.array(), unavronateClock(column.clock));
+                rm.add(new QueryPath(cfName, cosc.super_column.name.array(), column.name.array()), column.value.array(), unavronateClock(column.timestamp));
         }
         else
         {
-            rm.add(new QueryPath(cfName, null, cosc.column.name.array()), cosc.column.value.array(), unavronateClock(cosc.column.clock));
+            rm.add(new QueryPath(cfName, null, cosc.column.name.array()), cosc.column.value.array(), unavronateClock(cosc.column.timestamp));
         }
     }
     
@@ -548,14 +542,14 @@ public class CassandraServer implements Cassandra {
             for (ByteBuffer col : del.predicate.column_names)
             {
                 if (del.super_column == null && DatabaseDescriptor.getColumnFamilyType(rm.getTable(), cfName) == ColumnFamilyType.Super)
-                    rm.delete(new QueryPath(cfName, col.array()), unavronateClock(del.clock));
+                    rm.delete(new QueryPath(cfName, col.array()), unavronateClock(del.timestamp));
                 else
-                    rm.delete(new QueryPath(cfName, superName, col.array()), unavronateClock(del.clock));
+                    rm.delete(new QueryPath(cfName, superName, col.array()), unavronateClock(del.timestamp));
             }
         }
         else
         {
-            rm.delete(new QueryPath(cfName, superName), unavronateClock(del.clock));
+            rm.delete(new QueryPath(cfName, superName), unavronateClock(del.timestamp));
         }
     }
     
@@ -842,28 +836,17 @@ public class CassandraServer implements Cassandra {
     private CFMetaData convertToCFMetaData(CfDef cf_def) throws InvalidRequestException, ConfigurationException
     {
         String cfType = cf_def.column_type == null ? D_CF_CFTYPE : cf_def.column_type.toString();
-        ClockType clockType = ClockType.create(cf_def.clock_type == null ? D_CF_CFCLOCKTYPE : cf_def.clock_type.toString());
         String compare = cf_def.comparator_type == null ? D_CF_COMPTYPE : cf_def.comparator_type.toString();
         String validate = cf_def.default_validation_class == null ? D_CF_COMPTYPE : cf_def.default_validation_class.toString();
         String subCompare = cf_def.subcomparator_type == null ? D_CF_SUBCOMPTYPE : cf_def.subcomparator_type.toString();
-        String reconcilerName = cf_def.reconciler == null  ? D_CF_RECONCILER : cf_def.reconciler.toString();
-        
-        AbstractReconciler reconciler = DatabaseDescriptor.getReconciler(reconcilerName);
-        if (reconciler == null)
-        {
-            if (clockType == ClockType.Timestamp)    
-                reconciler = TimestampReconciler.instance; // default
-            else
-                throw new ConfigurationException("No reconciler specified for column family " + cf_def.name);
-        }
 
         return new CFMetaData(cf_def.keyspace.toString(),
                               cf_def.name.toString(),
                               ColumnFamilyType.create(cfType),
-                              clockType,
+                              ClockType.Timestamp,
                               DatabaseDescriptor.getComparator(compare),
                               subCompare.length() == 0 ? null : DatabaseDescriptor.getComparator(subCompare),
-                              reconciler,
+                              TimestampReconciler.instance,
                               cf_def.comment == null ? "" : cf_def.comment.toString(),
                               cf_def.row_cache_size == null ? CFMetaData.DEFAULT_ROW_CACHE_SIZE : cf_def.row_cache_size,
                               cf_def.preload_row_cache == null ? CFMetaData.DEFAULT_PRELOAD_ROW_CACHE : cf_def.preload_row_cache,

@@ -314,12 +314,7 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
 
         private IColumn unthriftifySimple(Column column)
         {
-            return new org.apache.cassandra.db.Column(column.name, column.value, unthriftifyClock(column.clock));
-        }
-
-        private IClock unthriftifyClock(Clock clock)
-        {
-            return new org.apache.cassandra.db.TimestampClock(clock.getTimestamp());
+            return new org.apache.cassandra.db.Column(column.name, column.value, new TimestampClock(column.timestamp));
         }
     }
 }

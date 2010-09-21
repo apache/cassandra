@@ -18,30 +18,17 @@
 */
 package org.apache.cassandra.service;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.util.HashMap;
+
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.Clock;
-import org.apache.cassandra.thrift.Column;
-import org.apache.cassandra.thrift.ColumnOrSuperColumn;
-import org.apache.cassandra.thrift.Column;
-import org.apache.cassandra.thrift.ColumnParent;
-import org.apache.cassandra.thrift.ColumnPath;
-import org.apache.cassandra.thrift.ColumnParent;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.NotFoundException;
-import org.apache.cassandra.thrift.TimedOutException;
-import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.thrift.*;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
@@ -49,12 +36,9 @@ import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
-import org.apache.cassandra.thrift.AuthenticationRequest;
-import org.apache.cassandra.thrift.AuthorizationException;
-import org.apache.cassandra.thrift.AuthenticationException;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 /**
  * Example how to use an embedded cassandra service.
@@ -113,10 +97,8 @@ public class EmbeddedCassandraServiceTest
         cp.setColumn("name".getBytes("utf-8"));
 
         // insert
-        Clock clock = new Clock();
-        clock.setTimestamp(timestamp);
         client.insert(key_user_id, par, new Column("name".getBytes("utf-8"),
-                "Ran".getBytes("UTF-8"), clock), ConsistencyLevel.ONE);
+                "Ran".getBytes("UTF-8"), timestamp), ConsistencyLevel.ONE);
 
         // read
         ColumnOrSuperColumn got = client.get(key_user_id, cp,

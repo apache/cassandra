@@ -26,6 +26,7 @@ package org.apache.cassandra.thrift;
  */
 
 
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -247,7 +248,14 @@ public class AuthorizationException extends Exception implements TBase<Authoriza
 
   @Override
   public int hashCode() {
-    return 0;
+    HashCodeBuilder builder = new HashCodeBuilder();
+
+    boolean present_why = true && (isSetWhy());
+    builder.append(present_why);
+    if (present_why)
+      builder.append(why);
+
+    return builder.toHashCode();
   }
 
   public int compareTo(AuthorizationException other) {

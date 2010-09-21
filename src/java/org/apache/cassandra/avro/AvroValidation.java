@@ -280,15 +280,7 @@ public class AvroValidation
         if (column.ttl != null && column.ttl < 0)
             throw newInvalidRequestException("ttl must be a positive value");
     }
-    
-    static IClock validateClock(Clock clock) throws InvalidRequestException
-    {
-        if (clock.timestamp >= 0)
-            return new TimestampClock(clock.timestamp);
-        
-        throw newInvalidRequestException("Clock must have a timestamp set");
-    }
-    
+
     static void validatePredicate(String keyspace, ColumnParent cp, SlicePredicate predicate)
     throws InvalidRequestException
     {

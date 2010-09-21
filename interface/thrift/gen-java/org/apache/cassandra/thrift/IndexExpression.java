@@ -26,6 +26,7 @@ package org.apache.cassandra.thrift;
  */
 
 
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -378,7 +379,24 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
 
   @Override
   public int hashCode() {
-    return 0;
+    HashCodeBuilder builder = new HashCodeBuilder();
+
+    boolean present_column_name = true && (isSetColumn_name());
+    builder.append(present_column_name);
+    if (present_column_name)
+      builder.append(column_name);
+
+    boolean present_op = true && (isSetOp());
+    builder.append(present_op);
+    if (present_op)
+      builder.append(op.getValue());
+
+    boolean present_value = true && (isSetValue());
+    builder.append(present_value);
+    if (present_value)
+      builder.append(value);
+
+    return builder.toHashCode();
   }
 
   public int compareTo(IndexExpression other) {

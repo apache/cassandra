@@ -26,6 +26,7 @@ package org.apache.cassandra.thrift;
  */
 
 
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -307,7 +308,19 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
 
   @Override
   public int hashCode() {
-    return 0;
+    HashCodeBuilder builder = new HashCodeBuilder();
+
+    boolean present_column_family = true && (isSetColumn_family());
+    builder.append(present_column_family);
+    if (present_column_family)
+      builder.append(column_family);
+
+    boolean present_super_column = true && (isSetSuper_column());
+    builder.append(present_super_column);
+    if (present_super_column)
+      builder.append(super_column);
+
+    return builder.toHashCode();
   }
 
   public int compareTo(ColumnParent other) {

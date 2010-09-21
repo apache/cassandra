@@ -46,33 +46,23 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "16.1.0"
+const string VERSION = "17.0.0"
 
 
 #
 # data structures
 #
 
-/** Encapsulate types of conflict resolution.
- *
- * @param timestamp. User-supplied timestamp. When two columns with this type of clock conflict, the one with the
- *                   highest timestamp is the one whose value the system will converge to. No other assumptions
- *                   are made about what the timestamp represents, but using microseconds-since-epoch is customary.
- */
-struct Clock {
-   1: required i64 timestamp,
-}
-
 /** Basic unit of data within a ColumnFamily.
  * @param name, the name by which this column is set and retrieved.  Maximum 64KB long.
  * @param value. The data associated with the name.  Maximum 2GB long, but in practice you should limit it to small numbers of MB (since Thrift must read the full value into memory to operate on it).
- * @param clock. The clock is used for conflict detection/resolution when two columns with same name need to be compared.
+ * @param timestamp. The timestamp is used for conflict detection/resolution when two columns with same name need to be compared.
  * @param ttl. An optional, positive delay (in seconds) after which the column will be automatically deleted. 
  */
 struct Column {
    1: required binary name,
    2: required binary value,
-   3: required Clock clock,
+   3: required i64 timestamp,
    4: optional i32 ttl,
 }
 
@@ -296,7 +286,7 @@ struct KeyCount {
 }
 
 struct Deletion {
-    1: required Clock clock,
+    1: required i64 timestamp,
     2: optional binary super_column,
     3: optional SlicePredicate predicate,
 }
@@ -342,10 +332,8 @@ struct CfDef {
     1: required string keyspace,
     2: required string name,
     3: optional string column_type="Standard",
-    4: optional string clock_type="Timestamp",
     5: optional string comparator_type="BytesType",
     6: optional string subcomparator_type,
-    7: optional string reconciler,
     8: optional string comment,
     9: optional double row_cache_size=0,
     10: optional bool preload_row_cache=0,
@@ -452,13 +440,13 @@ service Cassandra {
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
-    Remove data from the row specified by key at the granularity specified by column_path, and the given clock. Note
+    Remove data from the row specified by key at the granularity specified by column_path, and the given timestamp. Note
     that all the values in column_path besides column_path.column_family are truly optional: you can remove the entire
     row by just specifying the ColumnFamily, or you can remove a SuperColumn or a single Column by specifying those levels too.
    */
   void remove(1:required binary key,
               2:required ColumnPath column_path,
-              3:required Clock clock,
+              3:required i64 timestamp,
               4:ConsistencyLevel consistency_level=ONE)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 

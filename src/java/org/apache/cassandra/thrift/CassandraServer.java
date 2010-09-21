@@ -205,14 +205,10 @@ public class CassandraServer implements Cassandra.Iface
         return thriftSuperColumns;
     }
 
-    private static Clock thriftifyIClock(IClock clock)
+    private static long thriftifyIClock(IClock clock)
     {
-        Clock thrift_clock = new Clock();
-        if (clock instanceof TimestampClock)
-        {
-            thrift_clock.setTimestamp(((TimestampClock)clock).timestamp());
-        }
-        return thrift_clock;
+        assert clock instanceof TimestampClock;
+        return ((TimestampClock)clock).timestamp();
     }
 
     private Map<byte[], List<ColumnOrSuperColumn>> getSlice(List<ReadCommand> commands, ConsistencyLevel consistency_level)
@@ -367,12 +363,11 @@ public class CassandraServer implements Cassandra.Iface
         ThriftValidation.validateKey(key);
         ThriftValidation.validateColumnParent(clientState.getKeyspace(), column_parent);
         ThriftValidation.validateColumn(clientState.getKeyspace(), column_parent, column);
-        IClock cassandra_clock = ThriftValidation.validateClock(column.clock);
 
         RowMutation rm = new RowMutation(clientState.getKeyspace(), key);
         try
         {
-            rm.add(new QueryPath(column_parent.column_family, column_parent.super_column, column.name), column.value, cassandra_clock, column.ttl);
+            rm.add(new QueryPath(column_parent.column_family, column_parent.super_column, column.name), column.value, new TimestampClock(column.timestamp), column.ttl);
         }
         catch (MarshalException e)
         {
@@ -411,7 +406,7 @@ public class CassandraServer implements Cassandra.Iface
         doInsert(consistency_level, rowMutations);
     }
 
-    public void remove(byte[] key, ColumnPath column_path, Clock clock, ConsistencyLevel consistency_level)
+    public void remove(byte[] key, ColumnPath column_path, long clock, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
@@ -422,10 +417,8 @@ public class CassandraServer implements Cassandra.Iface
         ThriftValidation.validateKey(key);
         ThriftValidation.validateColumnPathOrParent(clientState.getKeyspace(), column_path);
 
-        IClock cassandra_clock = ThriftValidation.validateClock(clock);
-
         RowMutation rm = new RowMutation(clientState.getKeyspace(), key);
-        rm.delete(new QueryPath(column_path), cassandra_clock);
+        rm.delete(new QueryPath(column_path), new TimestampClock(clock));
 
         doInsert(consistency_level, Arrays.asList(rm));
     }
@@ -928,28 +921,14 @@ public class CassandraServer implements Cassandra.Iface
         {
           throw new InvalidRequestException("Invalid column type " + cf_def.column_type);
         }
-        ClockType clockType = ClockType.create(cf_def.clock_type);
-        if (clockType == null)
-        {
-            throw new InvalidRequestException("Invalid clock type " + cf_def.clock_type);
-        }
-        AbstractReconciler reconciler = DatabaseDescriptor.getReconciler(cf_def.reconciler);
-        if (reconciler == null)
-        {
-            if (clockType == ClockType.Timestamp)    
-                reconciler = TimestampReconciler.instance; // default
-            else
-                throw new ConfigurationException("No reconciler specified for column family " + cf_def.name);
-
-        }
 
         return new CFMetaData(cf_def.keyspace,
                               cf_def.name,
                               cfType,
-                              clockType,
+                              ClockType.Timestamp,
                               DatabaseDescriptor.getComparator(cf_def.comparator_type),
                               cf_def.subcomparator_type == null ? null : DatabaseDescriptor.getComparator(cf_def.subcomparator_type),
-                              reconciler,
+                              TimestampReconciler.instance,
                               cf_def.comment,
                               cf_def.row_cache_size,
                               cf_def.preload_row_cache,

@@ -1785,14 +1785,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 rcf.name = cfm.cfName;
                 rcf.compare_with = cfm.comparator.getClass().getName();
                 rcf.compare_subcolumns_with = cfm.subcolumnComparator == null ? null : cfm.subcolumnComparator.getClass().getName();
-                rcf.clock_type = cfm.clockType;
                 rcf.column_type = cfm.cfType;
                 rcf.comment = cfm.comment;
                 rcf.keys_cached = cfm.keyCacheSize;
                 rcf.preload_row_cache = cfm.preloadRowCache;
                 rcf.read_repair_chance = cfm.readRepairChance;
                 rcf.gc_grace_seconds = cfm.gcGraceSeconds;
-                rcf.reconciler = cfm.reconciler.getClass().getName();
                 rcf.rows_cached = cfm.rowCacheSize;
                 rcf.column_metadata = new RawColumnDefinition[cfm.column_metadata.size()];
                 int j = 0;

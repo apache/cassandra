@@ -42,10 +42,8 @@ public class CliClient
      */
     private enum AddColumnFamilyArgument {
         COLUMN_TYPE,
-        CLOCK_TYPE,
         COMPARATOR,
         SUBCOMPARATOR,
-        RECONCILER,
         COMMENT,
         ROWS_CACHED,
         PRELOAD_ROW_CACHE,
@@ -251,16 +249,12 @@ public class CliClient
                 css_.out.println("");
                 css_.out.println("valid attributes are:");
                 css_.out.println("    - column_type: One of Super or Standard");
-                css_.out.println("    - clock_type: Timestamp");
                 css_.out.println("    - comparator: The class used as a comparator when sorting column names.");
                 css_.out.println("                  Valid options include: AsciiType, BytesType, LexicalUUIDType,");
                 css_.out.println("                  LongType, TimeUUIDType, and UTF8Type");
                 css_.out.println("    - subcomparator: Name of comparator used for subcolumns (when");
                 css_.out.println("                     column_type=Super only). Valid options are identical to");
                 css_.out.println("                     comparator above.");
-                css_.out.println("    - reconciler: Name of reconciler class that determines what to do with");
-                css_.out.println("                  conflicting versions of a column. Timestamp is currently the");
-                css_.out.println("                  only valid value.");
                 css_.out.println("    - comment: Human-readable column family description. Any string is valid.");
                 css_.out.println("    - rows_cached: Number of rows to cache");
                 css_.out.println("    - preload_row_cache: Set to true to automatically load the row cache");
@@ -499,9 +493,8 @@ public class CliClient
             columnName = CliCompiler.getColumn(columnFamilySpec, 1).getBytes("UTF-8");
         }
 
-        Clock thrift_clock = new Clock().setTimestamp(FBUtilities.timestampMicros());
         thriftClient_.remove(key.getBytes(), new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnName),
-                             thrift_clock, ConsistencyLevel.ONE);
+                             FBUtilities.timestampMicros(), ConsistencyLevel.ONE);
         css_.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "column"));
     }
 
@@ -524,7 +517,7 @@ public class CliClient
                 css_.out.printf("=> (super_column=%s,", formatSuperColumnName(keyspace, columnFamily, superColumn));
                 for (Column col : superColumn.getColumns())
                     css_.out.printf("\n     (column=%s, value=%s, timestamp=%d)", formatSubcolumnName(keyspace, columnFamily, col),
-                                    new String(col.value, "UTF-8"), col.clock.timestamp);
+                                    new String(col.value, "UTF-8"), col.timestamp);
                 
                 css_.out.println(")"); 
             }
@@ -532,7 +525,7 @@ public class CliClient
             {
                 Column column = cosc.column;
                 css_.out.printf("=> (column=%s, value=%s, timestamp=%d)\n", formatColumnName(keyspace, columnFamily, column),
-                                new String(column.value, "UTF-8"), column.clock.timestamp);
+                                new String(column.value, "UTF-8"), column.timestamp);
             }
         }
         
@@ -638,7 +631,7 @@ public class CliClient
         ColumnPath path = new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnName);
         Column column = thriftClient_.get(key.getBytes(), path, ConsistencyLevel.ONE).column;
         css_.out.printf("=> (column=%s, value=%s, timestamp=%d)\n", formatColumnName(keySpace, columnFamily, column),
-                        new String(column.value, "UTF-8"), column.clock.timestamp);
+                        new String(column.value, "UTF-8"), column.timestamp);
     }
 
     // Execute SET statement
@@ -683,9 +676,8 @@ public class CliClient
         }
         
         // do the insert
-        Clock thrift_clock = new Clock().setTimestamp(FBUtilities.timestampMicros());
         thriftClient_.insert(key.getBytes(), new ColumnParent(columnFamily).setSuper_column(superColumnName),
-                             new Column(columnName, value.getBytes(), thrift_clock), ConsistencyLevel.ONE);
+                             new Column(columnName, value.getBytes(), FBUtilities.timestampMicros()), ConsistencyLevel.ONE);
         
         css_.out.println("Value inserted.");
     }
@@ -789,20 +781,12 @@ public class CliClient
                 cfDef.setColumn_type(CliUtils.unescapeSQLString(mValue));
                 break;
 
-            case CLOCK_TYPE:
-                cfDef.setClock_type(CliUtils.unescapeSQLString(mValue));
-                break;
-
             case COMPARATOR:
                 cfDef.setComparator_type(CliUtils.unescapeSQLString(mValue));
                 break;
 
             case SUBCOMPARATOR:
                 cfDef.setSubcomparator_type(CliUtils.unescapeSQLString(mValue));
-                break;
-
-            case RECONCILER:
-                cfDef.setReconciler(CliUtils.unescapeSQLString(mValue));
                 break;
 
             case COMMENT:

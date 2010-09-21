@@ -28,7 +28,6 @@ import java.util.concurrent.ExecutionException;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
@@ -36,12 +35,10 @@ import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.ColumnOrSuperColumn;
 import org.apache.cassandra.thrift.Deletion;
 import org.apache.cassandra.thrift.Mutation;
-import org.apache.cassandra.thrift.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.concurrent.StageManager;
 
 public class RowMutation
 {
@@ -253,13 +250,13 @@ public class RowMutation
                     assert cosc.super_column != null;
                     for (org.apache.cassandra.thrift.Column column : cosc.super_column.columns)
                     {
-                        rm.add(new QueryPath(cfName, cosc.super_column.name, column.name), column.value, unthriftifyClock(column.clock), column.ttl);
+                        rm.add(new QueryPath(cfName, cosc.super_column.name, column.name), column.value, new TimestampClock(column.timestamp), column.ttl);
                     }
                 }
                 else
                 {
                     assert cosc.super_column == null;
-                    rm.add(new QueryPath(cfName, null, cosc.column.name), cosc.column.value, unthriftifyClock(cosc.column.clock), cosc.column.ttl);
+                    rm.add(new QueryPath(cfName, null, cosc.column.name), cosc.column.value, new TimestampClock(cosc.column.timestamp), cosc.column.ttl);
                 }
             }
         }
@@ -305,12 +302,12 @@ public class RowMutation
         {
             for (org.apache.cassandra.thrift.Column column : cosc.super_column.columns)
             {
-                rm.add(new QueryPath(cfName, cosc.super_column.name, column.name), column.value, unthriftifyClock(column.clock), column.ttl);
+                rm.add(new QueryPath(cfName, cosc.super_column.name, column.name), column.value, new TimestampClock(column.timestamp), column.ttl);
             }
         }
         else
         {
-            rm.add(new QueryPath(cfName, null, cosc.column.name), cosc.column.value, unthriftifyClock(cosc.column.clock), cosc.column.ttl);
+            rm.add(new QueryPath(cfName, null, cosc.column.name), cosc.column.value, new TimestampClock(cosc.column.timestamp), cosc.column.ttl);
         }
     }
 
@@ -321,20 +318,15 @@ public class RowMutation
             for(byte[] c : del.predicate.column_names)
             {
                 if (del.super_column == null && DatabaseDescriptor.getColumnFamilyType(rm.table_, cfName) == ColumnFamilyType.Super)
-                    rm.delete(new QueryPath(cfName, c), unthriftifyClock(del.clock));
+                    rm.delete(new QueryPath(cfName, c), new TimestampClock(del.timestamp));
                 else
-                    rm.delete(new QueryPath(cfName, del.super_column, c), unthriftifyClock(del.clock));
+                    rm.delete(new QueryPath(cfName, del.super_column, c), new TimestampClock(del.timestamp));
             }
         }
         else
         {
-            rm.delete(new QueryPath(cfName, del.super_column), unthriftifyClock(del.clock));
+            rm.delete(new QueryPath(cfName, del.super_column), new TimestampClock(del.timestamp));
         }
-    }
-
-    private static IClock unthriftifyClock(Clock clock)
-    {
-        return new TimestampClock(clock.getTimestamp());
     }
 }
 

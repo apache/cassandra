@@ -529,7 +529,6 @@ public class DefsTest extends CleanupHelper
         cf_def.setKeyspace(cf.tableName);
         cf_def.setName(cf.cfName);
         cf_def.setColumn_type(cf.cfType.name());
-        cf_def.setClock_type(cf.clockType.name());
         cf_def.setComment(cf.comment);
         cf_def.setComparator_type(cf.comparator.getClass().getName());
         cf_def.setSubcomparator_type(null);
@@ -539,7 +538,6 @@ public class DefsTest extends CleanupHelper
         cf_def.setRead_repair_chance(cf.readRepairChance);
         cf_def.setRow_cache_size(43.3);
         cf_def.setColumn_metadata(new ArrayList<ColumnDef>());
-        cf_def.setReconciler("org.apache.cassandra.db.clock.TimestampReconciiler");
         cf_def.setDefault_validation_class("BytesType");
         
         // test valid operations.

@@ -194,7 +194,6 @@ class AvroTester(BaseTester):
             'column_type': 'Super',
             'comparator_type': 'BytesType',
             'subcomparator_type': 'LongType',
-            'reconciler': '',
             'comment': '',
             'row_cache_size': 1000,
             'preload_row_cache': False,

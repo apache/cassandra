@@ -320,8 +320,6 @@ keyspaces:
 
         - name: StandardByUUID1
           compare_with: TimeUUIDType
-          clock_type: Timestamp
-          reconciler: TimestampReconciler          
 
         - name: Super1
           column_type: Super

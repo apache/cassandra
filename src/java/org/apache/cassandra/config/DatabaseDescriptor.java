@@ -541,18 +541,7 @@ public class DatabaseDescriptor
                 {
                     throw new ConfigurationException("compare_subcolumns_with is only a valid attribute on super columnfamilies (not regular columnfamily " + cf.name + ")");
                 }
-                
-                if (cf.clock_type == null)
-                    cf.clock_type = ClockType.Timestamp; // default
-                
-                AbstractReconciler reconciler = getReconciler(cf.reconciler);
-                if (reconciler == null)
-                {
-                    if (cf.clock_type == ClockType.Timestamp)    
-                        reconciler = TimestampReconciler.instance; // default
-                    else
-                        throw new ConfigurationException("No reconciler specified for column family " + cf.name);
-                }
+
                 if (cf.read_repair_chance < 0.0 || cf.read_repair_chance > 1.0)
                 {                        
                     throw new ConfigurationException("read_repair_chance must be between 0.0 and 1.0");
@@ -574,11 +563,11 @@ public class DatabaseDescriptor
 
                 cfDefs[j++] = new CFMetaData(keyspace.name, 
                                              cf.name, 
-                                             cfType, 
-                                             cf.clock_type, 
+                                             cfType,
+                                             ClockType.Timestamp,
                                              comparator, 
                                              subcolumnComparator, 
-                                             reconciler, 
+                                             TimestampReconciler.instance, 
                                              cf.comment, 
                                              cf.rows_cached,
                                              cf.preload_row_cache, 

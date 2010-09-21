@@ -26,6 +26,7 @@ package org.apache.cassandra.thrift;
  */
 
 
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -305,7 +306,19 @@ public class KeyCount implements TBase<KeyCount, KeyCount._Fields>, java.io.Seri
 
   @Override
   public int hashCode() {
-    return 0;
+    HashCodeBuilder builder = new HashCodeBuilder();
+
+    boolean present_key = true && (isSetKey());
+    builder.append(present_key);
+    if (present_key)
+      builder.append(key);
+
+    boolean present_count = true;
+    builder.append(present_count);
+    if (present_count)
+      builder.append(count);
+
+    return builder.toHashCode();
   }
 
   public int compareTo(KeyCount other) {

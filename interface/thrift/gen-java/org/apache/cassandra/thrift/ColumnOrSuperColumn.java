@@ -26,6 +26,7 @@ package org.apache.cassandra.thrift;
  */
 
 
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -303,7 +304,19 @@ public class ColumnOrSuperColumn implements TBase<ColumnOrSuperColumn, ColumnOrS
 
   @Override
   public int hashCode() {
-    return 0;
+    HashCodeBuilder builder = new HashCodeBuilder();
+
+    boolean present_column = true && (isSetColumn());
+    builder.append(present_column);
+    if (present_column)
+      builder.append(column);
+
+    boolean present_super_column = true && (isSetSuper_column());
+    builder.append(present_super_column);
+    if (present_super_column)
+      builder.append(super_column);
+
+    return builder.toHashCode();
   }
 
   public int compareTo(ColumnOrSuperColumn other) {

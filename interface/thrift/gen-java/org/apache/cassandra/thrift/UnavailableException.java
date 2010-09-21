@@ -26,6 +26,7 @@ package org.apache.cassandra.thrift;
  */
 
 
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -182,7 +183,9 @@ public class UnavailableException extends Exception implements TBase<Unavailable
 
   @Override
   public int hashCode() {
-    return 0;
+    HashCodeBuilder builder = new HashCodeBuilder();
+
+    return builder.toHashCode();
   }
 
   public int compareTo(UnavailableException other) {

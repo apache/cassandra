@@ -26,6 +26,7 @@ package org.apache.cassandra.thrift;
  */
 
 
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -431,7 +432,29 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
 
   @Override
   public int hashCode() {
-    return 0;
+    HashCodeBuilder builder = new HashCodeBuilder();
+
+    boolean present_name = true && (isSetName());
+    builder.append(present_name);
+    if (present_name)
+      builder.append(name);
+
+    boolean present_validation_class = true && (isSetValidation_class());
+    builder.append(present_validation_class);
+    if (present_validation_class)
+      builder.append(validation_class);
+
+    boolean present_index_type = true && (isSetIndex_type());
+    builder.append(present_index_type);
+    if (present_index_type)
+      builder.append(index_type.getValue());
+
+    boolean present_index_name = true && (isSetIndex_name());
+    builder.append(present_index_name);
+    if (present_index_name)
+      builder.append(index_name);
+
+    return builder.toHashCode();
   }
 
   public int compareTo(ColumnDef other) {

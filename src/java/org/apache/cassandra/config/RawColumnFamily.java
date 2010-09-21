@@ -34,8 +34,6 @@ public class RawColumnFamily
 {
     public String name;            
     public ColumnFamilyType column_type;
-    public ClockType clock_type;
-    public String reconciler;
     public String compare_with;
     public String compare_subcolumns_with;
     public String comment;

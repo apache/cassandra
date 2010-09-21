@@ -82,6 +82,7 @@
  * fix replaying the last mutation in a commitlog unnecessarily (CASSANDRA-1512)
  * invoke getDefaultUncaughtExceptionHandler from DTPE with the original
    exception rather than the ExecutionException wrapper (CASSANDRA-1226)
+ * remove Clock from the Thrift (and Avro) API (CASSANDRA-1501)
 
 
 0.7-beta1

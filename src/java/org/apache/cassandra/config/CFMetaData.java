@@ -305,11 +305,9 @@ public final class CFMetaData
         cf.keyspace = new Utf8(tableName);
         cf.name = new Utf8(cfName);
         cf.column_type = new Utf8(cfType.name());
-        cf.clock_type = new Utf8(clockType.name());
         cf.comparator_type = new Utf8(comparator.getClass().getName());
         if (subcolumnComparator != null)
             cf.subcomparator_type = new Utf8(subcolumnComparator.getClass().getName());
-        cf.reconciler = new Utf8(reconciler.getClass().getName());
         cf.comment = new Utf8(comment);
         cf.row_cache_size = rowCacheSize;
         cf.key_cache_size = keyCacheSize;
@@ -330,14 +328,12 @@ public final class CFMetaData
     {
         AbstractType comparator;
         AbstractType subcolumnComparator = null;
-        AbstractReconciler reconciler;
         AbstractType validator;
         try
         {
             comparator = DatabaseDescriptor.getComparator(cf.comparator_type.toString());
             if (cf.subcomparator_type != null)
                 subcolumnComparator = DatabaseDescriptor.getComparator(cf.subcomparator_type.toString());
-            reconciler = DatabaseDescriptor.getReconciler(cf.reconciler.toString());
             validator = cf.default_validation_class == null
                         ? BytesType.instance
                         : DatabaseDescriptor.getComparator(cf.default_validation_class.toString());
@@ -355,10 +351,10 @@ public final class CFMetaData
         return new CFMetaData(cf.keyspace.toString(),
                               cf.name.toString(),
                               ColumnFamilyType.create(cf.column_type.toString()),
-                              ClockType.create(cf.clock_type.toString()),
+                              ClockType.Timestamp,
                               comparator,
                               subcolumnComparator,
-                              reconciler,
+                              TimestampReconciler.instance,
                               cf.comment.toString(),
                               cf.row_cache_size,
                               cf.preload_row_cache,
@@ -452,8 +448,6 @@ public final class CFMetaData
             throw new ConfigurationException("names do not match.");
         if (!cf_def.column_type.toString().equals(cfType.name()))
             throw new ConfigurationException("types do not match.");
-        if (!cf_def.clock_type.toString().equals(clockType.name()))
-            throw new ConfigurationException("clock types do not match.");
         if (comparator != DatabaseDescriptor.getComparator(cf_def.comparator_type.toString()))
             throw new ConfigurationException("comparators do not match.");
         if (cf_def.subcomparator_type == null || cf_def.subcomparator_type.equals(""))
@@ -497,8 +491,6 @@ public final class CFMetaData
             throw new ConfigurationException("names do not match.");
         if (!cf_def.column_type.equals(cfType.name()))
             throw new ConfigurationException("types do not match.");
-        if (!cf_def.clock_type.equals(clockType.name()))
-            throw new ConfigurationException("clock types do not match.");
         if (comparator != DatabaseDescriptor.getComparator(cf_def.comparator_type))
             throw new ConfigurationException("comparators do not match.");
         if (cf_def.subcomparator_type == null || cf_def.subcomparator_type.equals(""))
@@ -536,14 +528,12 @@ public final class CFMetaData
         org.apache.cassandra.thrift.CfDef def = new org.apache.cassandra.thrift.CfDef(cfm.tableName, cfm.cfName);
         def.setId(cfm.cfId);
         def.setColumn_type(cfm.cfType.name());
-        def.setClock_type(cfm.clockType.name());
         def.setComparator_type(cfm.comparator.getClass().getName());
         if (cfm.subcolumnComparator != null)
         {
             def.setSubcomparator_type(cfm.subcolumnComparator.getClass().getName());
             def.setColumn_type("Super");
         }
-        def.setReconciler(cfm.reconciler == null ? "" : cfm.reconciler.getClass().getName());
         def.setComment(cfm.comment == null ? "" : cfm.comment);
         def.setRow_cache_size(cfm.rowCacheSize);
         def.setPreload_row_cache(cfm.preloadRowCache);
@@ -575,14 +565,12 @@ public final class CFMetaData
         def.keyspace = cfm.tableName;
         def.id = cfm.cfId;
         def.column_type = cfm.cfType.name();
-        def.clock_type = cfm.clockType.name();
         def.comparator_type = cfm.comparator.getClass().getName();
         if (cfm.subcolumnComparator != null)
         {
             def.subcomparator_type = cfm.subcolumnComparator.getClass().getName();
             def.column_type = "Super";
         }
-        def.reconciler = cfm.reconciler == null ? "" : cfm.reconciler.getClass().getName();
         def.comment = cfm.comment == null ? "" : cfm.comment;
         def.row_cache_size = cfm.rowCacheSize;
         def.preload_row_cache = cfm.preloadRowCache;

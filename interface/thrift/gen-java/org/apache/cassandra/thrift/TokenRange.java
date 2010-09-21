@@ -26,6 +26,7 @@ package org.apache.cassandra.thrift;
  */
 
 
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -380,7 +381,24 @@ public class TokenRange implements TBase<TokenRange, TokenRange._Fields>, java.i
 
   @Override
   public int hashCode() {
-    return 0;
+    HashCodeBuilder builder = new HashCodeBuilder();
+
+    boolean present_start_token = true && (isSetStart_token());
+    builder.append(present_start_token);
+    if (present_start_token)
+      builder.append(start_token);
+
+    boolean present_end_token = true && (isSetEnd_token());
+    builder.append(present_end_token);
+    if (present_end_token)
+      builder.append(end_token);
+
+    boolean present_endpoints = true && (isSetEndpoints());
+    builder.append(present_endpoints);
+    if (present_endpoints)
+      builder.append(endpoints);
+
+    return builder.toHashCode();
   }
 
   public int compareTo(TokenRange other) {

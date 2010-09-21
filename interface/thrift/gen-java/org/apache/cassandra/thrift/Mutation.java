@@ -26,6 +26,7 @@ package org.apache.cassandra.thrift;
  */
 
 
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -298,7 +299,19 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
 
   @Override
   public int hashCode() {
-    return 0;
+    HashCodeBuilder builder = new HashCodeBuilder();
+
+    boolean present_column_or_supercolumn = true && (isSetColumn_or_supercolumn());
+    builder.append(present_column_or_supercolumn);
+    if (present_column_or_supercolumn)
+      builder.append(column_or_supercolumn);
+
+    boolean present_deletion = true && (isSetDeletion());
+    builder.append(present_deletion);
+    if (present_deletion)
+      builder.append(deletion);
+
+    return builder.toHashCode();
   }
 
   public int compareTo(Mutation other) {

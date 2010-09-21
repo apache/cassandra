@@ -26,6 +26,7 @@ package org.apache.cassandra.thrift;
  */
 
 
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -441,7 +442,29 @@ public class SliceRange implements TBase<SliceRange, SliceRange._Fields>, java.i
 
   @Override
   public int hashCode() {
-    return 0;
+    HashCodeBuilder builder = new HashCodeBuilder();
+
+    boolean present_start = true && (isSetStart());
+    builder.append(present_start);
+    if (present_start)
+      builder.append(start);
+
+    boolean present_finish = true && (isSetFinish());
+    builder.append(present_finish);
+    if (present_finish)
+      builder.append(finish);
+
+    boolean present_reversed = true;
+    builder.append(present_reversed);
+    if (present_reversed)
+      builder.append(reversed);
+
+    boolean present_count = true;
+    builder.append(present_count);
+    if (present_count)
+      builder.append(count);
+
+    return builder.toHashCode();
   }
 
   public int compareTo(SliceRange other) {
