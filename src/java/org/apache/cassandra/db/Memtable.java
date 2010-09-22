@@ -194,7 +194,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 
     public String getTableName()
     {
-        return cfs.getTable().name;
+        return cfs.table.name;
     }
 
     /**

@@ -220,7 +220,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         // The collection of sstables passed may be empty (but not null); even if
         // it is not empty, it may compact down to nothing if all rows are deleted.
-        Table table = cfs.getTable();
+        Table table = cfs.table;
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
             table.snapshot("compact-" + cfs.columnFamily);
         logger.info("Compacting [" + StringUtils.join(sstables, ",") + "]");
@@ -324,7 +324,7 @@ public class CompactionManager implements CompactionManagerMBean
     private List<SSTableReader> doAntiCompaction(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, Collection<Range> ranges, InetAddress target)
             throws IOException
     {
-        Table table = cfs.getTable();
+        Table table = cfs.table;
         logger.info("AntiCompacting [" + StringUtils.join(sstables, ",") + "]");
         // Calculate the expected compacted filesize
         long expectedRangeFileSize = cfs.getExpectedCompactedFileSize(sstables) / 2;
@@ -396,7 +396,7 @@ public class CompactionManager implements CompactionManagerMBean
     private void doCleanupCompaction(ColumnFamilyStore cfs) throws IOException
     {
         Collection<SSTableReader> originalSSTables = cfs.getSSTables();
-        List<SSTableReader> sstables = doAntiCompaction(cfs, originalSSTables, StorageService.instance.getLocalRanges(cfs.getTable().name), null);
+        List<SSTableReader> sstables = doAntiCompaction(cfs, originalSSTables, StorageService.instance.getLocalRanges(cfs.table.name), null);
         if (!sstables.isEmpty())
         {
             cfs.replaceCompactedSSTables(originalSSTables, sstables);

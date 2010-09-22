@@ -241,7 +241,10 @@ public class Table
         }
 
         for (CFMetaData cfm : new ArrayList<CFMetaData>(DatabaseDescriptor.getTableDefinition(table).cfMetaData().values()))
+        {
+            logger.debug("Initializing {}.{}", name, cfm.cfName);
             initCf(cfm.cfId, cfm.cfName);
+        }
 
         // check 10x as often as the lifetime, so we can exceed lifetime by 10% at most
         int checkMs = DatabaseDescriptor.getMemtableLifetimeMS() / 10;
@@ -292,7 +295,7 @@ public class Table
     {
         assert !columnFamilyStores.containsKey(cfId) : String.format("tried to init %s as %s, but already used by %s",
                                                                      cfName, cfId, columnFamilyStores.get(cfId));
-        columnFamilyStores.put(cfId, ColumnFamilyStore.createColumnFamilyStore(name, cfName));
+        columnFamilyStores.put(cfId, ColumnFamilyStore.createColumnFamilyStore(this, cfName));
     }
     
     public void reloadCf(Integer cfId) throws IOException
@@ -386,7 +389,7 @@ public class Table
 
         // flush memtables that got filled up.  usually mTF will be empty and this will be a no-op
         for (Map.Entry<ColumnFamilyStore, Memtable> entry : memtablesToFlush.entrySet())
-            entry.getKey().maybeSwitchMemtable(entry.getValue(), writeCommitLog, null);
+            entry.getKey().maybeSwitchMemtable(entry.getValue(), writeCommitLog);
     }
 
     private static void ignoreObsoleteMutations(ColumnFamily cf, AbstractReconciler reconciler, SortedSet<byte[]> mutatedIndexedColumns, ColumnFamily oldIndexedColumns)
@@ -485,7 +488,7 @@ public class Table
                 }
 
                 for (Map.Entry<ColumnFamilyStore, Memtable> entry : memtablesToFlush.entrySet())
-                    entry.getKey().maybeSwitchMemtable(entry.getValue(), false, null);
+                    entry.getKey().maybeSwitchMemtable(entry.getValue(), false);
             }
 
             try

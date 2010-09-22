@@ -347,13 +347,20 @@ public class SystemTable
         return cfs.getColumnFamily(filter) != null;
     }
 
-    public static void setIndexBuilt(String table, String indexName) throws IOException
+    public static void setIndexBuilt(String table, String indexName)
     {
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, INDEX_CF);
         cf.addColumn(new Column(indexName.getBytes(UTF_8), ArrayUtils.EMPTY_BYTE_ARRAY, new TimestampClock(System.currentTimeMillis())));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, table.getBytes(UTF_8));
         rm.add(cf);
-        rm.apply();
+        try
+        {
+            rm.apply();
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
     }
 
     public static class StorageMetadata
