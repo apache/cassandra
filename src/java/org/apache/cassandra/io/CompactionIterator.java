@@ -161,4 +161,8 @@ implements Closeable, ICompactionInfo
         return bytesRead;
     }
 
+    public String getTaskType()
+    {
+        return "Compaction";
+    }
 }

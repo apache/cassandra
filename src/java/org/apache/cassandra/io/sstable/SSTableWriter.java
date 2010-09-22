@@ -32,6 +32,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.AbstractCompactedRow;
+import org.apache.cassandra.io.ICompactionInfo;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.SegmentedFile;
 import org.apache.cassandra.service.StorageService;
@@ -211,96 +212,7 @@ public class SSTableWriter extends SSTable
         return dfile.length() / (dataPosition / keys);
     }
 
-    /**
-     * If either of the index or filter files are missing, rebuilds both.
-     * TODO: Builds most of the in-memory state of the sstable, but doesn't actually open it.
-     */
-    private static void maybeRecover(Descriptor desc) throws IOException
-    {
-        logger.debug("In maybeRecover with Descriptor {}", desc);
-        File ifile = new File(desc.filenameFor(SSTable.COMPONENT_INDEX));
-        File ffile = new File(desc.filenameFor(SSTable.COMPONENT_FILTER));
-        if (ifile.exists() && ffile.exists())
-            // nothing to do
-            return;
-
-        ColumnFamilyStore cfs = Table.open(desc.ksname).getColumnFamilyStore(desc.cfname);
-
-        // remove existing files
-        ifile.delete();
-        ffile.delete();
-
-        // open the data file for input, and an IndexWriter for output
-        BufferedRandomAccessFile dfile = new BufferedRandomAccessFile(desc.filenameFor(SSTable.COMPONENT_DATA), "r", 8 * 1024 * 1024);
-        IndexWriter iwriter;
-        long estimatedRows;
-        try
-        {            
-            estimatedRows = estimateRows(desc, dfile);            
-            iwriter = new IndexWriter(desc, StorageService.getPartitioner(), estimatedRows);
-        }
-        catch(IOException e)
-        {
-            dfile.close();
-            throw e;
-        }
-
-        // build the index and filter
-        long rows = 0;
-        try
-        {
-            DecoratedKey key;
-            long dataPosition = 0;
-            while (dataPosition < dfile.length())
-            {
-                key = SSTableReader.decodeKey(StorageService.getPartitioner(), desc, FBUtilities.readShortByteArray(dfile));
-                long dataSize = SSTableReader.readRowSize(dfile, desc);
-                iwriter.afterAppend(key, dataPosition);
-                dataPosition = dfile.getFilePointer() + dataSize;
-                dfile.seek(dataPosition);
-                rows++;
-            }
-        }
-        finally
-        {
-            try
-            {
-                dfile.close();
-                iwriter.close();
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
-        }
-
-        if (!cfs.getIndexedColumns().isEmpty())
-        {
-            Future future = CompactionManager.instance.submitIndexBuild(cfs, cfs.getIndexedColumns(), new KeyIterator(desc));
-            try
-            {
-                future.get();
-                for (byte[] column : cfs.getIndexedColumns())
-                    cfs.getIndexedColumnFamilyStore(column).forceBlockingFlush();
-            }
-            catch (InterruptedException e)
-            {
-                throw new AssertionError(e);
-            }
-            catch (ExecutionException e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
-
-        logger.debug("estimated row count was %s of real count", ((double)estimatedRows) / rows);
-    }
-
-    /**
-     * Removes the given SSTable from temporary status and opens it, rebuilding the non-essential portions of the
-     * file if necessary.
-     */
-    public static SSTableReader recoverAndOpen(Descriptor desc) throws IOException
+    public static Builder createBuilder(Descriptor desc)
     {
         if (!desc.isLatestVersion)
             // TODO: streaming between different versions will fail: need support for
@@ -308,10 +220,108 @@ public class SSTableWriter extends SSTable
             throw new RuntimeException(String.format("Cannot recover SSTable with version %s (current version %s).",
                                                      desc.version, Descriptor.CURRENT_VERSION));
 
-        // FIXME: once maybeRecover is recovering BMIs, it should return the recovered
-        // components
-        maybeRecover(desc);
-        return SSTableReader.open(rename(desc, SSTable.componentsFor(desc)));
+        return new Builder(desc);
+    }
+
+    /**
+     * Removes the given SSTable from temporary status and opens it, rebuilding the
+     * bloom filter and row index from the data file.
+     */
+    public static class Builder implements ICompactionInfo
+    {
+        private final Descriptor desc;
+        public final ColumnFamilyStore cfs;
+        private BufferedRandomAccessFile dfile;
+
+        public Builder(Descriptor desc)
+        {
+
+            this.desc = desc;
+            cfs = Table.open(desc.ksname).getColumnFamilyStore(desc.cfname);
+            try
+            {
+                dfile = new BufferedRandomAccessFile(desc.filenameFor(SSTable.COMPONENT_DATA), "r", 8 * 1024 * 1024);
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
+        }
+
+        public SSTableReader build() throws IOException
+        {
+            File ifile = new File(desc.filenameFor(SSTable.COMPONENT_INDEX));
+            File ffile = new File(desc.filenameFor(SSTable.COMPONENT_FILTER));
+            assert !ifile.exists();
+            assert !ffile.exists();
+
+            IndexWriter iwriter;
+            long estimatedRows;
+            try
+            {
+                estimatedRows = estimateRows(desc, dfile);
+                iwriter = new IndexWriter(desc, StorageService.getPartitioner(), estimatedRows);
+            }
+            catch(IOException e)
+            {
+                dfile.close();
+                throw e;
+            }
+
+            // build the index and filter
+            long rows = 0;
+            try
+            {
+                DecoratedKey key;
+                long dataPosition = 0;
+                while (dataPosition < dfile.length())
+                {
+                    key = SSTableReader.decodeKey(StorageService.getPartitioner(), desc, FBUtilities.readShortByteArray(dfile));
+                    long dataSize = SSTableReader.readRowSize(dfile, desc);
+                    iwriter.afterAppend(key, dataPosition);
+                    dataPosition = dfile.getFilePointer() + dataSize;
+                    dfile.seek(dataPosition);
+                    rows++;
+                }
+            }
+            finally
+            {
+                try
+                {
+                    dfile.close();
+                    iwriter.close();
+                }
+                catch (IOException e)
+                {
+                    throw new IOError(e);
+                }
+            }
+
+            logger.debug("estimated row count was %s of real count", ((double)estimatedRows) / rows);
+            return SSTableReader.open(rename(desc, SSTable.componentsFor(desc)));
+        }
+
+        public long getTotalBytes()
+        {
+            try
+            {
+                return dfile.length();
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
+        }
+
+        public long getBytesRead()
+        {
+            return dfile.getFilePointer();
+        }
+
+        public String getTaskType()
+        {
+            return "SSTable rebuild";
+        }
     }
 
     /**

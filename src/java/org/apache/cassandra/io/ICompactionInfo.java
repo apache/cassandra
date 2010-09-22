@@ -5,4 +5,6 @@ public interface ICompactionInfo
     public long getTotalBytes();
 
     public long getBytesRead();
+
+    public String getTaskType();
 }

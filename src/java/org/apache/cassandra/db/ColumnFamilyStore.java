@@ -33,6 +33,7 @@ import javax.management.ObjectName;
 import com.google.common.collect.Iterables;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -205,12 +206,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             logger.info("Creating index {}.{}", table, indexedCfMetadata.cfName);
             Runnable runnable = new WrappedRunnable()
             {
-                public void runMayThrow() throws IOException, ExecutionException, InterruptedException
+                public void runMayThrow() throws IOException
                 {
-                    logger.debug("Submitting index build to compactionmanager");
-                    ReducingKeyIterator iter = new ReducingKeyIterator(getSSTables());
-                    Future future = CompactionManager.instance.submitIndexBuild(ColumnFamilyStore.this, FBUtilities.getSingleColumnSet(info.name), iter);
-                    future.get();
+                    buildSecondaryIndexes(getSSTables(), FBUtilities.getSingleColumnSet(info.name));
                     logger.info("Index {} complete", indexedCfMetadata.cfName);
                     SystemTable.setIndexBuilt(table, indexedCfMetadata.cfName);
                 }
@@ -218,6 +216,26 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             forceFlush(runnable);
         }
         indexedColumns.put(info.name, indexedCfs);
+    }
+
+    public void buildSecondaryIndexes(Collection<SSTableReader> sstables, SortedSet<byte[]> columns)
+    {
+        logger.debug("Submitting index build to compactionmanager");
+        Future future = CompactionManager.instance.submitIndexBuild(this, columns, new ReducingKeyIterator(sstables));
+        try
+        {
+            future.get();
+            for (byte[] column : columns)
+                getIndexedColumnFamilyStore(column).forceBlockingFlush();
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     // called when dropping or renaming a CF. Performs mbean housekeeping.

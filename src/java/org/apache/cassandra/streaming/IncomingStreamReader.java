@@ -100,24 +100,6 @@ public class IncomingStreamReader
             fc.close();
         }
 
-        addSSTable(localFile);
-        session.finished(remoteFile);
-    }
-
-    public static void addSSTable(PendingFile pendingFile)
-    {
-        // file was successfully streamed
-        Descriptor desc = pendingFile.desc;
-        try
-        {
-            SSTableReader sstable = SSTableWriter.recoverAndOpen(pendingFile.desc);
-            Table.open(desc.ksname).getColumnFamilyStore(desc.cfname).addSSTable(sstable);
-            logger.info("Streaming added " + sstable);
-        }
-        catch (IOException e)
-        {
-            logger.error("Failed adding {}", pendingFile, e);
-            throw new RuntimeException("Not able to add streamed file " + pendingFile.getFilename(), e);
-        }
+        session.finished(remoteFile, localFile);
     }
 }

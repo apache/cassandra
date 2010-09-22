@@ -29,21 +29,17 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Row;
-import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.TimestampClock;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.IFilter;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
@@ -54,7 +50,7 @@ import org.junit.Test;
 public class SSTableWriterTest extends CleanupHelper {
 
     @Test
-    public void testRecoverAndOpen() throws IOException
+    public void testRecoverAndOpen() throws IOException, ExecutionException, InterruptedException
     {
         RowMutation rm;
 
@@ -80,13 +76,13 @@ public class SSTableWriterTest extends CleanupHelper {
         
         SSTableReader orig = SSTableUtils.writeRawSSTable("Keyspace1", "Indexed1", entries);        
         // whack the index to trigger the recover
-        new File(orig.desc.filenameFor(Component.PRIMARY_INDEX)).delete();
-        new File(orig.desc.filenameFor(Component.FILTER)).delete();
-        
-        SSTableReader sstr = SSTableWriter.recoverAndOpen(orig.desc);
-        
+        FileUtils.deleteWithConfirm(orig.desc.filenameFor(Component.PRIMARY_INDEX));
+        FileUtils.deleteWithConfirm(orig.desc.filenameFor(Component.FILTER));
+
+        SSTableReader sstr = CompactionManager.instance.submitSSTableBuild(orig.desc).get();
         ColumnFamilyStore cfs = Table.open("Keyspace1").getColumnFamilyStore("Indexed1");
         cfs.addSSTable(sstr);
+        cfs.buildSecondaryIndexes(cfs.getSSTables(), cfs.getIndexedColumns());
         
         IndexExpression expr = new IndexExpression("birthdate".getBytes("UTF8"), IndexOperator.EQ, FBUtilities.toByteArray(1L));
         IndexClause clause = new IndexClause(Arrays.asList(expr), "".getBytes(), 100);
@@ -95,7 +91,7 @@ public class SSTableWriterTest extends CleanupHelper {
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
         List<Row> rows = cfs.scan(clause, range, filter);
         
-        assertEquals("IndexExpression should return two rows on recoverAndOpen",2, rows.size());
+        assertEquals("IndexExpression should return two rows on recoverAndOpen", 2, rows.size());
         assertTrue("First result should be 'k1'",Arrays.equals("k1".getBytes(), rows.get(0).key.key));
     }
 }

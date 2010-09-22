@@ -66,6 +66,11 @@ public class ReducingKeyIterator implements IKeyIterator
         return m;
     }
 
+    public String getTaskType()
+    {
+        return "Secondary index build";
+    }
+
     public boolean hasNext()
     {
         return iter.hasNext();
@@ -73,7 +78,7 @@ public class ReducingKeyIterator implements IKeyIterator
 
     public DecoratedKey next()
     {
-        return (DecoratedKey) iter.next();
+        return iter.next();
     }
 
     public void remove()

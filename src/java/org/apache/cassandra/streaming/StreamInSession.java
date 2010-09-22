@@ -22,7 +22,13 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CompactionManager;
+import org.apache.cassandra.db.Table;
+import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.net.MessagingService;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.apache.cassandra.utils.Pair;
@@ -41,6 +47,8 @@ public class StreamInSession
     private final Pair<InetAddress, Long> context;
     private final Runnable callback;
     private String table;
+    private final List<Future<SSTableReader>> buildFutures = new ArrayList<Future<SSTableReader>>();
+    private ColumnFamilyStore cfs;
 
     private StreamInSession(Pair<InetAddress, Long> context, Runnable callback)
     {
@@ -84,13 +92,19 @@ public class StreamInSession
             if(logger.isDebugEnabled())
                 logger.debug("Adding file {} to Stream Request queue", file.getFilename());
             this.files.add(file);
+            if (cfs == null)
+                cfs = Table.open(file.desc.ksname).getColumnFamilyStore(file.desc.cfname);
         }
     }
 
-    public void finished(PendingFile remoteFile) throws IOException
+    public void finished(PendingFile remoteFile, PendingFile localFile) throws IOException
     {
         if (logger.isDebugEnabled())
             logger.debug("Finished {}. Sending ack to {}", remoteFile, this);
+
+        Future future = CompactionManager.instance.submitSSTableBuild(localFile.desc);
+        buildFutures.add(future);
+
         files.remove(remoteFile);
         StreamReply reply = new StreamReply(remoteFile.getFilename(), getSessionId(), StreamReply.Status.FILE_FINISHED);
         // send a StreamStatus message telling the source node it can delete this file
@@ -108,6 +122,31 @@ public class StreamInSession
     {
         if (files.isEmpty())
         {
+            // wait for bloom filters and row indexes to finish building
+            List<SSTableReader> sstables = new ArrayList<SSTableReader>(buildFutures.size());
+            for (Future<SSTableReader> future : buildFutures)
+            {
+                try
+                {
+                    SSTableReader sstable = future.get();
+                    cfs.addSSTable(sstable);
+                    sstables.add(sstable);
+                }
+                catch (InterruptedException e)
+                {
+                    throw new AssertionError(e);
+                }
+                catch (ExecutionException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            // build secondary indexes
+            if (cfs != null && !cfs.getIndexedColumns().isEmpty())
+                cfs.buildSecondaryIndexes(sstables, cfs.getIndexedColumns());
+
+            // send reply to source that we're done
             StreamReply reply = new StreamReply("", getSessionId(), StreamReply.Status.SESSION_FINISHED);
             logger.info("Finished streaming session {} from {}", getSessionId(), getHost());
             MessagingService.instance.sendOneWay(reply.createMessage(), getHost());

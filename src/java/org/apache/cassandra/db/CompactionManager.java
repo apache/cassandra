@@ -18,37 +18,37 @@
 
 package org.apache.cassandra.db;
 
-import java.io.IOException;
 import java.io.File;
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.net.InetAddress;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
-import javax.management.*;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 
+import org.apache.commons.collections.PredicateUtils;
+import org.apache.commons.collections.iterators.CollatingIterator;
+import org.apache.commons.collections.iterators.FilterIterator;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.io.*;
-import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.AntiEntropyService;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.io.AbstractCompactedRow;
+import org.apache.cassandra.io.CompactionIterator;
+import org.apache.cassandra.io.ICompactionInfo;
+import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.service.AntiEntropyService;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
-
-import java.net.InetAddress;
-
-import org.apache.commons.lang.StringUtils;
-import org.apache.commons.collections.iterators.FilterIterator;
-import org.apache.commons.collections.iterators.CollatingIterator;
-import org.apache.commons.collections.PredicateUtils;
 
 public class CompactionManager implements CompactionManagerMBean
 {
@@ -508,6 +508,20 @@ public class CompactionManager implements CompactionManagerMBean
         return executor.submit(runnable);
     }
 
+    public Future<SSTableReader> submitSSTableBuild(Descriptor desc)
+    {
+        final SSTableWriter.Builder builder = SSTableWriter.createBuilder(desc);
+        Callable<SSTableReader> callable = new Callable<SSTableReader>()
+        {
+            public SSTableReader call() throws IOException
+            {
+                executor.beginCompaction(builder.cfs, builder);
+                return builder.build();
+            }
+        };
+        return executor.submit(callable);
+    }
+
     private static class AntiCompactionIterator extends CompactionIterator
     {
         private Set<SSTableScanner> scanners;
@@ -549,6 +563,11 @@ public class CompactionManager implements CompactionManagerMBean
                 }
             }
             return scanners;
+        }
+
+        public String getTaskType()
+        {
+            return "Anticompaction";
         }
     }
 

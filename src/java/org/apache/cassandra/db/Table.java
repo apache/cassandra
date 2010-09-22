@@ -456,7 +456,8 @@ public class Table
                 synchronized (indexLockFor(key.key))
                 {
                     ColumnFamily cf = readCurrentIndexedColumns(key, cfs, columns);
-                    applyIndexUpdates(key.key, memtablesToFlush, cf, cfs, cf.getColumnNames(), null);
+                    if (cf != null)
+                        applyIndexUpdates(key.key, memtablesToFlush, cf, cfs, cf.getColumnNames(), null);
                 }
             }
             finally

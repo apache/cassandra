@@ -4,16 +4,16 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
+import java.util.Iterator;
 
 import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.io.ICompactionInfo;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class KeyIterator extends AbstractIterator<DecoratedKey> implements IKeyIterator
+public class KeyIterator extends AbstractIterator<DecoratedKey> implements Iterator<DecoratedKey>, Closeable
 {
     private final BufferedRandomAccessFile in;
     private final Descriptor desc;
