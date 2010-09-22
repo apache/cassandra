@@ -495,14 +495,14 @@ public class CompactionManager implements CompactionManagerMBean
         return tablePairs;
     }
 
-    public Future submitIndexBuild(final ColumnFamilyStore cfs, final SortedSet<byte[]> columns, final IKeyIterator iter)
+    public Future submitIndexBuild(final ColumnFamilyStore cfs, final Table.IndexBuilder builder)
     {
         Runnable runnable = new Runnable()
         {
             public void run()
             {
-                executor.beginCompaction(cfs, iter);
-                Table.open(cfs.table).rebuildIndex(cfs, columns, iter);
+                executor.beginCompaction(cfs, builder);
+                builder.build();
             }
         };
         return executor.submit(runnable);

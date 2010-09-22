@@ -221,7 +221,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public void buildSecondaryIndexes(Collection<SSTableReader> sstables, SortedSet<byte[]> columns)
     {
         logger.debug("Submitting index build to compactionmanager");
-        Future future = CompactionManager.instance.submitIndexBuild(this, columns, new ReducingKeyIterator(sstables));
+        Table.IndexBuilder builder = Table.open(table).createIndexBuilder(this, columns, new ReducingKeyIterator(sstables));
+        Future future = CompactionManager.instance.submitIndexBuild(this, builder);
         try
         {
             future.get();

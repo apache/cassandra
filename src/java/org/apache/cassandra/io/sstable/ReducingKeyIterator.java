@@ -1,7 +1,9 @@
 package org.apache.cassandra.io.sstable;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Iterator;
 
 import org.apache.commons.collections.iterators.CollatingIterator;
 
@@ -9,7 +11,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ReducingIterator;
 
-public class ReducingKeyIterator implements IKeyIterator
+public class ReducingKeyIterator implements Iterator<DecoratedKey>, Closeable
 {
     private final CollatingIterator ci;
     private final ReducingIterator<DecoratedKey, DecoratedKey> iter;

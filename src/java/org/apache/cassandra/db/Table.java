@@ -33,7 +33,8 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.clock.AbstractReconciler;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.LocalToken;
-import org.apache.cassandra.io.sstable.IKeyIterator;
+import org.apache.cassandra.io.ICompactionInfo;
+import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableDeletingReference;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -443,39 +444,73 @@ public class Table
         }
     }
 
-    public void rebuildIndex(ColumnFamilyStore cfs, SortedSet<byte[]> columns, IKeyIterator iter)
+    public IndexBuilder createIndexBuilder(ColumnFamilyStore cfs, SortedSet<byte[]> columns, ReducingKeyIterator iter)
     {
-        while (iter.hasNext())
+        return new IndexBuilder(cfs, columns, iter);
+    }
+
+    public class IndexBuilder implements ICompactionInfo
+    {
+        private final ColumnFamilyStore cfs;
+        private final SortedSet<byte[]> columns;
+        private final ReducingKeyIterator iter;
+
+        public IndexBuilder(ColumnFamilyStore cfs, SortedSet<byte[]> columns, ReducingKeyIterator iter)
         {
-            DecoratedKey key = iter.next();
-            logger.debug("Indexing row {} ", key);
-            HashMap<ColumnFamilyStore,Memtable> memtablesToFlush = new HashMap<ColumnFamilyStore, Memtable>(2);
-            flusherLock.readLock().lock();
+            this.cfs = cfs;
+            this.columns = columns;
+            this.iter = iter;
+        }
+
+        public void build()
+        {
+            while (iter.hasNext())
+            {
+                DecoratedKey key = iter.next();
+                logger.debug("Indexing row {} ", key);
+                HashMap<ColumnFamilyStore,Memtable> memtablesToFlush = new HashMap<ColumnFamilyStore, Memtable>(2);
+                flusherLock.readLock().lock();
+                try
+                {
+                    synchronized (indexLockFor(key.key))
+                    {
+                        ColumnFamily cf = readCurrentIndexedColumns(key, cfs, columns);
+                        if (cf != null)
+                            applyIndexUpdates(key.key, memtablesToFlush, cf, cfs, cf.getColumnNames(), null);
+                    }
+                }
+                finally
+                {
+                    flusherLock.readLock().unlock();
+                }
+
+                for (Map.Entry<ColumnFamilyStore, Memtable> entry : memtablesToFlush.entrySet())
+                    entry.getKey().maybeSwitchMemtable(entry.getValue(), false, null);
+            }
+
             try
             {
-                synchronized (indexLockFor(key.key))
-                {
-                    ColumnFamily cf = readCurrentIndexedColumns(key, cfs, columns);
-                    if (cf != null)
-                        applyIndexUpdates(key.key, memtablesToFlush, cf, cfs, cf.getColumnNames(), null);
-                }
+                iter.close();
             }
-            finally
+            catch (IOException e)
             {
-                flusherLock.readLock().unlock();
+                throw new RuntimeException(e);
             }
-
-            for (Map.Entry<ColumnFamilyStore, Memtable> entry : memtablesToFlush.entrySet())
-                entry.getKey().maybeSwitchMemtable(entry.getValue(), false, null);
         }
 
-        try
+        public long getTotalBytes()
         {
-            iter.close();
+            return iter.getTotalBytes();
         }
-        catch (IOException e)
+
+        public long getBytesRead()
         {
-            throw new RuntimeException(e);
+            return iter.getBytesRead();
+        }
+
+        public String getTaskType()
+        {
+            return "Secondary index build";
         }
     }
 
