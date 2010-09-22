@@ -37,7 +37,11 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
 
-/** for streaming data from other nodes in to this one */
+/**
+ * for streaming data from other nodes in to this one.
+ * Sends a STREAM_REQUEST Message to the source node(s), after which StreamOut on that side takes over.
+ * See StreamOut for details.
+ */
 public class StreamIn
 {
     private static Logger logger = LoggerFactory.getLogger(StreamIn.class);

@@ -40,12 +40,19 @@ import org.apache.cassandra.utils.Pair;
 /**
  * This class handles streaming data from one node to another.
  *
- * For StreamingRepair and Unbootstrap
- *  1. The ranges are transferred on a single file basis.
- *  2. Each transfer has the header information for the sstable being transferred.
- *  3. List of the pending files are maintained, as this is the source node.
+ * The source node is in charge of the streaming session.  It begins the stream by sending
+ * a Message with the stream bit flag in the Header turned on.  Part of that Message
+ * will include a StreamHeader that includes the files that will be streamed as part
+ * of that session, as well as the first file-to-be-streamed. (Combining session list
+ * and first file like this is inconvenient, but not as inconvenient as the old
+ * three-part send-file-list, wait-for-ack, start-first-file dance.)
  *
- * For Stream requests (for bootstrap), the main difference is that we always have to
+ * After each file, the target will send a StreamReply indicating success
+ * (FILE_FINISHED) or failure (FILE_RETRY).
+ *
+ * When all files have been successfully transferred the session is complete.
+ *
+ * For Stream requests (for bootstrap), one subtlety is that we always have to
  * create at least one stream reply, even if the list of files is empty, otherwise the
  * target has no way to know that it can stop waiting for an answer.
  *

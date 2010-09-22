@@ -88,9 +88,10 @@ public class IncomingStreamReader
         }
         catch (IOException ex)
         {
-            logger.debug("Receiving stream: recovering from IO error");
             /* Ask the source node to re-stream this file. */
-            handleFileStatus(FileStatus.Action.RETRY);
+            StreamReply reply = new StreamReply(remoteFile.getFilename(), session.getSessionId(), StreamReply.Status.FILE_RETRY);
+            logger.info("Streaming of file {} from {} failed: requesting a retry.", remoteFile, session);
+            MessagingService.instance.sendOneWay(reply.createMessage(), session.getHost());
 
             /* Delete the orphaned file. */
             FileUtils.deleteWithConfirm(new File(localFile.getFilename()));
@@ -103,29 +104,14 @@ public class IncomingStreamReader
 
         if (logger.isDebugEnabled())
             logger.debug("Removing stream context {}", remoteFile);
-        handleFileStatus(FileStatus.Action.FINISHED);
-    }
 
-    private void handleFileStatus(FileStatus.Action action) throws IOException
-    {
-        FileStatus status = new FileStatus(remoteFile.getFilename(), session.getSessionId(), action);
-
-        if (FileStatus.Action.RETRY == action)
-        {
-            // file needs to be restreamed
-            logger.warn("Streaming of file {} from {} failed: requesting a retry.", remoteFile, session);
-            MessagingService.instance.sendOneWay(status.makeStreamStatusMessage(), session.getHost());
-            return;
-        }
-
-        assert FileStatus.Action.FINISHED == action : "Unknown stream action: " + action;
-
+        StreamReply reply = new StreamReply(remoteFile.getFilename(), session.getSessionId(), StreamReply.Status.FILE_FINISHED);
         addSSTable(localFile);
         session.remove(remoteFile);
         // send a StreamStatus message telling the source node it can delete this file
         if (logger.isDebugEnabled())
             logger.debug("Sending a streaming finished message for {} to {}", remoteFile, session);
-        MessagingService.instance.sendOneWay(status.makeStreamStatusMessage(), session.getHost());
+        MessagingService.instance.sendOneWay(reply.createMessage(), session.getHost());
     }
 
     public static void addSSTable(PendingFile pendingFile)

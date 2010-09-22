@@ -28,14 +28,13 @@ import java.io.IOException;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.service.StorageService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class StreamStatusVerbHandler implements IVerbHandler
+public class StreamReplyVerbHandler implements IVerbHandler
 {
-    private static Logger logger = LoggerFactory.getLogger(StreamStatusVerbHandler.class);
+    private static Logger logger = LoggerFactory.getLogger(StreamReplyVerbHandler.class);
 
     public void doVerb(Message message)
     {
@@ -44,21 +43,21 @@ public class StreamStatusVerbHandler implements IVerbHandler
 
         try
         {
-            FileStatus streamStatus = FileStatus.serializer().deserialize(new DataInputStream(bufIn));
-            StreamOutSession session = StreamOutSession.get(message.getFrom(), streamStatus.sessionId);
-            session.validateCurrentFile(streamStatus.file);
+            StreamReply reply = StreamReply.serializer.deserialize(new DataInputStream(bufIn));
+            StreamOutSession session = StreamOutSession.get(message.getFrom(), reply.sessionId);
+            session.validateCurrentFile(reply.file);
 
-            switch (streamStatus.action)
+            switch (reply.action)
             {
-                case FINISHED:
+                case FILE_FINISHED:
                     session.startNext();
                     break;
-                case RETRY:
-                    logger.warn("Need to re-stream file {} to {}", streamStatus.file, message.getFrom());
+                case FILE_RETRY:
+                    logger.warn("Need to re-stream file {} to {}", reply.file, message.getFrom());
                     session.retry();
                     break;
                 default:
-                    throw new RuntimeException("Cannot handle FileStatus.Action: " + streamStatus.action);
+                    throw new RuntimeException("Cannot handle FileStatus.Action: " + reply.action);
             }
         }
         catch (IOException ex)

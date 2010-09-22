@@ -28,26 +28,18 @@ import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.RawColumnDefinition;
-import org.apache.cassandra.config.RawColumnFamily;
-import org.apache.cassandra.config.RawKeyspace;
-import org.apache.cassandra.utils.SkipNullRepresenter;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
+import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.migration.AddKeyspace;
 import org.apache.cassandra.db.migration.Migration;
@@ -68,8 +60,8 @@ import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.thrift.Constants;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.SkipNullRepresenter;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.apache.log4j.Level;
 import org.yaml.snakeyaml.Dumper;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
@@ -97,7 +89,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         READ_RESPONSE,
         STREAM_INITIATE, // Deprecated
         STREAM_INITIATE_DONE, // Deprecated
-        STREAM_STATUS,
+        STREAM_REPLY,
         STREAM_REQUEST,
         RANGE_SLICE,
         BOOTSTRAP_TOKEN,
@@ -122,7 +114,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         put(Verb.READ_REPAIR, Stage.MUTATION);
         put(Verb.READ, Stage.READ);
         put(Verb.READ_RESPONSE, Stage.RESPONSE);
-        put(Verb.STREAM_STATUS, Stage.MISC); // TODO does this really belong on misc? I've just copied old behavior here
+        put(Verb.STREAM_REPLY, Stage.MISC); // TODO does this really belong on misc? I've just copied old behavior here
         put(Verb.STREAM_REQUEST, Stage.STREAM);
         put(Verb.RANGE_SLICE, Stage.READ);
         put(Verb.BOOTSTRAP_TOKEN, Stage.MISC);
@@ -222,7 +214,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // see BootStrapper for a summary of how the bootstrap verbs interact
         MessagingService.instance.registerVerbHandlers(Verb.BOOTSTRAP_TOKEN, new BootStrapper.BootstrapTokenVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.STREAM_REQUEST, new StreamRequestVerbHandler() );
-        MessagingService.instance.registerVerbHandlers(Verb.STREAM_STATUS, new StreamStatusVerbHandler());
+        MessagingService.instance.registerVerbHandlers(Verb.STREAM_REPLY, new StreamReplyVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.READ_RESPONSE, new ResponseVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.TREE_REQUEST, new TreeRequestVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.TREE_RESPONSE, new AntiEntropyService.TreeResponseVerbHandler());

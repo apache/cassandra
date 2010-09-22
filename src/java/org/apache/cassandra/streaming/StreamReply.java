@@ -31,62 +31,52 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
-class FileStatus
+class StreamReply
 {
-    private static ICompactSerializer<FileStatus> serializer;
-
-    static enum Action
+    static enum Status
     {
         // was received successfully, and can be deleted from the source node
-        FINISHED,
+        FILE_FINISHED,
         // needs to be streamed (or restreamed)
-        RETRY,
+        FILE_RETRY,
     }
 
-    static
-    {
-        serializer = new FileStatusSerializer();
-    }
-
-    public static ICompactSerializer<FileStatus> serializer()
-    {
-        return serializer;
-    }
+    public static final ICompactSerializer<StreamReply> serializer = new FileStatusSerializer();
 
     public final long sessionId;
     public final String file;
-    public final Action action;
+    public final Status action;
 
-    public FileStatus(String file, long sessionId, Action action)
+    public StreamReply(String file, long sessionId, Status action)
     {
         this.file = file;
         this.action = action;
         this.sessionId = sessionId;
     }
 
-    public Message makeStreamStatusMessage() throws IOException
+    public Message createMessage() throws IOException
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
-        FileStatus.serializer().serialize(this, dos);
-        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.STREAM_STATUS, bos.toByteArray());
+        serializer.serialize(this, dos);
+        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.STREAM_REPLY, bos.toByteArray());
     }
 
-    private static class FileStatusSerializer implements ICompactSerializer<FileStatus>
+    private static class FileStatusSerializer implements ICompactSerializer<StreamReply>
     {
-        public void serialize(FileStatus streamStatus, DataOutputStream dos) throws IOException
+        public void serialize(StreamReply reply, DataOutputStream dos) throws IOException
         {
-            dos.writeLong(streamStatus.sessionId);
-            dos.writeUTF(streamStatus.file);
-            dos.writeInt(streamStatus.action.ordinal());
+            dos.writeLong(reply.sessionId);
+            dos.writeUTF(reply.file);
+            dos.writeInt(reply.action.ordinal());
         }
 
-        public FileStatus deserialize(DataInputStream dis) throws IOException
+        public StreamReply deserialize(DataInputStream dis) throws IOException
         {
             long sessionId = dis.readLong();
             String targetFile = dis.readUTF();
-            Action action = Action.values()[dis.readInt()];
-            return new FileStatus(targetFile, sessionId, action);
+            Status action = Status.values()[dis.readInt()];
+            return new StreamReply(targetFile, sessionId, action);
         }
     }
 }
