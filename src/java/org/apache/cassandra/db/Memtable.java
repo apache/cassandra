@@ -56,7 +56,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     private final long creationTime;
     private final ConcurrentNavigableMap<DecoratedKey, ColumnFamily> columnFamilies = new ConcurrentSkipListMap<DecoratedKey, ColumnFamily>();
     private final IPartitioner partitioner;
-    private final ColumnFamilyStore cfs;
+    public final ColumnFamilyStore cfs;
 
     public Memtable(ColumnFamilyStore cfs, IPartitioner partitioner)
     {
