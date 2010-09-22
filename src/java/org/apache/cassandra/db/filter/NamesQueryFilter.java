@@ -30,6 +30,7 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class NamesQueryFilter implements IFilter
 {
@@ -42,21 +43,7 @@ public class NamesQueryFilter implements IFilter
 
     public NamesQueryFilter(byte[] column)
     {
-        this(getSingleColumnSet(column));
-    }
-
-    private static TreeSet<byte[]> getSingleColumnSet(byte[] column)
-    {
-        Comparator<byte[]> singleColumnComparator = new Comparator<byte[]>()
-        {
-            public int compare(byte[] o1, byte[] o2)
-            {
-                return Arrays.equals(o1, o2) ? 0 : -1;
-            }
-        };
-        TreeSet<byte[]> set = new TreeSet<byte[]>(singleColumnComparator);
-        set.add(column);
-        return set;
+        this(FBUtilities.getSingleColumnSet(column));
     }
 
     public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key, AbstractType comparator)

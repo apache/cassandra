@@ -13,15 +13,22 @@ import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class KeyIterator extends AbstractIterator<DecoratedKey> implements ICompactionInfo, Closeable
+public class KeyIterator extends AbstractIterator<DecoratedKey> implements IKeyIterator
 {
     private final BufferedRandomAccessFile in;
     private final Descriptor desc;
 
-    public KeyIterator(Descriptor desc) throws IOException
+    public KeyIterator(Descriptor desc)
     {
         this.desc = desc;
-        in = new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_INDEX)), "r");
+        try
+        {
+            in = new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_INDEX)), "r");
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
     }
 
     protected DecoratedKey computeNext()

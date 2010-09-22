@@ -31,16 +31,21 @@ import org.junit.Test;
 import static junit.framework.Assert.assertEquals;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
+import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 import java.net.InetAddress;
+import java.util.concurrent.TimeUnit;
+
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.CollatingOrderPreservingPartitioner;
@@ -250,6 +255,34 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.apply();
 
         rows = table.getColumnFamilyStore("Indexed1").scan(clause, range, filter);
+        assert Arrays.equals("k1".getBytes(), rows.get(0).key.key);
+    }
+
+    @Test
+    public void testIndexCreate() throws IOException, ConfigurationException, InterruptedException
+    {
+        Table table = Table.open("Keyspace1");
+
+        // create a row and update the birthdate value, test that the index query fetches the new version
+        RowMutation rm;
+        rm = new RowMutation("Keyspace1", "k1".getBytes());
+        rm.add(new QueryPath("Indexed2", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), new TimestampClock(1));
+        rm.apply();
+
+        ColumnFamilyStore cfs = table.getColumnFamilyStore("Indexed2");
+        ColumnDefinition old = cfs.metadata.column_metadata.get("birthdate".getBytes("UTF8"));
+        ColumnDefinition cd = new ColumnDefinition(old.name, old.validator.getClass().getName(), IndexType.KEYS, "birthdate_index");
+        cfs.addIndex(cd);
+        while (!SystemTable.isIndexBuilt("Keyspace1", cfs.getIndexedColumnFamilyStore("birthdate".getBytes("UTF8")).columnFamily))
+            TimeUnit.MILLISECONDS.sleep(100);
+
+        IndexExpression expr = new IndexExpression("birthdate".getBytes("UTF8"), IndexOperator.EQ, FBUtilities.toByteArray(1L));
+        IndexClause clause = new IndexClause(Arrays.asList(expr), ArrayUtils.EMPTY_BYTE_ARRAY, 100);
+        IFilter filter = new IdentityQueryFilter();
+        IPartitioner p = StorageService.getPartitioner();
+        Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
+        List<Row> rows = table.getColumnFamilyStore("Indexed2").scan(clause, range, filter);
+        assert rows.size() == 1 : StringUtils.join(rows, ",");
         assert Arrays.equals("k1".getBytes(), rows.get(0).key.key);
     }
 

@@ -338,6 +338,8 @@ public class FBUtilities
         }
     }
 
+    /*
+    TODO how to make this work w/ ReducingKeyIterator?
     public static <T extends Comparable<T>> CollatingIterator getCollatingIterator()
     {
         // CollatingIterator will happily NPE if you do not specify a comparator explicitly
@@ -346,6 +348,18 @@ public class FBUtilities
             public int compare(T o1, T o2)
             {
                 return o1.compareTo(o2);
+            }
+        });
+    }
+     */
+    public static CollatingIterator getCollatingIterator()
+    {
+        // CollatingIterator will happily NPE if you do not specify a comparator explicitly
+        return new CollatingIterator(new Comparator()
+        {
+            public int compare(Object o1, Object o2)
+            {
+                return ((Comparable) o1).compareTo(o2);
             }
         });
     }
@@ -655,5 +669,19 @@ public class FBUtilities
                 logger_.warn("Unknown mlockall error " + errno);
             }
         }
+    }
+
+    public static TreeSet<byte[]> getSingleColumnSet(byte[] column)
+    {
+        Comparator<byte[]> singleColumnComparator = new Comparator<byte[]>()
+        {
+            public int compare(byte[] o1, byte[] o2)
+            {
+                return Arrays.equals(o1, o2) ? 0 : -1;
+            }
+        };
+        TreeSet<byte[]> set = new TreeSet<byte[]>(singleColumnComparator);
+        set.add(column);
+        return set;
     }
 }

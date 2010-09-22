@@ -33,7 +33,7 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.clock.AbstractReconciler;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.LocalToken;
-import org.apache.cassandra.io.sstable.KeyIterator;
+import org.apache.cassandra.io.sstable.IKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableDeletingReference;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -42,7 +42,6 @@ import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.db.filter.*;
-import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -386,7 +385,7 @@ public class Table
 
         // flush memtables that got filled up.  usually mTF will be empty and this will be a no-op
         for (Map.Entry<ColumnFamilyStore, Memtable> entry : memtablesToFlush.entrySet())
-            entry.getKey().maybeSwitchMemtable(entry.getValue(), writeCommitLog);
+            entry.getKey().maybeSwitchMemtable(entry.getValue(), writeCommitLog, null);
     }
 
     private static void ignoreObsoleteMutations(ColumnFamily cf, AbstractReconciler reconciler, SortedSet<byte[]> mutatedIndexedColumns, ColumnFamily oldIndexedColumns)
@@ -444,18 +443,19 @@ public class Table
         }
     }
 
-    public void rebuildIndex(ColumnFamilyStore cfs, KeyIterator iter)
+    public void rebuildIndex(ColumnFamilyStore cfs, SortedSet<byte[]> columns, IKeyIterator iter)
     {
         while (iter.hasNext())
         {
             DecoratedKey key = iter.next();
+            logger.debug("Indexing row {} ", key);
             HashMap<ColumnFamilyStore,Memtable> memtablesToFlush = new HashMap<ColumnFamilyStore, Memtable>(2);
             flusherLock.readLock().lock();
             try
             {
                 synchronized (indexLockFor(key.key))
                 {
-                    ColumnFamily cf = readCurrentIndexedColumns(key, cfs, cfs.getIndexedColumns());
+                    ColumnFamily cf = readCurrentIndexedColumns(key, cfs, columns);
                     applyIndexUpdates(key.key, memtablesToFlush, cf, cfs, cf.getColumnNames(), null);
                 }
             }
@@ -465,7 +465,16 @@ public class Table
             }
 
             for (Map.Entry<ColumnFamilyStore, Memtable> entry : memtablesToFlush.entrySet())
-                entry.getKey().maybeSwitchMemtable(entry.getValue(), false);
+                entry.getKey().maybeSwitchMemtable(entry.getValue(), false, null);
+        }
+
+        try
+        {
+            iter.close();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
         }
     }
 

@@ -27,6 +27,8 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 
 import com.google.common.collect.Iterables;
 import org.apache.commons.collections.IteratorUtils;
@@ -41,7 +43,6 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.IClock.ClockRelationship;
-import org.apache.cassandra.db.clock.TimestampReconciler;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -51,11 +52,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.LocalByPartionerType;
 import org.apache.cassandra.dht.*;
-import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.io.sstable.SSTableTracker;
+import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexClause;
@@ -65,9 +62,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LatencyTracker;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
-
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
@@ -176,7 +170,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (ColumnDefinition info : metadata.column_metadata.values())
         {
             if (info.index_type != null)
-                addIndex(table, info);
+                addIndex(info);
         }
 
         // register the mbean
@@ -194,17 +188,35 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    private void addIndex(String table, ColumnDefinition info)
+    public void addIndex(final ColumnDefinition info)
     {
+        assert info.index_type != null;
         IPartitioner rowPartitioner = StorageService.getPartitioner();
         AbstractType columnComparator = (rowPartitioner instanceof OrderPreservingPartitioner || rowPartitioner instanceof ByteOrderedPartitioner)
                                         ? BytesType.instance
                                         : new LocalByPartionerType(StorageService.getPartitioner());
-        CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(table, columnFamily, info, columnComparator);
+        final CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(table, columnFamily, info, columnComparator);
         ColumnFamilyStore indexedCfs = ColumnFamilyStore.createColumnFamilyStore(table,
                                                                                  indexedCfMetadata.cfName,
                                                                                  new LocalPartitioner(metadata.column_metadata.get(info.name).validator),
                                                                                  indexedCfMetadata);
+        if (!SystemTable.isIndexBuilt(table, indexedCfMetadata.cfName))
+        {
+            logger.info("Creating index {}.{}", table, indexedCfMetadata.cfName);
+            Runnable runnable = new WrappedRunnable()
+            {
+                public void runMayThrow() throws IOException, ExecutionException, InterruptedException
+                {
+                    logger.debug("Submitting index build to compactionmanager");
+                    ReducingKeyIterator iter = new ReducingKeyIterator(getSSTables());
+                    Future future = CompactionManager.instance.submitIndexBuild(ColumnFamilyStore.this, FBUtilities.getSingleColumnSet(info.name), iter);
+                    future.get();
+                    logger.info("Index {} complete", indexedCfMetadata.cfName);
+                    SystemTable.setIndexBuilt(table, indexedCfMetadata.cfName);
+                }
+            };
+            forceFlush(runnable);
+        }
         indexedColumns.put(info.name, indexedCfs);
     }
 
@@ -397,7 +409,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /** flush the given memtable and swap in a new one for its CFS, if it hasn't been frozen already.  threadsafe. */
-    Future<?> maybeSwitchMemtable(Memtable oldMemtable, final boolean writeCommitLog)
+    Future<?> maybeSwitchMemtable(Memtable oldMemtable, final boolean writeCommitLog, final Runnable afterFlush)
     {
         /**
          *  If we can get the writelock, that means no new updates can come in and 
@@ -436,6 +448,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                         // if we're not writing to the commit log, we are replaying the log, so marking
                         // the log header with "you can discard anything written before the context" is not valid
                         CommitLog.instance().discardCompletedSegments(metadata.cfId, ctx);
+                        if (afterFlush != null)
+                            afterFlush.run();
                     }
                 }
             });
@@ -465,10 +479,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public Future<?> forceFlush()
     {
+        return forceFlush(null);
+    }
+
+    public Future<?> forceFlush(Runnable afterFlush)
+    {
         if (memtable.isClean())
             return null;
 
-        return maybeSwitchMemtable(memtable, true);
+        return maybeSwitchMemtable(memtable, true, afterFlush);
     }
 
     public void forceBlockingFlush() throws ExecutionException, InterruptedException

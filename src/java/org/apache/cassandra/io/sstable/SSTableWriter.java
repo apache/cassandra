@@ -276,7 +276,7 @@ public class SSTableWriter extends SSTable
 
         if (!cfs.getIndexedColumns().isEmpty())
         {
-            Future future = CompactionManager.instance.submitIndexBuild(cfs, new KeyIterator(desc));
+            Future future = CompactionManager.instance.submitIndexBuild(cfs, cfs.getIndexedColumns(), new KeyIterator(desc));
             try
             {
                 future.get();

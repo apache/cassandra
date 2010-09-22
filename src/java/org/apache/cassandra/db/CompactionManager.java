@@ -495,14 +495,14 @@ public class CompactionManager implements CompactionManagerMBean
         return tablePairs;
     }
 
-    public Future submitIndexBuild(final ColumnFamilyStore cfs, final KeyIterator iter)
+    public Future submitIndexBuild(final ColumnFamilyStore cfs, final SortedSet<byte[]> columns, final IKeyIterator iter)
     {
         Runnable runnable = new Runnable()
         {
             public void run()
             {
                 executor.beginCompaction(cfs, iter);
-                Table.open(cfs.table).rebuildIndex(cfs, iter);
+                Table.open(cfs.table).rebuildIndex(cfs, columns, iter);
             }
         };
         return executor.submit(runnable);
@@ -528,7 +528,8 @@ public class CompactionManager implements CompactionManagerMBean
                     return Range.isTokenInRanges(((SSTableIdentityIterator)row).getKey().token, ranges);
                 }
             };
-            CollatingIterator iter = FBUtilities.<SSTableIdentityIterator>getCollatingIterator();
+            // TODO CollatingIterator iter = FBUtilities.<SSTableIdentityIterator>getCollatingIterator();
+            CollatingIterator iter = FBUtilities.getCollatingIterator();
             for (SSTableReader sstable : sstables)
             {
                 SSTableScanner scanner = sstable.getScanner(FILE_BUFFER_SIZE);

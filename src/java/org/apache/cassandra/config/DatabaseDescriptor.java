@@ -350,15 +350,16 @@ public class DatabaseDescriptor
                                                    LocalStrategy.class,
                                                    null,
                                                    1,
-                                                   new CFMetaData[]{CFMetaData.StatusCf,
-                                                                    CFMetaData.HintsCf,
-                                                                    CFMetaData.MigrationsCf,
-                                                                    CFMetaData.SchemaCf,
-            });
+                                                   CFMetaData.StatusCf,
+                                                   CFMetaData.HintsCf,
+                                                   CFMetaData.MigrationsCf,
+                                                   CFMetaData.SchemaCf,
+                                                   CFMetaData.IndexCf);
             CFMetaData.map(CFMetaData.StatusCf);
             CFMetaData.map(CFMetaData.HintsCf);
             CFMetaData.map(CFMetaData.MigrationsCf);
             CFMetaData.map(CFMetaData.SchemaCf);
+            CFMetaData.map(CFMetaData.IndexCf);
             tables.put(Table.SYSTEM_TABLE, systemMeta);
             
             /* Load the seeds for node contact points */

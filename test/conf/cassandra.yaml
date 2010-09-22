@@ -74,6 +74,12 @@ keyspaces:
               validator_class: LongType
               index_type: KEYS
 
+        - name: Indexed2 
+          column_metadata:
+            - name: birthdate
+              validator_class: LongType
+              # index will be added dynamically
+
     - name: Keyspace2
       replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
       replication_factor: 1

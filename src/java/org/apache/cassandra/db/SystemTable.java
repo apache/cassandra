@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.clock.TimestampReconciler;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -49,6 +50,7 @@ public class SystemTable
 {
     private static Logger logger = LoggerFactory.getLogger(SystemTable.class);
     public static final String STATUS_CF = "LocationInfo"; // keep the old CF string for backwards-compatibility
+    public static final String INDEX_CF = "IndexInfo";
     private static final byte[] LOCATION_KEY = "L".getBytes(UTF_8);
     private static final byte[] BOOTSTRAP_KEY = "Bootstrap".getBytes(UTF_8);
     private static final byte[] COOKIE_KEY = "Cookies".getBytes(UTF_8);
@@ -334,6 +336,24 @@ public class SystemTable
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public static boolean isIndexBuilt(String table, String indexName)
+    {
+        ColumnFamilyStore cfs = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(INDEX_CF);
+        QueryFilter filter = QueryFilter.getNamesFilter(decorate(table.getBytes(UTF_8)),
+                                                        new QueryPath(INDEX_CF),
+                                                        indexName.getBytes(UTF_8));
+        return cfs.getColumnFamily(filter) != null;
+    }
+
+    public static void setIndexBuilt(String table, String indexName) throws IOException
+    {
+        ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, INDEX_CF);
+        cf.addColumn(new Column(indexName.getBytes(UTF_8), ArrayUtils.EMPTY_BYTE_ARRAY, new TimestampClock(System.currentTimeMillis())));
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, table.getBytes(UTF_8));
+        rm.add(cf);
+        rm.apply();
     }
 
     public static class StorageMetadata
