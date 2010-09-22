@@ -121,8 +121,7 @@ public class DatabaseDescriptor
         try
         {
             URL url = getStorageConfigURL();
-            if (logger.isDebugEnabled())
-                logger.info("Loading settings from " + url);
+            logger.info("Loading settings from " + url);
             
             InputStream input = url.openStream();
             org.yaml.snakeyaml.constructor.Constructor constructor = new org.yaml.snakeyaml.constructor.Constructor(Config.class);
