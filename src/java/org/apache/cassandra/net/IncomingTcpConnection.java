@@ -40,6 +40,7 @@ public class IncomingTcpConnection extends Thread
 
     public IncomingTcpConnection(Socket socket)
     {
+        assert socket != null;
         this.socket = socket;
         try
         {
@@ -47,6 +48,7 @@ public class IncomingTcpConnection extends Thread
         }
         catch (IOException e)
         {
+            close();
             throw new IOError(e);
         }
     }
@@ -112,6 +114,21 @@ public class IncomingTcpConnection extends Thread
                 }
                 break;
             }
+        }
+
+        close();
+    }
+
+    private void close()
+    {
+        try
+        {
+            socket.close();
+        }
+        catch (IOException e)
+        {
+            if (logger.isDebugEnabled())
+                logger.debug("error closing socket", e);
         }
     }
 }
