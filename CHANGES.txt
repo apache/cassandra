@@ -85,6 +85,7 @@
    exception rather than the ExecutionException wrapper (CASSANDRA-1226)
  * remove Clock from the Thrift (and Avro) API (CASSANDRA-1501)
  * Close intra-node sockets when connection is broken (CASSANDRA-1528)
+ * RPM packaging spec file (CASSANDRA-786)
 
 
 0.7-beta1
