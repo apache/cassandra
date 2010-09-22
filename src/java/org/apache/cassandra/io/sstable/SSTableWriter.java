@@ -22,8 +22,8 @@ package org.apache.cassandra.io.sstable;
 import java.io.*;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
-import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -225,7 +225,7 @@ public class SSTableWriter extends SSTable
             return;
 
         ColumnFamilyStore cfs = Table.open(desc.ksname).getColumnFamilyStore(desc.cfname);
-        Set<byte[]> indexedColumns = cfs.getIndexedColumns();
+
         // remove existing files
         ifile.delete();
         ffile.delete();
@@ -255,53 +255,10 @@ public class SSTableWriter extends SSTable
             {
                 key = SSTableReader.decodeKey(StorageService.getPartitioner(), desc, FBUtilities.readShortByteArray(dfile));
                 long dataSize = SSTableReader.readRowSize(dfile, desc);
-                if (!indexedColumns.isEmpty())
-                {
-                    // skip bloom filter and column index
-                    dfile.readFully(new byte[dfile.readInt()]);
-                    dfile.readFully(new byte[dfile.readInt()]);
-
-                    // index the column data
-                    ColumnFamily cf = ColumnFamily.create(desc.ksname, desc.cfname);
-                    ColumnFamily.serializer().deserializeFromSSTableNoColumns(cf, dfile);
-                    int columns = dfile.readInt();
-                    for (int i = 0; i < columns; i++)
-                    {
-                        IColumn iColumn = cf.getColumnSerializer().deserialize(dfile);
-                        if (indexedColumns.contains(iColumn.name()))
-                        {
-                            DecoratedKey valueKey = cfs.getIndexKeyFor(iColumn.name(), iColumn.value());
-                            ColumnFamily indexedCf = cfs.newIndexedColumnFamily(iColumn.name());
-                            indexedCf.addColumn(new Column(key.key, ArrayUtils.EMPTY_BYTE_ARRAY, iColumn.clock()));
-                            logger.debug("adding indexed column row mutation for key {}", valueKey);
-                            Table.open(desc.ksname).applyIndexedCF(cfs.getIndexedColumnFamilyStore(iColumn.name()),
-                                                                   key,
-                                                                   valueKey,
-                                                                   indexedCf);
-                        }
-                    }
-                }
-
                 iwriter.afterAppend(key, dataPosition);
                 dataPosition = dfile.getFilePointer() + dataSize;
                 dfile.seek(dataPosition);
                 rows++;
-            }
-
-            for (byte[] column : cfs.getIndexedColumns())
-            {
-                try
-                {
-                    cfs.getIndexedColumnFamilyStore(column).forceBlockingFlush();
-                }
-                catch (ExecutionException e)
-                {
-                    throw new RuntimeException(e);
-                }
-                catch (InterruptedException e)
-                {
-                    throw new AssertionError(e);
-                }
             }
         }
         finally
@@ -313,7 +270,26 @@ public class SSTableWriter extends SSTable
             }
             catch (IOException e)
             {
-                logger.error("Failed to close data or index file during recovery of " + desc, e);
+                throw new IOError(e);
+            }
+        }
+
+        if (!cfs.getIndexedColumns().isEmpty())
+        {
+            Future future = CompactionManager.instance.submitIndexBuild(cfs, new KeyIterator(desc));
+            try
+            {
+                future.get();
+                for (byte[] column : cfs.getIndexedColumns())
+                    cfs.getIndexedColumnFamilyStore(column).forceBlockingFlush();
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
+            catch (ExecutionException e)
+            {
+                throw new RuntimeException(e);
             }
         }
 

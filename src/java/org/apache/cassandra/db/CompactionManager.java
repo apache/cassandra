@@ -495,6 +495,19 @@ public class CompactionManager implements CompactionManagerMBean
         return tablePairs;
     }
 
+    public Future submitIndexBuild(final ColumnFamilyStore cfs, final KeyIterator iter)
+    {
+        Runnable runnable = new Runnable()
+        {
+            public void run()
+            {
+                executor.beginCompaction(cfs, iter);
+                Table.open(cfs.table).rebuildIndex(cfs, iter);
+            }
+        };
+        return executor.submit(runnable);
+    }
+
     private static class AntiCompactionIterator extends CompactionIterator
     {
         private Set<SSTableScanner> scanners;
@@ -566,7 +579,7 @@ public class CompactionManager implements CompactionManagerMBean
     private static class CompactionExecutor extends DebuggableThreadPoolExecutor
     {
         private volatile ColumnFamilyStore cfs;
-        private volatile CompactionIterator ci;
+        private volatile ICompactionInfo ci;
 
         public CompactionExecutor()
         {
@@ -581,7 +594,7 @@ public class CompactionManager implements CompactionManagerMBean
             ci = null;
         }
 
-        void beginCompaction(ColumnFamilyStore cfs, CompactionIterator ci)
+        void beginCompaction(ColumnFamilyStore cfs, ICompactionInfo ci)
         {
             this.cfs = cfs;
             this.ci = ci;

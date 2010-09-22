@@ -23,27 +23,20 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.util.*;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.commons.cli.*;
+
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.TimestampClock;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
-import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.io.sstable.SSTableScanner;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.io.sstable.*;
 
 import static org.apache.cassandra.utils.FBUtilities.bytesToHex;
 import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
-import org.apache.commons.cli.*;
 
 /**
  * Export SSTables to JSON format.
@@ -158,18 +151,14 @@ public class SSTableExport
     public static void enumeratekeys(String ssTableFile, PrintStream outs)
     throws IOException
     {
-        IPartitioner partitioner = StorageService.getPartitioner();
         Descriptor desc = Descriptor.fromFilename(ssTableFile);
-        BufferedRandomAccessFile input = new BufferedRandomAccessFile(desc.filenameFor(Component.PRIMARY_INDEX), "r");
-        while (!input.isEOF())
+        KeyIterator iter = new KeyIterator(desc);
+        while (iter.hasNext())
         {
-            DecoratedKey decoratedKey = SSTableReader.decodeKey(partitioner,
-                                                                desc,
-                                                                FBUtilities.readShortByteArray(input));
-            long dataPosition = input.readLong();
-            outs.println(bytesToHex(decoratedKey.key));
+            DecoratedKey key = iter.next();
+            outs.println(bytesToHex(key.key));
         }
-
+        iter.close();
         outs.flush();
     }
 

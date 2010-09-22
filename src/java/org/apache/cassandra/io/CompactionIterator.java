@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,11 +36,11 @@ import org.apache.commons.collections.iterators.CollatingIterator;
 
 import org.apache.cassandra.utils.ReducingIterator;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
 
-public class CompactionIterator extends ReducingIterator<SSTableIdentityIterator, AbstractCompactedRow> implements Closeable
+public class CompactionIterator extends ReducingIterator<SSTableIdentityIterator, AbstractCompactedRow>
+implements Closeable, ICompactionInfo
 {
     private static Logger logger = LoggerFactory.getLogger(CompactionIterator.class);
 

@@ -30,10 +30,10 @@ import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.db.clock.AbstractReconciler;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.LocalToken;
-import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.SSTableDeletingReference;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -42,6 +42,7 @@ import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -365,51 +366,11 @@ public class Table
                 {
                     synchronized (indexLockFor(mutation.key()))
                     {
-                        // read old indexed values
-                        QueryFilter filter = QueryFilter.getNamesFilter(key, new QueryPath(cfs.getColumnFamilyName()), mutatedIndexedColumns);
-                        ColumnFamily oldIndexedColumns = cfs.getColumnFamily(filter);
+                        ColumnFamily oldIndexedColumns = readCurrentIndexedColumns(key, cfs, mutatedIndexedColumns);
+                        ignoreObsoleteMutations(cf, cfs.metadata.reconciler, mutatedIndexedColumns, oldIndexedColumns);
 
-                        // ignore obsolete column updates
-                        if (oldIndexedColumns != null)
-                        {
-                            for (IColumn oldColumn : oldIndexedColumns)
-                            {
-                                if (cfs.metadata.reconciler.reconcile((Column) oldColumn, (Column) cf.getColumn(oldColumn.name())).equals(oldColumn))
-                                {
-                                    cf.remove(oldColumn.name());
-                                    mutatedIndexedColumns.remove(oldColumn.name());
-                                    oldIndexedColumns.remove(oldColumn.name());
-                                }
-                            }
-                        }
-
-                        // apply the mutation
                         applyCF(cfs, key, cf, memtablesToFlush);
-
-                        // add new index entries
-                        for (byte[] columnName : mutatedIndexedColumns)
-                        {
-                            IColumn column = cf.getColumn(columnName);
-                            DecoratedKey<LocalToken> valueKey = cfs.getIndexKeyFor(columnName, column.value());
-                            ColumnFamily cfi = cfs.newIndexedColumnFamily(columnName);
-                            cfi.addColumn(new Column(mutation.key(), ArrayUtils.EMPTY_BYTE_ARRAY, column.clock()));
-                            applyCF(cfs.getIndexedColumnFamilyStore(columnName), valueKey, cfi, memtablesToFlush);
-                        }
-
-                        // remove the old index entries
-                        if (oldIndexedColumns != null)
-                        {
-                            int localDeletionTime = (int)(System.currentTimeMillis() / 1000);
-                            for (Map.Entry<byte[], IColumn> entry : oldIndexedColumns.getColumnsMap().entrySet())
-                            {
-                                byte[] columnName = entry.getKey();
-                                IColumn column = entry.getValue();
-                                DecoratedKey<LocalToken> valueKey = cfs.getIndexKeyFor(columnName, column.value());
-                                ColumnFamily cfi = cfs.newIndexedColumnFamily(columnName);
-                                cfi.deleteColumn(mutation.key(), localDeletionTime, column.clock());
-                                applyCF(cfs.getIndexedColumnFamilyStore(columnName), valueKey, cfi, memtablesToFlush);
-                            }
-                        }
+                        applyIndexUpdates(mutation.key(), memtablesToFlush, cf, cfs, mutatedIndexedColumns, oldIndexedColumns);
                     }
                 }
 
@@ -428,24 +389,84 @@ public class Table
             entry.getKey().maybeSwitchMemtable(entry.getValue(), writeCommitLog);
     }
 
-    public void applyIndexedCF(ColumnFamilyStore indexedCfs, DecoratedKey rowKey, DecoratedKey indexedKey, ColumnFamily indexedColumnFamily) 
+    private static void ignoreObsoleteMutations(ColumnFamily cf, AbstractReconciler reconciler, SortedSet<byte[]> mutatedIndexedColumns, ColumnFamily oldIndexedColumns)
     {
-        Memtable memtableToFlush;
-        flusherLock.readLock().lock();
-        try
+        if (oldIndexedColumns == null)
+            return;
+
+        for (IColumn oldColumn : oldIndexedColumns)
         {
-            synchronized (indexLockFor(rowKey.key))
+            if (reconciler.reconcile((Column) oldColumn, (Column) cf.getColumn(oldColumn.name())).equals(oldColumn))
             {
-                memtableToFlush = indexedCfs.apply(indexedKey, indexedColumnFamily);
+                cf.remove(oldColumn.name());
+                mutatedIndexedColumns.remove(oldColumn.name());
+                oldIndexedColumns.remove(oldColumn.name());
             }
         }
-        finally 
+    }
+
+    private static ColumnFamily readCurrentIndexedColumns(DecoratedKey key, ColumnFamilyStore cfs, SortedSet<byte[]> mutatedIndexedColumns)
+    {
+        QueryFilter filter = QueryFilter.getNamesFilter(key, new QueryPath(cfs.getColumnFamilyName()), mutatedIndexedColumns);
+        return cfs.getColumnFamily(filter);
+    }
+
+    private static void applyIndexUpdates(byte[] key,
+                                          HashMap<ColumnFamilyStore, Memtable> memtablesToFlush,
+                                          ColumnFamily cf,
+                                          ColumnFamilyStore cfs,
+                                          SortedSet<byte[]> mutatedIndexedColumns,
+                                          ColumnFamily oldIndexedColumns)
+    {
+        // add new index entries
+        for (byte[] columnName : mutatedIndexedColumns)
         {
-            flusherLock.readLock().unlock();
+            IColumn column = cf.getColumn(columnName);
+            DecoratedKey<LocalToken> valueKey = cfs.getIndexKeyFor(columnName, column.value());
+            ColumnFamily cfi = cfs.newIndexedColumnFamily(columnName);
+            cfi.addColumn(new Column(key, ArrayUtils.EMPTY_BYTE_ARRAY, column.clock()));
+            applyCF(cfs.getIndexedColumnFamilyStore(columnName), valueKey, cfi, memtablesToFlush);
         }
 
-        if (memtableToFlush != null)
-            indexedCfs.maybeSwitchMemtable(memtableToFlush, false);
+        // remove the old index entries
+        if (oldIndexedColumns != null)
+        {
+            int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
+            for (Map.Entry<byte[], IColumn> entry : oldIndexedColumns.getColumnsMap().entrySet())
+            {
+                byte[] columnName = entry.getKey();
+                IColumn column = entry.getValue();
+                DecoratedKey<LocalToken> valueKey = cfs.getIndexKeyFor(columnName, column.value());
+                ColumnFamily cfi = cfs.newIndexedColumnFamily(columnName);
+                cfi.deleteColumn(key, localDeletionTime, column.clock());
+                applyCF(cfs.getIndexedColumnFamilyStore(columnName), valueKey, cfi, memtablesToFlush);
+            }
+        }
+    }
+
+    public void rebuildIndex(ColumnFamilyStore cfs, KeyIterator iter)
+    {
+        while (iter.hasNext())
+        {
+            DecoratedKey key = iter.next();
+            HashMap<ColumnFamilyStore,Memtable> memtablesToFlush = new HashMap<ColumnFamilyStore, Memtable>(2);
+            flusherLock.readLock().lock();
+            try
+            {
+                synchronized (indexLockFor(key.key))
+                {
+                    ColumnFamily cf = readCurrentIndexedColumns(key, cfs, cfs.getIndexedColumns());
+                    applyIndexUpdates(key.key, memtablesToFlush, cf, cfs, cf.getColumnNames(), null);
+                }
+            }
+            finally
+            {
+                flusherLock.readLock().unlock();
+            }
+
+            for (Map.Entry<ColumnFamilyStore, Memtable> entry : memtablesToFlush.entrySet())
+                entry.getKey().maybeSwitchMemtable(entry.getValue(), false);
+        }
     }
 
     private Object indexLockFor(byte[] key)
