@@ -78,7 +78,7 @@ public class Config
     /* Size of the memtable in memory before it is dumped */
     public Integer memtable_throughput_in_mb = (int) (Runtime.getRuntime().maxMemory() / 1048576 / 8);
     /* Number of objects in millions in the memtable before it is dumped */
-    public Double memtable_operations_in_millions = memtable_throughput_in_mb / 64 * 0.3;
+    public Double memtable_operations_in_millions = memtable_throughput_in_mb / 64.0 * 0.3;
     
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     public Integer column_index_size_in_kb = 64;
