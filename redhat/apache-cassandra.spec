@@ -3,7 +3,7 @@
 %global username cassandra
 
 Name:           apache-cassandra
-Version:        0.7.0
+Version:        0.6.6
 Release:        1%{?dist}
 Summary:        Cassandra is a highly scalable, eventually consistent, distributed, structured key-value store.
 
