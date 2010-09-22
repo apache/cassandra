@@ -236,6 +236,27 @@ public final class CFMetaData
              column_metadata);
     }
 
+    public static CFMetaData newIndexMetadata(String table, String parentCf, ColumnDefinition info, AbstractType columnComparator)
+    {
+        return new CFMetaData(table,
+                              parentCf + "." + (info.index_name == null ? FBUtilities.bytesToHex(info.name) : info.index_name),
+                              ColumnFamilyType.Standard,
+                              ClockType.Timestamp,
+                              columnComparator,
+                              null,
+                              TimestampReconciler.instance,
+                              "",
+                              0,
+                              false,
+                              0,
+                              0,
+                              DEFAULT_GC_GRACE_SECONDS,
+                              BytesType.instance,
+                              DEFAULT_MIN_COMPACTION_THRESHOLD,
+                              DEFAULT_MAX_COMPACTION_THRESHOLD,
+                              Collections.<byte[], ColumnDefinition>emptyMap());
+    }
+
     /** clones an existing CFMetaData using the same id. */
     public static CFMetaData rename(CFMetaData cfm, String newName)
     {

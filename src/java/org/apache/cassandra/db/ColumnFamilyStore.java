@@ -171,43 +171,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ssTables = new SSTableTracker(table, columnFamilyName);
         ssTables.add(sstables);
 
+        // create the private ColumnFamilyStores for the secondary column indexes
         indexedColumns = new TreeMap<byte[], ColumnFamilyStore>(getComparator());
-        for (Map.Entry<byte[], ColumnDefinition> entry : metadata.column_metadata.entrySet())
+        for (ColumnDefinition info : metadata.column_metadata.values())
         {
-            byte[] column = entry.getKey();
-            ColumnDefinition info = entry.getValue();
-            if (info.index_type == null)
-                continue;
-
-            String indexedCfName = columnFamily + "." + (info.index_name == null ? FBUtilities.bytesToHex(column) : info.index_name);
-            IPartitioner rowPartitioner = StorageService.getPartitioner();
-            AbstractType columnComparator = (rowPartitioner instanceof OrderPreservingPartitioner || rowPartitioner instanceof ByteOrderedPartitioner)
-                                            ? BytesType.instance
-                                            : new LocalByPartionerType(StorageService.getPartitioner());
-            CFMetaData indexedCfMetadata = new CFMetaData(table,
-                                                          indexedCfName,
-                                                          ColumnFamilyType.Standard,
-                                                          ClockType.Timestamp,
-                                                          columnComparator,
-                                                          null,
-                                                          TimestampReconciler.instance,
-                                                          "",
-                                                          0,
-                                                          false,
-                                                          0,
-                                                          0,
-                                                          CFMetaData.DEFAULT_GC_GRACE_SECONDS,
-                                                          BytesType.instance,
-                                                          CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD,
-                                                          CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD,
-                                                          Collections.<byte[], ColumnDefinition>emptyMap());
-            ColumnFamilyStore indexedCfs = ColumnFamilyStore.createColumnFamilyStore(table, 
-                                                                                     indexedCfName,
-                                                                                     new LocalPartitioner(metadata.column_metadata.get(column).validator),
-                                                                                     indexedCfMetadata);
-            indexedColumns.put(column, indexedCfs);
+            if (info.index_type != null)
+                addIndex(table, info);
         }
-        
+
+        // register the mbean
         String type = this.partitioner instanceof LocalPartitioner ? "IndexColumnFamilies" : "ColumnFamilies";
         mbeanName = "org.apache.cassandra.db:type=" + type + ",keyspace=" + this.table + ",columnfamily=" + columnFamily;
         try
@@ -221,7 +193,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             throw new RuntimeException(e);
         }
     }
-    
+
+    private void addIndex(String table, ColumnDefinition info)
+    {
+        IPartitioner rowPartitioner = StorageService.getPartitioner();
+        AbstractType columnComparator = (rowPartitioner instanceof OrderPreservingPartitioner || rowPartitioner instanceof ByteOrderedPartitioner)
+                                        ? BytesType.instance
+                                        : new LocalByPartionerType(StorageService.getPartitioner());
+        CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(table, columnFamily, info, columnComparator);
+        ColumnFamilyStore indexedCfs = ColumnFamilyStore.createColumnFamilyStore(table,
+                                                                                 indexedCfMetadata.cfName,
+                                                                                 new LocalPartitioner(metadata.column_metadata.get(info.name).validator),
+                                                                                 indexedCfMetadata);
+        indexedColumns.put(info.name, indexedCfs);
+    }
+
     // called when dropping or renaming a CF. Performs mbean housekeeping.
     void unregisterMBean()
     {
@@ -353,7 +339,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // NB: we never "accept" a file in the FilenameFilter sense: they are added to the sstable map
             new File(directory).list(new FilenameFilter()
             {
-                @Override
                 public boolean accept(File dir, String name)
                 {
                     Pair<Descriptor,Component> component = SSTable.tryComponentFromFilename(dir, name);
