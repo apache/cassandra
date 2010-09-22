@@ -64,7 +64,6 @@ Thrift API
       returned as UTF-8 encoded bytes. OrderPreservingPartitioner and
       CollatingOrderPreservingPartitioner continue to expect that keys contain
       UTF-8 encoded strings, but RandomPartitioner now works on any key data.
-    - i64 timestamps have been replaced with the Clock struct.
     - keyspace parameters have been replaced with the per-connection
       set_keyspace method.
     - The return type for login() is now AccessLevel.
