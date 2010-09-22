@@ -88,30 +88,12 @@ public class IncomingTcpConnection extends Thread
             {
                 if (logger.isTraceEnabled())
                     logger.trace("eof reading from socket; closing", e);
-                try
-                {
-                    socket.close();
-                }
-                catch (IOException e2)
-                {
-                    if (logger.isDebugEnabled())
-                        logger.debug("error closing socket", e2);
-                }
                 break;
             }
             catch (IOException e) 
             {
                 if (logger.isDebugEnabled())
                     logger.debug("error reading from socket; closing", e);
-                try
-                {
-                    socket.close();
-                }
-                catch (IOException e2)
-                {
-                    if (logger.isDebugEnabled())
-                        logger.debug("error closing socket", e2);
-                }
                 break;
             }
         }
