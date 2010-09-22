@@ -50,7 +50,8 @@ import org.apache.cassandra.utils.Pair;
  * After each file, the target will send a StreamReply indicating success
  * (FILE_FINISHED) or failure (FILE_RETRY).
  *
- * When all files have been successfully transferred the session is complete.
+ * When all files have been successfully transferred and integrated the source will send
+ * SESSION_FINISHED and the session is complete.
  *
  * For Stream requests (for bootstrap), one subtlety is that we always have to
  * create at least one stream reply, even if the list of files is empty, otherwise the
@@ -82,10 +83,6 @@ public class StreamOut
         catch (IOException e)
         {
             throw new IOError(e);
-        }
-        finally
-        {
-            session.close();
         }
     }
 
@@ -150,10 +147,6 @@ public class StreamOut
         {
             session.addFilesToStream(pending);
             session.begin();
-
-            logger.info("Waiting for transfer to {} to complete", session.getHost());
-            session.waitForStreamCompletion();
-            logger.info("Done with transfer to {}", session.getHost());
         }
     }
 

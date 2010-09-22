@@ -69,7 +69,6 @@ public class StreamOutSession
 
     public final String table;
     private final Pair<InetAddress, Long> context;
-    private final SimpleCondition condition = new SimpleCondition();
     private final Runnable callback;
     private String currentFile;
 
@@ -92,8 +91,6 @@ public class StreamOutSession
     
     public void addFilesToStream(List<PendingFile> pendingFiles)
     {
-        // reset the condition in case this SOM is getting reused before it can be removed.
-        condition.reset();
         for (PendingFile pendingFile : pendingFiles)
         {
             if (logger.isDebugEnabled())
@@ -117,19 +114,11 @@ public class StreamOutSession
 
     public void startNext() throws IOException
     {
+        assert files.containsKey(currentFile);
         files.remove(currentFile);
-        
-        if (files.isEmpty())
-        {
-            if (logger.isDebugEnabled())
-                logger.debug("Signalling that streaming is done for {} session {}", getHost(), getSessionId());
-            close();
-            condition.signalAll();
-        }
-        else
-        {
-            streamFile(files.values().iterator().next());
-        }
+        Iterator<PendingFile> iter = files.values().iterator();
+        if (iter.hasNext())
+            streamFile(iter.next());
     }
 
     public void close()
@@ -139,23 +128,11 @@ public class StreamOutSession
             callback.run();
     }
 
-    public void removePending(PendingFile pf)
+    /** convenience method for use when testing */
+    void await() throws InterruptedException
     {
-        files.remove(pf.getFilename());
-        if (files.isEmpty())
-            close();
-    }
-
-    public void waitForStreamCompletion()
-    {
-        try
-        {
-            condition.await();
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
+        while (streams.containsKey(context))
+            Thread.sleep(10);
     }
 
     Collection<PendingFile> getFiles()

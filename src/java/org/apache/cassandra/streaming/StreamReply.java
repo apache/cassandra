@@ -35,10 +35,9 @@ class StreamReply
 {
     static enum Status
     {
-        // was received successfully, and can be deleted from the source node
         FILE_FINISHED,
-        // needs to be streamed (or restreamed)
         FILE_RETRY,
+        SESSION_FINISHED,
     }
 
     public static final ICompactSerializer<StreamReply> serializer = new FileStatusSerializer();
@@ -60,6 +59,16 @@ class StreamReply
         DataOutputStream dos = new DataOutputStream( bos );
         serializer.serialize(this, dos);
         return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.STREAM_REPLY, bos.toByteArray());
+    }
+
+    @Override
+    public String toString()
+    {
+        return "StreamReply(" +
+               "sessionId=" + sessionId +
+               ", file='" + file + '\'' +
+               ", action=" + action +
+               ')';
     }
 
     private static class FileStatusSerializer implements ICompactSerializer<StreamReply>

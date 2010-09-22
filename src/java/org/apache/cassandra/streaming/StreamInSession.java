@@ -18,12 +18,12 @@
 
 package org.apache.cassandra.streaming;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.net.MessagingService;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.apache.cassandra.utils.Pair;
 
@@ -87,15 +87,31 @@ public class StreamInSession
         }
     }
 
-    public void remove(PendingFile file)
+    public void finished(PendingFile remoteFile) throws IOException
     {
-        files.remove(file);
+        if (logger.isDebugEnabled())
+            logger.debug("Finished {}. Sending ack to {}", remoteFile, this);
+        files.remove(remoteFile);
+        StreamReply reply = new StreamReply(remoteFile.getFilename(), getSessionId(), StreamReply.Status.FILE_FINISHED);
+        // send a StreamStatus message telling the source node it can delete this file
+        MessagingService.instance.sendOneWay(reply.createMessage(), getHost());
     }
 
-    public void closeIfFinished()
+    public void retry(PendingFile remoteFile) throws IOException
+    {
+        StreamReply reply = new StreamReply(remoteFile.getFilename(), getSessionId(), StreamReply.Status.FILE_RETRY);
+        logger.info("Streaming of file {} from {} failed: requesting a retry.", remoteFile, this);
+        MessagingService.instance.sendOneWay(reply.createMessage(), getHost());
+    }
+
+    public void closeIfFinished() throws IOException
     {
         if (files.isEmpty())
         {
+            StreamReply reply = new StreamReply("", getSessionId(), StreamReply.Status.SESSION_FINISHED);
+            logger.info("Finished streaming session {} from {}", getSessionId(), getHost());
+            MessagingService.instance.sendOneWay(reply.createMessage(), getHost());
+
             if (callback != null)
                 callback.run();
             sessions.remove(context);

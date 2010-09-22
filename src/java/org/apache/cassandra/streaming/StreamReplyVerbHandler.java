@@ -44,17 +44,22 @@ public class StreamReplyVerbHandler implements IVerbHandler
         try
         {
             StreamReply reply = StreamReply.serializer.deserialize(new DataInputStream(bufIn));
+            logger.debug("Received StreamReply {}", reply);
             StreamOutSession session = StreamOutSession.get(message.getFrom(), reply.sessionId);
-            session.validateCurrentFile(reply.file);
 
             switch (reply.action)
             {
                 case FILE_FINISHED:
+                    session.validateCurrentFile(reply.file);
                     session.startNext();
                     break;
                 case FILE_RETRY:
-                    logger.warn("Need to re-stream file {} to {}", reply.file, message.getFrom());
+                    session.validateCurrentFile(reply.file);
+                    logger.info("Need to re-stream file {} to {}", reply.file, message.getFrom());
                     session.retry();
+                    break;
+                case SESSION_FINISHED:
+                    session.close();
                     break;
                 default:
                     throw new RuntimeException("Cannot handle FileStatus.Action: " + reply.action);

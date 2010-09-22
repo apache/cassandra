@@ -539,7 +539,6 @@ public class AntiEntropyService
                     {
                         StreamOutSession session = StreamOutSession.create(request.cf.left, request.endpoint, null);
                         StreamOut.transferSSTables(session, sstables, ranges);
-                        session.close();
                     }
                 });
                 // request ranges from the remote node

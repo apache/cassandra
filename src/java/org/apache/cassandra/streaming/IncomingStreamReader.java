@@ -89,9 +89,7 @@ public class IncomingStreamReader
         catch (IOException ex)
         {
             /* Ask the source node to re-stream this file. */
-            StreamReply reply = new StreamReply(remoteFile.getFilename(), session.getSessionId(), StreamReply.Status.FILE_RETRY);
-            logger.info("Streaming of file {} from {} failed: requesting a retry.", remoteFile, session);
-            MessagingService.instance.sendOneWay(reply.createMessage(), session.getHost());
+            session.retry(remoteFile);
 
             /* Delete the orphaned file. */
             FileUtils.deleteWithConfirm(new File(localFile.getFilename()));
@@ -102,16 +100,8 @@ public class IncomingStreamReader
             fc.close();
         }
 
-        if (logger.isDebugEnabled())
-            logger.debug("Removing stream context {}", remoteFile);
-
-        StreamReply reply = new StreamReply(remoteFile.getFilename(), session.getSessionId(), StreamReply.Status.FILE_FINISHED);
         addSSTable(localFile);
-        session.remove(remoteFile);
-        // send a StreamStatus message telling the source node it can delete this file
-        if (logger.isDebugEnabled())
-            logger.debug("Sending a streaming finished message for {} to {}", remoteFile, session);
-        MessagingService.instance.sendOneWay(reply.createMessage(), session.getHost());
+        session.finished(remoteFile);
     }
 
     public static void addSSTable(PendingFile pendingFile)
