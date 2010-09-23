@@ -101,7 +101,8 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
         // at most one node per range can bootstrap at a time, and these will be added to the write until
         // bootstrap finishes (at which point we no longer need to write to the old ones).
         assert 1 <= blockFor && blockFor <= 2 * DatabaseDescriptor.getReplicationFactor(table)
-            : "invalid response count " + blockFor;
+            : String.format("invalid response count %d for replication factor %d",
+                            blockFor, DatabaseDescriptor.getReplicationFactor(table));
         return blockFor;
     }
 
