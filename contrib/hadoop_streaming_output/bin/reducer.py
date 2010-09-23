@@ -49,7 +49,7 @@ def new_column(name, value):
     column = dict()
     column['name'] = '%s' % name
     column['value'] = '%s' % value
-    column['clock'] = {'timestamp': long(time.time() * 1e6)}
+    column['timestamp'] = long(time.time() * 1e6)
     column['ttl'] = 0
     return column
 
