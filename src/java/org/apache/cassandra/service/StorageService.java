@@ -431,7 +431,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         isBootstrapMode = true;
         SystemTable.updateToken(token); // DON'T use setToken, that makes us part of the ring locally which is incorrect until we are done bootstrapping
-        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.normal(token));
+        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.bootstrapping(token));
         setMode("Joining: sleeping " + RING_DELAY + " ms for pending range setup", true);
         try
         {
