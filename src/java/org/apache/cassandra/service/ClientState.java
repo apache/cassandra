@@ -38,9 +38,6 @@ import org.apache.cassandra.thrift.InvalidRequestException;
 public class ClientState
 {
     private static Logger logger = LoggerFactory.getLogger(ClientState.class);
-    
-    // true if the keyspace should be used as the scheduling id
-    private final boolean SCHEDULE_ON_KEYSPACE = DatabaseDescriptor.getRequestSchedulerId().equals(RequestSchedulerId.keyspace);
 
     // Current user for the session
     private final ThreadLocal<AuthenticatedUser> user = new ThreadLocal<AuthenticatedUser>()
@@ -80,11 +77,16 @@ public class ClientState
         updateKeyspaceAccess();
     }
 
-    public String getSchedulingId()
+    public String getSchedulingValue()
     {
-        if (SCHEDULE_ON_KEYSPACE)
-            return keyspace.get();
-        return "default";
+        String schedulingValue = "default";
+        switch(DatabaseDescriptor.getRequestSchedulerId())
+        {
+            case keyspace:
+                schedulingValue = keyspace.get();
+                break;
+        }
+        return schedulingValue;
     }
 
     /**

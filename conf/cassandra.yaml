@@ -210,9 +210,9 @@ dynamic_snitch: true
 # not affect inter node communication.
 # org.apache.cassandra.scheduler.NoScheduler - No scheduling takes place
 # org.apache.cassandra.scheduler.RoundRobinScheduler - Round robin of
-# client requests to a node with a sepearte queue for each
-# reques_scheduler_id. The requests are throttled based on the limit set
-# in throttle_limit in the requeset_scheduler_options
+# client requests to a node with a separate queue for each
+# request_scheduler_id. The scheduler is further customized by
+# request_scheduler_options as described below.
 request_scheduler: org.apache.cassandra.scheduler.NoScheduler
 
 # Scheduler Options vary based on the type of scheduler
@@ -224,12 +224,23 @@ request_scheduler: org.apache.cassandra.scheduler.NoScheduler
 #                      running requests can complete.
 #                      The value of 80 here is twice the number of
 #                      concurrent_reads + concurrent_writes.
+#  - default_weight -- default_weight is optional and allows for
+#                      overriding the default which is 1.
+#  - weights -- Weights are optional and will default to 1 or the
+#               overridden default_weight. The weight translates into how
+#               many requests are handled during each turn of the
+#               RoundRobin, based on the scheduler id.
+#
 # request_scheduler_options:
 #    throttle_limit: 80
+#    default_weight: 5
+#    weights:
+#      Keyspace1: 1
+#      Keyspace2: 5
 
 # request_scheduler_id -- An identifer based on which to perform
-# the request scheduling. The current supported option is "keyspace"
-request_scheduler_id: keyspace
+# the request scheduling. Currently the only valid option is keyspace.
+# request_scheduler_id: keyspace
 
 # A ColumnFamily is the Cassandra concept closest to a relational table. 
 #

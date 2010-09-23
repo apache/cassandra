@@ -822,7 +822,7 @@ public class CassandraServer implements Cassandra {
      */
     private void schedule()
     {
-        requestScheduler.queue(Thread.currentThread(), clientState.getSchedulingId());
+        requestScheduler.queue(Thread.currentThread(), clientState.getSchedulingValue());
     }
 
     /**

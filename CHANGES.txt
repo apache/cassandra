@@ -86,6 +86,7 @@
  * remove Clock from the Thrift (and Avro) API (CASSANDRA-1501)
  * Close intra-node sockets when connection is broken (CASSANDRA-1528)
  * RPM packaging spec file (CASSANDRA-786)
+ * weighted request scheduler (CASSANDRA-1485)
 
 
 0.7-beta1

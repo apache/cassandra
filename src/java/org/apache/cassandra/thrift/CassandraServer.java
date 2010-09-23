@@ -615,7 +615,7 @@ public class CassandraServer implements Cassandra.Iface
      */
     private void schedule()
     {
-        requestScheduler.queue(Thread.currentThread(), clientState.getSchedulingId());
+        requestScheduler.queue(Thread.currentThread(), clientState.getSchedulingValue());
     }
 
     /**
