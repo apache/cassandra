@@ -1197,7 +1197,20 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public void forceTableRepair(final String tableName, final String... columnFamilies) throws IOException
     {
-        AntiEntropyService.RepairSession sess = AntiEntropyService.instance.getRepairSession(tableName, columnFamilies);
+        String[] families;
+        if (columnFamilies.length == 0)
+        {
+            ArrayList<String> names = new ArrayList<String>();
+            for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName)) {
+                names.add(cfStore.getColumnFamilyName());
+            }
+            families = names.toArray(new String[] {});
+        }
+        else
+        {
+            families = columnFamilies;
+        }
+        AntiEntropyService.RepairSession sess = AntiEntropyService.instance.getRepairSession(tableName, families);
         
         try
         {
