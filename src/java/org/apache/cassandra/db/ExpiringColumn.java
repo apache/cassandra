@@ -113,4 +113,17 @@ public class ExpiringColumn extends Column
         sb.append(timeToLive);
         return sb.toString();
     }
+
+    @Override
+    public IClock getMarkedForDeleteAt()
+    {
+        if (isMarkedForDelete())
+        {
+            return clock;
+        }
+        else
+        {
+            throw new IllegalStateException("column is not marked for delete");
+        }
+    }
 }

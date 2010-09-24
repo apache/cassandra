@@ -24,6 +24,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.fail;
 import org.apache.cassandra.db.marshal.AsciiType;
 import static org.apache.cassandra.Util.column;
 
@@ -70,5 +71,25 @@ public class RowTest extends SchemaLoader
         cf1.resolve(cf2);
         assert Arrays.equals(cf1.getColumn("one".getBytes()).value(), "B".getBytes());
         assert Arrays.equals(cf1.getColumn("two".getBytes()).value(), "C".getBytes());
+    }
+
+    @Test
+    public void testExpiringColumnExpiration()
+    {
+        Column c = new ExpiringColumn("one".getBytes(), "A".getBytes(), new TimestampClock(0), 1);
+        assert !c.isMarkedForDelete();
+
+        try
+        {
+            // Because we keep the local deletion time with a precision of a
+            // second, we could have to wait 2 seconds in worst case scenario.
+            Thread.sleep(2000);
+        }
+        catch (InterruptedException e)
+        {
+            fail("Cannot test column expiration if you wake me up too early");
+        }
+
+        assert c.isMarkedForDelete() && c.getMarkedForDeleteAt().equals(new TimestampClock(0));
     }
 }
