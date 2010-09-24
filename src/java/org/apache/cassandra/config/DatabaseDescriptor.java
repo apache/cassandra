@@ -636,11 +636,10 @@ public class DatabaseDescriptor
                 {
                     Class cls = Class.forName(endPointSnitchClassName);
                     IEndPointSnitch snitch = (IEndPointSnitch)cls.getConstructor().newInstance();
-                    String dynamic = System.getProperty("cassandra.dynamic_snitch");
-                    if (dynamic == null || Boolean.getBoolean(dynamic) == false)
-                        epSnitch = snitch;
-                    else
+                    if (Boolean.getBoolean("cassandra.dynamic_snitch"))
                         epSnitch = new DynamicEndpointSnitch(snitch);
+                    else
+                        epSnitch = snitch;
                 }
                 catch (ClassNotFoundException e)
                 {

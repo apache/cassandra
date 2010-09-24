@@ -30,6 +30,7 @@
    exception rather than the ExecutionException wrapper (CASSANDRA-1226)
  * RowWarningThresholdInMB=64 in sample configuration
  * Close intra-node sockets when connection is broken (CASSANDRA-1528)
+ * Dynamic snitch (CASSANDRA-981)
  * RPM packaging spec file (CASSANDRA-786)
 
 
@@ -41,7 +42,6 @@
  * fix compilation on non-sun JDKs (CASSANDRA-1061)
  * remove String.trim() call on row keys in batch mutations (CASSANDRA-1235)
  * Log summary of dropped messages instead of spamming log (CASSANDRA-1284)
- * Dynamic snitch (CASSANDRA-981)
  * fix streaming for keyspaces with hyphens in their name (CASSANDRA-1377)
  * fix errors in hard-coded bloom filter optKPerBucket by computing it
    algorithmically (CASSANDRA-1220
