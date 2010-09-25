@@ -1124,7 +1124,14 @@ class TestMutations(ThriftTester):
 
     def test_describe_ring(self):
         assert list(client.describe_ring('Keyspace1'))[0].endpoints == ['127.0.0.1']
-        
+
+    def test_describe_partitioner(self):
+        # Make sure this just reads back the values from the config.
+        assert client.describe_partitioner() == "org.apache.cassandra.dht.CollatingOrderPreservingPartitioner"
+
+    def test_describe_snitch(self):
+        assert client.describe_snitch() == "org.apache.cassandra.locator.SimpleSnitch"
+
     def test_invalid_ks_names(self):
         def invalid_keyspace():
             client.system_add_keyspace(KsDef('in-valid', 'org.apache.cassandra.locator.SimpleStrategy', {}, 1, []))

@@ -30,6 +30,7 @@ import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.db.migration.UpdateColumnFamily;
 import org.apache.cassandra.db.migration.UpdateKeyspace;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -591,6 +592,13 @@ public class CassandraServer implements Cassandra.Iface
     public String describe_partitioner() throws TException
     {
         return StorageService.getPartitioner().getClass().getName();
+    }
+
+    public String describe_snitch() throws TException
+    {
+        if (DatabaseDescriptor.getEndpointSnitch() instanceof DynamicEndpointSnitch)
+            return ((DynamicEndpointSnitch)DatabaseDescriptor.getEndpointSnitch()).subsnitch.getClass().getName();
+        return DatabaseDescriptor.getEndpointSnitch().getClass().getName();
     }
 
     public List<String> describe_splits(String cfName, String start_token, String end_token, int keys_per_split) throws TException

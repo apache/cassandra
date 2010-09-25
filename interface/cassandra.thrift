@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "17.0.0"
+const string VERSION = "17.1.0"
 
 
 #
@@ -503,6 +503,9 @@ service Cassandra {
 
   /** returns the partitioner used by this cluster */
   string describe_partitioner(),
+
+  /** returns the snitch used by this cluster */
+  string describe_snitch(),
 
   /** describe specified keyspace */
   KsDef describe_keyspace(1:required string keyspace)

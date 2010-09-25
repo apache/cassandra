@@ -89,6 +89,7 @@
  * weighted request scheduler (CASSANDRA-1485)
  * treat expired columns as deleted (CASSANDRA-1539)
  * make IndexInterval configurable (CASSANDRA-1488)
+ * add describe_snitch to Thrift API (CASSANDRA-1490)
 
 
 0.7-beta1
