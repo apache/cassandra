@@ -1382,7 +1382,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 keys.add(sample);
         }
         FBUtilities.sortSampledKeys(keys, range);
-        int splits = keys.size() * SSTableReader.indexInterval() / keysPerSplit;
+        int splits = keys.size() * DatabaseDescriptor.getIndexInterval() / keysPerSplit;
 
         if (keys.size() >= splits)
         {

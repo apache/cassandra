@@ -32,16 +32,13 @@ import org.apache.cassandra.db.DecoratedKey;
 
 public class IndexSummary
 {
-    /** Every 128th index entry is loaded into memory so we know where to start looking for the actual key w/o seeking */
-    public static final int INDEX_INTERVAL = 128;/* Required extension for temporary files created during compactions. */
-
     private ArrayList<KeyPosition> indexPositions;
     private int keysWritten = 0;
     private long lastIndexPosition;
 
     public void maybeAddEntry(DecoratedKey decoratedKey, long indexPosition)
     {
-        if (keysWritten++ % INDEX_INTERVAL == 0)
+        if (keysWritten++ % DatabaseDescriptor.getIndexInterval() == 0)
         {
             if (indexPositions == null)
             {

@@ -100,6 +100,8 @@ public class Config
     public RequestSchedulerId request_scheduler_id;
     public RequestSchedulerOptions request_scheduler_options;
 
+    public Integer index_interval = 128;
+
     public List<RawKeyspace> keyspaces;
     
     public static enum CommitLogSync {

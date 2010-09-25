@@ -1102,4 +1102,9 @@ public class DatabaseDescriptor
     {
         return getCFMetaData(desc.ksname, desc.cfname);
     }
+
+    public static Integer getIndexInterval()
+    {
+        return conf.index_interval;
+    }
 }

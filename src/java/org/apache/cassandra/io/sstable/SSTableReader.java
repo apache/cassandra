@@ -57,7 +57,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     private static final Logger logger = LoggerFactory.getLogger(SSTableReader.class);
 
     // guesstimated size of INDEX_INTERVAL index entries
-    private static final int INDEX_FILE_BUFFER_BYTES = 16 * IndexSummary.INDEX_INTERVAL;
+    private static final int INDEX_FILE_BUFFER_BYTES = 16 * DatabaseDescriptor.getIndexInterval();
 
     // `finalizers` is required to keep the PhantomReferences alive after the enclosing SSTR is itself
     // unreferenced.  otherwise they will never get enqueued.
@@ -121,11 +121,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     private volatile SSTableDeletingReference phantomReference;
 
-    public static int indexInterval()
-    {
-        return IndexSummary.INDEX_INTERVAL;
-    }
-
     public static long getApproximateKeyCount(Iterable<SSTableReader> sstables)
     {
         long count = 0;
@@ -133,7 +128,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         for (SSTableReader sstable : sstables)
         {
             int indexKeyCount = sstable.getKeySamples().size();
-            count = count + (indexKeyCount + 1) * IndexSummary.INDEX_INTERVAL;
+            count = count + (indexKeyCount + 1) * DatabaseDescriptor.getIndexInterval();
             if (logger.isDebugEnabled())
                 logger.debug("index size for bloom filter calc for file  : " + sstable.getFilename() + "   : " + count);
         }
@@ -331,7 +326,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
      */
     public long estimatedKeys()
     {
-        return indexSummary.getIndexPositions().size() * IndexSummary.INDEX_INTERVAL;
+        return indexSummary.getIndexPositions().size() * DatabaseDescriptor.getIndexInterval();
     }
 
     /**

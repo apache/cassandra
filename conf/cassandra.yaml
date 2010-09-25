@@ -242,6 +242,11 @@ request_scheduler: org.apache.cassandra.scheduler.NoScheduler
 # the request scheduling. Currently the only valid option is keyspace.
 # request_scheduler_id: keyspace
 
+# The Index Interval determines how large the sampling of row keys
+#  is for a given SSTable. The larger the sampling, the more effective
+#  the index is at the cost of space.
+index_interval: 128
+
 # A ColumnFamily is the Cassandra concept closest to a relational table. 
 #
 # Keyspaces are separate groups of ColumnFamilies.  Except in very

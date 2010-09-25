@@ -88,6 +88,7 @@
  * RPM packaging spec file (CASSANDRA-786)
  * weighted request scheduler (CASSANDRA-1485)
  * treat expired columns as deleted (CASSANDRA-1539)
+ * make IndexInterval configurable (CASSANDRA-1488)
 
 
 0.7-beta1
