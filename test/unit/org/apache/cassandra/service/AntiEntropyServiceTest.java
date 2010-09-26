@@ -125,9 +125,6 @@ public class AntiEntropyServiceTest extends CleanupHelper
         // confirm that the tree was validated
         Token min = validator.tree.partitioner().getMinimumToken();
         assert null != validator.tree.hash(new Range(min, min));
-
-        // wait for queued operations to be flushed
-        flushAES();
     }
 
     @Test
@@ -174,7 +171,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
     public void testGetNeighborsPlusOne() throws Throwable
     {
         // generate rf+1 nodes, and ensure that all nodes are returned
-        Set<InetAddress> expected = addTokens(1 + 1 + DatabaseDescriptor.getReplicationFactor(tablename));
+        Set<InetAddress> expected = addTokens(1 + DatabaseDescriptor.getReplicationFactor(tablename));
         expected.remove(FBUtilities.getLocalAddress());
         assertEquals(expected, AntiEntropyService.getNeighbors(tablename));
     }
@@ -185,7 +182,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
 
         // generate rf*2 nodes, and ensure that only neighbors specified by the ARS are returned
-        addTokens(1 + (2 * DatabaseDescriptor.getReplicationFactor(tablename)));
+        addTokens(2 * DatabaseDescriptor.getReplicationFactor(tablename));
         AbstractReplicationStrategy ars = StorageService.instance.getReplicationStrategy(tablename);
         Set<InetAddress> expected = new HashSet<InetAddress>();
         for (Range replicaRange : ars.getAddressRanges().get(FBUtilities.getLocalAddress()))
@@ -230,7 +227,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
     {
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
         Set<InetAddress> endpoints = new HashSet<InetAddress>();
-        for (int i = 1; i < max; i++)
+        for (int i = 1; i <= max; i++)
         {
             InetAddress endpoint = InetAddress.getByName("127.0.0." + i);
             tmd.updateNormalToken(StorageService.getPartitioner().getRandomToken(), endpoint);

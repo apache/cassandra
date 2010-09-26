@@ -24,6 +24,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.base.Objects;
 import org.slf4j.Logger;
@@ -103,7 +104,7 @@ public class AntiEntropyService
     /**
      * A map of repair session ids to a Queue of TreeRequests that have been performed since the session was started.
      */
-    private final ConcurrentMap<String, BlockingQueue<TreeRequest>> sessions;
+    private final ConcurrentMap<String, RepairSession.Callback> sessions;
 
     /**
      * Protected constructor. Use AntiEntropyService.instance.
@@ -111,7 +112,7 @@ public class AntiEntropyService
     protected AntiEntropyService()
     {
         requests = new ExpiringMap<String, Map<TreeRequest, TreePair>>(REQUEST_TIMEOUT);
-        sessions = new ConcurrentHashMap<String, BlockingQueue<TreeRequest>>();
+        sessions = new ConcurrentHashMap<String, RepairSession.Callback>();
     }
 
     /**
@@ -129,11 +130,7 @@ public class AntiEntropyService
     void completedRequest(TreeRequest request)
     {
         // indicate to the waiting session that this request completed
-        BlockingQueue<TreeRequest> session = sessions.get(request.sessionid);
-        if (session == null)
-            // repair client disconnected: ignore
-            return;
-        session.offer(request);
+        sessions.get(request.sessionid).completed(request);
     }
 
     /**
@@ -429,7 +426,7 @@ public class AntiEntropyService
     }
 
     /**
-     * Runs on the node that initiated a request to compares two trees, and launch repairs for disagreeing ranges.
+     * Runs on the node that initiated a request to compare two trees, and launch repairs for disagreeing ranges.
      */
     public static class Differencer implements Runnable
     {
@@ -479,24 +476,24 @@ public class AntiEntropyService
             
             // choose a repair method based on the significance of the difference
             float difference = differenceFraction();
+            String format = "Endpoints " + local + " and " + request.endpoint + " are %s for " + request.cf;
             if (difference == 0.0)
             {
-                logger.info("Endpoints " + local + " and " + request.endpoint + " are consistent for " + request.cf);
-            }
-            else
-            {
-                try
-                {
-                    performStreamingRepair();
-                }
-                catch(IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
+                logger.info(String.format(format, "consistent"));
+                AntiEntropyService.instance.completedRequest(request);
+                return;
             }
 
-            // repair was completed successfully: notify any waiting sessions
-            AntiEntropyService.instance.completedRequest(request);
+            // non-0 difference: perform streaming repair
+            logger.info(String.format(format, (difference * 100) + "% out of sync"));
+            try
+            {
+                performStreamingRepair();
+            }
+            catch(IOException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
         
         /**
@@ -512,8 +509,8 @@ public class AntiEntropyService
         }
 
         /**
-         * Sends our list of differences to the remote endpoint using the
-         * Streaming API.
+         * Starts sending/receiving our list of differences to/from the remote endpoint: creates a callback
+         * that will be called out of band once the streams complete.
          */
         void performStreamingRepair() throws IOException
         {
@@ -521,35 +518,45 @@ public class AntiEntropyService
             ColumnFamilyStore cfstore = Table.open(request.cf.left).getColumnFamilyStore(request.cf.right);
             try
             {
-                final List<Range> ranges = new ArrayList<Range>(differences);
-                final Collection<SSTableReader> sstables = cfstore.getSSTables();
+                List<Range> ranges = new ArrayList<Range>(differences);
+                Collection<SSTableReader> sstables = cfstore.getSSTables();
+                Callback callback = new Callback();
                 // send ranges to the remote node
-                Future f = StageManager.getStage(Stage.STREAM).submit(new WrappedRunnable()
-                {
-                    protected void runMayThrow() throws Exception
-                    {
-                        StreamOutSession session = StreamOutSession.create(request.cf.left, request.endpoint, null);
-                        StreamOut.transferSSTables(session, sstables, ranges);
-                    }
-                });
+                StreamOutSession outsession = StreamOutSession.create(request.cf.left, request.endpoint, callback);
+                StreamOut.transferSSTables(outsession, sstables, ranges);
                 // request ranges from the remote node
-                // FIXME: no way to block for the 'requestRanges' call to complete, or to request a
-                // particular cf: see CASSANDRA-1189
-                StreamIn.requestRanges(request.endpoint, request.cf.left, ranges);
-                
-                // wait until streaming has completed
-                f.get();
+                StreamIn.requestRanges(request.endpoint, request.cf.left, ranges, callback);
             }
             catch(Exception e)
             {
                 throw new IOException("Streaming repair failed.", e);
             }
-            logger.info("Finished streaming repair for " + request);
         }
 
         public String toString()
         {
             return "#<Differencer " + request + ">";
+        }
+
+        /**
+         * When a repair is necessary, this callback is created to wait for the inbound
+         * and outbound streams to complete.
+         */
+        class Callback extends WrappedRunnable
+        {
+            // we expect one callback for the receive, and one for the send
+            private final AtomicInteger outstanding = new AtomicInteger(2);
+
+            protected void runMayThrow() throws Exception
+            {
+                if (outstanding.decrementAndGet() > 0)
+                    // waiting on more calls
+                    return;
+
+                // all calls finished successfully
+                logger.info("Finished streaming repair for " + request);
+                AntiEntropyService.instance.completedRequest(request);
+            }
         }
     }
 
@@ -743,18 +750,21 @@ public class AntiEntropyService
 
     /**
      * Triggers repairs with all neighbors for the given table and cfs. Typical lifecycle is: start() then join().
+     * Executed in client threads.
      */
     class RepairSession extends Thread
     {
         private final String tablename;
         private final String[] cfnames;
         private final SimpleCondition requestsMade;
+        private final ConcurrentHashMap<TreeRequest,Object> requests;
         public RepairSession(String tablename, String... cfnames)
         {
             super("manual-repair-" + UUID.randomUUID());
             this.tablename = tablename;
             this.cfnames = cfnames;
             this.requestsMade = new SimpleCondition();
+            this.requests = new ConcurrentHashMap<TreeRequest,Object>();
         }
 
         /**
@@ -769,39 +779,60 @@ public class AntiEntropyService
         public void run()
         {
             // begin a repair session
-            BlockingQueue<TreeRequest> completed = new LinkedBlockingQueue<TreeRequest>();
-            AntiEntropyService.this.sessions.put(getName(), completed);
+            Callback callback = new Callback();
+            AntiEntropyService.this.sessions.put(getName(), callback);
             try
             {
                 // request that all relevant endpoints generate trees
-                Set<TreeRequest> requests = new HashSet<TreeRequest>();
                 Set<InetAddress> endpoints = AntiEntropyService.getNeighbors(tablename);
                 for (String cfname : cfnames)
                 {
                     // send requests to remote nodes and record them
                     for (InetAddress endpoint : endpoints)
-                        requests.add(AntiEntropyService.this.request(getName(), endpoint, tablename, cfname));
+                        requests.put(AntiEntropyService.this.request(getName(), endpoint, tablename, cfname), this);
                     // send but don't record an outstanding request to the local node
                     AntiEntropyService.this.request(getName(), FBUtilities.getLocalAddress(), tablename, cfname);
                 }
+                logger.info("Waiting for repair requests: " + requests.keySet());
                 requestsMade.signalAll();
 
-                // block until all requests have been returned by completedRequest calls
-                logger.info("Waiting for repair requests to: " + requests);
-                while (!requests.isEmpty())
-                {
-                    TreeRequest request = completed.take();
-                    logger.info("Repair request to " + request + " completed successfully.");
-                    requests.remove(request);
-                }
+                // block whatever thread started this session until all requests have been returned:
+                // if this thread dies, the session will still complete in the background
+                callback.completed.await();
             }
             catch (InterruptedException e)
             {
                 throw new RuntimeException("Interrupted while waiting for repair: repair will continue in the background.");
             }
-            finally
+        }
+
+        /**
+         * Receives notifications of completed requests, and sets a condition when all requests
+         * triggered by this session have completed.
+         */
+        class Callback
+        {
+            public final SimpleCondition completed = new SimpleCondition();
+            public void completed(TreeRequest request)
             {
+                // don't mark any requests completed until all requests have been made
+                try
+                {
+                    blockUntilRunning();
+                }
+                catch (InterruptedException e)
+                {
+                    throw new AssertionError(e);
+                }
+                requests.remove(request);
+                logger.info("{} completed successfully: {} outstanding.", request, requests.size());
+                if (!requests.isEmpty())
+                    return;
+
+                // all requests completed
+                logger.info("Session " + getName() + " completed successfully.");
                 AntiEntropyService.this.sessions.remove(getName());
+                completed.signalAll();
             }
         }
     }

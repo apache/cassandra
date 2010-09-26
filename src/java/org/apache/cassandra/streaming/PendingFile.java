@@ -27,6 +27,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.commons.lang.StringUtils;
+
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.utils.Pair;
@@ -80,7 +82,7 @@ public class PendingFile
 
     public String toString()
     {
-        return getFilename() + "/" + sections;
+        return getFilename() + "/" + StringUtils.join(sections, ",");
     }
 
     public static class PendingFileSerializer implements ICompactSerializer<PendingFile>
