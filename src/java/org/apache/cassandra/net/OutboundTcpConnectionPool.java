@@ -24,8 +24,8 @@ import org.apache.cassandra.concurrent.Stage;
 
 class OutboundTcpConnectionPool
 {
-    private final OutboundTcpConnection cmdCon;
-    private final OutboundTcpConnection ackCon;
+    public final OutboundTcpConnection cmdCon;
+    public final OutboundTcpConnection ackCon;
 
     OutboundTcpConnectionPool(InetAddress remoteEp)
     {

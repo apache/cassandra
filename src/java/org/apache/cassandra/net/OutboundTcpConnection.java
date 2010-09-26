@@ -46,6 +46,7 @@ public class OutboundTcpConnection extends Thread
     private final BlockingQueue<ByteBuffer> queue = new LinkedBlockingQueue<ByteBuffer>();
     private DataOutputStream output;
     private Socket socket;
+    private long completedCount;
 
     public OutboundTcpConnection(InetAddress remoteEp)
     {
@@ -89,6 +90,16 @@ public class OutboundTcpConnection extends Thread
         }
     }
 
+    public int getPendingMessages()
+    {
+        return queue.size();
+    }
+
+    public long getCompletedMesssages()
+    {
+        return completedCount;
+    }
+
     private void writeConnected(ByteBuffer bb)
     {
         try
@@ -130,6 +141,7 @@ public class OutboundTcpConnection extends Thread
         try
         {
             bb = queue.take();
+            completedCount++;
         }
         catch (InterruptedException e)
         {

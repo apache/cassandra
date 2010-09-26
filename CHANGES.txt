@@ -92,6 +92,7 @@
  * add describe_snitch to Thrift API (CASSANDRA-1490)
  * MD5 authenticator compares plain text submitted password with MD5'd
    saved property, instead of vice versa (CASSANDRA-1447)
+ * JMX MessagingService pending and completed counts (CASSANDRA-1533)
 
 
 0.7-beta1
