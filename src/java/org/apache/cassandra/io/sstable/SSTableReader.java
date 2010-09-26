@@ -478,6 +478,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         {
             throw new IOError(e);
         }
+        components.add(Component.COMPACTED_MARKER);
         phantomReference.deleteOnCleanup();
     }
 
