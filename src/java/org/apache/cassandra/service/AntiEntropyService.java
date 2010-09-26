@@ -255,15 +255,6 @@ public class AntiEntropyService
     }
 
     /**
-     * @return The tree pair for the given request if it exists.
-     */
-    TreePair getRendezvousPair_TestsOnly(TreeRequest request)
-    {
-        System.out.println(request + "\tvs\t" + rendezvousPairs(request.sessionid).keySet());
-        return rendezvousPairs(request.sessionid).get(request);
-    }
-
-    /**
      * A Strategy to handle building and validating a merkle tree for a column family.
      *
      * Lifecycle:

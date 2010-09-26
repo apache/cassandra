@@ -93,6 +93,7 @@
  * MD5 authenticator compares plain text submitted password with MD5'd
    saved property, instead of vice versa (CASSANDRA-1447)
  * JMX MessagingService pending and completed counts (CASSANDRA-1533)
+ * fix race condition processing repair responses (CASSANDRA-1511)
 
 
 0.7-beta1
