@@ -1,5 +1,7 @@
 dev
  * create EndpointSnitchInfo and MBean to expose rack and DC (CASSANDRA-1491)
+ * added option to contrib/word_count to output results back to Cassandra
+   (CASSANDRA-1342)
 
 
 0.7-beta2

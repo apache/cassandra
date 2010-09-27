@@ -17,10 +17,13 @@
  */
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.SortedMap;
-import java.util.StringTokenizer;
+import java.nio.ByteBuffer;
+import java.util.*;
 
+import org.apache.cassandra.avro.Column;
+import org.apache.cassandra.avro.ColumnOrSuperColumn;
+import org.apache.cassandra.avro.Mutation;
+import org.apache.cassandra.hadoop.ColumnFamilyOutputFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,8 +55,12 @@ public class WordCount extends Configured implements Tool
 
     static final String KEYSPACE = "Keyspace1";
     static final String COLUMN_FAMILY = "Standard1";
-    private static final String CONF_COLUMN_NAME = "columnname";
+
+    static final String OUTPUT_REDUCER_VAR = "output_reducer";
+    static final String OUTPUT_COLUMN_FAMILY = "Standard2";
     private static final String OUTPUT_PATH_PREFIX = "/tmp/word_count";
+
+    private static final String CONF_COLUMN_NAME = "columnname";
 
     public static void main(String[] args) throws Exception
     {
@@ -92,7 +99,7 @@ public class WordCount extends Configured implements Tool
         
     }
 
-    public static class IntSumReducer extends Reducer<Text, IntWritable, Text, IntWritable>
+    public static class ReducerToFilesystem extends Reducer<Text, IntWritable, Text, IntWritable>
     {
         private IntWritable result = new IntWritable();
 
@@ -109,29 +116,108 @@ public class WordCount extends Configured implements Tool
         }
     }
 
+    public static class ReducerToCassandra extends Reducer<Text, IntWritable, ByteBuffer, List<Mutation>>
+    {
+        private List<Mutation> results = new ArrayList<Mutation>();
+        private String columnName;
+
+        public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException
+        {
+            int sum = 0;
+            for (IntWritable val : values)
+            {
+                sum += val.get();
+            }
+
+            results.add(getMutation(key, sum));
+            context.write(ByteBuffer.wrap(columnName.getBytes()), results);
+            results.clear();
+        }
+
+        protected void setup(org.apache.hadoop.mapreduce.Reducer.Context context)
+            throws IOException, InterruptedException
+        {
+            this.columnName = context.getConfiguration().get(CONF_COLUMN_NAME);
+        }
+
+        private static Mutation getMutation(Text key, int sum)
+        {
+            Mutation m = new Mutation();
+            m.column_or_supercolumn = getCoSC(key, sum);
+            return m;
+        }
+
+        private static ColumnOrSuperColumn getCoSC(Text key, int sum)
+        {
+            // Have to convert both the key and the sum to ByteBuffers
+            // for the generalized output format
+            ByteBuffer name = ByteBuffer.wrap(key.getBytes());
+            ByteBuffer value = ByteBuffer.wrap(String.valueOf(sum).getBytes());
+
+            Column c = new Column();
+            c.name = name;
+            c.value = value;
+            c.timestamp = System.currentTimeMillis() * 1000;
+            c.ttl = 0;
+            ColumnOrSuperColumn cosc = new ColumnOrSuperColumn();
+            cosc.column = c;
+            return cosc;
+        }
+    }
+
     public int run(String[] args) throws Exception
     {
+        String outputReducerType = "filesystem";
+        if (args != null && args[0].startsWith(OUTPUT_REDUCER_VAR))
+        {
+            String[] s = args[0].split("=");
+            if (s != null && s.length == 2)
+                outputReducerType = s[1];
+        }
+        logger.info("output reducer type: " + outputReducerType);
 
         for (int i = 0; i < WordCountSetup.TEST_COUNT; i++)
         {
             String columnName = "text" + i;
             getConf().set(CONF_COLUMN_NAME, columnName);
+
             Job job = new Job(getConf(), "wordcount");
             job.setJarByClass(WordCount.class);
             job.setMapperClass(TokenizerMapper.class);
-            job.setCombinerClass(IntSumReducer.class);
-            job.setReducerClass(IntSumReducer.class);
-            job.setOutputKeyClass(Text.class);
-            job.setOutputValueClass(IntWritable.class);
+
+            if (outputReducerType.equalsIgnoreCase("filesystem"))
+            {
+                job.setCombinerClass(ReducerToFilesystem.class);
+                job.setReducerClass(ReducerToFilesystem.class);
+                job.setOutputKeyClass(Text.class);
+                job.setOutputValueClass(IntWritable.class);
+                FileOutputFormat.setOutputPath(job, new Path(OUTPUT_PATH_PREFIX + i));
+            }
+            else
+            {
+                job.setReducerClass(ReducerToCassandra.class);
+
+                job.setMapOutputKeyClass(Text.class);
+                job.setMapOutputValueClass(IntWritable.class);
+                job.setOutputKeyClass(ByteBuffer.class);
+                job.setOutputValueClass(List.class);
+
+                job.setOutputFormatClass(ColumnFamilyOutputFormat.class);
+                
+                ConfigHelper.setOutputColumnFamily(job.getConfiguration(), KEYSPACE, OUTPUT_COLUMN_FAMILY);
+            }
 
             job.setInputFormatClass(ColumnFamilyInputFormat.class);
-            FileOutputFormat.setOutputPath(job, new Path(OUTPUT_PATH_PREFIX + i));
+
 
             ConfigHelper.setRpcPort(job.getConfiguration(), "9160");
             ConfigHelper.setInitialAddress(job.getConfiguration(), "localhost");
+            ConfigHelper.setPartitioner(job.getConfiguration(), "org.apache.cassandra.dht.RandomPartitioner");
             ConfigHelper.setInputColumnFamily(job.getConfiguration(), KEYSPACE, COLUMN_FAMILY);
             SlicePredicate predicate = new SlicePredicate().setColumn_names(Arrays.asList(columnName.getBytes()));
             ConfigHelper.setInputSlicePredicate(job.getConfiguration(), predicate);
+
+
 
             job.waitForCompletion(true);
         }

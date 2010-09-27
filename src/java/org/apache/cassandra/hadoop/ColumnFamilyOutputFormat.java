@@ -51,7 +51,7 @@ import org.slf4j.LoggerFactory;
  * The <code>ColumnFamilyOutputFormat</code> acts as a Hadoop-specific
  * OutputFormat that allows reduce tasks to store keys (and corresponding
  * values) as Cassandra rows (and respective columns) in a given
- * {@link ColumnFamily}.
+ * ColumnFamily.
  * 
  * <p>
  * As is the case with the {@link ColumnFamilyInputFormat}, you need to set the

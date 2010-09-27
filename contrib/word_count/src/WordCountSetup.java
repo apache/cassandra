@@ -97,8 +97,8 @@ public class WordCountSetup
     private static void setupKeyspace(Cassandra.Iface client) throws TException, InvalidRequestException
     {
         List<CfDef> cfDefList = new ArrayList<CfDef>();
-        CfDef cfDef = new CfDef(WordCount.KEYSPACE, WordCount.COLUMN_FAMILY);
-        cfDefList.add(cfDef);
+        cfDefList.add(new CfDef(WordCount.KEYSPACE, WordCount.COLUMN_FAMILY));
+        cfDefList.add(new CfDef(WordCount.KEYSPACE, WordCount.OUTPUT_COLUMN_FAMILY));
 
         client.system_add_keyspace(new KsDef(WordCount.KEYSPACE, "org.apache.cassandra.locator.SimpleStrategy", 1, cfDefList));
     }
