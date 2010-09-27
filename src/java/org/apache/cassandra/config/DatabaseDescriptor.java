@@ -45,6 +45,7 @@ import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.EndpointSnitchInfo;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.scheduler.IRequestScheduler;
@@ -274,7 +275,8 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("Missing endpoint_snitch directive");
             }
             snitch = createEndpointSnitch(conf.endpoint_snitch);
-            
+            EndpointSnitchInfo.create();
+
             /* Request Scheduler setup */
             requestSchedulerOptions = conf.request_scheduler_options;
             if (conf.request_scheduler != null)
@@ -392,7 +394,7 @@ public class DatabaseDescriptor
 
     private static IEndpointSnitch createEndpointSnitch(String endpointSnitchClassName) throws ConfigurationException
     {
-        IEndpointSnitch snitch = FBUtilities.<IEndpointSnitch>construct(endpointSnitchClassName, "snitch");
+        IEndpointSnitch snitch = FBUtilities.construct(endpointSnitchClassName, "snitch");
         return conf.dynamic_snitch ? new DynamicEndpointSnitch(snitch) : snitch;
     }
     

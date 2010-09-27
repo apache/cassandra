@@ -1,3 +1,7 @@
+dev
+ * create EndpointSnitchInfo and MBean to expose rack and DC (CASSANDRA-1491)
+
+
 0.7-beta2
  * always use UTF-8 for hint keys (CASSANDRA-1439)
  * remove cassandra.yaml dependency from Hadoop and Pig (CASSADRA-1322)
