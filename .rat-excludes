@@ -16,3 +16,4 @@ contrib/pig/example-script.pig
 contrib/redhat/cassandra
 **/cassandra.yaml
 **/*.db
+redhat/apache-cassandra.spec
