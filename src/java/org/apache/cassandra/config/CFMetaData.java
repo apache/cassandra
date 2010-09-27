@@ -480,6 +480,8 @@ public final class CFMetaData
         }
         else if (subcolumnComparator != DatabaseDescriptor.getComparator(cf_def.subcomparator_type.toString()))
             throw new ConfigurationException("subcolumncomparators do not match.");
+
+        validateMinMaxCompactionThresholds(cf_def);
         
         return new CFMetaData(tableName, 
                               cfName, 
@@ -523,7 +525,9 @@ public final class CFMetaData
         }
         else if (subcolumnComparator != DatabaseDescriptor.getComparator(cf_def.subcomparator_type))
             throw new ConfigurationException("subcolumncomparators do not match.");
-        
+
+        validateMinMaxCompactionThresholds(cf_def);
+
         return new CFMetaData(tableName, 
                               cfName, 
                               cfType, 
@@ -614,5 +618,65 @@ public final class CFMetaData
         }
         def.column_metadata = column_meta;   
         return def;
+    }
+
+    public static void validateMinMaxCompactionThresholds(org.apache.cassandra.thrift.CfDef cf_def) throws ConfigurationException
+    {
+        if (cf_def.isSetMin_compaction_threshold() && cf_def.isSetMax_compaction_threshold())
+        {
+            if ((cf_def.min_compaction_threshold > cf_def.max_compaction_threshold) &&
+                    cf_def.max_compaction_threshold != 0)
+            {
+                throw new ConfigurationException("min_compaction_threshold cannot be greater than max_compaction_threshold");
+            }
+        }
+        else if (cf_def.isSetMin_compaction_threshold())
+        {
+            if (cf_def.min_compaction_threshold > DEFAULT_MAX_COMPACTION_THRESHOLD)
+            {
+                throw new ConfigurationException("min_compaction_threshold cannot be greather than max_compaction_threshold (default " +
+                                                  DEFAULT_MAX_COMPACTION_THRESHOLD + ")");
+            }
+        }
+        else if (cf_def.isSetMax_compaction_threshold())
+        {
+            if (cf_def.max_compaction_threshold < DEFAULT_MIN_COMPACTION_THRESHOLD && cf_def.max_compaction_threshold != 0) {
+                throw new ConfigurationException("max_compaction_threshold cannot be less than min_compaction_threshold");
+            }
+        }
+        else
+        {
+            //Defaults are valid.
+        }
+    }
+
+    public static void validateMinMaxCompactionThresholds(org.apache.cassandra.avro.CfDef cf_def) throws ConfigurationException
+    {
+        if (cf_def.min_compaction_threshold != null && cf_def.max_compaction_threshold != null)
+        {
+            if ((cf_def.min_compaction_threshold > cf_def.max_compaction_threshold) &&
+                    cf_def.max_compaction_threshold != 0)
+            {
+                throw new ConfigurationException("min_compaction_threshold cannot be greater than max_compaction_threshold");
+            }
+        }
+        else if (cf_def.min_compaction_threshold != null)
+        {
+            if (cf_def.min_compaction_threshold > DEFAULT_MAX_COMPACTION_THRESHOLD)
+            {
+                throw new ConfigurationException("min_compaction_threshold cannot be greather than max_compaction_threshold (default " +
+                                                  DEFAULT_MAX_COMPACTION_THRESHOLD + ")");
+            }
+        }
+        else if (cf_def.max_compaction_threshold != null)
+        {
+            if (cf_def.max_compaction_threshold < DEFAULT_MIN_COMPACTION_THRESHOLD && cf_def.max_compaction_threshold != 0) {
+                throw new ConfigurationException("max_compaction_threshold cannot be less than min_compaction_threshold");
+            }
+        }
+        else
+        {
+            //Defaults are valid.
+        }
     }
 }

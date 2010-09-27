@@ -539,6 +539,8 @@ public class DefsTest extends CleanupHelper
         cf_def.setRow_cache_size(43.3);
         cf_def.setColumn_metadata(new ArrayList<ColumnDef>());
         cf_def.setDefault_validation_class("BytesType");
+        cf_def.setMin_compaction_threshold(5);
+        cf_def.setMax_compaction_threshold(31);
         
         // test valid operations.
         cf_def.setComment("Modified comment");
@@ -575,7 +577,17 @@ public class DefsTest extends CleanupHelper
         updateCfm = cf.apply(cf_def);
         new UpdateColumnFamily(cf, updateCfm).apply();
         cf = updateCfm;
-        
+
+        cf_def.setMin_compaction_threshold(3);
+        updateCfm = cf.apply(cf_def);
+        new UpdateColumnFamily(cf, updateCfm).apply();
+        cf = updateCfm;
+
+        cf_def.setMax_compaction_threshold(33);
+        updateCfm = cf.apply(cf_def);
+        new UpdateColumnFamily(cf, updateCfm).apply();
+        cf = updateCfm;
+
         // can't test changing the reconciler because there is only one impl.
         
         // check the cumulative affect.
@@ -645,6 +657,28 @@ public class DefsTest extends CleanupHelper
         catch (ConfigurationException expected)
         {
             cf_def.setComparator_type(UTF8Type.class.getSimpleName());
+        }
+
+        try
+        {
+            cf_def.setMin_compaction_threshold(34);
+            updateCfm = cf.apply(cf_def);
+            throw new AssertionError("Should have blown up when min > max.");
+        }
+        catch (ConfigurationException expected)
+        {
+            cf_def.setMin_compaction_threshold(3);
+        }
+
+        try
+        {
+            cf_def.setMax_compaction_threshold(2);
+            updateCfm = cf.apply(cf_def);
+            throw new AssertionError("Should have blown up when max > min.");
+        }
+        catch (ConfigurationException expected)
+        {
+            cf_def.setMax_compaction_threshold(33);
         }
     }
 

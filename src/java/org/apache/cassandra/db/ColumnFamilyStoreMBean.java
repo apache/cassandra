@@ -185,4 +185,9 @@ public interface ColumnFamilyStoreMBean
      * Sets the maximum number of sstables in queue before compaction kicks off
      */
     public void setMaximumCompactionThreshold(int threshold);
+
+    /**
+     * Disable automatic compaction.
+     */
+    public void disableAutoCompaction();
 }

@@ -87,7 +87,7 @@ public class CompactionManager implements CompactionManagerMBean
                 Integer minThreshold = cfs.getMinimumCompactionThreshold();
                 Integer maxThreshold = cfs.getMaximumCompactionThreshold();
 
-                if (minThreshold <= 0 || maxThreshold <= 0)
+                if (minThreshold == 0 || maxThreshold == 0)
                 {
                     logger.debug("Compaction is currently disabled.");
                     return 0;
@@ -114,18 +114,25 @@ public class CompactionManager implements CompactionManagerMBean
 
     private void updateEstimateFor(ColumnFamilyStore cfs, Set<List<SSTableReader>> buckets)
     {
-        Integer minct = cfs.getMinimumCompactionThreshold();
-        Integer maxct = cfs.getMaximumCompactionThreshold();
+        Integer minThreshold = cfs.getMinimumCompactionThreshold();
+        Integer maxThreshold = cfs.getMaximumCompactionThreshold();
 
-        int n = 0;
-        for (List<SSTableReader> sstables : buckets)
+        if (minThreshold > 0 && maxThreshold > 0)
         {
-            if (sstables.size() >= minct)
+            int n = 0;
+            for (List<SSTableReader> sstables : buckets)
             {
-                n += 1 + sstables.size() / (maxct - minct);
+                if (sstables.size() >= minThreshold)
+                {
+                    n += Math.ceil((double)sstables.size() / maxThreshold);
+                }
             }
+            estimatedCompactions.put(cfs, n);
         }
-        estimatedCompactions.put(cfs, n);
+        else
+        {
+            logger.debug("Compaction is currently disabled.");
+        }
     }
 
     public Future<Object> submitCleanup(final ColumnFamilyStore cfStore)

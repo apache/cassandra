@@ -1637,6 +1637,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     
     public void setMinimumCompactionThreshold(int minCompactionThreshold)
     {
+        //TODO: If someone complains this is too rude, make it more friendly.
+        if ((minCompactionThreshold > this.maxCompactionThreshold) && this.maxCompactionThreshold != 0) {
+            throw new RuntimeException("The min_compaction_threshold cannot be larger than the max.");
+        }
         this.minCompactionThreshold = minCompactionThreshold;
     }
 
@@ -1647,6 +1651,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void setMaximumCompactionThreshold(int maxCompactionThreshold)
     {
+        //TODO: If someone complains this is too rude, make it more friendly.
+        if (maxCompactionThreshold < this.minCompactionThreshold) {
+            throw new RuntimeException("The max_compaction_threshold cannot be smaller than the min.");
+        }
         this.maxCompactionThreshold = maxCompactionThreshold;
     }
 

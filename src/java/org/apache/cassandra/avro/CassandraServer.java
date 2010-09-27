@@ -840,6 +840,8 @@ public class CassandraServer implements Cassandra {
         String validate = cf_def.default_validation_class == null ? D_CF_COMPTYPE : cf_def.default_validation_class.toString();
         String subCompare = cf_def.subcomparator_type == null ? D_CF_SUBCOMPTYPE : cf_def.subcomparator_type.toString();
 
+        CFMetaData.validateMinMaxCompactionThresholds(cf_def);
+
         return new CFMetaData(cf_def.keyspace.toString(),
                               cf_def.name.toString(),
                               ColumnFamilyType.create(cfType),

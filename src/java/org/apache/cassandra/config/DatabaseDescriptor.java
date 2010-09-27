@@ -548,7 +548,16 @@ public class DatabaseDescriptor
                 {                        
                     throw new ConfigurationException("read_repair_chance must be between 0.0 and 1.0");
                 }
-                
+
+                if (cf.min_compaction_threshold < 0 || cf.max_compaction_threshold < 0)
+                {
+                    throw new ConfigurationException("min/max_compaction_thresholds must be non-negative integers.");
+                }
+                if ((cf.min_compaction_threshold > cf.max_compaction_threshold) && cf.max_compaction_threshold != 0)
+                {
+                    throw new ConfigurationException("min_compaction_threshold must be smaller than max_compaction_threshold, or either must be 0 (disabled)");
+                }
+
                 Map<byte[], ColumnDefinition> metadata = new TreeMap<byte[], ColumnDefinition>(FBUtilities.byteArrayComparator);
                 for (RawColumnDefinition rcd : cf.column_metadata)
                 {
