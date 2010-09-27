@@ -96,7 +96,8 @@ public final class KSMetaData
         Class<AbstractReplicationStrategy> repStratClass;
         try
         {
-            repStratClass = (Class<AbstractReplicationStrategy>)Class.forName(ks.strategy_class.toString());
+            String strategyClassName = convertOldStrategyName(ks.strategy_class.toString());
+            repStratClass = (Class<AbstractReplicationStrategy>)Class.forName(strategyClassName);
         }
         catch (Exception ex)
         {
@@ -118,5 +119,12 @@ public final class KSMetaData
             cfMetaData[i] = CFMetaData.inflate(cfiter.next());
 
         return new KSMetaData(ks.name.toString(), repStratClass, strategyOptions, ks.replication_factor, cfMetaData);
+    }
+
+    public static String convertOldStrategyName(String name)
+    {
+        return name.replace("RackUnawareStrategy", "SimpleStrategy")
+                   .replace("RackAwareStrategy", "OldNetworkTopologyStrategy")
+                   .replace("DatacenterShardStrategy", "NetworkTopologyStrategy");
     }
 }

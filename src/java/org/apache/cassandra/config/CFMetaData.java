@@ -370,6 +370,9 @@ public final class CFMetaData
             ColumnDefinition cd = ColumnDefinition.inflate(aColumn_metadata);
             column_metadata.put(cd.name, cd);
         }
+
+        Integer minct = cf.min_compaction_threshold == null ? DEFAULT_MIN_COMPACTION_THRESHOLD : cf.min_compaction_threshold;
+        Integer maxct = cf.max_compaction_threshold == null ? DEFAULT_MAX_COMPACTION_THRESHOLD : cf.max_compaction_threshold;
         return new CFMetaData(cf.keyspace.toString(),
                               cf.name.toString(),
                               ColumnFamilyType.create(cf.column_type.toString()),
@@ -384,8 +387,8 @@ public final class CFMetaData
                               cf.read_repair_chance,
                               cf.gc_grace_seconds,
                               validator,
-                              cf.min_compaction_threshold,
-                              cf.max_compaction_threshold,
+                              minct,
+                              maxct,
                               cf.id,
                               column_metadata);
     }

@@ -505,9 +505,8 @@ public class DatabaseDescriptor
             {
                 throw new ConfigurationException("Missing replica_placement_strategy directive for " + keyspace.name);
             }
-            String strategyClassName = keyspace.replica_placement_strategy.replace("RackUnawareStrategy", "SimpleStrategy")
-                                                                          .replace("RackAwareStrategy", "OldNetworkTopologyStrategy");
-            Class<AbstractReplicationStrategy> strategyClass = FBUtilities.<AbstractReplicationStrategy>classForName(strategyClassName, "replication-strategy");
+            String strategyClassName = KSMetaData.convertOldStrategyName(keyspace.replica_placement_strategy);
+            Class<AbstractReplicationStrategy> strategyClass = FBUtilities.classForName(strategyClassName, "replication-strategy");
             
             /* Data replication factor */
             if (keyspace.replication_factor == null)
