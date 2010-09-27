@@ -40,11 +40,12 @@ import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 
 import com.google.common.collect.Multimap;
-import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ArrayListMultimap;
 
 /**
- *  A class for caching the ring map at the client. For usage example, see
- *  test/unit/org.apache.cassandra.client.TestRingCache.java.
+ * A class for caching the ring map at the client. For usage example, see
+ * test/unit/org.apache.cassandra.client.TestRingCache.java.
+ * TODO: doing a naive linear search of the token map
  */
 public class RingCache
 {
@@ -55,7 +56,6 @@ public class RingCache
     private final IPartitioner partitioner_;
     private final String keyspace;
 
-    private Set<Range> rangeSet;
     private Multimap<Range, InetAddress> rangeMap;
 
     public RingCache(String keyspace, IPartitioner partitioner, String addresses, int port) throws IOException
@@ -80,26 +80,25 @@ public class RingCache
                 socket.open();
 
                 List<TokenRange> ring = client.describe_ring(keyspace);
-                rangeMap = HashMultimap.create();
+                rangeMap = ArrayListMultimap.create();
                 
                 for (TokenRange range : ring)
                 {
                     Token<?> left = partitioner_.getTokenFactory().fromString(range.start_token);
                     Token<?> right = partitioner_.getTokenFactory().fromString(range.end_token);
-                    String host = range.endpoints.get(0);
-                    
-                    try
+                    Range r = new Range(left, right, partitioner_);
+                    for (String host : range.endpoints)
                     {
-                        rangeMap.put(new Range(left, right, partitioner_), InetAddress.getByName(host));
-                    }
-                    catch (UnknownHostException e)
-                    {
-                        throw new AssertionError(e); // host strings are IPs
+                        try
+                        {
+                            rangeMap.put(r, InetAddress.getByName(host));
+                        }
+                        catch (UnknownHostException e)
+                        {
+                            throw new AssertionError(e); // host strings are IPs
+                        }
                     }
                 }
-
-                rangeSet = new HashSet(rangeMap.keySet());
-
                 break;
             }
             catch (InvalidRequestException e)
@@ -114,16 +113,25 @@ public class RingCache
         }
     }
 
-    public Collection<InetAddress> getEndpoint(byte[] key)
+    /** ListMultimap promises to return a List for get(K) */
+    @SuppressWarnings(value="unchecked")
+    public List<InetAddress> getEndpoint(Range range)
     {
-        if (rangeSet == null)
-            throw new RuntimeException("Must refresh endpoints before looking up a key.");
+        return (List<InetAddress>) rangeMap.get(range);
+    }
 
+    public List<InetAddress> getEndpoint(byte[] key)
+    {
+        return getEndpoint(getRange(key));
+    }
+
+    public Range getRange(byte[] key)
+    {
         // TODO: naive linear search of the token map
         Token<?> t = partitioner_.getToken(key);
-        for (Range range : rangeSet)
+        for (Range range : rangeMap.keySet())
             if (range.contains(t))
-                return rangeMap.get(range);
+                return range;
 
         throw new RuntimeException("Invalid token information returned by describe_ring: " + rangeMap);
     }

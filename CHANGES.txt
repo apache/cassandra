@@ -2,6 +2,9 @@ dev
  * create EndpointSnitchInfo and MBean to expose rack and DC (CASSANDRA-1491)
  * added option to contrib/word_count to output results back to Cassandra
    (CASSANDRA-1342)
+ * rewrite Hadoop ColumnFamilyRecordWriter to pool connections, retry to
+   multiple Cassandra nodes, and smooth impact on the Cassandra cluster
+   by using smaller batch sizes (CASSANDRA-1434)
 
 
 0.7-beta2

@@ -59,7 +59,7 @@ public abstract class AbstractBounds implements Serializable
     @Override
     public int hashCode()
     {
-        return toString().hashCode();
+        return 31 * left.hashCode() + right.hashCode();
     }
 
     @Override

@@ -74,7 +74,8 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyOutputFormat.class);
     
     public static final String BATCH_THRESHOLD = "mapreduce.output.columnfamilyoutputformat.batch.threshold";
-    
+    public static final String QUEUE_SIZE = "mapreduce.output.columnfamilyoutputformat.queue.size";
+
     /**
      * Check for validity of the output-specification for the job.
      * 
