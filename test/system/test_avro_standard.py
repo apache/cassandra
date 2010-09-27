@@ -26,7 +26,7 @@ def new_column(suffix, stamp=None, ttl=0):
     column = dict()
     column['name'] = 'name-%s' % suffix
     column['value'] = 'value-%s' % suffix
-    column['clock'] = {'timestamp': ts}
+    column['timestamp'] = ts
     column['ttl'] = ttl
     return column
 
@@ -96,7 +96,7 @@ class TestStandardOperations(AvroTester):
         params['column'] = dict()
         params['column']['name'] = struct.pack('bbbbbbbbbb',36,-62,-94,-30,-126,-84,-16,-92,-83,-94)
         params['column']['value'] = struct.pack('bbbbbbbbbb',36,-62,-94,-30,-126,-84,-16,-92,-83,-94)
-        params['column']['clock'] = {'timestamp': timestamp()}
+        params['column']['timestamp'] = timestamp()
         params['column']['ttl'] = None
         params['consistency_level'] = 'ONE'
         self.client.request('insert', params)
@@ -135,7 +135,7 @@ class TestStandardOperations(AvroTester):
         avro_utils.assert_cosc(cosc)
 
         remove_params = read_params
-        remove_params['clock'] = {'timestamp': timestamp()}
+        remove_params['timestamp'] = timestamp()
 
         self.client.request('remove', remove_params)
 
@@ -173,7 +173,7 @@ class TestStandardOperations(AvroTester):
         extra_column = new_column(3); remove_column = new_column(0)
         mutations = [{'column_or_supercolumn': {'column': extra_column}}]
         deletion = dict()
-        deletion['clock'] = {'timestamp': timestamp()}
+        deletion['timestamp'] = timestamp()
         deletion['predicate'] = {'column_names': [remove_column['name']]}
         mutations.append({'deletion': deletion})
 
@@ -344,11 +344,11 @@ class TestStandardOperations(AvroTester):
     def test_index_slice(self):
         self.client.request('set_keyspace', {'keyspace': 'Keyspace1'})
         cp = dict(column_family='Indexed1')
-        self.client.request('insert', dict(key='key1', column_parent=cp, column=dict(name='birthdate', value=i64(1), clock={'timestamp': 0}), consistency_level='ONE'))
-        self.client.request('insert', dict(key='key2', column_parent=cp, column=dict(name='birthdate', value=i64(2), clock={'timestamp': 0}), consistency_level='ONE'))
-        self.client.request('insert', dict(key='key2', column_parent=cp, column=dict(name='b', value=i64(2), clock={'timestamp': 0}), consistency_level='ONE'))
-        self.client.request('insert', dict(key='key3', column_parent=cp, column=dict(name='birthdate', value=i64(3), clock={'timestamp': 0}), consistency_level='ONE'))
-        self.client.request('insert', dict(key='key3', column_parent=cp, column=dict(name='b', value=i64(3), clock={'timestamp': 0}), consistency_level='ONE'))
+        self.client.request('insert', dict(key='key1', column_parent=cp, column=dict(name='birthdate', value=i64(1), timestamp=0), consistency_level='ONE'))
+        self.client.request('insert', dict(key='key2', column_parent=cp, column=dict(name='birthdate', value=i64(2), timestamp=0), consistency_level='ONE'))
+        self.client.request('insert', dict(key='key2', column_parent=cp, column=dict(name='b', value=i64(2), timestamp=0), consistency_level='ONE'))
+        self.client.request('insert', dict(key='key3', column_parent=cp, column=dict(name='birthdate', value=i64(3), timestamp=0), consistency_level='ONE'))
+        self.client.request('insert', dict(key='key3', column_parent=cp, column=dict(name='b', value=i64(3), timestamp=0), consistency_level='ONE'))
 
         # simple query on one index expression
         sp = dict(slice_range=dict(start='', finish='', reversed=False, count=1000))

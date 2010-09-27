@@ -20,7 +20,6 @@ from . import AvroTester
 from avro.ipc import AvroRemoteException
 
 # cheat a little until these are moved into avro_utils.
-from test_avro_super import Clock as Clock
 from test_avro_super import ColumnParent as ColumnParent
 from test_avro_super import SlicePredicate as SlicePredicate
 from test_avro_super import SliceRange as SliceRange
@@ -160,7 +159,7 @@ class TestSystemOperations(AvroTester):
             self.client.request('set_keyspace', {'keyspace': keyspace})
             
             # insert
-            self.client.request('insert', {'key': 'key0', 'column_parent': ColumnParent(cf_name), 'column': Column('colA', 'colA-value', Clock(0)), 'consistency_level': 'ONE' })
+            self.client.request('insert', {'key': 'key0', 'column_parent': ColumnParent(cf_name), 'column': Column('colA', 'colA-value', 0), 'consistency_level': 'ONE' })
             col1 = self.client.request('get_slice', {'key': 'key0', 'column_parent': ColumnParent(cf_name), 'predicate': SlicePredicate(slice_range=SliceRange('', '', False, 100)), 'consistency_level': 'ONE'})[0]['column']
             assert col1['name'] == 'colA' and col1['value'] == 'colA-value', col1
                     

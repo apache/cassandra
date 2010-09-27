@@ -20,7 +20,7 @@ from avro.ipc import AvroRemoteException
 import avro_utils
 import time
     
-def _make_write_params(key, cf, sc, c, v, clock=0, cl='ONE'):
+def _make_write_params(key, cf, sc, c, v, ts=0, cl='ONE'):
     params = dict()
     params['key'] = key
     params['column_parent'] = dict()
@@ -29,7 +29,7 @@ def _make_write_params(key, cf, sc, c, v, clock=0, cl='ONE'):
     params['column'] = dict()
     params['column']['name'] = c
     params['column']['value'] = v
-    params['column']['clock'] = { 'timestamp' : clock }
+    params['column']['timestamp'] = ts
     params['consistency_level'] = cl
     return params
     
@@ -69,7 +69,7 @@ def ColumnParent(*args, **kwargs):
 def Deletion(*args, **kwargs):
     cp = {}
     if args and len(args) > 0:
-        cp['clock'] = args[0]
+        cp['timestamp'] = args[0]
     for k,v in kwargs.items():
         cp[k] = v
     return cp
@@ -82,11 +82,8 @@ def ColumnPath(*args, **kwargs):
         cp[k] = v
     return cp
 
-def Clock(timestamp=0):
-    return {'timestamp': timestamp}
-
-def Column(name, value, clock, ttl=None):
-    return {'name':name, 'value':value, 'clock': clock, 'ttl': ttl}
+def Column(name, value, timestamp, ttl=None):
+    return {'name':name, 'value':value, 'timestamp': timestamp, 'ttl': ttl}
 
 def _i64(i):
     return avro_utils.i64(i)
@@ -109,9 +106,9 @@ def waitfor(secs, fn, *args, **kwargs):
 
 ZERO_WAIT = 5
     
-_SUPER_COLUMNS = [_super_col('sc1', [Column(avro_utils.i64(4), 'value4', Clock(0))]), 
-                  _super_col('sc2', [Column(avro_utils.i64(5), 'value5', Clock(0)), 
-                                     Column(avro_utils.i64(6), 'value6', Clock(0))])]
+_SUPER_COLUMNS = [_super_col('sc1', [Column(avro_utils.i64(4), 'value4', 0)]), 
+                  _super_col('sc2', [Column(avro_utils.i64(5), 'value5', 0), 
+                                     Column(avro_utils.i64(6), 'value6', 0)])]
     
 class TestSuperOperations(AvroTester):
 
@@ -163,10 +160,10 @@ class TestSuperOperations(AvroTester):
         p = SlicePredicate(slice_range=SliceRange('', '', False, 1))
         column_parent = ColumnParent('Super1', 'sc2')
         slice = [result['column'] for result in self.client.request('get_slice', {'key': 'key1', 'column_parent': column_parent, 'predicate': p, 'consistency_level': 'ONE'})]
-        assert slice == [Column(_i64(5), 'value5', Clock(0))], slice
+        assert slice == [Column(_i64(5), 'value5', 0)], slice
         p = SlicePredicate(slice_range=SliceRange('', '', True, 1))
         slice = [result['column'] for result in self.client.request('get_slice', {'key': 'key1', 'column_parent': column_parent, 'predicate': p, 'consistency_level': 'ONE'})]
-        assert slice == [Column(_i64(6), 'value6', Clock(0))], slice
+        assert slice == [Column(_i64(6), 'value6', 0)], slice
      
     def test_time_uuid(self):
         "test operation on timeuuid subcolumns in super columns"
@@ -176,7 +173,7 @@ class TestSuperOperations(AvroTester):
         # 100 isn't enough to fail reliably if the comparator is borked
         for i in xrange(500):
             L.append(uuid.uuid1())
-            self.client.request('insert', {'key': 'key1', 'column_parent': ColumnParent('Super4', 'sc1'), 'column': Column(L[-1].bytes, 'value%s' % i, Clock(i)), 'consistency_level': 'ONE'})
+            self.client.request('insert', {'key': 'key1', 'column_parent': ColumnParent('Super4', 'sc1'), 'column': Column(L[-1].bytes, 'value%s' % i, i), 'consistency_level': 'ONE'})
         slice = self._big_slice('key1', ColumnParent('Super4', 'sc1'))
         assert len(slice) == 500, len(slice)
         for i in xrange(500):
@@ -187,26 +184,26 @@ class TestSuperOperations(AvroTester):
         p = SlicePredicate(slice_range=SliceRange('', '', True, 1))
         column_parent = ColumnParent('Super4', 'sc1')
         slice = [result['column'] for result in self.client.request('get_slice', {'key': 'key1', 'column_parent': column_parent, 'predicate': p, 'consistency_level': 'ONE'})]
-        assert slice == [Column(L[-1].bytes, 'value499', Clock(499))], slice
+        assert slice == [Column(L[-1].bytes, 'value499', 499)], slice
 
         p = SlicePredicate(slice_range=SliceRange('', L[2].bytes, False, 1000))
         column_parent = ColumnParent('Super4', 'sc1')
         slice = [result['column'] for result in self.client.request('get_slice', {'key': 'key1', 'column_parent': column_parent, 'predicate': p, 'consistency_level': 'ONE'})]
-        assert slice == [Column(L[0].bytes, 'value0', Clock(0)),
-                         Column(L[1].bytes, 'value1', Clock(1)),
-                         Column(L[2].bytes, 'value2', Clock(2))], slice
+        assert slice == [Column(L[0].bytes, 'value0', 0),
+                         Column(L[1].bytes, 'value1', 1),
+                         Column(L[2].bytes, 'value2', 2)], slice
 
         p = SlicePredicate(slice_range=SliceRange(L[2].bytes, '', True, 1000))
         column_parent = ColumnParent('Super4', 'sc1')
         slice = [result['column'] for result in self.client.request('get_slice', {'key': 'key1', 'column_parent': column_parent, 'predicate': p, 'consistency_level': 'ONE'})]
-        assert slice == [Column(L[2].bytes, 'value2', Clock(2)),
-                         Column(L[1].bytes, 'value1', Clock(1)),
-                         Column(L[0].bytes, 'value0', Clock(0))], slice
+        assert slice == [Column(L[2].bytes, 'value2', 2),
+                         Column(L[1].bytes, 'value1', 1),
+                         Column(L[0].bytes, 'value0', 0)], slice
 
         p = SlicePredicate(slice_range=SliceRange(L[2].bytes, '', False, 1))
         column_parent = ColumnParent('Super4', 'sc1')
         slice = [result['column'] for result in self.client.request('get_slice', {'key': 'key1', 'column_parent': column_parent, 'predicate': p, 'consistency_level': 'ONE'})]
-        assert slice == [Column(L[2].bytes, 'value2', Clock(2))], slice
+        assert slice == [Column(L[2].bytes, 'value2', 2)], slice
     
     def test_batch_mutate_remove_super_columns_with_standard_under(self):
         "batch mutate with deletions in super columns"
@@ -220,7 +217,7 @@ class TestSuperOperations(AvroTester):
             names = []
             for c in sc['columns']:
                 names.append(c['name'])
-            mutations.append(Mutation(deletion=Deletion(Clock(20), super_column=c['name'], predicate=SlicePredicate(column_names=names))))
+            mutations.append(Mutation(deletion=Deletion(20, super_column=c['name'], predicate=SlicePredicate(column_names=names))))
 
         mutation_map = dict((column_family, mutations) for column_family in column_families)
 
