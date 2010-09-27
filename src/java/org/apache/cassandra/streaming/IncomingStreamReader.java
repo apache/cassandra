@@ -50,6 +50,8 @@ public class IncomingStreamReader
 
         session = StreamInSession.get(remoteAddress.getAddress(), header.sessionId);
         session.addFiles(header.pendingFiles);
+        // set the current file we are streaming so progress shows up in jmx
+        session.setCurrentFile(header.file);
         session.setTable(header.table);
         // pendingFile gets the new context for the local node.
         remoteFile = header.file;
@@ -82,7 +84,12 @@ public class IncomingStreamReader
                 long length = section.right - section.left;
                 long bytesRead = 0;
                 while (bytesRead < length)
-                    bytesRead += fc.transferFrom(socketChannel, offset + bytesRead, length - bytesRead);
+                {
+                    long toRead = Math.min(FileStreamTask.CHUNK_SIZE, length - bytesRead);
+                    long lastRead = fc.transferFrom(socketChannel, offset + bytesRead, toRead);
+                    bytesRead += lastRead;
+                    remoteFile.progress += lastRead;
+                }
                 offset += length;
             }
         }

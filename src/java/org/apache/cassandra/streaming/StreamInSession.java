@@ -49,6 +49,7 @@ public class StreamInSession
     private String table;
     private final List<Future<SSTableReader>> buildFutures = new ArrayList<Future<SSTableReader>>();
     private ColumnFamilyStore cfs;
+    private PendingFile current;
 
     private StreamInSession(Pair<InetAddress, Long> context, Runnable callback)
     {
@@ -80,6 +81,11 @@ public class StreamInSession
         return session;
     }
 
+    public void setCurrentFile(PendingFile file)
+    {
+        this.current = file;
+    }
+
     public void setTable(String table)
     {
         this.table = table;
@@ -106,6 +112,8 @@ public class StreamInSession
         buildFutures.add(future);
 
         files.remove(remoteFile);
+        if (remoteFile.equals(current))
+            current = null;
         StreamReply reply = new StreamReply(remoteFile.getFilename(), getSessionId(), StreamReply.Status.FILE_FINISHED);
         // send a StreamStatus message telling the source node it can delete this file
         MessagingService.instance.sendOneWay(reply.createMessage(), getHost());
@@ -179,17 +187,20 @@ public class StreamInSession
     }
 
     /** query the status of incoming files. */
-    public static List<PendingFile> getIncomingFiles(InetAddress host)
+    public static Set<PendingFile> getIncomingFiles(InetAddress host)
     {
-        List<PendingFile> list = new ArrayList<PendingFile>();
+        Set<PendingFile> set = new HashSet<PendingFile>();
         for (Map.Entry<Pair<InetAddress, Long>, StreamInSession> entry : sessions.entrySet())
         {
             if (entry.getKey().left.equals(host))
             {
                 StreamInSession session = entry.getValue();
-                list.addAll(session.files);
+                set.addAll(session.files);
+                if(session.current != null) {
+                    set.add(session.current);
+                }
             }
         }
-        return list;
+        return set;
     }
 }

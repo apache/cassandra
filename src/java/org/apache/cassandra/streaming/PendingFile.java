@@ -48,6 +48,8 @@ public class PendingFile
     public final Descriptor desc;
     public final String component;
     public final List<Pair<Long,Long>> sections;
+    public final long size;
+    public long progress;
 
     public PendingFile(Descriptor desc, PendingFile pf)
     {
@@ -59,6 +61,12 @@ public class PendingFile
         this.desc = desc;
         this.component = component;
         this.sections = sections;
+        long tempSize = 0;
+        for(Pair<Long,Long> section : sections)
+        {
+            tempSize += section.right - section.left;
+        }
+        size = tempSize;
     }
 
     public String getFilename()
@@ -82,7 +90,7 @@ public class PendingFile
 
     public String toString()
     {
-        return getFilename() + "/" + StringUtils.join(sections, ",");
+        return getFilename() + "/" + StringUtils.join(sections, ",") + "\n\t progress=" + progress + "/" + size + " - " + progress*100/size + "%";
     }
 
     public static class PendingFileSerializer implements ICompactSerializer<PendingFile>

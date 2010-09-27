@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.net;
+package org.apache.cassandra.streaming;
 
 import java.io.*;
 import java.net.InetAddress;
@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 
@@ -38,13 +39,15 @@ public class FileStreamTask extends WrappedRunnable
 {
     private static Logger logger = LoggerFactory.getLogger( FileStreamTask.class );
     
+    // 10MB chunks
+    public static final int CHUNK_SIZE = 10*1024*1024;
     // around 10 minutes at the default rpctimeout
     public static final int MAX_CONNECT_ATTEMPTS = 8;
 
     private final StreamHeader header;
     private final InetAddress to;
     
-    FileStreamTask(StreamHeader header, InetAddress to)
+    public FileStreamTask(StreamHeader header, InetAddress to)
     {
         this.header = header;
         this.to = to;
@@ -94,9 +97,14 @@ public class FileStreamTask extends WrappedRunnable
                 long length = section.right - section.left;
                 long bytesTransferred = 0;
                 while (bytesTransferred < length)
-                    bytesTransferred += fc.transferTo(section.left + bytesTransferred, length - bytesTransferred, channel);
+                {
+                    long toTransfer = Math.min(CHUNK_SIZE, length - bytesTransferred);
+                    long lastWrite = fc.transferTo(section.left + bytesTransferred, toTransfer, channel);
+                    bytesTransferred += lastWrite;
+                    header.file.progress += lastWrite;
+                }
                 if (logger.isDebugEnabled())
-                    logger.debug("Bytes transferred " + bytesTransferred);
+                    logger.debug("Bytes transferred " + bytesTransferred + "/" + header.file.size);
             }
         }
         finally
