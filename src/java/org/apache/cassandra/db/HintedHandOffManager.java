@@ -57,7 +57,6 @@ import static com.google.common.base.Charsets.UTF_8;
  * When FailureDetector signals that a node that was down is back up, we read its
  * hints row to see what rows we need to forward data for, then reach each row in its
  * entirety and send it over.
- * (TODO handle rows that have incrementally grown too large for a single message.)
  *
  * deliverHints is also exposed to JMX so it can be run manually if FD ever misses
  * its cue somehow.
