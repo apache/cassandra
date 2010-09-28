@@ -30,6 +30,7 @@ import static org.junit.Assert.*;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.ApplicationState;
@@ -62,7 +63,7 @@ public class MoveTest extends CleanupHelper
         ArrayList<Token> keyTokens = new ArrayList<Token>();
         List<InetAddress> hosts = new ArrayList<InetAddress>();
 
-        createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, RING_SIZE);
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, RING_SIZE);
 
         Map<Token, List<InetAddress>> expectedEndpoints = new HashMap<Token, List<InetAddress>>();
         for (String table : DatabaseDescriptor.getNonSystemTables())
@@ -134,7 +135,7 @@ public class MoveTest extends CleanupHelper
         List<InetAddress> hosts = new ArrayList<InetAddress>();
 
         // create a ring or 10 nodes
-        createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, RING_SIZE);
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, RING_SIZE);
 
         // nodes 6, 8 and 9 leave
         final int[] LEAVING = new int[] {6, 8, 9};
@@ -421,7 +422,7 @@ public class MoveTest extends CleanupHelper
         List<InetAddress> hosts = new ArrayList<InetAddress>();
 
         // create a ring or 5 nodes
-        createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 7);
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 7);
 
         // node 2 leaves
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.leaving(endpointTokens.get(2)));
@@ -488,7 +489,7 @@ public class MoveTest extends CleanupHelper
         List<InetAddress> hosts = new ArrayList<InetAddress>();
 
         // create a ring or 5 nodes
-        createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 6);
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 6);
 
         // node 2 leaves
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.leaving(endpointTokens.get(2)));
@@ -530,7 +531,7 @@ public class MoveTest extends CleanupHelper
         List<InetAddress> hosts = new ArrayList<InetAddress>();
 
         // create a ring or 5 nodes
-        createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 6);
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 6);
 
         // node 2 leaves with _different_ token
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.leaving(keyTokens.get(0)));
@@ -578,7 +579,7 @@ public class MoveTest extends CleanupHelper
         List<InetAddress> hosts = new ArrayList<InetAddress>();
 
         // create a ring of 6 nodes
-        createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 7);
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 7);
 
         // node hosts.get(2) goes jumps to left
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.left(endpointTokens.get(2)));
@@ -600,31 +601,6 @@ public class MoveTest extends CleanupHelper
         assertFalse(tmd.isLeaving(hosts.get(2)));
 
         ss.setPartitionerUnsafe(oldPartitioner);
-    }
-
-    /**
-     * Creates initial set of nodes and tokens. Nodes are added to StorageService as 'normal'
-     */
-    private void createInitialRing(StorageService ss, IPartitioner partitioner, List<Token> endpointTokens,
-                                   List<Token> keyTokens, List<InetAddress> hosts, int howMany)
-        throws UnknownHostException
-    {
-        for (int i=0; i<howMany; i++)
-        {
-            endpointTokens.add(new BigIntegerToken(String.valueOf(10 * i)));
-            keyTokens.add(new BigIntegerToken(String.valueOf(10 * i + 5)));
-        }
-
-        for (int i=0; i<endpointTokens.size(); i++)
-        {
-            InetAddress ep = InetAddress.getByName("127.0.0." + String.valueOf(i + 1));
-            ss.onChange(ep, ApplicationState.STATUS, new VersionedValue.VersionedValueFactory(partitioner).normal(endpointTokens.get(i)));
-            hosts.add(ep);
-        }
-
-        // check that all nodes are in token metadata
-        for (int i=0; i<endpointTokens.size(); ++i)
-            assertTrue(ss.getTokenMetadata().isMember(hosts.get(i)));
     }
 
     private static Collection<InetAddress> makeAddrs(String... hosts) throws UnknownHostException

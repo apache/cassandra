@@ -296,6 +296,16 @@ public class NodeProbe
     {
         ssProxy.removeToken(token);
     }
+
+    public String getRemovalStatus()
+    {
+        return ssProxy.getRemovalStatus();
+    }
+
+    public void finishRemoval()
+    {
+        ssProxy.finishRemoval();
+    }
   
     public Iterator<Map.Entry<String, IExecutorMBean>> getThreadPoolMBeanProxies()
     {

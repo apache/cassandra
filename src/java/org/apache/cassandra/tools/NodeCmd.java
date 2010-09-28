@@ -77,7 +77,7 @@ public class NodeCmd {
         HelpFormatter hf = new HelpFormatter();
         String header = String.format(
                 "%nAvailable commands: ring, info, version, cleanup, compact, cfstats, snapshot [snapshotname], clearsnapshot, " +
-                "tpstats, flush, drain, repair, decommission, move, loadbalance, removetoken, " +
+                "tpstats, flush, drain, repair, decommission, move, loadbalance, removetoken [status|force]|[token], " +
                 "setcachecapacity [keyspace] [cfname] [keycachecapacity] [rowcachecapacity], " +
                 "getcompactionthreshold [keyspace] [cfname], setcompactionthreshold [cfname] [minthreshold] [maxthreshold], " +
                 "streams [host]");
@@ -356,6 +356,11 @@ public class NodeCmd {
         }
     }
     
+    public void printRemovalStatus(PrintStream outs)
+    {
+        outs.println("RemovalStatus: " + probe.getRemovalStatus());
+    }
+
     public static void main(String[] args) throws IOException, InterruptedException, ParseException
     {
         CommandLineParser parser = new PosixParser();
@@ -458,9 +463,21 @@ public class NodeCmd {
         {
             if (arguments.length <= 1)
             {
-                System.err.println("missing token argument");
+                System.err.println("Missing an argument.");
+                printUsage();
             }
-            probe.removeToken(arguments[1]);
+            else if (arguments[1].equals("status"))
+            {
+                nodeCmd.printRemovalStatus(System.out);
+            }
+            else if (arguments[1].equals("force"))
+            {
+                nodeCmd.printRemovalStatus(System.out);
+                probe.finishRemoval();
+            }
+            else
+                probe.removeToken(arguments[1]);
+
         }
         else if (cmdName.equals("snapshot"))
         {

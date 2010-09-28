@@ -42,13 +42,13 @@ public class SinkManager
         messageSinks_.clear();
     }
 
-    public static Message processClientMessageSink(Message message)
+    public static Message processClientMessageSink(Message message, InetAddress to)
     {
         ListIterator<IMessageSink> li = messageSinks_.listIterator();
         while ( li.hasNext() )
         {
             IMessageSink ms = li.next();
-            message = ms.handleMessage(message);
+            message = ms.handleMessage(message, to);
             if ( message == null )
             {
                 return null;
@@ -57,13 +57,13 @@ public class SinkManager
         return message;
     }
 
-    public static Message processServerMessageSink(Message message)
+    public static Message processServerMessageSink(Message message, InetAddress to)
     {
         ListIterator<IMessageSink> li = messageSinks_.listIterator(messageSinks_.size());
         while ( li.hasPrevious() )
         {
             IMessageSink ms = li.previous();
-            message = ms.handleMessage(message);
+            message = ms.handleMessage(message, to);
             if ( message == null )
             {
                 return null;

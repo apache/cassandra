@@ -20,20 +20,30 @@ package org.apache.cassandra;
  * 
  */
 
-
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.ExecutionException;
 
+import static org.junit.Assert.*;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.dht.BigIntegerToken;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.StorageService;
 
 import static com.google.common.base.Charsets.UTF_8;
@@ -109,5 +119,30 @@ public class Util
     public static ColumnFamily cloneAndRemoveDeleted(ColumnFamily cf, int gcBefore)
     {
         return ColumnFamilyStore.removeDeleted(cf.cloneMe(), gcBefore);
+    }
+
+    /**
+     * Creates initial set of nodes and tokens. Nodes are added to StorageService as 'normal'
+     */
+    public static void createInitialRing(StorageService ss, IPartitioner partitioner, List<Token> endpointTokens,
+                                   List<Token> keyTokens, List<InetAddress> hosts, int howMany)
+        throws UnknownHostException
+    {
+        for (int i=0; i<howMany; i++)
+        {
+            endpointTokens.add(new BigIntegerToken(String.valueOf(10 * i)));
+            keyTokens.add(new BigIntegerToken(String.valueOf(10 * i + 5)));
+        }
+
+        for (int i=0; i<endpointTokens.size(); i++)
+        {
+            InetAddress ep = InetAddress.getByName("127.0.0." + String.valueOf(i + 1));
+            ss.onChange(ep, ApplicationState.STATUS, new VersionedValue.VersionedValueFactory(partitioner).normal(endpointTokens.get(i)));
+            hosts.add(ep);
+        }
+
+        // check that all nodes are in token metadata
+        for (int i=0; i<endpointTokens.size(); ++i)
+            assertTrue(ss.getTokenMetadata().isMember(hosts.get(i)));
     }
 }

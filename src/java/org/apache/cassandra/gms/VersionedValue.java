@@ -54,7 +54,8 @@ public class VersionedValue implements Comparable<VersionedValue>
     public final static String STATUS_LEAVING = "LEAVING";
     public final static String STATUS_LEFT = "LEFT";
 
-    public final static String REMOVE_TOKEN = "remove";
+    public final static String REMOVING_TOKEN = "removing";
+    public final static String REMOVED_TOKEN = "removed";
 
     public final int version;
     public final String value;
@@ -115,11 +116,19 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(VersionedValue.STATUS_LEFT + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
         }
 
-        public VersionedValue removeNonlocal(Token localToken, Token token)
+        public VersionedValue removingNonlocal(Token localToken, Token token)
         {
             return new VersionedValue(VersionedValue.STATUS_NORMAL
                                         + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(localToken)
-                                        + VersionedValue.DELIMITER + VersionedValue.REMOVE_TOKEN
+                                        + VersionedValue.DELIMITER + VersionedValue.REMOVING_TOKEN
+                                        + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
+        }
+
+        public VersionedValue removedNonlocal(Token localToken, Token token)
+        {
+            return new VersionedValue(VersionedValue.STATUS_NORMAL
+                                        + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(localToken)
+                                        + VersionedValue.DELIMITER + VersionedValue.REMOVED_TOKEN
                                         + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
         }
 

@@ -876,4 +876,21 @@ public class Gossiper implements IFailureDetectionEventListener
         gossipTimer_.cancel();
         gossipTimer_ = new Timer(false); // makes the Gossiper reentrant.
     }
+
+    /**
+     * This should *only* be used for testing purposes.
+     */
+    public void initializeNodeUnsafe(InetAddress addr, int generationNbr) {
+        /* initialize the heartbeat state for this localEndpoint */
+        EndpointState localState = endpointStateMap_.get(addr);
+        if ( localState == null )
+        {
+            HeartBeatState hbState = new HeartBeatState(generationNbr);
+            localState = new EndpointState(hbState);
+            localState.isAlive(true);
+            localState.isAGossiper(true);
+            endpointStateMap_.put(addr, localState);
+        }
+    }
+
 }

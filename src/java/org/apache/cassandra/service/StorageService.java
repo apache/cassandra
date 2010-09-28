@@ -52,7 +52,10 @@ import org.apache.cassandra.io.DeletionService;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.net.IAsyncResult;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ResponseVerbHandler;
 import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
@@ -103,6 +106,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         TRUNCATE,
         SCHEMA_CHECK,
         INDEX_SCAN,
+        REPLICATION_FINISHED,
+        ;
         // remember to add new verbs at the end, since we serialize by ordinal
     }
     public static final Verb[] VERBS = Verb.values();
@@ -128,11 +133,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         put(Verb.TRUNCATE, Stage.MUTATION);
         put(Verb.SCHEMA_CHECK, Stage.MIGRATION);
         put(Verb.INDEX_SCAN, Stage.READ);
+        put(Verb.REPLICATION_FINISHED, Stage.MISC);
     }};
 
 
     private static IPartitioner partitioner_ = DatabaseDescriptor.getPartitioner();
-    public static final VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner_);
+    public static VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner_);
 
     public static final StorageService instance = new StorageService();
 
@@ -164,6 +170,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     /* We use this interface to determine where replicas need to be placed */
     private Map<String, AbstractReplicationStrategy> replicationStrategies;
+
+    private Set<InetAddress> replicatingNodes;
+    private InetAddress removingNode;
+    private CountDownLatch replicateLatch;
 
     /* Are we starting this node in bootstrap mode? */
     private boolean isBootstrapMode;
@@ -215,6 +225,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         MessagingService.instance.registerVerbHandlers(Verb.BOOTSTRAP_TOKEN, new BootStrapper.BootstrapTokenVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.STREAM_REQUEST, new StreamRequestVerbHandler() );
         MessagingService.instance.registerVerbHandlers(Verb.STREAM_REPLY, new StreamReplyVerbHandler());
+        MessagingService.instance.registerVerbHandlers(Verb.REPLICATION_FINISHED, new ReplicationFinishedVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.READ_RESPONSE, new ResponseVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.TREE_REQUEST, new TreeRequestVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.TREE_RESPONSE, new AntiEntropyService.TreeResponseVerbHandler());
@@ -637,31 +648,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             tokenMetadata_.updateNormalToken(token, endpoint);
         else
             logger_.info("Will not change my token ownership to " + endpoint);
-        
-        if (pieces.length > 2)
-        {
-            if (VersionedValue.REMOVE_TOKEN.equals(pieces[2]))
-            { 
-                // remove token was called on a dead node.
-                Token tokenThatLeft = getPartitioner().getTokenFactory().fromString(pieces[3]);
-                InetAddress endpointThatLeft = tokenMetadata_.getEndpoint(tokenThatLeft);
-                // let's make sure that we're not removing ourselves. This can happen when a node
-                // enters ring as a replacement for a removed node. removeToken for the old node is
-                // still in gossip, so we will see it.
-                if (FBUtilities.getLocalAddress().equals(endpointThatLeft))
-                {
-                    logger_.info("Received removeToken gossip about myself. Is this node a replacement for a removed one?");
-                    return;
-                }
-                logger_.debug("Token " + tokenThatLeft + " removed manually (endpoint was " + ((endpointThatLeft == null) ? "unknown" : endpointThatLeft) + ")");
-                if (endpointThatLeft != null)
-                {
-                    removeEndpointLocally(endpointThatLeft);
-                }
-                tokenMetadata_.removeBootstrapToken(tokenThatLeft);
-            }
+
+        if(pieces.length > 2) {
+            handleStateRemoving(endpoint, pieces);
         }
-        
+
         calculatePendingRanges();
         if (!isClientMode)
             SystemTable.updateToken(endpoint, token);
@@ -734,15 +725,45 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     }
 
     /**
-     * endpoint was completely removed from ring (as a result of removetoken command). Remove it
-     * from token metadata and gossip and restore replica count.  Also delete any hints for it.
+     * Handle node being actively removed from the ring.
+     *
+     * @param endpoint node
+     * @param moveValue (token to notify of removal)<Delimiter>(token to remove)
      */
-    private void removeEndpointLocally(InetAddress endpoint)
+    private void handleStateRemoving(InetAddress endpoint, String[] pieces)
     {
-        restoreReplicaCount(endpoint);
-        Gossiper.instance.removeEndpoint(endpoint);
-        // gossiper onRemove will take care of TokenMetadata
-        HintedHandOffManager.deleteHintsForEndPoint(endpoint);
+        assert pieces.length == 4;
+        Token removeToken = getPartitioner().getTokenFactory().fromString(pieces[3]);
+        InetAddress removeEndpoint = tokenMetadata_.getEndpoint(removeToken);
+        
+        if (removeEndpoint == null)
+            return;
+        
+        if (removeEndpoint.equals(FBUtilities.getLocalAddress()))
+        {
+            logger_.info("Received removeToken gossip about myself. Is this node a replacement for a removed one?");
+            return;
+        }
+
+        if (VersionedValue.REMOVED_TOKEN.equals(pieces[2]))
+        {
+            Gossiper.instance.removeEndpoint(removeEndpoint);
+            tokenMetadata_.removeEndpoint(removeEndpoint);
+            HintedHandOffManager.deleteHintsForEndPoint(removeEndpoint);
+            tokenMetadata_.removeBootstrapToken(removeToken);
+        }
+        else if (VersionedValue.REMOVING_TOKEN.equals(pieces[2]))
+        {
+            if (logger_.isDebugEnabled())
+                logger_.debug("Token " + removeToken + " removed manually (endpoint was " + removeEndpoint + ")");
+
+            // Note that the endpoint is being removed
+            tokenMetadata_.addLeavingEndpoint(removeEndpoint);
+            calculatePendingRanges();
+
+            // grab any data we are now responsible for and notify responsible node
+            restoreReplicaCount(removeEndpoint, endpoint);
+        }
     }
 
     /**
@@ -832,71 +853,142 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     }
 
     /**
-     * Called when an endpoint is removed from the ring without proper
-     * STATE_LEAVING -> STATE_LEFT sequence. This function checks
-     * whether this node becomes responsible for new ranges as a
-     * consequence and streams data if needed.
+     * Determines the endpoints that are going to become responsible for data due to
+     * a node leaving the cluster.
      *
-     * This is rather ineffective, but it does not matter so much
-     * since this is called very seldom
-     *
-     * @param endpoint node that has left
+     * @param endpoint the node that is leaving the cluster
+     * @return A set of endpoints
      */
-    private void restoreReplicaCount(InetAddress endpoint)
+    private Set<InetAddress> getNewEndpoints(InetAddress endpoint)
     {
-        InetAddress myAddress = FBUtilities.getLocalAddress();
+        Set<InetAddress> newEndpoints = new HashSet<InetAddress>();
 
         for (String table : DatabaseDescriptor.getNonSystemTables())
         {
             // get all ranges that change ownership (that is, a node needs
             // to take responsibility for new range)
             Multimap<Range, InetAddress> changedRanges = getChangedRangesForLeaving(table, endpoint);
+            newEndpoints.addAll(changedRanges.values());
+        }
+        return newEndpoints;
+    }
 
-            // check if any of these ranges are coming our way
+    /**
+     * Finds living endpoints responsible for the given ranges
+     *
+     * @param table the table ranges belong to
+     * @param ranges the ranges to find sources for
+     * @return multimap of addresses to ranges the address is responsible for
+     */
+    private Multimap<InetAddress, Range> getNewSourceRanges(String table, Set<Range> ranges) 
+    {
+        InetAddress myAddress = FBUtilities.getLocalAddress();
+        Multimap<Range, InetAddress> rangeAddresses = getReplicationStrategy(table).getRangeAddresses(tokenMetadata_);
+        Multimap<InetAddress, Range> sourceRanges = HashMultimap.create();
+        IFailureDetector failureDetector = FailureDetector.instance;
+
+        // find alive sources for our new ranges
+        for (Range range : ranges)
+        {
+            Collection<InetAddress> possibleRanges = rangeAddresses.get(range);
+            IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+            List<InetAddress> sources = snitch.getSortedListByProximity(myAddress, possibleRanges);
+
+            assert (!sources.contains(myAddress));
+
+            for (InetAddress source : sources)
+            {
+                if (failureDetector.isAlive(source))
+                {
+                    sourceRanges.put(source, range);
+                    break;
+                }
+            } 
+        }
+        return sourceRanges;
+    }
+
+    /**
+     * Sends a notification to a node indicating we have finished replicating data.
+     * 
+     * @param local the local address
+     * @param remote node to send notification to
+     */
+    private void sendReplicationNotification(InetAddress local, InetAddress remote)
+    {
+        // notify the remote token
+        Message msg = new Message(local, StorageService.Verb.REPLICATION_FINISHED, new byte[0]);
+        IFailureDetector failureDetector = FailureDetector.instance;
+        while (failureDetector.isAlive(remote))
+        {
+            IAsyncResult iar = MessagingService.instance.sendRR(msg, remote);
+            try 
+            {
+                iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
+                return; // done
+            }
+            catch(TimeoutException e)
+            {
+                // try again
+            }
+        }
+    }
+
+    /**
+     * Called when an endpoint is removed from the ring. This function checks
+     * whether this node becomes responsible for new ranges as a
+     * consequence and streams data if needed.
+     *
+     * This is rather ineffective, but it does not matter so much
+     * since this is called very seldom
+     *
+     * @param endpoint the node that left
+     */
+    private void restoreReplicaCount(InetAddress endpoint, final InetAddress notifyEndpoint)
+    {
+        final Multimap<InetAddress, String> fetchSources = HashMultimap.create();
+        Multimap<String, Map.Entry<InetAddress, Collection<Range>>> rangesToFetch = HashMultimap.create();
+
+        final InetAddress myAddress = FBUtilities.getLocalAddress();
+
+        for (String table : DatabaseDescriptor.getNonSystemTables())
+        {
+            Multimap<Range, InetAddress> changedRanges = getChangedRangesForLeaving(table, endpoint); 
             Set<Range> myNewRanges = new HashSet<Range>();
             for (Map.Entry<Range, InetAddress> entry : changedRanges.entries())
             {
                 if (entry.getValue().equals(myAddress))
                     myNewRanges.add(entry.getKey());
             }
-
-            if (!myNewRanges.isEmpty())
+            Multimap<InetAddress, Range> sourceRanges = getNewSourceRanges(table, myNewRanges);
+            for (Map.Entry<InetAddress, Collection<Range>> entry : sourceRanges.asMap().entrySet())
             {
-                if (logger_.isDebugEnabled())
-                    logger_.debug(endpoint + " was removed, my added ranges: " + StringUtils.join(myNewRanges, ", "));
+                fetchSources.put(entry.getKey(), table);
+                rangesToFetch.put(table, entry);
+            }
+        }
 
-                Multimap<Range, InetAddress> rangeAddresses = getReplicationStrategy(table).getRangeAddresses(tokenMetadata_);
-                Multimap<InetAddress, Range> sourceRanges = HashMultimap.create();
-                IFailureDetector failureDetector = FailureDetector.instance;
-
-                // find alive sources for our new ranges
-                for (Range myNewRange : myNewRanges)
+        for (final String table : rangesToFetch.keySet())
+        {
+            for (Map.Entry<InetAddress, Collection<Range>> entry : rangesToFetch.get(table))
+            {
+                final InetAddress source = entry.getKey();
+                Collection<Range> ranges = entry.getValue();
+                final Runnable callback = new Runnable()
                 {
-                    List<InetAddress> sources = DatabaseDescriptor.getEndpointSnitch().getSortedListByProximity(myAddress, rangeAddresses.get(myNewRange));
-
-                    assert (!sources.contains(myAddress));
-
-                    for (InetAddress source : sources)
+                    public void run()
                     {
-                        if (source.equals(endpoint))
-                            continue;
-
-                        if (failureDetector.isAlive(source))
+                        synchronized (fetchSources)
                         {
-                            sourceRanges.put(source, myNewRange);
-                            break;
+                            fetchSources.remove(source, table);
+                            if (fetchSources.isEmpty())
+                                sendReplicationNotification(myAddress, notifyEndpoint);
                         }
                     }
-                }
-
-                // Finally we have a list of addresses and ranges to
-                // stream. Proceed to stream
-                for (Map.Entry<InetAddress, Collection<Range>> entry : sourceRanges.asMap().entrySet())
-                {
-                    if (logger_.isDebugEnabled())
-                        logger_.debug("Requesting from " + entry.getKey() + " ranges " + StringUtils.join(entry.getValue(), ", "));
-                    StreamIn.requestRanges(entry.getKey(), table, entry.getValue());
-                }
+                };
+                if (logger_.isDebugEnabled())
+                    logger_.debug("Requesting from " + source + " ranges " + StringUtils.join(ranges, ", "));
+                StreamIn.requestRanges(source, table, ranges, callback);
             }
         }
     }
@@ -1583,31 +1675,102 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         unbootstrap(finishMoving);
     }
 
+    /**
+     * Get the status of a token removal.
+     */
+    public String getRemovalStatus()
+    {
+        if (removingNode == null) {
+            return "No token removals in process.";
+        }
+        return String.format("Removing token (%s). Waiting for replication confirmation from [%s].",
+                             tokenMetadata_.getToken(removingNode),
+                             StringUtils.join(replicatingNodes, ","));
+    }
+
+    /**
+     * Force a remove operation to complete. This may be necessary if a remove operation
+     * blocks forever due to node/stream failure.
+     */
+    public void finishRemoval()
+    {
+        while (replicateLatch != null && replicateLatch.getCount() > 0)
+        {
+            replicateLatch.countDown();
+        }
+    }
+
+    /**
+     * Remove a node that has died.
+     *
+     * @param tokenString token for the node
+     */
     public void removeToken(String tokenString)
     {
+        InetAddress myAddress = FBUtilities.getLocalAddress();
+        Token localToken = tokenMetadata_.getToken(myAddress);
         Token token = partitioner_.getTokenFactory().fromString(tokenString);
-
-        // Here we could refuse the operation from continuing if we
-        // cannot find the endpoint for this token from metadata, but
-        // that would prevent this command from being issued by a node
-        // that has never seen the failed node.
         InetAddress endpoint = tokenMetadata_.getEndpoint(token);
-        if (endpoint != null)
+
+        if (endpoint == null)
+            throw new UnsupportedOperationException("Token not found.");
+
+        if (endpoint.equals(myAddress))
+             throw new UnsupportedOperationException("Cannot remove node's own token");
+
+        if (Gossiper.instance.getLiveMembers().contains(endpoint))
+            throw new UnsupportedOperationException("Node " + endpoint + " is alive and owns this token. Use decommission command to remove it from the ring");
+
+        // A leaving endpoint that is dead is already being removed.
+        if (tokenMetadata_.isLeaving(endpoint)) 
+            throw new UnsupportedOperationException("Node " + endpoint + " is already being removed.");
+
+        if (replicatingNodes != null || replicateLatch != null)
+            throw new UnsupportedOperationException("This node is already processing a removal. Wait for it to complete.");
+
+        // Find the endpoints that are going to become responsible for data
+        replicatingNodes = Collections.synchronizedSet(getNewEndpoints(endpoint));
+        replicateLatch = new CountDownLatch(replicatingNodes.size());
+        removingNode = endpoint;
+
+        tokenMetadata_.addLeavingEndpoint(endpoint);
+        calculatePendingRanges();
+        // bundle two states together. include this nodes state to keep the status quo, 
+        // but indicate the leaving token so that it can be dealt with.
+        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.removingNonlocal(localToken, token));
+
+        restoreReplicaCount(endpoint, myAddress);
+
+        try
         {
-            if (endpoint.equals(FBUtilities.getLocalAddress()))
-                throw new UnsupportedOperationException("Cannot remove node's own token");
-
-            // Let's make sure however that we're not removing a live
-            // token (member)
-            if (Gossiper.instance.getLiveMembers().contains(endpoint))
-                throw new UnsupportedOperationException("Node " + endpoint + " is alive and owns this token. Use decommission command to remove it from the ring");
-
-            removeEndpointLocally(endpoint);
-            calculatePendingRanges();
+            replicateLatch.await();
+        }
+        catch (InterruptedException e)
+        {
+            logger_.error("Interrupted while waiting for replication confirmation.");
         }
 
-        // bundle two states together. include this nodes state to keep the status quo, but indicate the leaving token so that it can be dealt with.
-        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.removeNonlocal(getLocalToken(), token));
+        Gossiper.instance.removeEndpoint(endpoint);
+        tokenMetadata_.removeBootstrapToken(token);
+        tokenMetadata_.removeEndpoint(endpoint);
+        HintedHandOffManager.deleteHintsForEndPoint(endpoint);
+
+        // indicate the token has left
+        calculatePendingRanges();
+        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.removedNonlocal(localToken, token));
+
+        if(!replicatingNodes.isEmpty())
+            logger_.error("Failed to recieve removal confirmation for " + StringUtils.join(replicatingNodes, ","));
+
+        replicatingNodes = null;
+        removingNode = null;
+        replicateLatch = null;
+    }
+
+    public void confirmReplication(InetAddress node)
+    {
+        if(replicatingNodes != null && replicatingNodes.remove(node))
+            replicateLatch.countDown();
     }
 
     public boolean isClientMode()
@@ -1848,6 +2011,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         IPartitioner oldPartitioner = partitioner_;
         partitioner_ = newPartitioner;
+        valueFactory = new VersionedValue.VersionedValueFactory(partitioner_);
         return oldPartitioner;
     }
 

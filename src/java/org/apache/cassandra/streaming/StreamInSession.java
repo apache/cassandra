@@ -68,7 +68,6 @@ public class StreamInSession
     public static StreamInSession get(InetAddress host, long sessionId)
     {
         Pair<InetAddress, Long> context = new Pair<InetAddress, Long>(host, sessionId);
-
         StreamInSession session = sessions.get(context);
         if (session == null)
         {

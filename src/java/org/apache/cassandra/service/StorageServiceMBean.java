@@ -210,6 +210,16 @@ public interface StorageServiceMBean
      */
     public void removeToken(String token);
 
+    /**
+     * Get the status of a token removal.
+     */
+    public String getRemovalStatus();
+
+    /**
+     * Force a remove operation to finish.
+     */
+    public void finishRemoval();
+
     /** set the logging level at runtime */
     public void setLog4jLevel(String classQualifier, String level);
 
