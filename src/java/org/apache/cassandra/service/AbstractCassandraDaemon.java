@@ -240,8 +240,8 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
      */
     public static class CleaningThreadPool extends ThreadPoolExecutor implements ThreadPool
     {
-        private ClientState state;
-        public CleaningThreadPool(ClientState state, int minWorkerThread, int maxWorkerThreads)
+        private ThreadLocal<ClientState> state;
+        public CleaningThreadPool(ThreadLocal<ClientState> state, int minWorkerThread, int maxWorkerThreads)
         {
             super(minWorkerThread, maxWorkerThreads, 60, TimeUnit.SECONDS, new SynchronousQueue<Runnable>());
             this.state = state;
@@ -251,7 +251,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
         protected void afterExecute(Runnable r, Throwable t)
         {
             super.afterExecute(r, t);
-            state.logout();
+            state.get().logout();
         }
 
         /*********************************************************************/

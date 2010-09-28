@@ -40,53 +40,49 @@ public class ClientState
     private static Logger logger = LoggerFactory.getLogger(ClientState.class);
 
     // Current user for the session
-    private final ThreadLocal<AuthenticatedUser> user = new ThreadLocal<AuthenticatedUser>()
-    {
-        @Override
-        public AuthenticatedUser initialValue()
-        {
-            return DatabaseDescriptor.getAuthenticator().defaultUser();
-        }
-    };
+    private AuthenticatedUser user;
+    private String keyspace;
+    private Set<Permission> keyspaceAccess;
 
-    // Keyspace and keyspace Permissions associated with the session
-    private final ThreadLocal<String> keyspace = new ThreadLocal<String>();
-    private final ThreadLocal<Set<Permission>> keyspaceAccess = new ThreadLocal<Set<Permission>>();
+    /**
+     * Construct a new, empty ClientState: can be reused after logout() or reset().
+     */
+    public ClientState()
+    {
+        reset();
+    }
 
     /**
      * Called when the keyspace or user have changed.
      */
     private void updateKeyspaceAccess()
     {
-        if (user.get() == null || keyspace.get() == null)
+        if (user == null || keyspace == null)
             // user is not logged in or keyspace is not set
-            keyspaceAccess.set(null);
+            keyspaceAccess = null;
         else
             // authorize the user for the current keyspace
-            keyspaceAccess.set(DatabaseDescriptor.getAuthority().authorize(user.get(), keyspace.get()));
+            keyspaceAccess = DatabaseDescriptor.getAuthority().authorize(user, keyspace);
     }
 
     public String getKeyspace()
     {
-        return keyspace.get();
+        return keyspace;
     }
 
     public void setKeyspace(String ks)
     {
-        keyspace.set(ks);
+        keyspace = ks;
         updateKeyspaceAccess();
     }
 
     public String getSchedulingValue()
     {
-        String schedulingValue = "default";
         switch(DatabaseDescriptor.getRequestSchedulerId())
         {
-            case keyspace:
-                schedulingValue = keyspace.get();
-                break;
+            case keyspace: return keyspace;
         }
-        return schedulingValue;
+        return "default";
     }
 
     /**
@@ -97,17 +93,22 @@ public class ClientState
         AuthenticatedUser user = DatabaseDescriptor.getAuthenticator().authenticate(credentials);
         if (logger.isDebugEnabled())
             logger.debug("logged in: {}", user);
-        this.user.set(user);
+        this.user = user;
         updateKeyspaceAccess();
     }
 
     public void logout()
     {
         if (logger.isDebugEnabled())
-            logger.debug("logged out: {}", user.get());
-        user.remove();
-        keyspace.remove();
-        keyspaceAccess.remove();
+            logger.debug("logged out: {}", user);
+        reset();
+    }
+
+    public void reset()
+    {
+        user = DatabaseDescriptor.getAuthenticator().defaultUser();
+        keyspace = null;
+        keyspaceAccess = null;
     }
 
     /**
@@ -115,11 +116,11 @@ public class ClientState
      */
     public void hasKeyspaceAccess(Permission perm) throws InvalidRequestException
     {
-        if (user.get() == null)
+        if (user == null)
             throw new InvalidRequestException("You have not logged in");
-        if (keyspaceAccess.get() == null)
+        if (keyspaceAccess == null)
             throw new InvalidRequestException("You have not set a keyspace for this session");
-        if (!keyspaceAccess.get().contains(perm))
-            throw new InvalidRequestException(String.format("You (%s) do not have permission %s for %s", user, perm, keyspace.get()));
+        if (!keyspaceAccess.contains(perm))
+            throw new InvalidRequestException(String.format("You (%s) do not have permission %s for %s", user, perm, keyspace));
     }
 }
