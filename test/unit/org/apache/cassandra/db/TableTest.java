@@ -392,7 +392,7 @@ public class TableTest extends CleanupHelper
         // compact so we have a big row with more than the minimum index count
         if (cfStore.getSSTables().size() > 1)
         {
-            CompactionManager.instance.submitMajor(cfStore).get();
+            CompactionManager.instance.performMajor(cfStore);
         }
         SSTableReader sstable = cfStore.getSSTables().iterator().next();
         long position = sstable.getPosition(key, SSTableReader.Operator.EQ);

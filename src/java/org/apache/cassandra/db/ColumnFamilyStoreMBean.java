@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db;
 
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLongArray;
@@ -133,7 +134,7 @@ public interface ColumnFamilyStoreMBean
     /**
      * force a major compaction of this column family
      */
-    public void forceMajorCompaction();
+    public void forceMajorCompaction() throws ExecutionException, InterruptedException;
 
     /**
      * invalidate the row cache; for use after bulk loading via BinaryMemtable

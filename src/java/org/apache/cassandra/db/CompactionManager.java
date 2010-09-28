@@ -25,6 +25,7 @@ import java.net.InetAddress;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -135,7 +136,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
-    public Future<Object> submitCleanup(final ColumnFamilyStore cfStore)
+    public void performCleanup(final ColumnFamilyStore cfStore) throws InterruptedException, ExecutionException
     {
         Callable<Object> runnable = new Callable<Object>()
         {
@@ -145,7 +146,7 @@ public class CompactionManager implements CompactionManagerMBean
                 return this;
             }
         };
-        return executor.submit(runnable);
+        executor.submit(runnable).get();
     }
 
     public Future<List<SSTableReader>> submitAnticompaction(final ColumnFamilyStore cfStore, final Collection<Range> ranges, final InetAddress target)
@@ -160,12 +161,12 @@ public class CompactionManager implements CompactionManagerMBean
         return executor.submit(callable);
     }
 
-    public Future submitMajor(final ColumnFamilyStore cfStore)
+    public void performMajor(final ColumnFamilyStore cfStore) throws InterruptedException, ExecutionException
     {
-        return submitMajor(cfStore, 0, (int) (System.currentTimeMillis() / 1000) - cfStore.metadata.gcGraceSeconds);
+        submitMajor(cfStore, 0, (int) (System.currentTimeMillis() / 1000) - cfStore.metadata.gcGraceSeconds).get();
     }
 
-    public Future submitMajor(final ColumnFamilyStore cfStore, final long skip, final int gcBefore)
+    public Future<Object> submitMajor(final ColumnFamilyStore cfStore, final long skip, final int gcBefore)
     {
         Callable<Object> callable = new Callable<Object>()
         {
@@ -195,7 +196,7 @@ public class CompactionManager implements CompactionManagerMBean
         return executor.submit(callable);
     }
 
-    public Future submitValidation(final ColumnFamilyStore cfStore, final AntiEntropyService.Validator validator)
+    public Future<Object> submitValidation(final ColumnFamilyStore cfStore, final AntiEntropyService.Validator validator)
     {
         Callable<Object> callable = new Callable<Object>()
         {

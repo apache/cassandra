@@ -132,22 +132,22 @@ public interface StorageServiceMBean
     /**
      * Forces major compaction (all sstable files compacted)
      */
-    public void forceTableCompaction() throws IOException;
+    public void forceTableCompaction() throws IOException, ExecutionException, InterruptedException;
 
     /**
      * Forces major compaction of a single keyspace
      */
-    public void forceTableCompaction(String tableName) throws IOException;
+    public void forceTableCompaction(String tableName) throws IOException, ExecutionException, InterruptedException;
 
     /**
      * Trigger a cleanup of keys on all tables.
      */
-    public void forceTableCleanup() throws IOException;
+    public void forceTableCleanup() throws IOException, ExecutionException, InterruptedException;
 
     /**
      * Trigger a cleanup of keys on a single keyspace
      */
-    public void forceTableCleanup(String tableName) throws IOException;
+    public void forceTableCleanup(String tableName) throws IOException, ExecutionException, InterruptedException;
 
     /**
      * Takes the snapshot for a given table.
@@ -176,7 +176,7 @@ public interface StorageServiceMBean
      * @param columnFamilies
      * @throws IOException
      */
-    public void forceTableFlush(String tableName, String... columnFamilies) throws IOException;
+    public void forceTableFlush(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
 
     /**
      * Triggers proactive repair for given column families, or all columnfamilies for the given table

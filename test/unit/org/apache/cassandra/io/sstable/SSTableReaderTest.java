@@ -67,7 +67,7 @@ public class SSTableReaderTest extends CleanupHelper
             rm.apply();
         }
         store.forceBlockingFlush();
-        CompactionManager.instance.submitMajor(store).get();
+        CompactionManager.instance.performMajor(store);
 
         List<Range> ranges = new ArrayList<Range>();
         // 1 key
@@ -108,7 +108,7 @@ public class SSTableReaderTest extends CleanupHelper
             rm.apply();
         }
         store.forceBlockingFlush();
-        CompactionManager.instance.submitMajor(store).get();
+        CompactionManager.instance.performMajor(store);
 
         // check that all our keys are found correctly
         SSTableReader sstable = store.getSSTables().iterator().next();

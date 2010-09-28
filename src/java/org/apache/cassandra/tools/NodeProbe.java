@@ -122,27 +122,27 @@ public class NodeProbe
                 mbeanServerConn, ManagementFactory.RUNTIME_MXBEAN_NAME, RuntimeMXBean.class);
     }
 
-    public void forceTableCleanup() throws IOException
+    public void forceTableCleanup() throws IOException, ExecutionException, InterruptedException
     {
         ssProxy.forceTableCleanup();
     }
 
-    public void forceTableCleanup(String tableName) throws IOException
+    public void forceTableCleanup(String tableName) throws IOException, ExecutionException, InterruptedException
     {
         ssProxy.forceTableCleanup(tableName);
     }
 
-    public void forceTableCompaction() throws IOException
+    public void forceTableCompaction() throws IOException, ExecutionException, InterruptedException
     {
         ssProxy.forceTableCompaction();
     }
 
-    public void forceTableCompaction(String tableName) throws IOException
+    public void forceTableCompaction(String tableName) throws IOException, ExecutionException, InterruptedException
     {
         ssProxy.forceTableCompaction(tableName);
     }
 
-    public void forceTableFlush(String tableName, String... columnFamilies) throws IOException
+    public void forceTableFlush(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
         ssProxy.forceTableFlush(tableName, columnFamilies);
     }

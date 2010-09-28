@@ -138,7 +138,7 @@ public class Table
     /**
      * Do a cleanup of keys that do not belong locally.
      */
-    public void forceCleanup()
+    public void forceCleanup() throws IOException, ExecutionException, InterruptedException
     {
         if (name.equals(SYSTEM_TABLE))
             throw new RuntimeException("Cleanup of the system table is neither necessary nor wise");
@@ -146,8 +146,7 @@ public class Table
         for (ColumnFamilyStore cfStore : columnFamilyStores.values())
             cfStore.forceCleanup();
     }
-    
-    
+
     /**
      * Take a snapshot of the entire set of column families with a given timestamp.
      * 
@@ -201,10 +200,10 @@ public class Table
      * This method is an ADMIN operation to force compaction
      * of all SSTables on disk. 
      */
-    public void forceCompaction()
+    public void forceCompaction() throws IOException, ExecutionException, InterruptedException
     {
         for (ColumnFamilyStore cfStore : columnFamilyStores.values())
-            CompactionManager.instance.submitMajor(cfStore);
+            CompactionManager.instance.performMajor(cfStore);
     }
 
     /**

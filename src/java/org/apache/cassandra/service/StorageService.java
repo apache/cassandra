@@ -25,6 +25,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.*;
+
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -1168,7 +1169,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return Gossiper.instance.getCurrentGenerationNumber(FBUtilities.getLocalAddress());
     }
 
-    public void forceTableCleanup() throws IOException
+    public void forceTableCleanup() throws IOException, ExecutionException, InterruptedException
     {
         List<String> tables = DatabaseDescriptor.getNonSystemTables();
         for (String tName : tables)
@@ -1178,19 +1179,19 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
     }
 
-    public void forceTableCleanup(String tableName) throws IOException
+    public void forceTableCleanup(String tableName) throws IOException, ExecutionException, InterruptedException
     {
         Table table = getValidTable(tableName);
         table.forceCleanup();
     }
-    
-    public void forceTableCompaction() throws IOException
+
+    public void forceTableCompaction() throws IOException, ExecutionException, InterruptedException
     {
         for (Table table : Table.all())
             table.forceCompaction();
     }
 
-    public void forceTableCompaction(String tableName) throws IOException
+    public void forceTableCompaction(String tableName) throws IOException, ExecutionException, InterruptedException
     {
         Table table = getValidTable(tableName);
         table.forceCompaction();
@@ -1270,14 +1271,15 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * @param columnFamilies
      * @throws IOException
      */
-    public void forceTableFlush(final String tableName, final String... columnFamilies) throws IOException
+    public void forceTableFlush(final String tableName, final String... columnFamilies)
+                throws IOException, ExecutionException, InterruptedException
     {
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
         {
             logger_.debug("Forcing binary flush on keyspace " + tableName + ", CF " + cfStore.getColumnFamilyName());
             cfStore.forceFlushBinary();
             logger_.debug("Forcing flush on keyspace " + tableName + ", CF " + cfStore.getColumnFamilyName());
-            cfStore.forceFlush();
+            cfStore.forceBlockingFlush();
         }
     }
 

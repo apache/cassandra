@@ -728,9 +728,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return maxFile;
     }
 
-    void forceCleanup()
+    void forceCleanup() throws ExecutionException, InterruptedException
     {
-        CompactionManager.instance.submitCleanup(ColumnFamilyStore.this);
+        CompactionManager.instance.performCleanup(ColumnFamilyStore.this);
     }
 
     void markCompacted(Collection<SSTableReader> sstables)
@@ -1436,9 +1436,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ssTables.getRowCache().remove(key);
     }
 
-    public void forceMajorCompaction()
+    public void forceMajorCompaction() throws InterruptedException, ExecutionException
     {
-        CompactionManager.instance.submitMajor(this);
+        CompactionManager.instance.performMajor(this);
     }
 
     public void invalidateRowCache()

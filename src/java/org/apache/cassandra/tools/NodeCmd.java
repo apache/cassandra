@@ -427,17 +427,35 @@ public class NodeCmd {
         }
         else if (cmdName.equals("cleanup"))
         {
-            if (arguments.length > 1)
-                probe.forceTableCleanup(arguments[1]);
-            else
-                probe.forceTableCleanup();
+            try
+            {
+                if (arguments.length > 1)
+                    probe.forceTableCleanup(arguments[1]);
+                else
+                    probe.forceTableCleanup();
+            }
+            catch (ExecutionException ee)
+            {
+                System.err.println("Error occured during Keyspace cleanup");
+                ee.printStackTrace();
+                System.exit(3);
+            }
         }
         else if (cmdName.equals("compact"))
         {
-            if (arguments.length > 1)
-                probe.forceTableCompaction(arguments[1]);
-            else
-                probe.forceTableCompaction();
+            try
+            {
+                if (arguments.length > 1)
+                    probe.forceTableCompaction(arguments[1]);
+                else
+                    probe.forceTableCompaction();
+            }
+            catch (ExecutionException ee)
+            {
+                System.err.println("Error occured during Keyspace compaction");
+                ee.printStackTrace();
+                System.exit(3);
+            }
         }
         else if (cmdName.equals("cfstats"))
         {
@@ -511,7 +529,15 @@ public class NodeCmd {
                 columnFamilies[i] = cmd.getArgs()[i + 2];
             }
             if (cmdName.equals("flush"))
-                probe.forceTableFlush(cmd.getArgs()[1], columnFamilies);
+                try
+                {
+                    probe.forceTableFlush(cmd.getArgs()[1], columnFamilies);
+                } catch (ExecutionException ee)
+                {
+                    System.err.println("Error occured during flushing");
+                    ee.printStackTrace();
+                    System.exit(3);
+                }
             else // cmdName.equals("repair")
                 probe.forceTableRepair(cmd.getArgs()[1], columnFamilies);
         }

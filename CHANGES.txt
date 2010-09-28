@@ -108,6 +108,7 @@ dev
  * support TTL'd index values (CASSANDRA-1536)
  * make removetoken work like decommission (CASSANDRA-1216)
  * make cli comparator-aware and improve quote rules (CASSANDRA-1523,-1524)
+ * make nodetool compact and cleanup blocking (CASSANDRA-1449)
 
 
 0.7-beta1

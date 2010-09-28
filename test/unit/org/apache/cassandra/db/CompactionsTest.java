@@ -75,7 +75,7 @@ public class CompactionsTest extends CleanupHelper
         }
         if (store.getSSTables().size() > 1)
         {
-            CompactionManager.instance.submitMajor(store).get();
+            CompactionManager.instance.performMajor(store);
         }
         assertEquals(inserted.size(), Util.getRangeSlice(store).size());
     }
