@@ -17,20 +17,19 @@
  */
 package org.apache.cassandra.cli;
 
-import org.apache.cassandra.auth.SimpleAuthenticator;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.thrift.*;
-
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.thrift.*;
-
-import org.antlr.runtime.tree.*;
-
-import java.util.*;
 import java.io.UnsupportedEncodingException;
+import java.math.BigInteger;
+import java.util.*;
 
 import org.apache.commons.lang.ArrayUtils;
+
+import org.antlr.runtime.tree.CommonTree;
+import org.antlr.runtime.tree.Tree;
+import org.apache.cassandra.auth.SimpleAuthenticator;
+import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.thrift.TException;
 
 // Cli Client Side Library
 public class CliClient 
@@ -67,22 +66,21 @@ public class CliClient
     private String username = null;
     private Map<String, KsDef> keyspacesMap = new HashMap<String, KsDef>();
 
-    public CliClient(CliSessionState css, Cassandra.Client thriftClient)
+    public CliClient(CliSessionState cliSessionState, Cassandra.Client thriftClient)
     {
-        css_ = css;
+        css_ = cliSessionState;
         thriftClient_ = thriftClient;
     }
 
     // Execute a CLI Statement 
     public void executeCLIStmt(String stmt) throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException, IllegalAccessException, ClassNotFoundException, InstantiationException, NoSuchFieldException
     {
-        CommonTree ast = null;
-
-        ast = CliCompiler.compileQuery(stmt);
+        CommonTree ast = CliCompiler.compileQuery(stmt);
 
         try
         {
-            switch (ast.getType()) {
+            switch (ast.getType())
+            {
                 case CliParser.NODE_EXIT:
                     cleanupAndExit();
                     break;
@@ -155,8 +153,8 @@ public class CliClient
 
     private void printCmdHelp(CommonTree ast)
     {
-        
-        if(ast.getChildCount() > 0) {
+        if (ast.getChildCount() > 0)
+        {
             int helpType = ast.getChild(0).getType();
                     
             switch(helpType)
@@ -355,7 +353,6 @@ public class CliClient
             css_.out.println("del <cf>['<key>']['<super>']['<col>']                         Delete sub column.");
             css_.out.println("count <cf>['<key>']                                     Count columns in record.");
             css_.out.println("count <cf>['<key>']['<super>']                  Count columns in a super column.");
-            return;
         } 
     }
 
@@ -487,7 +484,7 @@ public class CliClient
                     css_.out.printf("\n     (column=%s, value=%s, timestamp=%d)", formatSubcolumnName(keyspace, columnFamily, col),
                                     new String(col.value, "UTF-8"), col.timestamp);
                 
-                css_.out.println(")"); 
+                css_.out.println(")");
             }
             else
             {
@@ -535,7 +532,7 @@ public class CliClient
             return;
 
         // This will never happen unless the grammar is broken
-        assert (ast.getChildCount() == 1) : "serious parsing error (this is a bug).";
+        assert ast.getChildCount() == 1 : "serious parsing error (this is a bug).";
 
         CommonTree columnFamilySpec = (CommonTree)ast.getChild(0);
         assert(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS);
@@ -545,10 +542,11 @@ public class CliClient
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
 
         List<String> cfnames = new ArrayList<String>();
-        for (CfDef cfd : keyspacesMap.get(keySpace).cf_defs) {
+        for (CfDef cfd : keyspacesMap.get(keySpace).cf_defs)
+        {
             cfnames.add(cfd.name);
         }
-
+ 
         int idx = cfnames.indexOf(columnFamily);
         if (idx == -1)
         {
@@ -559,7 +557,7 @@ public class CliClient
         boolean isSuper = keyspacesMap.get(keySpace).cf_defs.get(idx).column_type.equals("Super");
         
         byte[] superColumnName = null;
-        byte[] columnName = null;
+        String columnName;
         
         // table.cf['key'] -- row slice
         if (columnSpecCnt == 0)
@@ -577,16 +575,16 @@ public class CliClient
                 doSlice(keySpace, key, columnFamily, superColumnName);
                 return;
             }
-            else
+            else 
             {
-                columnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
+                 columnName = CliCompiler.getColumn(columnFamilySpec, 0);
             }
         }
         // table.cf['key']['column']['column'] -- get of a sub-column
         else if (columnSpecCnt == 2)
         {
             superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
-            columnName = CliCompiler.getColumn(columnFamilySpec, 1).getBytes("UTF-8");
+            columnName = CliCompiler.getColumn(columnFamilySpec, 1);
         }
         // The parser groks an arbitrary number of these so it is possible to get here.
         else
@@ -594,17 +592,19 @@ public class CliClient
             css_.out.println("Invalid row, super column, or column specification.");
             return;
         }
-        
-        // Perform a get(), print out the results.
-        ColumnPath path = new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnName);
+
+        // Perform a get()
+        ColumnPath path = new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnNameAsByteArray(columnName, columnFamily));
         Column column = thriftClient_.get(key.getBytes(), path, ConsistencyLevel.ONE).column;
-        css_.out.printf("=> (column=%s, value=%s, timestamp=%d)\n", formatColumnName(keySpace, columnFamily, column),
-                        new String(column.value, "UTF-8"), column.timestamp);
+        // print results
+        css_.out.printf("=> (column=%s, value=%s, timestamp=%d)\n",
+                        formatColumnName(keySpace, columnFamily, column), new String(column.value, "UTF-8"), column.timestamp);
     }
 
     // Execute SET statement
-    private void executeSet(CommonTree ast) throws TException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException
-    { 
+    private void executeSet(CommonTree ast)
+    throws TException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException, NoSuchFieldException, InstantiationException, IllegalAccessException
+    {
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
 
@@ -619,7 +619,7 @@ public class CliClient
         String value = CliUtils.unescapeSQLString(ast.getChild(1).getText());
 
         byte[] superColumnName = null;
-        byte[] columnName = null;
+        String columnName;
 
         // table.cf['key']
         if (columnSpecCnt == 0)
@@ -631,7 +631,7 @@ public class CliClient
         else if (columnSpecCnt == 1)
         {
             // get the column name
-            columnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
+            columnName = CliCompiler.getColumn(columnFamilySpec, 0);
         }
         // table.cf['key']['super_column']['column'] = 'value'
         else
@@ -640,12 +640,12 @@ public class CliClient
             
             // get the super column and column names
             superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
-            columnName = CliCompiler.getColumn(columnFamilySpec, 1).getBytes("UTF-8");
+            columnName = CliCompiler.getColumn(columnFamilySpec, 1);
         }
-        
+
         // do the insert
         thriftClient_.insert(key.getBytes(), new ColumnParent(columnFamily).setSuper_column(superColumnName),
-                             new Column(columnName, value.getBytes(), FBUtilities.timestampMicros()), ConsistencyLevel.ONE);
+                             new Column(columnNameAsByteArray(columnName, columnFamily), value.getBytes(), FBUtilities.timestampMicros()), ConsistencyLevel.ONE);
         
         css_.out.println("Value inserted.");
     }
@@ -1080,7 +1080,8 @@ public class CliClient
         CliMain.connect(css_.hostName, css_.thriftPort);
     }
 
-    private CfDef getCfDef(String ksname, String cfname) {
+    private CfDef getCfDef(String ksname, String cfname)
+    {
         List<String> cfnames = new ArrayList<String>();
         KsDef ksd = keyspacesMap.get(ksname);
         for (CfDef cfd : ksd.cf_defs) {
@@ -1088,5 +1089,40 @@ public class CliClient
         }
         int idx = cfnames.indexOf(cfname);
         return ksd.cf_defs.get(idx);
+    }
+
+    private byte[] columnNameAsByteArray(final String column, final String columnFamily) throws NoSuchFieldException, InstantiationException, IllegalAccessException, UnsupportedEncodingException
+    {
+        List<String> cfnames = new ArrayList<String>();
+        for (CfDef cfd : keyspacesMap.get(keySpace).cf_defs)
+        {
+            cfnames.add(cfd.name);
+        }
+
+        int idx = cfnames.indexOf(columnFamily);
+        if (idx == -1)
+        {
+            throw new NoSuchFieldException("No such column family: " + columnFamily);
+        }
+
+        final String comparatorClass  = keyspacesMap.get(keySpace).cf_defs.get(idx).comparator_type;
+        final AbstractType comparator = getFormatTypeForColumn(comparatorClass);
+
+        if (comparator instanceof LongType)
+        {
+            return FBUtilities.toByteArray(Long.valueOf(column));
+        }
+        else if (comparator instanceof IntegerType)
+        {
+            return new BigInteger(column).toByteArray();
+        }
+        else if (comparator instanceof AsciiType)
+        {
+            return column.getBytes("US-ASCII");
+        }
+        else
+        {
+            return column.getBytes("UTF-8");
+        }   
     }
 }

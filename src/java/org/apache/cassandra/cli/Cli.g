@@ -74,12 +74,12 @@ package org.apache.cassandra.cli;
 //
 
 // the root node
-root: stmt SEMICOLON? EOF -> stmt;
+root: statement SEMICOLON? EOF -> statement;
 
-stmt
-    : connectStmt
-    | exitStmt
-    | countStmt
+statement
+    : connectStatement
+    | exitStatement
+    | countStatement
     | describeTable
     | addColumnFamily
     | addKeyspace
@@ -88,20 +88,20 @@ stmt
     | renameColumnFamily
     | renameKeyspace
     | useTable
-    | delStmt
-    | getStmt
-    | helpStmt
-    | setStmt
-    | showStmt
+    | delStatement
+    | getStatement
+    | helpStatement
+    | setStatement
+    | showStatement
     | -> ^(NODE_NO_OP)
     ;
 
-connectStmt
+connectStatement
     : K_CONNECT host SLASH port -> ^(NODE_CONNECT host port)
     | K_CONNECT ipaddr SLASH port -> ^(NODE_CONNECT ipaddr port)
     ;
 
-helpStmt
+helpStatement
     : K_HELP K_HELP -> ^(NODE_HELP NODE_HELP)
     | K_HELP K_CONNECT -> ^(NODE_HELP NODE_CONNECT)
     | K_HELP K_USE -> ^(NODE_HELP NODE_USE_TABLE)
@@ -125,28 +125,28 @@ helpStmt
     | '?'    -> ^(NODE_HELP)
     ;
 
-exitStmt
+exitStatement
     : K_QUIT -> ^(NODE_EXIT)
     | K_EXIT -> ^(NODE_EXIT)
     ;
 
-getStmt
+getStatement
     : K_GET columnFamilyExpr -> ^(NODE_THRIFT_GET columnFamilyExpr)
     ;
 
-setStmt
+setStatement
     : K_SET columnFamilyExpr '=' value -> ^(NODE_THRIFT_SET columnFamilyExpr value)
     ;
 
-countStmt
+countStatement
     : K_COUNT columnFamilyExpr -> ^(NODE_THRIFT_COUNT columnFamilyExpr)
     ;
 
-delStmt
+delStatement
     : K_DEL columnFamilyExpr -> ^(NODE_THRIFT_DEL columnFamilyExpr)
     ;
 
-showStmt
+showStatement
     : showClusterName
     | showVersion
     | showTables
@@ -216,7 +216,7 @@ columnName: Identifier;
 
 attname: Identifier;
 
-attvaluestring: StringLiteral;
+attvaluestring: (Identifier | StringLiteral);
       
 attvalueint: IntegerLiteral;
   
@@ -242,11 +242,11 @@ password: StringLiteral;
 
 columnFamily: Identifier;
 
-rowKey:   StringLiteral;
+rowKey:   (Identifier | StringLiteral);
 
-value: StringLiteral;
+value: (Identifier | IntegerLiteral | StringLiteral);
 
-columnOrSuperColumn: StringLiteral;
+columnOrSuperColumn: (Identifier | IntegerLiteral | StringLiteral);
 
 host: id+=Identifier (id+=DOT id+=Identifier)* -> ^(NODE_ID_LIST $id+);
 
@@ -321,7 +321,9 @@ StringLiteral
 
 
 IntegerLiteral
-   : Digit+;
+   : Digit+
+   ;
+
 
 //
 // syntactic elements
