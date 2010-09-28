@@ -811,6 +811,7 @@ public class CliClient
 
             case GC_GRACE_SECONDS:
                 cfDef.setGc_grace_seconds(Integer.parseInt(mValue));
+                break;
 
             default:
                 //must match one of the above or we'd throw an exception at the valueOf statement above.
