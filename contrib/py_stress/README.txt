@@ -33,10 +33,11 @@ There are three different modes of operation:
     * inserting (loading test data)
     * reading
     * range slicing (only works with the OrderPreservingPartioner)
+    * indexed range slicing (works with RandomParitioner on indexed ColumnFamilies)
 
 Important options:
     -o or --operation
-        Sets the operation mode, one of 'insert', 'read', or 'rangeslice'
+        Sets the operation mode, one of 'insert', 'read', 'rangeslice', or 'indexedrangeslice'
     -n or --num-keys:
         the number of rows to insert/read/slice 
     -d or --nodes:
