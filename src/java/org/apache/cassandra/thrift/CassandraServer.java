@@ -35,7 +35,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.ConfigurationException;
@@ -755,18 +754,13 @@ public class CassandraServer implements Cassandra.Iface
 
     public String system_add_keyspace(KsDef ks_def) throws InvalidRequestException, TException
     {
-        // IAuthenticator was devised prior to, and without thought for, dynamic keyspace creation. As
-        // a result, we must choose between letting anyone/everyone create keyspaces (which they likely
-        // won't even be able to use), or be honest and disallow it entirely if configured for auth.
-        // See CASSANDRA-1271 for a proposed solution.
-        if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
-            throw new InvalidRequestException("Unable to create new keyspace while authentication is enabled.");
-
+        state().hasKeyspaceListAccess(Permission.WRITE);
+        
         int totalNodes = Gossiper.instance.getLiveMembers().size() + Gossiper.instance.getUnreachableMembers().size();
         if (totalNodes < ks_def.replication_factor)
             throw new InvalidRequestException(String.format("%s live nodes are not enough to support replication factor %s",
                                                             totalNodes, ks_def.replication_factor));
-
+        
         //generate a meaningful error if the user setup keyspace and/or column definition incorrectly
         for (CfDef cf : ks_def.cf_defs) 
         {
@@ -815,11 +809,7 @@ public class CassandraServer implements Cassandra.Iface
     
     public String system_drop_keyspace(String keyspace) throws InvalidRequestException, TException
     {
-        // IAuthenticator was devised prior to, and without thought for, dynamic keyspace creation. As
-        // a result, we must choose between letting anyone/everyone create keyspaces (which they likely
-        // won't even be able to use), or be honest and disallow it entirely if configured for auth.
-        if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
-            throw new InvalidRequestException("Unable to create new keyspace while authentication is enabled.");
+        state().hasKeyspaceListAccess(Permission.WRITE);
         
         try
         {

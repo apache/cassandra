@@ -28,7 +28,6 @@ import java.util.*;
 
 import com.google.common.collect.AbstractIterator;
 
-import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.auth.SimpleAuthenticator;
 
 import org.apache.cassandra.config.ConfigurationException;

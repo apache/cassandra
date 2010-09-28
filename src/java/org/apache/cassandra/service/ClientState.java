@@ -120,6 +120,19 @@ public class ClientState
     }
 
     /**
+     * Confirms that the client thread has the given Permission for the Keyspace list.
+     */
+    public void hasKeyspaceListAccess(Permission perm) throws InvalidRequestException
+    {
+        if (user == null)
+            throw new InvalidRequestException("You have not logged in");
+        List<Object> resource = Arrays.<Object>asList(Resources.ROOT, Resources.KEYSPACES);
+        Set<Permission> perms = DatabaseDescriptor.getAuthority().authorize(user, resource);
+
+        hasAccess(user, perms, perm, resource);
+    }
+
+    /**
      * Confirms that the client thread has the given Permission in the context of the current Keyspace.
      */
     public void hasKeyspaceAccess(Permission perm) throws InvalidRequestException
@@ -128,7 +141,17 @@ public class ClientState
             throw new InvalidRequestException("You have not logged in");
         if (keyspaceAccess == null)
             throw new InvalidRequestException("You have not set a keyspace for this session");
-        if (!keyspaceAccess.contains(perm))
-            throw new InvalidRequestException(String.format("You (%s) do not have permission %s for %s", user, perm, keyspace));
+
+        hasAccess(user, keyspaceAccess, perm, resource);
+    }
+
+    private static void hasAccess(AuthenticatedUser user, Set<Permission> perms, Permission perm, List<Object> resource) throws InvalidRequestException
+    {
+        if (perms.contains(perm))
+            return;
+        throw new InvalidRequestException(String.format("%s does not have permission %s for %s",
+                                                        user,
+                                                        perm,
+                                                        Resources.toString(resource)));
     }
 }
