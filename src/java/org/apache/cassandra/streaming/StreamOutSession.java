@@ -172,7 +172,8 @@ public class StreamOutSession
         PendingFile first = files.isEmpty() ? null : files.values().iterator().next();
         currentFile = first == null ? null : first.getFilename();
         StreamHeader header = new StreamHeader(table, getSessionId(), first, files.values());
-        logger.info("Streaming files {} to {}", StringUtils.join(files.values(), ","), getHost());
+        logger.info("Streaming to {}", getHost());
+        logger.debug("Files are {}", StringUtils.join(files.values(), ","));
         MessagingService.instance.stream(header, getHost());
     }
 }
