@@ -210,9 +210,9 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
             {
                 throw new RuntimeException("error communicating via Thrift", e);
             }
-            catch (NotFoundException e)
+            catch (Exception e)
             {
-                throw new RuntimeException("server reports no such keyspace " + keyspace, e);
+                throw new RuntimeException("unable to load keyspace " + keyspace, e);
             }
         }
 
