@@ -29,7 +29,6 @@ import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.AuthorizationException;
 import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.Clock;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.ColumnOrSuperColumn;
 import org.apache.cassandra.thrift.ColumnParent;
@@ -96,7 +95,7 @@ public class CassandraServiceTest {
 
         // insert
         ColumnParent colParent = new ColumnParent("Standard1");
-        Column column = new Column("name".getBytes("utf-8"), "Ran".getBytes("UTF-8"), new Clock(timestamp));
+        Column column = new Column("name".getBytes("utf-8"), "Ran".getBytes("UTF-8"), timestamp);
         
         client.insert(key_user_id.getBytes(), colParent, column, ConsistencyLevel.ONE);
 
