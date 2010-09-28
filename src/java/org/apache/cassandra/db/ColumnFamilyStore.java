@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FilenameFilter;
 import java.io.IOError;
 import java.io.IOException;
@@ -154,6 +155,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             try
             {
                 sstable = SSTableReader.open(sstableFiles.getKey(), sstableFiles.getValue(), metadata, this.partitioner);
+            }
+            catch (FileNotFoundException ex)
+            {
+                logger.error("Missing sstable component in " + sstableFiles + "; skipped because of " + ex.getMessage());
+                continue;
             }
             catch (IOException ex)
             {

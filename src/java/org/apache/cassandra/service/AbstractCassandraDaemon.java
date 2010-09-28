@@ -104,6 +104,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
             System.exit(100);
         }
         
+        // load keyspace descriptions.
         try
         {
             DatabaseDescriptor.loadSchemas();
@@ -114,6 +115,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
             System.exit(100);
         }
         
+        // clean up debris.
         for (String table : DatabaseDescriptor.getTables()) 
         {
             for (CFMetaData cfm : DatabaseDescriptor.getTableMetaData(table).values())

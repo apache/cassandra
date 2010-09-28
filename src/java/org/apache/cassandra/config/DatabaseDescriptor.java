@@ -398,6 +398,7 @@ public class DatabaseDescriptor
         return conf.dynamic_snitch ? new DynamicEndpointSnitch(snitch) : snitch;
     }
     
+    /** load keyspace (table) definitions, but do not initialize the table instances. */
     public static void loadSchemas() throws IOException                         
     {
         // we can load tables from local storage if a version is set in the system table and that acutally maps to
@@ -459,8 +460,6 @@ public class DatabaseDescriptor
                     }
                 }
                 DatabaseDescriptor.setTableDefinition(def, uuid);
-                // this part creates storage and jmx objects.
-                Table.open(def.name);
             }
             
             // happens when someone manually deletes all tables and restarts.
