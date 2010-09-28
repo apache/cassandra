@@ -116,7 +116,7 @@ public class MessagingService implements MessagingServiceMBean
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
-            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.concurrent:type=MESSAGING-SERVICE-POOL"));
+            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.net:type=MessagingService"));
         }
         catch (Exception e)
         {
