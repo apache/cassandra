@@ -1,14 +1,4 @@
 dev
- * create EndpointSnitchInfo and MBean to expose rack and DC (CASSANDRA-1491)
- * added option to contrib/word_count to output results back to Cassandra
-   (CASSANDRA-1342)
- * rewrite Hadoop ColumnFamilyRecordWriter to pool connections, retry to
-   multiple Cassandra nodes, and smooth impact on the Cassandra cluster
-   by using smaller batch sizes (CASSANDRA-1434)
- * fix setting gc_grace_seconds via CLI (CASSANDRA-1549)
- * support TTL'd index values (CASSANDRA-1536)
- * make removetoken work like decommission (CASSANDRA-1216)
- * make cli comparator-aware and improve quote rules (CASSANDRA-1523,-1524)
 
 
 0.7-beta2
@@ -108,6 +98,16 @@ dev
  * JMX MessagingService pending and completed counts (CASSANDRA-1533)
  * fix race condition processing repair responses (CASSANDRA-1511)
  * make repair blocking (CASSANDRA-1511)
+ * create EndpointSnitchInfo and MBean to expose rack and DC (CASSANDRA-1491)
+ * added option to contrib/word_count to output results back to Cassandra
+   (CASSANDRA-1342)
+ * rewrite Hadoop ColumnFamilyRecordWriter to pool connections, retry to
+   multiple Cassandra nodes, and smooth impact on the Cassandra cluster
+   by using smaller batch sizes (CASSANDRA-1434)
+ * fix setting gc_grace_seconds via CLI (CASSANDRA-1549)
+ * support TTL'd index values (CASSANDRA-1536)
+ * make removetoken work like decommission (CASSANDRA-1216)
+ * make cli comparator-aware and improve quote rules (CASSANDRA-1523,-1524)
 
 
 0.7-beta1
