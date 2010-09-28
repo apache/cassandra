@@ -39,7 +39,8 @@ set JAVA_OPTS=^
  -XX:MaxTenuringThreshold=0^
  -Dcom.sun.management.jmxremote.port=8080^
  -Dcom.sun.management.jmxremote.ssl=false^
- -Dcom.sun.management.jmxremote.authenticate=false
+ -Dcom.sun.management.jmxremote.authenticate=false^
+ -Dlog4j.configuration=log4j-server.properties
 
 REM ***** CLASSPATH library setting *****
 
