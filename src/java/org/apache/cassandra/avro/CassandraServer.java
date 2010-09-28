@@ -1001,7 +1001,7 @@ public class CassandraServer implements Cassandra {
         if (logger.isDebugEnabled())
             logger.debug("multiget_count");
         
-        checkKeyspaceAndLoginAuthorized(Permission.READ_VALUE);
+        checkKeyspaceAndLoginAuthorized(Permission.READ);
         String keyspace = state().getKeyspace();
         
         List<KeyCountMapEntry> counts = new ArrayList<KeyCountMapEntry>();
@@ -1040,7 +1040,7 @@ public class CassandraServer implements Cassandra {
 
         try
         {
-            state().hasKeyspaceAccess(Permission.WRITE_VALUE);
+            state().hasKeyspaceAccess(Permission.WRITE);
             schedule();
             StorageProxy.truncateBlocking(state().getKeyspace(), columnFamily.toString());
         }
@@ -1073,7 +1073,7 @@ public class CassandraServer implements Cassandra {
         String keyspace = state().getKeyspace();
         try
         {
-            state().hasKeyspaceAccess(Permission.READ_VALUE);
+            state().hasKeyspaceAccess(Permission.READ);
         }
         catch (org.apache.cassandra.thrift.InvalidRequestException thriftE)
         {
@@ -1139,7 +1139,7 @@ public class CassandraServer implements Cassandra {
 
         try
         {
-            state().hasKeyspaceAccess(Permission.READ_VALUE);
+            state().hasKeyspaceAccess(Permission.READ);
         }
         catch (org.apache.cassandra.thrift.InvalidRequestException thriftE)
         {

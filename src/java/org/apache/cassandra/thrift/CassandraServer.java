@@ -264,7 +264,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("get_slice");
         
-        state().hasKeyspaceAccess(Permission.READ_VALUE);
+        state().hasKeyspaceAccess(Permission.READ);
         return multigetSliceInternal(state().getKeyspace(), Collections.singletonList(key), column_parent, predicate, consistency_level).get(key);
     }
     
@@ -274,7 +274,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("multiget_slice");
 
-        state().hasKeyspaceAccess(Permission.READ_VALUE);
+        state().hasKeyspaceAccess(Permission.READ);
 
         return multigetSliceInternal(state().getKeyspace(), keys, column_parent, predicate, consistency_level);
     }
@@ -313,7 +313,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("get");
 
-        state().hasKeyspaceAccess(Permission.READ_VALUE);
+        state().hasKeyspaceAccess(Permission.READ);
         String keyspace = state().getKeyspace();
 
         ThriftValidation.validateColumnPath(keyspace, column_path);
@@ -341,7 +341,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("get_count");
 
-        state().hasKeyspaceAccess(Permission.READ_VALUE);
+        state().hasKeyspaceAccess(Permission.READ);
 
         return get_slice(key, column_parent, predicate, consistency_level).size();
     }
@@ -352,7 +352,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("multiget_count");
 
-        state().hasKeyspaceAccess(Permission.READ_VALUE);
+        state().hasKeyspaceAccess(Permission.READ);
         String keyspace = state().getKeyspace();
 
         Map<byte[], Integer> counts = new HashMap<byte[], Integer>();
@@ -370,7 +370,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("insert");
 
-        state().hasKeyspaceAccess(Permission.WRITE_VALUE);
+        state().hasKeyspaceAccess(Permission.WRITE);
 
         ThriftValidation.validateKey(key);
         ThriftValidation.validateColumnParent(state().getKeyspace(), column_parent);
@@ -394,7 +394,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("batch_mutate");
 
-        state().hasKeyspaceAccess(Permission.WRITE_VALUE);
+        state().hasKeyspaceAccess(Permission.WRITE);
 
         List<RowMutation> rowMutations = new ArrayList<RowMutation>();
         for (Map.Entry<byte[], Map<String, List<Mutation>>> mutationEntry: mutation_map.entrySet())
@@ -424,7 +424,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("remove");
 
-        state().hasKeyspaceAccess(Permission.WRITE_VALUE);
+        state().hasKeyspaceAccess(Permission.WRITE);
 
         ThriftValidation.validateKey(key);
         ThriftValidation.validateColumnPathOrParent(state().getKeyspace(), column_path);
@@ -477,7 +477,7 @@ public class CassandraServer implements Cassandra.Iface
             logger.debug("range_slice");
 
         String keyspace = state().getKeyspace();
-        state().hasKeyspaceAccess(Permission.READ_VALUE);
+        state().hasKeyspaceAccess(Permission.READ);
 
         ThriftValidation.validateColumnParent(keyspace, column_parent);
         ThriftValidation.validatePredicate(keyspace, column_parent, predicate);
@@ -540,7 +540,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("scan");
 
-        state().hasKeyspaceAccess(Permission.READ_VALUE);
+        state().hasKeyspaceAccess(Permission.READ);
         String keyspace = state().getKeyspace();
         ThriftValidation.validateColumnParent(keyspace, column_parent);
         ThriftValidation.validatePredicate(keyspace, column_parent, column_predicate);
@@ -962,7 +962,7 @@ public class CassandraServer implements Cassandra.Iface
     public void truncate(String cfname) throws InvalidRequestException, UnavailableException, TException
     {
         logger.debug("truncating {} in {}", cfname, state().getKeyspace());
-        state().hasKeyspaceAccess(Permission.WRITE_VALUE);
+        state().hasKeyspaceAccess(Permission.WRITE);
         try
         {
             schedule();

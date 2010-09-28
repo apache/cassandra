@@ -30,14 +30,8 @@ import java.util.EnumSet;
  */
 public enum Permission
 {
-    // view the direct children of this resource
     READ,
-    // modify the direct children of this resource
-    WRITE,
-    // view data in all ancestors of this resource
-    READ_VALUE,
-    // modify data in all ancestors of this resource
-    WRITE_VALUE;
+    WRITE;
 
     public static final EnumSet<Permission> ALL = EnumSet.allOf(Permission.class);
     public static final EnumSet<Permission> NONE = EnumSet.noneOf(Permission.class);
