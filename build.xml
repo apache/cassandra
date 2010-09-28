@@ -367,17 +367,31 @@
       </rat:report>
 
       <tar compression="gzip" longfile="gnu"
-        destfile="${build.dir}/${final.name}-src.tar.gz">
+           destfile="${build.dir}/${final.name}-src.tar.gz">
 
         <tarfileset dir="${basedir}"
-          prefix="${final.name}-src">
+                    prefix="${final.name}-src">
           <include name="**"/>
           <exclude name="build/**" />
           <exclude name="src/gen-java/**" />
           <exclude name="interface/avro/**" />
           <exclude name=".git/**" />
+          <exclude name="bin/*" /> <!-- handled separately below -->
         </tarfileset>
+
+        <!-- Shell includes and batch files in bin/ -->
+        <tarfileset dir="${basedir}" prefix="${final.name}-src">
+          <include name="bin/*.in.sh" />
+          <include name="bin/*.bat" />
+        </tarfileset>
+        <!-- Everything else (assumed to be scripts), is executable -->
+        <tarfileset dir="${basedir}" prefix="${final.name}-src" mode="755">
+          <include name="bin/*"/>
+          <exclude name="bin/*.in.sh" />
+          <exclude name="bin/*.bat" />
+        </tarfileset>	
       </tar>
+
       <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
                   reportFile="${build.dir}/${final.name}-src.rat.txt">
         <tarfileset>
