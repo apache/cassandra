@@ -1241,6 +1241,27 @@ class TestMutations(ThriftTester):
         test_existence()
         client.system_drop_keyspace(keyspace.name)
 
+    def test_create_rename_recreate(self):
+        # create
+        keyspace1 = KsDef('CreateRenameRecreate',
+                strategy_class='org.apache.cassandra.locator.SimpleStrategy',
+                replication_factor=1,
+                cf_defs=[CfDef('CreateRenameRecreate','CF_1', column_metadata=[])])
+        client.set_keyspace('system')
+        client.system_add_keyspace(keyspace1)
+        def test_ks1_existence():
+            client.describe_keyspace(keyspace1.name)
+        test_ks1_existence()
+        
+        # rename
+        client.system_rename_keyspace(keyspace1.name, keyspace1.name + '_renamed')
+        _expect_exception(test_ks1_existence, NotFoundException)
+        keyspace2 = client.describe_keyspace(keyspace1.name + '_renamed')
+        
+        # recreate
+        client.system_add_keyspace(keyspace1)
+        test_ks1_existence()
+        
     def test_column_validators(self):
         # columndef validation for regular CF
         ks = 'Keyspace1'

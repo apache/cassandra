@@ -175,4 +175,29 @@ class TestSystemOperations(AvroTester):
             assert len(cosc_list) == 0 , 'cosc length test failed'
             
             self.client.request('system_drop_keyspace', {'keyspace': keyspace})
+    
+    def test_create_rename_recreate(self):
+        # create
+        cf = {'keyspace': 'CreateRenameRecreate', 'name': 'CF_1'}
+        keyspace1 = {'name': 'CreateRenameRecreate',
+                'strategy_class': 'org.apache.cassandra.locator.SimpleStrategy',
+                'strategy_options': {},
+                'replication_factor': 1,
+                'cf_defs': [cf]}
+        self.client.request('set_keyspace', {'keyspace': 'system'})
+        self.client.request('system_add_keyspace', {'ks_def': keyspace1})
+        assert self.client.request('describe_keyspace', {'keyspace': keyspace1['name']})
+        
+        # rename
+        self.client.request('system_rename_keyspace', {'old_name': keyspace1['name'], 'new_name': keyspace1['name'] + '_renamed'})
+        assert self.client.request('describe_keyspace', {'keyspace': keyspace1['name'] + '_renamed'}) 
+        avro_utils.assert_raises(AvroRemoteException,
+                self.client.request,
+                'describe_keyspace',
+                {'keyspace': keyspace1['name']})
+        
+        # recreate
+        self.client.request('system_add_keyspace', {'ks_def': keyspace1})
+        assert self.client.request('describe_keyspace', {'keyspace': keyspace1['name']})
+
 

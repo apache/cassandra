@@ -113,7 +113,11 @@ public class Table
         {
             Table t = instances.remove(table);
             if (t != null)
+            {
                 t.flushTask.cancel();
+                for (ColumnFamilyStore cfs : t.getColumnFamilyStores())
+                    t.unloadCf(cfs);
+            }
             return t;
         }
     }
