@@ -1441,7 +1441,20 @@ class TestMutations(ThriftTester):
         assert result[0].key == 'key3'
         assert len(result[0].columns) == 2, result[0].columns
         
-        
+    def test_index_scan_expiring(self):
+        """ Test that column ttled expires from KEYS index"""
+        _set_keyspace('Keyspace1')
+        client.insert('key1', ColumnParent('Indexed1'), Column('birthdate', _i64(1), 0, 1), ConsistencyLevel.ONE)
+        cp = ColumnParent('Indexed1')
+        sp = SlicePredicate(slice_range=SliceRange('', ''))
+        clause = IndexClause([IndexExpression('birthdate', IndexOperator.EQ, _i64(1))], '')
+        # query before expiration
+        result = client.get_indexed_slices(cp, clause, sp, ConsistencyLevel.ONE)
+        assert len(result) == 1, result
+        # wait for expiration and requery
+        time.sleep(2)
+        result = client.get_indexed_slices(cp, clause, sp, ConsistencyLevel.ONE)
+        assert len(result) == 0, result
 
 class TestTruncate(ThriftTester):
     def test_truncate(self):

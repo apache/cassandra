@@ -441,7 +441,13 @@ public class Table
             IColumn column = cf.getColumn(columnName);
             DecoratedKey<LocalToken> valueKey = cfs.getIndexKeyFor(columnName, column.value());
             ColumnFamily cfi = cfs.newIndexedColumnFamily(columnName);
-            cfi.addColumn(new Column(key, ArrayUtils.EMPTY_BYTE_ARRAY, column.clock()));
+            if (column instanceof ExpiringColumn)
+            {
+                ExpiringColumn ec = (ExpiringColumn)column;
+                cfi.addColumn(new ExpiringColumn(key, ArrayUtils.EMPTY_BYTE_ARRAY, ec.clock(), ec.getTimeToLive(), ec.getLocalDeletionTime()));
+            }
+            else
+                cfi.addColumn(new Column(key, ArrayUtils.EMPTY_BYTE_ARRAY, column.clock()));
             Memtable fullMemtable = cfs.getIndexedColumnFamilyStore(columnName).apply(valueKey, cfi);
             if (fullMemtable != null)
                 fullMemtables = addFullMemtable(fullMemtables, fullMemtable);
