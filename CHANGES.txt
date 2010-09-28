@@ -7,6 +7,7 @@ dev
    by using smaller batch sizes (CASSANDRA-1434)
  * fix setting gc_grace_seconds via CLI (CASSANDRA-1549)
  * support TTL'd index values (CASSANDRA-1536)
+ * make removetoken work like decommission (CASSANDRA-1216)
 
 
 0.7-beta2
