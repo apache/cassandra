@@ -31,18 +31,33 @@ import org.apache.cassandra.config.ConfigurationException;
 public class SimpleAuthority implements IAuthority
 {
     public final static String ACCESS_FILENAME_PROPERTY = "access.properties";
+    // magical property for WRITE permissions to the keyspaces list
+    public final static String KEYSPACES_WRITE_PROPERTY = "<modify-keyspaces>";
 
     @Override
     public EnumSet<Permission> authorize(AuthenticatedUser user, List<Object> resource)
     {
-        if (resource.size() < 3 || !Resources.ROOT.equals(resource.get(0)) || !Resources.KEYSPACES.equals(resource.get(1)))
-            // unable to handle resources in other portions of the hierarchy
+        if (resource.size() < 2 || !Resources.ROOT.equals(resource.get(0)) || !Resources.KEYSPACES.equals(resource.get(1)))
+            // we only know how to handle keyspace authorization
             return Permission.NONE;
-    
-        String keyspace = (String)resource.get(2);
+
+        String keyspace;
+        EnumSet<Permission> authorized;
+        if (resource.size() < 3)
+        {
+            // authorize the user for the keyspace list using the 'magical' keyspace,
+            // but give them read access by default
+            keyspace = KEYSPACES_WRITE_PROPERTY;
+            authorized = EnumSet.of(Permission.READ);
+        }
+        else
+        {
+            // otherwise, authorize them for the actual keyspace
+            keyspace = (String)resource.get(2);
+            authorized = Permission.NONE;
+        }
 
         String afilename = System.getProperty(ACCESS_FILENAME_PROPERTY);
-        EnumSet<Permission> authorized = Permission.NONE;
         try
         {
             FileInputStream in = new FileInputStream(afilename);
@@ -54,11 +69,9 @@ public class SimpleAuthority implements IAuthority
             // given keyspace X, users A B and C can be authorized like this (separate their names with spaces):
             // X = A B C
             
-            // note we keep the message here and for other authorization problems exactly the same to prevent attackers
-            // from guessing what keyspaces are valid
             if (null == props.getProperty(keyspace))
+                // no one is authorized
                 return authorized;
-
             for (String allow : props.getProperty(keyspace).split(","))
                 if (allow.equals(user.username))
                     authorized = Permission.ALL;
