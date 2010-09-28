@@ -18,14 +18,14 @@
 
 package org.apache.cassandra.service;
 
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.Resources;
 import org.apache.cassandra.config.Config.RequestSchedulerId;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.thrift.AuthenticationException;
@@ -43,6 +43,7 @@ public class ClientState
     private AuthenticatedUser user;
     private String keyspace;
     private Set<Permission> keyspaceAccess;
+    private List<Object> resource = new ArrayList<Object>();
 
     /**
      * Construct a new, empty ClientState: can be reused after logout() or reset().
@@ -61,8 +62,14 @@ public class ClientState
             // user is not logged in or keyspace is not set
             keyspaceAccess = null;
         else
+        {
             // authorize the user for the current keyspace
-            keyspaceAccess = DatabaseDescriptor.getAuthority().authorize(user, keyspace);
+            resource.clear();
+            resource.add(Resources.ROOT);
+            resource.add(Resources.KEYSPACES);
+            resource.add(keyspace);
+            keyspaceAccess = DatabaseDescriptor.getAuthority().authorize(user, resource);
+        }
     }
 
     public String getKeyspace()
@@ -109,6 +116,7 @@ public class ClientState
         user = DatabaseDescriptor.getAuthenticator().defaultUser();
         keyspace = null;
         keyspaceAccess = null;
+        resource.clear();
     }
 
     /**

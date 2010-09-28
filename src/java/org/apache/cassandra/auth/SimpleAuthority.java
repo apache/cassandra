@@ -23,6 +23,7 @@ package org.apache.cassandra.auth;
 
 import java.io.*;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Properties;
 
 import org.apache.cassandra.config.ConfigurationException;
@@ -32,8 +33,14 @@ public class SimpleAuthority implements IAuthority
     public final static String ACCESS_FILENAME_PROPERTY = "access.properties";
 
     @Override
-    public EnumSet<Permission> authorize(AuthenticatedUser user, String keyspace)
+    public EnumSet<Permission> authorize(AuthenticatedUser user, List<Object> resource)
     {
+        if (resource.size() < 3 || !Resources.ROOT.equals(resource.get(0)) || !Resources.KEYSPACES.equals(resource.get(1)))
+            // unable to handle resources in other portions of the hierarchy
+            return Permission.NONE;
+    
+        String keyspace = (String)resource.get(2);
+
         String afilename = System.getProperty(ACCESS_FILENAME_PROPERTY);
         EnumSet<Permission> authorized = Permission.NONE;
         try

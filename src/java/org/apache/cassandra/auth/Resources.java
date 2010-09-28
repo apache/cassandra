@@ -1,4 +1,3 @@
-package org.apache.cassandra.auth;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -20,24 +19,33 @@ package org.apache.cassandra.auth;
  * 
  */
 
-import java.util.EnumSet;
+package org.apache.cassandra.auth;
+
 import java.util.List;
-import java.util.Map;
 
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.thrift.AuthorizationException;
+import org.apache.cassandra.utils.FBUtilities;
 
-public class AllowAllAuthority implements IAuthority
+/**
+ * Constants related to Cassandra's resource hierarchy.
+ *
+ * A resource in Cassandra is a List containing both Strings and byte[]s.
+ */
+public final class Resources
 {
-    @Override
-    public EnumSet<Permission> authorize(AuthenticatedUser user, List<Object> resource)
-    {
-        return Permission.ALL;
-    }
+    public final static String ROOT = "cassandra";
+    public final static String KEYSPACES = "keyspaces";
 
-    @Override    
-    public void validateConfiguration() throws ConfigurationException
+    public static String toString(List<Object> resource)
     {
-        // pass
+        StringBuilder buff = new StringBuilder();
+        for (Object component : resource)
+        {
+            buff.append("/");
+            if (component instanceof byte[])
+                buff.append(FBUtilities.bytesToHex((byte[])component));
+            else
+                buff.append(component.toString());
+        }
+        return buff.toString();
     }
 }
