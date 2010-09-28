@@ -327,6 +327,8 @@
       <copy todir="${dist.dir}/interface">
         <fileset dir="interface">
           <include name="**/*.thrift" />
+          <include name="cassandra.genavro" />
+          <include name="avro/cassandra.avpr" />
         </fileset>
       </copy>      
       <copy todir="${dist.dir}/">
