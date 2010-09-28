@@ -40,15 +40,14 @@ import org.apache.cassandra.config.ConfigurationException;
  *    - String
  *    * The list of keyspaces: READ/WRITE for this resource mean the ability to view/modify the list of keyspaces.
  *  $ks_name/
- *    - READ, WRITE, READ_VALUE, WRITE_VALUE
+ *    - READ, WRITE
  *    - String
- *    * An individual keyspace: READ/WRITE mean the ability to view/modify the list of column families. Since this
- *      is the last entry in the current hierarchy, READ/WRITE_VALUE apply recursively to ancestor _data_ of this keyspace.
+ *    * An individual keyspace: READ/WRITE permissions apply to the entire namespace and control the ability to both
+ *      view and manipulate column families, and to read and write the data contained within.
  * 
  * Over time Cassandra _may_ add additional authorize calls for resources higher or lower in the hierarchy and
  * IAuthority implementations should be able to handle these calls (although many will choose to ignore them
- * completely). As authorize calls are added for child resources like {{<cf_name>/}}, the READ/WRITE_VALUE permissions
- * will move to the lowest checked level, and will be deprecated at higher levels.
+ * completely).
  * 
  * NB: {{/cassandra/}} will not be checked for permissions via a call to IAuthority.authorize, so IAuthority
  * implementations can only deny access when a user attempts to access an ancestor resource.
