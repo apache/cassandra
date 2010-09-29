@@ -32,6 +32,8 @@
  * Close intra-node sockets when connection is broken (CASSANDRA-1528)
  * Dynamic snitch (CASSANDRA-981)
  * RPM packaging spec file (CASSANDRA-786)
+ * MD5 authenticator compares plain text submitted password with MD5'd
+   saved property, instead of vice versa (CASSANDRA-1447)
 
 
 0.6.5

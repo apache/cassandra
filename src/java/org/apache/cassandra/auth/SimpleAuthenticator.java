@@ -29,6 +29,7 @@ import java.util.Properties;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.AuthenticationRequest;
 import org.apache.cassandra.thrift.AuthorizationException;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class SimpleAuthenticator implements IAuthenticator
 {
@@ -92,7 +93,7 @@ public class SimpleAuthenticator implements IAuthenticator
                     authenticated = password.equals(props.getProperty(username));
                     break;
                 case MD5:
-                    authenticated = MessageDigest.isEqual(password.getBytes(), MessageDigest.getInstance("MD5").digest(props.getProperty(username).getBytes()));
+                    authenticated = MessageDigest.isEqual(MessageDigest.getInstance("MD5").digest(password.getBytes()), FBUtilities.hexToBytes(props.getProperty(username)));
                     break;
             }
         }
