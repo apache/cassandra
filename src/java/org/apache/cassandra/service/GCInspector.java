@@ -29,6 +29,7 @@ import java.util.*;
 import org.apache.cassandra.concurrent.IExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.CompactionManager;
+import org.apache.cassandra.net.MessagingService;
 
 import java.lang.management.MemoryUsage;
 import java.lang.management.ManagementFactory;
@@ -158,6 +159,18 @@ public class GCInspector
         // one offs
         logger.info(String.format("%-25s%10s%10s",
                                   "CompactionManager", "n/a", CompactionManager.instance.getPendingTasks()));
+        int pendingCommands = 0;
+        for (int n : MessagingService.instance.getCommandPendingTasks().values())
+        {
+            pendingCommands += n;
+        }
+        int pendingResponses = 0;
+        for (int n : MessagingService.instance.getResponsePendingTasks().values())
+        {
+            pendingResponses += n;
+        }
+        logger.info(String.format("%-25s%10s%10s",
+                                  "MessagingService", "n/a", pendingCommands + "," + pendingResponses));
 
         // per-CF stats
         logger.info(String.format("%-25s%20s%20s%20s", "ColumnFamily", "Memtable ops,data", "Row cache size/cap", "Key cache size/cap"));
