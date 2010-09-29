@@ -9,16 +9,16 @@
 # one logical cluster from joining another.
 cluster_name: 'Test Cluster'
 
-# If you are using an order-preserving partitioner and you know your key
-# distribution, you can specify the token for this node to use. (Keys
-# are sent to the node with the "closest" token, so distributing your
-# tokens equally along the key distribution space will spread keys
-# evenly across your cluster.)  This setting is only checked the first
-# time a node is started. 
-
-# This can also be useful with RandomPartitioner to force equal spacing
-# of tokens around the hash space, especially for clusters with a small
-# number of nodes.
+# You should always specify InitialToken when setting up a production
+# cluster for the first time, and often when adding capacity later.
+# The principle is that each node should be given an equal slice of
+# the token ring; see http://wiki.apache.org/cassandra/Operations
+# for more details.
+#
+# If blank, Cassandra will request a token bisecting the range of
+# the heaviest-loaded existing node.  If there is no load information
+# available, such as is the case with a new cluster, it will pick
+# a random token, which will lead to hot spots.
 initial_token:
 
 # Set to true to make new [non-seed] nodes automatically migrate data
