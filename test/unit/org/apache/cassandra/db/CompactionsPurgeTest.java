@@ -198,7 +198,7 @@ public class CompactionsPurgeTest extends CleanupHelper
         ColumnFamilyStore store = table.getColumnFamilyStore(cfName);
 
         // KeyCache should start at size 1 if we're caching X% of zero data.
-        int keyCacheSize = store.getKeyCacheSize();
+        int keyCacheSize = store.getKeyCacheCapacity();
         assert keyCacheSize == 1 : keyCacheSize;
 
         DecoratedKey key1 = Util.dk("key1");
@@ -223,12 +223,12 @@ public class CompactionsPurgeTest extends CleanupHelper
 
         // After a flush, the cache should expand to be X% of indices * INDEX_INTERVAL.
         store.forceBlockingFlush();
-        keyCacheSize = store.getKeyCacheSize();
+        keyCacheSize = store.getKeyCacheCapacity();
         assert keyCacheSize == expectedCacheSize : keyCacheSize;
 
         // After a compaction, the cache should expand to be X% of zero data.
         CompactionManager.instance.submitMajor(store, 0, Integer.MAX_VALUE).get();
-        keyCacheSize = store.getKeyCacheSize();
+        keyCacheSize = store.getKeyCacheCapacity();
         assert keyCacheSize == 1 : keyCacheSize;
     }
 }

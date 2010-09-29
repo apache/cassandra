@@ -1446,9 +1446,24 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ssTables.getRowCache().clear();
     }
 
-    public int getKeyCacheSize()
+    public int getRowCacheCapacity()
+    {
+        return ssTables.getRowCache().getCapacity();
+    }
+
+    public int getKeyCacheCapacity()
     {
         return ssTables.getKeyCache().getCapacity();
+    }
+
+    public int getRowCacheSize()
+    {
+        return ssTables.getRowCache().getSize();
+    }
+
+    public int getKeyCacheSize()
+    {
+        return ssTables.getKeyCache().getSize();
     }
 
     public static Iterable<ColumnFamilyStore> all()

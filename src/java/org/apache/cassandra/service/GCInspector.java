@@ -27,7 +27,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
 import org.apache.cassandra.concurrent.IExecutorMBean;
-import org.apache.cassandra.db.CompactionManagerMBean;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CompactionManager;
 
 import java.lang.management.MemoryUsage;
 import java.lang.management.ManagementFactory;
@@ -133,7 +134,7 @@ public class GCInspector
             {
                 try
                 {
-                    logThreadPoolStats();
+                    logStats();
                 }
                 catch (MalformedObjectNameException e)
                 {
@@ -143,22 +144,31 @@ public class GCInspector
         }
     }
 
-    private void logThreadPoolStats() throws MalformedObjectNameException
+    private void logStats() throws MalformedObjectNameException
     {
-        ObjectName query = new ObjectName("org.apache.cassandra.concurrent:type=*");
-        Iterator<ObjectName> tpiter = server.queryNames(query, null).iterator();
+        // everything from o.a.c.concurrent
         logger.info(String.format("%-25s%10s%10s", "Pool Name", "Active", "Pending"));
-        while(tpiter.hasNext())
+        for (ObjectName objectName : server.queryNames(new ObjectName("org.apache.cassandra.concurrent:type=*"), null))
         {
-            ObjectName objectName = tpiter.next();
             String poolName = objectName.getKeyProperty("type");
             IExecutorMBean threadPoolProxy = JMX.newMBeanProxy(server, objectName, IExecutorMBean.class);
-            logger.info(String.format("%-25s%10d%10d", poolName, threadPoolProxy.getActiveCount(), threadPoolProxy.getPendingTasks()));
+            logger.info(String.format("%-25s%10s%10s",
+                                      poolName, threadPoolProxy.getActiveCount(), threadPoolProxy.getPendingTasks()));
         }
-        // one off for compaction
-        ObjectName cm = new ObjectName("org.apache.cassandra.db:type=CompactionManager");
-        CompactionManagerMBean cmProxy = JMX.newMBeanProxy(server, cm, CompactionManagerMBean.class);
-        logger.info(String.format("%-25s%10s%10s", "CompactionManager", "n/a", cmProxy.getPendingTasks()));
+        // one offs
+        logger.info(String.format("%-25s%10s%10s",
+                                  "CompactionManager", "n/a", CompactionManager.instance.getPendingTasks()));
+
+        // per-CF stats
+        logger.info(String.format("%-25s%20s%20s%20s", "ColumnFamily", "Memtable ops,data", "Row cache size/cap", "Key cache size/cap"));
+        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+        {
+            logger.info(String.format("%-25s%20s%20s%20s",
+                                      cfs.table.name + "." + cfs.columnFamily,
+                                      cfs.getMemtableColumnsCount() + "," + cfs.getMemtableDataSize(),
+                                      cfs.getRowCacheSize() + "/" + cfs.getRowCacheCapacity(),
+                                      cfs.getKeyCacheSize() + "/" + cfs.getKeyCacheCapacity()));
+        }
     }
     
     

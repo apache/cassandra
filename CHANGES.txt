@@ -109,6 +109,7 @@ dev
  * make removetoken work like decommission (CASSANDRA-1216)
  * make cli comparator-aware and improve quote rules (CASSANDRA-1523,-1524)
  * make nodetool compact and cleanup blocking (CASSANDRA-1449)
+ * add memtable, cache information to GCInspector logs (CASSANDRA-1558)
 
 
 0.7-beta1
