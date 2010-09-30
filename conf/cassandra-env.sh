@@ -40,11 +40,7 @@ calculate_heap_size()
 # MAX_HEAP_SIZE="4G"
 
 if [ "x$MAX_HEAP_SIZE" = "x" ]; then
-    if calculate_heap_size; then
-        echo "Using adaptive heap size: " $MAX_HEAP_SIZE
-    else
-        echo "Using default heap size: " $MAX_HEAP_SIZE
-    fi
+    calculate_heap_size
 fi
 
 # Specifies the default port over which Cassandra will be available for
