@@ -467,7 +467,9 @@ public class CassandraServer implements Cassandra.Iface
         List<CfDef> cfDefs = new ArrayList<CfDef>();
         for (CFMetaData cfm : ksm.cfMetaData().values())
             cfDefs.add(CFMetaData.convertToThrift(cfm));
-        return new KsDef(ksm.name, ksm.strategyClass.getName(), ksm.replicationFactor, cfDefs);
+        KsDef ksdef = new KsDef(ksm.name, ksm.strategyClass.getName(), ksm.replicationFactor, cfDefs);
+        ksdef.setStrategy_options(ksm.strategyOptions);
+        return ksdef;
     }
 
     public List<KeySlice> get_range_slices(ColumnParent column_parent, SlicePredicate predicate, KeyRange range, ConsistencyLevel consistency_level)
