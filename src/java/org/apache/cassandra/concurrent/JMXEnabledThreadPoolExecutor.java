@@ -37,12 +37,17 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
 
     public JMXEnabledThreadPoolExecutor(String threadPoolName)
     {
-        this(1, 1, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory(threadPoolName));
+        this(1, 1, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory(threadPoolName), "internal");
+    }
+
+    public JMXEnabledThreadPoolExecutor(String threadPoolName, String jmxPath)
+    {
+        this(1, 1, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory(threadPoolName), jmxPath);
     }
 
     public JMXEnabledThreadPoolExecutor(String threadPoolName, int priority)
     {
-        this(1, 1, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory(threadPoolName, priority));
+        this(1, 1, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory(threadPoolName, priority), "internal");
     }
 
     public JMXEnabledThreadPoolExecutor(int corePoolSize,
@@ -50,13 +55,14 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
                                         long keepAliveTime,
                                         TimeUnit unit,
                                         BlockingQueue<Runnable> workQueue,
-                                        NamedThreadFactory threadFactory)
+                                        NamedThreadFactory threadFactory,
+                                        String jmxPath)
     {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory);
         super.prestartAllCoreThreads();
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-        mbeanName = "org.apache.cassandra.concurrent:type=" + threadFactory.id;
+        mbeanName = "org.apache.cassandra." + jmxPath + ":type=" + threadFactory.id;
         try
         {
             mbs.registerMBean(this, new ObjectName(mbeanName));
@@ -69,7 +75,7 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
 
     public JMXEnabledThreadPoolExecutor(Stage stage)
     {
-        this(stage + "_STAGE");
+        this(stage.getJmxName(), stage.getJmxType());
     }
 
     private void unregisterMBean()

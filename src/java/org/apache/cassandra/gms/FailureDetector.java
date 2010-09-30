@@ -62,7 +62,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         try
         {
             MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.gms:type=FailureDetector"));
+            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.net:type=FailureDetector"));
         }
         catch (Exception e)
         {

@@ -25,25 +25,17 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.management.MemoryUsage;
 import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.commons.cli.*;
+
 import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
 import org.apache.cassandra.concurrent.IExecutorMBean;
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
-import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.dht.Token;
-
-import org.apache.commons.cli.*;
+import org.apache.cassandra.net.MessagingServiceMBean;
 
 public class NodeCmd {
     private static final String HOST_OPT_LONG = "host";
@@ -80,7 +72,7 @@ public class NodeCmd {
                 "tpstats, flush, drain, repair, decommission, move, loadbalance, removetoken [status|force]|[token], " +
                 "setcachecapacity [keyspace] [cfname] [keycachecapacity] [rowcachecapacity], " +
                 "getcompactionthreshold [keyspace] [cfname], setcompactionthreshold [cfname] [minthreshold] [maxthreshold], " +
-                "streams [host]");
+                "netstats [host]");
         String usage = String.format("java %s --host <arg> <command>%n", NodeCmd.class.getName());
         hf.printHelp(usage, "", options, header);
     }
@@ -188,7 +180,7 @@ public class NodeCmd {
         outs.println("ReleaseVersion: " + probe.getReleaseVersion());
     }
 
-    public void printStreamInfo(final InetAddress addr, PrintStream outs)
+    public void printNetworkStats(final InetAddress addr, PrintStream outs)
     {
         outs.println(String.format("Mode: %s", probe.getOperationMode()));
         Set<InetAddress> hosts = addr == null ? probe.getStreamDestinations() : new HashSet<InetAddress>(){{add(addr);}};
@@ -240,6 +232,32 @@ public class NodeCmd {
                 outs.println(String.format("   Error retrieving file data for %s", host));
             }
         }
+
+        MessagingServiceMBean ms = probe.getMsProxy();
+        outs.print(String.format("%-25s", "Pool Name"));
+        outs.print(String.format("%10s", "Active"));
+        outs.print(String.format("%10s", "Pending"));
+        outs.print(String.format("%15s", "Completed"));
+        outs.println();
+
+        int pending;
+        long completed;
+
+        pending = 0;
+        for (int n : ms.getCommandPendingTasks().values())
+            pending += n;
+        completed = 0;
+        for (long n : ms.getCommandCompletedTasks().values())
+            completed += n;
+        outs.printf("%-25s%10s%10s%15s\n", "Commands", "n/a", pending, completed);
+
+        pending = 0;
+        for (int n : ms.getResponsePendingTasks().values())
+            pending += n;
+        completed = 0;
+        for (long n : ms.getResponseCompletedTasks().values())
+            completed += n;
+        outs.printf("%-25s%10s%10s%15s\n", "Responses", "n/a", pending, completed);
     }
     
     public void printColumnFamilyStats(PrintStream outs)
@@ -611,11 +629,11 @@ public class NodeCmd {
             }
             probe.setCompactionThreshold(ks, cf, minthreshold, maxthreshold);
         }
-        else if (cmdName.equals("streams"))
+        else if (cmdName.equals("netstats"))
         {
             // optional host
             String otherHost = arguments.length > 1 ? arguments[1] : null;
-            nodeCmd.printStreamInfo(otherHost == null ? null : InetAddress.getByName(otherHost), System.out);
+            nodeCmd.printNetworkStats(otherHost == null ? null : InetAddress.getByName(otherHost), System.out);
         }
         else if (cmdName.equals("version"))
         {

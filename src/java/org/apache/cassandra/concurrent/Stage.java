@@ -28,7 +28,31 @@ public enum Stage
     STREAM,
     GOSSIP,
     RESPONSE,
-    AE_SERVICE,
+    ANTIENTROPY,
     MIGRATION,
-    MISC,
+    MISC;
+
+    public String getJmxType()
+    {
+        switch (this)
+        {
+            case ANTIENTROPY:
+            case GOSSIP:
+            case MIGRATION:
+            case MISC:
+            case STREAM:
+                return "internal";
+            case MUTATION:
+            case READ:
+            case RESPONSE:
+                return "request";
+            default:
+                throw new AssertionError("Unknown stage " + this);
+        }
+    }
+
+    public String getJmxName()
+    {
+        return toString().substring(0, 1) + toString().substring(1).toLowerCase() + "Stage";
+    }
 }

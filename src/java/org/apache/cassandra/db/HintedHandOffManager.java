@@ -92,7 +92,7 @@ public class HintedHandOffManager
         int hhPriority = System.getProperty("cassandra.compaction.priority") == null
                          ? Thread.NORM_PRIORITY
                          : Integer.parseInt(System.getProperty("cassandra.compaction.priority"));
-        executor_ = new JMXEnabledThreadPoolExecutor("HINTED-HANDOFF-POOL", hhPriority);
+        executor_ = new JMXEnabledThreadPoolExecutor("HintedHandoff", hhPriority);
     }
 
     private static boolean sendMessage(InetAddress endpoint, String tableName, String cfName, byte[] key) throws IOException

@@ -216,7 +216,7 @@ public class AntiEntropyService
         for (Differencer differencer : differencers)
         {
             logger.info("Queueing comparison " + differencer);
-            StageManager.getStage(Stage.AE_SERVICE).execute(differencer);
+            StageManager.getStage(Stage.ANTIENTROPY).execute(differencer);
         }
     }
 
@@ -406,7 +406,7 @@ public class AntiEntropyService
                 for (MerkleTree.RowHash minrow : minrows)
                     range.addHash(minrow);
 
-            StageManager.getStage(Stage.AE_SERVICE).submit(this);
+            StageManager.getStage(Stage.ANTIENTROPY).submit(this);
             logger.debug("Validated " + validated + " rows into AEService tree for " + request);
         }
         

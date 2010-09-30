@@ -89,15 +89,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                StageManager.KEEPALIVE,
                                                TimeUnit.SECONDS,
                                                new LinkedBlockingQueue<Runnable>(Runtime.getRuntime().availableProcessors()),
-                                               new NamedThreadFactory("FLUSH-SORTER-POOL"));
+                                               new NamedThreadFactory("FlushSorter"),
+                                               "internal");
     private static final ExecutorService flushWriter
             = new JMXEnabledThreadPoolExecutor(1,
                                                DatabaseDescriptor.getFlushWriters(),
                                                StageManager.KEEPALIVE,
                                                TimeUnit.SECONDS,
                                                new LinkedBlockingQueue<Runnable>(DatabaseDescriptor.getFlushWriters()),
-                                               new NamedThreadFactory("FLUSH-WRITER-POOL"));
-    public static final ExecutorService postFlushExecutor = new JMXEnabledThreadPoolExecutor("MEMTABLE-POST-FLUSHER");
+                                               new NamedThreadFactory("FlushWriter"),
+                                               "internal");
+    public static final ExecutorService postFlushExecutor = new JMXEnabledThreadPoolExecutor("MemtablePostFlusher");
     
     private Set<Memtable> memtablesPendingFlush = new ConcurrentSkipListSet<Memtable>();
 

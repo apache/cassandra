@@ -19,9 +19,6 @@
 package org.apache.cassandra.concurrent;
 
 import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -49,7 +46,7 @@ public class StageManager
         // the rest are all single-threaded
         stages.put(Stage.STREAM, new JMXEnabledThreadPoolExecutor(Stage.STREAM));
         stages.put(Stage.GOSSIP, new JMXEnabledThreadPoolExecutor(Stage.GOSSIP));
-        stages.put(Stage.AE_SERVICE, new JMXEnabledThreadPoolExecutor(Stage.AE_SERVICE));
+        stages.put(Stage.ANTIENTROPY, new JMXEnabledThreadPoolExecutor(Stage.ANTIENTROPY));
         stages.put(Stage.MIGRATION, new JMXEnabledThreadPoolExecutor(Stage.MIGRATION));
         stages.put(Stage.MISC, new JMXEnabledThreadPoolExecutor(Stage.MISC));
     }
@@ -65,7 +62,8 @@ public class StageManager
                                                 KEEPALIVE,
                                                 TimeUnit.SECONDS,
                                                 new LinkedBlockingQueue<Runnable>(),
-                                                new NamedThreadFactory(stage + "_STAGE"));
+                                                new NamedThreadFactory(stage.getJmxName()),
+                                                stage.getJmxType());
     }
     
     private static ThreadPoolExecutor multiThreadedConfigurableStage(Stage stage, int numThreads)
@@ -77,7 +75,8 @@ public class StageManager
                                                      KEEPALIVE,
                                                      TimeUnit.SECONDS,
                                                      new LinkedBlockingQueue<Runnable>(),
-                                                     new NamedThreadFactory(stage + "_STAGE"));
+                                                     new NamedThreadFactory(stage.getJmxName()),
+                                                     stage.getJmxType());
     }
 
     /**

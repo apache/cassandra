@@ -238,7 +238,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
 
     void flushAES() throws Exception
     {
-        final ThreadPoolExecutor stage = StageManager.getStage(Stage.AE_SERVICE);
+        final ThreadPoolExecutor stage = StageManager.getStage(Stage.ANTIENTROPY);
         final Callable noop = new Callable<Object>()
         {
             public Boolean call()

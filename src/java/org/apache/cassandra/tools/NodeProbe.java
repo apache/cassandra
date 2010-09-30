@@ -37,11 +37,14 @@ import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 
+import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
 import org.apache.cassandra.concurrent.IExecutorMBean;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamingService;
 import org.apache.cassandra.streaming.StreamingServiceMBean;
@@ -55,7 +58,7 @@ import static com.google.common.base.Charsets.UTF_8;
 public class NodeProbe
 {
     private static final String fmtUrl = "service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi";
-    private static final String ssObjName = "org.apache.cassandra.service:type=StorageService";
+    private static final String ssObjName = "org.apache.cassandra.db:type=StorageService";
     private static final int defaultPort = 8080;
     private String host;
     private int port;
@@ -429,6 +432,18 @@ public class NodeProbe
     {
         return ssProxy.exportSchema();
     }
+
+    public MessagingServiceMBean getMsProxy()
+    {
+        try
+        {
+            return JMX.newMBeanProxy(mbeanServerConn, new ObjectName("org.apache.cassandra.net:type=MessagingService"), MessagingServiceMBean.class);
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
     
     private ColumnFamilyStoreMBean getCfsProxy(String ks, String cf) {
         ColumnFamilyStoreMBean cfsProxy = null;
@@ -485,8 +500,9 @@ class ThreadPoolProxyMBeanIterator implements Iterator<Map.Entry<String, IExecut
     public ThreadPoolProxyMBeanIterator(MBeanServerConnection mbeanServerConn) 
     throws MalformedObjectNameException, NullPointerException, IOException
     {
-        ObjectName query = new ObjectName("org.apache.cassandra.concurrent:type=*");
-        resIter = mbeanServerConn.queryNames(query, null).iterator();
+        Set<ObjectName> requests = mbeanServerConn.queryNames(new ObjectName("org.apache.cassandra.request:type=*"), null);
+        Set<ObjectName> internal = mbeanServerConn.queryNames(new ObjectName("org.apache.cassandra.internal:type=*"), null);
+        resIter = Iterables.concat(requests, internal).iterator();
         this.mbeanServerConn = mbeanServerConn;
     }
     

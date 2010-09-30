@@ -29,9 +29,10 @@ public class JMXConfigurableThreadPoolExecutor extends JMXEnabledThreadPoolExecu
         	                                 long keepAliveTime, 
         	                                 TimeUnit unit,
                                              BlockingQueue<Runnable> workQueue, 
-                                             NamedThreadFactory threadFactory) 
+                                             NamedThreadFactory threadFactory,
+                                             String jmxPath)
     {
-        super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory);
+        super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, jmxPath);
     }
     
 }

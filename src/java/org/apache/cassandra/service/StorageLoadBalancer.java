@@ -177,10 +177,6 @@ public class StorageLoadBalancer implements IEndpointStateChangeSubscriber
     private Map<InetAddress, Double> loadInfo_ = new HashMap<InetAddress, Double>();
     /* This map is a clone of the one above and is used for various calculations during LB operation */
     private Map<InetAddress, Double> loadInfo2_ = new HashMap<InetAddress, Double>();
-    /* This thread pool is used for initiating load balancing operations */
-    private ExecutorService lb_ = new JMXEnabledThreadPoolExecutor("LB-OPERATIONS");
-    /* This thread pool is used by target node to leave the ring. */
-    private ExecutorService lbOperations_ = new JMXEnabledThreadPoolExecutor("LB-TARGET");
 
     /* Timer is used to disseminate load information */
     private Timer loadTimer_ = new Timer(false);

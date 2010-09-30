@@ -123,8 +123,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         put(Verb.STREAM_REQUEST, Stage.STREAM);
         put(Verb.RANGE_SLICE, Stage.READ);
         put(Verb.BOOTSTRAP_TOKEN, Stage.MISC);
-        put(Verb.TREE_REQUEST, Stage.AE_SERVICE);
-        put(Verb.TREE_RESPONSE, Stage.AE_SERVICE);
+        put(Verb.TREE_REQUEST, Stage.ANTIENTROPY);
+        put(Verb.TREE_RESPONSE, Stage.ANTIENTROPY);
         put(Verb.GOSSIP_DIGEST_ACK, Stage.GOSSIP);
         put(Verb.GOSSIP_DIGEST_ACK2, Stage.GOSSIP);
         put(Verb.GOSSIP_DIGEST_SYN, Stage.GOSSIP);
@@ -165,7 +165,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                                                                                    StageManager.KEEPALIVE,
                                                                                    TimeUnit.SECONDS,
                                                                                    new LinkedBlockingQueue<Runnable>(),
-                                                                                   new NamedThreadFactory("CONSISTENCY-MANAGER"));
+                                                                                   new NamedThreadFactory("ReadRepair"),
+                                                                                   "request");
 
     /* We use this interface to determine where replicas need to be placed */
     private Map<String, AbstractReplicationStrategy> replicationStrategies;
@@ -206,7 +207,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
-            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.service:type=StorageService"));
+            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.db:type=StorageService"));
         }
         catch (Exception e)
         {
