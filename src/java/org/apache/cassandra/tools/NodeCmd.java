@@ -94,62 +94,38 @@ public class NodeCmd {
         Set<String> leavingNodes = probe.getLeavingNodes();
         Map<String, String> loadMap = probe.getLoadMap();
 
-        outs.print(String.format("%-16s", "Address"));
-        outs.print(String.format("%-7s", "Status"));
-        outs.print(String.format("%-8s", "State"));
-        outs.print(String.format("%-16s", "Load"));
-        outs.print(String.format("%-44s", "Token"));
-        outs.println();
-        
+        outs.printf("%-16s%-7s%-8s%-16s%-44s\n", "Address", "Status", "State", "Load", "Token");
         // show pre-wrap token twice so you can always read a node's range as
         // (previous line token, current line token]
         if (sortedTokens.size() > 1)
-            outs.println(String.format("%-14s%-11s%-14s%-43s", "", "", "", sortedTokens.get(sortedTokens.size() - 1)));
+            outs.printf("%-14s%-11s%-14s%-43s\n", "", "", "", sortedTokens.get(sortedTokens.size() - 1));
 
-        for (Token token : sortedTokens) {
+        for (Token token : sortedTokens)
+        {
             String primaryEndpoint = tokenToEndpoint.get(token);
-            outs.print(String.format("%-16s", primaryEndpoint));
-
-            String status =
-                    liveNodes.contains(primaryEndpoint) ? "Up" :
-                    deadNodes.contains(primaryEndpoint) ? "Down" :
-                    "?";
-            outs.print(String.format("%-7s", status));
-
-            String state =
-                    joiningNodes.contains(primaryEndpoint) ? "Joining" :
-                    leavingNodes.contains(primaryEndpoint) ? "Leaving" :
-                    "Normal";
-            outs.print(String.format("%-8s", state));
-
-            outs.print(String.format("%-16s", loadMap.containsKey(primaryEndpoint) ? loadMap.get(primaryEndpoint) : "?"));
-
-            outs.print(String.format("%-44s", token));
-
-            outs.println();
+            String status = liveNodes.contains(primaryEndpoint)
+                            ? "Up"
+                            : deadNodes.contains(primaryEndpoint) ? "Down" : "?";
+            String state = joiningNodes.contains(primaryEndpoint)
+                           ? "Joining"
+                           : leavingNodes.contains(primaryEndpoint) ? "Leaving" : "Normal";
+            String load = loadMap.containsKey(primaryEndpoint) ? loadMap.get(primaryEndpoint) : "?";
+            outs.printf("%-16s%-7s%-8s%-16s%-44s\n", primaryEndpoint, status, state, load, token);
         }
     }
 
     public void printThreadPoolStats(PrintStream outs)
     {
-        outs.print(String.format("%-25s", "Pool Name"));
-        outs.print(String.format("%10s", "Active"));
-        outs.print(String.format("%10s", "Pending"));
-        outs.print(String.format("%15s", "Completed"));
-        outs.println();
-        
+        outs.printf("%-25s%10s%10s%15s\n", "Pool Name", "Active", "Pending", "Completed");
+
         Iterator<Map.Entry<String, IExecutorMBean>> threads = probe.getThreadPoolMBeanProxies();
-        
-        for (; threads.hasNext();)
+        while (threads.hasNext())
         {
-            Map.Entry<String, IExecutorMBean> thread = threads.next();
+            Entry<String, IExecutorMBean> thread = threads.next();
             String poolName = thread.getKey();
             IExecutorMBean threadPoolProxy = thread.getValue();
-            outs.print(String.format("%-25s", poolName));
-            outs.print(String.format("%10d", threadPoolProxy.getActiveCount()));
-            outs.print(String.format("%10d", threadPoolProxy.getPendingTasks()));
-            outs.print(String.format("%15d", threadPoolProxy.getCompletedTasks()));
-            outs.println();
+            outs.printf("%-25s%10s%10s%15s\n",
+                        poolName, threadPoolProxy.getActiveCount(), threadPoolProxy.getPendingTasks(), threadPoolProxy.getCompletedTasks());
         }
     }
 
@@ -161,18 +137,18 @@ public class NodeCmd {
     public void printInfo(PrintStream outs)
     {
         outs.println(probe.getToken());
-        outs.println(String.format("%-17s: %s", "Load", probe.getLoadString()));
-        outs.println(String.format("%-17s: %s", "Generation No", probe.getCurrentGenerationNumber()));
+        outs.printf("%-17s: %s\n", "Load", probe.getLoadString());
+        outs.printf("%-17s: %s\n", "Generation No", probe.getCurrentGenerationNumber());
         
         // Uptime
         long secondsUp = probe.getUptime() / 1000;
-        outs.println(String.format("%-17s: %d", "Uptime (seconds)", secondsUp));
+        outs.printf("%-17s: %d\n", "Uptime (seconds)", secondsUp);
 
         // Memory usage
         MemoryUsage heapUsage = probe.getHeapMemoryUsage();
         double memUsed = (double)heapUsage.getUsed() / (1024 * 1024);
         double memMax = (double)heapUsage.getMax() / (1024 * 1024);
-        outs.println(String.format("%-17s: %.2f / %.2f", "Heap Memory (MB)", memUsed, memMax));
+        outs.printf("%-17s: %.2f / %.2f\n", "Heap Memory (MB)", memUsed, memMax);
     }
 
     public void printReleaseVersion(PrintStream outs)
@@ -182,7 +158,7 @@ public class NodeCmd {
 
     public void printNetworkStats(final InetAddress addr, PrintStream outs)
     {
-        outs.println(String.format("Mode: %s", probe.getOperationMode()));
+        outs.printf("Mode: %s\n", probe.getOperationMode());
         Set<InetAddress> hosts = addr == null ? probe.getStreamDestinations() : new HashSet<InetAddress>(){{add(addr);}};
         if (hosts.size() == 0)
             outs.println("Not sending any streams.");
@@ -193,18 +169,18 @@ public class NodeCmd {
                 List<String> files = probe.getFilesDestinedFor(host);
                 if (files.size() > 0)
                 {
-                    outs.println(String.format("Streaming to: %s", host));
+                    outs.printf("Streaming to: %s\n", host);
                     for (String file : files)
-                        outs.println(String.format("   %s", file));
+                        outs.printf("   %s\n", file);
                 }
                 else
                 {
-                    outs.println(String.format(" Nothing streaming to %s", host));
+                    outs.printf(" Nothing streaming to %s\n", host);
                 }
             }
             catch (IOException ex)
             {
-                outs.println(String.format("   Error retrieving file data for %s", host));
+                outs.printf("   Error retrieving file data for %s\n", host);
             }
         }
 
@@ -218,27 +194,26 @@ public class NodeCmd {
                 List<String> files = probe.getIncomingFiles(host);
                 if (files.size() > 0)
                 {
-                    outs.println(String.format("Streaming from: %s", host));
+                    outs.printf("Streaming from: %s\n", host);
                     for (String file : files)
-                        outs.println(String.format("   %s", file));
+                        outs.printf("   %s\n", file);
                 }
                 else
                 {
-                    outs.println(String.format(" Nothing streaming from %s", host));
+                    outs.printf(" Nothing streaming from %s\n", host);
                 }
             }
             catch (IOException ex)
             {
-                outs.println(String.format("   Error retrieving file data for %s", host));
+                outs.printf("   Error retrieving file data for %s\n", host);
             }
         }
 
         MessagingServiceMBean ms = probe.getMsProxy();
-        outs.print(String.format("%-25s", "Pool Name"));
-        outs.print(String.format("%10s", "Active"));
-        outs.print(String.format("%10s", "Pending"));
-        outs.print(String.format("%15s", "Completed"));
-        outs.println();
+        outs.printf("%-25s", "Pool Name");
+        outs.printf("%10s", "Active");
+        outs.printf("%10s", "Pending");
+        outs.printf("%15s\n", "Completed");
 
         int pending;
         long completed;
