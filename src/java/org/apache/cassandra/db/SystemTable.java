@@ -36,6 +36,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.clock.TimestampReconciler;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -122,6 +123,19 @@ public class SystemTable
         {
             throw new IOError(e);
         }
+
+        try
+        {
+            Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(SystemTable.STATUS_CF).forceBlockingFlush();
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
     }
 
     /**
@@ -186,7 +200,7 @@ public class SystemTable
         assert clusterCol != null;
         if (!DatabaseDescriptor.getPartitioner().getClass().getName().equals(new String(partitionerCol.value(), UTF_8)))
             throw new ConfigurationException("Detected partitioner mismatch! Did you change the partitioner?");
-        if (!DatabaseDescriptor.getClusterName().equals(new String(clusterCol.value())));
+        if (!DatabaseDescriptor.getClusterName().equals(new String(clusterCol.value())))
             throw new ConfigurationException("Saved cluster name " + new String(clusterCol.value()) + " != configured name " + DatabaseDescriptor.getClusterName());
     }
 
@@ -201,7 +215,7 @@ public class SystemTable
     public static int incrementAndGetGeneration() throws IOException
     {
         Table table = Table.open(Table.SYSTEM_TABLE);
-        QueryFilter filter = QueryFilter.getNamesFilter(decorate(LOCATION_KEY), new QueryPath(STATUS_CF), TOKEN);
+        QueryFilter filter = QueryFilter.getNamesFilter(decorate(LOCATION_KEY), new QueryPath(STATUS_CF), GENERATION);
         ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
 
         int generation;

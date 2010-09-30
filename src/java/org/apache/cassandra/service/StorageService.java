@@ -420,9 +420,13 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 else
                 {
                     token = partitioner_.getTokenFactory().fromString(initialToken);
-                    logger_.info("Saved Token not found. Using " + token + " from configuration");
+                    logger_.info("Saved token not found. Using " + token + " from configuration");
                 }
                 SystemTable.updateToken(token);
+            }
+            else
+            {
+                logger_.info("Using saved token " + token);
             }
             SystemTable.setBootstrapped(true);
             tokenMetadata_.updateNormalToken(token, FBUtilities.getLocalAddress());
