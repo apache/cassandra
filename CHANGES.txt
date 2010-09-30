@@ -1,5 +1,6 @@
 dev
  * add strategy options to describe_keyspace output (CASSANDRA-1560)
+ * log warning when using randomly generated token (CASSANDRA-1552)
 
 
 0.7-beta2

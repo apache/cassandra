@@ -50,7 +50,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.DeletionService;
-import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.IEndpointSnitch;
@@ -159,7 +158,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     /* This abstraction maintains the token/endpoint metadata information */
     private TokenMetadata tokenMetadata_ = new TokenMetadata();
-    private SystemTable.StorageMetadata storageMetadata_;
 
     /* This thread pool does consistency checks when the client doesn't care about consistency */
     private ExecutorService consistencyManager_ = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getConsistencyThreads(),
@@ -340,15 +338,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
         initialized = true;
         isClientMode = false;
-        storageMetadata_ = SystemTable.initMetadata();
-
-        // be certain that the recorded clustername matches what the user specified
-        if (!(Arrays.equals(storageMetadata_.getClusterName(),DatabaseDescriptor.getClusterName().getBytes())))
-        {
-            logger_.error("ClusterName mismatch: " + new String(storageMetadata_.getClusterName()) + " != " +
-                    DatabaseDescriptor.getClusterName());
-            System.exit(3);
-        }
 
         DatabaseDescriptor.createAllDirectories();
 
@@ -368,7 +357,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // (we won't be part of the storage ring though until we add a nodeId to our state, below.)
         Gossiper.instance.register(this);
         Gossiper.instance.register(migrationManager);
-        Gossiper.instance.start(FBUtilities.getLocalAddress(), storageMetadata_.getGeneration()); // needed for node-ring gathering.
+        Gossiper.instance.start(FBUtilities.getLocalAddress(), SystemTable.incrementAndGetGeneration()); // needed for node-ring gathering.
 
         MessagingService.instance.listen(FBUtilities.getLocalAddress());
         StorageLoadBalancer.instance.startBroadcasting();
@@ -419,8 +408,23 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
         else
         {
+            Token token = SystemTable.getSavedToken();
+            if (token == null)
+            {
+                String initialToken = DatabaseDescriptor.getInitialToken();
+                if (initialToken == null)
+                {
+                    token = partitioner_.getRandomToken();
+                    logger_.warn("Generated random token " + token + ". Random tokens will result in an unbalanced ring; see http://wiki.apache.org/cassandra/Operations");
+                }
+                else
+                {
+                    token = partitioner_.getTokenFactory().fromString(initialToken);
+                    logger_.info("Saved Token not found. Using " + token + " from configuration");
+                }
+                SystemTable.updateToken(token);
+            }
             SystemTable.setBootstrapped(true);
-            Token token = storageMetadata_.getToken();
             tokenMetadata_.updateNormalToken(token, FBUtilities.getLocalAddress());
             Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.normal(token));
             setMode("Normal", false);
@@ -1109,7 +1113,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public Token getLocalToken()
     {
-        return storageMetadata_.getToken();
+        Token token = SystemTable.getSavedToken();
+        assert token != null; // should not be called before initServer sets this
+        return token;
     }
 
     /* These methods belong to the MBean interface */
