@@ -566,7 +566,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
 
         // we don't want to update if this node is responsible for the token and it has a later startup time than endpoint.
         InetAddress currentNode = tokenMetadata_.getEndPoint(token);
-        if (currentNode == null || (FBUtilities.getLocalAddress().equals(currentNode) && Gossiper.instance.compareEndpointStartup(endPoint, currentNode) > 0))
+        if (currentNode == null || Gossiper.instance.compareEndpointStartup(endPoint, currentNode) > 0)
             tokenMetadata_.updateNormalToken(token, endPoint);
         else
             logger_.info("Will not change my token ownership to " + endPoint);
