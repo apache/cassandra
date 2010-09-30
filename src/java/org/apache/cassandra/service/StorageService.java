@@ -351,6 +351,16 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger_.warn("Unable to start GCInspector (currently only supported on the Sun JVM)");
         }
 
+        if (Boolean.valueOf(System.getProperty("cassandra.load_ring_state", "true")))
+        {
+            logger_.info("Loading persisted ring state");
+            for (Map.Entry<Token, InetAddress> entry : SystemTable.loadTokens().entrySet())
+            {
+                tokenMetadata_.updateNormalToken(entry.getKey(), entry.getValue());
+                Gossiper.instance.addSavedEndpoint(entry.getValue());
+            }
+        }
+
         logger_.info("Starting up server gossip");
 
         // have to start the gossip service before we can see any info on other nodes.  this is necessary
@@ -654,18 +664,32 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         // we don't want to update if this node is responsible for the token and it has a later startup time than endpoint.
         InetAddress currentNode = tokenMetadata_.getEndpoint(token);
-        if (currentNode == null || (FBUtilities.getLocalAddress().equals(currentNode) && Gossiper.instance.compareEndpointStartup(endpoint, currentNode) > 0))
+        if (currentNode == null)
+        {
+            logger_.debug("New node " + endpoint + " at token " + token);
             tokenMetadata_.updateNormalToken(token, endpoint);
+            if (!isClientMode)
+                SystemTable.updateToken(endpoint, token);
+        }
+        else if (Gossiper.instance.compareEndpointStartup(endpoint, currentNode) > 0)
+        {
+            logger_.info(String.format("Nodes %s and %s have the same token %s.  %s is the new owner",
+                                       endpoint, currentNode, token, endpoint));
+            tokenMetadata_.updateNormalToken(token, endpoint);
+            if (!isClientMode)
+                SystemTable.updateToken(endpoint, token);
+        }
         else
-            logger_.info("Will not change my token ownership to " + endpoint);
+        {
+            logger_.info(String.format("Nodes %s and %s have the same token %s.  Ignoring %s",
+                                       endpoint, currentNode, token, endpoint));
+        }
 
         if(pieces.length > 2) {
             handleStateRemoving(endpoint, pieces);
         }
 
         calculatePendingRanges();
-        if (!isClientMode)
-            SystemTable.updateToken(endpoint, token);
     }
 
     /**
@@ -773,6 +797,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
             // grab any data we are now responsible for and notify responsible node
             restoreReplicaCount(removeEndpoint, endpoint);
+        }
+        if (!isClientMode)
+        {
+            logger_.info("Removing token " + removeToken + " for " + removeEndpoint);
+            SystemTable.removeToken(removeToken);
         }
     }
 

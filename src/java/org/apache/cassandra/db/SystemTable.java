@@ -23,7 +23,8 @@ import java.io.FilenameFilter;
 import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.Collection;
+import java.net.UnknownHostException;
+import java.util.HashMap;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
@@ -32,11 +33,8 @@ import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.clock.TimestampReconciler;
-import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -53,6 +51,7 @@ public class SystemTable
     public static final String STATUS_CF = "LocationInfo"; // keep the old CF string for backwards-compatibility
     public static final String INDEX_CF = "IndexInfo";
     private static final byte[] LOCATION_KEY = "L".getBytes(UTF_8);
+    private static final byte[] RING_KEY = "Ring".getBytes(UTF_8);
     private static final byte[] BOOTSTRAP_KEY = "Bootstrap".getBytes(UTF_8);
     private static final byte[] COOKIE_KEY = "Cookies".getBytes(UTF_8);
     private static final byte[] BOOTSTRAP = "B".getBytes(UTF_8);
@@ -92,9 +91,27 @@ public class SystemTable
     {
         IPartitioner p = StorageService.getPartitioner();
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
-        cf.addColumn(new Column(ep.getAddress(), p.getTokenFactory().toByteArray(token), new TimestampClock(System.currentTimeMillis())));
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
+        cf.addColumn(new Column(p.getTokenFactory().toByteArray(token), ep.getAddress(), new TimestampClock(System.currentTimeMillis())));
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, RING_KEY);
         rm.add(cf);
+        try
+        {
+            rm.apply();
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+    }
+
+    /**
+     * Remove stored token being used by another node
+     */
+    public static synchronized void removeToken(Token token)
+    {
+        IPartitioner p = StorageService.getPartitioner();
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, RING_KEY);
+        rm.delete(new QueryPath(STATUS_CF, null, p.getTokenFactory().toByteArray(token)), new TimestampClock(System.currentTimeMillis()));
         try
         {
             rm.apply();
@@ -136,6 +153,34 @@ public class SystemTable
         {
             throw new AssertionError(e);
         }
+    }
+
+    /**
+     * Return a map of stored tokens to IP addresses
+     *
+     */
+    public static HashMap<Token, InetAddress> loadTokens()
+    {
+        HashMap<Token, InetAddress> tokenMap = new HashMap<Token, InetAddress>();
+        IPartitioner p = StorageService.getPartitioner();
+        Table table = Table.open(Table.SYSTEM_TABLE);
+        QueryFilter filter = QueryFilter.getIdentityFilter(decorate(RING_KEY), new QueryPath(STATUS_CF));
+        ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
+        if (cf != null)
+        {
+            for (IColumn column : cf.getSortedColumns())
+            {
+                try
+                {
+                    tokenMap.put(p.getTokenFactory().fromByteArray(column.name()), InetAddress.getByAddress(column.value()));
+                }
+                catch (UnknownHostException e)
+                {
+                    throw new IOError(e);
+                }
+            }
+        }
+        return tokenMap;
     }
 
     /**

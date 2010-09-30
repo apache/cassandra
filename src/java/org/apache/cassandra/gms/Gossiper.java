@@ -863,6 +863,23 @@ public class Gossiper implements IFailureDetectionEventListener
         gossipTimer_.schedule( new GossipTimerTask(), Gossiper.intervalInMillis_, Gossiper.intervalInMillis_);
     }
 
+    /**
+     * Add an endpoint we knew about previously, but whose state is unknown
+     */
+    public void addSavedEndpoint(InetAddress ep)
+    {
+        EndpointState epState = endpointStateMap_.get(ep);
+        if (epState == null)
+        {
+            epState = new EndpointState(new HeartBeatState(0));
+            epState.isAlive(false);
+            epState.isAGossiper(true);
+            epState.setHasToken(true);
+            endpointStateMap_.put(ep, epState);
+            unreachableEndpoints_.add(ep);
+        }
+    }
+
     public void addLocalApplicationState(ApplicationState state, VersionedValue value)
     {
         assert !StorageService.instance.isClientMode();
