@@ -2,6 +2,8 @@ dev
  * add strategy options to describe_keyspace output (CASSANDRA-1560)
  * log warning when using randomly generated token (CASSANDRA-1552)
  * re-organize JMX into .db, .net, .internal, .request (CASSANDRA-1217)
+ * allow nodes to change IPs between restarts (CASSANDRA-1518)
+ * remember ring state between restarts by default (CASSANDRA-1518)
 
 
 0.7-beta2
