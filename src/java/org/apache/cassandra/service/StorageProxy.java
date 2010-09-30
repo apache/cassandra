@@ -64,6 +64,7 @@ public class StorageProxy implements StorageProxyMBean
     private static final LatencyTracker readStats = new LatencyTracker();
     private static final LatencyTracker rangeStats = new LatencyTracker();
     private static final LatencyTracker writeStats = new LatencyTracker();
+    private static boolean hintedHandoffEnabled = DatabaseDescriptor.hintedHandoffEnabled();
 
     private StorageProxy() {}
     static
@@ -712,6 +713,21 @@ public class StorageProxy implements StorageProxyMBean
     public double getRecentWriteLatencyMicros()
     {
         return writeStats.getRecentLatencyMicros();
+    }
+
+    public boolean getHintedHandoffEnabled()
+    {
+        return hintedHandoffEnabled;
+    }
+
+    public void setHintedHandoffEnabled(boolean b)
+    {
+        hintedHandoffEnabled = b;
+    }
+
+    public static boolean isHintedHandoffEnabled()
+    {
+        return hintedHandoffEnabled;
     }
 
     static class weakReadLocalCallable implements Callable<Object>
