@@ -31,4 +31,7 @@ public interface StorageProxyMBean
     public long getWriteOperations();
     public long getTotalWriteLatencyMicros();
     public double getRecentWriteLatencyMicros();
+
+    public boolean getHintedHandoffEnabled();
+    public void setHintedHandoffEnabled(boolean b);
 }

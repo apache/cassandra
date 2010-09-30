@@ -38,6 +38,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.hadoop.util.StringUtils;
@@ -137,7 +138,7 @@ public abstract class AbstractReplicationStrategy
         }
 
         // if everything was alive or we're not doing HH on this keyspace, stop with just the live nodes
-        if (map.size() == targets.size() || !DatabaseDescriptor.hintedHandoffEnabled())
+        if (map.size() == targets.size() || !StorageProxy.isHintedHandoffEnabled())
             return map;
 
         // assign dead endpoints to be hinted to the closest live one, or to the local node
