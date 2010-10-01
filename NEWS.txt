@@ -10,7 +10,7 @@ Features
     - Streaming data for repair or node movement no longer requires 
       anticompaction step first
     - NetworkTopologyStrategy (formerly DatacenterShardStrategy) is ready for 
-      use, enabling ConsitencyLevel.DCQUORUM and DCQUORUMSYNC.  See comments 
+      use, enabling ConsistencyLevel.DCQUORUM and DCQUORUMSYNC.  See comments 
       in `cassandra.yaml.`
     - Optional per-Column time-to-live field allows expiring data without
       have to issue explicit remove commands
