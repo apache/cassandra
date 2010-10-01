@@ -5,6 +5,7 @@ dev
  * allow nodes to change IPs between restarts (CASSANDRA-1518)
  * remember ring state between restarts by default (CASSANDRA-1518)
  * flush index built flag so we can read it before log replay (CASSANDRA-1541)
+ * lock row cache updates to prevent race condition (CASSANDRA-1293)
 
 
 0.7-beta2

@@ -551,6 +551,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         boolean flushRequested = memtable.isThresholdViolated();
         memtable.put(key, columnFamily);
+        ColumnFamily cachedRow = getRawCachedRow(key);
+        if (cachedRow != null)
+            cachedRow.addAll(columnFamily);
         writeStats.addNano(System.nanoTime() - start);
         
         return flushRequested ? memtable : null;

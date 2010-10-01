@@ -362,31 +362,25 @@ public class Table
                     }
                 }
 
-                if (mutatedIndexedColumns == null)
+                synchronized (indexLockFor(mutation.key()))
                 {
-                    // just update the actual value, no extra synchronization
+                    ColumnFamily oldIndexedColumns = null;
+                    if (mutatedIndexedColumns != null)
+                    {
+                        oldIndexedColumns = readCurrentIndexedColumns(key, cfs, mutatedIndexedColumns);
+                        ignoreObsoleteMutations(cf, cfs.metadata.reconciler, mutatedIndexedColumns, oldIndexedColumns);
+                    }
+
                     Memtable fullMemtable = cfs.apply(key, cf);
                     if (fullMemtable != null)
                         memtablesToFlush = addFullMemtable(memtablesToFlush, fullMemtable);
-                }
-                else
-                {
-                    synchronized (indexLockFor(mutation.key()))
-                    {
-                        ColumnFamily oldIndexedColumns = readCurrentIndexedColumns(key, cfs, mutatedIndexedColumns);
-                        ignoreObsoleteMutations(cf, cfs.metadata.reconciler, mutatedIndexedColumns, oldIndexedColumns);
 
-                        Memtable fullMemtable = cfs.apply(key, cf);
-                        if (fullMemtable != null)
-                            memtablesToFlush = addFullMemtable(memtablesToFlush, fullMemtable);
+                    if (mutatedIndexedColumns != null)
+                    {
                         // ignore full index memtables -- we flush those when the "master" one is full
                         applyIndexUpdates(mutation.key(), cf, cfs, mutatedIndexedColumns, oldIndexedColumns);
                     }
                 }
-
-                ColumnFamily cachedRow = cfs.getRawCachedRow(key);
-                if (cachedRow != null)
-                    cachedRow.addAll(cf);
             }
         }
         finally

@@ -771,7 +771,7 @@ public class CassandraServer implements Cassandra.Iface
             throw new InvalidRequestException(String.format("%s live nodes are not enough to support replication factor %s",
                                                             totalNodes, ks_def.replication_factor));
         
-        //generate a meaningful error if the user setup keyspace and/or column definition incorrectly
+        // generate a meaningful error if the user setup keyspace and/or column definition incorrectly
         for (CfDef cf : ks_def.cf_defs) 
         {
             if (!cf.getKeyspace().equals(ks_def.getName()))
@@ -787,13 +787,12 @@ public class CassandraServer implements Cassandra.Iface
             {
                 cfDefs.add(convertToCFMetaData(cfDef));
             }
-            
-            KSMetaData ksm = new KSMetaData(
-                    ks_def.name, 
-                    (Class<? extends AbstractReplicationStrategy>)Class.forName(ks_def.strategy_class),
-                    ks_def.strategy_options,
-                    ks_def.replication_factor,
-                    cfDefs.toArray(new CFMetaData[cfDefs.size()]));
+
+            KSMetaData ksm = new KSMetaData(ks_def.name,
+                                            (Class<? extends AbstractReplicationStrategy>) Class.forName(ks_def.strategy_class),
+                                            ks_def.strategy_options,
+                                            ks_def.replication_factor,
+                                            cfDefs.toArray(new CFMetaData[cfDefs.size()]));
             applyMigrationOnStage(new AddKeyspace(ksm));
             return DatabaseDescriptor.getDefsVersion().toString();
         }

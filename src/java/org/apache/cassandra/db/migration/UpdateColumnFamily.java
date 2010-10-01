@@ -51,10 +51,6 @@ public class UpdateColumnFamily extends Migration
         this.oldCfm = oldCfm;
         this.newCfm = newCfm;
         
-        // we'll allow this eventually.
-        if (!oldCfm.column_metadata.equals(newCfm.column_metadata))
-            throw new ConfigurationException("Column meta information is not identical.");
-        
         // clone ksm but include the new cf def.
         KSMetaData newKsm = makeNewKeyspaceDefinition(ksm);
         rm = Migration.makeDefinitionMutation(newKsm, null, newVersion);
