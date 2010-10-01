@@ -141,9 +141,14 @@ public class SystemTable
             throw new IOError(e);
         }
 
+        forceBlockingFlush(STATUS_CF);
+    }
+
+    private static void forceBlockingFlush(String cfname)
+    {
         try
         {
-            Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(SystemTable.STATUS_CF).forceBlockingFlush();
+            Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(cfname).forceBlockingFlush();
         }
         catch (ExecutionException e)
         {
@@ -283,18 +288,7 @@ public class SystemTable
         cf.addColumn(new Column(GENERATION, FBUtilities.toByteArray(generation), genClock));
         rm.add(cf);
         rm.apply();
-        try
-        {
-            table.getColumnFamilyStore(SystemTable.STATUS_CF).forceBlockingFlush();
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
+        forceBlockingFlush(STATUS_CF);
 
         return generation;
     }
@@ -348,5 +342,7 @@ public class SystemTable
         {
             throw new IOError(e);
         }
+
+        forceBlockingFlush(INDEX_CF);
     }
 }
