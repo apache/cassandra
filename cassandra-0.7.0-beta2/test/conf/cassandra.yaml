@@ -1,0 +1,132 @@
+#
+# Warning!
+# Consider the effects on 'o.a.c.i.s.LegacySSTableTest' before changing schemas in this file.
+#
+cluster_name: Test Cluster
+in_memory_compaction_limit_in_mb: 1
+commitlog_sync: batch
+commitlog_sync_batch_window_in_ms: 1.0
+partitioner: org.apache.cassandra.dht.CollatingOrderPreservingPartitioner
+rpc_timeout_in_ms: 5000
+listen_address: 127.0.0.1
+storage_port: 7010
+rpc_port: 9170
+column_index_size_in_kb: 4
+commitlog_directory: build/test/cassandra/commitlog
+commitlog_rotation_threshold_in_mb: 128
+data_file_directories:
+    - build/test/cassandra/data
+disk_access_mode: mmap
+memtable_throughput_in_mb: 1
+memtable_operations_in_millions: 0.00002
+seeds:
+    - 127.0.0.2
+endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
+request_scheduler: org.apache.cassandra.scheduler.RoundRobinScheduler
+request_scheduler_id: keyspace
+keyspaces:
+    - name: Keyspace1
+      replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
+      replication_factor: 1
+      column_families:
+        - name: Standard1
+          rows_cached: 10
+          keys_cached: 0
+
+        - name: Standard2
+
+        - name: Standard3
+          keys_cached: 0.5
+
+        - name: Standard4
+          keys_cached: 1.0
+
+        - name: StandardLong1
+          compare_with: LongType
+
+        - name: StandardLong2
+          compare_with: LongType
+
+        - name: StandardInteger1
+          compare_with: IntegerType
+
+        - name: Super1
+          column_type: Super
+          compare_subcolumns_with: LongType
+          rows_cached: 1000
+          keys_cached: 0
+
+        - name: Super2
+          column_type: Super
+          compare_subcolumns_with: LongType
+
+        - name: Super3
+          column_type: Super
+          compare_subcolumns_with: LongType
+
+        - name: Super4
+          column_type: Super
+          compare_subcolumns_with: UTF8Type
+
+        - name: Indexed1
+          column_metadata:
+            - name: birthdate
+              validator_class: LongType
+              index_type: KEYS
+
+        - name: Indexed2 
+          column_metadata:
+            - name: birthdate
+              validator_class: LongType
+              # index will be added dynamically
+
+    - name: Keyspace2
+      replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
+      replication_factor: 1
+      column_families:
+        - name: Standard1
+
+        - name: Standard3
+
+        - name: Super3
+          column_type: Super
+
+        - name: Super4
+          column_type: Super
+          compare_subcolumns_with: TimeUUIDType
+
+        - name: Indexed1
+          column_metadata:
+            - name: birthdate
+              validator_class: LongType
+              index_type: KEYS
+
+    - name: Keyspace3
+      replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
+      replication_factor: 5
+      column_families:
+
+        - name: Standard1
+
+    - name: Keyspace4
+      replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
+      replication_factor: 3
+      column_families:
+
+        - name: Standard1
+
+        - name: Standard3
+
+        - name: Super3
+          column_type: Super
+
+        - name: Super4
+          column_type: Super
+          compare_subcolumns_with: TimeUUIDType
+
+    - name: Keyspace5
+      replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
+      replication_factor: 2
+      column_families:
+
+        - name: Standard1

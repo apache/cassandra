@@ -1,0 +1,529 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+ ~ Licensed to the Apache Software Foundation (ASF) under one
+ ~ or more contributor license agreements.  See the NOTICE file
+ ~ distributed with this work for additional information
+ ~ regarding copyright ownership.  The ASF licenses this file
+ ~ to you under the Apache License, Version 2.0 (the
+ ~ "License"); you may not use this file except in compliance
+ ~ with the License.  You may obtain a copy of the License at
+ ~
+ ~    http://www.apache.org/licenses/LICENSE-2.0
+ ~
+ ~ Unless required by applicable law or agreed to in writing,
+ ~ software distributed under the License is distributed on an
+ ~ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ ~ KIND, either express or implied.  See the License for the
+ ~ specific language governing permissions and limitations
+ ~ under the License.
+ -->
+<project basedir="." default="build" name="apache-cassandra"
+         xmlns:ivy="antlib:org.apache.ivy.ant">
+    <property environment="env"/>
+    <property file="build.properties" />
+    <property name="debuglevel" value="source,lines,vars"/>
+
+    <property name="basedir" value="."/>
+    <property name="build.src" value="${basedir}/src"/>
+    <property name="build.src.java" value="${basedir}/src/java"/>
+    <property name="avro.src" value="${basedir}/src/avro"/>
+    <property name="build.src.gen-java" value="${basedir}/src/gen-java"/>
+    <property name="build.lib" value="${basedir}/lib"/>
+    <property name="build.dir" value="${basedir}/build"/>
+    <property name="build.dir.lib" value="${basedir}/build/lib"/>
+    <property name="build.test.dir" value="${build.dir}/test"/>
+    <property name="build.classes" value="${build.dir}/classes"/>
+    <property name="javadoc.dir" value="${build.dir}/javadoc"/>
+    <property name="interface.dir" value="${basedir}/interface"/>
+    <property name="interface.thrift.dir" value="${interface.dir}/thrift"/>
+    <property name="interface.thrift.gen-java" value="${interface.thrift.dir}/gen-java"/>
+    <property name="interface.avro.dir" value="${interface.dir}/avro"/>
+    <property name="test.dir" value="${basedir}/test"/>
+    <property name="test.resources" value="${test.dir}/resources"/>
+    <property name="test.classes" value="${build.dir}/test/classes"/>
+    <property name="test.conf" value="${test.dir}/conf"/>
+    <property name="test.data" value="${test.dir}/data"/>
+    <property name="test.name" value="*Test"/>
+    <property name="test.unit.src" value="${test.dir}/unit"/>
+    <property name="test.long.src" value="${test.dir}/long"/>
+    <property name="dist.dir" value="${build.dir}/dist"/>
+    <property name="base.version" value="0.7.0-beta2"/>
+    <condition property="version" value="${base.version}">
+      <isset property="release"/>
+    </condition>
+    <property name="version" value="${base.version}-SNAPSHOT"/>
+    <property name="version.properties.dir" value="${build.classes}/org/apache/cassandra/config/"/>
+    <property name="final.name" value="${ant.project.name}-${version}"/>
+    <property name="ivy.version" value="2.1.0" />
+    <property name="ivy.url"
+              value="http://repo2.maven.org/maven2/org/apache/ivy/ivy" />
+
+    <!-- http://cobertura.sourceforge.net/ -->
+    <property name="cobertura.build.dir" value="${build.dir}/cobertura"/>
+    <!-- can't include due to licensing, specify jar via command line -->
+    <property name="cobertura.dir" value="/tmp"/>
+    <property name="cobertura.report.dir" value="${cobertura.build.dir}/report"/>
+    <property name="cobertura.classes.dir" value="${cobertura.build.dir}/classes"/>
+    <property name="cobertura.datafile" value="${cobertura.build.dir}/cobertura.ser"/>
+
+    <condition property="ivy.jar.exists">
+      <available file="${build.dir}/ivy-${ivy.version}.jar" />
+    </condition>
+
+    <condition property="is.source.artifact">
+      <available file="${build.src.java}" type="dir" />
+    </condition>
+
+    <!-- 
+	 Add all the dependencies.
+    -->
+    <path id="autoivy.classpath">
+        <fileset dir="${build.dir.lib}">
+          <include name="**/*.jar" />
+        </fileset>
+        <pathelement location="${build.dir}/ivy-${ivy.version}.jar"/>
+    </path>
+    <path id="cassandra.classpath">
+        <pathelement location="${cobertura.classes.dir}"/>
+        <pathelement location="${build.classes}"/>
+        <fileset dir="${build.lib}">
+          <include name="**/*.jar" />
+        </fileset>
+        <path refid="autoivy.classpath" />
+    </path>
+    <path id="rat.classpath">
+      <fileset dir="${build.dir.lib}">
+        <include name="**/apache-rat*.jar"/>
+        <include name="**/commons-*.jar"/>
+      </fileset>
+    </path>
+
+    <!--
+	Setup the output directories.
+    -->
+    <target name="init">
+        <fail unless="is.source.artifact"
+            message="Not a source artifact, stopping here." />
+        <mkdir dir="${build.classes}"/>
+        <mkdir dir="${test.classes}"/>
+        <mkdir dir="${build.src.gen-java}"/>
+    </target>
+
+    <target name="clean" description="Remove all locally created artifacts">
+        <delete dir="${build.test.dir}" />
+        <delete dir="${build.classes}" />
+        <delete dir="${build.src.gen-java}" />
+        <delete dir="${interface.avro.dir}" />
+        <delete file="${build.dir}/internode.avpr" />
+    </target>
+    <target depends="clean" name="cleanall"/>
+
+    <target name="realclean" depends="clean">
+        <delete dir="${build.dir}" />
+    </target>
+
+    <!--
+       This generates the CLI grammar files from Cli.g
+    -->
+    <target name="check-gen-cli-grammar">
+        <uptodate property="cliUpToDate" 
+                srcfile="${build.src.java}/org/apache/cassandra/cli/Cli.g" 
+                targetfile="${build.src.gen-java}/org/apache/cassandra/cli/Cli.tokens"/>
+    </target>
+ 
+    <target name="gen-cli-grammar" depends="check-gen-cli-grammar" unless="cliUpToDate">
+      <echo>Building Grammar ${build.src.java}/org/apache/cassandra/cli/Cli.g  ....</echo>
+      <java classname="org.antlr.Tool"
+            classpath="${build.lib}/antlr-3.1.3.jar"
+            fork="true">
+         <arg value="${build.src.java}/org/apache/cassandra/cli/Cli.g" />
+         <arg value="-fo" />
+         <arg value="${build.src.gen-java}/org/apache/cassandra/cli/" />
+      </java> 
+    </target>
+
+    <!--
+       Fetch Ivy and Cassandra's dependencies
+
+       These targets are intentionally free of dependencies so that they
+       can be run stand-alone from a binary release artifact.
+    -->
+    <target name="ivy-download" unless="ivy.jar.exists">
+      <echo>Downloading Ivy...</echo>
+      <mkdir dir="${build.dir}" />
+      <get src="${ivy.url}/${ivy.version}/ivy-${ivy.version}.jar"
+           dest="${build.dir}/ivy-${ivy.version}.jar" usetimestamp="true" />
+    </target>
+
+    <target name="ivy-init" depends="ivy-download" unless="ivy.initialized">
+      <mkdir dir="${build.dir.lib}"/>
+      <taskdef resource="org/apache/ivy/ant/antlib.xml"
+               uri="antlib:org.apache.ivy.ant"
+               classpathref="autoivy.classpath"/>
+      <property name="ivy.initialized" value="true"/>
+    </target>
+
+    <target name="ivy-retrieve-build" depends="ivy-init">
+      <ivy:retrieve type="jar,source" sync="true"
+             pattern="${build.dir.lib}/[type]s/[artifact]-[revision].[ext]" />
+    </target>
+
+    <!--
+       Generate avro code
+    -->
+    <target name="check-avro-generate" depends="ivy-init">
+      <taskdef name="avro-protocol" classname="org.apache.avro.specific.ProtocolTask">
+        <classpath refid="cassandra.classpath" />
+      </taskdef>
+      <uptodate property="avroInterfaceUpToDate" srcfile="${interface.dir}/cassandra.genavro"
+                targetfile="${interface.avro.dir}/cassandra.avpr" />
+      <uptodate property="avroINProtoUpToDate" srcfile="${avro.src}/internode.genavro"
+                targetfile="${build.dir}/internode.avpr" />
+    </target>
+
+    <target name="avro-generate"
+            depends="avro-interface-generate-client,avro-interface-generate-internode"
+            description="Generates Java Avro classes for client and internal use." />
+
+    <target name="avro-interface-generate-client" unless="avroInterfaceUpToDate"
+            depends="init,check-avro-generate,ivy-retrieve-build">
+      <avromacro protocolname="cassandra" inputfile="${interface.dir}/cassandra.genavro"
+                 jsondir="${interface.avro.dir}" outputdir="${interface.avro.dir}" />
+    </target>
+    <target name="avro-interface-generate-internode" unless="avroINProtoUpToDate"
+            depends="init,check-avro-generate,ivy-retrieve-build">
+      <avromacro protocolname="internode" inputfile="${avro.src}/internode.genavro"
+                 jsondir="${build.dir}" outputdir="${build.src}"/>
+    </target>
+
+    <macrodef name="avromacro">
+      <attribute name="protocolname" />
+      <attribute name="inputfile" />
+      <attribute name="jsondir" />
+      <attribute name="outputdir" />
+      <sequential>
+        <echo message="Generating Avro @{protocolname} code..." />
+        <mkdir dir="@{jsondir}" />
+        <!-- Generate json schema from genavro IDL -->
+        <java classname="org.apache.avro.tool.Main" fork="true">
+          <classpath refid="cassandra.classpath" />
+          <arg value="idl" />
+          <arg value="@{inputfile}" />
+          <arg value="@{jsondir}/@{protocolname}.avpr" />
+        </java>
+    
+        <!-- Generate java code from JSON protocol schema -->
+        <avro-protocol destdir="@{outputdir}/gen-java">
+            <fileset file="@{jsondir}/@{protocolname}.avpr" />
+        </avro-protocol>
+      </sequential>
+    </macrodef>
+
+
+    <!--
+       Generate thrift code.  We have targets to build java because
+       Cassandra depends on it, and python because that is what the system
+       tests run.
+    -->
+    <target name="gen-thrift-java" depends="rat-init" description="Generate Thrift Java artifacts">
+      <echo>Generating Thrift Java code from ${basedir}/interface/cassandra.thrift ....</echo>
+      <exec executable="thrift" dir="${basedir}/interface">
+        <arg line="--gen java:hashcode" />
+        <arg line="-o ${interface.thrift.dir}" />
+        <arg line="cassandra.thrift" />
+      </exec>
+      <java classname="org.apache.rat.Report" fork="true"
+            output="${build.dir}/rat-report.log">
+        <classpath refid="rat.classpath" />
+        <arg value="-a" />
+        <arg value="--force" />
+        <arg value="interface/thrift" />
+      </java>
+    </target>
+    <target name="gen-thrift-py" description="Generate Thrift Python artifacts">
+      <echo>Generating Thrift Python code from ${basedir}/interface/cassandra.thrift ....</echo>
+      <exec executable="thrift" dir="${basedir}/interface">
+        <arg line="--gen py" />
+        <arg line="-o ${interface.thrift.dir}" />
+        <arg line="cassandra.thrift" />
+      </exec>
+    </target>
+
+    <!-- create properties file with C version -->
+    <target name="createVersionPropFile"> 
+      <taskdef name="propertyfile" classname="org.apache.tools.ant.taskdefs.optional.PropertyFile"/>
+      <propertyfile file="${version.properties.dir}/version.properties">
+	<entry key="CassandraVersion" value="${version}"/>
+      </propertyfile>
+    </target>
+
+    <!--
+	The build target builds all the .class files
+    -->
+    <target name="build"
+        depends="ivy-retrieve-build,avro-generate,build-subprojects,build-project" description="Compile Cassandra classes"/>
+    <target name="build-subprojects" description="Compile Cassandra contrib projects"/>
+    <target name="codecoverage" depends="cobertura-instrument,test,cobertura-report" description="Create code coverage report"/>
+    	
+    <target depends="init,avro-generate,gen-cli-grammar" name="build-project">
+        <echo message="${ant.project.name}: ${ant.file}"/>
+        <javac debug="true" debuglevel="${debuglevel}" destdir="${build.classes}">
+            <src path="${build.src.java}"/>
+            <src path="${build.src.gen-java}"/>
+            <src path="${interface.thrift.dir}/gen-java"/>
+            <src path="${interface.avro.dir}/gen-java"/>
+                <classpath refid="cassandra.classpath"/>
+        </javac>
+        
+        <taskdef name="paranamer" classname="com.thoughtworks.paranamer.ant.ParanamerGeneratorTask">
+          <classpath refid="cassandra.classpath" />
+        </taskdef>
+
+        <!--<paranamer sourceDirectory="${interface.avro.dir}"-->
+               <!--outputDirectory="${build.classes}"/>-->
+
+        <antcall target="createVersionPropFile"/>
+    </target>
+
+
+    <!--
+	The jar target makes cassandra.jar output.
+    -->
+    <target name="jar" depends="build" description="Assemble Cassandra JAR files">
+      <mkdir dir="${build.classes}/META-INF"/>
+      <copy file="LICENSE.txt" tofile="${build.classes}/META-INF/LICENSE.txt"/>
+      <copy file="NOTICE.txt" tofile="${build.classes}/META-INF/NOTICE.txt"/>
+      <jar jarfile="${build.dir}/${final.name}.jar"
+           basedir="${build.classes}">
+        <manifest>
+        <!-- <section name="org/apache/cassandra/infrastructure"> -->
+          <attribute name="Implementation-Title" value="Cassandra"/>
+          <attribute name="Implementation-Version" value="${version}"/>
+          <attribute name="Implementation-Vendor" value="Apache"/>
+          <attribute name="Premain-Class" value="org.apache.cassandra.infrastructure.continuations.CAgent"/>
+        <!-- </section> -->
+        </manifest>
+      </jar>
+    </target>
+
+    <!-- creates a release tarball -->	
+    <target name="release" depends="jar,javadoc,rat-init" description="Create a full Cassandra binary distribution including tar.gz">
+      <mkdir dir="${dist.dir}"/>
+      <copy todir="${dist.dir}/lib">
+        <fileset dir="${build.lib}"/>
+        <fileset dir="${build.dir}">
+          <include name="*.jar" />
+        </fileset>
+      </copy>
+      <copy todir="${dist.dir}/javadoc">
+        <fileset dir="${javadoc.dir}"/>
+      </copy>
+      <copy todir="${dist.dir}/bin">
+        <fileset dir="bin"/>
+      </copy>
+      <copy todir="${dist.dir}/conf">
+        <fileset dir="conf"/>
+      </copy>   
+      <copy todir="${dist.dir}/interface">
+        <fileset dir="interface">
+          <include name="**/*.thrift" />
+        </fileset>
+      </copy>      
+      <copy todir="${dist.dir}/">
+        <fileset dir="${basedir}">
+          <include name="*.txt" />
+        </fileset>
+      </copy>
+      
+      <tar compression="gzip" longfile="gnu"
+        destfile="${build.dir}/${final.name}-bin.tar.gz">
+
+        <!-- Everything but bin/ (default mode) -->
+        <tarfileset dir="${dist.dir}" prefix="${final.name}">
+          <include name="**"/>
+          <exclude name="bin/*" />
+        </tarfileset>
+        <!-- Shell includes in bin/ (default mode) -->
+        <tarfileset dir="${dist.dir}" prefix="${final.name}">
+          <include name="bin/*.in.sh" />
+        </tarfileset>
+        <!-- Executable scripts in bin/ -->
+        <tarfileset dir="${dist.dir}" prefix="${final.name}" mode="755">
+          <include name="bin/*"/>
+          <not>
+        	<filename name="bin/*.in.sh" />
+          </not>
+        </tarfileset>	
+      </tar>
+      <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
+                  reportFile="${build.dir}/${final.name}-bin.rat.txt">
+        <tarfileset>
+          <gzipresource>
+            <file file="${build.dir}/${final.name}-bin.tar.gz" />
+          </gzipresource>
+        </tarfileset>
+      </rat:report>
+
+      <tar compression="gzip" longfile="gnu"
+        destfile="${build.dir}/${final.name}-src.tar.gz">
+
+        <tarfileset dir="${basedir}"
+          prefix="${final.name}-src">
+          <include name="**"/>
+          <exclude name="build/**" />
+          <exclude name="src/gen-java/**" />
+          <exclude name="interface/avro/**" />
+          <exclude name=".git/**" />
+        </tarfileset>
+      </tar>
+      <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
+                  reportFile="${build.dir}/${final.name}-src.rat.txt">
+        <tarfileset>
+          <gzipresource>
+            <file file="${build.dir}/${final.name}-src.tar.gz" />
+          </gzipresource>
+        </tarfileset>
+      </rat:report>
+    </target>
+
+  <target name="build-test" depends="build" description="Compile test classes">
+    <javac
+     debug="true"
+     debuglevel="${debuglevel}"
+     destdir="${test.classes}">
+      <classpath refid="cassandra.classpath"/>
+      <src path="${test.unit.src}"/>
+      <src path="${test.long.src}"/>
+    </javac>
+
+    <!-- Non-java resources needed by the test suite -->    
+    <copy todir="${test.classes}">
+      <fileset dir="${test.resources}"/>
+    </copy>
+  </target>
+
+  <macrodef name="testmacro">
+    <attribute name="suitename" />
+    <attribute name="inputdir" />
+    <attribute name="timeout" />
+    <sequential>
+      <echo message="running @{suitename} tests"/>
+      <mkdir dir="${build.test.dir}/cassandra"/>
+      <mkdir dir="${build.test.dir}/output"/>
+      <junit fork="on" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}">
+        <sysproperty key="net.sourceforge.cobertura.datafile" file="${cobertura.datafile}"/>
+        <formatter type="xml" usefile="true"/>
+        <formatter type="brief" usefile="false"/>
+        <jvmarg value="-Dstorage-config=${test.conf}"/>
+        <jvmarg value="-Dlog4j.configuration=log4j-junit.properties" />
+        <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
+        <jvmarg value="-ea"/>
+        <classpath>
+          <path refid="cassandra.classpath" />
+          <pathelement location="${test.classes}"/>
+          <pathelement location="${cobertura.dir}/cobertura.jar"/>
+          <pathelement location="${test.conf}"/>
+        </classpath>
+        <batchtest todir="${build.test.dir}/output">
+          <fileset dir="@{inputdir}" includes="**/${test.name}.java" />
+        </batchtest>
+      </junit>
+      <fail if="testfailed" message="Some @{suitename} test(s) failed."/>
+    </sequential>
+  </macrodef>
+
+  <target name="test" depends="build-test" description="Execute unit tests">
+    <testmacro suitename="unit" inputdir="${test.unit.src}" timeout="60000" />
+  </target>
+
+  <target name="long-test" depends="build-test" description="Execute functional tests">
+    <testmacro suitename="long" inputdir="${test.long.src}" timeout="300000" />
+  </target>
+	
+  <!-- instruments the classes to later create code coverage reports -->
+  <target name="cobertura-instrument" depends="build,build-test">
+    <taskdef resource="tasks.properties">
+      <classpath>
+        <fileset dir="${cobertura.dir}">
+            <include name="cobertura.jar" />
+            <include name="lib/**/*.jar" />
+        </fileset>
+      </classpath>
+    </taskdef>
+    
+    <delete file="${cobertura.datafile}"/>
+    
+    <cobertura-instrument todir="${cobertura.classes.dir}" datafile="${cobertura.datafile}">
+      <ignore regex="org.apache.log4j.*"/>
+      
+      <fileset dir="${build.classes}">
+        <include name="**/*.class"/>
+        <exclude name="**/*Test.class"/>
+        <exclude name="**/*TestCase.class"/>
+        <exclude name="**/test/*.class"/>
+        <exclude name="${cobertura.excludes}"/>
+      </fileset>
+     
+    </cobertura-instrument>
+  </target>	
+
+  <!-- create both html and xml code coverage reports -->
+  <target name="cobertura-report">
+    <cobertura-report format="html" destdir="${cobertura.report.dir}" srcdir="${build.src.java}"
+      datafile="${cobertura.datafile}"/>
+    <cobertura-report format="xml" destdir="${cobertura.report.dir}" srcdir="${build.src.java}"
+      datafile="${cobertura.datafile}"/>
+  </target>
+
+  <!--
+    License audit tool
+  -->
+  <target name="rat-init" depends="ivy-retrieve-build">
+    <typedef resource="org/apache/rat/anttasks/antlib.xml"
+             uri="antlib:org.apache.rat.anttasks">
+      <classpath refid="rat.classpath" />
+    </typedef>
+  </target>
+
+  <target name="rat-check" depends="rat-init">
+    <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
+                reportFile="${build.dir}/rat-report.log">
+      <fileset dir="."  excludesfile=".rat-excludes" />
+    </rat:report>
+    <condition property="rat.passed">
+      <isfileselected file="${build.dir}/rat-report.log">
+        <containsregexp expression="^0 Unknown Licenses"/>
+      </isfileselected>
+    </condition>
+    <fail unless="rat.passed">Unknown licenses: See build/rat-report.log.</fail>
+  </target>
+
+  <target name="rat-write" depends="rat-init">
+    <echo>RAT: invoking addLicense to write missing headers</echo>
+    <java classname="org.apache.rat.Report" fork="true"
+          output="${build.dir}/rat-report.log">
+      <classpath refid="rat.classpath" />
+      <arg value="-a" />
+      <arg value="--force" />
+      <arg value="." />
+    </java>
+  </target>
+	
+  <target name="javadoc" depends="init" description="Create javadoc">
+    <tstamp>
+      <format property="YEAR" pattern="yyyy"/>
+    </tstamp>
+    <javadoc destdir="${javadoc.dir}" author="true" version="true" use="true"
+      windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
+      bottom="Copyright &amp;copy; ${YEAR} The Apache Software Foundation">
+
+      <fileset dir="${build.src.java}" defaultexcludes="yes">
+        <include name="org/apache/**/*.java"/>
+      </fileset>
+      <fileset dir="${interface.thrift.gen-java}" defaultexcludes="yes">
+        <include name="org/apache/**/*.java"/>
+      </fileset>
+    </javadoc>
+   </target>
+
+</project>
