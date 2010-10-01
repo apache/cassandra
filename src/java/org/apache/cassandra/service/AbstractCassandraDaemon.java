@@ -93,7 +93,11 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
             }
         });
         
-        // check the system table for mismatched partitioner.
+        // check the system table to keep user from shooting self in foot by changing partitioner, cluster name, etc.
+        // we do a one-off scrub of the system table first; we can't load the list of the rest of the tables,
+        // until system table is opened.
+        for (CFMetaData cfm : DatabaseDescriptor.getTableMetaData(Table.SYSTEM_TABLE).values())
+            ColumnFamilyStore.scrubDataDirectories(Table.SYSTEM_TABLE, cfm.cfName);
         try
         {
             SystemTable.checkHealth();
@@ -115,7 +119,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
             System.exit(100);
         }
         
-        // clean up debris.
+        // clean up debris in the rest of the tables
         for (String table : DatabaseDescriptor.getTables()) 
         {
             for (CFMetaData cfm : DatabaseDescriptor.getTableMetaData(table).values())
