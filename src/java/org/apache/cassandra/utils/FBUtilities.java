@@ -684,4 +684,16 @@ public class FBUtilities
         set.add(column);
         return set;
     }
+
+    public static String toString(Map<?,?> map)
+    {
+        // wtf, why isn't something like this in guava or commons collections?
+        StringBuilder sb = new StringBuilder("{");
+        for (Map.Entry<?,?> entry : map.entrySet())
+        {
+            sb.append(entry.getKey()).append(": ").append(entry.getValue()).append(", ");
+        }
+        sb.append("}");
+        return sb.toString();
+    }
 }

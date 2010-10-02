@@ -143,4 +143,15 @@ public class ColumnDefinition {
 
         return Collections.unmodifiableMap(cds);
     }
+
+    @Override
+    public String toString()
+    {
+        return "ColumnDefinition{" +
+               "name=" + FBUtilities.bytesToHex(name) +
+               ", validator=" + validator +
+               ", index_type=" + index_type +
+               ", index_name='" + index_name + '\'' +
+               '}';
+    }
 }

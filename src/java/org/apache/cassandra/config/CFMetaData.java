@@ -22,27 +22,22 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.collect.*;
-
-import org.apache.avro.util.Utf8;
-import org.apache.cassandra.config.avro.CfDef;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
+import org.apache.avro.util.Utf8;
 import org.apache.cassandra.config.avro.ColumnDef;
-import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.io.SerDeUtils;
-import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.db.ClockType;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.clock.AbstractReconciler;
 import org.apache.cassandra.db.clock.TimestampReconciler;
-import org.apache.cassandra.db.HintedHandOffManager;
-import org.apache.cassandra.db.SystemTable;
-import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -92,17 +87,9 @@ public final class CFMetaData
     }
 
     /**
-     * @return An immutable mapping of (ksname,cfname) to id.
-     */
-    public static final Map<Pair<String, String>, Integer> getCfToIdMap()
-    {
-        return Collections.unmodifiableMap(cfIdMap);
-    }
-    
-    /**
      * @return The (ksname,cfname) pair for the given id, or null if it has been dropped.
      */
-    public static final Pair<String,String> getCF(Integer cfId)
+    public static Pair<String,String> getCF(Integer cfId)
     {
         return cfIdMap.inverse().get(cfId);
     }
@@ -110,13 +97,13 @@ public final class CFMetaData
     /**
      * @return The id for the given (ksname,cfname) pair, or null if it has been dropped.
      */
-    public static final Integer getId(String table, String cfName)
+    public static Integer getId(String table, String cfName)
     {
         return cfIdMap.get(new Pair<String, String>(table, cfName));
     }
     
     // this gets called after initialization to make sure that id generation happens properly.
-    public static final void fixMaxId()
+    public static void fixMaxId()
     {
         // never set it to less than 1000. this ensures that we have enough system CFids for future use.
         idGen.set(cfIdMap.size() == 0 ? MIN_CF_ID : Math.max(Collections.max(cfIdMap.values()) + 1, MIN_CF_ID));
@@ -310,16 +297,6 @@ public final class CFMetaData
         cfIdMap.remove(new Pair<String, String>(cfm.tableName, cfm.cfName));
     }
 
-    // a quick and dirty pretty printer for describing the column family...
-    //TODO: Make it prettier, use it in the CLI
-    public String pretty()
-    {
-        return tableName + "." + cfName + "\n"
-               + "Column Family Type: " + cfType + "\n"
-               + "Column Family Clock Type: " + clockType + "\n"
-               + "Columns Sorted By: " + comparator + "\n";
-    }
-
     public org.apache.cassandra.config.avro.CfDef deflate()
     {
         org.apache.cassandra.config.avro.CfDef cf = new org.apache.cassandra.config.avro.CfDef();
@@ -465,7 +442,7 @@ public final class CFMetaData
     public CFMetaData apply(org.apache.cassandra.avro.CfDef cf_def) throws ConfigurationException
     {
         // validate.
-        if (cf_def.id != cfId)
+        if (!cf_def.id.equals(cfId))
             throw new ConfigurationException(String.format("ids do not match. %d, %d", cf_def.id, cfId));
         if (!cf_def.keyspace.toString().equals(tableName))
             throw new ConfigurationException(String.format("keyspaces do not match. %s, %s", cf_def.keyspace, tableName));
@@ -499,7 +476,7 @@ public final class CFMetaData
                               cf_def.key_cache_size, 
                               cf_def.read_repair_chance, 
                               cf_def.gc_grace_seconds, 
-                              DatabaseDescriptor.getComparator(cf_def.default_validation_class == null ? (String)null : cf_def.default_validation_class.toString()),
+                              DatabaseDescriptor.getComparator(cf_def.default_validation_class == null ? null : cf_def.default_validation_class.toString()),
                               cf_def.min_compaction_threshold,
                               cf_def.max_compaction_threshold,
                               cfId,
@@ -681,5 +658,28 @@ public final class CFMetaData
         {
             //Defaults are valid.
         }
+    }
+
+    @Override
+    public String toString()
+    {
+        return "CFMetaData{" +
+               "gcGraceSeconds=" + gcGraceSeconds +
+               ", comparator=" + comparator +
+               ", subcolumnComparator=" + subcolumnComparator +
+               ", comment='" + comment + '\'' +
+               ", rowCacheSize=" + rowCacheSize +
+               ", keyCacheSize=" + keyCacheSize +
+               ", readRepairChance=" + readRepairChance +
+               ", preloadRowCache=" + preloadRowCache +
+               ", cfId=" + cfId +
+               ", tableName='" + tableName + '\'' +
+               ", cfName='" + cfName + '\'' +
+               ", cfType=" + cfType +
+               ", defaultValidator=" + defaultValidator +
+               ", minCompactionThreshold=" + minCompactionThreshold +
+               ", maxCompactionThreshold=" + maxCompactionThreshold +
+               ", column_metadata=" + FBUtilities.toString(column_metadata) +
+               '}';
     }
 }

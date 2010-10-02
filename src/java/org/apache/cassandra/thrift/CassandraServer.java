@@ -86,15 +86,8 @@ public class CassandraServer implements Cassandra.Iface
      */
     private final IRequestScheduler requestScheduler;
 
-    /*
-      * Handle to the storage service to interact with the other machines in the
-      * cluster.
-      */
-	private final StorageService storageService;
-
     public CassandraServer()
     {
-        storageService = StorageService.instance;
         requestScheduler = DatabaseDescriptor.getRequestScheduler();
     }
     
