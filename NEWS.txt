@@ -51,7 +51,7 @@ Upgrading
        "bin/config-converter".  
     3) Rename any of your keyspace or column family names that do not adhere
        to the '^\w+' regex convention.
-    4) Stand up your cluster with the 0.7 version.
+    4) Start up your cluster with the 0.7 version.
     5) Initialize your Keyspace and ColumnFamily definitions using 
        "bin/schematool <host> <jmxport> import".  _You only need to do 
        this to one node_.
