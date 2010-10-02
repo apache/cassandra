@@ -37,6 +37,8 @@
  * add memtable, cache information to GCInspector logs (CASSANDRA-1558)
  * enable/disable HintedHandoff via JMX (CASSANDRA-1550)
  * allow nodes to change IPs between restarts (CASSANDRA-1518)
+ * remove assertion causing rare (and harmless) error messages in
+   commitlog (CASSANDRA-1330)
 
 
 0.6.5

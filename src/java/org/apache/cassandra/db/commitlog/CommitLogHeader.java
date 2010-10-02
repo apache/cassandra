@@ -20,7 +20,6 @@ package org.apache.cassandra.db.commitlog;
 
 import java.io.*;
 import java.util.BitSet;
-import java.util.Arrays;
 
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.ICompactSerializer;
@@ -39,7 +38,7 @@ class CommitLogHeader
     static int getLowestPosition(CommitLogHeader clHeader)
     {
         int minPosition = Integer.MAX_VALUE;
-        for ( int position : clHeader.lastFlushedAt)
+        for (int position : clHeader.cfDirtiedAt)
         {
             if ( position < minPosition && position > 0)
             {
@@ -53,12 +52,12 @@ class CommitLogHeader
     }
 
     private BitSet dirty; // columnfamilies with un-flushed data in this CommitLog
-    private int[] lastFlushedAt; // position at which each CF was last flushed
+    private int[] cfDirtiedAt; // position at which each CF was last flushed
     
     CommitLogHeader(int size)
     {
         dirty = new BitSet(size);
-        lastFlushedAt = new int[size];
+        cfDirtiedAt = new int[size];
     }
     
     /*
@@ -66,10 +65,10 @@ class CommitLogHeader
      * also builds an index of position to column family
      * Id.
     */
-    CommitLogHeader(BitSet dirty, int[] lastFlushedAt)
+    CommitLogHeader(BitSet dirty, int[] cfDirtiedAt)
     {
         this.dirty = dirty;
-        this.lastFlushedAt = lastFlushedAt;
+        this.cfDirtiedAt = cfDirtiedAt;
     }
         
     boolean isDirty(int index)
@@ -79,19 +78,19 @@ class CommitLogHeader
     
     int getPosition(int index)
     {
-        return lastFlushedAt[index];
+        return cfDirtiedAt[index];
     }
     
     void turnOn(int index, long position)
     {
         dirty.set(index);
-        lastFlushedAt[index] = (int) position;
+        cfDirtiedAt[index] = (int) position;
     }
 
     void turnOff(int index)
     {
         dirty.set(index, false);
-        lastFlushedAt[index] = 0;
+        cfDirtiedAt[index] = 0;
     }
 
     boolean isSafeToDelete() throws IOException
@@ -119,9 +118,9 @@ class CommitLogHeader
             }
         }
         sb.append("}, flushed={");
-        for (int i = 0; i < lastFlushedAt.length; i++)
+        for (int i = 0; i < cfDirtiedAt.length; i++)
         {
-            sb.append(Table.TableMetadata.getColumnFamilyName(i)).append(": ").append(lastFlushedAt[i]).append(", ");
+            sb.append(Table.TableMetadata.getColumnFamilyName(i)).append(": ").append(cfDirtiedAt[i]).append(", ");
         }
         sb.append("})");
         return sb.toString();
@@ -151,7 +150,7 @@ class CommitLogHeader
 
     public int getColumnFamilyCount()
     {
-        return lastFlushedAt.length;
+        return cfDirtiedAt.length;
     }
 
     static class CommitLogHeaderSerializer implements ICompactSerializer<CommitLogHeader>
@@ -159,8 +158,8 @@ class CommitLogHeader
         public void serialize(CommitLogHeader clHeader, DataOutputStream dos) throws IOException
         {
             BitSetSerializer.serialize(clHeader.dirty, dos);
-            dos.writeInt(clHeader.lastFlushedAt.length);
-            for (int position : clHeader.lastFlushedAt)
+            dos.writeInt(clHeader.cfDirtiedAt.length);
+            for (int position : clHeader.cfDirtiedAt)
             {
                 dos.writeInt(position);
             }
