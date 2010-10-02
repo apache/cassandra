@@ -6,6 +6,8 @@ dev
  * remember ring state between restarts by default (CASSANDRA-1518)
  * flush index built flag so we can read it before log replay (CASSANDRA-1541)
  * lock row cache updates to prevent race condition (CASSANDRA-1293)
+ * remove assertion causing rare (and harmless) error messages in
+   commitlog (CASSANDRA-1330)
 
 
 0.7-beta2
