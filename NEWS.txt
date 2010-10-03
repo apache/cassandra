@@ -84,6 +84,10 @@ Configuraton
     - GCGraceSeconds is now per-ColumnFamily instead of global
 	- Keyspace and column family names that do not confirm to a '^\w+' regex
       are considered illegal.
+    - Keyspace and column family definitions will need to be loaded via
+      "bin/schematool <host> <jmxport> import".  _You only need to do this to
+      one node_.
+
 
 JMX
 ---
