@@ -150,6 +150,10 @@ public class StreamOut
             session.addFilesToStream(pending);
             session.begin();
         }
+        else
+        {
+            session.close();
+        }
     }
 
     // called prior to sending anything.

@@ -9,6 +9,7 @@ dev
  * remove assertion causing rare (and harmless) error messages in
    commitlog (CASSANDRA-1330)
  * fix moving nodes with no keyspaces defined (CASSANDRA-1574)
+ * fix unbootstrap when no data is present in a transfer range (CASSANDRA-1573)
 
 
 0.7-beta2

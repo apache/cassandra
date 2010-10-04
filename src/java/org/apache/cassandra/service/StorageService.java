@@ -396,7 +396,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             if (DatabaseDescriptor.getNonSystemTables().size() > 0)
             {
                 bootstrap(token);
-                assert !isBootstrapMode; // bootstrap will block until finishec
+                assert !isBootstrapMode; // bootstrap will block until finished
             }
             else
             {
