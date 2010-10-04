@@ -19,26 +19,29 @@
 package org.apache.cassandra.io;
 
 import java.io.*;
-import java.util.*;
-import java.lang.ref.ReferenceQueue;
 import java.lang.ref.Reference;
-import java.nio.channels.FileChannel;
+import java.lang.ref.ReferenceQueue;
 import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.cache.InstrumentedCache;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.utils.BloomFilter;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.MappedFileDataInput;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.BloomFilter;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * SSTableReaders are open()ed by Table.onStart; after that they are created by SSTableWriter.renameAndOpen.
@@ -244,30 +247,36 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         try
         {
             long indexSize = input.length();
+            // we need to know both the current index entry and its data position, as well as the
+            // next such pair, in order to compute tne mmap-spanning entries.  since seeking
+            // backwards in a 0.6 BRAF is expensive, we make one pass through by reading the "next"
+            // entry in each loop through, then summarizing the previous one.
+            IndexSummary.KeyPosition thisEntry = null, nextEntry = null;
+            long thisDataPos = -1, nextDataPos = -1;
             while (true)
             {
                 long indexPosition = input.getFilePointer();
                 if (indexPosition == indexSize)
-                {
                     break;
-                }
-                DecoratedKey decoratedKey = partitioner.convertFromDiskFormat(input.readUTF());
+
+                DecoratedKey key = partitioner.convertFromDiskFormat(input.readUTF());
                 long dataPosition = input.readLong();
-                long nextIndexPosition = input.getFilePointer();
-                // read the next index entry to see how big the row is
-                long nextDataPosition;
-                if (input.isEOF())
+                if (thisEntry == null)
                 {
-                    nextDataPosition = length();
+                    thisEntry = new IndexSummary.KeyPosition(key, indexPosition);
+                    thisDataPos = dataPosition;
+                    continue;
                 }
-                else
-                {
-                    input.readUTF();
-                    nextDataPosition = input.readLong();
-                    input.seek(nextIndexPosition);
-                }
-                indexSummary.maybeAddEntry(decoratedKey, dataPosition, nextDataPosition - dataPosition, indexPosition, nextIndexPosition);
+
+                nextEntry = new IndexSummary.KeyPosition(key, indexPosition);
+                nextDataPos = dataPosition;
+                indexSummary.maybeAddEntry(thisEntry.key, thisDataPos, nextDataPos - thisDataPos, thisEntry.indexPosition, nextEntry.indexPosition);
+
+                thisEntry = nextEntry;
+                thisDataPos = nextDataPos;
             }
+            assert thisEntry != null; // should not have any zero-row sstables
+            indexSummary.maybeAddEntry(thisEntry.key, thisDataPos, length() - thisDataPos, thisEntry.indexPosition, input.length());
             indexSummary.complete();
         }
         finally

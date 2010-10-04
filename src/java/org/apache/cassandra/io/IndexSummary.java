@@ -31,7 +31,7 @@ import org.apache.cassandra.db.DecoratedKey;
 
 public class IndexSummary
 {
-    private ArrayList<KeyPosition> indexPositions;
+    private ArrayList<KeyPosition> indexPositions = new ArrayList<KeyPosition>();
     private Map<KeyPosition, SSTable.PositionSize> spannedIndexDataPositions;
     private Map<Long, KeyPosition> spannedIndexPositions;
     private int keysWritten = 0;
@@ -43,10 +43,6 @@ public class IndexSummary
                                     && SSTableReader.bufferIndex(indexPosition) != SSTableReader.bufferIndex(nextIndexPosition);
         if ((keysWritten++ % DatabaseDescriptor.getIndexInterval() == 0) || spannedIndexEntry)
         {
-            if (indexPositions == null)
-            {
-                indexPositions  = new ArrayList<KeyPosition>();
-            }
             KeyPosition info = new KeyPosition(decoratedKey, indexPosition);
             indexPositions.add(info);
 
