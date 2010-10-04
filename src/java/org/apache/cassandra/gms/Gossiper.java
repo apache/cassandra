@@ -196,22 +196,12 @@ public class Gossiper implements IFailureDetectionEventListener
             isAlive(endpoint, epState, false);
         }
     }
-
+    
     int getMaxEndpointStateVersion(EndpointState epState)
     {
-        List<Integer> versions = new ArrayList<Integer>();
-        versions.add( epState.getHeartBeatState().getHeartBeatVersion() );
-
+        int maxVersion = epState.getHeartBeatState().getHeartBeatVersion();
         for (VersionedValue value : epState.getApplicationStateMap().values())
-        {
-            int stateVersion = value.version;
-            versions.add( stateVersion );
-        }
-
-        /* sort to get the max version to build GossipDigest for this endpoint */
-        Collections.sort(versions);
-        int maxVersion = versions.get(versions.size() - 1);
-        versions.clear();
+            maxVersion = Math.max(maxVersion,  value.version);
         return maxVersion;
     }
 
