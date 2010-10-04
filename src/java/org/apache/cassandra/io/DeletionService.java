@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 
-
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.WrappedRunnable;

@@ -18,21 +18,21 @@
 
 package org.apache.cassandra.gms;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.net.InetAddress;
 import java.util.*;
 import java.util.Map.Entry;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.net.InetAddress;
+import java.util.concurrent.*;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * This module is responsible for Gossiping information for the local endpoint. This abstraction
@@ -48,8 +48,9 @@ import org.slf4j.LoggerFactory;
 public class Gossiper implements IFailureDetectionEventListener
 {
     static final ApplicationState[] STATES = ApplicationState.values();
+    private ScheduledFuture<?> scheduledGossipTask;
 
-    private class GossipTimerTask extends TimerTask
+    private class GossipTask implements Runnable
     {
         public void run()
         {
@@ -107,7 +108,6 @@ public class Gossiper implements IFailureDetectionEventListener
     private static Logger logger_ = LoggerFactory.getLogger(Gossiper.class);
     public static final Gossiper instance = new Gossiper();
 
-    private Timer gossipTimer_;
     private InetAddress localEndpoint_;
     private long aVeryLongTime_;
     private long FatClientTimeout_;
@@ -143,7 +143,6 @@ public class Gossiper implements IFailureDetectionEventListener
 
     private Gossiper()
     {
-        gossipTimer_ = new Timer(false);
         // 3 days
         aVeryLongTime_ = 259200 * 1000;
         // 1 hour
@@ -859,8 +858,10 @@ public class Gossiper implements IFailureDetectionEventListener
             endpointStateMap_.put(localEndpoint_, localState);
         }
 
-        /* starts a timer thread */
-        gossipTimer_.schedule( new GossipTimerTask(), Gossiper.intervalInMillis_, Gossiper.intervalInMillis_);
+        scheduledGossipTask = StorageService.scheduledTasks.scheduleWithFixedDelay(new GossipTask(),
+                                                                                   Gossiper.intervalInMillis_,
+                                                                                   Gossiper.intervalInMillis_,
+                                                                                   TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -890,8 +891,7 @@ public class Gossiper implements IFailureDetectionEventListener
 
     public void stop()
     {
-        gossipTimer_.cancel();
-        gossipTimer_ = new Timer(false); // makes the Gossiper reentrant.
+        scheduledGossipTask.cancel(false);
     }
 
     /**

@@ -22,22 +22,21 @@ package org.apache.cassandra.utils;
 
 
 import java.io.File;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.service.StorageService;
+
 public class ResourceWatcher
 {
-    private static Timer timer = new Timer("RESOURCE-WATCHER");
-
     public static void watch(String resource, Runnable callback, int period)
     {
-        timer.schedule(new WatchedResource(resource, callback), period, period);
+        StorageService.scheduledTasks.scheduleWithFixedDelay(new WatchedResource(resource, callback), period, period, TimeUnit.MILLISECONDS);
     }
     
-    public static class WatchedResource extends TimerTask
+    public static class WatchedResource implements Runnable
     {
         private static Logger logger = LoggerFactory.getLogger(WatchedResource.class);
         private String resource;

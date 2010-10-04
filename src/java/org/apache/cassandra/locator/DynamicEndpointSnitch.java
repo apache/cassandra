@@ -22,6 +22,7 @@ import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import java.lang.management.ManagementFactory;
@@ -53,14 +54,14 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     public DynamicEndpointSnitch(IEndpointSnitch snitch)
     {
         subsnitch = snitch;
-        TimerTask update = new TimerTask()
+        Runnable update = new Runnable()
         {
             public void run()
             {
                 updateScores();
             }
         };
-        TimerTask reset = new TimerTask()
+        Runnable reset = new Runnable()
         {
             public void run()
             {
@@ -69,9 +70,8 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
                 reset();
             }
         };
-        Timer timer = new Timer("DynamicEndpointSnitch");
-        timer.schedule(update, UPDATE_INTERVAL_IN_MS, UPDATE_INTERVAL_IN_MS);
-        timer.schedule(reset, RESET_INTERVAL_IN_MS, RESET_INTERVAL_IN_MS);
+        StorageService.scheduledTasks.scheduleWithFixedDelay(update, UPDATE_INTERVAL_IN_MS, UPDATE_INTERVAL_IN_MS, TimeUnit.MILLISECONDS);
+        StorageService.scheduledTasks.scheduleWithFixedDelay(reset, RESET_INTERVAL_IN_MS, RESET_INTERVAL_IN_MS, TimeUnit.MILLISECONDS);
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try

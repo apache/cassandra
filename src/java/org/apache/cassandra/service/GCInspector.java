@@ -20,25 +20,25 @@ package org.apache.cassandra.service;
  * 
  */
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryUsage;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
-import org.apache.cassandra.concurrent.IExecutorMBean;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CompactionManager;
-import org.apache.cassandra.net.MessagingService;
-
-import java.lang.management.MemoryUsage;
-import java.lang.management.ManagementFactory;
+import java.util.concurrent.TimeUnit;
 import javax.management.JMX;
 import javax.management.MBeanServer;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 
 import com.google.common.collect.Iterables;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.concurrent.IExecutorMBean;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CompactionManager;
+import org.apache.cassandra.net.MessagingService;
 
 public class GCInspector
 {
@@ -90,14 +90,14 @@ public class GCInspector
         // don't bother starting a thread that will do nothing.
         if (beans.size() == 0)
             return;         
-        TimerTask t = new TimerTask()
+        Runnable t = new Runnable()
         {
             public void run()
             {
                 logIntervalGCStats();
             }
         };
-        new Timer("GC inspection").schedule(t, INTERVAL_IN_MS, INTERVAL_IN_MS);
+        StorageService.scheduledTasks.scheduleWithFixedDelay(t, INTERVAL_IN_MS, INTERVAL_IN_MS, TimeUnit.MILLISECONDS);
     }
 
     private void logIntervalGCStats()

@@ -18,18 +18,15 @@
 
 package org.apache.cassandra.service;
 
+import java.net.InetAddress;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import org.apache.cassandra.gms.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
-
-import java.net.InetAddress;
+import org.apache.cassandra.gms.*;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -177,9 +174,6 @@ public class StorageLoadBalancer implements IEndpointStateChangeSubscriber
     private Map<InetAddress, Double> loadInfo_ = new HashMap<InetAddress, Double>();
     /* This map is a clone of the one above and is used for various calculations during LB operation */
     private Map<InetAddress, Double> loadInfo2_ = new HashMap<InetAddress, Double>();
-
-    /* Timer is used to disseminate load information */
-    private Timer loadTimer_ = new Timer(false);
 
     private StorageLoadBalancer()
     {
@@ -347,7 +341,17 @@ public class StorageLoadBalancer implements IEndpointStateChangeSubscriber
     {
         // send the first broadcast "right away" (i.e., in 2 gossip heartbeats, when we should have someone to talk to);
         // after that send every BROADCAST_INTERVAL.
-        loadTimer_.schedule(new LoadDisseminator(), 2 * Gossiper.intervalInMillis_, BROADCAST_INTERVAL);
+        Runnable runnable = new Runnable()
+        {
+            public void run()
+            {
+                if (logger_.isDebugEnabled())
+                    logger_.debug("Disseminating load info ...");
+                Gossiper.instance.addLocalApplicationState(ApplicationState.LOAD,
+                                                           StorageService.valueFactory.load(StorageService.instance.getLoad()));
+            }
+        };
+        StorageService.scheduledTasks.scheduleWithFixedDelay(runnable, 2 * Gossiper.intervalInMillis_, BROADCAST_INTERVAL, TimeUnit.MILLISECONDS);
     }
 
     /**

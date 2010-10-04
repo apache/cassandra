@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.base.Function;
@@ -57,8 +59,6 @@ public class Table
     /* accesses to CFS.memtable should acquire this for thread safety.  only switchMemtable should aquire the writeLock. */
     static final ReentrantReadWriteLock flusherLock = new ReentrantReadWriteLock(true);
 
-    private static Timer flushTimer = new Timer("FLUSH-TIMER");
-
     // This is a result of pushing down the point in time when storage directories get created.  It used to happen in
     // CassandraDaemon, but it is possible to call Table.open without a running daemon, so it made sense to ensure
     // proper directories here.
@@ -83,9 +83,9 @@ public class Table
     public final Map<Integer, ColumnFamilyStore> columnFamilyStores = new HashMap<Integer, ColumnFamilyStore>(); // TODO make private again
     // cache application CFs since Range queries ask for them a _lot_
     private SortedSet<String> applicationColumnFamilies;
-    private final TimerTask flushTask;
     private final Object[] indexLocks;
-    
+    private ScheduledFuture<?> flushTask;
+
     public static Table open(String table)
     {
         Table tableInstance = instances.get(table);
@@ -114,7 +114,7 @@ public class Table
             Table t = instances.remove(table);
             if (t != null)
             {
-                t.flushTask.cancel();
+                t.flushTask.cancel(false);
                 for (ColumnFamilyStore cfs : t.getColumnFamilyStores())
                     t.unloadCf(cfs);
             }
@@ -250,7 +250,7 @@ public class Table
 
         // check 10x as often as the lifetime, so we can exceed lifetime by 10% at most
         int checkMs = DatabaseDescriptor.getMemtableLifetimeMS() / 10;
-        flushTask = new TimerTask()
+        Runnable runnable = new Runnable()
         {
             public void run()
             {
@@ -260,7 +260,7 @@ public class Table
                 }
             }
         };
-        flushTimer.schedule(flushTask, checkMs, checkMs);
+        flushTask = StorageService.scheduledTasks.scheduleWithFixedDelay(runnable, checkMs, checkMs, TimeUnit.MILLISECONDS);
     }
     
     public void dropCf(Integer cfId) throws IOException

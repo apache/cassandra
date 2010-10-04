@@ -20,27 +20,22 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.File;
-import java.io.IOError;
 import java.io.IOException;
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
 import java.util.Set;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.DeletionService;
-import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.service.StorageService;
 
 public class SSTableDeletingReference extends PhantomReference<SSTableReader>
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableDeletingReference.class);
 
-    private static final Timer timer = new Timer("SSTABLE-CLEANUP-TIMER");
     public static final int RETRY_DELAY = 10000;
 
     private final SSTableTracker tracker;
@@ -70,15 +65,14 @@ public class SSTableDeletingReference extends PhantomReference<SSTableReader>
             // this is tricky because the mmapping might not have been finalized yet,
             // and delete will fail (on Windows) until it is.  additionally, we need to make sure to
             // delete the data file first, so on restart the others will be recognized as GCable
-            timer.schedule(new CleanupTask(), RETRY_DELAY);
+            StorageService.scheduledTasks.schedule(new CleanupTask(), RETRY_DELAY, TimeUnit.MILLISECONDS);
         }
     }
 
-    private class CleanupTask extends TimerTask
+    private class CleanupTask implements Runnable
     {
         int attempts = 0;
 
-        @Override
         public void run()
         {
             // retry until we can successfully delete the DATA component: see above
@@ -87,12 +81,11 @@ public class SSTableDeletingReference extends PhantomReference<SSTableReader>
             {
                 if (attempts++ < DeletionService.MAX_RETRIES)
                 {
-                    timer.schedule(new CleanupTask(), RETRY_DELAY); // re-using TimerTasks is not allowed
+                    StorageService.scheduledTasks.schedule(this, RETRY_DELAY, TimeUnit.MILLISECONDS);
                     return;
                 }
                 else
                 {
-                    // don't throw an exception; it will prevent any future tasks from running in this Timer
                     logger.error("Unable to delete " + datafile + " (it will be removed on server restart)");
                     return;
                 }
