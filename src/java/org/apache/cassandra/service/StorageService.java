@@ -394,7 +394,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             Token token = BootStrapper.getBootstrapToken(tokenMetadata_, StorageLoadBalancer.instance.getLoadInfo());
             // don't bootstrap if there are no tables defined.
             if (DatabaseDescriptor.getNonSystemTables().size() > 0)
-                startBootstrap(token);
+            {
+                bootstrap(token);
+                assert !isBootstrapMode; // bootstrap will block until finishec
+            }
             else
             {
                 isBootstrapMode = false;
@@ -402,18 +405,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 tokenMetadata_.updateNormalToken(token, FBUtilities.getLocalAddress());
                 Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.normal(token));
                 setMode("Normal", false);
-            }
-            // don't finish startup (enabling thrift) until after bootstrap is done
-            while (isBootstrapMode)
-            {
-                try
-                {
-                    Thread.sleep(100);
-                }
-                catch (InterruptedException e)
-                {
-                    throw new AssertionError(e);
-                }
             }
         }
         else
@@ -457,7 +448,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger_.info(m);
     }
 
-    private void startBootstrap(Token token) throws IOException
+    private void bootstrap(Token token) throws IOException
     {
         isBootstrapMode = true;
         SystemTable.updateToken(token); // DON'T use setToken, that makes us part of the ring locally which is incorrect until we are done bootstrapping
@@ -472,7 +463,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             throw new AssertionError(e);
         }
         setMode("Bootstrapping", true);
-        new BootStrapper(FBUtilities.getLocalAddress(), token, tokenMetadata_).startBootstrap(); // handles token update
+        new BootStrapper(FBUtilities.getLocalAddress(), token, tokenMetadata_).bootstrap(); // handles token update
     }
 
     public boolean isBootstrapMode()
@@ -1710,7 +1701,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     bootstrapToken = BootStrapper.getBalancedToken(tokenMetadata_, StorageLoadBalancer.instance.getLoadInfo());
                 }
                 logger_.info("re-bootstrapping to new token {}", bootstrapToken);
-                startBootstrap(bootstrapToken);
+                bootstrap(bootstrapToken);
             }
         };
         unbootstrap(finishMoving);

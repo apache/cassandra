@@ -8,6 +8,7 @@ dev
  * lock row cache updates to prevent race condition (CASSANDRA-1293)
  * remove assertion causing rare (and harmless) error messages in
    commitlog (CASSANDRA-1330)
+ * fix moving nodes with no keyspaces defined (CASSANDRA-1574)
 
 
 0.7-beta2
