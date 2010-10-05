@@ -177,6 +177,12 @@ dev
  * secondary index support (CASSANDRA-749 and subtasks)
 
 
+0.6.6
+ * Allow using DynamicEndpointSnitch with RackAwareStrategy (CASSANDRA-1429)
+ * remove the remaining vestiges of the unfinished DatacenterShardStrategy 
+   (replaced by NetworkTopologyStrategy in 0.7)
+   
+
 0.6.5
  * fix key ordering in range query results with RandomPartitioner
    and ConsistencyLevel > ONE (CASSANDRA-1145)
