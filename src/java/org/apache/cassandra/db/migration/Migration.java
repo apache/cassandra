@@ -223,7 +223,7 @@ public abstract class Migration
         rm.add(new QueryPath(SCHEMA_CF,
                              null,
                              DefsTable.DEFINITION_SCHEMA_COLUMN_NAME),
-                             org.apache.cassandra.config.avro.KsDef.SCHEMA$.toString().getBytes(UTF_8),
+                             org.apache.cassandra.avro.KsDef.SCHEMA$.toString().getBytes(UTF_8),
                              now);
         return rm;
     }

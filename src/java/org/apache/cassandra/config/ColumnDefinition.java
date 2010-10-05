@@ -75,18 +75,18 @@ public class ColumnDefinition {
         return result;
     }
 
-    public org.apache.cassandra.config.avro.ColumnDef deflate()
+    public org.apache.cassandra.avro.ColumnDef deflate()
     {
-        org.apache.cassandra.config.avro.ColumnDef cd = new org.apache.cassandra.config.avro.ColumnDef();
+        org.apache.cassandra.avro.ColumnDef cd = new org.apache.cassandra.avro.ColumnDef();
         cd.name = ByteBuffer.wrap(name);
         cd.validation_class = new Utf8(validator.getClass().getName());
         cd.index_type = index_type == null ? null :
-            Enum.valueOf(org.apache.cassandra.config.avro.IndexType.class, index_type.name());
+            Enum.valueOf(org.apache.cassandra.avro.IndexType.class, index_type.name());
         cd.index_name = index_name == null ? null : new Utf8(index_name);
         return cd;
     }
 
-    public static ColumnDefinition inflate(org.apache.cassandra.config.avro.ColumnDef cd)
+    public static ColumnDefinition inflate(org.apache.cassandra.avro.ColumnDef cd)
     {
         byte[] name = new byte[cd.name.remaining()];
         cd.name.get(name, 0, name.length);

@@ -24,20 +24,23 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+import org.apache.cassandra.avro.ColumnDef;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
 import org.apache.avro.util.Utf8;
-import org.apache.cassandra.config.avro.ColumnDef;
 import org.apache.cassandra.db.*;
+
+import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.io.SerDeUtils;
+import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.db.ClockType;
 import org.apache.cassandra.db.clock.AbstractReconciler;
 import org.apache.cassandra.db.clock.TimestampReconciler;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.migration.Migration;
-import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -297,9 +300,19 @@ public final class CFMetaData
         cfIdMap.remove(new Pair<String, String>(cfm.tableName, cfm.cfName));
     }
 
-    public org.apache.cassandra.config.avro.CfDef deflate()
+    // a quick and dirty pretty printer for describing the column family...
+    //TODO: Make it prettier, use it in the CLI
+    public String pretty()
     {
-        org.apache.cassandra.config.avro.CfDef cf = new org.apache.cassandra.config.avro.CfDef();
+        return tableName + "." + cfName + "\n"
+               + "Column Family Type: " + cfType + "\n"
+               + "Column Family Clock Type: " + clockType + "\n"
+               + "Columns Sorted By: " + comparator + "\n";
+    }
+
+    public org.apache.cassandra.avro.CfDef deflate()
+    {
+        org.apache.cassandra.avro.CfDef cf = new org.apache.cassandra.avro.CfDef();
         cf.id = cfId;
         cf.keyspace = new Utf8(tableName);
         cf.name = new Utf8(cfName);
@@ -317,13 +330,13 @@ public final class CFMetaData
         cf.min_compaction_threshold = minCompactionThreshold;
         cf.max_compaction_threshold = maxCompactionThreshold;
         cf.column_metadata = SerDeUtils.createArray(column_metadata.size(),
-                                                    org.apache.cassandra.config.avro.ColumnDef.SCHEMA$);
+                                                    org.apache.cassandra.avro.ColumnDef.SCHEMA$);
         for (ColumnDefinition cd : column_metadata.values())
             cf.column_metadata.add(cd.deflate());
         return cf;
     }
 
-    public static CFMetaData inflate(org.apache.cassandra.config.avro.CfDef cf)
+    public static CFMetaData inflate(org.apache.cassandra.avro.CfDef cf)
     {
         AbstractType comparator;
         AbstractType subcolumnComparator = null;

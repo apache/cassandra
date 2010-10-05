@@ -71,9 +71,9 @@ public final class KSMetaData
         return cfMetaData;
     }
         
-    public org.apache.cassandra.config.avro.KsDef deflate()
+    public org.apache.cassandra.avro.KsDef deflate()
     {
-        org.apache.cassandra.config.avro.KsDef ks = new org.apache.cassandra.config.avro.KsDef();
+        org.apache.cassandra.avro.KsDef ks = new org.apache.cassandra.avro.KsDef();
         ks.name = new Utf8(name);
         ks.strategy_class = new Utf8(strategyClass.getName());
         if (strategyOptions != null)
@@ -85,13 +85,13 @@ public final class KSMetaData
             }
         }
         ks.replication_factor = replicationFactor;
-        ks.cf_defs = SerDeUtils.createArray(cfMetaData.size(), org.apache.cassandra.config.avro.CfDef.SCHEMA$);
+        ks.cf_defs = SerDeUtils.createArray(cfMetaData.size(), org.apache.cassandra.avro.CfDef.SCHEMA$);
         for (CFMetaData cfm : cfMetaData.values())
             ks.cf_defs.add(cfm.deflate());
         return ks;
     }
 
-    public static KSMetaData inflate(org.apache.cassandra.config.avro.KsDef ks)
+    public static KSMetaData inflate(org.apache.cassandra.avro.KsDef ks)
     {
         Class<AbstractReplicationStrategy> repStratClass;
         try
@@ -114,7 +114,7 @@ public final class KSMetaData
         }
         int cfsz = (int)ks.cf_defs.size();
         CFMetaData[] cfMetaData = new CFMetaData[cfsz];
-        Iterator<org.apache.cassandra.config.avro.CfDef> cfiter = ks.cf_defs.iterator();
+        Iterator<org.apache.cassandra.avro.CfDef> cfiter = ks.cf_defs.iterator();
         for (int i = 0; i < cfsz; i++)
             cfMetaData[i] = CFMetaData.inflate(cfiter.next());
 

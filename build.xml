@@ -187,8 +187,12 @@
 
     <target name="avro-interface-generate-client" unless="avroInterfaceUpToDate"
             depends="init,check-avro-generate,ivy-retrieve-build">
+      <!-- A copy for interested clients. TODO: Jar this stuff up. -->
       <avromacro protocolname="cassandra" inputfile="${interface.dir}/cassandra.genavro"
-                 jsondir="${interface.avro.dir}" outputdir="${interface.avro.dir}" />
+          jsondir="${interface.avro.dir}" outputdir="${interface.avro.dir}" />
+      <!-- A copy for our build. -->
+      <avromacro protocolname="api" inputfile="${interface.dir}/cassandra.genavro"
+                 jsondir="${build.dir}" outputdir="${build.src}" />
     </target>
     <target name="avro-interface-generate-internode" unless="avroINProtoUpToDate"
             depends="init,check-avro-generate,ivy-retrieve-build">
@@ -271,7 +275,6 @@
             <src path="${build.src.java}"/>
             <src path="${build.src.gen-java}"/>
             <src path="${interface.thrift.dir}/gen-java"/>
-            <src path="${interface.avro.dir}/gen-java"/>
                 <classpath refid="cassandra.classpath"/>
         </javac>
         
