@@ -21,8 +21,6 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.*;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +55,7 @@ public class SSTableWriter extends SSTable
     public SSTableWriter(String filename, long keyCount, CFMetaData metadata, IPartitioner partitioner) throws IOException
     {
         super(Descriptor.fromFilename(filename), metadata, partitioner);
-        iwriter = new IndexWriter(desc, partitioner, keyCount);
+        iwriter = new IndexWriter(descriptor, partitioner, keyCount);
         dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
         dataFile = new BufferedRandomAccessFile(getFilename(), "rw", DatabaseDescriptor.getInMemoryCompactionLimit());
 
@@ -148,10 +146,10 @@ public class SSTableWriter extends SSTable
         dataFile.close(); // calls force
 
         // write sstable statistics
-        writeStatistics(desc);
+        writeStatistics(descriptor);
 
         // remove the 'tmp' marker from all components
-        final Descriptor newdesc = rename(desc, components);
+        final Descriptor newdesc = rename(descriptor, components);
 
 
         // finalize in-memory state for the reader

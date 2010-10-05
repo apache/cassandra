@@ -42,7 +42,7 @@ public class ReducingKeyIterator implements Iterator<DecoratedKey>, Closeable
         ci = FBUtilities.getCollatingIterator();
         for (SSTableReader sstable : sstables)
         {
-            ci.addIterator(new KeyIterator(sstable.desc));
+            ci.addIterator(new KeyIterator(sstable.descriptor));
         }
 
         iter = new ReducingIterator<DecoratedKey, DecoratedKey>(ci)

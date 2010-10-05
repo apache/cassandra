@@ -224,7 +224,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     void loadBloomFilter() throws IOException
     {
-        DataInputStream stream = new DataInputStream(new FileInputStream(desc.filenameFor(Component.FILTER)));
+        DataInputStream stream = new DataInputStream(new FileInputStream(descriptor.filenameFor(Component.FILTER)));
         try
         {
             bf = BloomFilter.serializer().deserialize(stream);
@@ -245,7 +245,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
         // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
         indexSummary = new IndexSummary();
-        BufferedRandomAccessFile input = new BufferedRandomAccessFile(desc.filenameFor(Component.PRIMARY_INDEX), "r");
+        BufferedRandomAccessFile input = new BufferedRandomAccessFile(descriptor.filenameFor(Component.PRIMARY_INDEX), "r");
         try
         {
             long indexSize = input.length();
@@ -258,7 +258,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                 if (indexPosition == indexSize)
                     break;
 
-                DecoratedKey decoratedKey = decodeKey(partitioner, desc, FBUtilities.readShortByteArray(input));
+                DecoratedKey decoratedKey = decodeKey(partitioner, descriptor, FBUtilities.readShortByteArray(input));
                 if (recreatebloom)
                     bf.add(decoratedKey.key);
                 long dataPosition = input.readLong();
@@ -276,8 +276,8 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
         // finalize the state of the reader
         indexSummary.complete();
-        ifile = ibuilder.complete(desc.filenameFor(Component.PRIMARY_INDEX));
-        dfile = dbuilder.complete(desc.filenameFor(Component.DATA));
+        ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
+        dfile = dbuilder.complete(descriptor.filenameFor(Component.DATA));
     }
 
     /** get the position in the index file to start scanning to find the given key (at most indexInterval keys away) */
@@ -381,7 +381,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
             return -1;
 
         // next, the key cache
-        Pair<Descriptor, DecoratedKey> unifiedKey = new Pair<Descriptor, DecoratedKey>(desc, decoratedKey);
+        Pair<Descriptor, DecoratedKey> unifiedKey = new Pair<Descriptor, DecoratedKey>(descriptor, decoratedKey);
         if (keyCache != null && keyCache.getCapacity() > 0)
         {
             Long cachedPosition = keyCache.get(unifiedKey);
@@ -411,7 +411,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                 while (!input.isEOF())
                 {
                     // read key & data position from index entry
-                    DecoratedKey indexDecoratedKey = decodeKey(partitioner, desc, FBUtilities.readShortByteArray(input));
+                    DecoratedKey indexDecoratedKey = decodeKey(partitioner, descriptor, FBUtilities.readShortByteArray(input));
                     long dataPosition = input.readLong();
 
                     int comparison = indexDecoratedKey.compareTo(decoratedKey);
@@ -471,7 +471,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
             logger.debug("Marking " + getFilename() + " compacted");
         try
         {
-            if (!new File(desc.filenameFor(Component.COMPACTED_MARKER)).createNewFile())
+            if (!new File(descriptor.filenameFor(Component.COMPACTED_MARKER)).createNewFile())
                 throw new IOException("Unable to create compaction marker");
         }
         catch (IOException e)
@@ -513,7 +513,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     public int compareTo(SSTableReader o)
     {
-        return desc.generation - o.desc.generation;
+        return descriptor.generation - o.descriptor.generation;
     }
 
     public AbstractType getColumnComparator()

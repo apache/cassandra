@@ -24,28 +24,19 @@ package org.apache.cassandra.io;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.net.InetAddress;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.dht.CollatingOrderPreservingPartitioner;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.utils.BloomFilter;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static junit.framework.Assert.assertEquals;
 
@@ -78,8 +69,8 @@ public class LazilyCompactedRowTest extends CleanupHelper
             // key isn't part of what CompactedRow writes, that's done by SSTW.append
 
             // row size can differ b/c of bloom filter counts being different
-            long rowSize1 = SSTableReader.readRowSize(in1, sstables.iterator().next().getDescriptor());
-            long rowSize2 = SSTableReader.readRowSize(in2, sstables.iterator().next().getDescriptor());
+            long rowSize1 = SSTableReader.readRowSize(in1, sstables.iterator().next().descriptor);
+            long rowSize2 = SSTableReader.readRowSize(in2, sstables.iterator().next().descriptor);
             assertEquals(out1.getLength(), rowSize1 + 8);
             assertEquals(out2.getLength(), rowSize2 + 8);
             // bloom filter

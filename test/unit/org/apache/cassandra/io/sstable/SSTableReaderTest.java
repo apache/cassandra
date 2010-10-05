@@ -116,8 +116,8 @@ public class SSTableReaderTest extends CleanupHelper
         {
             DecoratedKey dk = Util.dk(String.valueOf(j));
             FileDataInput file = sstable.getFileDataInput(dk, DatabaseDescriptor.getIndexedReadBufferSizeInKB() * 1024);
-            DecoratedKey keyInDisk = SSTableReader.decodeKey(sstable.getPartitioner(),
-                                                             sstable.getDescriptor(),
+            DecoratedKey keyInDisk = SSTableReader.decodeKey(sstable.partitioner,
+                                                             sstable.descriptor,
                                                              FBUtilities.readShortByteArray(file));
             assert keyInDisk.equals(dk) : String.format("%s != %s in %s", keyInDisk, dk, file.getPath());
         }

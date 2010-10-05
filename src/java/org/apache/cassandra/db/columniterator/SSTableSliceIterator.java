@@ -52,12 +52,12 @@ public class SSTableSliceIterator implements IColumnIterator
 
         try
         {
-            DecoratedKey keyInDisk = SSTableReader.decodeKey(sstable.getPartitioner(),
-                                                             sstable.getDescriptor(),
+            DecoratedKey keyInDisk = SSTableReader.decodeKey(sstable.partitioner,
+                                                             sstable.descriptor,
                                                              FBUtilities.readShortByteArray(fileToClose));
             assert keyInDisk.equals(key)
                    : String.format("%s != %s in %s", keyInDisk, key, fileToClose.getPath());
-            SSTableReader.readRowSize(fileToClose, sstable.getDescriptor());
+            SSTableReader.readRowSize(fileToClose, sstable.descriptor);
         }
         catch (IOException e)
         {

@@ -59,10 +59,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.LatencyTracker;
-import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.utils.*;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
@@ -278,8 +275,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long min = 0;
         for (SSTableReader sstable : ssTables)
         {
-           if (min == 0 || sstable.getEstimatedRowSize().min() < min)
-               min = sstable.getEstimatedRowSize().min();
+            if (min == 0 || sstable.estimatedRowSize.min() < min)
+                min = sstable.estimatedRowSize.min();
         }
         return min;
     }
@@ -289,8 +286,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long max = 0;
         for (SSTableReader sstable : ssTables)
         {
-            if (sstable.getEstimatedRowSize().max() > max)
-                max = sstable.getEstimatedRowSize().max();
+            if (sstable.estimatedRowSize.max() > max)
+                max = sstable.estimatedRowSize.max();
         }
         return max;
     }
@@ -301,7 +298,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long count = 0;
         for (SSTableReader sstable : ssTables)
         {
-            sum += sstable.getEstimatedRowSize().median();
+            sum += sstable.estimatedRowSize.median();
             count++;
         }
         return count > 0 ? sum / count : 0;
@@ -313,7 +310,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         int count = 0;
         for (SSTableReader sstable : ssTables)
         {
-            sum += sstable.getEstimatedColumnCount().median();
+            sum += sstable.estimatedColumnCount.median();
             count++;
         }
         return count > 0 ? (int) (sum / count) : 0;
@@ -1353,14 +1350,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             try
             {
                 // mkdir
-                File dataDirectory = ssTable.getDescriptor().directory.getParentFile();
+                File dataDirectory = ssTable.descriptor.directory.getParentFile();
                 String snapshotDirectoryPath = Table.getSnapshotPath(dataDirectory.getAbsolutePath(), table.name, snapshotName);
                 FileUtils.createDirectory(snapshotDirectoryPath);
 
                 // hard links
-                for (Component component : ssTable.getComponents())
+                for (Component component : ssTable.components)
                 {
-                    File sourceFile = new File(ssTable.getDescriptor().filenameFor(component));
+                    File sourceFile = new File(ssTable.descriptor.filenameFor(component));
                     File targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
                     FileUtils.createHardLink(sourceFile, targetLink);
                 }

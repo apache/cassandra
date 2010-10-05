@@ -43,7 +43,7 @@ public class SSTableTest extends CleanupHelper
 
         // verify
         verifySingle(ssTable, bytes, key);
-        ssTable = SSTableReader.open(ssTable.getDescriptor()); // read the index from disk
+        ssTable = SSTableReader.open(ssTable.descriptor); // read the index from disk
         verifySingle(ssTable, bytes, key);
     }
 
@@ -52,7 +52,7 @@ public class SSTableTest extends CleanupHelper
         BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.getFilename(), "r");
         file.seek(sstable.getPosition(sstable.partitioner.decorateKey(key), SSTableReader.Operator.EQ));
         assert Arrays.equals(key, FBUtilities.readShortByteArray(file));
-        int size = (int)SSTableReader.readRowSize(file, sstable.getDescriptor());
+        int size = (int)SSTableReader.readRowSize(file, sstable.descriptor);
         byte[] bytes2 = new byte[size];
         file.readFully(bytes2);
         assert Arrays.equals(bytes2, bytes);
@@ -71,7 +71,7 @@ public class SSTableTest extends CleanupHelper
 
         // verify
         verifyMany(ssTable, map);
-        ssTable = SSTableReader.open(ssTable.getDescriptor()); // read the index from disk
+        ssTable = SSTableReader.open(ssTable.descriptor); // read the index from disk
         verifyMany(ssTable, map);
     }
 
@@ -84,7 +84,7 @@ public class SSTableTest extends CleanupHelper
         {
             file.seek(sstable.getPosition(sstable.partitioner.decorateKey(key), SSTableReader.Operator.EQ));
             assert Arrays.equals(key, FBUtilities.readShortByteArray(file));
-            int size = (int)SSTableReader.readRowSize(file, sstable.getDescriptor());
+            int size = (int)SSTableReader.readRowSize(file, sstable.descriptor);
             byte[] bytes2 = new byte[size];
             file.readFully(bytes2);
             assert Arrays.equals(bytes2, map.get(key));

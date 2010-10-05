@@ -61,11 +61,11 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
 
         try
         {
-            DecoratedKey keyInDisk = SSTableReader.decodeKey(sstable.getPartitioner(),
-                                                             sstable.getDescriptor(),
+            DecoratedKey keyInDisk = SSTableReader.decodeKey(sstable.partitioner,
+                                                             sstable.descriptor,
                                                              FBUtilities.readShortByteArray(file));
             assert keyInDisk.equals(key) : String.format("%s != %s in %s", keyInDisk, key, file.getPath());
-            SSTableReader.readRowSize(file, sstable.getDescriptor());
+            SSTableReader.readRowSize(file, sstable.descriptor);
             read(sstable.metadata, file);
         }
         catch (IOException e)

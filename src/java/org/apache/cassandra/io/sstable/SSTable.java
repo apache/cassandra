@@ -59,52 +59,27 @@ public abstract class SSTable
 
     public static final String COMPONENT_COMPACTED = Component.Type.COMPACTED_MARKER.repr;
 
-    protected final Descriptor desc;
-    protected final Set<Component> components;
-    public final CFMetaData metadata;
-    protected final IPartitioner partitioner;
-
     public static final String TEMPFILE_MARKER = "tmp";
 
-    protected EstimatedHistogram estimatedRowSize = new EstimatedHistogram(150);
-    protected EstimatedHistogram estimatedColumnCount = new EstimatedHistogram(114);
+    public final Descriptor descriptor;
+    public final Set<Component> components;
+    public final CFMetaData metadata;
+    public final IPartitioner partitioner;
 
-    protected SSTable(Descriptor desc, CFMetaData metadata, IPartitioner partitioner)
+    public final EstimatedHistogram estimatedRowSize = new EstimatedHistogram(150);
+    public final EstimatedHistogram estimatedColumnCount = new EstimatedHistogram(114);
+
+    protected SSTable(Descriptor descriptor, CFMetaData metadata, IPartitioner partitioner)
     {
-        this(desc, new HashSet<Component>(), metadata, partitioner);
+        this(descriptor, new HashSet<Component>(), metadata, partitioner);
     }
 
-    protected SSTable(Descriptor desc, Set<Component> components, CFMetaData metadata, IPartitioner partitioner)
+    protected SSTable(Descriptor descriptor, Set<Component> components, CFMetaData metadata, IPartitioner partitioner)
     {
-        this.desc = desc;
+        this.descriptor = descriptor;
         this.components = components;
         this.metadata = metadata;
         this.partitioner = partitioner;
-    }
-
-    public EstimatedHistogram getEstimatedRowSize()
-    {
-        return estimatedRowSize;
-    }
-
-    public EstimatedHistogram getEstimatedColumnCount()
-    {
-        return estimatedColumnCount;
-    }
-
-    public IPartitioner getPartitioner()
-    {
-        return partitioner;
-    }
-
-    public Descriptor getDescriptor()
-    {
-        return desc;
-    }
-
-    public Set<Component> getComponents()
-    {
-        return components;
     }
 
     /**
@@ -148,17 +123,17 @@ public abstract class SSTable
 
     public String getFilename()
     {
-        return desc.filenameFor(COMPONENT_DATA);
+        return descriptor.filenameFor(COMPONENT_DATA);
     }
 
     public String getColumnFamilyName()
     {
-        return desc.cfname;
+        return descriptor.cfname;
     }
 
     public String getTableName()
     {
-        return desc.ksname;
+        return descriptor.ksname;
     }
 
     /**
@@ -212,7 +187,7 @@ public abstract class SSTable
         long bytes = 0;
         for (Component component : components)
         {
-            bytes += new File(desc.filenameFor(component)).length();
+            bytes += new File(descriptor.filenameFor(component)).length();
         }
         return bytes;
     }

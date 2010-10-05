@@ -23,7 +23,6 @@ package org.apache.cassandra.io.sstable;
 
 import static org.junit.Assert.*;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -76,10 +75,10 @@ public class SSTableWriterTest extends CleanupHelper {
         
         SSTableReader orig = SSTableUtils.writeRawSSTable("Keyspace1", "Indexed1", entries);        
         // whack the index to trigger the recover
-        FileUtils.deleteWithConfirm(orig.desc.filenameFor(Component.PRIMARY_INDEX));
-        FileUtils.deleteWithConfirm(orig.desc.filenameFor(Component.FILTER));
+        FileUtils.deleteWithConfirm(orig.descriptor.filenameFor(Component.PRIMARY_INDEX));
+        FileUtils.deleteWithConfirm(orig.descriptor.filenameFor(Component.FILTER));
 
-        SSTableReader sstr = CompactionManager.instance.submitSSTableBuild(orig.desc).get();
+        SSTableReader sstr = CompactionManager.instance.submitSSTableBuild(orig.descriptor).get();
         ColumnFamilyStore cfs = Table.open("Keyspace1").getColumnFamilyStore("Indexed1");
         cfs.addSSTable(sstr);
         cfs.buildSecondaryIndexes(cfs.getSSTables(), cfs.getIndexedColumns());

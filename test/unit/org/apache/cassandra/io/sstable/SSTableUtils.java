@@ -25,7 +25,6 @@ import java.util.*;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.service.StorageService;
 
 public class SSTableUtils
 {
@@ -91,8 +90,8 @@ public class SSTableUtils
             sortedEntries.put(writer.partitioner.decorateKey(entry.getKey()), entry.getValue());
         for (Map.Entry<DecoratedKey, byte[]> entry : sortedEntries.entrySet())
             writer.append(entry.getKey(), entry.getValue());
-        new File(writer.desc.filenameFor(Component.PRIMARY_INDEX)).deleteOnExit();
-        new File(writer.desc.filenameFor(Component.FILTER)).deleteOnExit();
+        new File(writer.descriptor.filenameFor(Component.PRIMARY_INDEX)).deleteOnExit();
+        new File(writer.descriptor.filenameFor(Component.FILTER)).deleteOnExit();
         return writer.closeAndOpenReader();
     }
 

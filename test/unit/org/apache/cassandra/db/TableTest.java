@@ -399,7 +399,7 @@ public class TableTest extends CleanupHelper
         BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.getFilename(), "r");
         file.seek(position);
         assert Arrays.equals(FBUtilities.readShortByteArray(file), key.key);
-        SSTableReader.readRowSize(file, sstable.getDescriptor());
+        SSTableReader.readRowSize(file, sstable.descriptor);
         IndexHelper.skipBloomFilter(file);
         ArrayList<IndexHelper.IndexInfo> indexes = IndexHelper.deserializeIndex(file);
         assert indexes.size() > 2;
