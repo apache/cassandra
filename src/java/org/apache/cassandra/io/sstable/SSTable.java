@@ -66,8 +66,8 @@ public abstract class SSTable
     public final CFMetaData metadata;
     public final IPartitioner partitioner;
 
-    public final EstimatedHistogram estimatedRowSize = new EstimatedHistogram(150);
-    public final EstimatedHistogram estimatedColumnCount = new EstimatedHistogram(114);
+    protected EstimatedHistogram estimatedRowSize = new EstimatedHistogram(150);
+    protected EstimatedHistogram estimatedColumnCount = new EstimatedHistogram(114);
 
     protected SSTable(Descriptor descriptor, CFMetaData metadata, IPartitioner partitioner)
     {
@@ -80,6 +80,16 @@ public abstract class SSTable
         this.components = components;
         this.metadata = metadata;
         this.partitioner = partitioner;
+    }
+
+    public EstimatedHistogram getEstimatedRowSize()
+    {
+        return estimatedRowSize;
+    }
+
+    public EstimatedHistogram getEstimatedColumnCount()
+    {
+        return estimatedColumnCount;
     }
 
     /**

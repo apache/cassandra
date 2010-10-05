@@ -59,7 +59,10 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
-import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.LatencyTracker;
+import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.WrappedRunnable;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
@@ -275,8 +278,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long min = 0;
         for (SSTableReader sstable : ssTables)
         {
-            if (min == 0 || sstable.estimatedRowSize.min() < min)
-                min = sstable.estimatedRowSize.min();
+            if (min == 0 || sstable.getEstimatedRowSize().min() < min)
+                min = sstable.getEstimatedRowSize().min();
         }
         return min;
     }
@@ -286,8 +289,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long max = 0;
         for (SSTableReader sstable : ssTables)
         {
-            if (sstable.estimatedRowSize.max() > max)
-                max = sstable.estimatedRowSize.max();
+            if (sstable.getEstimatedRowSize().max() > max)
+                max = sstable.getEstimatedRowSize().max();
         }
         return max;
     }
@@ -298,7 +301,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long count = 0;
         for (SSTableReader sstable : ssTables)
         {
-            sum += sstable.estimatedRowSize.median();
+            sum += sstable.getEstimatedRowSize().median();
             count++;
         }
         return count > 0 ? sum / count : 0;
@@ -310,7 +313,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         int count = 0;
         for (SSTableReader sstable : ssTables)
         {
-            sum += sstable.estimatedColumnCount.median();
+            sum += sstable.getEstimatedColumnCount().median();
             count++;
         }
         return count > 0 ? (int) (sum / count) : 0;
