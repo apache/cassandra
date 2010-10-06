@@ -41,6 +41,8 @@ public class ClientState
     // Current user for the session
     private AuthenticatedUser user;
     private String keyspace;
+    // Reusable array for authorization
+    private final List<Object> resource = new ArrayList<Object>();
 
     /**
      * Construct a new, empty ClientState: can be reused after logout() or reset().
@@ -87,10 +89,18 @@ public class ClientState
         reset();
     }
 
+    private void resourceClear()
+    {
+        resource.clear();
+        resource.add(Resources.ROOT);
+        resource.add(Resources.KEYSPACES);
+    }
+
     public void reset()
     {
         user = DatabaseDescriptor.getAuthenticator().defaultUser();
         keyspace = null;
+        resourceClear();
     }
 
     /**
@@ -100,7 +110,7 @@ public class ClientState
     {
         validateLogin();
         
-        List<Object> resource = Arrays.<Object>asList(Resources.ROOT, Resources.KEYSPACES);
+        resourceClear();
         Set<Permission> perms = DatabaseDescriptor.getAuthority().authorize(user, resource);
 
         hasAccess(user, perms, perm, resource);
@@ -115,7 +125,8 @@ public class ClientState
         validateLogin();
         validateKeyspace();
         
-        List<Object> resource = Arrays.<Object>asList(Resources.ROOT, Resources.KEYSPACES, keyspace);
+        resourceClear();
+        resource.add(keyspace);
         Set<Permission> perms = DatabaseDescriptor.getAuthority().authorize(user, resource);
         
         hasAccess(user, perms, perm, resource);
@@ -130,7 +141,9 @@ public class ClientState
         validateLogin();
         validateKeyspace();
         
-        List<Object> resource = Arrays.<Object>asList(Resources.ROOT, Resources.KEYSPACES, keyspace, columnFamily);
+        resourceClear();
+        resource.add(keyspace);
+        resource.add(columnFamily);
         Set<Permission> perms = DatabaseDescriptor.getAuthority().authorize(user, resource);
         
         hasAccess(user, perms, perm, resource);
