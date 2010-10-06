@@ -766,11 +766,6 @@ public class CassandraServer implements Cassandra.Iface
     {
         state().hasKeyspaceListAccess(Permission.WRITE);
         
-        int totalNodes = Gossiper.instance.getLiveMembers().size() + Gossiper.instance.getUnreachableMembers().size();
-        if (totalNodes < ks_def.replication_factor)
-            throw new InvalidRequestException(String.format("%s live nodes are not enough to support replication factor %s",
-                                                            totalNodes, ks_def.replication_factor));
-        
         // generate a meaningful error if the user setup keyspace and/or column definition incorrectly
         for (CfDef cf : ks_def.cf_defs) 
         {
@@ -864,10 +859,6 @@ public class CassandraServer implements Cassandra.Iface
         if (ks_def.getCf_defs() != null && ks_def.getCf_defs().size() > 0)
             throw new InvalidRequestException("Keyspace update must not contain any column family definitions.");
         
-        int totalNodes = Gossiper.instance.getLiveMembers().size() + Gossiper.instance.getUnreachableMembers().size();
-        if (totalNodes < ks_def.replication_factor)
-            throw new InvalidRequestException(String.format("%s live nodes are not enough to support replication factor %s",
-                                                            totalNodes, ks_def.replication_factor));
         if (DatabaseDescriptor.getTableDefinition(ks_def.name) == null)
             throw new InvalidRequestException("Keyspace does not exist.");
         
@@ -875,7 +866,7 @@ public class CassandraServer implements Cassandra.Iface
         {
             KSMetaData ksm = new KSMetaData(
                     ks_def.name, 
-                    (Class<? extends AbstractReplicationStrategy>)FBUtilities.<AbstractReplicationStrategy>classForName(ks_def.strategy_class, "keyspace replication strategy"),
+                    FBUtilities.<AbstractReplicationStrategy>classForName(ks_def.strategy_class, "keyspace replication strategy"),
                     ks_def.strategy_options,
                     ks_def.replication_factor);
             applyMigrationOnStage(new UpdateKeyspace(ksm));

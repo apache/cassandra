@@ -635,11 +635,6 @@ public class CassandraServer implements Cassandra {
         if (!(DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator))
             throw newInvalidRequestException("Unable to create new keyspace while authentication is enabled.");
 
-        int totalNodes = Gossiper.instance.getLiveMembers().size() + Gossiper.instance.getUnreachableMembers().size();
-        if (totalNodes < ksDef.replication_factor)
-            throw newInvalidRequestException(String.format("%s live nodes are not enough to support replication factor %s",
-                                                           totalNodes, ksDef.replication_factor));
-
         //generate a meaningful error if the user setup keyspace and/or column definition incorrectly
         for (CfDef cf : ksDef.cf_defs) 
         {
@@ -744,10 +739,6 @@ public class CassandraServer implements Cassandra {
         if (ks_def.cf_defs != null && ks_def.cf_defs.size() > 0)
             throw newInvalidRequestException("Keyspace update must not contain any column family definitions.");
         
-        int totalNodes = Gossiper.instance.getLiveMembers().size() + Gossiper.instance.getUnreachableMembers().size();
-        if (totalNodes < ks_def.replication_factor)
-            throw newInvalidRequestException(String.format("%s live nodes are not enough to support replication factor %s",
-                                                           totalNodes, ks_def.replication_factor));
         if (DatabaseDescriptor.getTableDefinition(ks_def.name.toString()) == null)
             throw newInvalidRequestException("Keyspace does not exist.");
         

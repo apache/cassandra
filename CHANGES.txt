@@ -15,6 +15,7 @@ dev
  * deletion support in secondary indexes (CASSANDRA-1571)
  * meaningful error message for invalid replication strategy class 
    (CASSANDRA-1566)
+ * allow keyspace creation with RF > N (CASSANDRA-1428)
 
 
 0.7-beta2

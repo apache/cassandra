@@ -1903,13 +1903,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 if (DatabaseDescriptor.getDefsVersion().timestamp() > 0 || Migration.getLastMigrationId() != null)
                     throw new ConfigurationException("Cannot load from XML on top of pre-existing schemas.");
              
-                // cycle through first to make sure we can satisfy live nodes constraint.
-                int totalNodes = Gossiper.instance.getLiveMembers().size() + Gossiper.instance.getUnreachableMembers().size();
-                for (KSMetaData table : tables)
-                    if (totalNodes < table.replicationFactor)
-                        throw new ConfigurationException(String.format("%s live nodes are not enough to support replication factor %s",
-                                                                       totalNodes, table.replicationFactor));
-                
                 Migration migration = null;
                 for (KSMetaData table : tables)
                 {

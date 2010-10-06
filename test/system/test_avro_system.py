@@ -56,19 +56,12 @@ class TestSystemOperations(AvroTester):
         
         self.client.request('set_keyspace', {'keyspace' : 'CreateKeyspace'})
         
-        # modify invalid
+        # modify valid
         modified_keyspace = {'name': 'CreateKeyspace', 
                              'strategy_class': 'org.apache.cassandra.locator.OldNetworkTopologyStrategy',
                              'strategy_options': {}, 
-                             'replication_factor': 2, 
+                             'replication_factor': 1, 
                              'cf_defs': []}
-        avro_utils.assert_raises(AvroRemoteException,
-                self.client.request,
-                'system_update_keyspace',
-                {'ks_def': modified_keyspace})
-        
-        # modify valid
-        modified_keyspace['replication_factor'] = 1
         self.client.request('system_update_keyspace', {'ks_def': modified_keyspace})
         modks = self.client.request('describe_keyspace', {'keyspace': 'CreateKeyspace'})
         assert modks['replication_factor'] == modified_keyspace['replication_factor']

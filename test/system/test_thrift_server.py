@@ -1208,9 +1208,8 @@ class TestMutations(ThriftTester):
             client.system_drop_keyspace(keyspace)
     
     def test_system_keyspace_operations(self):
-        """ Test keyspace (add, drop, rename) operations """
-        # create
-        keyspace = KsDef('CreateKeyspace', 'org.apache.cassandra.locator.SimpleStrategy', {}, 1,
+        # create.  note large RF, this is OK
+        keyspace = KsDef('CreateKeyspace', 'org.apache.cassandra.locator.SimpleStrategy', {}, 10,
                          [CfDef('CreateKeyspace', 'CreateKsCf')])
         client.system_add_keyspace(keyspace)
         newks = client.describe_keyspace('CreateKeyspace')
@@ -1218,14 +1217,8 @@ class TestMutations(ThriftTester):
         
         _set_keyspace('CreateKeyspace')
         
-        # modify invlid
-        modified_keyspace = KsDef('CreateKeyspace', 'org.apache.cassandra.locator.OldNetworkTopologyStrategy', {}, 2, [])
-        def fail_too_high_rf():
-            client.system_update_keyspace(modified_keyspace)
-        _expect_exception(fail_too_high_rf, InvalidRequestException)
-        
         # modify valid
-        modified_keyspace.replication_factor = 1
+        modified_keyspace = KsDef('CreateKeyspace', 'org.apache.cassandra.locator.OldNetworkTopologyStrategy', {}, 1, [])
         client.system_update_keyspace(modified_keyspace)
         modks = client.describe_keyspace('CreateKeyspace')
         assert modks.replication_factor == modified_keyspace.replication_factor
