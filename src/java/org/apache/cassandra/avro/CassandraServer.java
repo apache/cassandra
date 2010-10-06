@@ -670,17 +670,13 @@ public class CassandraServer implements Cassandra {
 
             KSMetaData ksmeta = new KSMetaData(
                     ksDef.name.toString(),
-                    (Class<? extends AbstractReplicationStrategy>)Class.forName(ksDef.strategy_class.toString()),
+                    FBUtilities.<AbstractReplicationStrategy>classForName(ksDef.strategy_class.toString(), "keyspace replication strategy"),
                     strategyOptions,
                     ksDef.replication_factor,
                     cfDefs.toArray(new CFMetaData[cfDefs.size()]));
             applyMigrationOnStage(new AddKeyspace(ksmeta));
             return DatabaseDescriptor.getDefsVersion().toString();
             
-        }
-        catch (ClassNotFoundException e)
-        {
-            throw newInvalidRequestException(e);
         }
         catch (ConfigurationException e)
         {

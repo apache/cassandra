@@ -1140,7 +1140,24 @@ class TestMutations(ThriftTester):
         def invalid_rename():
             client.system_rename_keyspace('Keyspace1', 'in-valid')
         _expect_exception(invalid_rename, InvalidRequestException)
-        
+
+    def test_invalid_strategy_class(self):
+        def add_invalid_keyspace():
+            client.system_add_keyspace(KsDef('ValidKs', 'InvalidStrategyClass', {}, 1, []))
+        exc = _expect_exception(add_invalid_keyspace, InvalidRequestException)
+        s = str(exc)
+        assert s.find("InvalidStrategyClass") > -1, s
+        assert s.find("keyspace replication strategy") > -1, s
+
+        def update_invalid_keyspace():
+            client.system_add_keyspace(KsDef('ValidKsForUpdate', 'org.apache.cassandra.locator.SimpleStrategy', {}, 1, []))
+            client.system_update_keyspace(KsDef('ValidKsForUpdate', 'InvalidStrategyClass', {}, 1, []))
+
+        exc = _expect_exception(update_invalid_keyspace, InvalidRequestException)
+        s = str(exc)
+        assert s.find("InvalidStrategyClass") > -1, s
+        assert s.find("keyspace replication strategy") > -1, s
+
     def test_invalid_cf_names(self):
         def invalid_cf():
             _set_keyspace('Keyspace1')

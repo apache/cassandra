@@ -789,18 +789,12 @@ public class CassandraServer implements Cassandra.Iface
             }
 
             KSMetaData ksm = new KSMetaData(ks_def.name,
-                                            (Class<? extends AbstractReplicationStrategy>) Class.forName(ks_def.strategy_class),
+                                            FBUtilities.<AbstractReplicationStrategy>classForName(ks_def.strategy_class, "keyspace replication strategy"),
                                             ks_def.strategy_options,
                                             ks_def.replication_factor,
                                             cfDefs.toArray(new CFMetaData[cfDefs.size()]));
             applyMigrationOnStage(new AddKeyspace(ksm));
             return DatabaseDescriptor.getDefsVersion().toString();
-        }
-        catch (ClassNotFoundException e)
-        {
-            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
         }
         catch (ConfigurationException e)
         {
@@ -841,7 +835,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public String system_rename_keyspace(String old_name, String new_name) throws InvalidRequestException, TException
     {
-        state().hasColumnFamilyListAccess(Permission.WRITE);
+        state().hasKeyspaceListAccess(Permission.WRITE);
         
         try
         {
@@ -865,7 +859,7 @@ public class CassandraServer implements Cassandra.Iface
     /** update an existing keyspace, but do not allow column family modifications. */
     public String system_update_keyspace(KsDef ks_def) throws InvalidRequestException, TException
     {
-        state().hasColumnFamilyListAccess(Permission.WRITE);
+        state().hasKeyspaceListAccess(Permission.WRITE);
         
         if (ks_def.getCf_defs() != null && ks_def.getCf_defs().size() > 0)
             throw new InvalidRequestException("Keyspace update must not contain any column family definitions.");

@@ -13,6 +13,8 @@ dev
  * take advantage of AVRO-495 to simplify our avro IDL (CASSANDRA-1436)
  * extend authorization hierarchy to column family (CASSANDRA-1554)
  * deletion support in secondary indexes (CASSANDRA-1571)
+ * meaningful error message for invalid replication strategy class 
+   (CASSANDRA-1566)
 
 
 0.7-beta2
