@@ -11,6 +11,7 @@ dev
  * fix moving nodes with no keyspaces defined (CASSANDRA-1574)
  * fix unbootstrap when no data is present in a transfer range (CASSANDRA-1573)
  * take advantage of AVRO-495 to simplify our avro IDL (CASSANDRA-1436)
+ * extend authorization hierarchy to column family (CASSANDRA-1554)
 
 
 0.7-beta2

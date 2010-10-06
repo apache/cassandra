@@ -26,6 +26,8 @@ Features
     - Dynamic endpoint snitch mitigates the impact of impaired nodes
     - New `IntegerType`, faster than LongType and allows integers of 
       both less and more bits than Long's 64
+    - A revamped authentication system that decouples authorization and 
+      allows finer-grained control of resources.
 
 Upgrading
 ---------
@@ -87,6 +89,12 @@ Configuraton
     - Keyspace and column family definitions will need to be loaded via
       "bin/schematool <host> <jmxport> import".  _You only need to do this to
       one node_.
+    - In addition to an authenticator, an authority must be configured as
+      well. Users of SimpleAuthenticator should use SimpleAuthority for this
+      value (the default is AllowAllAuthority, which corresponds with 
+      AllowAllAuthenticator).
+    - The format of access.properties has changed, see the sample configuration
+      conf/access.properties for documentation on the new format.
 
 
 JMX
