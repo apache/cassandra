@@ -823,7 +823,7 @@ public class CassandraServer implements Cassandra {
     {
         try
         {
-            state().hasKeyspaceAccess(perm);
+            state().hasColumnFamilyListAccess(perm);
         }
         catch (org.apache.cassandra.thrift.InvalidRequestException e)
         {
@@ -1040,7 +1040,7 @@ public class CassandraServer implements Cassandra {
 
         try
         {
-            state().hasKeyspaceAccess(Permission.WRITE);
+            state().hasColumnFamilyAccess((String)columnFamily, Permission.WRITE);
             schedule();
             StorageProxy.truncateBlocking(state().getKeyspace(), columnFamily.toString());
         }
@@ -1073,7 +1073,7 @@ public class CassandraServer implements Cassandra {
         String keyspace = state().getKeyspace();
         try
         {
-            state().hasKeyspaceAccess(Permission.READ);
+            state().hasColumnFamilyAccess(column_parent.column_family.toString(), Permission.READ);
         }
         catch (org.apache.cassandra.thrift.InvalidRequestException thriftE)
         {
@@ -1139,7 +1139,7 @@ public class CassandraServer implements Cassandra {
 
         try
         {
-            state().hasKeyspaceAccess(Permission.READ);
+            state().hasColumnFamilyAccess(column_parent.column_family.toString(), Permission.READ);
         }
         catch (org.apache.cassandra.thrift.InvalidRequestException thriftE)
         {

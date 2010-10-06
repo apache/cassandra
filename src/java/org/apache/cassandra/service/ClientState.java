@@ -26,7 +26,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.auth.Resources;
-import org.apache.cassandra.config.Config.RequestSchedulerId;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.InvalidRequestException;
@@ -42,8 +41,6 @@ public class ClientState
     // Current user for the session
     private AuthenticatedUser user;
     private String keyspace;
-    private Set<Permission> keyspaceAccess;
-    private List<Object> resource = new ArrayList<Object>();
 
     /**
      * Construct a new, empty ClientState: can be reused after logout() or reset().
@@ -52,26 +49,7 @@ public class ClientState
     {
         reset();
     }
-
-    /**
-     * Called when the keyspace or user have changed.
-     */
-    private void updateKeyspaceAccess()
-    {
-        if (user == null || keyspace == null)
-            // user is not logged in or keyspace is not set
-            keyspaceAccess = null;
-        else
-        {
-            // authorize the user for the current keyspace
-            resource.clear();
-            resource.add(Resources.ROOT);
-            resource.add(Resources.KEYSPACES);
-            resource.add(keyspace);
-            keyspaceAccess = DatabaseDescriptor.getAuthority().authorize(user, resource);
-        }
-    }
-
+    
     public String getKeyspace()
     {
         return keyspace;
@@ -80,7 +58,6 @@ public class ClientState
     public void setKeyspace(String ks)
     {
         keyspace = ks;
-        updateKeyspaceAccess();
     }
 
     public String getSchedulingValue()
@@ -101,7 +78,6 @@ public class ClientState
         if (logger.isDebugEnabled())
             logger.debug("logged in: {}", user);
         this.user = user;
-        updateKeyspaceAccess();
     }
 
     public void logout()
@@ -115,8 +91,6 @@ public class ClientState
     {
         user = DatabaseDescriptor.getAuthenticator().defaultUser();
         keyspace = null;
-        keyspaceAccess = null;
-        resource.clear();
     }
 
     /**
@@ -124,25 +98,54 @@ public class ClientState
      */
     public void hasKeyspaceListAccess(Permission perm) throws InvalidRequestException
     {
-        if (user == null)
-            throw new InvalidRequestException("You have not logged in");
+        validateLogin();
+        
         List<Object> resource = Arrays.<Object>asList(Resources.ROOT, Resources.KEYSPACES);
         Set<Permission> perms = DatabaseDescriptor.getAuthority().authorize(user, resource);
 
         hasAccess(user, perms, perm, resource);
     }
-
+    
     /**
-     * Confirms that the client thread has the given Permission in the context of the current Keyspace.
+     * Confirms that the client thread has the given Permission for the ColumnFamily list of
+     * the current keyspace.
      */
-    public void hasKeyspaceAccess(Permission perm) throws InvalidRequestException
+    public void hasColumnFamilyListAccess(Permission perm) throws InvalidRequestException
+    {
+        validateLogin();
+        validateKeyspace();
+        
+        List<Object> resource = Arrays.<Object>asList(Resources.ROOT, Resources.KEYSPACES, keyspace);
+        Set<Permission> perms = DatabaseDescriptor.getAuthority().authorize(user, resource);
+        
+        hasAccess(user, perms, perm, resource);
+    }
+    
+    /**
+     * Confirms that the client thread has the given Permission in the context of the given
+     * ColumnFamily and the current keyspace.
+     */
+    public void hasColumnFamilyAccess(String columnFamily, Permission perm) throws InvalidRequestException
+    {
+        validateLogin();
+        validateKeyspace();
+        
+        List<Object> resource = Arrays.<Object>asList(Resources.ROOT, Resources.KEYSPACES, keyspace, columnFamily);
+        Set<Permission> perms = DatabaseDescriptor.getAuthority().authorize(user, resource);
+        
+        hasAccess(user, perms, perm, resource);
+    }
+
+    private void validateLogin() throws InvalidRequestException
     {
         if (user == null)
             throw new InvalidRequestException("You have not logged in");
-        if (keyspaceAccess == null)
+    }
+    
+    private void validateKeyspace() throws InvalidRequestException
+    {
+        if (keyspace == null)
             throw new InvalidRequestException("You have not set a keyspace for this session");
-
-        hasAccess(user, keyspaceAccess, perm, resource);
     }
 
     private static void hasAccess(AuthenticatedUser user, Set<Permission> perms, Permission perm, List<Object> resource) throws InvalidRequestException
