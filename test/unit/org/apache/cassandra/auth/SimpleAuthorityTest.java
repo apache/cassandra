@@ -23,7 +23,6 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 
-import org.junit.Before;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
@@ -38,6 +37,10 @@ public class SimpleAuthorityTest
     private final List<Object> KEYSPACES_RESOURCE = Arrays.<Object>asList(Resources.ROOT, Resources.KEYSPACES);
     private final List<Object> KEYSPACE1_RESOURCE = Arrays.<Object>asList(Resources.ROOT, Resources.KEYSPACES, "Keyspace1");
     private final List<Object> KEYSPACE2_RESOURCE = Arrays.<Object>asList(Resources.ROOT, Resources.KEYSPACES, "Keyspace2");
+    private final List<Object> STANDARD1_RESOURCE = Arrays.<Object>asList(Resources.ROOT,
+                                                                          Resources.KEYSPACES,
+                                                                          "Keyspace1",
+                                                                          "Standard1");
 
     @Test
     public void testValidateConfiguration() throws Exception
@@ -69,5 +72,13 @@ public class SimpleAuthorityTest
         assertEquals("user3 should only be able to read the keyspace list",
                      EnumSet.of(Permission.READ),
                      authority.authorize(USER3, KEYSPACES_RESOURCE));
+    }
+    
+    @Test
+    public void testAuthorizeColumnFamily() throws Exception
+    {
+        assertEquals(Permission.ALL, authority.authorize(USER1, STANDARD1_RESOURCE));
+        assertEquals(EnumSet.of(Permission.READ), authority.authorize(USER2, STANDARD1_RESOURCE));
+        assertEquals(Permission.NONE, authority.authorize(USER3, STANDARD1_RESOURCE));
     }
 }
