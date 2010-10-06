@@ -12,6 +12,7 @@ dev
  * fix unbootstrap when no data is present in a transfer range (CASSANDRA-1573)
  * take advantage of AVRO-495 to simplify our avro IDL (CASSANDRA-1436)
  * extend authorization hierarchy to column family (CASSANDRA-1554)
+ * deletion support in secondary indexes (CASSANDRA-1571)
 
 
 0.7-beta2

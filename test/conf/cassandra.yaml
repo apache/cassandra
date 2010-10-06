@@ -105,14 +105,18 @@ keyspaces:
       replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
       replication_factor: 5
       column_families:
-
         - name: Standard1
+
+        - name: Indexed1
+          column_metadata:
+            - name: birthdate
+              validator_class: LongType
+              index_type: KEYS
 
     - name: Keyspace4
       replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
       replication_factor: 3
       column_families:
-
         - name: Standard1
 
         - name: Standard3
@@ -128,5 +132,4 @@ keyspaces:
       replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
       replication_factor: 2
       column_families:
-
         - name: Standard1

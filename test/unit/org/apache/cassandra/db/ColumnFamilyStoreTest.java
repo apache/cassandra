@@ -177,7 +177,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.add(new QueryPath("Indexed1", null, "notbirthdate".getBytes("UTF8")), FBUtilities.toByteArray(2L), new TimestampClock(0));
         rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), new TimestampClock(0));
         rm.apply();
-        
+
         rm = new RowMutation("Keyspace1", "k4aaaa".getBytes());
         rm.add(new QueryPath("Indexed1", null, "notbirthdate".getBytes("UTF8")), FBUtilities.toByteArray(2L), new TimestampClock(0));
         rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(3L), new TimestampClock(0));
@@ -220,6 +220,55 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         assert Arrays.equals("k3".getBytes(), rows.get(0).key.key);
         assert rows.get(0).cf.getColumnCount() == 0;
+    }
+
+    @Test
+    public void testIndexDeletions() throws IOException
+    {
+        ColumnFamilyStore cfs = Table.open("Keyspace3").getColumnFamilyStore("Indexed1");
+        RowMutation rm;
+
+        rm = new RowMutation("Keyspace3", "k1".getBytes());
+        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), new TimestampClock(0));
+        rm.apply();
+
+        IndexExpression expr = new IndexExpression("birthdate".getBytes("UTF8"), IndexOperator.EQ, FBUtilities.toByteArray(1L));
+        IndexClause clause = new IndexClause(Arrays.asList(expr), ArrayUtils.EMPTY_BYTE_ARRAY, 100);
+        IFilter filter = new IdentityQueryFilter();
+        IPartitioner p = StorageService.getPartitioner();
+        Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
+        List<Row> rows = cfs.scan(clause, range, filter);
+        assert rows.size() == 1 : StringUtils.join(rows, ",");
+        assert Arrays.equals("k1".getBytes(), rows.get(0).key.key);
+
+        // delete the column directly
+        rm = new RowMutation("Keyspace3", "k1".getBytes());
+        rm.delete(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), new TimestampClock(1));
+        rm.apply();
+        rows = cfs.scan(clause, range, filter);
+        assert rows.isEmpty();
+
+        // verify that it's not being indexed under the deletion column value either
+        IColumn deletion = rm.getColumnFamilies().iterator().next().iterator().next();
+        IndexExpression expr0 = new IndexExpression("birthdate".getBytes("UTF8"), IndexOperator.EQ, deletion.value());
+        IndexClause clause0 = new IndexClause(Arrays.asList(expr0), ArrayUtils.EMPTY_BYTE_ARRAY, 100);
+        rows = cfs.scan(clause0, range, filter);
+        assert rows.isEmpty();
+
+        // resurrect w/ a newer timestamp
+        rm = new RowMutation("Keyspace3", "k1".getBytes());
+        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), new TimestampClock(2));
+        rm.apply();
+        rows = cfs.scan(clause, range, filter);
+        assert rows.size() == 1 : StringUtils.join(rows, ",");
+        assert Arrays.equals("k1".getBytes(), rows.get(0).key.key);
+
+        // delete the entire row
+        rm = new RowMutation("Keyspace3", "k1".getBytes());
+        rm.delete(new QueryPath("Indexed1"), new TimestampClock(3));
+        rm.apply();
+        rows = cfs.scan(clause, range, filter);
+        assert rows.isEmpty() : StringUtils.join(rows, ",");
     }
 
     @Test

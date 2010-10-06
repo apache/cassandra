@@ -354,7 +354,7 @@ public class Table
                 SortedSet<byte[]> mutatedIndexedColumns = null;
                 for (byte[] column : cfs.getIndexedColumns())
                 {
-                    if (cf.getColumnNames().contains(column))
+                    if (cf.getColumnNames().contains(column) || cf.isMarkedForDelete())
                     {
                         if (mutatedIndexedColumns == null)
                             mutatedIndexedColumns = new TreeSet<byte[]>(FBUtilities.byteArrayComparator);
@@ -367,8 +367,12 @@ public class Table
                     ColumnFamily oldIndexedColumns = null;
                     if (mutatedIndexedColumns != null)
                     {
+                        // with the raw data CF, we can just apply every update in any order and let
+                        // read-time resolution throw out obsolete versions, thus avoiding read-before-write.
+                        // but for indexed data we need to make sure that we're not creating index entries
+                        // for obsolete writes.
                         oldIndexedColumns = readCurrentIndexedColumns(key, cfs, mutatedIndexedColumns);
-                        ignoreObsoleteMutations(cf, cfs.metadata.reconciler, mutatedIndexedColumns, oldIndexedColumns);
+                        ignoreObsoleteMutations(cf, mutatedIndexedColumns, oldIndexedColumns);
                     }
 
                     Memtable fullMemtable = cfs.apply(key, cf);
@@ -402,14 +406,22 @@ public class Table
         return memtablesToFlush;
     }
 
-    private static void ignoreObsoleteMutations(ColumnFamily cf, AbstractReconciler reconciler, SortedSet<byte[]> mutatedIndexedColumns, ColumnFamily oldIndexedColumns)
+    private static void ignoreObsoleteMutations(ColumnFamily cf, SortedSet<byte[]> mutatedIndexedColumns, ColumnFamily oldIndexedColumns)
     {
         if (oldIndexedColumns == null)
             return;
 
+        ColumnFamily cf2 = cf.cloneMe();
         for (IColumn oldColumn : oldIndexedColumns)
         {
-            if (reconciler.reconcile((Column) oldColumn, (Column) cf.getColumn(oldColumn.name())).equals(oldColumn))
+            cf2.addColumn(oldColumn);
+        }
+        ColumnFamily resolved = ColumnFamilyStore.removeDeleted(cf2, Integer.MAX_VALUE);
+
+        for (IColumn oldColumn : oldIndexedColumns)
+        {
+            IColumn resolvedColumn = resolved == null ? null : resolved.getColumn(oldColumn.name());
+            if (resolvedColumn != null && resolvedColumn.equals(oldColumn))
             {
                 cf.remove(oldColumn.name());
                 mutatedIndexedColumns.remove(oldColumn.name());
@@ -424,6 +436,10 @@ public class Table
         return cfs.getColumnFamily(filter);
     }
 
+    /**
+     * removes obsolete index entries and creates new ones for the given row key and mutated columns.
+     * @return list of full (index CF) memtables
+     */
     private static List<Memtable> applyIndexUpdates(byte[] key,
                                                     ColumnFamily cf,
                                                     ColumnFamilyStore cfs,
@@ -436,6 +452,9 @@ public class Table
         for (byte[] columnName : mutatedIndexedColumns)
         {
             IColumn column = cf.getColumn(columnName);
+            if (column == null || column.isMarkedForDelete())
+                continue; // null column == row deletion
+
             DecoratedKey<LocalToken> valueKey = cfs.getIndexKeyFor(columnName, column.value());
             ColumnFamily cfi = cfs.newIndexedColumnFamily(columnName);
             if (column instanceof ExpiringColumn)
@@ -444,7 +463,9 @@ public class Table
                 cfi.addColumn(new ExpiringColumn(key, ArrayUtils.EMPTY_BYTE_ARRAY, ec.clock(), ec.getTimeToLive(), ec.getLocalDeletionTime()));
             }
             else
+            {
                 cfi.addColumn(new Column(key, ArrayUtils.EMPTY_BYTE_ARRAY, column.clock()));
+            }
             Memtable fullMemtable = cfs.getIndexedColumnFamilyStore(columnName).apply(valueKey, cfi);
             if (fullMemtable != null)
                 fullMemtables = addFullMemtable(fullMemtables, fullMemtable);
@@ -458,6 +479,8 @@ public class Table
             {
                 byte[] columnName = entry.getKey();
                 IColumn column = entry.getValue();
+                if (column.isMarkedForDelete())
+                    continue;
                 DecoratedKey<LocalToken> valueKey = cfs.getIndexKeyFor(columnName, column.value());
                 ColumnFamily cfi = cfs.newIndexedColumnFamily(columnName);
                 cfi.deleteColumn(key, localDeletionTime, column.clock());
