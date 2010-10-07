@@ -23,12 +23,7 @@ import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
-import org.apache.log4j.Logger;
+import java.util.*;
 
 import org.apache.cassandra.cache.InstrumentedCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -42,6 +37,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.log4j.Logger;
 
 /**
  * SSTableReaders are open()ed by Table.onStart; after that they are created by SSTableWriter.renameAndOpen.
@@ -111,12 +107,23 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     /** public, but only for tests */
     public static SSTableReader open(String dataFileName, IPartitioner partitioner) throws IOException
     {
+        return open(dataFileName, partitioner, Collections.<String>emptySet(), null);
+    }
+
+    public static SSTableReader open(String dataFileName, Collection<String> savedKeyCacheKeys, SSTableTracker tracker) throws IOException
+    {
+        return open(dataFileName, StorageService.getPartitioner(), savedKeyCacheKeys, tracker);
+    }
+
+    public static SSTableReader open(String dataFileName, IPartitioner partitioner, Collection<String> savedKeyCacheKeys, SSTableTracker tracker) throws IOException
+    {
         assert partitioner != null;
 
         long start = System.currentTimeMillis();
         SSTableReader sstable = new SSTableReader(dataFileName, partitioner);
-        logger.info("Sampling index for " + dataFileName);
-        sstable.loadIndexFile();
+        sstable.setTrackedBy(tracker);
+        logger.info("Sampling index and loading saved keyCache for " + dataFileName + " (" + savedKeyCacheKeys.size() + " saved keys)");
+        sstable.loadIndexAndCache(savedKeyCacheKeys);
         sstable.loadBloomFilter();
 
         if (logger.isDebugEnabled())
@@ -178,13 +185,16 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         this.bf = bloomFilter;
     }
 
-    public void setTrackedBy(SSTableTracker tracker)
+    protected void setTrackedBy(SSTableTracker tracker)
     {
-        phantomReference = new SSTableDeletingReference(tracker, this, finalizerQueue);
-        finalizers.add(phantomReference);
-        // TODO keyCache should never be null in live Cassandra, but only setting it here
-        // means it can be during tests, so we have to do otherwise-unnecessary != null checks
-        keyCache = tracker.getKeyCache();
+        if (tracker != null)
+        {
+            phantomReference = new SSTableDeletingReference(tracker, this, finalizerQueue);
+            finalizers.add(phantomReference);
+            // TODO keyCache should never be null in live Cassandra, but only setting it here
+            // means it can be during tests, so we have to do otherwise-unnecessary != null checks
+            keyCache = tracker.getKeyCache();
+        }
     }
 
     private static MappedByteBuffer mmap(String filename, long start, int size) throws IOException
@@ -237,7 +247,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         }
     }
 
-    void loadIndexFile() throws IOException
+    void loadIndexAndCache(Collection<String> keysToLoadInCache) throws IOException
     {
         // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
         // any entries that do, we force into the in-memory sample so key lookup can always bsearch within
@@ -246,6 +256,9 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(), "r");
         try
         {
+            if (keyCache != null && keyCache.getCapacity() - keyCache.getSize() < keysToLoadInCache.size())
+                keyCache.updateCapacity(keyCache.getSize() + keysToLoadInCache.size());
+
             long indexSize = input.length();
             // we need to know both the current index entry and its data position, as well as the
             // next such pair, in order to compute tne mmap-spanning entries.  since seeking
@@ -270,8 +283,13 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
                 nextEntry = new IndexSummary.KeyPosition(key, indexPosition);
                 nextDataPos = dataPosition;
-                indexSummary.maybeAddEntry(thisEntry.key, thisDataPos, nextDataPos - thisDataPos, thisEntry.indexPosition, nextEntry.indexPosition);
+                SSTable.PositionSize posSize = new PositionSize(thisDataPos, nextDataPos - thisDataPos);
+                if (keyCache != null && keysToLoadInCache.contains(thisEntry.key.key))
+                    keyCache.put(new Pair<String, DecoratedKey>(path, thisEntry.key), posSize);
 
+                indexSummary.maybeAddEntry(thisEntry.key, posSize.position, posSize.size, thisEntry.indexPosition, nextEntry.indexPosition);
+                //indexSummary.maybeAddEntry(thisEntry.key, thisDataPos, nextDataPos - thisDataPos, thisEntry.indexPosition, nextEntry.indexPosition);
+               
                 thisEntry = nextEntry;
                 thisDataPos = nextDataPos;
             }

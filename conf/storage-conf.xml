@@ -110,11 +110,19 @@
        ~ ratios. Specify a fraction (value less than 1), a percentage (ending in
        ~ a % sign) or an absolute number of rows to cache. 
        ~ RowsCached defaults to 0, i.e., row cache is off by default.
+       ~ 
+       ~ Row and key caches may also be saved periodically; if so, the last-
+       ~ saved cache will be loaded in at server start.  By default, cache
+       ~ saving is off.
        ~
        ~ Remember, when using caches as a percentage, they WILL grow with
        ~ your data set!
       -->
-      <ColumnFamily Name="Standard1" CompareWith="BytesType"/>
+      <ColumnFamily Name="Standard1" CompareWith="BytesType"
+                    KeysCached="1000"
+                    RowsCached="100"
+                    RowCacheSavePeriodInSeconds="0"
+                    KeyCacheSavePeriodInSeconds="3600"/>
       <ColumnFamily Name="Standard2" 
                     CompareWith="UTF8Type"
                     KeysCached="100%"/>
@@ -204,6 +212,7 @@
    ~ disk.  Keep the data disks and the CommitLog disks separate for best
    ~ performance
   -->
+  <SavedCachesDirectory>/var/lib/cassandra/saved_caches</SavedCachesDirectory>
   <CommitLogDirectory>/var/lib/cassandra/commitlog</CommitLogDirectory>
   <DataFileDirectories>
       <DataFileDirectory>/var/lib/cassandra/data</DataFileDirectory>

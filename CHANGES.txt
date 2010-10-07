@@ -41,10 +41,12 @@ dev
  * add memtable, cache information to GCInspector logs (CASSANDRA-1558)
  * enable/disable HintedHandoff via JMX (CASSANDRA-1550)
  * allow nodes to change IPs between restarts (CASSANDRA-1518)
+ * add save/load of row + key caches (CASSANDRA-1417)
  * remove assertion causing rare (and harmless) error messages in
    commitlog (CASSANDRA-1330)
  * optimize SSTableReader.loadIndexFile to reduce re-reading of index
    data during server startup (CASSANDRA-1526)
+ * add cache save/load ability (CASSANDRA-1417)
 
 
 0.6.5

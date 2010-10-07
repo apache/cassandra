@@ -18,35 +18,37 @@
 
 package org.apache.cassandra.config;
 
+import java.io.File;
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.net.InetAddress;
+import java.net.URL;
+import java.net.UnknownHostException;
+import java.util.*;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.TransformerException;
+import javax.xml.xpath.XPathExpressionException;
+
 import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.auth.IAuthenticator;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.HintedHandOffManager;
+import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.locator.IEndPointSnitch;
-import org.apache.cassandra.locator.DynamicEndpointSnitch;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.DynamicEndpointSnitch;
+import org.apache.cassandra.locator.IEndPointSnitch;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.XMLUtils;
 import org.apache.log4j.Logger;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
-
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.transform.TransformerException;
-import javax.xml.xpath.XPathExpressionException;
-import java.io.File;
-import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.util.*;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.net.URL;
 
 public class DatabaseDescriptor
 {
@@ -82,6 +84,7 @@ public class DatabaseDescriptor
     /* Current index into the above list of directories */
     private static int currentIndex = 0;
     private static String logFileDirectory;
+    private static String savedCachesDirectory;
     private static int consistencyThreads = 4; // not configurable
     private static int concurrentReaders = 8;
     private static int concurrentWriters = 32;
@@ -141,6 +144,25 @@ public class DatabaseDescriptor
     private static int indexinterval = 128;
 
     private final static String STORAGE_CONF_FILE = "storage-conf.xml";
+
+    public static final int DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS = 0;
+    public static final int DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS = 0;
+
+    public static File getSerializedRowCachePath(String ksName, String cfName)
+    {
+        return new File(savedCachesDirectory + File.separator + ksName + "-" + cfName + "-RowCache");
+    }
+
+    public static File getSerializedKeyCachePath(String ksName, String cfName)
+    {
+        return new File(savedCachesDirectory + File.separator + ksName + "-" + cfName + "-KeyCache");
+    }
+
+    public static int getCompactionPriority()
+    {
+        String priorityString = System.getProperty("cassandra.compaction.priority");
+        return priorityString == null ? Thread.NORM_PRIORITY : Integer.parseInt(priorityString);
+    }
 
     /**
      * Try the storage-config system property, and then inspect the classpath.
@@ -470,6 +492,7 @@ public class DatabaseDescriptor
             /* data file and commit log directories. they get created later, when they're needed. */
             dataFileDirectories = xmlUtils.getNodeValues("/Storage/DataFileDirectories/DataFileDirectory");
             logFileDirectory = xmlUtils.getNodeValue("/Storage/CommitLogDirectory");
+            savedCachesDirectory = xmlUtils.getNodeValue("/Storage/SavedCachesDirectory");
 
             for (String datadir : dataFileDirectories)
             {
@@ -518,7 +541,9 @@ public class DatabaseDescriptor
                                                                             null,
                                                                             "persistent metadata for the local node",
                                                                             0.0,
-                                                                            0.01));
+                                                                            0.01,
+                                                                            DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS,
+                                                                            DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS));
 
             systemMeta.cfMetaData.put(HintedHandOffManager.HINTS_CF, new CFMetaData(Table.SYSTEM_TABLE,
                                                                                     HintedHandOffManager.HINTS_CF,
@@ -527,7 +552,9 @@ public class DatabaseDescriptor
                                                                                     new BytesType(),
                                                                                     "hinted handoff data",
                                                                                     0.0,
-                                                                                    0.01));
+                                                                                    0.01,
+                                                                                    DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS,
+                                                                                    DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS));
 
             /* Load the seeds for node contact points */
             String[] seedsxml = xmlUtils.getNodeValues("/Storage/Seeds/Seed");
@@ -732,7 +759,11 @@ public class DatabaseDescriptor
                     String comment = xmlUtils.getNodeValue(xqlCF + "Comment");
 
                     // insert it into the table dictionary.
-                    meta.cfMetaData.put(cfName, new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize));
+                    String rowCacheSavePeriodString = XMLUtils.getAttributeValue(columnFamily, "RowCacheSavePeriodInSeconds");
+                    String keyCacheSavePeriodString = XMLUtils.getAttributeValue(columnFamily, "KeyCacheSavePeriodInSeconds");
+                    int rowCacheSavePeriod = keyCacheSavePeriodString != null ? Integer.valueOf(keyCacheSavePeriodString) : DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS;
+                    int keyCacheSavePeriod = rowCacheSavePeriodString != null ? Integer.valueOf(rowCacheSavePeriodString) : DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS;
+                    meta.cfMetaData.put(cfName, new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize, keyCacheSavePeriod, rowCacheSavePeriod));
                 }
 
                 tables.put(meta.name, meta);
@@ -806,6 +837,11 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("CommitLogDirectory must be specified");
             }
             FileUtils.createDirectory(logFileDirectory);
+            if (savedCachesDirectory == null)
+            {
+                throw new ConfigurationException("SavedCachesDirectory must be specified");
+            }
+            FileUtils.createDirectory(savedCachesDirectory);
         }
         catch (ConfigurationException ex) {
             logger.error("Fatal error: " + ex.getMessage());
@@ -864,7 +900,7 @@ public class DatabaseDescriptor
     {
         return partitioner;
     }
-    
+
     public static IEndPointSnitch getEndPointSnitch(String table)
     {
         return tables.get(table).epSnitch;

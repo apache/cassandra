@@ -19,15 +19,14 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.FutureTask;
 
 import org.apache.cassandra.dht.Range;
-import java.net.InetAddress;
 
 
 public interface StorageServiceMBean
@@ -182,4 +181,7 @@ public interface StorageServiceMBean
     
     /** force hint delivery to an endpoint **/
     public void deliverHints(String host) throws UnknownHostException;
+
+    /** save row and key caches */
+    public void saveCaches() throws ExecutionException, InterruptedException;
 }

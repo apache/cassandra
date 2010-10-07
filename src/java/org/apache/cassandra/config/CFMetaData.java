@@ -21,12 +21,6 @@ package org.apache.cassandra.config;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.FBUtilities;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-
 public final class CFMetaData
 {
     public final static double DEFAULT_KEY_CACHE_SIZE = 200000;
@@ -40,8 +34,11 @@ public final class CFMetaData
     public final String comment; // for humans only
     public final double rowCacheSize; // default 0
     public final double keyCacheSize; // default 0.01
+    public final int rowCacheSavePeriodInSeconds; //default 0 (off)
+    public final int keyCacheSavePeriodInSeconds; //default 0 (off)
 
-    CFMetaData(String tableName, String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator, String comment, double rowCacheSize, double keyCacheSize)
+    CFMetaData(String tableName, String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator,
+               String comment, double rowCacheSize, double keyCacheSize, int rowCacheSavePeriodInSeconds, int keyCacheSavePeriodInSeconds)
     {
         this.tableName = tableName;
         this.cfName = cfName;
@@ -51,6 +48,8 @@ public final class CFMetaData
         this.comment = comment;
         this.rowCacheSize = rowCacheSize;
         this.keyCacheSize = keyCacheSize;
+        this.rowCacheSavePeriodInSeconds = rowCacheSavePeriodInSeconds;
+        this.keyCacheSavePeriodInSeconds = keyCacheSavePeriodInSeconds;
     }
 
     // a quick and dirty pretty printer for describing the column family...
@@ -73,6 +72,8 @@ public final class CFMetaData
                 && FBUtilities.equals(other.subcolumnComparator, subcolumnComparator)
                 && FBUtilities.equals(other.comment, comment)
                 && other.rowCacheSize == rowCacheSize
-                && other.keyCacheSize == keyCacheSize;
+                && other.keyCacheSize == keyCacheSize
+                && other.rowCacheSavePeriodInSeconds == rowCacheSavePeriodInSeconds
+                && other.keyCacheSavePeriodInSeconds == keyCacheSavePeriodInSeconds;
     }
 }

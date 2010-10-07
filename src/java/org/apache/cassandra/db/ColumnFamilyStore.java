@@ -18,10 +18,9 @@
 
 package org.apache.cassandra.db;
 
-import java.io.Closeable;
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.lang.management.ManagementFactory;
+import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -35,11 +34,11 @@ import javax.management.ObjectName;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
-import org.apache.log4j.Logger;
 import org.apache.commons.collections.IteratorUtils;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.concurrent.RetryingScheduledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
@@ -48,15 +47,19 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.*;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.utils.*;
+import org.apache.log4j.Logger;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
+    private static final ScheduledThreadPoolExecutor cacheSavingExecutor =
+            new RetryingScheduledThreadPoolExecutor("CACHE-SAVER", Thread.MIN_PRIORITY);
+
     private static Logger logger_ = Logger.getLogger(ColumnFamilyStore.class);
 
     /*
@@ -119,7 +122,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private long maxRowCompactedSize = 0L;
     private long rowsCompactedTotalSize = 0L;
     private long rowsCompactedCount = 0L;
-    
+    private Runnable rowCacheWriteTask;
+    private Runnable keyCacheWriteTask;
+
     ColumnFamilyStore(String table, String columnFamilyName, boolean isSuper, int indexValue) throws IOException
     {
         table_ = table;
@@ -134,6 +139,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // scan for data files corresponding to this CF
         List<File> sstableFiles = new ArrayList<File>();
         Pattern auxFilePattern = Pattern.compile("(.*)(-Filter\\.db$|-Index\\.db$)");
+        Pattern tmpCacheFilePattern = Pattern.compile(table + "-" + columnFamilyName + "-(Key|Row)Cache.*\\.tmp$");
         for (File file : files())
         {
             String filename = file.getName();
@@ -157,6 +163,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 continue;
             }
 
+            if (tmpCacheFilePattern.matcher(filename).matches())
+            {
+                logger_.info("removing incomplete saved cache " + file.getAbsolutePath());
+                FileUtils.deleteWithConfirm(file);
+                continue;
+            }
+
             if (filename.contains("-Data.db"))
             {
                 sstableFiles.add(file.getAbsoluteFile());
@@ -165,6 +178,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Collections.sort(sstableFiles, new FileUtils.FileComparator());
 
         /* Load the index files and the Bloom Filters associated with them. */
+        ssTables_ = new SSTableTracker(table, columnFamilyName);
+        Set<String> savedKeys = readSavedCache(DatabaseDescriptor.getSerializedKeyCachePath(table, columnFamilyName), false);
         List<SSTableReader> sstables = new ArrayList<SSTableReader>();
         for (File file : sstableFiles)
         {
@@ -175,7 +190,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             SSTableReader sstable;
             try
             {
-                sstable = SSTableReader.open(filename);
+                sstable = SSTableReader.open(filename, savedKeys, ssTables_);
             }
             catch (IOException ex)
             {
@@ -184,8 +199,106 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             sstables.add(sstable);
         }
-        ssTables_ = new SSTableTracker(table, columnFamilyName);
         ssTables_.add(sstables);
+    }
+
+    protected Set<String> readSavedCache(File path, boolean sort) throws IOException
+    {
+        Set<String> keys;
+        if (sort)
+        {
+            // sort the results on read because cache may be written many times during server lifetime,
+            // so better to pay that price once on startup than sort at write time.
+            keys = new TreeSet<String>(StorageProxy.keyComparator);
+        }
+        else
+        {
+            keys = new HashSet<String>();
+        }
+        
+        long start = System.currentTimeMillis();
+        if (path.exists())
+        {
+            if (logger_.isDebugEnabled())
+                logger_.debug("reading saved cache from " + path);
+            ObjectInputStream in = new ObjectInputStream(new BufferedInputStream(new FileInputStream(path)));
+            Charset UTF8 = Charset.forName("UTF-8");
+            while (in.available() > 0)
+            {
+                int size = in.readInt();
+                byte[] bytes = new byte[size];
+                in.readFully(bytes);
+                keys.add(new String(bytes, UTF8));
+            }
+            in.close();
+            if (logger_.isDebugEnabled())
+                logger_.debug(String.format("completed reading (%d ms; %d keys) from saved cache at %s",
+                                            (System.currentTimeMillis() - start), keys.size(), path));
+        }
+
+        return keys;
+    }
+
+    // must be called after all sstables are loaded since row cache merges all row versions
+    public void initRowCache()
+    {
+        String msgSuffix = String.format(" row cache for %s of %s", columnFamily_, table_);
+        int rowCacheSavePeriodInSeconds = DatabaseDescriptor.getTableMetaData(table_).get(columnFamily_).rowCacheSavePeriodInSeconds;
+        int keyCacheSavePeriodInSeconds = DatabaseDescriptor.getTableMetaData(table_).get(columnFamily_).keyCacheSavePeriodInSeconds;
+
+        try
+        {
+            long start = System.currentTimeMillis();
+            logger_.info(String.format("loading%s", msgSuffix));
+            for (String key : readSavedCache(DatabaseDescriptor.getSerializedRowCachePath(table_, columnFamily_), true))
+                cacheRow(key);
+            logger_.info(String.format("completed loading (%d ms; %d keys) %s",
+                                       System.currentTimeMillis()-start, ssTables_.getRowCache().getSize(), msgSuffix));
+        }
+        catch (IOException ioe)
+        {
+            logger_.warn("error loading " + msgSuffix, ioe);
+        }
+
+        rowCacheWriteTask = new WrappedRunnable()
+        {
+            protected void runMayThrow() throws IOException
+            {
+                ssTables_.saveRowCache();
+            }
+        };
+        if (rowCacheSavePeriodInSeconds > 0)
+        {
+            cacheSavingExecutor.scheduleWithFixedDelay(rowCacheWriteTask,
+                                                       rowCacheSavePeriodInSeconds,
+                                                       rowCacheSavePeriodInSeconds,
+                                                       TimeUnit.SECONDS);
+        }
+
+        keyCacheWriteTask = new WrappedRunnable()
+        {
+            protected void runMayThrow() throws IOException
+            {
+                ssTables_.saveKeyCache();
+            }
+        };
+        if (keyCacheSavePeriodInSeconds > 0)
+        {
+            cacheSavingExecutor.scheduleWithFixedDelay(keyCacheWriteTask,
+                                                       keyCacheSavePeriodInSeconds,
+                                                       keyCacheSavePeriodInSeconds,
+                                                       TimeUnit.SECONDS);
+        }
+    }
+
+    public Future<?> submitKeyCacheWrite()
+    {
+        return cacheSavingExecutor.submit(keyCacheWriteTask);
+    }
+
+    public Future<?> submitRowCacheWrite()
+    {
+        return cacheSavingExecutor.submit(rowCacheWriteTask);
     }
 
     public void addToCompactedRowStats(Long rowsize)
@@ -286,7 +399,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     private static String getColumnFamilyFromFileName(String filename)
-            {
+    {
         return filename.split("-")[0];
     }
 

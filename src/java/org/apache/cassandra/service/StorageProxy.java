@@ -30,11 +30,9 @@ import java.util.concurrent.TimeoutException;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import org.apache.log4j.Logger;
+import com.google.common.collect.Multimap;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
-
-import com.google.common.collect.Multimap;
 
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -54,6 +52,7 @@ import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LatencyTracker;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.log4j.Logger;
 
 
 public class StorageProxy implements StorageProxyMBean
@@ -80,7 +79,7 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    private static final Comparator<String> keyComparator = new Comparator<String>()
+    public static final Comparator<String> keyComparator = new Comparator<String>()
     {
         public int compare(String o1, String o2)
         {

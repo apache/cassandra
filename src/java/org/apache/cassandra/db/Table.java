@@ -18,30 +18,29 @@
 
 package org.apache.cassandra.db;
 
-import java.util.*;
-import java.io.IOException;
 import java.io.File;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.util.*;
 import java.util.concurrent.Future;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.commitlog.CommitLogSegment;
+import org.apache.cassandra.db.filter.IdentityQueryFilter;
+import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.SSTableDeletingReference;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
-
-import java.net.InetAddress;
-
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.*;
-import org.apache.cassandra.db.filter.*;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
-
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.log4j.Logger;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class Table 
 {
@@ -181,8 +180,6 @@ public class Table
     private final Table.TableMetadata tableMetadata;
     /* ColumnFamilyStore per column family */
     private final Map<String, ColumnFamilyStore> columnFamilyStores = new HashMap<String, ColumnFamilyStore>();
-    // cache application CFs since Range queries ask for them a _lot_
-    private SortedSet<String> applicationColumnFamilies;
 
     public static Table open(String table) throws IOException
     {
@@ -198,12 +195,16 @@ public class Table
                 {
                     tableInstance = new Table(table);
                     instances.put(table, tableInstance);
+
+                    //table has to be constructed and in the cache before cacheRow can be called
+                    for (ColumnFamilyStore cfs : tableInstance.getColumnFamilyStores())
+                        cfs.initRowCache();
                 }
             }
         }
         return tableInstance;
     }
-        
+
     public Set<String> getColumnFamilies()
     {
         return tableMetadata.getColumnFamilies();
