@@ -24,6 +24,8 @@ package org.apache.cassandra.dht;
  import java.io.UnsupportedEncodingException;
  import java.net.InetAddress;
 
+ import javax.naming.ConfigurationException;
+
  import org.apache.commons.lang.StringUtils;
  import org.apache.log4j.Logger;
 
@@ -86,12 +88,15 @@ public class BootStrapper
      * if initialtoken was specified, use that.
      * otherwise, pick a token to assume half the load of the most-loaded node.
      */
-    public static Token getBootstrapToken(final TokenMetadata metadata, final Map<InetAddress, Double> load) throws IOException
+    public static Token getBootstrapToken(final TokenMetadata metadata, final Map<InetAddress, Double> load) throws IOException, ConfigurationException
     {
         if (DatabaseDescriptor.getInitialToken() != null)
         {
             logger.debug("token manually specified as " + DatabaseDescriptor.getInitialToken());
-            return StorageService.getPartitioner().getTokenFactory().fromString(DatabaseDescriptor.getInitialToken());
+            Token token = StorageService.getPartitioner().getTokenFactory().fromString(DatabaseDescriptor.getInitialToken());
+            if (metadata.getEndPoint(token) != null)
+                throw new ConfigurationException("Bootstraping to existing token " + token + " is not allowed (decommission/removetoken the old node first).");
+            return token;
         }
 
         return getBalancedToken(metadata, load);

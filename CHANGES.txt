@@ -44,6 +44,7 @@
    data during server startup (CASSANDRA-1526)
  * add cache save/load ability (CASSANDRA-1417)
  * Ignore stray files in the commit log directory (CASSANDRA-1547)
+ * Disallow bootstrap to an in-use token (CASSANDRA-1561)
 
 
 0.6.5

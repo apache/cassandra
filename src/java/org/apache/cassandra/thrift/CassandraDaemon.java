@@ -27,6 +27,8 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import javax.naming.ConfigurationException;
+
 import org.apache.cassandra.db.SystemTable;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
@@ -115,8 +117,17 @@ public class CassandraDaemon
         CompactionManager.instance.checkAllColumnFamilies();
 
         // start server internals
-        StorageService.instance.initServer();
-        
+        try
+        {
+            StorageService.instance.initServer();
+        }
+        catch (ConfigurationException e)
+        {
+            logger.error("Fatal error: " + e.getMessage());
+            System.err.println("Bad configuration; unable to start server");
+            System.exit(1);
+        }
+
         // now we start listening for clients
         final CassandraServer cassandraServer = new CassandraServer();
         Cassandra.Processor processor = new Cassandra.Processor(cassandraServer);

@@ -31,9 +31,7 @@ import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.dht.Bounds;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.dht.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.SliceRange;
 
@@ -42,6 +40,21 @@ public class Util
     public static Column column(String name, String value, long timestamp)
     {
         return new Column(name.getBytes(), value.getBytes(), timestamp);
+    }
+
+    public static Token token(String key)
+    {
+        return StorageService.getPartitioner().getToken(key);
+    }
+
+    public static Range range(String left, String right)
+    {
+        return new Range(token(left), token(right));
+    }
+
+    public static Bounds bounds(String left, String right)
+    {
+        return new Bounds(token(left), token(right));
     }
 
     public static void addMutation(RowMutation rm, String columnFamilyName, String superColumnName, long columnName, String value, long timestamp)

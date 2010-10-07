@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+import javax.naming.ConfigurationException;
+
 import org.junit.Test;
 
 import org.apache.cassandra.dht.Token;
@@ -37,7 +39,7 @@ import static org.junit.Assert.assertTrue;
 public class StorageServiceServerTest
 {
     @Test
-    public void testRegularMode() throws IOException, InterruptedException
+    public void testRegularMode() throws IOException, InterruptedException, ConfigurationException
     {
         CleanupHelper.mkdirs();
         CleanupHelper.cleanup();

@@ -613,7 +613,7 @@ public class StorageProxy implements StorageProxyMBean
      *     D, but we don't want any other results from it until after the (D, T] range.  Unwrapping so that
      *     the ranges we consider are (D, T], (T, MIN], (MIN, D] fixes this.
      */
-    private static List<AbstractBounds> getRestrictedRanges(final AbstractBounds queryRange)
+    static List<AbstractBounds> getRestrictedRanges(final AbstractBounds queryRange)
     {
         TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
 
