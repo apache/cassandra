@@ -19,6 +19,7 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
@@ -30,8 +31,6 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.thrift.UnavailableException;
-
-import java.net.InetAddress;
 
 
 public interface StorageServiceMBean
@@ -257,4 +256,7 @@ public interface StorageServiceMBean
 
     /** force hint delivery to an endpoint **/
     public void deliverHints(String host) throws UnknownHostException;
+
+    /** save row and key caches */
+    public void saveCaches() throws ExecutionException, InterruptedException;
 }

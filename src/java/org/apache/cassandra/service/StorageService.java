@@ -25,13 +25,11 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.*;
-
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,6 +60,7 @@ import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SkipNullRepresenter;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.log4j.Level;
 import org.yaml.snakeyaml.Dumper;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
@@ -2051,4 +2050,18 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         StorageProxy.truncateBlocking(keyspace, columnFamily);
     }
+
+    public void saveCaches() throws ExecutionException, InterruptedException
+    {
+        List<Future<?>> futures = new ArrayList<Future<?>>();
+        logger_.debug("submitting cache saves");
+        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+        {
+            futures.add(cfs.submitKeyCacheWrite());
+            futures.add(cfs.submitRowCacheWrite());
+        }
+        FBUtilities.waitOnFutures(futures);
+        logger_.debug("cache saves completed");
+    }
+
 }

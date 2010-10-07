@@ -21,10 +21,6 @@ package org.apache.cassandra.config;
  */
 
 
-import java.util.Collections;
-import java.util.Map;
-
-import org.apache.cassandra.db.ClockType;
 import org.apache.cassandra.db.ColumnFamilyType;
 
 /**
@@ -46,4 +42,6 @@ public class RawColumnFamily
     public int min_compaction_threshold = CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD;
     public int max_compaction_threshold = CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD;
     public RawColumnDefinition[] column_metadata = new RawColumnDefinition[0];
+    public int row_cache_save_period_in_seconds = CFMetaData.DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS;
+    public int key_cache_save_period_in_seconds = CFMetaData.DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS;
 }

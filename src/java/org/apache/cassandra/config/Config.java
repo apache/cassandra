@@ -85,7 +85,9 @@ public class Config
     public Integer in_memory_compaction_limit_in_mb = 256;
     
     public String[] data_file_directories;
-    
+
+    public String saved_caches_directory;
+
     // Commit Log
     public String commitlog_directory;
     public Integer commitlog_rotation_threshold_in_mb;

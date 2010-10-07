@@ -21,6 +21,7 @@ package org.apache.cassandra.cache;
  */
 
 
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap;
@@ -122,5 +123,10 @@ public class InstrumentedCache<K, V>
         map.clear();
         requests.set(0);
         hits.set(0);
+    }
+
+    public Set<K> getKeySet()
+    {
+        return map.keySet();
     }
 }

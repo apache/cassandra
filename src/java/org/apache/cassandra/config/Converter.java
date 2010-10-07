@@ -22,42 +22,36 @@ package org.apache.cassandra.config;
 
 
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
-
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.TransformerException;
 import javax.xml.xpath.XPathExpressionException;
 
 import org.apache.cassandra.auth.SimpleAuthenticator;
 import org.apache.cassandra.auth.SimpleAuthority;
+import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SkipNullRepresenter;
 import org.apache.cassandra.utils.XMLUtils;
-import org.apache.cassandra.db.ColumnFamilyType;
-import org.w3c.dom.NodeList;
 import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 import org.yaml.snakeyaml.Dumper;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.introspector.Property;
-import org.yaml.snakeyaml.nodes.NodeTuple;
 import org.yaml.snakeyaml.nodes.Tag;
-import org.yaml.snakeyaml.representer.Representer;
 
 /**
  * @deprecated Yaml configuration for Keyspaces and ColumnFamilies is deprecated in 0.7
  */
 public class Converter
 {
-
     private static Config conf = new Config();
-    private final static String PREVIOUS_CONF_FILE = "cassandra.xml";
-    
+
     private static List<RawKeyspace> readTablesFromXml(XMLUtils xmlUtils) throws ConfigurationException
     {
 
@@ -125,7 +119,17 @@ public class Converter
                     {
                         ks.column_families[j].rows_cached = FBUtilities.parseDoubleOrPercent(value);
                     }
-                    
+
+                    if ((value = XMLUtils.getAttributeValue(columnFamily, "RowCacheSavePeriodInSeconds")) != null)
+                    {
+                        ks.column_families[j].row_cache_save_period_in_seconds = Integer.parseInt(value);
+                    }
+
+                    if ((value = XMLUtils.getAttributeValue(columnFamily, "KeyCacheSavePeriodInSeconds")) != null)
+                    {
+                        ks.column_families[j].key_cache_save_period_in_seconds = Integer.parseInt(value);
+                    }
+
                     if ((value = XMLUtils.getAttributeValue(columnFamily, "ReadRepairChance")) != null)
                     {
                         ks.column_families[j].read_repair_chance = FBUtilities.parseDoubleOrPercent(value);
@@ -284,7 +288,9 @@ public class Converter
             conf.data_file_directories = xmlUtils.getNodeValues("/Storage/DataFileDirectories/DataFileDirectory");
             
             conf.commitlog_directory = xmlUtils.getNodeValue("/Storage/CommitLogDirectory");
-            
+
+            conf.saved_caches_directory = xmlUtils.getNodeValue("/Storage/SavedCachesDirectory");
+
             String value = xmlUtils.getNodeValue("/Storage/CommitLogRotationThresholdInMB");
             if ( value != null)
                 conf.commitlog_rotation_threshold_in_mb = Integer.parseInt(value);
@@ -329,39 +335,20 @@ public class Converter
         out.close(); 
     }
     
-    public static void main (String[] args) 
+    public static void main(String[] args) throws Exception
     {
-        try
+        if (args.length != 2)
         {
-            String oldConfigName;
-
-            ClassLoader loader = Converter.class.getClassLoader();
-            URL scpurl = loader.getResource(PREVIOUS_CONF_FILE);
-            if (scpurl == null)
-                scpurl = loader.getResource("storage-conf.xml");
-            
-            if (scpurl != null)
-                oldConfigName = scpurl.getFile();
-            else 
-                throw new ConfigurationException("Error finding previous configuration file.");
-            System.out.println("Found previous configuration: " + oldConfigName);
-            loadPreviousConfig(oldConfigName);
-            
-            System.out.println("Creating new configuration cassandra.yaml");
-            dumpConfig("cassandra.yaml");
-        } 
-        catch (IOException e)
-        {
-            System.out.println("Error creating new configuration file.");
-            System.out.println(e.getMessage());
-            e.printStackTrace();
-        } 
-        catch (ConfigurationException e) 
-        {
-            System.out.println("There was an error during config conversion.");
-            System.out.println(e.getMessage());
-            e.printStackTrace();
+            throw new IllegalArgumentException("usage: config-converter oldfile newfile");
         }
 
+        String oldConfigName = args[0];
+        String newConfigName = args[1];
+
+        if (!new File(oldConfigName).exists())
+            throw new IllegalArgumentException(String.format("%s does not exist", oldConfigName));
+        
+        loadPreviousConfig(oldConfigName);
+        dumpConfig(newConfigName);
     }
 }

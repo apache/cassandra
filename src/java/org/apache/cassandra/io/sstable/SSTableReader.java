@@ -156,27 +156,36 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     public static SSTableReader open(Descriptor descriptor, Set<Component> components, CFMetaData metadata, IPartitioner partitioner) throws IOException
     {
+        return open(descriptor, components, Collections.<DecoratedKey>emptySet(), null, metadata, partitioner);
+    }
+
+    public static SSTableReader open(Descriptor descriptor, Set<Component> components, Set<DecoratedKey> savedKeys, SSTableTracker tracker, CFMetaData metadata, IPartitioner partitioner) throws IOException
+    {
         assert partitioner != null;
 
         long start = System.currentTimeMillis();
         logger.info("Sampling index for " + descriptor);
 
         SSTableReader sstable = new SSTableReader(descriptor, components, metadata, partitioner, null, null, null, null, System.currentTimeMillis(), null, null);
+        sstable.setTrackedBy(tracker);
 
         // versions before 'c' encoded keys as utf-16 before hashing to the filter
         if (descriptor.hasStringsInBloomFilter)
         {
-            sstable.load(true);
+            sstable.load(true, savedKeys);
         }
         else
         {
-            sstable.load(false);
+            sstable.load(false, savedKeys);
             sstable.loadBloomFilter();
         }
         sstable.loadStatistics(descriptor);
 
         if (logger.isDebugEnabled())
             logger.debug("INDEX LOAD TIME for " + descriptor + ": " + (System.currentTimeMillis() - start) + " ms.");
+
+        if (logger.isDebugEnabled() && sstable.getKeyCache() != null)
+            logger.debug(String.format("key cache contains %s/%s keys", sstable.getKeyCache().getSize(), sstable.getKeyCache().getCapacity()));
 
         return sstable;
     }
@@ -217,9 +226,12 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     public void setTrackedBy(SSTableTracker tracker)
     {
-        phantomReference = new SSTableDeletingReference(tracker, this, finalizerQueue);
-        finalizers.add(phantomReference);
-        keyCache = tracker.getKeyCache();
+        if (tracker != null)
+        {
+            phantomReference = new SSTableDeletingReference(tracker, this, finalizerQueue);
+            finalizers.add(phantomReference);
+            keyCache = tracker.getKeyCache();
+        }
     }
 
     void loadBloomFilter() throws IOException
@@ -238,7 +250,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     /**
      * Loads ifile, dfile and indexSummary, and optionally recreates the bloom filter.
      */
-    private void load(boolean recreatebloom) throws IOException
+    private void load(boolean recreatebloom, Set<DecoratedKey> keysToLoadInCache) throws IOException
     {
         SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
         SegmentedFile.Builder dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
@@ -248,6 +260,9 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         BufferedRandomAccessFile input = new BufferedRandomAccessFile(descriptor.filenameFor(Component.PRIMARY_INDEX), "r");
         try
         {
+            if (keyCache != null && keyCache.getCapacity() - keyCache.getSize() < keysToLoadInCache.size())
+                keyCache.updateCapacity(keyCache.getSize() + keysToLoadInCache.size());
+
             long indexSize = input.length();
             if (recreatebloom)
                 // estimate key count based on index length
@@ -266,6 +281,8 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                 indexSummary.maybeAddEntry(decoratedKey, indexPosition);
                 ibuilder.addPotentialBoundary(indexPosition);
                 dbuilder.addPotentialBoundary(dataPosition);
+                if (keyCache != null && keysToLoadInCache.contains(decoratedKey))
+                    keyCache.put(new Pair<Descriptor, DecoratedKey>(descriptor, decoratedKey), dataPosition);
             }
             indexSummary.complete();
         }

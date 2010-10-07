@@ -538,7 +538,7 @@ public class FBUtilities
         return System.currentTimeMillis() * 1000;
     }
 
-    public static void waitOnFutures(Collection<Future<?>> futures)
+    public static void waitOnFutures(Iterable<Future<?>> futures)
     {
         for (Future f : futures)
         {

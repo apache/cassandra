@@ -19,17 +19,19 @@
 
 package org.apache.cassandra.io.sstable;
 
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
+
+import com.google.common.base.Function;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.JMXInstrumentedCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.Pair;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class SSTableTracker implements Iterable<SSTableReader>
 {
@@ -51,7 +53,62 @@ public class SSTableTracker implements Iterable<SSTableReader>
         this.cfname = cfname;
         sstables = Collections.emptySet();
         keyCache = new JMXInstrumentedCache<Pair<Descriptor,DecoratedKey>,Long>(ksname, cfname + "KeyCache", 0);
-        rowCache = new JMXInstrumentedCache<DecoratedKey, ColumnFamily>(ksname, cfname + "RowCache", 0);
+        rowCache = new JMXInstrumentedCache<DecoratedKey, ColumnFamily>(ksname, cfname + "RowCache", 3);
+    }
+
+    protected class CacheWriter<K, V>
+    {
+        public void saveCache(JMXInstrumentedCache<K, V> cache, File savedCachePath, Function<K, byte[]> converter) throws IOException
+        {
+            long start = System.currentTimeMillis();
+            String msgSuffix = " " + savedCachePath.getName() + " for " + cfname + " of " + ksname;
+            logger.debug("saving" + msgSuffix);
+            int count = 0;
+            File tmpFile = File.createTempFile(savedCachePath.getName(), null, savedCachePath.getParentFile());
+            FileOutputStream fout = new FileOutputStream(tmpFile);
+            ObjectOutputStream out = new ObjectOutputStream(new BufferedOutputStream(fout));
+            FileDescriptor fd = fout.getFD();
+            for (K key : cache.getKeySet())
+            {
+                byte[] bytes = converter.apply(key);
+                out.writeInt(bytes.length);
+                out.write(bytes);
+                ++count;
+            }
+            out.flush();
+            fd.sync();
+            out.close();
+            if (!tmpFile.renameTo(savedCachePath))
+                throw new IOException("Unable to rename cache to " + savedCachePath);
+            if (logger.isDebugEnabled())
+                logger.debug("saved " + count + " keys in " + (System.currentTimeMillis() - start) + " ms from" + msgSuffix);
+        }
+    }
+
+    public void saveKeyCache() throws IOException
+    {
+        Function<Pair<Descriptor, DecoratedKey>, byte[]> function = new Function<Pair<Descriptor, DecoratedKey>, byte[]>()
+        {
+            public byte[] apply(Pair<Descriptor, DecoratedKey> key)
+            {
+                return key.right.key;
+            }
+        };
+        CacheWriter<Pair<Descriptor, DecoratedKey>, Long> writer = new CacheWriter<Pair<Descriptor, DecoratedKey>, Long>();
+        writer.saveCache(keyCache, DatabaseDescriptor.getSerializedKeyCachePath(ksname, cfname), function);
+    }
+
+    public void saveRowCache() throws IOException
+    {
+        Function<DecoratedKey, byte[]> function = new Function<DecoratedKey, byte[]>()
+        {
+            public byte[] apply(DecoratedKey key)
+            {
+                return key.key;
+            }
+        };
+        CacheWriter<DecoratedKey, ColumnFamily> writer = new CacheWriter<DecoratedKey, ColumnFamily>();
+        writer.saveCache(rowCache, DatabaseDescriptor.getSerializedRowCachePath(ksname, cfname), function);
     }
 
     public synchronized void replace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements)

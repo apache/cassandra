@@ -102,7 +102,7 @@ public class Descriptor
     }
 
     /**
-     * @see #fromFilename(directory, name)
+     * @see #fromFilename(File directory, String name)
      */
     public static Descriptor fromFilename(String filename)
     {

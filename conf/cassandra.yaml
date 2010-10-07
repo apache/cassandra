@@ -55,6 +55,9 @@ data_file_directories:
 # commit log
 commitlog_directory: /var/lib/cassandra/commitlog
 
+# saved caches
+saved_caches_directory: /var/lib/cassandra/saved_caches
+
 # Size to allow commitlog to grow to before creating a new segment 
 commitlog_rotation_threshold_in_mb: 128
 
@@ -334,7 +337,11 @@ index_interval: 128
 #        before a minor compaction is forced.  decreasing this will cause
 #        minor compactions to start more frequently and be less intensive.
 #        setting this to 0 disables minor compactions.  defaults to 32.
-#    
+#     - row_cache_save_period_in_seconds: number of seconds between saving row caches.
+#        The row caches can be saved periodically and if one exists on startup it will be loaded.
+#     - key_cache_save_period_in_seconds: number of seconds between saving key caches.
+#        The key caches can be saved periodically and if one exists on startup it will be loaded.
+#
 # NOTE: this keyspace definition is for demonstration purposes only.
 #       Cassandra will not load these definitions during startup. See
 #       http://wiki.apache.org/cassandra/FAQ#no_keyspaces for an explanation.
@@ -345,6 +352,10 @@ keyspaces:
       column_families:
         - name: Standard1
           compare_with: BytesType
+          keys_cached: 10000
+          rows_cached: 1000
+          row_cache_save_period_in_seconds: 0
+          key_cache_save_period_in_seconds: 3600
 
         - name: Standard2
           compare_with: UTF8Type

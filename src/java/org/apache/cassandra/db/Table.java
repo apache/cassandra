@@ -101,12 +101,16 @@ public class Table
                     // open and store the table
                     tableInstance = new Table(table);
                     instances.put(table, tableInstance);
+
+                    //table has to be constructed and in the cache before cacheRow can be called
+                    for (ColumnFamilyStore cfs : tableInstance.getColumnFamilyStores())
+                        cfs.initRowCache();
                 }
             }
         }
         return tableInstance;
     }
-    
+
     public static Table clear(String table) throws IOException
     {
         synchronized (Table.class)

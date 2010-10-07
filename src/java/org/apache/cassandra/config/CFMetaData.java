@@ -24,23 +24,20 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
-import org.apache.cassandra.avro.ColumnDef;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
 import org.apache.avro.util.Utf8;
+import org.apache.cassandra.avro.ColumnDef;
 import org.apache.cassandra.db.*;
-
-import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.io.SerDeUtils;
-import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.db.ClockType;
 import org.apache.cassandra.db.clock.AbstractReconciler;
 import org.apache.cassandra.db.clock.TimestampReconciler;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -50,6 +47,8 @@ public final class CFMetaData
     public final static double DEFAULT_ROW_CACHE_SIZE = 0.0;
     public final static double DEFAULT_KEY_CACHE_SIZE = 200000;
     public final static double DEFAULT_READ_REPAIR_CHANCE = 1.0;
+    public final static int DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS = 0;
+    public final static int DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS = 3600;
     public final static boolean DEFAULT_PRELOAD_ROW_CACHE = false;
     public final static int DEFAULT_GC_GRACE_SECONDS = 864000;
     public final static int DEFAULT_MIN_COMPACTION_THRESHOLD = 4;
@@ -86,7 +85,9 @@ public final class CFMetaData
                               DEFAULT_MIN_COMPACTION_THRESHOLD,
                               DEFAULT_MAX_COMPACTION_THRESHOLD,
                               cfId,
-                              Collections.<byte[], ColumnDefinition>emptyMap());
+                              Collections.<byte[], ColumnDefinition>emptyMap(),
+                              DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS,
+                              DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS);
     }
 
     /**
@@ -130,6 +131,8 @@ public final class CFMetaData
     public final AbstractType defaultValidator;     // default none, use comparator types
     public final Integer minCompactionThreshold;    // default 4
     public final Integer maxCompactionThreshold;    // default 32
+    public final int rowCacheSavePeriodInSeconds; //default 0 (off)
+    public final int keyCacheSavePeriodInSeconds; //default 0 (off)
     // NOTE: if you find yourself adding members to this class, make sure you keep the convert methods in lockstep.
 
     public final Map<byte[], ColumnDefinition> column_metadata;
@@ -151,7 +154,10 @@ public final class CFMetaData
                        int minCompactionThreshold,
                        int maxCompactionThreshold,
                        Integer cfId,
-                       Map<byte[], ColumnDefinition> column_metadata)
+                       Map<byte[], ColumnDefinition> column_metadata,
+                       int rowCacheSavePeriodInSeconds,
+                       int keyCacheSavePeriodInSeconds)
+
     {
         assert column_metadata != null;
         this.tableName = tableName;
@@ -174,6 +180,8 @@ public final class CFMetaData
         this.maxCompactionThreshold = maxCompactionThreshold;
         this.cfId = cfId;
         this.column_metadata = Collections.unmodifiableMap(column_metadata);
+        this.rowCacheSavePeriodInSeconds = rowCacheSavePeriodInSeconds;
+        this.keyCacheSavePeriodInSeconds = keyCacheSavePeriodInSeconds;
     }
     
     /** adds this cfm to the map. */
@@ -224,7 +232,9 @@ public final class CFMetaData
              minCompactionThreshold,
              maxCompactionThreshold,
              nextId(),
-             column_metadata);
+             column_metadata,
+             DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS,
+             DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS);
     }
 
     public static CFMetaData newIndexMetadata(String table, String parentCf, ColumnDefinition info, AbstractType columnComparator)
@@ -268,7 +278,9 @@ public final class CFMetaData
                               cfm.minCompactionThreshold,
                               cfm.maxCompactionThreshold,
                               cfm.cfId,
-                              cfm.column_metadata);
+                              cfm.column_metadata,
+                              cfm.rowCacheSavePeriodInSeconds,
+                              cfm.keyCacheSavePeriodInSeconds);
     }
     
     /** clones existing CFMetaData. keeps the id but changes the table name.*/
@@ -291,7 +303,9 @@ public final class CFMetaData
                               cfm.minCompactionThreshold,
                               cfm.maxCompactionThreshold,
                               cfm.cfId,
-                              cfm.column_metadata);
+                              cfm.column_metadata,
+                              cfm.rowCacheSavePeriodInSeconds,
+                              cfm.keyCacheSavePeriodInSeconds);
     }
     
     /** used for evicting cf data out of static tracking collections. */
@@ -361,8 +375,12 @@ public final class CFMetaData
             column_metadata.put(cd.name, cd);
         }
 
+        //isn't AVRO suppossed to handle stuff like this?
         Integer minct = cf.min_compaction_threshold == null ? DEFAULT_MIN_COMPACTION_THRESHOLD : cf.min_compaction_threshold;
         Integer maxct = cf.max_compaction_threshold == null ? DEFAULT_MAX_COMPACTION_THRESHOLD : cf.max_compaction_threshold;
+        Integer row_cache_save_period_in_seconds = cf.row_cache_save_period_in_seconds == null ? DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS : cf.row_cache_save_period_in_seconds;
+        Integer key_cache_save_period_in_seconds = cf.key_cache_save_period_in_seconds == null ? DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS : cf.key_cache_save_period_in_seconds;
+
         return new CFMetaData(cf.keyspace.toString(),
                               cf.name.toString(),
                               ColumnFamilyType.create(cf.column_type.toString()),
@@ -380,7 +398,9 @@ public final class CFMetaData
                               minct,
                               maxct,
                               cf.id,
-                              column_metadata);
+                              column_metadata,
+                              row_cache_save_period_in_seconds,
+                              key_cache_save_period_in_seconds);
     }
 
     public boolean equals(Object obj) 
@@ -412,6 +432,8 @@ public final class CFMetaData
             .append(maxCompactionThreshold, rhs.maxCompactionThreshold)
             .append(cfId.intValue(), rhs.cfId.intValue())
             .append(column_metadata, rhs.column_metadata)
+            .append(rowCacheSavePeriodInSeconds, rhs.rowCacheSavePeriodInSeconds)
+            .append(keyCacheSavePeriodInSeconds, rhs.keyCacheSavePeriodInSeconds)
             .isEquals();
     }
 
@@ -435,6 +457,8 @@ public final class CFMetaData
             .append(maxCompactionThreshold)
             .append(cfId)
             .append(column_metadata)
+            .append(rowCacheSavePeriodInSeconds)
+            .append(keyCacheSavePeriodInSeconds)
             .toHashCode();
     }
 
@@ -493,7 +517,9 @@ public final class CFMetaData
                               cf_def.min_compaction_threshold,
                               cf_def.max_compaction_threshold,
                               cfId,
-                              column_metadata);
+                              column_metadata,
+                              cf_def.row_cache_save_period_in_seconds,
+                              cf_def.key_cache_save_period_in_seconds);
     }
     
     // merges some final fields from this CFM with modifiable fields from CfDef into a new CFMetaData.
@@ -538,7 +564,9 @@ public final class CFMetaData
                               cf_def.min_compaction_threshold,
                               cf_def.max_compaction_threshold,
                               cfId,
-                              column_metadata);
+                              column_metadata,
+                              rowCacheSavePeriodInSeconds,
+                              keyCacheSavePeriodInSeconds);
     }
     
     // converts CFM to thrift CfDef

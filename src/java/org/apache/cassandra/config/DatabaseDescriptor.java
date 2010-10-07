@@ -26,12 +26,13 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.*;
 
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.auth.*;
+import org.apache.cassandra.auth.AllowAllAuthenticator;
+import org.apache.cassandra.auth.AllowAllAuthority;
+import org.apache.cassandra.auth.IAuthenticator;
+import org.apache.cassandra.auth.IAuthority;
 import org.apache.cassandra.config.Config.RequestSchedulerId;
 import org.apache.cassandra.db.ClockType;
 import org.apache.cassandra.db.ColumnFamilyType;
@@ -43,11 +44,9 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.EndpointSnitchInfo;
-import org.apache.cassandra.locator.LocalStrategy;
-import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.locator.*;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.scheduler.NoScheduler;
 import org.apache.cassandra.service.StorageService;
@@ -58,7 +57,7 @@ import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.error.YAMLException;
 
-public class DatabaseDescriptor
+public class    DatabaseDescriptor
 {
     private static Logger logger = LoggerFactory.getLogger(DatabaseDescriptor.class);
 
@@ -327,13 +326,18 @@ public class DatabaseDescriptor
             }
             
             /* data file and commit log directories. they get created later, when they're needed. */
-            if (conf.commitlog_directory != null && conf.data_file_directories != null)
+            if (conf.commitlog_directory != null && conf.data_file_directories != null && conf.saved_caches_directory != null)
             {
                 for (String datadir : conf.data_file_directories)
                 {
                     if (datadir.equals(conf.commitlog_directory))
                         throw new ConfigurationException("commitlog_directory must not be the same as any data_file_directories");
+                    if (datadir.equals(conf.saved_caches_directory))
+                        throw new ConfigurationException("saved_caches_directory must not be the same as any data_file_directories");
                 }
+
+                if (conf.commitlog_directory.equals(conf.saved_caches_directory))
+                    throw new ConfigurationException("saved_caches_directory must not be the same as the commitlog_directory");
             }
             else
             {
@@ -341,6 +345,8 @@ public class DatabaseDescriptor
                     throw new ConfigurationException("commitlog_directory missing");
                 if (conf.data_file_directories == null)
                     throw new ConfigurationException("data_file_directories missing; at least one data directory must be specified");
+                if (conf.saved_caches_directory == null)
+                    throw new ConfigurationException("saved_caches_directory missing");
             }
 
             /* threshold after which commit log should be rotated. */
@@ -544,7 +550,7 @@ public class DatabaseDescriptor
 
                 if (cf.read_repair_chance < 0.0 || cf.read_repair_chance > 1.0)
                 {                        
-                    throw new ConfigurationException("read_repair_chance must be between 0.0 and 1.0");
+                    throw new ConfigurationException("read_repair_chance must be between 0.0 and 1.0 (0% and 100%)");
                 }
 
                 if (cf.min_compaction_threshold < 0 || cf.max_compaction_threshold < 0)
@@ -673,6 +679,11 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("commitlog_directory must be specified");
             }
             FileUtils.createDirectory(conf.commitlog_directory);
+            if (conf.saved_caches_directory == null)
+            {
+                throw new ConfigurationException("saved_caches_directory must be specified");
+            }
+            FileUtils.createDirectory(conf.saved_caches_directory);
         }
         catch (ConfigurationException ex) {
             logger.error("Fatal error: " + ex.getMessage());
@@ -907,6 +918,11 @@ public class DatabaseDescriptor
         return conf.commitlog_directory;
     }
 
+    public static String getSavedCachesLocation()
+    {
+        return conf.saved_caches_directory;
+    }
+    
     public static Set<InetAddress> getSeeds()
     {
         return seeds;
@@ -1115,5 +1131,15 @@ public class DatabaseDescriptor
     public static Integer getIndexInterval()
     {
         return conf.index_interval;
+    }
+
+    public static File getSerializedRowCachePath(String ksName, String cfName)
+    {
+        return new File(conf.saved_caches_directory + File.separator + ksName + "-" + cfName + "-RowCache");
+    }
+
+    public static File getSerializedKeyCachePath(String ksName, String cfName)
+    {
+        return new File(conf.saved_caches_directory + File.separator + ksName + "-" + cfName + "-KeyCache");
     }
 }

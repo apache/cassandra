@@ -29,7 +29,9 @@ import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static com.google.common.base.Charsets.UTF_8;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.gms.FailureDetector;
@@ -37,14 +39,12 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.DigestMismatchException;
+import org.apache.cassandra.service.IWriteResponseHandler;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.WriteResponseHandler;
-import org.apache.cassandra.service.IWriteResponseHandler;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
-
-import static com.google.common.base.Charsets.UTF_8;
 
 
 /**
@@ -85,15 +85,7 @@ public class HintedHandOffManager
 
     private final NonBlockingHashSet<InetAddress> queuedDeliveries = new NonBlockingHashSet<InetAddress>();
 
-    private final ExecutorService executor_;
-
-    public HintedHandOffManager()
-    {
-        int hhPriority = System.getProperty("cassandra.compaction.priority") == null
-                         ? Thread.NORM_PRIORITY
-                         : Integer.parseInt(System.getProperty("cassandra.compaction.priority"));
-        executor_ = new JMXEnabledThreadPoolExecutor("HintedHandoff", hhPriority);
-    }
+    private final ExecutorService executor_ = new JMXEnabledThreadPoolExecutor("HintedHandoff", DatabaseDescriptor.getCompactionThreadPriority());
 
     private static boolean sendMessage(InetAddress endpoint, String tableName, String cfName, byte[] key) throws IOException
     {
