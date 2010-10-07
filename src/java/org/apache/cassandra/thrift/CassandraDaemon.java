@@ -27,8 +27,7 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import javax.naming.ConfigurationException;
-
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;

@@ -24,13 +24,12 @@ package org.apache.cassandra.dht;
  import java.io.UnsupportedEncodingException;
  import java.net.InetAddress;
 
- import javax.naming.ConfigurationException;
-
  import org.apache.commons.lang.StringUtils;
  import org.apache.log4j.Logger;
 
  import org.apache.commons.lang.ArrayUtils;
 
+ import org.apache.cassandra.config.ConfigurationException;
  import org.apache.cassandra.locator.TokenMetadata;
  import org.apache.cassandra.locator.AbstractReplicationStrategy;
  import org.apache.cassandra.net.*;

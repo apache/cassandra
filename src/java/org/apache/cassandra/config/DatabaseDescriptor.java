@@ -1170,14 +1170,6 @@ public class DatabaseDescriptor
         return (int)Math.min(FBUtilities.absoluteFromFraction(v, expectedRows), Integer.MAX_VALUE);
     }
 
-    private static class ConfigurationException extends Exception
-    {
-        public ConfigurationException(String message)
-        {
-            super(message);
-        }
-    }
-
     public static InetAddress getListenAddress()
     {
         return listenAddress;

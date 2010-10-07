@@ -24,10 +24,9 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import javax.naming.ConfigurationException;
-
 import org.junit.Test;
 
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.DatabaseDescriptor;

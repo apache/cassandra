@@ -28,7 +28,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
-import javax.naming.ConfigurationException;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
@@ -297,7 +296,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         MessagingService.instance.listen(FBUtilities.getLocalAddress());
     }
 
-    public synchronized void initServer() throws IOException, ConfigurationException
+    public synchronized void initServer() throws IOException, org.apache.cassandra.config.ConfigurationException
     {
         if (initialized)
         {
