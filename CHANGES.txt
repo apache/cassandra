@@ -18,6 +18,7 @@ dev
  * allow keyspace creation with RF > N (CASSANDRA-1428)
  * improve cli error handling (CASSANDRA-1580)
  * add cache save/load ability (CASSANDRA-1417)
+ * add StorageService.getDrainProgress (CASSANDRA-1588)
 
 
 0.7-beta2

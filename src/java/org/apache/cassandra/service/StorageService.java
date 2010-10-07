@@ -181,6 +181,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     private String operationMode;
     private MigrationManager migrationManager = new MigrationManager();
 
+    /* Used for tracking drain progress */
+    private volatile int totalCFs, remainingCFs;
+
     public void finishBootstrapping()
     {
         isBootstrapMode = false;
@@ -1840,7 +1843,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         return operationMode;
     }
-    
+
+    public String getDrainProgress()
+    {
+        return String.format("Drained %s/%s ColumnFamilies", remainingCFs, totalCFs);
+    }
+
     /** shuts node off to writes, empties memtables and the commit log. */
     public synchronized void drain() throws IOException, InterruptedException, ExecutionException
     {
@@ -1856,20 +1864,29 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         MessagingService.shutdown();
         setMode("Draining: emptying MessageService pools", false);
         MessagingService.waitFor();
-       
+
         setMode("Draining: clearing mutation stage", false);
         mutationStage.shutdown();
         mutationStage.awaitTermination(3600, TimeUnit.SECONDS);
 
         // lets flush.
         setMode("Draining: flushing column families", false);
+        List<ColumnFamilyStore> cfses = new ArrayList<ColumnFamilyStore>();
         for (String tableName : DatabaseDescriptor.getNonSystemTables())
-            for (Future f : Table.open(tableName).flush())
-                f.get();
+        {
+            Table table = Table.open(tableName);
+            cfses.addAll(table.getColumnFamilyStores());
+        }
+        totalCFs = remainingCFs = cfses.size();
+        for (ColumnFamilyStore cfs : cfses)
+        {
+            cfs.forceBlockingFlush();
+            remainingCFs--;
+        }
 
         ColumnFamilyStore.postFlushExecutor.shutdown();
         ColumnFamilyStore.postFlushExecutor.awaitTermination(60, TimeUnit.SECONDS);
-       
+
         // want to make sure that any segments deleted as a result of flushing are gone.
         DeletionService.waitFor();
 
