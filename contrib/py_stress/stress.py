@@ -65,6 +65,8 @@ parser.add_option('-t', '--threads', type="int", dest="threads",
                   help="Number of threads/procs to use", default=50)
 parser.add_option('-c', '--columns', type="int", dest="columns",
                   help="Number of columns per key", default=5)
+parser.add_option('-S', '--column-size', type="int", dest="column_size",
+                  help="Size of column values in bytes", default=32)
 parser.add_option('-d', '--nodes', type="string", dest="nodes",
                   help="Host nodes (comma separated)", default="localhost")
 parser.add_option('-s', '--stdev', type="float", dest="stdev", default=0.1,
@@ -163,6 +165,7 @@ class Operation(Thread):
 class Inserter(Operation):
     def run(self):
         data = md5(str(get_ident())).hexdigest()
+        data = data * int(options.column_size/len(data)) + data[:options.column_size % len(data)]
         columns = [Column('C' + str(j), data, 0) for j in xrange(columns_per_key)]
         fmt = '%0' + str(len(str(total_keys))) + 'd'
         if 'super' == options.cftype:
