@@ -547,6 +547,20 @@ public final class CFMetaData
 
         validateMinMaxCompactionThresholds(cf_def);
 
+        Map<byte[], ColumnDefinition> metadata = new HashMap<byte[], ColumnDefinition>();
+        if (cf_def.column_metadata == null)
+        {
+            metadata = column_metadata;
+        }
+        else
+        {
+            for (org.apache.cassandra.thrift.ColumnDef def : cf_def.column_metadata)
+            {
+                ColumnDefinition cd = new ColumnDefinition(def.name, def.validation_class, def.index_type, def.index_name);
+                metadata.put(cd.name, cd);
+            }
+        }
+
         return new CFMetaData(tableName, 
                               cfName, 
                               cfType, 
@@ -564,7 +578,7 @@ public final class CFMetaData
                               cf_def.min_compaction_threshold,
                               cf_def.max_compaction_threshold,
                               cfId,
-                              column_metadata,
+                              metadata,
                               rowCacheSavePeriodInSeconds,
                               keyCacheSavePeriodInSeconds);
     }

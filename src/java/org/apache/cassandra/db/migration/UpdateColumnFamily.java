@@ -1,10 +1,8 @@
 package org.apache.cassandra.db.migration;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
@@ -12,6 +10,7 @@ import org.apache.cassandra.utils.UUIDGen;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -51,10 +50,6 @@ public class UpdateColumnFamily extends Migration
         this.oldCfm = oldCfm;
         this.newCfm = newCfm;
         
-        // we'll allow this eventually.
-        if (!oldCfm.column_metadata.equals(newCfm.column_metadata))
-            throw new ConfigurationException("Column meta information is not identical.");
-        
         // clone ksm but include the new cf def.
         KSMetaData newKsm = makeNewKeyspaceDefinition(ksm);
         rm = Migration.makeDefinitionMutation(newKsm, null, newVersion);
@@ -78,12 +73,30 @@ public class UpdateColumnFamily extends Migration
 
     void applyModels() throws IOException
     {
-        // all we really need to do is reload the cfstore.
+        logger.debug("Updating " + oldCfm + " to " + newCfm);
         KSMetaData newKsm = makeNewKeyspaceDefinition(DatabaseDescriptor.getTableDefinition(newCfm.tableName));
         DatabaseDescriptor.setTableDefinition(newKsm, newVersion);
         
         if (!clientMode)
-            Table.open(oldCfm.tableName).reloadCf(newCfm.cfId);
+        {
+            Table table = Table.open(oldCfm.tableName);
+            ColumnFamilyStore oldCfs = table.getColumnFamilyStore(oldCfm.cfName);
+            table.reloadCf(newCfm.cfId);
+
+            // clean up obsolete index data files
+            for (Map.Entry<byte[], ColumnDefinition> entry : oldCfm.column_metadata.entrySet())
+            {
+                byte[] column = entry.getKey();
+                ColumnDefinition def = entry.getValue();
+                if (def.index_type != null
+                    && (!newCfm.column_metadata.containsKey(column) || newCfm.column_metadata.get(column).index_type == null))
+                {
+                    ColumnFamilyStore indexCfs = oldCfs.getIndexedColumnFamilyStore(column);
+                    SystemTable.setIndexRemoved(table.name, indexCfs.columnFamily);
+                    indexCfs.removeAllSSTables();
+                }
+            }
+        }
     }
 
     public void subdeflate(org.apache.cassandra.db.migration.avro.Migration mi)

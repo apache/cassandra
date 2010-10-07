@@ -345,4 +345,20 @@ public class SystemTable
 
         forceBlockingFlush(INDEX_CF);
     }
+
+    public static void setIndexRemoved(String table, String indexName)
+    {
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, table.getBytes(UTF_8));
+        rm.delete(new QueryPath(INDEX_CF, null, indexName.getBytes(UTF_8)), new TimestampClock(System.currentTimeMillis()));
+        try
+        {
+            rm.apply();
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+
+        forceBlockingFlush(INDEX_CF);
+    }
 }

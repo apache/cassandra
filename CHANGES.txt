@@ -20,6 +20,7 @@ dev
  * add cache save/load ability (CASSANDRA-1417)
  * add StorageService.getDrainProgress (CASSANDRA-1588)
  * Disallow bootstrap to an in-use token (CASSANDRA-1561)
+ * Allow dynamic secondary index creation and destruction (CASSANDRA-1532)
 
 
 0.7-beta2

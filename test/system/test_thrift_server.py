@@ -1364,6 +1364,46 @@ class TestMutations(ThriftTester):
         assert 'NewColumnFamily' not in [x.name for x in ks1.cf_defs]
         assert 'Standard1' in [x.name for x in ks1.cf_defs]
 
+    def test_dynamic_indexes_with_system_update_cf(self):
+        _set_keyspace('Keyspace1')
+        cd = ColumnDef('birthdate', 'BytesType', None, None)
+        newcf = CfDef('Keyspace1', 'ToBeIndexed', default_validation_class='LongType', column_metadata=[cd])
+        client.system_add_column_family(newcf)
+
+        client.insert('key1', ColumnParent('ToBeIndexed'), Column('birthdate', _i64(1), 0), ConsistencyLevel.ONE)
+        client.insert('key2', ColumnParent('ToBeIndexed'), Column('birthdate', _i64(2), 0), ConsistencyLevel.ONE)
+        client.insert('key2', ColumnParent('ToBeIndexed'), Column('b', _i64(2), 0), ConsistencyLevel.ONE)
+        client.insert('key3', ColumnParent('ToBeIndexed'), Column('birthdate', _i64(3), 0), ConsistencyLevel.ONE)
+        client.insert('key3', ColumnParent('ToBeIndexed'), Column('b', _i64(3), 0), ConsistencyLevel.ONE)
+
+        # Should fail without index
+        cp = ColumnParent('ToBeIndexed')
+        sp = SlicePredicate(slice_range=SliceRange('', ''))
+        clause = IndexClause([IndexExpression('birthdate', IndexOperator.EQ, _i64(1))], '')
+        _expect_exception(lambda: client.get_indexed_slices(cp, clause, sp, ConsistencyLevel.ONE), InvalidRequestException)
+
+        # add an index on 'birthdate'
+        ks1 = client.describe_keyspace('Keyspace1')
+        cfid = [x.id for x in ks1.cf_defs if x.name=='ToBeIndexed'][0]
+        modified_cd = ColumnDef('birthdate', 'BytesType', IndexType.KEYS, None)
+        modified_cf = CfDef('Keyspace1', 'ToBeIndexed', column_metadata=[modified_cd])
+        modified_cf.id = cfid
+        client.system_update_column_family(modified_cf)
+        ks1 = client.describe_keyspace('Keyspace1')
+        server_cf = [x for x in ks1.cf_defs if x.name=='ToBeIndexed'][0]
+        assert server_cf
+        assert server_cf.column_metadata[0].index_type == modified_cd.index_type
+        assert server_cf.column_metadata[0].index_name == modified_cd.index_name
+ 
+        # simple query on one index expression
+        cp = ColumnParent('ToBeIndexed')
+        sp = SlicePredicate(slice_range=SliceRange('', ''))
+        clause = IndexClause([IndexExpression('birthdate', IndexOperator.EQ, _i64(1))], '')
+        result = client.get_indexed_slices(cp, clause, sp, ConsistencyLevel.ONE)
+        assert len(result) == 1, result
+        assert result[0].key == 'key1'
+        assert len(result[0].columns) == 1, result[0].columns
+
     def test_system_super_column_family_operations(self):
         _set_keyspace('Keyspace1')
         
