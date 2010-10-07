@@ -327,7 +327,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         MigrationManager.announce(DatabaseDescriptor.getDefsVersion(), DatabaseDescriptor.getSeeds());
     }
 
-    public synchronized void initServer() throws IOException
+    public synchronized void initServer() throws IOException, org.apache.cassandra.config.ConfigurationException
     {
         logger_.info("Cassandra version: " + FBUtilities.getReleaseVersionString());
         logger_.info("Thrift API version: " + Constants.VERSION);

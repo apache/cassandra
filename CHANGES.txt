@@ -19,6 +19,7 @@ dev
  * improve cli error handling (CASSANDRA-1580)
  * add cache save/load ability (CASSANDRA-1417)
  * add StorageService.getDrainProgress (CASSANDRA-1588)
+ * Disallow bootstrap to an in-use token (CASSANDRA-1561)
 
 
 0.7-beta2
@@ -131,6 +132,8 @@ dev
  * make nodetool compact and cleanup blocking (CASSANDRA-1449)
  * add memtable, cache information to GCInspector logs (CASSANDRA-1558)
  * enable/disable HintedHandoff via JMX (CASSANDRA-1550)
+ * Ignore stray files in the commit log directory (CASSANDRA-1547)
+ * Disallow bootstrap to an in-use token (CASSANDRA-1561)
 
 
 0.7-beta1

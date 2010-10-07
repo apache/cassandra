@@ -37,6 +37,7 @@ package org.apache.cassandra.dht;
  import org.apache.cassandra.gms.FailureDetector;
  import org.apache.cassandra.gms.IFailureDetector;
  import org.apache.cassandra.locator.AbstractReplicationStrategy;
+ import org.apache.cassandra.config.ConfigurationException;
  import org.apache.cassandra.locator.TokenMetadata;
  import org.apache.cassandra.net.IAsyncCallback;
  import org.apache.cassandra.net.IVerbHandler;
@@ -125,12 +126,15 @@ public class BootStrapper
      * if initialtoken was specified, use that.
      * otherwise, pick a token to assume half the load of the most-loaded node.
      */
-    public static Token getBootstrapToken(final TokenMetadata metadata, final Map<InetAddress, Double> load) throws IOException
+    public static Token getBootstrapToken(final TokenMetadata metadata, final Map<InetAddress, Double> load) throws IOException, ConfigurationException
     {
         if (DatabaseDescriptor.getInitialToken() != null)
         {
             logger.debug("token manually specified as " + DatabaseDescriptor.getInitialToken());
-            return StorageService.getPartitioner().getTokenFactory().fromString(DatabaseDescriptor.getInitialToken());
+            Token token = StorageService.getPartitioner().getTokenFactory().fromString(DatabaseDescriptor.getInitialToken());
+            if (metadata.getEndpoint(token) != null)
+                throw new ConfigurationException("Bootstraping to existing token " + token + " is not allowed (decommission/removetoken the old node first).");
+            return token;
         }
 
         return getBalancedToken(metadata, load);

@@ -153,7 +153,16 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
         SystemTable.purgeIncompatibleHints();
 
         // start server internals
-        StorageService.instance.initServer();
+        try
+        {
+            StorageService.instance.initServer();
+        }
+        catch (ConfigurationException e)
+        {
+            logger.error("Fatal error: " + e.getMessage());
+            System.err.println("Bad configuration; unable to start server");
+            System.exit(1);
+        }
 
         Mx4jTool.maybeLoad();
     }
