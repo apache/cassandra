@@ -77,9 +77,10 @@ public class CliCompiler
         }
         catch(Exception e)
         {
-            System.err.println("Exception " + e.getMessage());
-            e.printStackTrace(System.err);
+            // if there was an exception we don't want to process request any further
+            throw new RuntimeException(e.getMessage(), e);
         }
+        
         return queryTree;
     }
     /*

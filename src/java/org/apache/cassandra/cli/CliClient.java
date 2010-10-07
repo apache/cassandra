@@ -1118,7 +1118,18 @@ public class CliClient
         }
         else if (comparator instanceof IntegerType)
         {
-            return new BigInteger(column).toByteArray();
+            final BigInteger integerType;
+            
+            try
+            {
+                integerType =  new BigInteger(column);
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException("Column name '" + column + "' could not be translated into an IntegerType.");
+            }
+            
+            return integerType.toByteArray();
         }
         else if (comparator instanceof AsciiType)
         {

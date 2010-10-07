@@ -241,7 +241,8 @@ public class CliMain
         }
         catch (Exception e)
         {
-            css_.err.println("Exception " + e.getMessage());
+            css_.err.println((e.getCause() == null) ? e.getMessage() : e.getCause().getMessage());
+            
             if (css_.debug)
                 e.printStackTrace(css_.err);
             
@@ -286,7 +287,7 @@ public class CliMain
             }
             catch (IOException exp)
             {
-                css_.err.printf("Unable to open %s for writing%n", historyFile);
+                css_.err.printf("Unable to open %s for writing %n", historyFile);
             }
         }
         else

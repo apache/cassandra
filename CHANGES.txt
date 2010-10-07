@@ -16,6 +16,7 @@ dev
  * meaningful error message for invalid replication strategy class 
    (CASSANDRA-1566)
  * allow keyspace creation with RF > N (CASSANDRA-1428)
+ * improve cli error handling (CASSANDRA-1580)
 
 
 0.7-beta2

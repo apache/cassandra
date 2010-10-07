@@ -69,6 +69,22 @@ package org.apache.cassandra.cli;
 package org.apache.cassandra.cli;
 }
 
+@lexer::members
+{
+    public void reportError(RecognitionException e) 
+    {
+        throw new RuntimeException("Syntax error at " + e.line + "-" + e.charPositionInLine + ": " + this.getErrorMessage(e, this.getTokenNames()));
+    }
+}
+
+@parser::members
+{
+    public void reportError(RecognitionException e) 
+    {
+        throw new RuntimeException("Syntax error at " + e.line + "-" + e.charPositionInLine + ": " + this.getErrorMessage(e, this.getTokenNames()));
+    }
+}
+
 //
 // Parser Section
 //

@@ -38,7 +38,8 @@ public class CliOptions {
     private static final String PASSWORD_OPTION = "password";
     private static final String KEYSPACE_OPTION = "keyspace";
     private static final String BATCH_OPTION = "batch";
-
+    private static final String HELP_OPTION = "help";
+    
     // Default values for optional command line arguments
     private static final int    DEFAULT_THRIFT_PORT = 9160;
 
@@ -55,14 +56,13 @@ public class CliOptions {
         options.addOption(PASSWORD_OPTION, true, "password for cassandra authentication");
         options.addOption(KEYSPACE_OPTION, true, "cassandra keyspace user is authenticated against");
         options.addOption(BATCH_OPTION, false, "enabled batch mode (supress output; errors are fatal)");
+        options.addOption(HELP_OPTION, false, "usage help.");
     }
 
     private static void printUsage()
     {
-        System.err.println("");
         System.err.println("Usage: cassandra-cli --host hostname [--port <portname>] [--unframed] [--debug]");
-        System.err.println("    [--username username] [--password password] [--keyspace keyspace] [--batch]");
-        System.err.println("");
+        System.err.println("\t[--username username] [--password password] [--keyspace keyspace] [--batch] [--help]");
     }
 
     public void processArgs(CliSessionState css, String[] args)
@@ -75,7 +75,7 @@ public class CliOptions {
         catch (ParseException e)
         {
             printUsage();
-            e.printStackTrace();
+            System.err.println("\n" + e.getMessage());
             System.exit(1);
         }
 
@@ -137,6 +137,12 @@ public class CliOptions {
         if (cmd.hasOption(BATCH_OPTION))
         {
             css.batch = true;
+        }
+
+        if (cmd.hasOption(HELP_OPTION))
+        {
+            printUsage();
+            System.exit(1);
         }
     }
 }
