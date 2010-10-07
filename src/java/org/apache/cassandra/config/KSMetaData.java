@@ -124,7 +124,6 @@ public final class KSMetaData
     public static String convertOldStrategyName(String name)
     {
         return name.replace("RackUnawareStrategy", "SimpleStrategy")
-                   .replace("RackAwareStrategy", "OldNetworkTopologyStrategy")
-                   .replace("DatacenterShardStrategy", "NetworkTopologyStrategy");
+                   .replace("RackAwareStrategy", "OldNetworkTopologyStrategy");
     }
 }

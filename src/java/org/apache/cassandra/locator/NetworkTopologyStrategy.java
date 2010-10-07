@@ -69,59 +69,51 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
 
     public List<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata)
     {
-        int totalReplicas = getReplicationFactor();
-        Map<String, Integer> remainingReplicas = new HashMap<String, Integer>(datacenters);
-        Map<String, Set<String>> dcUsedRacks = new HashMap<String, Set<String>>();
-        List<InetAddress> endpoints = new ArrayList<InetAddress>(totalReplicas);
+        List<InetAddress> endpoints = new ArrayList<InetAddress>(getReplicationFactor());
 
-        // first pass: only collect replicas on unique racks
-        for (Iterator<Token> iter = TokenMetadata.ringIterator(tokenMetadata.sortedTokens(), searchToken);
-             endpoints.size() < totalReplicas && iter.hasNext();)
+        for (Entry<String, Integer> dcEntry : datacenters.entrySet())
         {
-            Token token = iter.next();
-            InetAddress endpoint = tokenMetadata.getEndpoint(token);
-            String datacenter = snitch.getDatacenter(endpoint);
-            int remaining = remainingReplicas.containsKey(datacenter) ? remainingReplicas.get(datacenter) : 0;
-            if (remaining > 0)
+            String dcName = dcEntry.getKey();
+            int dcReplicas = dcEntry.getValue();
+
+            // collect endpoints in this DC
+            TokenMetadata dcTokens = new TokenMetadata();
+            for (Entry<Token, InetAddress> tokenEntry : tokenMetadata.entrySet())
             {
-                Set<String> usedRacks = dcUsedRacks.get(datacenter);
-                if (usedRacks == null)
-                {
-                    usedRacks = new HashSet<String>();
-                    dcUsedRacks.put(datacenter, usedRacks);
-                }
+                if (snitch.getDatacenter(tokenEntry.getValue()).equals(dcName))
+                    dcTokens.updateNormalToken(tokenEntry.getKey(), tokenEntry.getValue());
+            }
+
+            List<InetAddress> dcEndpoints = new ArrayList<InetAddress>(dcReplicas);
+            Set<String> racks = new HashSet<String>();
+            // first pass: only collect replicas on unique racks
+            for (Iterator<Token> iter = TokenMetadata.ringIterator(dcTokens.sortedTokens(), searchToken);
+                 dcEndpoints.size() < dcReplicas && iter.hasNext(); )
+            {
+                Token token = iter.next();
+                InetAddress endpoint = dcTokens.getEndpoint(token);
                 String rack = snitch.getRack(endpoint);
-                if (!usedRacks.contains(rack))
+                if (!racks.contains(rack))
                 {
-                    endpoints.add(endpoint);
-                    usedRacks.add(rack);
-                    remainingReplicas.put(datacenter, remaining - 1);
+                    dcEndpoints.add(endpoint);
+                    racks.add(rack);
                 }
             }
-        }
 
-        // second pass: if replica count has not been achieved from unique racks, add nodes from the same racks
-        for (Iterator<Token> iter = TokenMetadata.ringIterator(tokenMetadata.sortedTokens(), searchToken);
-             endpoints.size() < totalReplicas && iter.hasNext();)
-        {
-            Token token = iter.next();
-            InetAddress endpoint = tokenMetadata.getEndpoint(token);
-            if (endpoints.contains(endpoint))
-                continue;
-
-            String datacenter = snitch.getDatacenter(endpoint);
-            int remaining = remainingReplicas.containsKey(datacenter) ? remainingReplicas.get(datacenter) : 0;
-            if (remaining > 0)
+            // second pass: if replica count has not been achieved from unique racks, add nodes from duplicate racks
+            for (Iterator<Token> iter = TokenMetadata.ringIterator(dcTokens.sortedTokens(), searchToken);
+                 dcEndpoints.size() < dcReplicas && iter.hasNext(); )
             {
-                endpoints.add(endpoint);
-                remainingReplicas.put(datacenter, remaining - 1);
+                Token token = iter.next();
+                InetAddress endpoint = dcTokens.getEndpoint(token);
+                if (!dcEndpoints.contains(endpoint))
+                    dcEndpoints.add(endpoint);
             }
-        }
 
-        for (Map.Entry<String, Integer> entry : remainingReplicas.entrySet())
-        {
-            if (entry.getValue() > 0)
-                throw new IllegalStateException(String.format("datacenter (%s) has no more endpoints, (%s) replicas still needed", entry.getKey(), entry.getValue()));
+            if (dcEndpoints.size() < dcReplicas)
+                throw new IllegalStateException(String.format("datacenter (%s) has no more endpoints, (%s) replicas still needed",
+                                                              dcName, dcReplicas - dcEndpoints.size()));
+            endpoints.addAll(dcEndpoints);
         }
 
         return endpoints;

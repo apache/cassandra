@@ -287,6 +287,11 @@ public class TokenMetadata
         }
     }
 
+    public Set<Map.Entry<Token,InetAddress>> entrySet()
+    {
+        return tokenToEndpointMap.entrySet();
+    }
+
     public InetAddress getEndpoint(Token token)
     {
         lock.readLock().lock();
