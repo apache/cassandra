@@ -1,7 +1,3 @@
-dev
- * Ignore stray files in the commit log directory (CASSANDRA-1547)
-
-
 0.6.6
  * Allow using DynamicEndpointSnitch with RackAwareStrategy (CASSANDRA-1429)
  * remove the remaining vestiges of the unfinished DatacenterShardStrategy 
@@ -47,6 +43,7 @@ dev
  * optimize SSTableReader.loadIndexFile to reduce re-reading of index
    data during server startup (CASSANDRA-1526)
  * add cache save/load ability (CASSANDRA-1417)
+ * Ignore stray files in the commit log directory (CASSANDRA-1547)
 
 
 0.6.5
