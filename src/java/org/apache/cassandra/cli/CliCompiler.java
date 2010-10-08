@@ -58,7 +58,8 @@ public class CliCompiler
 
     public static CommonTree compileQuery(String query)
     {
-        CommonTree queryTree = null;
+        CommonTree queryTree;
+        
         try
         {
             ANTLRStringStream input = new ANTLRNoCaseStringStream(query);

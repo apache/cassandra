@@ -59,6 +59,10 @@ tokens {
     NODE_ID_LIST;
     NODE_NEW_CF_ACCESS;
     NODE_NEW_KEYSPACE_ACCESS;
+    
+    ARRAY;
+    HASH;
+    PAIR;
 }
 
 @parser::header {
@@ -113,32 +117,55 @@ statement
     ;
 
 connectStatement
-    : K_CONNECT host SLASH port -> ^(NODE_CONNECT host port)
-    | K_CONNECT ipaddr SLASH port -> ^(NODE_CONNECT ipaddr port)
+    : K_CONNECT host SLASH port 
+        -> ^(NODE_CONNECT host port)
+    | K_CONNECT ipaddr SLASH port 
+        -> ^(NODE_CONNECT ipaddr port)
     ;
 
 helpStatement
-    : K_HELP K_HELP -> ^(NODE_HELP NODE_HELP)
-    | K_HELP K_CONNECT -> ^(NODE_HELP NODE_CONNECT)
-    | K_HELP K_USE -> ^(NODE_HELP NODE_USE_TABLE)
-    | K_HELP K_DESCRIBE K_TABLE -> ^(NODE_HELP NODE_DESCRIBE_TABLE)
-    | K_HELP K_EXIT -> ^(NODE_HELP NODE_EXIT)
-    | K_HELP K_QUIT -> ^(NODE_HELP NODE_EXIT)
-    | K_HELP K_SHOW K_CLUSTER K_NAME -> ^(NODE_HELP NODE_SHOW_CLUSTER_NAME)
-    | K_HELP K_SHOW K_TABLES -> ^(NODE_HELP NODE_SHOW_TABLES)
-    | K_HELP K_SHOW K_VERSION -> ^(NODE_HELP NODE_SHOW_VERSION)
-    | K_HELP K_CREATE K_TABLE -> ^(NODE_HELP NODE_ADD_KEYSPACE)
-    | K_HELP K_CREATE K_COLUMN K_FAMILY -> ^(NODE_HELP NODE_ADD_COLUMN_FAMILY)
-    | K_HELP K_DROP K_TABLE -> ^(NODE_HELP NODE_DEL_KEYSPACE)
-    | K_HELP K_DROP K_COLUMN K_FAMILY -> ^(NODE_HELP NODE_DEL_COLUMN_FAMILY)
-    | K_HELP K_RENAME K_TABLE -> ^(NODE_HELP NODE_RENAME_KEYSPACE)
-    | K_HELP K_RENAME K_COLUMN K_FAMILY -> ^(NODE_HELP NODE_RENAME_COLUMN_FAMILY)
-    | K_HELP K_GET -> ^(NODE_HELP NODE_THRIFT_GET)
-    | K_HELP K_SET -> ^(NODE_HELP NODE_THRIFT_SET)
-    | K_HELP K_DEL -> ^(NODE_HELP NODE_THRIFT_DEL)
-    | K_HELP K_COUNT -> ^(NODE_HELP NODE_THRIFT_COUNT)
-    | K_HELP -> ^(NODE_HELP)
-    | '?'    -> ^(NODE_HELP)
+    : K_HELP K_HELP 
+        -> ^(NODE_HELP NODE_HELP)
+    | K_HELP K_CONNECT 
+        -> ^(NODE_HELP NODE_CONNECT)
+    | K_HELP K_USE 
+        -> ^(NODE_HELP NODE_USE_TABLE)
+    | K_HELP K_DESCRIBE K_TABLE 
+        -> ^(NODE_HELP NODE_DESCRIBE_TABLE)
+    | K_HELP K_EXIT 
+        -> ^(NODE_HELP NODE_EXIT)
+    | K_HELP K_QUIT 
+        -> ^(NODE_HELP NODE_EXIT)
+    | K_HELP K_SHOW K_CLUSTER K_NAME 
+        -> ^(NODE_HELP NODE_SHOW_CLUSTER_NAME)
+    | K_HELP K_SHOW K_TABLES 
+        -> ^(NODE_HELP NODE_SHOW_TABLES)
+    | K_HELP K_SHOW K_VERSION 
+        -> ^(NODE_HELP NODE_SHOW_VERSION)
+    | K_HELP K_CREATE K_TABLE 
+        -> ^(NODE_HELP NODE_ADD_KEYSPACE)
+    | K_HELP K_CREATE K_COLUMN K_FAMILY 
+        -> ^(NODE_HELP NODE_ADD_COLUMN_FAMILY)
+    | K_HELP K_DROP K_TABLE 
+        -> ^(NODE_HELP NODE_DEL_KEYSPACE)
+    | K_HELP K_DROP K_COLUMN K_FAMILY 
+        -> ^(NODE_HELP NODE_DEL_COLUMN_FAMILY)
+    | K_HELP K_RENAME K_TABLE 
+        -> ^(NODE_HELP NODE_RENAME_KEYSPACE)
+    | K_HELP K_RENAME K_COLUMN K_FAMILY 
+        -> ^(NODE_HELP NODE_RENAME_COLUMN_FAMILY)
+    | K_HELP K_GET 
+        -> ^(NODE_HELP NODE_THRIFT_GET)
+    | K_HELP K_SET 
+        -> ^(NODE_HELP NODE_THRIFT_SET)
+    | K_HELP K_DEL 
+        -> ^(NODE_HELP NODE_THRIFT_DEL)
+    | K_HELP K_COUNT 
+        -> ^(NODE_HELP NODE_THRIFT_COUNT)
+    | K_HELP 
+        -> ^(NODE_HELP)
+    | '?'    
+        -> ^(NODE_HELP)
     ;
 
 exitStatement
@@ -147,19 +174,23 @@ exitStatement
     ;
 
 getStatement
-    : K_GET columnFamilyExpr -> ^(NODE_THRIFT_GET columnFamilyExpr)
+    : K_GET columnFamilyExpr 
+        -> ^(NODE_THRIFT_GET columnFamilyExpr)
     ;
 
 setStatement
-    : K_SET columnFamilyExpr '=' value -> ^(NODE_THRIFT_SET columnFamilyExpr value)
+    : K_SET columnFamilyExpr '=' value 
+        -> ^(NODE_THRIFT_SET columnFamilyExpr value)
     ;
 
 countStatement
-    : K_COUNT columnFamilyExpr -> ^(NODE_THRIFT_COUNT columnFamilyExpr)
+    : K_COUNT columnFamilyExpr 
+        -> ^(NODE_THRIFT_COUNT columnFamilyExpr)
     ;
 
 delStatement
-    : K_DEL columnFamilyExpr -> ^(NODE_THRIFT_DEL columnFamilyExpr)
+    : K_DEL columnFamilyExpr 
+        -> ^(NODE_THRIFT_DEL columnFamilyExpr)
     ;
 
 showStatement
@@ -169,55 +200,95 @@ showStatement
     ;
 
 showClusterName
-    : K_SHOW K_CLUSTER K_NAME -> ^(NODE_SHOW_CLUSTER_NAME)
+    : K_SHOW K_CLUSTER K_NAME 
+        -> ^(NODE_SHOW_CLUSTER_NAME)
     ;
 
 addKeyspace
-    : K_CREATE K_TABLE keyValuePairExpr -> ^(NODE_ADD_KEYSPACE keyValuePairExpr)
+    : K_CREATE K_TABLE keyValuePairExpr 
+        -> ^(NODE_ADD_KEYSPACE keyValuePairExpr)
     ;
 
 addColumnFamily
-    : K_CREATE K_COLUMN K_FAMILY keyValuePairExpr -> ^(NODE_ADD_COLUMN_FAMILY keyValuePairExpr)
+    : K_CREATE K_COLUMN K_FAMILY keyValuePairExpr 
+        -> ^(NODE_ADD_COLUMN_FAMILY keyValuePairExpr)
     ;
 
 delKeyspace
-    : K_DROP K_TABLE keyspace -> ^(NODE_DEL_KEYSPACE keyspace)
+    : K_DROP K_TABLE keyspace 
+        -> ^(NODE_DEL_KEYSPACE keyspace)
     ;
 
 delColumnFamily
-    : K_DROP K_COLUMN K_FAMILY columnFamily -> ^(NODE_DEL_COLUMN_FAMILY columnFamily)
+    : K_DROP K_COLUMN K_FAMILY columnFamily 
+        -> ^(NODE_DEL_COLUMN_FAMILY columnFamily)
     ;
 
 renameKeyspace
-    : K_RENAME K_TABLE keyspace keyspaceNewName -> ^(NODE_RENAME_KEYSPACE keyspace keyspaceNewName)
+    : K_RENAME K_TABLE keyspace keyspaceNewName 
+        -> ^(NODE_RENAME_KEYSPACE keyspace keyspaceNewName)
     ;
 
 renameColumnFamily
-    : K_RENAME K_COLUMN K_FAMILY columnFamily newColumnFamily -> ^(NODE_RENAME_COLUMN_FAMILY columnFamily newColumnFamily)
+    : K_RENAME K_COLUMN K_FAMILY columnFamily newColumnFamily 
+        -> ^(NODE_RENAME_COLUMN_FAMILY columnFamily newColumnFamily)
     ;
 
 
 showVersion
-    : K_SHOW K_VERSION -> ^(NODE_SHOW_VERSION)
+    : K_SHOW K_VERSION 
+        -> ^(NODE_SHOW_VERSION)
     ;
 
 showTables
-    : K_SHOW K_TABLES -> ^(NODE_SHOW_TABLES)
+    : K_SHOW K_TABLES 
+        -> ^(NODE_SHOW_TABLES)
     ;
 
 describeTable
-    : K_DESCRIBE K_TABLE table -> ^(NODE_DESCRIBE_TABLE table);
+    : K_DESCRIBE K_TABLE table 
+        -> ^(NODE_DESCRIBE_TABLE table)
+    ;
     
 useTable
-    : K_USE table ( username )? ( password )? -> ^(NODE_USE_TABLE table ( username )? ( password )?);
+    : K_USE table ( username )? ( password )? 
+        -> ^(NODE_USE_TABLE table ( username )? ( password )?)
+    ;
 
 
 keyValuePairExpr
-    : objectName 
-            ( (K_AND|K_WITH) a+=attname '=' b+=attvaluestring)*
-            ( (K_AND|K_WITH) c+=attname '=' d+=attvalueint)*
-            -> ^(NODE_NEW_KEYSPACE_ACCESS objectName ($a $b)* ($c $d)*);
+    : objectName ( (K_AND | K_WITH) keyValuePair )* 
+        -> ^(NODE_NEW_KEYSPACE_ACCESS objectName ( keyValuePair )* )
+    ;
             
+keyValuePair 
+    : attr_name '=' attrValue -> attr_name attrValue
+    ;
+
+attrValue
+    : arrayConstruct
+    | attrValueString
+    | attrValueInt
+    ;
+
+
+arrayConstruct 
+    : '[' (hashConstruct ','?)+ ']'
+        -> ^(ARRAY (hashConstruct)+)
+    ; 
+
+hashConstruct 
+    : '{' hashElementPair (',' hashElementPair)* '}'
+        -> ^(HASH (hashElementPair)+)
+    ;
+
+hashElementPair
+    : rowKey ':' value
+        -> ^(PAIR rowKey value)
+    ;
+
+
+
 columnFamilyExpr
     : columnFamily '[' rowKey ']' 
         ( '[' a+=columnOrSuperColumn ']' 
@@ -230,11 +301,11 @@ table: Identifier;
 
 columnName: Identifier;
 
-attname: Identifier;
+attr_name: Identifier;
 
-attvaluestring: (Identifier | StringLiteral);
+attrValueString: (Identifier | StringLiteral);
       
-attvalueint: IntegerLiteral;
+attrValueInt: IntegerLiteral;
   
 objectName: Identifier;
 
@@ -246,7 +317,7 @@ replication_factor: IntegerLiteral;
 
 keyspaceNewName: Identifier;
 
-comparator:  StringLiteral;
+comparator: StringLiteral;
       
 command: Identifier;
 

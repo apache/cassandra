@@ -48,7 +48,8 @@ public class CliClient
         PRELOAD_ROW_CACHE,
         KEY_CACHE_SIZE,
         READ_REPAIR_CHANCE,
-        GC_GRACE_SECONDS
+        GC_GRACE_SECONDS,
+        COLUMN_METADATA
     }
 
     /*
@@ -243,10 +244,17 @@ public class CliClient
                 css_.out.println("    - key_cache_size: Number of keys to cache");
                 css_.out.println("    - read_repair_chance: Valid values for this attribute are any number");
                 css_.out.println("                          between 0.0 and 1.0\n");
+                css_.out.println("    - column_metadata: Metadata which describes columns of column family.");
+                css_.out.println("        Supported format is [{ k:v, k:v, ... }, { ... }, ...]");
+                css_.out.println("        Valid attributes: column_name, validation_class (see comparator),");
+                css_.out.println("                          index_type (integer), index_name.");
                 css_.out.println("example:\n");
                 css_.out.println("create column family bar with column_type = 'Super' and comparator = 'AsciiType'");
                 css_.out.println("      and rows_cached = 10000");
                 css_.out.println("create column family baz with comparator = 'LongType' and rows_cached = 10000");
+                css_.out.print("create column family foo with comparator=LongType and column_metadata=");
+                css_.out.print("[{ column_name:Test, validation_class:IntegerType, index_type:0, index_name:IdxName");
+                css_.out.println("}, { column_name:'other name', validation_class:LongType }]");
                 break;
                 
             case CliParser.NODE_RENAME_KEYSPACE:
@@ -724,18 +732,18 @@ public class CliClient
         {
             return;
         }
+
         CommonTree newCFTree = (CommonTree)ast.getChild(0);
         //parser send the keyspace, plus a series of key value pairs, ie should always be an odd number...
         assert(newCFTree.getChildCount() > 0);
         assert(newCFTree.getChildCount() % 2 == 1);
 
-
         /*
          * first value is the keyspace name, after that it is all key=value
          */
-        String columnName = newCFTree.getChild(0).getText();
-        int argumentLength = newCFTree.getChildCount();
-        CfDef cfDef = new CfDef(keySpace, columnName);        
+        final String columnName = newCFTree.getChild(0).getText();
+        final int argumentLength = newCFTree.getChildCount();
+        final CfDef cfDef = new CfDef(keySpace, columnName);        
 
         for(int i = 1; i < argumentLength; i = i + 2)
         {
@@ -781,6 +789,17 @@ public class CliClient
                 cfDef.setGc_grace_seconds(Integer.parseInt(mValue));
                 break;
 
+            case COLUMN_METADATA:
+                final Tree arrayOfMetaAttributes = newCFTree.getChild(i + 1);
+                
+                if (!arrayOfMetaAttributes.getText().equals("ARRAY"))
+                {
+                    throw new RuntimeException("'column_metadata' format - [{ k:v, k:v, ..}, { ... }, ...]");
+                }
+                
+                cfDef.setColumn_metadata(getCFColumnMetaFromTree(arrayOfMetaAttributes));
+                break;
+            
             default:
                 //must match one of the above or we'd throw an exception at the valueOf statement above.
                 assert(false);
@@ -1093,6 +1112,95 @@ public class CliClient
         }
         int idx = cfnames.indexOf(cfname);
         return ksd.cf_defs.get(idx);
+    }
+
+    /**
+     * Used to parse meta tree and compile meta attributes into List<ColumnDef>
+     * @param meta (Tree representing Array of the hashes with metadata attributes)
+     * @return List<ColumnDef> List of the ColumnDef's
+     * 
+     * meta is in following format - ^(ARRAY ^(HASH ^(PAIR .. ..) ^(PAIR .. ..)) ^(HASH ...))
+     */
+    private List<ColumnDef> getCFColumnMetaFromTree(final Tree meta) {
+        // this list will be returned
+        final List<ColumnDef> columnDefinitions = new ArrayList<ColumnDef>();
+        
+        // each child node is a ^(HASH ...)
+        for (int i = 0; i < meta.getChildCount(); i++)
+        {
+            Tree metaHash = meta.getChild(i);
+
+            final ColumnDef columnDefinition = new ColumnDef();
+            
+            // each child node is ^(PAIR $key $value)
+            for (int j = 0; j < metaHash.getChildCount(); j++)
+            {
+                Tree metaPair = metaHash.getChild(j);
+
+                // current $key
+                String metaKey = CliUtils.unescapeSQLString(metaPair.getChild(0).getText());
+                // current $value
+                String metaVal = CliUtils.unescapeSQLString(metaPair.getChild(1).getText());
+
+                if (metaKey.equals("column_name"))
+                {
+                    try
+                    {
+                        columnDefinition.setName(metaVal.getBytes("UTF-8"));
+                    }
+                    catch (UnsupportedEncodingException e)
+                    {
+                        throw new RuntimeException(e.getMessage(), e);
+                    }
+                }
+                else if (metaKey.equals("validation_class"))
+                {
+                    columnDefinition.setValidation_class(metaVal);
+                }
+                else if (metaKey.equals("index_type"))
+                {
+                    columnDefinition.setIndex_type(getIndexTypeFromString(metaVal));
+                }
+                else if (metaKey.equals("index_name"))
+                {
+                    columnDefinition.setIndex_name(metaVal);    
+                }
+            }
+
+            // validating columnDef structure, 'name' and 'validation_class' must be set 
+            try
+            {
+                columnDefinition.validate();
+            }
+            catch (TException e)
+            {
+                throw new RuntimeException(e.getMessage(), e);
+            }
+
+            columnDefinitions.add(columnDefinition);
+        }
+
+        return columnDefinitions;
+    }
+
+    private IndexType getIndexTypeFromString(final String indexTypeAsString) {
+        final Integer indexTypeId;
+        final IndexType indexType;
+
+        try {
+            indexTypeId = new Integer(indexTypeAsString);
+        }
+        catch (NumberFormatException e) {
+            throw new RuntimeException("Could not convert " + indexTypeAsString + " into Integer.");
+        }
+
+        indexType = IndexType.findByValue(indexTypeId);
+
+        if (indexType == null) {
+            throw new RuntimeException(indexTypeAsString + " is unsupported.");
+        }
+
+        return indexType;
     }
 
     private byte[] columnNameAsByteArray(final String column, final String columnFamily) throws NoSuchFieldException, InstantiationException, IllegalAccessException, UnsupportedEncodingException
