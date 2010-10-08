@@ -55,14 +55,12 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 
     private final long creationTime;
     private final ConcurrentNavigableMap<DecoratedKey, ColumnFamily> columnFamilies = new ConcurrentSkipListMap<DecoratedKey, ColumnFamily>();
-    private final IPartitioner partitioner;
     public final ColumnFamilyStore cfs;
 
-    public Memtable(ColumnFamilyStore cfs, IPartitioner partitioner)
+    public Memtable(ColumnFamilyStore cfs)
     {
 
         this.cfs = cfs;
-        this.partitioner = partitioner;
         creationTime = System.currentTimeMillis();
     }
 
@@ -148,7 +146,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     private SSTableReader writeSortedContents() throws IOException
     {
         logger.info("Writing " + this);
-        SSTableWriter writer = new SSTableWriter(cfs.getFlushPath(), columnFamilies.size(), cfs.metadata, partitioner);
+        SSTableWriter writer = new SSTableWriter(cfs.getFlushPath(), columnFamilies.size(), cfs.metadata, cfs.partitioner);
 
         for (Map.Entry<DecoratedKey, ColumnFamily> entry : columnFamilies.entrySet())
             writer.append(entry.getKey(), entry.getValue());

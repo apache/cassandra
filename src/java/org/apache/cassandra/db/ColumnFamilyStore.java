@@ -160,7 +160,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         this.maxCompactionThreshold = metadata.maxCompactionThreshold;
         this.partitioner = partitioner;
         fileIndexGenerator.set(generation);
-        memtable = new Memtable(this, this.partitioner);
+        memtable = new Memtable(this);
         binaryMemtable = new AtomicReference<BinaryMemtable>(new BinaryMemtable(this));
 
         if (logger.isDebugEnabled())
@@ -578,7 +578,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             for (ColumnFamilyStore cfs : icc)
             {
                 submitFlush(cfs.memtable, latch);
-                cfs.memtable = new Memtable(cfs, cfs.partitioner);
+                cfs.memtable = new Memtable(cfs);
             }
 
             // when all the memtables have been written, including for indexes, mark the flush in the commitlog header.
