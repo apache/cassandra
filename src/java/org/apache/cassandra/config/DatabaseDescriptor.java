@@ -142,6 +142,17 @@ public class    DatabaseDescriptor
                 throw new ConfigurationException("Missing required directive CommitLogSync");
             }
 
+            if (conf.memtable_throughput_in_mb == null)
+            {
+                conf.memtable_throughput_in_mb = (int) (Runtime.getRuntime().maxMemory() / (1048576 * 8));
+                logger.info("memtable_throughput_in_mb not configured, using " + conf.memtable_throughput_in_mb);
+            }
+            if (conf.memtable_operations_in_millions == null)
+            {
+                conf.memtable_operations_in_millions = 0.3 * conf.memtable_throughput_in_mb / 64.0;
+                logger.info("memtable_operations_in_millions not configured, using " + conf.memtable_operations_in_millions);
+            }
+
             if (conf.commitlog_sync == Config.CommitLogSync.batch)
             {
                 if (conf.commitlog_sync_batch_window_in_ms == null)
