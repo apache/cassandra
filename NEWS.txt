@@ -111,6 +111,17 @@ Other
       static final variable called 'instance'.
 
 
+0.6.6
+=====
+
+Upgrading
+---------
+    - As part of the cache-saving feature, a third directory
+      (along with data and commitlog) has been added to the config
+      file.  You will need to set and create this directory
+      when restarting your node into 0.6.6.
+
+
 0.6.1
 =====
 
