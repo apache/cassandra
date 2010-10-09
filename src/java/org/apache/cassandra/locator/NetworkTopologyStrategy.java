@@ -87,7 +87,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             List<InetAddress> dcEndpoints = new ArrayList<InetAddress>(dcReplicas);
             Set<String> racks = new HashSet<String>();
             // first pass: only collect replicas on unique racks
-            for (Iterator<Token> iter = TokenMetadata.ringIterator(dcTokens.sortedTokens(), searchToken);
+            for (Iterator<Token> iter = TokenMetadata.ringIterator(dcTokens.sortedTokens(), searchToken, false);
                  dcEndpoints.size() < dcReplicas && iter.hasNext(); )
             {
                 Token token = iter.next();
@@ -101,7 +101,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             }
 
             // second pass: if replica count has not been achieved from unique racks, add nodes from duplicate racks
-            for (Iterator<Token> iter = TokenMetadata.ringIterator(dcTokens.sortedTokens(), searchToken);
+            for (Iterator<Token> iter = TokenMetadata.ringIterator(dcTokens.sortedTokens(), searchToken, false);
                  dcEndpoints.size() < dcReplicas && iter.hasNext(); )
             {
                 Token token = iter.next();

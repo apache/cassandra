@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory;
 import com.google.common.collect.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.service.StorageService;
 
 public class TokenMetadata
 {
@@ -386,49 +387,57 @@ public class TokenMetadata
         return leavingEndpoints;
     }
 
-    public static int firstTokenIndex(final ArrayList ring, Token start)
+    public static int firstTokenIndex(final ArrayList ring, Token start, boolean insertMin)
     {
         assert ring.size() > 0;
+        // insert the minimum token (at index == -1) if we were asked to include it and it isn't a member of the ring
         int i = Collections.binarySearch(ring, start);
         if (i < 0)
         {
             i = (i + 1) * (-1);
             if (i >= ring.size())
-            {
-                i = 0;
-            }
+                i = insertMin ? -1 : 0;
         }
         return i;
     }
 
     public static Token firstToken(final ArrayList<Token> ring, Token start)
     {
-        return ring.get(firstTokenIndex(ring, start));
+        return ring.get(firstTokenIndex(ring, start, false));
     }
 
     /**
-     * <tt>Iterator</tt> over the <tt>Token</tt>s in the given ring, starting with the token for the node owning start
-     * (which does not have to be a <tt>Token</tt> in the ring)
+     * iterator over the Tokens in the given ring, starting with the token for the node owning start
+     * (which does not have to be a Token in the ring)
+     * @param includeMin True if the minimum token should be returned in the ring even if it has no owner.
      */
-    public static Iterator<Token> ringIterator(final ArrayList<Token> ring, Token start)
+    public static Iterator<Token> ringIterator(final ArrayList<Token> ring, Token start, boolean includeMin)
     {
-        final int startIndex = firstTokenIndex(ring, start);
+        final boolean insertMin = (includeMin && !ring.get(0).equals(StorageService.getPartitioner().getMinimumToken())) ? true : false;
+        final int startIndex = firstTokenIndex(ring, start, insertMin);
         return new AbstractIterator<Token>()
         {
             int j = startIndex;
             protected Token computeNext()
             {
-                if (j < 0)
+                if (j < -1)
                     return endOfData();
                 try
                 {
+                    // return minimum for index == -1
+                    if (j == -1)
+                        return StorageService.getPartitioner().getMinimumToken();
+                    // return ring token for other indexes
                     return ring.get(j);
                 }
                 finally
                 {
-                    j = (j + 1) % ring.size();
+                    j++;
+                    if (j == ring.size())
+                        j = insertMin ? -1 : 0;
                     if (j == startIndex)
-                        j = -1;
+                        // end iteration
+                        j = -2;
                 }
             }
         };

@@ -39,43 +39,20 @@ public class Bounds extends AbstractBounds
         assert left.compareTo(right) <= 0 || right.equals(partitioner.getMinimumToken()) : "[" + left + "," + right + "]";
     }
 
-    @Override
     public boolean contains(Token token)
     {
         return Range.contains(left, right, token) || left.equals(token);
     }
 
-    public Set<AbstractBounds> restrictTo(Range range)
+    public AbstractBounds createFrom(Token token)
     {
-        Token min = partitioner.getMinimumToken();
-
-        // special case Bounds where left=right (single Token)
-        if (this.left.equals(this.right) && !this.right.equals(min))
-            return range.contains(this.left)
-                   ? Collections.unmodifiableSet(new HashSet<AbstractBounds>(Arrays.asList(this)))
-                   : Collections.<AbstractBounds>emptySet();
-
-        // get the intersection of a Range w/ same left & right
-        Set<Range> ranges = range.intersectionWith(new Range(this.left, this.right));
-        // if range doesn't contain left token anyway, that's the correct answer
-        if (!range.contains(this.left))
-            return (Set) ranges;
-        // otherwise, add back in the left token
-        Set<AbstractBounds> S = new HashSet<AbstractBounds>(ranges.size());
-        for (Range restricted : ranges)
-        {
-            if (restricted.left.equals(this.left))
-                S.add(new Bounds(restricted.left, restricted.right));
-            else
-                S.add(restricted);
-        }
-        return Collections.unmodifiableSet(S);
+        return new Bounds(left, token);
     }
 
     public List<AbstractBounds> unwrap()
     {
         // Bounds objects never wrap
-        return (List)Arrays.asList(this);
+        return Collections.<AbstractBounds>singletonList(this);
     }
 
     @Override

@@ -28,6 +28,7 @@ import java.io.Serializable;
 import java.util.*;
 
 import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.utils.Pair;
 
 public abstract class AbstractBounds implements Serializable
 {
@@ -56,6 +57,20 @@ public abstract class AbstractBounds implements Serializable
         this.partitioner = partitioner;
     }
 
+    /**
+     * Given token T and AbstractBounds ?L,R], returns Pair(?L,T], ?T,R])
+     * (where ? means that the same type of Bounds is returned -- Range or Bounds -- as the original.)
+     * The original AbstractBounds must contain the token T.
+     * If R==T, null is returned as the right element of the Pair.
+     */
+
+    public Pair<AbstractBounds,AbstractBounds> split(Token token)
+    {
+        assert contains(token);
+        Range remainder = token.equals(right) ? null : new Range(token, right);
+        return new Pair<AbstractBounds,AbstractBounds>(createFrom(token), remainder);
+    }
+
     @Override
     public int hashCode()
     {
@@ -67,7 +82,8 @@ public abstract class AbstractBounds implements Serializable
 
     public abstract boolean contains(Token start);
 
-    public abstract Set<AbstractBounds> restrictTo(Range range);
+    /** @return A clone of this AbstractBounds with a new right Token. */
+    public abstract AbstractBounds createFrom(Token right);
 
     public abstract List<AbstractBounds> unwrap();
 

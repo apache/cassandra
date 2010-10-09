@@ -47,7 +47,7 @@ public class SimpleStrategy extends AbstractReplicationStrategy
             return endpoints;
 
         // Add the token at the index by default
-        Iterator<Token> iter = TokenMetadata.ringIterator(tokens, token);
+        Iterator<Token> iter = TokenMetadata.ringIterator(tokens, token, false);
         while (endpoints.size() < replicas && iter.hasNext())
         {
             endpoints.add(metadata.getEndpoint(iter.next()));

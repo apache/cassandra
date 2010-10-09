@@ -53,6 +53,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LatencyTracker;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.db.filter.QueryFilter;
 
@@ -550,71 +551,39 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     /**
-     * compute all ranges we're going to query, in sorted order, so that we get the correct results back.
-     *  1) computing range intersections is necessary because nodes can be replica destinations for many ranges,
-     *     so if we do not restrict each scan to the specific range we want we will get duplicate results.
-     *  2) sorting the intersection ranges is necessary because wraparound node ranges can be discontiguous.
-     *     Consider a 2-node ring, (D, T] and (T, D]. A query for [A, Z] will intersect the 2nd node twice,
-     *     at [A, D] and (T, Z]. We need to scan the (D, T] range in between those, or we will skip those
-     *     results entirely if the limit is low enough.
-     *  3) we unwrap the intersection ranges because otherwise we get results in the wrong order.
-     *     Consider a 2-node ring, (D, T] and (T, D].  A query for [D, Z] will get results in the wrong
-     *     order if we use (T, D] directly -- we need to start with that range, because our query starts with
-     *     D, but we don't want any other results from it until after the (D, T] range.  Unwrapping so that
-     *     the ranges we consider are (D, T], (T, MIN], (MIN, D] fixes this.
+     * Compute all ranges we're going to query, in sorted order. Nodes can be replica destinations for many ranges,
+     * so we need to restrict each scan to the specific range we want, or else we'd get duplicate results.
      */
-    private static List<AbstractBounds> getRestrictedRanges(final AbstractBounds queryRange)
+    static List<AbstractBounds> getRestrictedRanges(final AbstractBounds queryRange)
     {
-        TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
-
-        if (logger.isDebugEnabled())
-            logger.debug("computing restricted ranges for query " + queryRange);
-
-        List<AbstractBounds> ranges = new ArrayList<AbstractBounds>();
-        // for each node, compute its intersection with the query range, and add its unwrapped components to our list
-        for (Token nodeToken : tokenMetadata.sortedTokens())
+        // special case for bounds containing exactly 1 token
+        if (queryRange instanceof Bounds && queryRange.left.equals(queryRange.right))
         {
-            Range nodeRange = new Range(tokenMetadata.getPredecessor(nodeToken), nodeToken);
-            for (AbstractBounds range : queryRange.restrictTo(nodeRange))
-            {
-                for (AbstractBounds unwrapped : range.unwrap())
-                {
-                    if (logger.isDebugEnabled())
-                        logger.debug("Adding to restricted ranges " + unwrapped + " for " + nodeRange);
-                    ranges.add(unwrapped);
-                }
-            }
+            if (logger.isDebugEnabled())
+                logger.debug("restricted single token match for query " + queryRange);
+            return Collections.singletonList(queryRange);
         }
 
-        // re-sort ranges in ring order, post-unwrapping
-        Comparator<AbstractBounds> comparator = new Comparator<AbstractBounds>()
+        TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
+
+        List<AbstractBounds> ranges = new ArrayList<AbstractBounds>();
+        // divide the queryRange into pieces delimited by the ring and minimum tokens
+        Iterator<Token> ringIter = TokenMetadata.ringIterator(tokenMetadata.sortedTokens(), queryRange.left, true);
+        AbstractBounds remainder = queryRange;
+        while (ringIter.hasNext())
         {
-            // no restricted ranges will overlap so we don't need to worry about inclusive vs exclusive left,
-            // just sort by raw token position.
-            public int compare(AbstractBounds o1, AbstractBounds o2)
-            {
-                // sort in order that the original query range would see them.
-                int queryOrder1 = queryRange.left.compareTo(o1.left);
-                int queryOrder2 = queryRange.left.compareTo(o2.left);
-
-                // check for exact match with query start
-                assert !(queryOrder1 == 0 && queryOrder2 == 0);
-                if (queryOrder1 == 0)
-                    return -1;
-                if (queryOrder2 == 0)
-                    return 1;
-
-                // order segments in order they should be traversed
-                if (queryOrder1 < queryOrder2)
-                    return -1; // o1 comes after query start, o2 wraps to after
-                if (queryOrder1 > queryOrder2)
-                    return 1; // o2 comes after query start, o1 wraps to after
-                return o1.left.compareTo(o2.left); // o1 and o2 are on the same side of query start
-            }
-        };
-        Collections.sort(ranges, comparator);
+            Token token = ringIter.next();
+            if (remainder == null || !remainder.contains(token))
+                // no more splits
+                break;
+            Pair<AbstractBounds,AbstractBounds> splits = remainder.split(token);
+            ranges.add(splits.left);
+            remainder = splits.right;
+        }
+        if (remainder != null)
+            ranges.add(remainder);
         if (logger.isDebugEnabled())
-            logger.debug("Sorted ranges are [" + StringUtils.join(ranges, ", ") + "]");
+            logger.debug("restricted ranges for query " + queryRange + " are " + ranges);
 
         return ranges;
     }
