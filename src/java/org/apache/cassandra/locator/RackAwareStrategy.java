@@ -52,7 +52,7 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
         if (tokens.isEmpty())
             return endpoints;
 
-        Iterator<Token> iter = TokenMetadata.ringIterator(tokens, token);
+        Iterator<Token> iter = TokenMetadata.ringIterator(tokens, token, false);
         Token primaryToken = iter.next();
         endpoints.add(metadata.getEndPoint(primaryToken));
 
@@ -97,7 +97,7 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
         // loop through the list and add until we have N nodes.
         if (endpoints.size() < replicas)
         {
-            iter = TokenMetadata.ringIterator(tokens, token);
+            iter = TokenMetadata.ringIterator(tokens, token, false);
             while (endpoints.size() < replicas && iter.hasNext())
             {
                 Token t = iter.next();

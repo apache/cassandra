@@ -45,6 +45,8 @@
  * add cache save/load ability (CASSANDRA-1417)
  * Ignore stray files in the commit log directory (CASSANDRA-1547)
  * Disallow bootstrap to an in-use token (CASSANDRA-1561)
+ * Rewrote StorageProxy.getRestrictedRanges to use a more robust
+   algorithm for range scans spanning multiple nodes (CASSANDRA-1442)
 
 
 0.6.5

@@ -25,7 +25,6 @@ import org.apache.commons.lang.ObjectUtils;
 
 import org.apache.cassandra.service.StorageService;
 
-
 /**
  * A representation of the range that a node is responsible for on the DHT ring.
  *
@@ -188,24 +187,14 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
         return Collections.unmodifiableSet(intersection);
     }
 
-    public Set<AbstractBounds> restrictTo(Range range)
+    public AbstractBounds createFrom(Token token)
     {
-        return (Set) intersectionWith(range);
-    }
-
-    public List<AbstractBounds> unwrap()
-    {
-        if (!isWrapAround() || right.equals(partitioner.getMinimumToken()))
-            return (List)Arrays.asList(this);
-        List<AbstractBounds> unwrapped = new ArrayList<AbstractBounds>(2);
-        unwrapped.add(new Range(left, partitioner.getMinimumToken()));
-        unwrapped.add(new Range(partitioner.getMinimumToken(), right));
-        return unwrapped;
+        return new Range(left, token);
     }
 
     /**
      * Tells if the given range is a wrap around.
-         */
+     */
     public static boolean isWrapAround(Token left, Token right)
     {
         return left.compareTo(right) >= 0;
@@ -241,6 +230,7 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
         return false;
     }
 
+    @Override
     public boolean equals(Object o)
     {
         if (!(o instanceof Range))
@@ -248,7 +238,8 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
         Range rhs = (Range)o;
         return left.equals(rhs.left) && right.equals(rhs.right);
     }
-    
+
+    @Override
     public String toString()
     {
         return "(" + left + "," + right + "]";
