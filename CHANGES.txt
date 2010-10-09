@@ -24,6 +24,7 @@ dev
  * log auto-guessed memtable thresholds (CASSANDRA-1595)
  * add ColumnDef support to cli (CASSANDRA-1583)
  * reduce index sample time by 75% (CASSANDRA-1572)
+ * add cli support for column metadata (CASSANDRA-1578)
 
 
 0.7-beta2

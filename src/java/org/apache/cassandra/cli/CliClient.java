@@ -520,13 +520,20 @@ public class CliClient
         return getFormatTypeForColumn(getCfDef(keyspace,columnFamily).comparator_type).getString(column.name);
     }
 
-    private AbstractType getFormatTypeForColumn(String compareWith) throws IllegalAccessException, InstantiationException, NoSuchFieldException
+    private AbstractType getFormatTypeForColumn(String compareWith)
     {
         AbstractType type;
         try {
             // Get the singleton instance of the AbstractType subclass
             Class c = Class.forName(compareWith);
-            type = (AbstractType) c.getField("instance").get(c);
+            try
+            {
+                type = (AbstractType) c.getField("instance").get(c);
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e.getMessage(), e);
+            }
         } catch (ClassNotFoundException e) {
             type = BytesType.instance;
         }
@@ -1335,21 +1342,21 @@ public class CliClient
      */
     private AbstractType getValidatorForValue(final CfDef ColumnFamilyDef, final byte[] columnNameInBytes)
     {
+        final String defaultValidator = ColumnFamilyDef.default_validation_class;
+        
         for (ColumnDef columnDefinition : ColumnFamilyDef.getColumn_metadata())
         {
             final byte[] nameInBytes = columnDefinition.getName();
 
             if (Arrays.equals(nameInBytes, columnNameInBytes))
             {
-                try
-                {
-                    return getFormatTypeForColumn(columnDefinition.getValidation_class());
-                }
-                catch (Exception e)
-                {
-                    throw new RuntimeException(e.getMessage(), e);
-                }
+                return getFormatTypeForColumn(columnDefinition.getValidation_class());
             }
+        }
+
+        if (defaultValidator != null && !defaultValidator.isEmpty()) 
+        {
+            return getFormatTypeForColumn(defaultValidator);
         }
 
         return null;
