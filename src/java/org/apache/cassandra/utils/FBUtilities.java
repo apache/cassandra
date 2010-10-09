@@ -292,16 +292,31 @@ public class FBUtilities
         }
     }
 
+    /** @return An unsigned short in an integer. */
+    private static int readShortLength(DataInput in) throws IOException
+    {
+        int length = (in.readByte() & 0xFF) << 8;
+        return length | (in.readByte() & 0xFF);
+    }
+
     public static byte[] readShortByteArray(DataInput in) throws IOException
     {
-        int length = 0;
-        length |= (in.readByte() & 0xFF) << 8;
-        length |= in.readByte() & 0xFF;
-        if (!(0 <= length && length <= MAX_UNSIGNED_SHORT))
-            throw new IOException("Corrupt name length " + length);
-        byte[] bytes = new byte[length];
+        byte[] bytes = new byte[readShortLength(in)];
         in.readFully(bytes);
         return bytes;
+    }
+
+    /** @return null */
+    public static byte[] skipShortByteArray(DataInput in) throws IOException
+    {
+        int skip = readShortLength(in);
+        while (skip > 0)
+        {
+            int skipped = in.skipBytes(skip);
+            if (skipped == 0) throw new EOFException();
+            skip -= skipped;
+        }
+        return null;
     }
 
     public static byte[] hexToBytes(String str)

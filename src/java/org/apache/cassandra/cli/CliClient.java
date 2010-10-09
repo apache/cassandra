@@ -545,24 +545,11 @@ public class CliClient
         CommonTree columnFamilySpec = (CommonTree)ast.getChild(0);
         assert(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS);
 
-        String key = CliCompiler.getKey(columnFamilySpec);
-        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
-        int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
-
-        List<String> cfnames = new ArrayList<String>();
-        for (CfDef cfd : keyspacesMap.get(keySpace).cf_defs)
-        {
-            cfnames.add(cfd.name);
-        }
- 
-        int idx = cfnames.indexOf(columnFamily);
-        if (idx == -1)
-        {
-            css_.out.println("No such column family: " + columnFamily);
-            return;
-        }
-
-        boolean isSuper = keyspacesMap.get(keySpace).cf_defs.get(idx).column_type.equals("Super");
+        final String key = CliCompiler.getKey(columnFamilySpec);
+        final String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
+        final int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
+        final CfDef columnFamilyDef = getCfDef(columnFamily); 
+        final boolean isSuper = columnFamilyDef.comparator_type.equals("Super");
         
         byte[] superColumnName = null;
         String columnName;
@@ -601,12 +588,19 @@ public class CliClient
             return;
         }
 
+        final byte[] columnNameInBytes = columnNameAsByteArray(columnName, columnFamily);
+        final AbstractType validator = getValidatorForValue(columnFamilyDef, columnNameInBytes);
+        
         // Perform a get()
-        ColumnPath path = new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnNameAsByteArray(columnName, columnFamily));
+        ColumnPath path = new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnNameInBytes);
         Column column = thriftClient_.get(key.getBytes(), path, ConsistencyLevel.ONE).column;
+
+        final byte[] columnValue = column.getValue();
+        final String valueAsString = (validator == null) ? new String(columnValue, "UTF-8") : validator.getString(columnValue);
+
         // print results
         css_.out.printf("=> (column=%s, value=%s, timestamp=%d)\n",
-                        formatColumnName(keySpace, columnFamily, column), new String(column.value, "UTF-8"), column.timestamp);
+                        formatColumnName(keySpace, columnFamily, column), valueAsString, column.timestamp);
     }
 
     // Execute SET statement
@@ -651,9 +645,13 @@ public class CliClient
             columnName = CliCompiler.getColumn(columnFamilySpec, 1);
         }
 
+
+        final byte[] columnNameInBytes  = columnNameAsByteArray(columnName, columnFamily);
+        final byte[] columnValueInBytes = columnValueAsByteArray(columnNameInBytes, columnFamily, value);
+        
         // do the insert
         thriftClient_.insert(key.getBytes(), new ColumnParent(columnFamily).setSuper_column(superColumnName),
-                             new Column(columnNameAsByteArray(columnName, columnFamily), value.getBytes(), FBUtilities.timestampMicros()), ConsistencyLevel.ONE);
+                             new Column(columnNameInBytes, columnValueInBytes, FBUtilities.timestampMicros()), ConsistencyLevel.ONE);
         
         css_.out.println("Value inserted.");
     }
@@ -1103,17 +1101,37 @@ public class CliClient
         CliMain.connect(css_.hostName, css_.thriftPort);
     }
 
-    private CfDef getCfDef(String ksname, String cfname)
+    /**
+     * To get Column Family Definition object from specified keyspace
+     * @param keySpaceName key space name to search for specific column family
+     * @param columnFamilyName column family name 
+     * @return CfDef - Column family definition object
+     */
+    private CfDef getCfDef(final String keySpaceName, final String columnFamilyName)
     {
-        List<String> cfnames = new ArrayList<String>();
-        KsDef ksd = keyspacesMap.get(ksname);
-        for (CfDef cfd : ksd.cf_defs) {
-            cfnames.add(cfd.name);
+        final KsDef keySpaceDefinition = keyspacesMap.get(keySpaceName);
+        
+        for (CfDef columnFamilyDef : keySpaceDefinition.cf_defs)
+        {
+            if (columnFamilyDef.name.equals(columnFamilyName))
+            {
+                return columnFamilyDef;
+            }
         }
-        int idx = cfnames.indexOf(cfname);
-        return ksd.cf_defs.get(idx);
+
+        throw new RuntimeException("No such column family: " + columnFamilyName);
     }
 
+    /**
+     * Uses getCfDef(keySpaceName, columnFamilyName) with current keyspace
+     * @param columnFamilyName column family name to find in specified keyspace
+     * @return CfDef - Column family definition object
+     */
+    private CfDef getCfDef(final String columnFamilyName)
+    {
+        return getCfDef(this.keySpace, columnFamilyName);
+    }
+    
     /**
      * Used to parse meta tree and compile meta attributes into List<ColumnDef>
      * @param meta (Tree representing Array of the hashes with metadata attributes)
@@ -1121,7 +1139,8 @@ public class CliClient
      * 
      * meta is in following format - ^(ARRAY ^(HASH ^(PAIR .. ..) ^(PAIR .. ..)) ^(HASH ...))
      */
-    private List<ColumnDef> getCFColumnMetaFromTree(final Tree meta) {
+    private List<ColumnDef> getCFColumnMetaFromTree(final Tree meta)
+    {
         // this list will be returned
         final List<ColumnDef> columnDefinitions = new ArrayList<ColumnDef>();
         
@@ -1183,7 +1202,13 @@ public class CliClient
         return columnDefinitions;
     }
 
-    private IndexType getIndexTypeFromString(final String indexTypeAsString) {
+    /**
+     * Getting IndexType object from indexType string
+     * @param indexTypeAsString - string return by parser corresponding to IndexType 
+     * @return IndexType - an IndexType object
+     */
+    private IndexType getIndexTypeFromString(final String indexTypeAsString)
+    {
         final Integer indexTypeId;
         final IndexType indexType;
 
@@ -1203,49 +1228,130 @@ public class CliClient
         return indexType;
     }
 
-    private byte[] columnNameAsByteArray(final String column, final String columnFamily) throws NoSuchFieldException, InstantiationException, IllegalAccessException, UnsupportedEncodingException
+    /**
+     * Converts object represented as string into byte[] according to comparator
+     * @param object - object to covert into byte array
+     * @param comparator - comparator used to convert object
+     * @return byte[] - object in the byte array representation
+     * @throws UnsupportedEncodingException - raised but String.getBytes(encoding)
+     */
+    private byte[] getBytesAccordingToType(final String object, final AbstractType comparator) throws UnsupportedEncodingException
     {
-        List<String> cfnames = new ArrayList<String>();
-        for (CfDef cfd : keyspacesMap.get(keySpace).cf_defs)
-        {
-            cfnames.add(cfd.name);
-        }
-
-        int idx = cfnames.indexOf(columnFamily);
-        if (idx == -1)
-        {
-            throw new NoSuchFieldException("No such column family: " + columnFamily);
-        }
-
-        final String comparatorClass  = keyspacesMap.get(keySpace).cf_defs.get(idx).comparator_type;
-        final AbstractType comparator = getFormatTypeForColumn(comparatorClass);
-
         if (comparator instanceof LongType)
         {
-            return FBUtilities.toByteArray(Long.valueOf(column));
+            final long longType;
+            try
+            {
+                longType = Long.valueOf(object);
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException("'" + object + "' could not be translated into a LongType.");
+            }
+
+            return FBUtilities.toByteArray(longType);
         }
         else if (comparator instanceof IntegerType)
         {
             final BigInteger integerType;
-            
+
             try
             {
-                integerType =  new BigInteger(column);
+                integerType =  new BigInteger(object);
             }
             catch (Exception e)
             {
-                throw new RuntimeException("Column name '" + column + "' could not be translated into an IntegerType.");
+                throw new RuntimeException("'" + object + "' could not be translated into an IntegerType.");
             }
-            
+
             return integerType.toByteArray();
         }
         else if (comparator instanceof AsciiType)
         {
-            return column.getBytes("US-ASCII");
+            return object.getBytes("US-ASCII");
         }
         else
         {
-            return column.getBytes("UTF-8");
-        }   
+            return object.getBytes("UTF-8");
+        }
+    }
+    
+    /**
+     * Converts column name into byte[] according to comparator type
+     * @param column - column name from parser
+     * @param columnFamily - column family name from parser
+     * @return byte[] - array of bytes in which column name was converted according to comparator type
+     * @throws NoSuchFieldException - raised from getFormatTypeForColumn call
+     * @throws InstantiationException - raised from getFormatTypeForColumn call
+     * @throws IllegalAccessException - raised from getFormatTypeForColumn call
+     * @throws UnsupportedEncodingException - raised from getBytes() calls
+     */
+    private byte[] columnNameAsByteArray(final String column, final String columnFamily) throws NoSuchFieldException, InstantiationException, IllegalAccessException, UnsupportedEncodingException
+    {
+        final CfDef columnFamilyDef   = getCfDef(columnFamily);
+        final String comparatorClass  = columnFamilyDef.comparator_type;
+
+        return getBytesAccordingToType(column, getFormatTypeForColumn(comparatorClass));   
+    }
+
+    /**
+     * Converts column value into byte[] according to validation class
+     * @param columnName - column name to which value belongs
+     * @param columnFamilyName - column family name
+     * @param columnValue - actual column value
+     * @return byte[] - value in byte array representation
+     */
+    private byte[] columnValueAsByteArray(final byte[] columnName, final String columnFamilyName, final String columnValue)
+    {
+        final CfDef columnFamilyDef = getCfDef(columnFamilyName);
+        
+        for (ColumnDef columnDefinition : columnFamilyDef.getColumn_metadata())
+        {
+            final byte[] currentColumnName = columnDefinition.getName();
+
+            if (Arrays.equals(currentColumnName, columnName))
+            {
+                try
+                {
+                    final String validationClass = columnDefinition.getValidation_class();
+                    return getBytesAccordingToType(columnValue, getFormatTypeForColumn(validationClass));
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException(e.getMessage(), e);
+                }
+            }
+        }
+
+        // if no validation were set returning simple .getBytes()
+        return columnValue.getBytes();
+    }
+
+    /**
+     * Get validator for specific column value
+     * @param ColumnFamilyDef - CfDef object representing column family with metadata
+     * @param columnNameInBytes - column name as byte array
+     * @return AbstractType - validator for column value
+     */
+    private AbstractType getValidatorForValue(final CfDef ColumnFamilyDef, final byte[] columnNameInBytes)
+    {
+        for (ColumnDef columnDefinition : ColumnFamilyDef.getColumn_metadata())
+        {
+            final byte[] nameInBytes = columnDefinition.getName();
+
+            if (Arrays.equals(nameInBytes, columnNameInBytes))
+            {
+                try
+                {
+                    return getFormatTypeForColumn(columnDefinition.getValidation_class());
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException(e.getMessage(), e);
+                }
+            }
+        }
+
+        return null;
     }
 }

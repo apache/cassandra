@@ -23,6 +23,7 @@ dev
  * Allow dynamic secondary index creation and destruction (CASSANDRA-1532)
  * log auto-guessed memtable thresholds (CASSANDRA-1595)
  * add ColumnDef support to cli (CASSANDRA-1583)
+ * reduce index sample time by 75% (CASSANDRA-1572)
 
 
 0.7-beta2

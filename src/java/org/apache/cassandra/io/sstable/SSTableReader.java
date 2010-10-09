@@ -252,11 +252,11 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
      */
     private void load(boolean recreatebloom, Set<DecoratedKey> keysToLoadInCache) throws IOException
     {
+        boolean cacheLoading = keyCache != null && !keysToLoadInCache.isEmpty();
         SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
         SegmentedFile.Builder dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
 
         // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
-        indexSummary = new IndexSummary();
         BufferedRandomAccessFile input = new BufferedRandomAccessFile(descriptor.filenameFor(Component.PRIMARY_INDEX), "r");
         try
         {
@@ -264,25 +264,36 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                 keyCache.updateCapacity(keyCache.getSize() + keysToLoadInCache.size());
 
             long indexSize = input.length();
+            long estimatedKeys = SSTable.estimateRowsFromIndex(input);
+            indexSummary = new IndexSummary(estimatedKeys);
             if (recreatebloom)
                 // estimate key count based on index length
-                bf = BloomFilter.getFilter((int)(input.length() / 32), 15);
+                bf = BloomFilter.getFilter(estimatedKeys, 15);
             while (true)
             {
                 long indexPosition = input.getFilePointer();
                 if (indexPosition == indexSize)
                     break;
 
-                DecoratedKey decoratedKey = decodeKey(partitioner, descriptor, FBUtilities.readShortByteArray(input));
-                if (recreatebloom)
-                    bf.add(decoratedKey.key);
+                boolean shouldAddEntry = indexSummary.shouldAddEntry();
+                byte[] key = (shouldAddEntry || cacheLoading || recreatebloom)
+                             ? FBUtilities.readShortByteArray(input)
+                             : FBUtilities.skipShortByteArray(input);
                 long dataPosition = input.readLong();
+                if (key != null)
+                {
+                    DecoratedKey decoratedKey = decodeKey(partitioner, descriptor, key);
+                    if (recreatebloom)
+                        bf.add(decoratedKey.key);
+                    if (shouldAddEntry)
+                        indexSummary.addEntry(decoratedKey, indexPosition);
+                    if (cacheLoading && keysToLoadInCache.contains(decoratedKey))
+                        keyCache.put(new Pair(descriptor, decoratedKey), dataPosition);
+                }
 
-                indexSummary.maybeAddEntry(decoratedKey, indexPosition);
+                indexSummary.incrementRowid();
                 ibuilder.addPotentialBoundary(indexPosition);
                 dbuilder.addPotentialBoundary(dataPosition);
-                if (keyCache != null && keysToLoadInCache.contains(decoratedKey))
-                    keyCache.put(new Pair<Descriptor, DecoratedKey>(descriptor, decoratedKey), dataPosition);
             }
             indexSummary.complete();
         }
@@ -292,7 +303,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         }
 
         // finalize the state of the reader
-        indexSummary.complete();
         ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
         dfile = dbuilder.complete(descriptor.filenameFor(Component.DATA));
     }

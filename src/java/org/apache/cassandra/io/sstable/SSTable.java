@@ -32,7 +32,9 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -180,6 +182,42 @@ public abstract class SSTable
             }
         });
         return components;
+    }
+
+    /** @return An estimate of the number of keys contained in the given data file. */
+    static long estimateRowsFromData(Descriptor desc, BufferedRandomAccessFile dfile) throws IOException
+    {
+        // collect sizes for the first 1000 keys, or first 100 megabytes of data
+        final int SAMPLES_CAP = 1000, BYTES_CAP = (int)Math.min(100000000, dfile.length());
+        int keys = 0;
+        long dataPosition = 0;
+        while (dataPosition < BYTES_CAP && keys < SAMPLES_CAP)
+        {
+            dfile.seek(dataPosition);
+            FBUtilities.skipShortByteArray(dfile);
+            long dataSize = SSTableReader.readRowSize(dfile, desc);
+            dataPosition = dfile.getFilePointer() + dataSize;
+            keys++;
+        }
+        dfile.seek(0);
+        return dfile.length() / (dataPosition / keys);
+    }
+
+    /** @return An estimate of the number of keys contained in the given index file. */
+    static long estimateRowsFromIndex(BufferedRandomAccessFile ifile) throws IOException
+    {
+        // collect sizes for the first 10000 keys, or first 10 megabytes of data
+        final int SAMPLES_CAP = 10000, BYTES_CAP = (int)Math.min(10000000, ifile.length());
+        int keys = 0;
+        while (ifile.getFilePointer() < BYTES_CAP && keys < SAMPLES_CAP)
+        {
+            FBUtilities.skipShortByteArray(ifile);
+            ifile.skipBytes(8);
+            keys++;
+        }
+        long estimatedRows = ifile.length() / (ifile.getFilePointer() / keys);
+        ifile.seek(0);
+        return estimatedRows;
     }
 
     public static long getTotalBytes(Iterable<SSTableReader> sstables)

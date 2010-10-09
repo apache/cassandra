@@ -30,24 +30,45 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.DecoratedKey;
 
+/**
+ * Two approaches to building an IndexSummary:
+ * 1. Call maybeAddEntry with every potential index entry
+ * 2. Call shouldAddEntry, [addEntry,] incrementRowid
+ */
 public class IndexSummary
 {
     private ArrayList<KeyPosition> indexPositions;
-    private int keysWritten = 0;
-    private long lastIndexPosition;
+    private long keysWritten = 0;
+
+    public IndexSummary(long expectedKeys)
+    {
+        long expectedEntries = expectedKeys / DatabaseDescriptor.getIndexInterval();
+        if (expectedEntries > Integer.MAX_VALUE)
+            // TODO: that's a _lot_ of keys, or a very low interval
+            throw new RuntimeException("Cannot use index_interval of " + DatabaseDescriptor.getIndexInterval() + " with " + expectedKeys + " (expected) keys.");
+        indexPositions = new ArrayList<KeyPosition>((int)expectedEntries);
+    }
+
+    public void incrementRowid()
+    {
+        keysWritten++;
+    }
+
+    public boolean shouldAddEntry()
+    {
+        return keysWritten % DatabaseDescriptor.getIndexInterval() == 0;
+    }
+
+    public void addEntry(DecoratedKey decoratedKey, long indexPosition)
+    {
+        indexPositions.add(new KeyPosition(decoratedKey, indexPosition));
+    }
 
     public void maybeAddEntry(DecoratedKey decoratedKey, long indexPosition)
     {
-        if (keysWritten++ % DatabaseDescriptor.getIndexInterval() == 0)
-        {
-            if (indexPositions == null)
-            {
-                indexPositions  = new ArrayList<KeyPosition>();
-            }
-            KeyPosition info = new KeyPosition(decoratedKey, indexPosition);
-            indexPositions.add(info);
-        }
-        lastIndexPosition = indexPosition;
+        if (shouldAddEntry())
+            addEntry(decoratedKey, indexPosition);
+        incrementRowid();
     }
 
     public List<KeyPosition> getIndexPositions()
@@ -60,18 +81,13 @@ public class IndexSummary
         indexPositions.trimToSize();
     }
 
-    public long getLastIndexPosition()
-    {
-        return lastIndexPosition;
-    }
-
     /**
      * This is a simple container for the index Key and its corresponding position
      * in the index file. Binary search is performed on a list of these objects
      * to find where to start looking for the index entry containing the data position
      * (which will be turned into a PositionSize object)
      */
-    public static class KeyPosition implements Comparable<KeyPosition>
+    public static final class KeyPosition implements Comparable<KeyPosition>
     {
         public final DecoratedKey key;
         public final long indexPosition;
