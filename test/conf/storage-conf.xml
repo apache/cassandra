@@ -28,7 +28,7 @@
    <StoragePort>7010</StoragePort>
    <ThriftPort>9170</ThriftPort>
    <ColumnIndexSizeInKB>4</ColumnIndexSizeInKB>
-   <SavedCachesDirectory>/var/lib/cassandra/saved_caches</SavedCachesDirectory>
+   <SavedCachesDirectory>build/test/cassandra/saved_caches</SavedCachesDirectory>
    <CommitLogDirectory>build/test/cassandra/commitlog</CommitLogDirectory>
    <CommitLogRotationThresholdInMB>128</CommitLogRotationThresholdInMB>
    <DataFileDirectories>
