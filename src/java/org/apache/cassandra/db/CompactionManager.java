@@ -283,9 +283,16 @@ public class CompactionManager implements CompactionManagerMBean
             while (nni.hasNext())
             {
                 AbstractCompactedRow row = nni.next();
-                long prevpos = writer.getFilePointer();
-
-                writer.append(row);
+                try
+                {
+                    writer.append(row);
+                }
+                catch (IOException ex)
+                {
+                    writer.abort();
+                    // rethrow the exception so that caller knows compaction failed.
+                    throw ex;
+                }
                 totalkeysWritten++;
             }
         }
