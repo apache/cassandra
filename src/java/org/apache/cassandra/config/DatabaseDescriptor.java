@@ -260,7 +260,7 @@ public class DatabaseDescriptor
             {
                 diskAccessMode = DiskAccessMode.standard;
                 indexAccessMode = DiskAccessMode.mmap;
-                logger.info("DiskAccessMode is" + diskAccessMode + ", indexAccessMode is " + indexAccessMode );
+                logger.info("DiskAccessMode is " + diskAccessMode + ", indexAccessMode is " + indexAccessMode );
             }
             else
             {
