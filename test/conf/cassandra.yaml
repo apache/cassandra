@@ -13,7 +13,7 @@ storage_port: 7010
 rpc_port: 9170
 column_index_size_in_kb: 4
 commitlog_directory: build/test/cassandra/commitlog
-saved_caches_directory: /var/lib/cassandra/saved_caches
+saved_caches_directory: build/test/cassandra/saved_caches
 commitlog_rotation_threshold_in_mb: 128
 data_file_directories:
     - build/test/cassandra/data
