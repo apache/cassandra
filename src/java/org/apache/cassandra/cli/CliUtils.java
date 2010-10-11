@@ -26,6 +26,8 @@ public class CliUtils
     /**
      * Strips leading and trailing "'" characters, and handles
      * and escaped characters such as \n, \r, etc.
+     * @param b - string to unescape
+     * @return String - unexspaced string
      */
     public static String unescapeSQLString(String b)
     {
@@ -92,4 +94,5 @@ public class CliUtils
 
         return sb.toString();
     }
+
 }

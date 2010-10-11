@@ -52,7 +52,9 @@ tokens {
     NODE_DEL_KEYSPACE;
     NODE_DEL_COLUMN_FAMILY;
     NODE_RENAME_KEYSPACE;
+    NODE_UPDATE_KEYSPACE;
     NODE_RENAME_COLUMN_FAMILY;
+    NODE_UPDATE_COLUMN_FAMILY;
 
     // Internal Nodes.
     NODE_COLUMN_ACCESS;
@@ -101,8 +103,10 @@ statement
     | exitStatement
     | countStatement
     | describeTable
-    | addColumnFamily
     | addKeyspace
+    | addColumnFamily
+    | updateKeyspace
+    | updateColumnFamily
     | delColumnFamily
     | delKeyspace
     | renameColumnFamily
@@ -144,8 +148,12 @@ helpStatement
         -> ^(NODE_HELP NODE_SHOW_VERSION)
     | K_HELP K_CREATE K_TABLE 
         -> ^(NODE_HELP NODE_ADD_KEYSPACE)
+    | K_HELP K_UPDATE K_TABLE
+        -> ^(NODE_HELP NODE_UPDATE_KEYSPACE)
     | K_HELP K_CREATE K_COLUMN K_FAMILY 
         -> ^(NODE_HELP NODE_ADD_COLUMN_FAMILY)
+    | K_HELP K_UPDATE K_COLUMN K_FAMILY
+        -> ^(NODE_HELP NODE_UPDATE_COLUMN_FAMILY)
     | K_HELP K_DROP K_TABLE 
         -> ^(NODE_HELP NODE_DEL_KEYSPACE)
     | K_HELP K_DROP K_COLUMN K_FAMILY 
@@ -212,6 +220,16 @@ addKeyspace
 addColumnFamily
     : K_CREATE K_COLUMN K_FAMILY keyValuePairExpr 
         -> ^(NODE_ADD_COLUMN_FAMILY keyValuePairExpr)
+    ;
+
+updateKeyspace
+    : K_UPDATE K_TABLE keyValuePairExpr
+        -> ^(NODE_UPDATE_KEYSPACE keyValuePairExpr)
+    ;
+
+updateColumnFamily
+    : K_UPDATE K_COLUMN K_FAMILY keyValuePairExpr
+        -> ^(NODE_UPDATE_COLUMN_FAMILY keyValuePairExpr)
     ;
 
 delKeyspace
@@ -376,6 +394,7 @@ K_COLUMN:     'COLUMN';
 K_FAMILY:     'FAMILY';
 K_WITH:       'WITH';
 K_AND:        'AND';
+K_UPDATE:     'UPDATE';
 
 // private syntactic rules
 fragment

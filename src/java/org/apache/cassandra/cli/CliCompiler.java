@@ -90,15 +90,11 @@ public class CliCompiler
 
     public static String getColumnFamily(CommonTree astNode)
     {
-        assert(astNode.getType() == CliParser.NODE_COLUMN_ACCESS);
-
         return astNode.getChild(0).getText();
     }
 
     public static String getKey(CommonTree astNode)
     {
-        assert(astNode.getType() == CliParser.NODE_COLUMN_ACCESS);
-
         return CliUtils.unescapeSQLString(astNode.getChild(1).getText());
     }
 

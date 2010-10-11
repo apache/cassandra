@@ -36,14 +36,11 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.apache.cassandra.db.Table.SYSTEM_TABLE;
-
 /**
  * Cassandra Command Line Interface (CLI) Main
  */
 public class CliMain
 {
-    public final static String PROMPT = "cassandra";
     public final static String HISTORYFILE = ".cassandra.history";
 
     private static TTransport transport_ = null;
