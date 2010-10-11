@@ -265,7 +265,7 @@ public class DatabaseDescriptor
             else
             {
                 indexAccessMode = diskAccessMode;
-                logger.info("DiskAccessMode is" + diskAccessMode + ", indexAccessMode is " + indexAccessMode );
+                logger.info("DiskAccessMode is " + diskAccessMode + ", indexAccessMode is " + indexAccessMode );
             }
 
             /* Authentication and authorization backend, implementing IAuthenticator */
