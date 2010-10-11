@@ -189,12 +189,12 @@ public class    DatabaseDescriptor
             {
                 conf.disk_access_mode = Config.DiskAccessMode.standard;
                 indexAccessMode = Config.DiskAccessMode.mmap;
-                logger.info("DiskAccessMode is" + conf.disk_access_mode + ", indexAccessMode is " + indexAccessMode );
+                logger.info("DiskAccessMode is " + conf.disk_access_mode + ", indexAccessMode is " + indexAccessMode );
             }
             else
             {
                 indexAccessMode = conf.disk_access_mode;
-                logger.info("DiskAccessMode is" + conf.disk_access_mode + ", indexAccessMode is " + indexAccessMode );
+                logger.info("DiskAccessMode is " + conf.disk_access_mode + ", indexAccessMode is " + indexAccessMode );
             }
 
             /* Authentication and authorization backend, implementing IAuthenticator and IAuthority */
