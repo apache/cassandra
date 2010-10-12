@@ -61,7 +61,7 @@ import org.apache.cassandra.utils.*;
  * Once the trees rendezvous, a Differencer is executed and the service can trigger repairs
  * for disagreeing ranges.
  *
- * Tree comparison and repair triggering occur in the single threaded Stage.AE_SERVICE.
+ * Tree comparison and repair triggering occur in the single threaded Stage.ANTIENTROPY.
  *
  * The steps taken to enact a repair are as follows:
  * 1. A major compaction is triggered via nodeprobe:
@@ -80,7 +80,7 @@ import org.apache.cassandra.utils.*;
  *   * If the tree is remote, it is immediately compared to a local tree if one is cached. Otherwise,
  *     the remote tree is stored until a local tree can be generated.
  *   * A Differencer object is enqueued for each comparison.
- * 4. Differencers are executed in Stage.AE_SERVICE, to compare the two trees, and perform repair via the
+ * 4. Differencers are executed in Stage.ANTIENTROPY, to compare the two trees, and perform repair via the
  *    streaming api.
  */
 public class AntiEntropyService
@@ -97,7 +97,7 @@ public class AntiEntropyService
      * Map of outstanding sessions to requests. Once both trees reach the rendezvous, the local node
      * will queue a Differencer to compare them.
      *
-     * This map is only accessed from Stage.AE_SERVICE, so it is not synchronized.
+     * This map is only accessed from Stage.ANTIENTROPY, so it is not synchronized.
      */
     private final ExpiringMap<String, Map<TreeRequest, TreePair>> requests;
 
@@ -135,7 +135,7 @@ public class AntiEntropyService
 
     /**
      * Returns the map of waiting rendezvous endpoints to trees for the given session.
-     * Should only be called within Stage.AE_SERVICE.
+     * Should only be called within Stage.ANTIENTROPY.
      */
     private Map<TreeRequest, TreePair> rendezvousPairs(String sessionid)
     {
@@ -166,7 +166,7 @@ public class AntiEntropyService
     }
 
     /**
-     * Register a tree for the given request to be compared to the appropriate trees in Stage.AE_SERVICE when they become available.
+     * Register a tree for the given request to be compared to the appropriate trees in Stage.ANTIENTROPY when they become available.
      */
     private void rendezvous(TreeRequest request, MerkleTree tree)
     {
@@ -388,7 +388,7 @@ public class AntiEntropyService
         }
 
         /**
-         * Registers the newly created tree for rendezvous in Stage.AE_SERVICE.
+         * Registers the newly created tree for rendezvous in Stage.ANTIENTROPY.
          */
         public void complete()
         {
@@ -411,7 +411,7 @@ public class AntiEntropyService
         }
         
         /**
-         * Called after the validation lifecycle to respond with the now valid tree. Runs in Stage.AE_SERVICE.
+         * Called after the validation lifecycle to respond with the now valid tree. Runs in Stage.ANTIENTROPY.
          *
          * @return A meaningless object.
          */
