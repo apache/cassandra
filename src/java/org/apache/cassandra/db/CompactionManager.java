@@ -670,14 +670,12 @@ public class CompactionManager implements CompactionManagerMBean
     {
         int n = 0;
         for (Integer i : estimatedCompactions.values())
-        {
             n += i;
-        }
-        return n;
+        return (int) (executor.getTaskCount() - executor.getCompletedTaskCount()) + n;
     }
 
     public long getCompletedTasks()
     {
-        return executor.getTaskCount() - executor.getCompletedTaskCount();
+        return executor.getCompletedTaskCount();
     }
 }
