@@ -884,27 +884,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     }
 
     /**
-     * Determines the endpoints that are going to become responsible for data due to
-     * a node leaving the cluster.
-     *
-     * @param endpoint the node that is leaving the cluster
-     * @return A set of endpoints
-     */
-    private Set<InetAddress> getNewEndpoints(InetAddress endpoint)
-    {
-        Set<InetAddress> newEndpoints = new HashSet<InetAddress>();
-
-        for (String table : DatabaseDescriptor.getNonSystemTables())
-        {
-            // get all ranges that change ownership (that is, a node needs
-            // to take responsibility for new range)
-            Multimap<Range, InetAddress> changedRanges = getChangedRangesForLeaving(table, endpoint);
-            newEndpoints.addAll(changedRanges.values());
-        }
-        return newEndpoints;
-    }
-
-    /**
      * Finds living endpoints responsible for the given ranges
      *
      * @param table the table ranges belong to
@@ -1759,12 +1738,26 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (tokenMetadata_.isLeaving(endpoint)) 
             throw new UnsupportedOperationException("Node " + endpoint + " is already being removed.");
 
-        if (replicatingNodes != null || replicateLatch != null)
+        if (this.replicatingNodes != null || replicateLatch != null)
             throw new UnsupportedOperationException("This node is already processing a removal. Wait for it to complete.");
 
         // Find the endpoints that are going to become responsible for data
-        replicatingNodes = Collections.synchronizedSet(getNewEndpoints(endpoint));
-        replicateLatch = new CountDownLatch(replicatingNodes.size());
+        replicatingNodes = Collections.synchronizedSet(new HashSet<InetAddress>());
+        for (String table : DatabaseDescriptor.getNonSystemTables())
+        {
+            // get all ranges that change ownership (that is, a node needs
+            // to take responsibility for new range)
+            Multimap<Range, InetAddress> changedRanges = getChangedRangesForLeaving(table, endpoint);
+            IFailureDetector failureDetector = FailureDetector.instance;
+            for (InetAddress ep : changedRanges.values())
+            {
+                if (failureDetector.isAlive(ep))
+                    replicatingNodes.add(ep);
+                else
+                    logger_.warn("Endpoint " + ep + " is down and will not receive data for re-replication of " + endpoint);
+            }
+        }
+        replicateLatch = new CountDownLatch(this.replicatingNodes.size());
         removingNode = endpoint;
 
         tokenMetadata_.addLeavingEndpoint(endpoint);
@@ -1793,10 +1786,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         calculatePendingRanges();
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.removedNonlocal(localToken, token));
 
-        if(!replicatingNodes.isEmpty())
-            logger_.error("Failed to recieve removal confirmation for " + StringUtils.join(replicatingNodes, ","));
+        if(!this.replicatingNodes.isEmpty())
+            logger_.error("Failed to recieve removal confirmation for " + StringUtils.join(this.replicatingNodes, ","));
 
-        replicatingNodes = null;
+        this.replicatingNodes = null;
         removingNode = null;
         replicateLatch = null;
     }

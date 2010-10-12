@@ -27,6 +27,7 @@ dev
  * add cli support for column metadata (CASSANDRA-1578)
  * add cli support for schema modification (CASSANDRA-1584)
  * delete temp files on failed compactions (CASSANDRA-1596)
+ * avoid blocking for dead nodes during removetoken (CASSANDRA-1605)
 
 
 0.7-beta2
