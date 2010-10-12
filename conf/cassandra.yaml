@@ -112,13 +112,26 @@ sliced_buffer_size_in_kb: 64
 # TCP port, for commands and data
 storage_port: 7000
 
-# Address to bind to and tell other nodes to connect to. You _must_
-# change this if you want multiple nodes to be able to communicate!
+# Address to bind to and tell other Cassandra nodes to connect to. You
+# _must_ change this if you want multiple nodes to be able to
+# communicate!
+# 
+# Leaving it blank leaves it up to InetAddress.getLocalHost(). This
+# will always do the Right Thing *if* the node is properly configured
+# (hostname, name resolution, etc), and the Right Thing is to use the
+# address associated with the hostname (it might not be).
+#
+# Setting this to 0.0.0.0 is always wrong.
 listen_address: localhost
 
-# The address to bind the Thrift RPC service to
+# The address to bind the Thrift RPC service to -- clients connect
+# here. Unlike ListenAddress above, you *can* specify 0.0.0.0 here if
+# you want Thrift to listen on all interfaces.
+# 
+# Leaving this blank has the same effect it does for ListenAddress,
+# (i.e. it will be based on the configured hostname of the node).
 rpc_address: localhost
-# port for Thrift to listen on
+# port for Thrift to listen for clients on
 rpc_port: 9160
 
 # enable or disable keepalive on rpc connections
