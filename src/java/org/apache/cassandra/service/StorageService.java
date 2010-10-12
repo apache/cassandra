@@ -676,8 +676,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                                        endpoint, currentNode, token, endpoint));
         }
 
-        if(pieces.length > 2) {
-            handleStateRemoving(endpoint, pieces);
+        if (pieces.length > 2)
+        {
+            assert pieces.length == 4;
+            handleStateRemoving(endpoint, getPartitioner().getTokenFactory().fromString(pieces[3]), pieces[2]);
         }
 
         calculatePendingRanges();
@@ -753,12 +755,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * Handle node being actively removed from the ring.
      *
      * @param endpoint node
-     * @param pieces (token to notify of removal)(token to remove)(unused)(unused)
      */
-    private void handleStateRemoving(InetAddress endpoint, String[] pieces)
+    private void handleStateRemoving(InetAddress endpoint, Token removeToken, String state)
     {
-        assert pieces.length == 4;
-        Token removeToken = getPartitioner().getTokenFactory().fromString(pieces[3]);
         InetAddress removeEndpoint = tokenMetadata_.getEndpoint(removeToken);
         
         if (removeEndpoint == null)
@@ -770,14 +769,14 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             return;
         }
 
-        if (VersionedValue.REMOVED_TOKEN.equals(pieces[2]))
+        if (VersionedValue.REMOVED_TOKEN.equals(state))
         {
             Gossiper.instance.removeEndpoint(removeEndpoint);
             tokenMetadata_.removeEndpoint(removeEndpoint);
             HintedHandOffManager.deleteHintsForEndPoint(removeEndpoint);
             tokenMetadata_.removeBootstrapToken(removeToken);
         }
-        else if (VersionedValue.REMOVING_TOKEN.equals(pieces[2]))
+        else if (VersionedValue.REMOVING_TOKEN.equals(state))
         {
             if (logger_.isDebugEnabled())
                 logger_.debug("Token " + removeToken + " removed manually (endpoint was " + removeEndpoint + ")");
