@@ -37,6 +37,11 @@ public interface CompactionManagerMBean
     public Long getBytesCompacted();
 
     /**
+     * @return the type of compaction operation currently in progress; null if none
+     */
+    public String getCompactionType();
+
+    /**
      * @return estimated number of compactions remaining to perform
      */
     public int getPendingTasks();

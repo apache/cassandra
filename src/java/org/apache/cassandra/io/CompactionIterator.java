@@ -163,6 +163,6 @@ implements Closeable, ICompactionInfo
 
     public String getTaskType()
     {
-        return "Compaction";
+        return major ? "Major" : "Minor";
     }
 }

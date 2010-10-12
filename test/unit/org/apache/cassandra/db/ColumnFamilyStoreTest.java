@@ -113,37 +113,6 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         TableTest.reTest(store, r);
     }
 
-    /**
-     * Writes out a bunch of keys into an SSTable, then runs anticompaction on a range.
-     * Checks to see if anticompaction returns true.
-     */
-    private void testAntiCompaction(String columnFamilyName, int insertsPerTable) throws IOException, ExecutionException, InterruptedException
-    {
-        List<RowMutation> rms = new ArrayList<RowMutation>();
-        for (int j = 0; j < insertsPerTable; j++)
-        {
-            String key = String.valueOf(j);
-            RowMutation rm = new RowMutation("Keyspace1", key.getBytes());
-            rm.add(new QueryPath(columnFamilyName, null, "0".getBytes()), new byte[0], new TimestampClock(j));
-            rms.add(rm);
-        }
-        ColumnFamilyStore store = Util.writeColumnFamily(rms);
-
-        List<Range> ranges  = new ArrayList<Range>();
-        IPartitioner partitioner = new CollatingOrderPreservingPartitioner();
-        Range r = Util.range(partitioner, "0", "zzzzzzz");
-        ranges.add(r);
-
-        List<SSTableReader> fileList = CompactionManager.instance.submitAnticompaction(store, ranges, InetAddress.getByName("127.0.0.1")).get();
-        assert fileList.size() >= 1;
-    }
-
-    @Test
-    public void testAntiCompaction1() throws IOException, ExecutionException, InterruptedException
-    {
-        testAntiCompaction("Standard1", 100);
-    }
-
     @Test
     public void testSkipStartKey() throws IOException, ExecutionException, InterruptedException
     {
