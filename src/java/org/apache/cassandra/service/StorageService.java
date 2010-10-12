@@ -171,7 +171,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     private Set<InetAddress> replicatingNodes;
     private InetAddress removingNode;
-    private CountDownLatch replicateLatch;
 
     /* Are we starting this node in bootstrap mode? */
     private boolean isBootstrapMode;
@@ -754,7 +753,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * Handle node being actively removed from the ring.
      *
      * @param endpoint node
-     * @param moveValue (token to notify of removal)<Delimiter>(token to remove)
+     * @param pieces (token to notify of removal)(token to remove)(unused)(unused)
      */
     private void handleStateRemoving(InetAddress endpoint, String[] pieces)
     {
@@ -1707,10 +1706,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public void finishRemoval()
     {
-        while (replicateLatch != null && replicateLatch.getCount() > 0)
-        {
-            replicateLatch.countDown();
-        }
+        replicatingNodes.clear();
     }
 
     /**
@@ -1738,7 +1734,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (tokenMetadata_.isLeaving(endpoint)) 
             throw new UnsupportedOperationException("Node " + endpoint + " is already being removed.");
 
-        if (this.replicatingNodes != null || replicateLatch != null)
+        if (replicatingNodes != null)
             throw new UnsupportedOperationException("This node is already processing a removal. Wait for it to complete.");
 
         // Find the endpoints that are going to become responsible for data
@@ -1757,7 +1753,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     logger_.warn("Endpoint " + ep + " is down and will not receive data for re-replication of " + endpoint);
             }
         }
-        replicateLatch = new CountDownLatch(this.replicatingNodes.size());
         removingNode = endpoint;
 
         tokenMetadata_.addLeavingEndpoint(endpoint);
@@ -1766,15 +1761,20 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // but indicate the leaving token so that it can be dealt with.
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.removingNonlocal(localToken, token));
 
+        // kick off streaming commands
         restoreReplicaCount(endpoint, myAddress);
 
-        try
+        // wait for ReplicationFinishedVerbHandler to signal we're done
+        while (!replicatingNodes.isEmpty())
         {
-            replicateLatch.await();
-        }
-        catch (InterruptedException e)
-        {
-            logger_.error("Interrupted while waiting for replication confirmation.");
+            try
+            {
+                Thread.sleep(100);
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
         }
 
         Gossiper.instance.removeEndpoint(endpoint);
@@ -1789,15 +1789,14 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if(!this.replicatingNodes.isEmpty())
             logger_.error("Failed to recieve removal confirmation for " + StringUtils.join(this.replicatingNodes, ","));
 
-        this.replicatingNodes = null;
+        replicatingNodes = null;
         removingNode = null;
-        replicateLatch = null;
     }
 
     public void confirmReplication(InetAddress node)
     {
-        if(replicatingNodes != null && replicatingNodes.remove(node))
-            replicateLatch.countDown();
+        assert replicatingNodes != null;
+        replicatingNodes.remove(node);
     }
 
     public boolean isClientMode()
@@ -1921,7 +1920,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 return migration;
             }
         };
-        Migration migration = null;
+        Migration migration;
         try
         {
             migration = StageManager.getStage(Stage.MIGRATION).submit(call).get();
@@ -2032,14 +2031,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         public List<RawKeyspace> keyspaces;
     }
     
-    // Never ever do this at home. Used by tests.
-    Map<String, AbstractReplicationStrategy> setReplicationStrategyUnsafe(Map<String, AbstractReplicationStrategy> replacement)
-    {
-        Map<String, AbstractReplicationStrategy> old = replicationStrategies;
-        replicationStrategies = replacement;
-        return old;
-    }
-
     // Never ever do this at home. Used by tests.
     IPartitioner setPartitionerUnsafe(IPartitioner newPartitioner)
     {
