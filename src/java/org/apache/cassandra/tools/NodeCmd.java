@@ -484,7 +484,7 @@ public class NodeCmd {
             else if (arguments[1].equals("force"))
             {
                 nodeCmd.printRemovalStatus(System.out);
-                probe.finishRemoval();
+                probe.forceRemoveCompletion();
             }
             else
                 probe.removeToken(arguments[1]);

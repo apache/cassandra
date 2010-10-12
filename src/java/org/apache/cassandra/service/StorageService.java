@@ -1703,8 +1703,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * Force a remove operation to complete. This may be necessary if a remove operation
      * blocks forever due to node/stream failure.
      */
-    public void finishRemoval()
+    public void forceRemoveCompletion()
     {
+        if (!replicatingNodes.isEmpty())
+            logger_.warn("Removal not confirmed for for " + StringUtils.join(this.replicatingNodes, ","));
         replicatingNodes.clear();
     }
 
@@ -1784,9 +1786,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // indicate the token has left
         calculatePendingRanges();
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.removedNonlocal(localToken, token));
-
-        if(!this.replicatingNodes.isEmpty())
-            logger_.error("Failed to recieve removal confirmation for " + StringUtils.join(this.replicatingNodes, ","));
 
         replicatingNodes = null;
         removingNode = null;

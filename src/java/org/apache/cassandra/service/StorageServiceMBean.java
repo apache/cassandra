@@ -217,7 +217,7 @@ public interface StorageServiceMBean
     /**
      * Force a remove operation to finish.
      */
-    public void finishRemoval();
+    public void forceRemoveCompletion();
 
     /** set the logging level at runtime */
     public void setLog4jLevel(String classQualifier, String level);

@@ -305,9 +305,9 @@ public class NodeProbe
         return ssProxy.getRemovalStatus();
     }
 
-    public void finishRemoval()
+    public void forceRemoveCompletion()
     {
-        ssProxy.finishRemoval();
+        ssProxy.forceRemoveCompletion();
     }
   
     public Iterator<Map.Entry<String, IExecutorMBean>> getThreadPoolMBeanProxies()
