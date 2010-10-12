@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "18.1.0"
+const string VERSION = "19.0.0"
 
 
 #
@@ -139,7 +139,6 @@ exception AuthorizationException {
  * important than consistency then you can use lower values for either or both.
  *
  * Write consistency levels make the following guarantees before reporting success to the client:
- *   ZERO         Ensure nothing. A write happens asynchronously in background
  *   ANY          Ensure that the write has been written once somewhere, including possibly being hinted in a non-target node.
  *   ONE          Ensure that the write has been written to at least 1 node's commit log and memory table
  *   QUORUM       Ensure that the write has been written to <ReplicationFactor> / 2 + 1 nodes
@@ -148,7 +147,6 @@ exception AuthorizationException {
  *   ALL          Ensure that the write is written to <code>&lt;ReplicationFactor&gt;</code> nodes before responding to the client.
  *
  * Read:
- *   ZERO         Not supported, because it doesn't make sense.
  *   ANY          Not supported. You probably want ONE instead.
  *   ONE          Will return the record returned by the first node to respond. A consistency check is always done in a background thread to fix any consistency issues when ConsistencyLevel.ONE is used. This means subsequent calls will have correct data even if the initial read gets an older value. (This is called 'read repair'.)
  *   QUORUM       Will query all storage nodes and return the record with the most recent timestamp once it has at least a majority of replicas reported. Again, the remaining replicas will be checked in the background.
@@ -157,7 +155,6 @@ exception AuthorizationException {
  *   ALL          Queries all storage nodes and returns the record with the most recent timestamp.
 */
 enum ConsistencyLevel {
-    ZERO = 0,
     ONE = 1,
     QUORUM = 2,
     DCQUORUM = 3,

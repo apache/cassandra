@@ -173,9 +173,6 @@ public class CassandraServer implements Cassandra {
         // TODO - Support multiple column families per row, right now row only contains 1 column family
         Map<DecoratedKey<?>, ColumnFamily> columnFamilyKeyMap = new HashMap<DecoratedKey<?>, ColumnFamily>();
         
-        if (consistency == ConsistencyLevel.ZERO)
-            throw newInvalidRequestException("Consistency level zero may not be applied to read operations");
-        
         List<Row> rows;
         try
         {
@@ -607,7 +604,6 @@ public class CassandraServer implements Cassandra {
     {
         switch (consistency)
         {
-            case ZERO: return org.apache.cassandra.thrift.ConsistencyLevel.ZERO;
             case ONE: return org.apache.cassandra.thrift.ConsistencyLevel.ONE;
             case QUORUM: return org.apache.cassandra.thrift.ConsistencyLevel.QUORUM;
             case DCQUORUM: return org.apache.cassandra.thrift.ConsistencyLevel.DCQUORUM;

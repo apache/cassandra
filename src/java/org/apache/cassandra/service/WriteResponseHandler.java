@@ -57,14 +57,7 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
 
     public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
-        if (consistencyLevel == ConsistencyLevel.ZERO)
-        {
-            return NoConsistencyWriteResponseHandler.instance;
-        }
-        else
-        {
-            return new WriteResponseHandler(writeEndpoints, hintedEndpoints, consistencyLevel, table);
-        }
+        return new WriteResponseHandler(writeEndpoints, hintedEndpoints, consistencyLevel, table);
     }
 
     public static IWriteResponseHandler create(InetAddress endpoint)

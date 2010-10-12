@@ -56,31 +56,22 @@ def _assert_no_columnpath(key, column_path):
         assert True, 'column did not exist'
 
 def _insert_simple(block=True):
-   return _insert_multi(['key1'], block)
+   return _insert_multi(['key1'])
 
 def _insert_batch(block):
    return _insert_multi_batch(['key1'], block)
 
-def _insert_multi(keys, block=True):
-    if block:
-        consistencyLevel = ConsistencyLevel.ONE
-    else:
-        consistencyLevel = ConsistencyLevel.ZERO
-
+def _insert_multi(keys):
+    CL = ConsistencyLevel.ONE
     for key in keys:
-        client.insert(key, ColumnParent('Standard1'), Column('c1', 'value1', 0), consistencyLevel)
-        client.insert(key, ColumnParent('Standard1'), Column('c2', 'value2', 0), consistencyLevel)
+        client.insert(key, ColumnParent('Standard1'), Column('c1', 'value1', 0), CL)
+        client.insert(key, ColumnParent('Standard1'), Column('c2', 'value2', 0), CL)
 
 def _insert_multi_batch(keys, block):
     cfmap = {'Standard1': [Mutation(ColumnOrSuperColumn(c)) for c in _SIMPLE_COLUMNS],
              'Standard2': [Mutation(ColumnOrSuperColumn(c)) for c in _SIMPLE_COLUMNS]}
-    if block:
-        consistencyLevel = ConsistencyLevel.ONE
-    else:
-        consistencyLevel = ConsistencyLevel.ZERO
-
     for key in keys:
-        client.batch_mutate({key: cfmap}, consistencyLevel)
+        client.batch_mutate({key: cfmap}, ConsistencyLevel.ONE)
 
 def _big_slice(key, column_parent):
     p = SlicePredicate(slice_range=SliceRange('', '', False, 1000))
@@ -103,9 +94,9 @@ def _verify_simple():
     assert L == _SIMPLE_COLUMNS, L
 
 def _insert_super(key='key1'):
-    client.insert(key, ColumnParent('Super1', 'sc1'), Column(_i64(4), 'value4', 0), ConsistencyLevel.ZERO)
-    client.insert(key, ColumnParent('Super1', 'sc2'), Column(_i64(5), 'value5', 0), ConsistencyLevel.ZERO)
-    client.insert(key, ColumnParent('Super1', 'sc2'), Column(_i64(6), 'value6', 0), ConsistencyLevel.ZERO)
+    client.insert(key, ColumnParent('Super1', 'sc1'), Column(_i64(4), 'value4', 0), ConsistencyLevel.ONE)
+    client.insert(key, ColumnParent('Super1', 'sc2'), Column(_i64(5), 'value5', 0), ConsistencyLevel.ONE)
+    client.insert(key, ColumnParent('Super1', 'sc2'), Column(_i64(6), 'value6', 0), ConsistencyLevel.ONE)
     time.sleep(0.1)
 
 def _insert_range():
@@ -139,10 +130,10 @@ def _set_keyspace(keyspace):
     client.set_keyspace(keyspace)
 
 def _insert_super_range():
-    client.insert('key1', ColumnParent('Super1', 'sc1'), Column(_i64(4), 'value4', 0), False)
-    client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(5), 'value5', 0), False)
-    client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(6), 'value6', 0), False)
-    client.insert('key1', ColumnParent('Super1', 'sc3'), Column(_i64(7), 'value7', 0), False)
+    client.insert('key1', ColumnParent('Super1', 'sc1'), Column(_i64(4), 'value4', 0), ConsistencyLevel.ONE)
+    client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(5), 'value5', 0), ConsistencyLevel.ONE)
+    client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(6), 'value6', 0), ConsistencyLevel.ONE)
+    client.insert('key1', ColumnParent('Super1', 'sc3'), Column(_i64(7), 'value7', 0), ConsistencyLevel.ONE)
     time.sleep(0.1)
 
 def _verify_super_range():
@@ -175,28 +166,10 @@ def _expect_exception(fn, type_):
 def _expect_missing(fn):
     _expect_exception(fn, NotFoundException)
 
-def waitfor(secs, fn, *args, **kwargs):
-    start = time.time()
-    success = False
-    last_exception = None
-    while not success and time.time() < start + secs:
-        try:
-            fn(*args, **kwargs)
-            success = True
-        except KeyboardInterrupt:
-            raise
-        except Exception, e:
-            last_exception = e
-            pass
-    if not success and last_exception:
-        raise last_exception
-
 def get_range_slice(client, parent, predicate, start, end, count, cl):
     kr = KeyRange(start, end, count=count)
     return client.get_range_slices(parent, predicate, kr, cl)
     
-
-ZERO_WAIT = 5
 
 class TestMutations(ThriftTester):
     def test_insert(self):
@@ -390,11 +363,11 @@ class TestMutations(ThriftTester):
         mutation_map = dict((column_family, mutations) for column_family in column_families)
         keyed_mutations = dict((key, mutation_map) for key in keys)
 
-        client.batch_mutate(keyed_mutations, ConsistencyLevel.ZERO)
+        client.batch_mutate(keyed_mutations, ConsistencyLevel.ONE)
 
         for column_family in column_families:
             for key in keys:
-               waitfor(ZERO_WAIT, _assert_column, column_family, key, 'c1', 'value1')
+               _assert_column(column_family, key, 'c1', 'value1')
 
     def test_batch_mutate_standard_columns_blocking(self):
         _set_keyspace('Keyspace1')
@@ -465,12 +438,12 @@ class TestMutations(ThriftTester):
 
         keyed_mutations = dict((key, mutation_map) for key in keys)
 
-        client.batch_mutate(keyed_mutations, ConsistencyLevel.ZERO)
+        client.batch_mutate(keyed_mutations, ConsistencyLevel.ONE)
         for column_family in column_families:
             for sc in _SUPER_COLUMNS:
                 for c in sc.columns:
                     for key in keys:
-                        waitfor(ZERO_WAIT, _assert_no_columnpath, key, ColumnPath(column_family, super_column=sc.name, column=c.name))
+                        _assert_no_columnpath(key, ColumnPath(column_family, super_column=sc.name, column=c.name))
 
     def test_batch_mutate_remove_super_columns_with_none_given_underneath(self):
         _set_keyspace('Keyspace1')
@@ -495,12 +468,12 @@ class TestMutations(ThriftTester):
             for key in keys:
                 _assert_columnpath_exists(key, ColumnPath('Super1', super_column=sc.name))
 
-        client.batch_mutate(keyed_mutations, ConsistencyLevel.ZERO)
+        client.batch_mutate(keyed_mutations, ConsistencyLevel.ONE)
 
         for sc in _SUPER_COLUMNS:
             for c in sc.columns:
                 for key in keys:
-                    waitfor(ZERO_WAIT, _assert_no_columnpath, key, ColumnPath('Super1', super_column=sc.name))
+                    _assert_no_columnpath(key, ColumnPath('Super1', super_column=sc.name))
     
     def test_batch_mutate_remove_super_columns_entire_row(self):
         _set_keyspace('Keyspace1')
@@ -523,11 +496,11 @@ class TestMutations(ThriftTester):
             for key in keys:
                 _assert_columnpath_exists(key, ColumnPath('Super1', super_column=sc.name))
 
-        client.batch_mutate(keyed_mutations, ConsistencyLevel.ZERO)
+        client.batch_mutate(keyed_mutations, ConsistencyLevel.ONE)
 
         for sc in _SUPER_COLUMNS:
           for key in keys:
-            waitfor(ZERO_WAIT, _assert_no_columnpath, key, ColumnPath('Super1', super_column=sc.name))
+            _assert_no_columnpath(key, ColumnPath('Super1', super_column=sc.name))
 
     def test_batch_mutate_insertions_and_deletions(self):
         _set_keyspace('Keyspace1')
@@ -686,9 +659,9 @@ class TestMutations(ThriftTester):
                              for c in _SUPER_COLUMNS],
                   'Super2': [Mutation(ColumnOrSuperColumn(super_column=c))
                              for c in _SUPER_COLUMNS]}
-         client.batch_mutate({'key1': cfmap}, ConsistencyLevel.ZERO)
-         waitfor(ZERO_WAIT, _verify_super, 'Super1')
-         waitfor(ZERO_WAIT, _verify_super, 'Super2')
+         client.batch_mutate({'key1': cfmap}, ConsistencyLevel.ONE)
+         _verify_super('Super1')
+         _verify_super('Super2')
 
     def test_batch_insert_super_blocking(self):
          _set_keyspace('Keyspace1')

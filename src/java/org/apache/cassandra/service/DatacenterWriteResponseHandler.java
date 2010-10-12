@@ -59,14 +59,7 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
 
     public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
-        if (consistencyLevel == ConsistencyLevel.ZERO)
-        {
-            return NoConsistencyWriteResponseHandler.instance;
-        }
-        else
-        {
-            return new DatacenterWriteResponseHandler(writeEndpoints, hintedEndpoints, consistencyLevel, table);
-        }
+        return new DatacenterWriteResponseHandler(writeEndpoints, hintedEndpoints, consistencyLevel, table);
     }
 
     @Override

@@ -74,14 +74,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
 
     public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
-        if (consistencyLevel == ConsistencyLevel.ZERO)
-        {
-            return NoConsistencyWriteResponseHandler.instance;
-        }
-        else
-        {
-            return new DatacenterSyncWriteResponseHandler(writeEndpoints, hintedEndpoints, consistencyLevel, table);
-        }
+        return new DatacenterSyncWriteResponseHandler(writeEndpoints, hintedEndpoints, consistencyLevel, table);
     }
 
     public void response(Message message)

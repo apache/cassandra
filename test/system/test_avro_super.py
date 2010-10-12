@@ -88,24 +88,6 @@ def Column(name, value, timestamp, ttl=None):
 def _i64(i):
     return avro_utils.i64(i)
 
-def waitfor(secs, fn, *args, **kwargs):
-    start = time.time()
-    success = False
-    last_exception = None
-    while not success and time.time() < start + secs:
-        try:
-            fn(*args, **kwargs)
-            success = True
-        except KeyboardInterrupt:
-            raise
-        except Exception, e:
-            last_exception = e
-            pass
-    if not success and last_exception:
-        raise last_exception
-
-ZERO_WAIT = 5
-    
 _SUPER_COLUMNS = [_super_col('sc1', [Column(avro_utils.i64(4), 'value4', 0)]), 
                   _super_col('sc2', [Column(avro_utils.i64(5), 'value5', 0), 
                                      Column(avro_utils.i64(6), 'value6', 0)])]
@@ -226,12 +208,12 @@ class TestSuperOperations(AvroTester):
         def _assert_no_columnpath(key, column_path):
             self._assert_no_columnpath(key, column_path)
             
-        self.client.request('batch_mutate', {'mutation_map': keyed_mutations, 'consistency_level': 'ZERO'})
+        self.client.request('batch_mutate', {'mutation_map': keyed_mutations, 'consistency_level': 'ONE'})
         for column_family in column_families:
             for sc in _SUPER_COLUMNS:
                 for c in sc['columns']:
                     for key in keys:
-                        waitfor(ZERO_WAIT, _assert_no_columnpath, key, ColumnPath(column_family, super_column=sc['name'], column=c['name']))
+                        _assert_no_columnpath(key, ColumnPath(column_family, super_column=sc['name'], column=c['name']))
                         
         
     # internal helper functions.
