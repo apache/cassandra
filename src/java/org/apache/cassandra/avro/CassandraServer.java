@@ -1027,7 +1027,7 @@ public class CassandraServer implements Cassandra {
 
         try
         {
-            state().hasColumnFamilyAccess((String)columnFamily, Permission.WRITE);
+            state().hasColumnFamilyAccess(columnFamily.toString(), Permission.WRITE);
             schedule();
             StorageProxy.truncateBlocking(state().getKeyspace(), columnFamily.toString());
         }
