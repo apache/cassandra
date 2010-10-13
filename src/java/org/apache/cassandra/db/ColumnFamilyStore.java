@@ -549,10 +549,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /** flush the given memtable and swap in a new one for its CFS, if it hasn't been frozen already.  threadsafe. */
     Future<?> maybeSwitchMemtable(Memtable oldMemtable, final boolean writeCommitLog)
     {
-        /**
-         *  If we can get the writelock, that means no new updates can come in and 
-         *  all ongoing updates to memtables have completed. We can get the tail
-         *  of the log and use it as the starting position for log replay on recovery.
+        /*
+         * If we can get the writelock, that means no new updates can come in and
+         * all ongoing updates to memtables have completed. We can get the tail
+         * of the log and use it as the starting position for log replay on recovery.
+         *
+         * This is why we Table.flusherLock needs to be global instead of per-Table:
+         * we need to schedule discardCompletedSegments calls in the same order as their
+         * contexts (commitlog position) were read, even though the flush executor
+         * is multithreaded.
          */
         Table.flusherLock.writeLock().lock();
         try

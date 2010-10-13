@@ -55,7 +55,11 @@ public class Table
 
     private static final Logger logger = LoggerFactory.getLogger(Table.class);
     private static final String SNAPSHOT_SUBDIR_NAME = "snapshots";
-    /* accesses to CFS.memtable should acquire this for thread safety.  only switchMemtable should aquire the writeLock. */
+
+    /**
+     * accesses to CFS.memtable should acquire this for thread safety.
+     * only Table.maybeSwitchMemtable should aquire the writeLock; see that method for the full explanation.
+     */
     static final ReentrantReadWriteLock flusherLock = new ReentrantReadWriteLock(true);
 
     // This is a result of pushing down the point in time when storage directories get created.  It used to happen in
