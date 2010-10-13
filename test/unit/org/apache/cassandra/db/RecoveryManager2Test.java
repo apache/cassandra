@@ -73,7 +73,7 @@ public class RecoveryManager2Test extends CleanupHelper
     {
         RowMutation rm = new RowMutation("Keyspace1", key.getBytes());
         ColumnFamily cf = ColumnFamily.create("Keyspace1", cfname);
-        cf.addColumn(column("col1", "val1", new TimestampClock(1L)));
+        cf.addColumn(column("col1", "val1", 1L));
         rm.add(cf);
         rm.apply();
     }

@@ -27,7 +27,6 @@ import org.apache.cassandra.SchemaLoader;
 import org.junit.Test;
 
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.TimestampClock;
 
 import static org.apache.cassandra.db.TableTest.assertColumns;
 import static org.apache.cassandra.Util.column;
@@ -39,10 +38,10 @@ public class ReadResponseResolverTest extends SchemaLoader
     public void testResolveSupersetNewer()
     {
         ColumnFamily cf1 = ColumnFamily.create("Keyspace1", "Standard1");
-        cf1.addColumn(column("c1", "v1", new TimestampClock(0)));
+        cf1.addColumn(column("c1", "v1", 0));
 
         ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
-        cf2.addColumn(column("c1", "v2", new TimestampClock(1)));
+        cf2.addColumn(column("c1", "v2", 1));
 
         ColumnFamily resolved = ReadResponseResolver.resolveSuperset(Arrays.asList(cf1, cf2));
         assertColumns(resolved, "c1");
@@ -54,10 +53,10 @@ public class ReadResponseResolverTest extends SchemaLoader
     public void testResolveSupersetDisjoint()
     {
         ColumnFamily cf1 = ColumnFamily.create("Keyspace1", "Standard1");
-        cf1.addColumn(column("c1", "v1", new TimestampClock(0)));
+        cf1.addColumn(column("c1", "v1", 0));
 
         ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
-        cf2.addColumn(column("c2", "v2", new TimestampClock(1)));
+        cf2.addColumn(column("c2", "v2", 1));
 
         ColumnFamily resolved = ReadResponseResolver.resolveSuperset(Arrays.asList(cf1, cf2));
         assertColumns(resolved, "c1", "c2");
@@ -69,7 +68,7 @@ public class ReadResponseResolverTest extends SchemaLoader
     public void testResolveSupersetNullOne()
     {
         ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
-        cf2.addColumn(column("c2", "v2", new TimestampClock(1)));
+        cf2.addColumn(column("c2", "v2", 1));
 
         ColumnFamily resolved = ReadResponseResolver.resolveSuperset(Arrays.asList(null, cf2));
         assertColumns(resolved, "c2");
@@ -81,7 +80,7 @@ public class ReadResponseResolverTest extends SchemaLoader
     public void testResolveSupersetNullTwo()
     {
         ColumnFamily cf1 = ColumnFamily.create("Keyspace1", "Standard1");
-        cf1.addColumn(column("c1", "v1", new TimestampClock(0)));
+        cf1.addColumn(column("c1", "v1", 0));
 
         ColumnFamily resolved = ReadResponseResolver.resolveSuperset(Arrays.asList(cf1, null));
         assertColumns(resolved, "c1");

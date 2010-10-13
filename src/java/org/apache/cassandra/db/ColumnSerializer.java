@@ -33,13 +33,6 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
     public final static int DELETION_MASK = 0x01;
     public final static int EXPIRATION_MASK = 0x02;
 
-    private ClockType clockType;
-
-    public ColumnSerializer(ClockType clockType)
-    {
-        this.clockType = clockType;
-    }
-    
     public void serialize(IColumn column, DataOutput dos)
     {
         FBUtilities.writeShortByteArray(column.name(), dos);
@@ -52,7 +45,7 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
             } else {
               dos.writeByte((column.isMarkedForDelete()) ? DELETION_MASK : 0);
             }
-            clockType.serializer().serialize(column.clock(), dos);
+            dos.writeLong(column.timestamp());
             FBUtilities.writeByteArray(column.value(), dos);
         }
         catch (IOException e)
@@ -69,7 +62,7 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
         {
             int ttl = dis.readInt();
             int expiration = dis.readInt();
-            IClock clock = clockType.serializer().deserialize(dis);
+            long ts = dis.readLong();
             byte[] value = FBUtilities.readByteArray(dis);
             if ((int) (System.currentTimeMillis() / 1000 ) > expiration)
             {
@@ -77,22 +70,22 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
                 // tombstone
                 ByteBuffer bytes = ByteBuffer.allocate(4);
                 bytes.putInt(expiration);
-                return new DeletedColumn(name, bytes.array(), clock);
+                return new DeletedColumn(name, bytes.array(), ts);
             }
             else
             {
-                return new ExpiringColumn(name, value, clock, ttl, expiration);
+                return new ExpiringColumn(name, value, ts, ttl, expiration);
             }
         }
         else
         {
             boolean delete = (b & DELETION_MASK) != 0;
-            IClock clock = clockType.serializer().deserialize(dis);
+            long ts = dis.readLong();
             byte[] value = FBUtilities.readByteArray(dis);
             if ((b & DELETION_MASK) != 0) {
-                return new DeletedColumn(name, value, clock);
+                return new DeletedColumn(name, value, ts);
             } else {
-                return new Column(name, value, clock);
+                return new Column(name, value, ts);
             }
         }
     }

@@ -30,8 +30,6 @@ import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.apache.avro.util.Utf8;
 import org.apache.cassandra.avro.ColumnDef;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.clock.AbstractReconciler;
-import org.apache.cassandra.db.clock.TimestampReconciler;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
@@ -71,10 +69,8 @@ public final class CFMetaData
         return new CFMetaData(Table.SYSTEM_TABLE,
                               cfName,
                               subComparator == null ? ColumnFamilyType.Standard : ColumnFamilyType.Super,
-                              ClockType.Timestamp,
                               comparator,
                               subComparator,
-                              TimestampReconciler.instance,
                               comment,
                               0,
                               false,
@@ -117,10 +113,8 @@ public final class CFMetaData
     public final String tableName;                  // name of table which has this column family
     public final String cfName;                     // name of the column family
     public final ColumnFamilyType cfType;           // type: super, standard, etc.
-    public final ClockType clockType;               // clock type: timestamp, etc.
     public final AbstractType comparator;           // name sorted, time stamp sorted etc.
     public final AbstractType subcolumnComparator;  // like comparator, for supercolumns
-    public final AbstractReconciler reconciler;     // determine correct column from conflicting versions
     public final String comment;                    // for humans only
 
     public final double rowCacheSize;               // default 0
@@ -140,10 +134,8 @@ public final class CFMetaData
     private CFMetaData(String tableName,
                        String cfName,
                        ColumnFamilyType cfType,
-                       ClockType clockType,
                        AbstractType comparator,
                        AbstractType subcolumnComparator,
-                       AbstractReconciler reconciler,
                        String comment,
                        double rowCacheSize,
                        boolean preloadRowCache,
@@ -163,12 +155,10 @@ public final class CFMetaData
         this.tableName = tableName;
         this.cfName = cfName;
         this.cfType = cfType;
-        this.clockType = clockType;
         this.comparator = comparator;
         // the default subcolumncomparator is null per thrift spec, but only should be null if cfType == Standard. If
         // cfType == Super, subcolumnComparator should default to BytesType if not set.
         this.subcolumnComparator = subcolumnComparator == null && cfType == ColumnFamilyType.Super ? BytesType.instance : subcolumnComparator;
-        this.reconciler = reconciler;
         this.comment = comment == null ? "" : comment;
         this.rowCacheSize = rowCacheSize;
         this.preloadRowCache = preloadRowCache;
@@ -199,10 +189,8 @@ public final class CFMetaData
     public CFMetaData(String tableName,
                       String cfName,
                       ColumnFamilyType cfType,
-                      ClockType clockType,
                       AbstractType comparator,
                       AbstractType subcolumnComparator,
-                      AbstractReconciler reconciler,
                       String comment,
                       double rowCacheSize,
                       boolean preloadRowCache,
@@ -218,10 +206,8 @@ public final class CFMetaData
         this(tableName,
              cfName,
              cfType,
-             clockType,
              comparator,
              subcolumnComparator,
-             reconciler,
              comment,
              rowCacheSize,
              preloadRowCache,
@@ -242,10 +228,8 @@ public final class CFMetaData
         return new CFMetaData(table,
                               parentCf + "." + (info.index_name == null ? FBUtilities.bytesToHex(info.name) : info.index_name),
                               ColumnFamilyType.Standard,
-                              ClockType.Timestamp,
                               columnComparator,
                               null,
-                              TimestampReconciler.instance,
                               "",
                               0,
                               false,
@@ -264,10 +248,8 @@ public final class CFMetaData
         return new CFMetaData(cfm.tableName,
                               newName,
                               cfm.cfType,
-                              cfm.clockType,
                               cfm.comparator,
                               cfm.subcolumnComparator,
-                              cfm.reconciler,
                               cfm.comment,
                               cfm.rowCacheSize,
                               cfm.preloadRowCache,
@@ -289,10 +271,8 @@ public final class CFMetaData
         return new CFMetaData(tableName,
                               cfm.cfName,
                               cfm.cfType,
-                              cfm.clockType,
                               cfm.comparator,
                               cfm.subcolumnComparator,
-                              cfm.reconciler,
                               cfm.comment,
                               cfm.rowCacheSize,
                               cfm.preloadRowCache,
@@ -320,7 +300,6 @@ public final class CFMetaData
     {
         return tableName + "." + cfName + "\n"
                + "Column Family Type: " + cfType + "\n"
-               + "Column Family Clock Type: " + clockType + "\n"
                + "Columns Sorted By: " + comparator + "\n";
     }
 
@@ -384,10 +363,8 @@ public final class CFMetaData
         return new CFMetaData(cf.keyspace.toString(),
                               cf.name.toString(),
                               ColumnFamilyType.create(cf.column_type.toString()),
-                              ClockType.Timestamp,
                               comparator,
                               subcolumnComparator,
-                              TimestampReconciler.instance,
                               cf.comment.toString(),
                               cf.row_cache_size,
                               cf.preload_row_cache,
@@ -419,10 +396,8 @@ public final class CFMetaData
             .append(tableName, rhs.tableName)
             .append(cfName, rhs.cfName)
             .append(cfType, rhs.cfType)
-            .append(clockType, rhs.clockType)
             .append(comparator, rhs.comparator)
             .append(subcolumnComparator, rhs.subcolumnComparator)
-            .append(reconciler, rhs.reconciler)
             .append(comment, rhs.comment)
             .append(rowCacheSize, rhs.rowCacheSize)
             .append(keyCacheSize, rhs.keyCacheSize)
@@ -443,10 +418,8 @@ public final class CFMetaData
             .append(tableName)
             .append(cfName)
             .append(cfType)
-            .append(clockType)
             .append(comparator)
             .append(subcolumnComparator)
-            .append(reconciler)
             .append(comment)
             .append(rowCacheSize)
             .append(keyCacheSize)
@@ -503,10 +476,8 @@ public final class CFMetaData
         return new CFMetaData(tableName, 
                               cfName, 
                               cfType, 
-                              clockType, 
                               comparator, 
                               subcolumnComparator, 
-                              reconciler, 
                               cf_def.comment == null ? "" : cf_def.comment.toString(), 
                               cf_def.row_cache_size, 
                               cf_def.preload_row_cache, 
@@ -564,10 +535,8 @@ public final class CFMetaData
         return new CFMetaData(tableName, 
                               cfName, 
                               cfType, 
-                              clockType, 
                               comparator, 
                               subcolumnComparator, 
-                              reconciler, 
                               cf_def.comment, 
                               cf_def.row_cache_size, 
                               cf_def.preload_row_cache, 

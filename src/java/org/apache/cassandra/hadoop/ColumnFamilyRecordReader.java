@@ -32,8 +32,6 @@ import org.apache.cassandra.auth.SimpleAuthenticator;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.clock.AbstractReconciler;
-import org.apache.cassandra.db.clock.TimestampReconciler;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.thrift.*;
@@ -301,9 +299,7 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
 
         private IColumn unthriftifySuper(SuperColumn super_column)
         {
-            ClockType clockType = ClockType.Timestamp; // TODO generalize
-            AbstractReconciler reconciler = TimestampReconciler.instance; // TODO generalize
-            org.apache.cassandra.db.SuperColumn sc = new org.apache.cassandra.db.SuperColumn(super_column.name, subComparator, clockType, reconciler);
+            org.apache.cassandra.db.SuperColumn sc = new org.apache.cassandra.db.SuperColumn(super_column.name, subComparator);
             for (Column column : super_column.columns)
             {
                 sc.addColumn(unthriftifySimple(column));
@@ -313,7 +309,7 @@ public class ColumnFamilyRecordReader extends RecordReader<byte[], SortedMap<byt
 
         private IColumn unthriftifySimple(Column column)
         {
-            return new org.apache.cassandra.db.Column(column.name, column.value, new TimestampClock(column.timestamp));
+            return new org.apache.cassandra.db.Column(column.name, column.value, column.timestamp);
         }
     }
 }

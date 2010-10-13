@@ -34,39 +34,39 @@ public class RowTest extends SchemaLoader
     public void testDiffColumnFamily()
     {
         ColumnFamily cf1 = ColumnFamily.create("Keyspace1", "Standard1");
-        cf1.addColumn(column("one", "onev", new TimestampClock(0)));
+        cf1.addColumn(column("one", "onev", 0));
 
         ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
-        cf2.delete(0, new TimestampClock(0));
+        cf2.delete(0, 0);
 
         ColumnFamily cfDiff = cf1.diff(cf2);
         assertEquals(cfDiff.getColumnsMap().size(), 0);
-        assertEquals(((TimestampClock) cfDiff.getMarkedForDeleteAt()).timestamp(), 0);
+        assertEquals(cfDiff.getMarkedForDeleteAt(), 0);
     }
 
     @Test
     public void testDiffSuperColumn()
     {
-        SuperColumn sc1 = new SuperColumn("one".getBytes(), AsciiType.instance, ClockType.Timestamp, null);
-        sc1.addColumn(column("subcolumn", "A", new TimestampClock(0)));
+        SuperColumn sc1 = new SuperColumn("one".getBytes(), AsciiType.instance);
+        sc1.addColumn(column("subcolumn", "A", 0));
 
-        SuperColumn sc2 = new SuperColumn("one".getBytes(), AsciiType.instance, ClockType.Timestamp, null);
-        sc2.markForDeleteAt(0, new TimestampClock(0));
+        SuperColumn sc2 = new SuperColumn("one".getBytes(), AsciiType.instance);
+        sc2.markForDeleteAt(0, 0);
 
         SuperColumn scDiff = (SuperColumn)sc1.diff(sc2);
         assertEquals(scDiff.getSubColumns().size(), 0);
-        assertEquals(((TimestampClock)scDiff.getMarkedForDeleteAt()).timestamp(), 0);
+        assertEquals(scDiff.getMarkedForDeleteAt(), 0);
     }
 
     @Test
     public void testResolve()
     {
         ColumnFamily cf1 = ColumnFamily.create("Keyspace1", "Standard1");
-        cf1.addColumn(column("one", "A", new TimestampClock(0)));
+        cf1.addColumn(column("one", "A", 0));
 
         ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
-        cf2.addColumn(column("one", "B", new TimestampClock(1)));
-        cf2.addColumn(column("two", "C", new TimestampClock(1)));
+        cf2.addColumn(column("one", "B", 1));
+        cf2.addColumn(column("two", "C", 1));
 
         cf1.resolve(cf2);
         assert Arrays.equals(cf1.getColumn("one".getBytes()).value(), "B".getBytes());
@@ -76,7 +76,7 @@ public class RowTest extends SchemaLoader
     @Test
     public void testExpiringColumnExpiration()
     {
-        Column c = new ExpiringColumn("one".getBytes(), "A".getBytes(), new TimestampClock(0), 1);
+        Column c = new ExpiringColumn("one".getBytes(), "A".getBytes(), 0, 1);
         assert !c.isMarkedForDelete();
 
         try
@@ -90,6 +90,6 @@ public class RowTest extends SchemaLoader
             fail("Cannot test column expiration if you wake me up too early");
         }
 
-        assert c.isMarkedForDelete() && c.getMarkedForDeleteAt().equals(new TimestampClock(0));
+        assert c.isMarkedForDelete() && c.getMarkedForDeleteAt() == 0;
     }
 }

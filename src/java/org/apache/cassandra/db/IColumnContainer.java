@@ -28,7 +28,7 @@ public interface IColumnContainer
     public void addColumn(IColumn column);
 
     public boolean isMarkedForDelete();
-    public IClock getMarkedForDeleteAt();
+    public long getMarkedForDeleteAt();
 
     public AbstractType getComparator();
 }

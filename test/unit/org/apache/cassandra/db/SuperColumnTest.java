@@ -22,15 +22,14 @@ import org.junit.Test;
 import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertNull;
 import static org.apache.cassandra.Util.getBytes;
-import org.apache.cassandra.db.clock.TimestampReconciler;
 import org.apache.cassandra.db.marshal.LongType;
 
 public class SuperColumnTest
 {   
     @Test
     public void testMissingSubcolumn() {
-    	SuperColumn sc = new SuperColumn("sc1".getBytes(), LongType.instance, ClockType.Timestamp, TimestampReconciler.instance);
-    	sc.addColumn(new Column(getBytes(1), "value".getBytes(), new TimestampClock(1)));
+    	SuperColumn sc = new SuperColumn("sc1".getBytes(), LongType.instance);
+    	sc.addColumn(new Column(getBytes(1), "value".getBytes(), 1));
     	assertNotNull(sc.getSubColumn(getBytes(1)));
     	assertNull(sc.getSubColumn(getBytes(2)));
     }

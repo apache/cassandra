@@ -49,13 +49,13 @@ public class RecoveryManager3Test extends CleanupHelper
 
         rm = new RowMutation("Keyspace1", dk.key);
         cf = ColumnFamily.create("Keyspace1", "Standard1");
-        cf.addColumn(column("col1", "val1", new TimestampClock(1L)));
+        cf.addColumn(column("col1", "val1", 1L));
         rm.add(cf);
         rm.apply();
 
         rm = new RowMutation("Keyspace2", dk.key);
         cf = ColumnFamily.create("Keyspace2", "Standard3");
-        cf.addColumn(column("col2", "val2", new TimestampClock(1L)));
+        cf.addColumn(column("col2", "val2", 1L));
         rm.add(cf);
         rm.apply();
 

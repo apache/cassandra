@@ -27,7 +27,6 @@ import java.util.Arrays;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.TimestampClock;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
@@ -63,12 +62,12 @@ public class SSTableExportTest extends SchemaLoader
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
         
         // Add rowA
-        cfamily.addColumn(new QueryPath("Standard1", null, "colA".getBytes()), "valA".getBytes(), new TimestampClock(1));
+        cfamily.addColumn(new QueryPath("Standard1", null, "colA".getBytes()), "valA".getBytes(), 1);
         writer.append(Util.dk("rowA"), cfamily);
         cfamily.clear();
         
         // Add rowB
-        cfamily.addColumn(new QueryPath("Standard1", null, "colB".getBytes()), "valB".getBytes(), new TimestampClock(1));
+        cfamily.addColumn(new QueryPath("Standard1", null, "colB".getBytes()), "valB".getBytes(), 1);
         writer.append(Util.dk("rowB"), cfamily);
         cfamily.clear();
      
@@ -95,17 +94,17 @@ public class SSTableExportTest extends SchemaLoader
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
         
         // Add rowA
-        cfamily.addColumn(new QueryPath("Standard1", null, "colA".getBytes()), "valA".getBytes(), new TimestampClock(1));
+        cfamily.addColumn(new QueryPath("Standard1", null, "colA".getBytes()), "valA".getBytes(), 1);
         writer.append(Util.dk("rowA"), cfamily);
         cfamily.clear();
         
         // Add rowB
-        cfamily.addColumn(new QueryPath("Standard1", null, "colB".getBytes()), "valB".getBytes(), new TimestampClock(1));
+        cfamily.addColumn(new QueryPath("Standard1", null, "colB".getBytes()), "valB".getBytes(), 1);
         writer.append(Util.dk("rowB"), cfamily);
         cfamily.clear();
 
         // Add rowExclude
-        cfamily.addColumn(new QueryPath("Standard1", null, "colX".getBytes()), "valX".getBytes(), new TimestampClock(1));
+        cfamily.addColumn(new QueryPath("Standard1", null, "colX".getBytes()), "valX".getBytes(), 1);
         writer.append(Util.dk("rowExclude"), cfamily);
         cfamily.clear();
 
@@ -137,17 +136,17 @@ public class SSTableExportTest extends SchemaLoader
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
         
         // Add rowA
-        cfamily.addColumn(new QueryPath("Super4", "superA".getBytes(), "colA".getBytes()), "valA".getBytes(), new TimestampClock(1));
+        cfamily.addColumn(new QueryPath("Super4", "superA".getBytes(), "colA".getBytes()), "valA".getBytes(), 1);
         writer.append(Util.dk("rowA"), cfamily);
         cfamily.clear();
         
         // Add rowB
-        cfamily.addColumn(new QueryPath("Super4", "superB".getBytes(), "colB".getBytes()), "valB".getBytes(), new TimestampClock(1));
+        cfamily.addColumn(new QueryPath("Super4", "superB".getBytes(), "colB".getBytes()), "valB".getBytes(), 1);
         writer.append(Util.dk("rowB"), cfamily);
         cfamily.clear();
 
         // Add rowExclude
-        cfamily.addColumn(new QueryPath("Super4", "superX".getBytes(), "colX".getBytes()), "valX".getBytes(), new TimestampClock(1));
+        cfamily.addColumn(new QueryPath("Super4", "superX".getBytes(), "colX".getBytes()), "valX".getBytes(), 1);
         writer.append(Util.dk("rowExclude"), cfamily);
         cfamily.clear();
 
@@ -177,12 +176,12 @@ public class SSTableExportTest extends SchemaLoader
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
         
         // Add rowA
-        cfamily.addColumn(new QueryPath("Standard1", null, "name".getBytes()), "val".getBytes(), new TimestampClock(1));
+        cfamily.addColumn(new QueryPath("Standard1", null, "name".getBytes()), "val".getBytes(), 1);
         writer.append(Util.dk("rowA"), cfamily);
         cfamily.clear();
 
         // Add rowExclude
-        cfamily.addColumn(new QueryPath("Standard1", null, "name".getBytes()), "val".getBytes(), new TimestampClock(1));
+        cfamily.addColumn(new QueryPath("Standard1", null, "name".getBytes()), "val".getBytes(), 1);
         writer.append(Util.dk("rowExclude"), cfamily);
         cfamily.clear();
 

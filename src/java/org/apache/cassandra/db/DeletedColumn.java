@@ -28,14 +28,14 @@ public class DeletedColumn extends Column
 {
     private static Logger logger = LoggerFactory.getLogger(DeletedColumn.class);
     
-    public DeletedColumn(byte[] name, int localDeletionTime, IClock clock)
+    public DeletedColumn(byte[] name, int localDeletionTime, long timestamp)
     {
-        this(name, FBUtilities.toByteArray(localDeletionTime), clock);
+        this(name, FBUtilities.toByteArray(localDeletionTime), timestamp);
     }
 
-    public DeletedColumn(byte[] name, byte[] value, IClock clock)
+    public DeletedColumn(byte[] name, byte[] value, long timestamp)
     {
-        super(name, value, clock);
+        super(name, value, timestamp);
     }
 
     @Override
@@ -45,9 +45,9 @@ public class DeletedColumn extends Column
     }
 
     @Override
-    public IClock getMarkedForDeleteAt()
+    public long getMarkedForDeleteAt()
     {
-        return clock;
+        return timestamp;
     }
 
     @Override

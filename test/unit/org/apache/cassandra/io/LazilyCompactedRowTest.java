@@ -91,7 +91,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
             ColumnFamily.serializer().deserializeFromSSTableNoColumns(cf1, in1);
             ColumnFamily.serializer().deserializeFromSSTableNoColumns(cf2, in2);
             assert cf1.getLocalDeletionTime() == cf2.getLocalDeletionTime();
-            assert cf1.getMarkedForDeleteAt().equals(cf2.getMarkedForDeleteAt());   
+            assert cf1.getMarkedForDeleteAt() == cf2.getMarkedForDeleteAt();   
             // columns
             int columns = in1.readInt();
             assert columns == in2.readInt();
@@ -117,7 +117,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
 
         byte[] key = "k".getBytes();
         RowMutation rm = new RowMutation("Keyspace1", key);
-        rm.add(new QueryPath("Standard1", null, "c".getBytes()), new byte[0], new TimestampClock(0));
+        rm.add(new QueryPath("Standard1", null, "c".getBytes()), new byte[0], 0);
         rm.apply();
         cfs.forceBlockingFlush();
 
@@ -134,8 +134,8 @@ public class LazilyCompactedRowTest extends CleanupHelper
 
         byte[] key = "k".getBytes();
         RowMutation rm = new RowMutation("Keyspace1", key);
-        rm.add(new QueryPath("Standard1", null, "c".getBytes()), new byte[0], new TimestampClock(0));
-        rm.add(new QueryPath("Standard1", null, "d".getBytes()), new byte[0], new TimestampClock(0));
+        rm.add(new QueryPath("Standard1", null, "c".getBytes()), new byte[0], 0);
+        rm.add(new QueryPath("Standard1", null, "d".getBytes()), new byte[0], 0);
         rm.apply();
         cfs.forceBlockingFlush();
 
@@ -152,7 +152,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
 
         byte[] key = "k".getBytes();
         RowMutation rm = new RowMutation("Keyspace1", key);
-        rm.add(new QueryPath("Standard1", null, "c".getBytes()), new byte[0], new TimestampClock(0));
+        rm.add(new QueryPath("Standard1", null, "c".getBytes()), new byte[0], 0);
         rm.apply();
         cfs.forceBlockingFlush();
 
@@ -172,8 +172,8 @@ public class LazilyCompactedRowTest extends CleanupHelper
 
         byte[] key = "k".getBytes();
         RowMutation rm = new RowMutation("Keyspace1", key);
-        rm.add(new QueryPath("Standard1", null, "c".getBytes()), new byte[0], new TimestampClock(0));
-        rm.add(new QueryPath("Standard1", null, "d".getBytes()), new byte[0], new TimestampClock(0));
+        rm.add(new QueryPath("Standard1", null, "c".getBytes()), new byte[0], 0);
+        rm.add(new QueryPath("Standard1", null, "d".getBytes()), new byte[0], 0);
         rm.apply();
         cfs.forceBlockingFlush();
 
@@ -196,7 +196,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
             for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
                 byte[] key = String.valueOf(i % 2).getBytes();
                 RowMutation rm = new RowMutation("Keyspace1", key);
-                rm.add(new QueryPath("Standard1", null, String.valueOf(i / 2).getBytes()), new byte[0], new TimestampClock(j * ROWS_PER_SSTABLE + i));
+                rm.add(new QueryPath("Standard1", null, String.valueOf(i / 2).getBytes()), new byte[0], j * ROWS_PER_SSTABLE + i);
                 rm.apply();
             }
             cfs.forceBlockingFlush();

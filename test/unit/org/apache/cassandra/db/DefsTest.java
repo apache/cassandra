@@ -32,7 +32,6 @@ import org.junit.Test;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.*;
-import org.apache.cassandra.db.clock.TimestampReconciler;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -172,7 +171,7 @@ public class DefsTest extends CleanupHelper
         // now read and write to it.
         DecoratedKey dk = Util.dk("key0");
         RowMutation rm = new RowMutation(ks, dk.key);
-        rm.add(new QueryPath(cf, null, "col0".getBytes()), "value0".getBytes(), new TimestampClock(1L));
+        rm.add(new QueryPath(cf, null, "col0".getBytes()), "value0".getBytes(), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(ks).getColumnFamilyStore(cf);
         assert store != null;
@@ -197,7 +196,7 @@ public class DefsTest extends CleanupHelper
         // write some data, force a flush, then verify that files exist on disk.
         RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
-            rm.add(new QueryPath(cfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), new TimestampClock(1L));
+            rm.add(new QueryPath(cfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(cfm.tableName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
@@ -214,7 +213,7 @@ public class DefsTest extends CleanupHelper
         boolean success = true;
         try
         {
-            rm.add(new QueryPath("Standard1", null, "col0".getBytes()), "value0".getBytes(), new TimestampClock(1L));
+            rm.add(new QueryPath("Standard1", null, "col0".getBytes()), "value0".getBytes(), 1L);
             rm.apply();
         }
         catch (Throwable th)
@@ -243,7 +242,7 @@ public class DefsTest extends CleanupHelper
         // write some data, force a flush, then verify that files exist on disk.
         RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
-            rm.add(new QueryPath(oldCfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), new TimestampClock(1L));
+            rm.add(new QueryPath(oldCfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(oldCfm.tableName).getColumnFamilyStore(oldCfm.cfName);
         assert store != null;
@@ -268,7 +267,7 @@ public class DefsTest extends CleanupHelper
         
         // do some writes
         rm = new RowMutation(ks.name, dk.key);
-        rm.add(new QueryPath(cfName, null, "col5".getBytes()), "updated".getBytes(), new TimestampClock(2L));
+        rm.add(new QueryPath(cfName, null, "col5".getBytes()), "updated".getBytes(), 2L);
         rm.apply();
         store.forceBlockingFlush();
         
@@ -292,7 +291,7 @@ public class DefsTest extends CleanupHelper
 
         // test reads and writes.
         RowMutation rm = new RowMutation(newCf.tableName, dk.key);
-        rm.add(new QueryPath(newCf.cfName, null, "col0".getBytes()), "value0".getBytes(), new TimestampClock(1L));
+        rm.add(new QueryPath(newCf.cfName, null, "col0".getBytes()), "value0".getBytes(), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(newCf.tableName).getColumnFamilyStore(newCf.cfName);
         assert store != null;
@@ -317,7 +316,7 @@ public class DefsTest extends CleanupHelper
         // write some data, force a flush, then verify that files exist on disk.
         RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
-            rm.add(new QueryPath(cfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), new TimestampClock(1L));
+            rm.add(new QueryPath(cfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(cfm.tableName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
@@ -333,7 +332,7 @@ public class DefsTest extends CleanupHelper
         boolean success = true;
         try
         {
-            rm.add(new QueryPath("Standard1", null, "col0".getBytes()), "value0".getBytes(), new TimestampClock(1L));
+            rm.add(new QueryPath("Standard1", null, "col0".getBytes()), "value0".getBytes(), 1L);
             rm.apply();
         }
         catch (Throwable th)
@@ -367,7 +366,7 @@ public class DefsTest extends CleanupHelper
         // write some data that we hope to read back later.
         RowMutation rm = new RowMutation(oldKs.name, dk.key);
         for (int i = 0; i < 10; i++)
-            rm.add(new QueryPath(cfName, null, ("col" + i).getBytes()), "value".getBytes(), new TimestampClock(1L));
+            rm.add(new QueryPath(cfName, null, ("col" + i).getBytes()), "value".getBytes(), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(oldKs.name).getColumnFamilyStore(cfName);
         assert store != null;
@@ -400,7 +399,7 @@ public class DefsTest extends CleanupHelper
         boolean success = true;
         try
         {
-            rm.add(new QueryPath(cfName, null, "col0".getBytes()), "value0".getBytes(), new TimestampClock(1L));
+            rm.add(new QueryPath(cfName, null, "col0".getBytes()), "value0".getBytes(), 1L);
             rm.apply();
         }
         catch (Throwable th)
@@ -411,7 +410,7 @@ public class DefsTest extends CleanupHelper
         
         // write on new should work.
         rm = new RowMutation(newKsName, dk.key);
-        rm.add(new QueryPath(cfName, null, "col0".getBytes()), "newvalue".getBytes(), new TimestampClock(2L));
+        rm.add(new QueryPath(cfName, null, "col0".getBytes()), "newvalue".getBytes(), 2L);
         rm.apply();
         store = Table.open(newKs.name).getColumnFamilyStore(cfName);
         assert store != null;
@@ -453,7 +452,7 @@ public class DefsTest extends CleanupHelper
         // now read and write to it.
         DecoratedKey dk = Util.dk("key0");
         RowMutation rm = new RowMutation(newKs.name, dk.key);
-        rm.add(new QueryPath(newCf.cfName, null, "col0".getBytes()), "value0".getBytes(), new TimestampClock(1L));
+        rm.add(new QueryPath(newCf.cfName, null, "col0".getBytes()), "value0".getBytes(), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(newKs.name).getColumnFamilyStore(newCf.cfName);
         assert store != null;
@@ -687,10 +686,8 @@ public class DefsTest extends CleanupHelper
         return new CFMetaData(ks,
                               cf,
                               ColumnFamilyType.Standard,
-                              ClockType.Timestamp,
                               UTF8Type.instance,
                               null,
-                              TimestampReconciler.instance,
                               comment,
                               0,
                               false,

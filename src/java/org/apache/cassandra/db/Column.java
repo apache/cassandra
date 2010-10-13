@@ -28,7 +28,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.IClock.ClockRelationship;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -43,14 +42,14 @@ public class Column implements IColumn
 {
     private static Logger logger = LoggerFactory.getLogger(Column.class);
 
-    public static ColumnSerializer serializer(ClockType clockType)
+    public static ColumnSerializer serializer()
     {
-        return new ColumnSerializer(clockType);
+        return new ColumnSerializer();
     }
 
     protected final byte[] name;
     protected final byte[] value;
-    protected final IClock clock;
+    protected final long timestamp;
 
     Column(byte[] name)
     {
@@ -59,18 +58,17 @@ public class Column implements IColumn
 
     public Column(byte[] name, byte[] value)
     {
-        // safe to set to null, only used for filter comparisons
-        this(name, value, null);
+        this(name, value, 0);
     }
 
-    public Column(byte[] name, byte[] value, IClock clock)
+    public Column(byte[] name, byte[] value, long timestamp)
     {
         assert name != null;
         assert value != null;
         assert name.length <= IColumn.MAX_NAME_LENGTH;
         this.name = name;
         this.value = value;
-        this.clock = clock;
+        this.timestamp = timestamp;
     }
 
     public byte[] name()
@@ -93,9 +91,9 @@ public class Column implements IColumn
         throw new UnsupportedOperationException("This operation is unsupported on simple columns.");
     }
 
-    public IClock clock()
+    public long timestamp()
     {
-        return clock;
+        return timestamp;
     }
 
     public boolean isMarkedForDelete()
@@ -103,14 +101,14 @@ public class Column implements IColumn
         return false;
     }
 
-    public IClock getMarkedForDeleteAt()
+    public long getMarkedForDeleteAt()
     {
         throw new IllegalStateException("column is not marked for delete");
     }
 
-    public IClock mostRecentLiveChangeAt()
+    public long mostRecentLiveChangeAt()
     {
-        return clock;
+        return timestamp;
     }
 
     public int size()
@@ -119,11 +117,11 @@ public class Column implements IColumn
          * Size of a column is =
          *   size of a name (short + length of the string)
          * + 1 byte to indicate if the column has been deleted
-         * + x bytes depending on IClock size
+         * + 8 bytes for timestamp
          * + 4 bytes which basically indicates the size of the byte array
          * + entire byte array.
         */
-        return DBConstants.shortSize_ + name.length + DBConstants.boolSize_ + clock.size() + DBConstants.intSize_ + value.length;
+        return DBConstants.shortSize_ + name.length + DBConstants.boolSize_ + DBConstants.tsSize_ + DBConstants.intSize_ + value.length;
     }
 
     /*
@@ -142,7 +140,7 @@ public class Column implements IColumn
 
     public IColumn diff(IColumn column)
     {
-        if (ClockRelationship.GREATER_THAN == column.clock().compare(clock))
+        if (timestamp() < column.timestamp())
         {
             return column;
         }
@@ -156,7 +154,7 @@ public class Column implements IColumn
         DataOutputBuffer buffer = new DataOutputBuffer();
         try
         {
-            clock.serialize(buffer);
+            buffer.writeLong(timestamp);
             buffer.writeByte((isMarkedForDelete()) ? ColumnSerializer.DELETION_MASK : 0);
         }
         catch (IOException e)
@@ -171,6 +169,20 @@ public class Column implements IColumn
         throw new IllegalStateException("column is not marked for delete");
     }
 
+    public IColumn reconcile(IColumn column)
+    {
+        // tombstones take precedence.  (if both are tombstones, then it doesn't matter which one we use.)
+        if (isMarkedForDelete())
+            return timestamp() < column.timestamp() ? column : this;
+        if (column.isMarkedForDelete())
+            return timestamp() > column.timestamp() ? this : column;
+        // break ties by comparing values.
+        if (timestamp() == column.timestamp())
+            return FBUtilities.compareByteArrays(value(), column.value()) < 0 ? column : this;
+        // neither is tombstoned and timestamps are different
+        return timestamp() < column.timestamp() ? column : this;
+    }
+
     @Override
     public boolean equals(Object o)
     {
@@ -181,7 +193,7 @@ public class Column implements IColumn
 
         Column column = (Column)o;
 
-        if (clock != null ? !clock.equals(column.clock) : column.clock != null)
+        if (timestamp != column.timestamp)
             return false;
         if (!Arrays.equals(name, column.name))
             return false;
@@ -194,7 +206,7 @@ public class Column implements IColumn
     {
         int result = name != null ? Arrays.hashCode(name) : 0;
         result = 31 * result + (value != null ? Arrays.hashCode(value) : 0);
-        result = 31 * result + (clock != null ? clock.hashCode() : 0);
+        result = 31 * result + (int)(timestamp ^ (timestamp >>> 32));
         return result;
     }
 
@@ -207,7 +219,7 @@ public class Column implements IColumn
         sb.append(":");
         sb.append(value.length);
         sb.append("@");
-        sb.append(clock.toString());
+        sb.append(timestamp());
         return sb.toString();
     }
 }

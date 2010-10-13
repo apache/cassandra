@@ -51,9 +51,9 @@ public class Util
         return StorageService.getPartitioner().decorateKey(key.getBytes(UTF_8));
     }
 
-    public static Column column(String name, String value, IClock clock)
+    public static Column column(String name, String value, long timestamp)
     {
-        return new Column(name.getBytes(), value.getBytes(), clock);
+        return new Column(name.getBytes(), value.getBytes(), timestamp);
     }
 
     public static Token token(String key)
@@ -76,9 +76,9 @@ public class Util
         return new Bounds(token(left), token(right));
     }
 
-    public static void addMutation(RowMutation rm, String columnFamilyName, String superColumnName, long columnName, String value, IClock clock)
+    public static void addMutation(RowMutation rm, String columnFamilyName, String superColumnName, long columnName, String value, long timestamp)
     {
-        rm.add(new QueryPath(columnFamilyName, superColumnName.getBytes(), getBytes(columnName)), value.getBytes(), clock);
+        rm.add(new QueryPath(columnFamilyName, superColumnName.getBytes(), getBytes(columnName)), value.getBytes(), timestamp);
     }
 
     public static byte[] getBytes(long v)

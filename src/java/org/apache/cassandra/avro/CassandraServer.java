@@ -60,8 +60,6 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.clock.AbstractReconciler;
-import org.apache.cassandra.db.clock.TimestampReconciler;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.migration.AddColumnFamily;
@@ -223,7 +221,7 @@ public class CassandraServer implements Cassandra {
             if (column.isMarkedForDelete())
                 continue;
             
-            Column avroColumn = newColumn(column.name(), column.value(), ((TimestampClock)column.clock()).timestamp());
+            Column avroColumn = newColumn(column.name(), column.value(), column.timestamp());
             avroColumns.add(avroColumn);
         }
         
@@ -238,7 +236,7 @@ public class CassandraServer implements Cassandra {
             if (column.isMarkedForDelete())
                 continue;
             
-            Column avroColumn = newColumn(column.name(), column.value(), ((TimestampClock)column.clock()).timestamp());
+            Column avroColumn = newColumn(column.name(), column.value(), column.timestamp());
             
             if (column instanceof ExpiringColumn)
                 avroColumn.ttl = ((ExpiringColumn)column).getTimeToLive();
@@ -407,7 +405,7 @@ public class CassandraServer implements Cassandra {
                    parent.super_column == null ? null : parent.super_column.array(),
                    column.name.array()),
                    column.value.array(),
-                   unavronateClock(column.timestamp),
+                   column.timestamp,
                    column.ttl == null ? 0 : column.ttl);
         }
         catch (MarshalException e)
@@ -430,7 +428,7 @@ public class CassandraServer implements Cassandra {
 
         RowMutation rm = new RowMutation(state().getKeyspace(), key.array());
         byte[] superName = columnPath.super_column == null ? null : columnPath.super_column.array();
-        rm.delete(new QueryPath(columnPath.column_family.toString(), superName), unavronateClock(timestamp));
+        rm.delete(new QueryPath(columnPath.column_family.toString(), superName), timestamp);
         
         doInsert(consistencyLevel, rm);
         
@@ -503,11 +501,6 @@ public class CassandraServer implements Cassandra {
         return null;
     }
 
-    private static IClock unavronateClock(long timestamp)
-    {
-        return new org.apache.cassandra.db.TimestampClock(timestamp);
-    }
-    
     // FIXME: This is copypasta from o.a.c.db.RowMutation, (RowMutation.getRowMutation uses Thrift types directly).
     private static RowMutation getRowMutationFromMutations(String keyspace, byte[] key, Map<CharSequence, List<Mutation>> cfMap)
     {
@@ -535,11 +528,11 @@ public class CassandraServer implements Cassandra {
         if (cosc.column == null)
         {
             for (Column column : cosc.super_column.columns)
-                rm.add(new QueryPath(cfName, cosc.super_column.name.array(), column.name.array()), column.value.array(), unavronateClock(column.timestamp));
+                rm.add(new QueryPath(cfName, cosc.super_column.name.array(), column.name.array()), column.value.array(), column.timestamp);
         }
         else
         {
-            rm.add(new QueryPath(cfName, null, cosc.column.name.array()), cosc.column.value.array(), unavronateClock(cosc.column.timestamp));
+            rm.add(new QueryPath(cfName, null, cosc.column.name.array()), cosc.column.value.array(), cosc.column.timestamp);
         }
     }
     
@@ -553,14 +546,14 @@ public class CassandraServer implements Cassandra {
             for (ByteBuffer col : del.predicate.column_names)
             {
                 if (del.super_column == null && DatabaseDescriptor.getColumnFamilyType(rm.getTable(), cfName) == ColumnFamilyType.Super)
-                    rm.delete(new QueryPath(cfName, col.array()), unavronateClock(del.timestamp));
+                    rm.delete(new QueryPath(cfName, col.array()), del.timestamp);
                 else
-                    rm.delete(new QueryPath(cfName, superName, col.array()), unavronateClock(del.timestamp));
+                    rm.delete(new QueryPath(cfName, superName, col.array()), del.timestamp);
             }
         }
         else
         {
-            rm.delete(new QueryPath(cfName, superName), unavronateClock(del.timestamp));
+            rm.delete(new QueryPath(cfName, superName), del.timestamp);
         }
     }
     
@@ -842,10 +835,8 @@ public class CassandraServer implements Cassandra {
         return new CFMetaData(cf_def.keyspace.toString(),
                               cf_def.name.toString(),
                               ColumnFamilyType.create(cfType),
-                              ClockType.Timestamp,
                               DatabaseDescriptor.getComparator(compare),
                               subCompare.length() == 0 ? null : DatabaseDescriptor.getComparator(subCompare),
-                              TimestampReconciler.instance,
                               cf_def.comment == null ? "" : cf_def.comment.toString(),
                               cf_def.row_cache_size == null ? CFMetaData.DEFAULT_ROW_CACHE_SIZE : cf_def.row_cache_size,
                               cf_def.preload_row_cache == null ? CFMetaData.DEFAULT_PRELOAD_ROW_CACHE : cf_def.preload_row_cache,

@@ -34,7 +34,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.base.Charsets;
 import org.apache.commons.collections.iterators.CollatingIterator;
@@ -45,8 +44,6 @@ import com.sun.jna.Native;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.IClock;
-import org.apache.cassandra.db.IClock.ClockRelationship;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -395,33 +392,6 @@ public class FBUtilities
         {
             long j = atomic.get();
             if (j >= i || atomic.compareAndSet(j, i))
-                break;
-        }
-    }
-
-    /** 
-     * Sets an atomic clock reference to the maximum of its current value and
-     * a new value.
-     *
-     * The function is not synchronized and does not guarantee that the resulting
-     * reference will hold either the old or new value, but it does guarantee
-     * that it will hold a value, v, such that: v = max(oldValue, newValue, v).
-     *
-     * @param atomic the atomic reference to set
-     * @param newClock the new provided value
-     */
-    public static void atomicSetMax(AtomicReference<IClock> atomic, IClock newClock)
-    {
-        while (true)
-        {
-            IClock oldClock = atomic.get();
-            ClockRelationship rel = oldClock.compare(newClock);
-            if (rel == ClockRelationship.DISJOINT)
-            {
-                newClock = oldClock.getSuperset(Arrays.asList(newClock));
-            }
-            if (rel == ClockRelationship.GREATER_THAN || rel == ClockRelationship.EQUAL 
-                || atomic.compareAndSet(oldClock, newClock))
                 break;
         }
     }

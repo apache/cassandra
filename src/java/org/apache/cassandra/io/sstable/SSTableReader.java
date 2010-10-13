@@ -556,8 +556,8 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     public ICompactSerializer2<IColumn> getColumnSerializer()
     {
         return metadata.cfType == ColumnFamilyType.Standard
-               ? Column.serializer(metadata.clockType)
-               : SuperColumn.serializer(getColumnComparator(), metadata.clockType, metadata.reconciler);
+               ? Column.serializer()
+               : SuperColumn.serializer(getColumnComparator());
     }
 
     /**

@@ -28,7 +28,6 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SuperColumn;
 import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.db.TimestampClock;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -66,7 +65,6 @@ public class SSTableImport
     {
         private String name;
         private String value;
-        // TODO: fix when we adding other clock type
         private long timestamp;
         private boolean isDeleted;
         
@@ -76,7 +74,6 @@ public class SSTableImport
             assert colSpec.size() == 4;
             name = (String)colSpec.get(0);
             value = (String)colSpec.get(1);
-            // TODO: fix when we adding other clock type
             timestamp = (Long)colSpec.get(2);
             isDeleted = (Boolean)colSpec.get(3);
         }
@@ -97,9 +94,9 @@ public class SSTableImport
             JsonColumn col = new JsonColumn(c);
             QueryPath path = new QueryPath(cfm.cfName, null, hexToBytes(col.name));
             if (col.isDeleted) {
-                cfamily.addColumn(path, hexToBytes(col.value), new TimestampClock(col.timestamp));
+                cfamily.addColumn(path, hexToBytes(col.value), col.timestamp);
             } else {
-                cfamily.addTombstone(path, hexToBytes(col.value), new TimestampClock(col.timestamp));
+                cfamily.addTombstone(path, hexToBytes(col.value), col.timestamp);
             }
         }
     }
@@ -127,14 +124,14 @@ public class SSTableImport
                 JsonColumn col = new JsonColumn(c);
                 QueryPath path = new QueryPath(cfm.cfName, superName, hexToBytes(col.name));
                 if (col.isDeleted) {
-                    cfamily.addColumn(path, hexToBytes(col.value), new TimestampClock(col.timestamp));
+                    cfamily.addColumn(path, hexToBytes(col.value), col.timestamp);
                 } else {
-                    cfamily.addTombstone(path, hexToBytes(col.value), new TimestampClock(col.timestamp));
+                    cfamily.addTombstone(path, hexToBytes(col.value), col.timestamp);
                 }
             }
             
             SuperColumn superColumn = (SuperColumn)cfamily.getColumn(superName);
-            superColumn.markForDeleteAt((int)(System.currentTimeMillis()/1000), new TimestampClock(deletedAt));
+            superColumn.markForDeleteAt((int)(System.currentTimeMillis()/1000), deletedAt);
         }
     }
 

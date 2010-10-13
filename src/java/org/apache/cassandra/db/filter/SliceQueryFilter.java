@@ -35,7 +35,6 @@ import org.apache.cassandra.db.columniterator.SSTableSliceIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.IClock.ClockRelationship;
 import org.apache.cassandra.db.marshal.AbstractType;
 
 public class SliceQueryFilter implements IFilter
@@ -130,7 +129,7 @@ public class SliceQueryFilter implements IFilter
             // only count live columns towards the `count` criteria
             if (!column.isMarkedForDelete()
                 && (!container.isMarkedForDelete()
-                    || (ClockRelationship.GREATER_THAN == column.mostRecentLiveChangeAt().compare(container.getMarkedForDeleteAt()))))
+                    || column.mostRecentLiveChangeAt() > container.getMarkedForDeleteAt()))
             {
                 liveColumns++;
             }

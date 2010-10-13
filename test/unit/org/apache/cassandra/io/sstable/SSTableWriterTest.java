@@ -54,12 +54,12 @@ public class SSTableWriterTest extends CleanupHelper {
         RowMutation rm;
 
         rm = new RowMutation("Keyspace1", "k1".getBytes());
-        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), new TimestampClock(0));
+        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), 0);
         rm.apply();
         
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Indexed1");        
-        cf.addColumn(new Column("birthdate".getBytes(), FBUtilities.toByteArray(1L), new TimestampClock(0)));
-        cf.addColumn(new Column("anydate".getBytes(), FBUtilities.toByteArray(1L), new TimestampClock(0)));
+        cf.addColumn(new Column("birthdate".getBytes(), FBUtilities.toByteArray(1L), 0));
+        cf.addColumn(new Column("anydate".getBytes(), FBUtilities.toByteArray(1L), 0));
         
         Map<byte[], byte[]> entries = new HashMap<byte[], byte[]>();
         
@@ -68,7 +68,7 @@ public class SSTableWriterTest extends CleanupHelper {
         entries.put("k2".getBytes(), Arrays.copyOf(buffer.getData(), buffer.getLength()));        
         cf.clear();
         
-        cf.addColumn(new Column("anydate".getBytes(), FBUtilities.toByteArray(1L), new TimestampClock(0)));
+        cf.addColumn(new Column("anydate".getBytes(), FBUtilities.toByteArray(1L), 0));
         buffer = new DataOutputBuffer();
         ColumnFamily.serializer().serializeWithIndexes(cf, buffer);               
         entries.put("k3".getBytes(), Arrays.copyOf(buffer.getData(), buffer.getLength()));

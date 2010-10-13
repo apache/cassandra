@@ -46,13 +46,13 @@ public class RemoveSuperColumnTest extends CleanupHelper
 
         // add data
         rm = new RowMutation("Keyspace1", dk.key);
-        addMutation(rm, "Super1", "SC1", 1, "val1", new TimestampClock(0));
+        addMutation(rm, "Super1", "SC1", 1, "val1", 0);
         rm.apply();
         store.forceBlockingFlush();
 
         // remove
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.delete(new QueryPath("Super1", "SC1".getBytes()), new TimestampClock(1));
+        rm.delete(new QueryPath("Super1", "SC1".getBytes()), 1);
         rm.apply();
 
         validateRemoveTwoSources(dk);
@@ -74,14 +74,14 @@ public class RemoveSuperColumnTest extends CleanupHelper
 
         // add data
         rm = new RowMutation("Keyspace1", dk.key);
-        addMutation(rm, "Super3", "SC1", 1, "val1", new TimestampClock(0));
-        addMutation(rm, "Super3", "SC1", 2, "val1", new TimestampClock(0));
+        addMutation(rm, "Super3", "SC1", 1, "val1", 0);
+        addMutation(rm, "Super3", "SC1", 2, "val1", 0);
         rm.apply();
         store.forceBlockingFlush();
 
         // remove
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.delete(new QueryPath("Super3", "SC1".getBytes(), Util.getBytes(1)), new TimestampClock(1));
+        rm.delete(new QueryPath("Super3", "SC1".getBytes(), Util.getBytes(1)), 1);
         rm.apply();
 
         validateRemoveSubColumn(dk);
@@ -103,7 +103,7 @@ public class RemoveSuperColumnTest extends CleanupHelper
     {
         ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super1");
         ColumnFamily cf = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super1"), "SC1".getBytes()));
-        assert ((TimestampClock)cf.getSortedColumns().iterator().next().getMarkedForDeleteAt()).timestamp() == 1 : cf;
+        assert cf.getSortedColumns().iterator().next().getMarkedForDeleteAt() == 1 : cf;
         assert cf.getSortedColumns().iterator().next().getSubColumns().size() == 0 : cf;
         assertNull(Util.cloneAndRemoveDeleted(cf, Integer.MAX_VALUE));
         cf = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super1"), "SC1".getBytes()));
@@ -117,7 +117,7 @@ public class RemoveSuperColumnTest extends CleanupHelper
     {
         ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super1");
         ColumnFamily resolved = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super1"), "SC1".getBytes()));
-        assert ((TimestampClock)resolved.getSortedColumns().iterator().next().getMarkedForDeleteAt()).timestamp() == 1;
+        assert resolved.getSortedColumns().iterator().next().getMarkedForDeleteAt() == 1;
         Collection<IColumn> subColumns = resolved.getSortedColumns().iterator().next().getSubColumns();
         assert subColumns.size() == 0;
     }
@@ -131,18 +131,18 @@ public class RemoveSuperColumnTest extends CleanupHelper
 
         // add data
         rm = new RowMutation("Keyspace1", dk.key);
-        addMutation(rm, "Super2", "SC1", 1, "val1", new TimestampClock(0));
+        addMutation(rm, "Super2", "SC1", 1, "val1", 0);
         rm.apply();
         store.forceBlockingFlush();
 
         // remove
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.delete(new QueryPath("Super2", "SC1".getBytes()), new TimestampClock(1));
+        rm.delete(new QueryPath("Super2", "SC1".getBytes()), 1);
         rm.apply();
 
         // new data
         rm = new RowMutation("Keyspace1", dk.key);
-        addMutation(rm, "Super2", "SC1", 2, "val2", new TimestampClock(2));
+        addMutation(rm, "Super2", "SC1", 2, "val2", 2);
         rm.apply();
 
         validateRemoveWithNewData(dk);
@@ -161,7 +161,7 @@ public class RemoveSuperColumnTest extends CleanupHelper
         ColumnFamily cf = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super2", "SC1".getBytes()), getBytes(2)));
         Collection<IColumn> subColumns = cf.getSortedColumns().iterator().next().getSubColumns();
         assert subColumns.size() == 1;
-        assert ((TimestampClock)subColumns.iterator().next().clock()).timestamp() == 2;
+        assert subColumns.iterator().next().timestamp() == 2;
     }
 
     @Test
@@ -173,18 +173,18 @@ public class RemoveSuperColumnTest extends CleanupHelper
 
         // add data
         rm = new RowMutation("Keyspace1", key.key);
-        addMutation(rm, "Super2", "SC1", 1, "val1", new TimestampClock(0));
+        addMutation(rm, "Super2", "SC1", 1, "val1", 0);
         rm.apply();
 
         // remove
         rm = new RowMutation("Keyspace1", key.key);
-        rm.delete(new QueryPath("Super2", "SC1".getBytes()), new TimestampClock(1));
+        rm.delete(new QueryPath("Super2", "SC1".getBytes()), 1);
         rm.apply();
         assertNull(Util.cloneAndRemoveDeleted(store.getColumnFamily(QueryFilter.getNamesFilter(key, new QueryPath("Super2"), "SC1".getBytes())), Integer.MAX_VALUE));
 
         // resurrect
         rm = new RowMutation("Keyspace1", key.key);
-        addMutation(rm, "Super2", "SC1", 1, "val2", new TimestampClock(2));
+        addMutation(rm, "Super2", "SC1", 1, "val2", 2);
         rm.apply();
 
         // validate
@@ -192,6 +192,6 @@ public class RemoveSuperColumnTest extends CleanupHelper
         cf = Util.cloneAndRemoveDeleted(cf, Integer.MAX_VALUE);
         Collection<IColumn> subColumns = cf.getSortedColumns().iterator().next().getSubColumns();
         assert subColumns.size() == 1;
-        assert ((TimestampClock)subColumns.iterator().next().clock()).timestamp() == 2;
+        assert subColumns.iterator().next().timestamp() == 2;
     }
 }

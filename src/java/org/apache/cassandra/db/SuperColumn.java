@@ -25,16 +25,14 @@ import java.util.List;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.security.MessageDigest;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.IClock.ClockRelationship;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.clock.AbstractReconciler;
 import org.apache.cassandra.utils.FBUtilities;
 
 
@@ -42,30 +40,27 @@ public class SuperColumn implements IColumn, IColumnContainer
 {
 	private static Logger logger_ = LoggerFactory.getLogger(SuperColumn.class);
 
-    public static SuperColumnSerializer serializer(AbstractType comparator, ClockType clockType, AbstractReconciler reconciler)
+    public static SuperColumnSerializer serializer(AbstractType comparator)
     {
-        return new SuperColumnSerializer(comparator, clockType, reconciler);
+        return new SuperColumnSerializer(comparator);
     }
 
     private byte[] name_;
     private ConcurrentSkipListMap<byte[], IColumn> columns_;
     private AtomicInteger localDeletionTime = new AtomicInteger(Integer.MIN_VALUE);
-    private AtomicReference<IClock> markedForDeleteAt;
-    private AbstractReconciler reconciler;
+    private AtomicLong markedForDeleteAt = new AtomicLong(Long.MIN_VALUE);
 
-    public SuperColumn(byte[] name, AbstractType comparator, ClockType clockType, AbstractReconciler reconciler)
+    public SuperColumn(byte[] name, AbstractType comparator)
     {
-        this(name, new ConcurrentSkipListMap<byte[], IColumn>(comparator), clockType, reconciler);
+        this(name, new ConcurrentSkipListMap<byte[], IColumn>(comparator));
     }
 
-    private SuperColumn(byte[] name, ConcurrentSkipListMap<byte[], IColumn> columns, ClockType clockType, AbstractReconciler reconciler)
+    private SuperColumn(byte[] name, ConcurrentSkipListMap<byte[], IColumn> columns)
     {
         assert name != null;
         assert name.length <= IColumn.MAX_NAME_LENGTH;
         name_ = name;
         columns_ = columns;
-        this.reconciler = reconciler;
-        markedForDeleteAt = new AtomicReference<IClock>(clockType.minClock());
     }
 
     public AbstractType getComparator()
@@ -75,24 +70,21 @@ public class SuperColumn implements IColumn, IColumnContainer
 
     public SuperColumn cloneMeShallow()
     {
-        IClock _markedForDeleteAt = markedForDeleteAt.get();
-        SuperColumn sc = new SuperColumn(name_, getComparator(), _markedForDeleteAt.type(), reconciler);
-        sc.markForDeleteAt(localDeletionTime.get(), _markedForDeleteAt);
+        SuperColumn sc = new SuperColumn(name_, getComparator());
+        sc.markForDeleteAt(localDeletionTime.get(), markedForDeleteAt.get());
         return sc;
     }
 
     public IColumn cloneMe()
     {
-        IClock _markedForDeleteAt = markedForDeleteAt.get();
-        SuperColumn sc = new SuperColumn(name_, new ConcurrentSkipListMap<byte[], IColumn>(columns_), _markedForDeleteAt.type(), reconciler);
-        sc.markForDeleteAt(localDeletionTime.get(), _markedForDeleteAt);
+        SuperColumn sc = new SuperColumn(name_, new ConcurrentSkipListMap<byte[], IColumn>(columns_));
+        sc.markForDeleteAt(localDeletionTime.get(), markedForDeleteAt.get());
         return sc;
     }
 
 	public boolean isMarkedForDelete()
 	{
-        IClock _markedForDeleteAt = markedForDeleteAt.get();
-        return _markedForDeleteAt.compare(_markedForDeleteAt.type().minClock()) == ClockRelationship.GREATER_THAN;
+        return markedForDeleteAt.get() > Long.MIN_VALUE;
 	}
 
     public byte[] name()
@@ -135,8 +127,7 @@ public class SuperColumn implements IColumn, IColumnContainer
     	 * We need to keep the way we are calculating the column size in sync with the
     	 * way we are calculating the size for the column family serializer.
     	 */
-      IClock _markedForDeleteAt = markedForDeleteAt.get();
-      return DBConstants.shortSize_ + name_.length + DBConstants.intSize_ + _markedForDeleteAt.size() + DBConstants.intSize_ + size();
+      return DBConstants.shortSize_ + name_.length + DBConstants.intSize_ + DBConstants.longSize_ + DBConstants.intSize_ + size();
     }
 
     public void remove(byte[] columnName)
@@ -144,22 +135,22 @@ public class SuperColumn implements IColumn, IColumnContainer
     	columns_.remove(columnName);
     }
 
-    public IClock clock()
+    public long timestamp()
     {
     	throw new UnsupportedOperationException("This operation is not supported for Super Columns.");
     }
 
-    public IClock mostRecentLiveChangeAt()
+    public long mostRecentLiveChangeAt()
     {
-        List<IClock> clocks = new LinkedList<IClock>();
+        long max = Long.MIN_VALUE;
         for (IColumn column : columns_.values())
         {
-            if (!column.isMarkedForDelete())
+            if (!column.isMarkedForDelete() && column.timestamp() > max)
             {
-                clocks.add(column.clock());
+                max = column.timestamp();
             }
         }
-        return markedForDeleteAt.get().type().minClock().getSuperset(clocks);
+        return max;
     }
 
     public byte[] value()
@@ -175,13 +166,13 @@ public class SuperColumn implements IColumn, IColumnContainer
         IColumn oldColumn = columns_.putIfAbsent(name, column);
         if (oldColumn != null)
         {
-            IColumn reconciledColumn = reconciler.reconcile((Column)column, (Column)oldColumn);
+            IColumn reconciledColumn = column.reconcile(oldColumn);
             while (!columns_.replace(name, oldColumn, reconciledColumn))
             {
                 // if unable to replace, then get updated old (existing) col
                 oldColumn = columns_.get(name);
                 // re-calculate reconciled col from updated old col and original new col
-                reconciledColumn = reconciler.reconcile((Column)column, (Column)oldColumn);
+                reconciledColumn = column.reconcile(oldColumn);
                 // try to re-update value, again
             }
     	}
@@ -203,17 +194,15 @@ public class SuperColumn implements IColumn, IColumnContainer
         FBUtilities.atomicSetMax(markedForDeleteAt, column.getMarkedForDeleteAt());
     }
 
-    public IClock getMarkedForDeleteAt()
+    public long getMarkedForDeleteAt()
     {
         return markedForDeleteAt.get();
     }
 
     public IColumn diff(IColumn columnNew)
     {
-        IClock _markedForDeleteAt = markedForDeleteAt.get();
-        IColumn columnDiff = new SuperColumn(columnNew.name(), ((SuperColumn)columnNew).getComparator(), _markedForDeleteAt.type(), reconciler);
-        ClockRelationship rel = columnNew.getMarkedForDeleteAt().compare(_markedForDeleteAt);
-        if (ClockRelationship.GREATER_THAN == rel)
+    	IColumn columnDiff = new SuperColumn(columnNew.name(), ((SuperColumn)columnNew).getComparator());
+        if (columnNew.getMarkedForDeleteAt() > getMarkedForDeleteAt())
         {
             ((SuperColumn)columnDiff).markForDeleteAt(columnNew.getLocalDeletionTime(), columnNew.getMarkedForDeleteAt());
         }
@@ -251,8 +240,7 @@ public class SuperColumn implements IColumn, IColumnContainer
         DataOutputBuffer buffer = new DataOutputBuffer();
         try
         {
-            IClock _markedForDeleteAt = markedForDeleteAt.get();
-            _markedForDeleteAt.serialize(buffer);
+            buffer.writeLong(markedForDeleteAt.get());
         }
         catch (IOException e)
         {
@@ -272,7 +260,7 @@ public class SuperColumn implements IColumn, IColumnContainer
     	sb.append(comparator.getString(name_));
 
         if (isMarkedForDelete()) {
-            sb.append(" -delete at ").append(getMarkedForDeleteAt().toString()).append("-");
+            sb.append(" -delete at ").append(getMarkedForDeleteAt()).append("-");
         }
 
         sb.append(" [");
@@ -288,24 +276,25 @@ public class SuperColumn implements IColumn, IColumnContainer
     }
 
     @Deprecated // TODO this is a hack to set initial value outside constructor
-    public void markForDeleteAt(int localDeleteTime, IClock clock)
+    public void markForDeleteAt(int localDeleteTime, long timestamp)
     {
         this.localDeletionTime.set(localDeleteTime);
-        this.markedForDeleteAt.set(clock);
+        this.markedForDeleteAt.set(timestamp);
+    }
+
+    public IColumn reconcile(IColumn c)
+    {
+        throw new UnsupportedOperationException("This operation is unsupported on super columns.");
     }
 }
 
 class SuperColumnSerializer implements ICompactSerializer2<IColumn>
 {
     private AbstractType comparator;
-    private ClockType clockType;
-    private AbstractReconciler reconciler;
 
-    public SuperColumnSerializer(AbstractType comparator, ClockType clockType, AbstractReconciler reconciler)
+    public SuperColumnSerializer(AbstractType comparator)
     {
         this.comparator = comparator;
-        this.clockType = clockType;
-        this.reconciler = reconciler;
     }
 
     public AbstractType getComparator()
@@ -320,14 +309,13 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
         try
         {
             dos.writeInt(superColumn.getLocalDeletionTime());
-            IClock _markedForDeleteAt = superColumn.getMarkedForDeleteAt();
-            clockType.serializer().serialize(_markedForDeleteAt, dos);
+            dos.writeLong(superColumn.getMarkedForDeleteAt());
 
             Collection<IColumn> columns = column.getSubColumns();
             dos.writeInt(columns.size());
             for (IColumn subColumn : columns)
             {
-                Column.serializer(clockType).serialize(subColumn, dos);
+                Column.serializer().serialize(subColumn, dos);
             }
         }
         catch (IOException e)
@@ -339,19 +327,19 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
     public IColumn deserialize(DataInput dis) throws IOException
     {
         byte[] name = FBUtilities.readShortByteArray(dis);
-        SuperColumn superColumn = new SuperColumn(name, comparator, clockType, reconciler);
+        SuperColumn superColumn = new SuperColumn(name, comparator);
         int localDeleteTime = dis.readInt();
         if (localDeleteTime != Integer.MIN_VALUE && localDeleteTime <= 0)
         {
             throw new IOException("Invalid localDeleteTime read: " + localDeleteTime);
         }
-        superColumn.markForDeleteAt(localDeleteTime, clockType.serializer().deserialize(dis));
+        superColumn.markForDeleteAt(localDeleteTime, dis.readLong());
 
         /* read the number of columns */
         int size = dis.readInt();
         for ( int i = 0; i < size; ++i )
         {
-            IColumn subColumn = Column.serializer(clockType).deserialize(dis);
+            IColumn subColumn = Column.serializer().deserialize(dis);
             superColumn.addColumn(subColumn);
         }
         return superColumn;

@@ -42,13 +42,13 @@ public class RemoveSubColumnTest extends CleanupHelper
 
         // add data
         rm = new RowMutation("Keyspace1", dk.key);
-        Util.addMutation(rm, "Super1", "SC1", 1, "asdf", new TimestampClock(0));
+        Util.addMutation(rm, "Super1", "SC1", 1, "asdf", 0);
         rm.apply();
         store.forceBlockingFlush();
 
         // remove
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.delete(new QueryPath("Super1", "SC1".getBytes(), getBytes(1)), new TimestampClock(1));
+        rm.delete(new QueryPath("Super1", "SC1".getBytes(), getBytes(1)), 1);
         rm.apply();
 
         ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, new QueryPath("Super1", "SC1".getBytes())));

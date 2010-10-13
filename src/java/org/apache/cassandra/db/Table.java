@@ -36,7 +36,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.clock.AbstractReconciler;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -81,8 +80,6 @@ public class Table
     public final String name;
     /* ColumnFamilyStore per column family */
     public final Map<Integer, ColumnFamilyStore> columnFamilyStores = new HashMap<Integer, ColumnFamilyStore>(); // TODO make private again
-    // cache application CFs since Range queries ask for them a _lot_
-    private SortedSet<String> applicationColumnFamilies;
     private final Object[] indexLocks;
     private ScheduledFuture<?> flushTask;
 
@@ -464,11 +461,11 @@ public class Table
             if (column instanceof ExpiringColumn)
             {
                 ExpiringColumn ec = (ExpiringColumn)column;
-                cfi.addColumn(new ExpiringColumn(key, ArrayUtils.EMPTY_BYTE_ARRAY, ec.clock(), ec.getTimeToLive(), ec.getLocalDeletionTime()));
+                cfi.addColumn(new ExpiringColumn(key, ArrayUtils.EMPTY_BYTE_ARRAY, ec.timestamp, ec.getTimeToLive(), ec.getLocalDeletionTime()));
             }
             else
             {
-                cfi.addColumn(new Column(key, ArrayUtils.EMPTY_BYTE_ARRAY, column.clock()));
+                cfi.addColumn(new Column(key, ArrayUtils.EMPTY_BYTE_ARRAY, column.timestamp()));
             }
             Memtable fullMemtable = cfs.getIndexedColumnFamilyStore(columnName).apply(valueKey, cfi);
             if (fullMemtable != null)
@@ -487,7 +484,7 @@ public class Table
                     continue;
                 DecoratedKey<LocalToken> valueKey = cfs.getIndexKeyFor(columnName, column.value());
                 ColumnFamily cfi = cfs.newIndexedColumnFamily(columnName);
-                cfi.deleteColumn(key, localDeletionTime, column.clock());
+                cfi.addTombstone(key, localDeletionTime, column.timestamp());
                 Memtable fullMemtable = cfs.getIndexedColumnFamilyStore(columnName).apply(valueKey, cfi);
                 if (fullMemtable != null)
                     fullMemtables = addFullMemtable(fullMemtables, fullMemtable);

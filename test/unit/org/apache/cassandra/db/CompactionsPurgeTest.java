@@ -55,7 +55,7 @@ public class CompactionsPurgeTest extends CleanupHelper
         rm = new RowMutation(TABLE1, key.key);
         for (int i = 0; i < 10; i++)
         {
-            rm.add(new QueryPath(cfName, null, String.valueOf(i).getBytes()), new byte[0], new TimestampClock(0));
+            rm.add(new QueryPath(cfName, null, String.valueOf(i).getBytes()), new byte[0], 0);
         }
         rm.apply();
         cfs.forceBlockingFlush();
@@ -64,14 +64,14 @@ public class CompactionsPurgeTest extends CleanupHelper
         for (int i = 0; i < 10; i++)
         {
             rm = new RowMutation(TABLE1, key.key);
-            rm.delete(new QueryPath(cfName, null, String.valueOf(i).getBytes()), new TimestampClock(1));
+            rm.delete(new QueryPath(cfName, null, String.valueOf(i).getBytes()), 1);
             rm.apply();
         }
         cfs.forceBlockingFlush();
 
         // resurrect one column
         rm = new RowMutation(TABLE1, key.key);
-        rm.add(new QueryPath(cfName, null, String.valueOf(5).getBytes()), new byte[0], new TimestampClock(2));
+        rm.add(new QueryPath(cfName, null, String.valueOf(5).getBytes()), new byte[0], 2);
         rm.apply();
         cfs.forceBlockingFlush();
 
@@ -100,7 +100,7 @@ public class CompactionsPurgeTest extends CleanupHelper
             rm = new RowMutation(TABLE2, key.key);
             for (int i = 0; i < 10; i++)
             {
-                rm.add(new QueryPath(cfName, null, String.valueOf(i).getBytes()), new byte[0], new TimestampClock(0));
+                rm.add(new QueryPath(cfName, null, String.valueOf(i).getBytes()), new byte[0], 0);
             }
             rm.apply();
             cfs.forceBlockingFlush();
@@ -109,7 +109,7 @@ public class CompactionsPurgeTest extends CleanupHelper
             for (int i = 0; i < 10; i++)
             {
                 rm = new RowMutation(TABLE2, key.key);
-                rm.delete(new QueryPath(cfName, null, String.valueOf(i).getBytes()), new TimestampClock(1));
+                rm.delete(new QueryPath(cfName, null, String.valueOf(i).getBytes()), 1);
                 rm.apply();
             }
             cfs.forceBlockingFlush();
@@ -123,7 +123,7 @@ public class CompactionsPurgeTest extends CleanupHelper
         cfs.forceBlockingFlush();
         Collection<SSTableReader> sstablesIncomplete = cfs.getSSTables();
         rm = new RowMutation(TABLE2, key1.key);
-        rm.add(new QueryPath(cfName, null, String.valueOf(5).getBytes()), new byte[0], new TimestampClock(2));
+        rm.add(new QueryPath(cfName, null, String.valueOf(5).getBytes()), new byte[0], 2);
         rm.apply();
         cfs.forceBlockingFlush();
         CompactionManager.instance.doCompaction(cfs, sstablesIncomplete, Integer.MAX_VALUE);
@@ -155,7 +155,7 @@ public class CompactionsPurgeTest extends CleanupHelper
         rm = new RowMutation(TABLE1, key.key);
         for (int i = 0; i < 5; i++)
         {
-            rm.add(new QueryPath(cfName, null, String.valueOf(i).getBytes()), new byte[0], new TimestampClock(0));
+            rm.add(new QueryPath(cfName, null, String.valueOf(i).getBytes()), new byte[0], 0);
         }
         rm.apply();
 
@@ -163,7 +163,7 @@ public class CompactionsPurgeTest extends CleanupHelper
         for (int i = 0; i < 5; i++)
         {
             rm = new RowMutation(TABLE1, key.key);
-            rm.delete(new QueryPath(cfName, null, String.valueOf(i).getBytes()), new TimestampClock(1));
+            rm.delete(new QueryPath(cfName, null, String.valueOf(i).getBytes()), 1);
             rm.apply();
         }
         store.forceBlockingFlush();
@@ -207,18 +207,18 @@ public class CompactionsPurgeTest extends CleanupHelper
 
         // inserts
         rm = new RowMutation(TABLE1, key1.key);
-        rm.add(new QueryPath(cfName, null, "1".getBytes()), new byte[0], new TimestampClock(0));
+        rm.add(new QueryPath(cfName, null, "1".getBytes()), new byte[0], 0);
         rm.apply();
         rm = new RowMutation(TABLE1, key2.key);
-        rm.add(new QueryPath(cfName, null, "2".getBytes()), new byte[0], new TimestampClock(0));
+        rm.add(new QueryPath(cfName, null, "2".getBytes()), new byte[0], 0);
         rm.apply();
 
         // deletes
         rm = new RowMutation(TABLE1, key1.key);
-        rm.delete(new QueryPath(cfName, null, "1".getBytes()), new TimestampClock(1));
+        rm.delete(new QueryPath(cfName, null, "1".getBytes()), 1);
         rm.apply();
         rm = new RowMutation(TABLE1, key2.key);
-        rm.delete(new QueryPath(cfName, null, "2".getBytes()), new TimestampClock(1));
+        rm.delete(new QueryPath(cfName, null, "2".getBytes()), 1);
         rm.apply();
 
         // After a flush, the cache should expand to be X% of indices * INDEX_INTERVAL.

@@ -29,17 +29,18 @@ public interface IColumn
     public static final int MAX_NAME_LENGTH = FBUtilities.MAX_UNSIGNED_SHORT;
 
     public boolean isMarkedForDelete();
-    public IClock getMarkedForDeleteAt();
-    public IClock mostRecentLiveChangeAt();
+    public long getMarkedForDeleteAt();
+    public long mostRecentLiveChangeAt();
     public byte[] name();
     public int size();
     public int serializedSize();
-    public IClock clock();
+    public long timestamp();
     public byte[] value();
     public Collection<IColumn> getSubColumns();
     public IColumn getSubColumn(byte[] columnName);
     public void addColumn(IColumn column);
     public IColumn diff(IColumn column);
+    public IColumn reconcile(IColumn column);
     public void updateDigest(MessageDigest digest);
     public int getLocalDeletionTime(); // for tombstone GC, so int is sufficient granularity
     public String getString(AbstractType comparator);

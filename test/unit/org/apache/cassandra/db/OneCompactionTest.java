@@ -44,7 +44,7 @@ public class OneCompactionTest extends CleanupHelper
         for (int j = 0; j < insertsPerTable; j++) {
             DecoratedKey key = Util.dk(String.valueOf(j));
             RowMutation rm = new RowMutation("Keyspace1", key.key);
-            rm.add(new QueryPath(columnFamilyName, null, "0".getBytes()), new byte[0], new TimestampClock(j));
+            rm.add(new QueryPath(columnFamilyName, null, "0".getBytes()), new byte[0], j);
             rm.apply();
             inserted.add(key);
             store.forceBlockingFlush();

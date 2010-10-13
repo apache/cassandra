@@ -24,11 +24,6 @@ import static org.junit.Assert.assertEquals;
 import java.io.IOException;
 import java.nio.charset.CharacterCodingException;
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicReference;
-
-import org.apache.cassandra.db.IClock;
-import org.apache.cassandra.db.TimestampClock;
-
 
 import org.junit.Test;
 
@@ -88,27 +83,6 @@ public class FBUtilitiesTest
             assertEquals(i, actual);
         }
     }
-    
-    @Test
-    public void testAtomicSetMaxIClock()
-    {
-        AtomicReference<IClock> atomicClock = new AtomicReference<IClock>(null);
-        
-        // atomic < new
-        atomicClock.set(TimestampClock.MIN_VALUE);
-        FBUtilities.atomicSetMax(atomicClock, new TimestampClock(1L));
-        assert ((TimestampClock)atomicClock.get()).timestamp() == 1L;
-        
-        // atomic == new
-        atomicClock.set(new TimestampClock(3L));
-        FBUtilities.atomicSetMax(atomicClock, new TimestampClock(3L));
-        assert ((TimestampClock)atomicClock.get()).timestamp() == 3L;
-
-        // atomic > new
-        atomicClock.set(new TimestampClock(9L));
-        FBUtilities.atomicSetMax(atomicClock, new TimestampClock(3L));
-        assert ((TimestampClock)atomicClock.get()).timestamp() == 9L;
-    } 
 
     @Test(expected=CharacterCodingException.class)
     public void testDecode() throws IOException

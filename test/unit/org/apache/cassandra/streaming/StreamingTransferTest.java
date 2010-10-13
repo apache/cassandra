@@ -69,8 +69,8 @@ public class StreamingTransferTest extends CleanupHelper
             String key = "key" + i;
             RowMutation rm = new RowMutation("Keyspace1", key.getBytes());
             ColumnFamily cf = ColumnFamily.create(table.name, cfs.columnFamily);
-            cf.addColumn(column(key, "v", new TimestampClock(0)));
-            cf.addColumn(new Column("birthdate".getBytes("UTF8"), FBUtilities.toByteArray((long) i), new TimestampClock(0)));
+            cf.addColumn(column(key, "v", 0));
+            cf.addColumn(new Column("birthdate".getBytes("UTF8"), FBUtilities.toByteArray((long) i), 0));
             rm.add(cf);
             rm.apply();
         }

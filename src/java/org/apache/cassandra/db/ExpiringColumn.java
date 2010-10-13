@@ -43,14 +43,14 @@ public class ExpiringColumn extends Column
     private final int localExpirationTime;
     private final int timeToLive;
 
-    public ExpiringColumn(byte[] name, byte[] value, IClock clock, int timeToLive)
+    public ExpiringColumn(byte[] name, byte[] value, long timestamp, int timeToLive)
     {
-      this(name, value, clock, timeToLive, (int) (System.currentTimeMillis() / 1000) + timeToLive);
+      this(name, value, timestamp, timeToLive, (int) (System.currentTimeMillis() / 1000) + timeToLive);
     }
 
-    public ExpiringColumn(byte[] name, byte[] value, IClock clock, int timeToLive, int localExpirationTime)
+    public ExpiringColumn(byte[] name, byte[] value, long timestamp, int timeToLive, int localExpirationTime)
     {
-        super(name, value, clock);
+        super(name, value, timestamp);
         assert timeToLive > 0;
         assert localExpirationTime > 0;
         this.timeToLive = timeToLive;
@@ -87,7 +87,7 @@ public class ExpiringColumn extends Column
         DataOutputBuffer buffer = new DataOutputBuffer();
         try
         {
-            clock.serialize(buffer);
+            buffer.writeLong(timestamp);
             buffer.writeByte(ColumnSerializer.EXPIRATION_MASK);
             buffer.writeInt(timeToLive);
         }
@@ -115,11 +115,11 @@ public class ExpiringColumn extends Column
     }
 
     @Override
-    public IClock getMarkedForDeleteAt()
+    public long getMarkedForDeleteAt()
     {
         if (isMarkedForDelete())
         {
-            return clock;
+            return timestamp;
         }
         else
         {

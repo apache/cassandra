@@ -34,12 +34,9 @@ import org.apache.cassandra.auth.AllowAllAuthority;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthority;
 import org.apache.cassandra.config.Config.RequestSchedulerId;
-import org.apache.cassandra.db.ClockType;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.clock.AbstractReconciler;
-import org.apache.cassandra.db.clock.TimestampReconciler;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.migration.Migration;
@@ -590,10 +587,8 @@ public class    DatabaseDescriptor
                 cfDefs[j++] = new CFMetaData(keyspace.name, 
                                              cf.name, 
                                              cfType,
-                                             ClockType.Timestamp,
                                              comparator, 
                                              subcolumnComparator, 
-                                             TimestampReconciler.instance, 
                                              cf.comment, 
                                              cf.rows_cached,
                                              cf.preload_row_cache, 
@@ -646,30 +641,6 @@ public class    DatabaseDescriptor
             compareWith = "BytesType";
 
         return FBUtilities.getComparator(compareWith);
-    }
-
-    public static AbstractReconciler getReconciler(String reconcileWith) throws ConfigurationException
-    {
-        if (reconcileWith == null || reconcileWith.length() == 0)
-        {
-            return null;
-        }
-
-        String className = reconcileWith.indexOf('.') >= 0 ? reconcileWith : TimestampReconciler.class.getPackage().getName() + '.' + reconcileWith;
-        Class<? extends AbstractReconciler> reconcilerClass = FBUtilities.<AbstractReconciler>classForName(className, "reconciler");
-        try
-        {
-            Field field = reconcilerClass.getDeclaredField("instance");
-            return (AbstractReconciler) field.get(null);
-        }
-        catch (NoSuchFieldException e)
-        {
-            throw new ConfigurationException("Invalid reconciler: must define a public static instance field.", e);
-        }
-        catch (IllegalAccessException e)
-        {
-            throw new ConfigurationException("Invalid reconciler: must define a public static instance field.", e);
-        }
     }
 
     /**
@@ -820,15 +791,6 @@ public class    DatabaseDescriptor
         if (cfMetaData == null)
             return null;
         return cfMetaData.cfType;
-    }
-
-    public static ClockType getClockType(String tableName, String cfName)
-    {
-        assert tableName != null && cfName != null;
-        CFMetaData cfMetaData = getCFMetaData(tableName, cfName);
-
-        assert (cfMetaData != null);
-        return cfMetaData.clockType;
     }
 
     public static Set<String> getTables()
@@ -988,15 +950,6 @@ public class    DatabaseDescriptor
     {
         assert tableName != null;
         return getCFMetaData(tableName, cfName).subcolumnComparator;
-    }
-
-    public static AbstractReconciler getReconciler(String tableName, String cfName)
-    {
-        assert tableName != null;
-        CFMetaData cfmd = getCFMetaData(tableName, cfName);
-        if (cfmd == null)
-            throw new NullPointerException("Unknown ColumnFamily " + cfName + " in keyspace " + tableName);
-        return cfmd.reconciler;
     }
 
     /**

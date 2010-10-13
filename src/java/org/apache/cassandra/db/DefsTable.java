@@ -60,7 +60,7 @@ public class DefsTable
 
         // persist keyspaces under new version
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, versionKey);
-        TimestampClock now = new TimestampClock(System.currentTimeMillis());
+        long now = System.currentTimeMillis();
         for (String ksname : ksnames)
         {
             KSMetaData ksm = DatabaseDescriptor.getTableDefinition(ksname);

@@ -41,7 +41,6 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.IClock.ClockRelationship;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -721,17 +720,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // (a) the column itself is tombstoned or
             // (b) the CF is tombstoned and the column is not newer than it
             // (we split the test to avoid computing ClockRelationship if not necessary)
-            if ((c.isMarkedForDelete() && c.getLocalDeletionTime() <= gcBefore))
+            if ((c.isMarkedForDelete() && c.getLocalDeletionTime() <= gcBefore)
+                || c.timestamp() <= cf.getMarkedForDeleteAt())
             {
                 cf.remove(cname);
-            }
-            else
-            {
-                ClockRelationship rel = c.clock().compare(cf.getMarkedForDeleteAt());
-                if ((ClockRelationship.LESS_THAN == rel) || (ClockRelationship.EQUAL == rel))
-                {
-                    cf.remove(cname);
-                }
             }
         }
     }
@@ -744,25 +736,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (Map.Entry<byte[], IColumn> entry : cf.getColumnsMap().entrySet())
         {
             SuperColumn c = (SuperColumn) entry.getValue();
-            List<IClock> clocks = Arrays.asList(cf.getMarkedForDeleteAt());
-            IClock minClock = c.getMarkedForDeleteAt().getSuperset(clocks);
+            long minTimestamp = Math.max(c.getMarkedForDeleteAt(), cf.getMarkedForDeleteAt());
             for (IColumn subColumn : c.getSubColumns())
             {
                 // remove subcolumns if
                 // (a) the subcolumn itself is tombstoned or
                 // (b) the supercolumn is tombstoned and the subcolumn is not newer than it
-                // (we split the test to avoid computing ClockRelationship if not necessary)
-                if (subColumn.isMarkedForDelete() && subColumn.getLocalDeletionTime() <= gcBefore)
+                if (subColumn.timestamp() <= minTimestamp
+                    || (subColumn.isMarkedForDelete() && subColumn.getLocalDeletionTime() <= gcBefore))
                 {
                     c.remove(subColumn.name());
-                }
-                else
-                {
-                    ClockRelationship subRel = subColumn.clock().compare(minClock);
-                    if ((ClockRelationship.LESS_THAN == subRel) || (ClockRelationship.EQUAL == subRel))
-                    {
-                        c.remove(subColumn.name());
-                    }
                 }
             }
             if (c.getSubColumns().isEmpty() && c.getLocalDeletionTime() <= gcBefore)

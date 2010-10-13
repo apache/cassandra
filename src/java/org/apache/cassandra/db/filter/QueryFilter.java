@@ -32,7 +32,6 @@ import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.utils.ReducingIterator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.IClock.ClockRelationship;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -122,8 +121,8 @@ public class QueryFilter
                     // filterSuperColumn only looks at immediate parent (the supercolumn) when determining if a subcolumn
                     // is still live, i.e., not shadowed by the parent's tombstone.  so, bump it up temporarily to the tombstone
                     // time of the cf, if that is greater.
-                    IClock deletedAt = c.getMarkedForDeleteAt();
-                    if (returnCF.getMarkedForDeleteAt().compare(deletedAt) == ClockRelationship.GREATER_THAN)
+                    long deletedAt = c.getMarkedForDeleteAt();
+                    if (returnCF.getMarkedForDeleteAt() > deletedAt)
                         ((SuperColumn)c).markForDeleteAt(c.getLocalDeletionTime(), returnCF.getMarkedForDeleteAt());
 
                     c = filter.filterSuperColumn((SuperColumn)c, gcBefore);
@@ -147,9 +146,9 @@ public class QueryFilter
         // the column itself must be not gc-able (it is live, or a still relevant tombstone, or has live subcolumns), (1)
         // and if its container is deleted, the column must be changed more recently than the container tombstone (2)
         // (since otherwise, the only thing repair cares about is the container tombstone)
-        IClock maxChange = column.mostRecentLiveChangeAt();
-        return (!column.isMarkedForDelete() || column.getLocalDeletionTime() > gcBefore || (ClockRelationship.GREATER_THAN == maxChange.compare(column.getMarkedForDeleteAt()))) // (1)
-               && (!container.isMarkedForDelete() || (ClockRelationship.GREATER_THAN == maxChange.compare(container.getMarkedForDeleteAt()))); // (2)
+        long maxChange = column.mostRecentLiveChangeAt();
+        return (!column.isMarkedForDelete() || column.getLocalDeletionTime() > gcBefore || maxChange > column.getMarkedForDeleteAt()) // (1)
+               && (!container.isMarkedForDelete() || maxChange > container.getMarkedForDeleteAt()); // (2)
     }
 
     /**

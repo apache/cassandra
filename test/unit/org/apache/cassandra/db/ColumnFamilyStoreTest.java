@@ -19,22 +19,26 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Random;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
-
-import static org.junit.Assert.assertNull;
 import org.junit.Test;
 
-import static junit.framework.Assert.assertEquals;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
@@ -43,13 +47,8 @@ import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 
-import java.net.InetAddress;
-import java.util.concurrent.TimeUnit;
-
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.CollatingOrderPreservingPartitioner;
-import org.apache.cassandra.io.sstable.SSTableReader;
+import static junit.framework.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 public class ColumnFamilyStoreTest extends CleanupHelper
 {
@@ -70,8 +69,8 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         List<RowMutation> rms = new LinkedList<RowMutation>();
         RowMutation rm;
         rm = new RowMutation("Keyspace1", "key1".getBytes());
-        rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), new TimestampClock(0));
-        rm.add(new QueryPath("Standard1", null, "Column2".getBytes()), "asdf".getBytes(), new TimestampClock(0));
+        rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
+        rm.add(new QueryPath("Standard1", null, "Column2".getBytes()), "asdf".getBytes(), 0);
         rms.add(rm);
         ColumnFamilyStore store = Util.writeColumnFamily(rms);
 
@@ -91,7 +90,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         RowMutation rm;
 
         rm = new RowMutation("Keyspace1", "key1".getBytes());
-        rm.delete(new QueryPath("Standard2", null, null), new TimestampClock(System.currentTimeMillis()));
+        rm.delete(new QueryPath("Standard2", null, null), System.currentTimeMillis());
         rm.apply();
 
         Runnable r = new WrappedRunnable()
@@ -133,23 +132,23 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         RowMutation rm;
 
         rm = new RowMutation("Keyspace1", "k1".getBytes());
-        rm.add(new QueryPath("Indexed1", null, "notbirthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), new TimestampClock(0));
-        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), new TimestampClock(0));
+        rm.add(new QueryPath("Indexed1", null, "notbirthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), 0);
+        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), 0);
         rm.apply();
 
         rm = new RowMutation("Keyspace1", "k2".getBytes());
-        rm.add(new QueryPath("Indexed1", null, "notbirthdate".getBytes("UTF8")), FBUtilities.toByteArray(2L), new TimestampClock(0));
-        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(2L), new TimestampClock(0));
+        rm.add(new QueryPath("Indexed1", null, "notbirthdate".getBytes("UTF8")), FBUtilities.toByteArray(2L), 0);
+        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(2L), 0);
         rm.apply();
 
         rm = new RowMutation("Keyspace1", "k3".getBytes());
-        rm.add(new QueryPath("Indexed1", null, "notbirthdate".getBytes("UTF8")), FBUtilities.toByteArray(2L), new TimestampClock(0));
-        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), new TimestampClock(0));
+        rm.add(new QueryPath("Indexed1", null, "notbirthdate".getBytes("UTF8")), FBUtilities.toByteArray(2L), 0);
+        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), 0);
         rm.apply();
 
         rm = new RowMutation("Keyspace1", "k4aaaa".getBytes());
-        rm.add(new QueryPath("Indexed1", null, "notbirthdate".getBytes("UTF8")), FBUtilities.toByteArray(2L), new TimestampClock(0));
-        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(3L), new TimestampClock(0));
+        rm.add(new QueryPath("Indexed1", null, "notbirthdate".getBytes("UTF8")), FBUtilities.toByteArray(2L), 0);
+        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(3L), 0);
         rm.apply();
 
         // basic single-expression query
@@ -198,7 +197,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         RowMutation rm;
 
         rm = new RowMutation("Keyspace3", "k1".getBytes());
-        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), new TimestampClock(0));
+        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), 0);
         rm.apply();
 
         IndexExpression expr = new IndexExpression("birthdate".getBytes("UTF8"), IndexOperator.EQ, FBUtilities.toByteArray(1L));
@@ -212,7 +211,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
 
         // delete the column directly
         rm = new RowMutation("Keyspace3", "k1".getBytes());
-        rm.delete(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), new TimestampClock(1));
+        rm.delete(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), 1);
         rm.apply();
         rows = cfs.scan(clause, range, filter);
         assert rows.isEmpty();
@@ -226,7 +225,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
 
         // resurrect w/ a newer timestamp
         rm = new RowMutation("Keyspace3", "k1".getBytes());
-        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), new TimestampClock(2));
+        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), 2);
         rm.apply();
         rows = cfs.scan(clause, range, filter);
         assert rows.size() == 1 : StringUtils.join(rows, ",");
@@ -234,7 +233,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
 
         // delete the entire row
         rm = new RowMutation("Keyspace3", "k1".getBytes());
-        rm.delete(new QueryPath("Indexed1"), new TimestampClock(3));
+        rm.delete(new QueryPath("Indexed1"), 3);
         rm.apply();
         rows = cfs.scan(clause, range, filter);
         assert rows.isEmpty() : StringUtils.join(rows, ",");
@@ -248,10 +247,10 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         // create a row and update the birthdate value, test that the index query fetches the new version
         RowMutation rm;
         rm = new RowMutation("Keyspace2", "k1".getBytes());
-        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), new TimestampClock(1));
+        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), 1);
         rm.apply();
         rm = new RowMutation("Keyspace2", "k1".getBytes());
-        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(2L), new TimestampClock(2));
+        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(2L), 2);
         rm.apply();
 
         IndexExpression expr = new IndexExpression("birthdate".getBytes("UTF8"), IndexOperator.EQ, FBUtilities.toByteArray(1L));
@@ -269,7 +268,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
 
         // update the birthdate value with an OLDER timestamp, and test that the index ignores this
         rm = new RowMutation("Keyspace2", "k1".getBytes());
-        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(3L), new TimestampClock(0));
+        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(3L), 0);
         rm.apply();
 
         rows = table.getColumnFamilyStore("Indexed1").scan(clause, range, filter);
@@ -284,7 +283,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         // create a row and update the birthdate value, test that the index query fetches the new version
         RowMutation rm;
         rm = new RowMutation("Keyspace1", "k1".getBytes());
-        rm.add(new QueryPath("Indexed2", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), new TimestampClock(1));
+        rm.add(new QueryPath("Indexed2", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), 1);
         rm.apply();
 
         ColumnFamilyStore cfs = table.getColumnFamilyStore("Indexed2");
@@ -309,12 +308,12 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         List<RowMutation> rms = new LinkedList<RowMutation>();
         RowMutation rm;
         rm = new RowMutation("Keyspace2", "key1".getBytes());
-        rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), new TimestampClock(0));
+        rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
         rms.add(rm);
         Util.writeColumnFamily(rms);
 
         rm = new RowMutation("Keyspace2", "key2".getBytes());
-        rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), new TimestampClock(0));
+        rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
         rms.add(rm);
         return Util.writeColumnFamily(rms);
     }

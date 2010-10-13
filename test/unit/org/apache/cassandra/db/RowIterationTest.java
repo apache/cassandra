@@ -52,7 +52,7 @@ public class RowIterationTest extends CleanupHelper
         for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
             DecoratedKey key = Util.dk(String.valueOf(i));
             RowMutation rm = new RowMutation(TABLE1, key.key);
-            rm.add(new QueryPath("Super3", "sc".getBytes(), String.valueOf(i).getBytes()), new byte[ROWS_PER_SSTABLE * 10 - i * 2], new TimestampClock(i));
+            rm.add(new QueryPath("Super3", "sc".getBytes(), String.valueOf(i).getBytes()), new byte[ROWS_PER_SSTABLE * 10 - i * 2], i);
             rm.apply();
             inserted.add(key);
         }

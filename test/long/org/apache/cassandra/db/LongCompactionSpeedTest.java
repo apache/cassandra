@@ -82,9 +82,9 @@ public class LongCompactionSpeedTest extends CleanupHelper
                 for (int i = 0; i < colsPerRow; i++)
                 {
                     // last sstable has highest timestamps
-                    cols[i] = Util.column(String.valueOf(i), String.valueOf(i), new TimestampClock(k));
+                    cols[i] = Util.column(String.valueOf(i), String.valueOf(i), k);
                 }
-                rows.put(key, SSTableUtils.createCF(ClockType.Timestamp.minClock(), Integer.MIN_VALUE, cols));
+                rows.put(key, SSTableUtils.createCF(Long.MIN_VALUE, Integer.MIN_VALUE, cols));
             }
             SSTableReader sstable = SSTableUtils.writeSSTable(rows);
             sstables.add(sstable);

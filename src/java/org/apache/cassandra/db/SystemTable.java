@@ -79,7 +79,7 @@ public class SystemTable
             logger.info("Upgrading to 0.7. Purging hints if there are any. Old hints will be snapshotted.");
             new Truncation(Table.SYSTEM_TABLE, HintedHandOffManager.HINTS_CF).apply();
             RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, COOKIE_KEY);
-            rm.add(new QueryPath(STATUS_CF, null, hintsPurged6to7), "oh yes, it they were purged.".getBytes(), new TimestampClock(System.currentTimeMillis()));
+            rm.add(new QueryPath(STATUS_CF, null, hintsPurged6to7), "oh yes, it they were purged.".getBytes(), System.currentTimeMillis());
             rm.apply();
         }
     }
@@ -91,7 +91,7 @@ public class SystemTable
     {
         IPartitioner p = StorageService.getPartitioner();
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
-        cf.addColumn(new Column(p.getTokenFactory().toByteArray(token), ep.getAddress(), new TimestampClock(System.currentTimeMillis())));
+        cf.addColumn(new Column(p.getTokenFactory().toByteArray(token), ep.getAddress(), System.currentTimeMillis()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, RING_KEY);
         rm.add(cf);
         try
@@ -111,7 +111,7 @@ public class SystemTable
     {
         IPartitioner p = StorageService.getPartitioner();
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, RING_KEY);
-        rm.delete(new QueryPath(STATUS_CF, null, p.getTokenFactory().toByteArray(token)), new TimestampClock(System.currentTimeMillis()));
+        rm.delete(new QueryPath(STATUS_CF, null, p.getTokenFactory().toByteArray(token)), System.currentTimeMillis());
         try
         {
             rm.apply();
@@ -129,7 +129,7 @@ public class SystemTable
     {
         IPartitioner p = StorageService.getPartitioner();
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
-        cf.addColumn(new Column(SystemTable.TOKEN, p.getTokenFactory().toByteArray(token), new TimestampClock(System.currentTimeMillis())));
+        cf.addColumn(new Column(SystemTable.TOKEN, p.getTokenFactory().toByteArray(token), System.currentTimeMillis()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
         rm.add(cf);
         try
@@ -235,8 +235,8 @@ public class SystemTable
             // no system files.  this is a new node.
             RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
             cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.STATUS_CF);
-            cf.addColumn(new Column(PARTITIONER, DatabaseDescriptor.getPartitioner().getClass().getName().getBytes(UTF_8), new TimestampClock(FBUtilities.timestampMicros())));
-            cf.addColumn(new Column(CLUSTERNAME, DatabaseDescriptor.getClusterName().getBytes(), new TimestampClock(FBUtilities.timestampMicros())));
+            cf.addColumn(new Column(PARTITIONER, DatabaseDescriptor.getPartitioner().getClass().getName().getBytes(UTF_8), FBUtilities.timestampMicros()));
+            cf.addColumn(new Column(CLUSTERNAME, DatabaseDescriptor.getClusterName().getBytes(), FBUtilities.timestampMicros()));
             rm.add(cf);
             rm.apply();
 
@@ -284,8 +284,7 @@ public class SystemTable
 
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
         cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.STATUS_CF);
-        TimestampClock genClock = new TimestampClock(FBUtilities.timestampMicros());
-        cf.addColumn(new Column(GENERATION, FBUtilities.toByteArray(generation), genClock));
+        cf.addColumn(new Column(GENERATION, FBUtilities.toByteArray(generation), FBUtilities.timestampMicros()));
         rm.add(cf);
         rm.apply();
         forceBlockingFlush(STATUS_CF);
@@ -306,7 +305,7 @@ public class SystemTable
     public static void setBootstrapped(boolean isBootstrapped)
     {
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
-        cf.addColumn(new Column(BOOTSTRAP, new byte[] { (byte) (isBootstrapped ? 1 : 0) }, new TimestampClock(System.currentTimeMillis())));
+        cf.addColumn(new Column(BOOTSTRAP, new byte[] { (byte) (isBootstrapped ? 1 : 0) }, System.currentTimeMillis()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, BOOTSTRAP_KEY);
         rm.add(cf);
         try
@@ -331,7 +330,7 @@ public class SystemTable
     public static void setIndexBuilt(String table, String indexName)
     {
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, INDEX_CF);
-        cf.addColumn(new Column(indexName.getBytes(UTF_8), ArrayUtils.EMPTY_BYTE_ARRAY, new TimestampClock(System.currentTimeMillis())));
+        cf.addColumn(new Column(indexName.getBytes(UTF_8), ArrayUtils.EMPTY_BYTE_ARRAY, System.currentTimeMillis()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, table.getBytes(UTF_8));
         rm.add(cf);
         try
@@ -349,7 +348,7 @@ public class SystemTable
     public static void setIndexRemoved(String table, String indexName)
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, table.getBytes(UTF_8));
-        rm.delete(new QueryPath(INDEX_CF, null, indexName.getBytes(UTF_8)), new TimestampClock(System.currentTimeMillis()));
+        rm.delete(new QueryPath(INDEX_CF, null, indexName.getBytes(UTF_8)), System.currentTimeMillis());
         try
         {
             rm.apply();

@@ -49,8 +49,6 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.clock.AbstractReconciler;
-import org.apache.cassandra.db.clock.TimestampReconciler;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -150,7 +148,7 @@ public class CassandraServer implements Cassandra.Iface
             {
                 continue;
             }
-            Column thrift_column = new Column(column.name(), column.value(), thriftifyIClock(column.clock()));
+            Column thrift_column = new Column(column.name(), column.value(), column.timestamp());
             if (column instanceof ExpiringColumn)
             {
                 thrift_column.setTtl(((ExpiringColumn) column).getTimeToLive());
@@ -170,7 +168,7 @@ public class CassandraServer implements Cassandra.Iface
             {
                 continue;
             }
-            Column thrift_column = new Column(column.name(), column.value(), thriftifyIClock(column.clock()));
+            Column thrift_column = new Column(column.name(), column.value(), column.timestamp());
             if (column instanceof ExpiringColumn)
             {
                 thrift_column.setTtl(((ExpiringColumn) column).getTimeToLive());
@@ -204,12 +202,6 @@ public class CassandraServer implements Cassandra.Iface
             Collections.reverse(thriftSuperColumns);
 
         return thriftSuperColumns;
-    }
-
-    private static long thriftifyIClock(IClock clock)
-    {
-        assert clock instanceof TimestampClock;
-        return ((TimestampClock)clock).timestamp();
     }
 
     private Map<byte[], List<ColumnOrSuperColumn>> getSlice(List<ReadCommand> commands, ConsistencyLevel consistency_level)
@@ -368,7 +360,7 @@ public class CassandraServer implements Cassandra.Iface
         RowMutation rm = new RowMutation(state().getKeyspace(), key);
         try
         {
-            rm.add(new QueryPath(column_parent.column_family, column_parent.super_column, column.name), column.value, new TimestampClock(column.timestamp), column.ttl);
+            rm.add(new QueryPath(column_parent.column_family, column_parent.super_column, column.name), column.value, column.timestamp, column.ttl);
         }
         catch (MarshalException e)
         {
@@ -414,7 +406,7 @@ public class CassandraServer implements Cassandra.Iface
         doInsert(consistency_level, rowMutations);
     }
 
-    public void remove(byte[] key, ColumnPath column_path, long clock, ConsistencyLevel consistency_level)
+    public void remove(byte[] key, ColumnPath column_path, long timestamp, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
@@ -426,7 +418,7 @@ public class CassandraServer implements Cassandra.Iface
         ThriftValidation.validateColumnPathOrParent(state().getKeyspace(), column_path);
 
         RowMutation rm = new RowMutation(state().getKeyspace(), key);
-        rm.delete(new QueryPath(column_path), new TimestampClock(clock));
+        rm.delete(new QueryPath(column_path), timestamp); 
 
         doInsert(consistency_level, Arrays.asList(rm));
     }
@@ -925,10 +917,8 @@ public class CassandraServer implements Cassandra.Iface
         return new CFMetaData(cf_def.keyspace,
                               cf_def.name,
                               cfType,
-                              ClockType.Timestamp,
                               DatabaseDescriptor.getComparator(cf_def.comparator_type),
                               cf_def.subcomparator_type == null ? null : DatabaseDescriptor.getComparator(cf_def.subcomparator_type),
-                              TimestampReconciler.instance,
                               cf_def.comment,
                               cf_def.row_cache_size,
                               cf_def.preload_row_cache,

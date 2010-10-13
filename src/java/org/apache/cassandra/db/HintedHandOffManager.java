@@ -133,10 +133,10 @@ public class HintedHandOffManager
         return true;
     }
 
-    private static void deleteHintKey(byte[] endpointAddress, byte[] key, byte[] tableCF, IClock clock) throws IOException
+    private static void deleteHintKey(byte[] endpointAddress, byte[] key, byte[] tableCF, long timestamp) throws IOException
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, endpointAddress);
-        rm.delete(new QueryPath(HINTS_CF, key, tableCF), clock);
+        rm.delete(new QueryPath(HINTS_CF, key, tableCF), timestamp);
         rm.apply();
     }                                                         
 
@@ -144,7 +144,7 @@ public class HintedHandOffManager
     {
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, endpoint.getAddress());
-        rm.delete(new QueryPath(HINTS_CF), new TimestampClock(System.currentTimeMillis()));
+        rm.delete(new QueryPath(HINTS_CF), System.currentTimeMillis());
         try {
             logger_.info("Deleting any stored hints for " + endpoint);
             rm.apply();
@@ -214,7 +214,7 @@ public class HintedHandOffManager
                         String[] parts = getTableAndCFNames(tableCF.name());
                         if (sendMessage(endpoint, parts[0], parts[1], keyColumn.name()))
                         {
-                            deleteHintKey(endpoint.getHostAddress().getBytes(UTF_8), keyColumn.name(), tableCF.name(), tableCF.clock());
+                            deleteHintKey(endpoint.getHostAddress().getBytes(UTF_8), keyColumn.name(), tableCF.name(), tableCF.timestamp());
                             rowsReplayed++;
                         }
                         else
@@ -269,7 +269,7 @@ public class HintedHandOffManager
             RowMutation drop = new RowMutation(Table.SYSTEM_TABLE, oldTableKey.key);
             for (byte[] key : cf.getColumnNames())
             {
-                drop.delete(new QueryPath(HINTS_CF, key), new TimestampClock(now));
+                drop.delete(new QueryPath(HINTS_CF, key), now);
                 startCol = key;
             }
             drop.apply();
