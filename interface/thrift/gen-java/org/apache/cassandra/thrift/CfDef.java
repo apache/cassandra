@@ -66,6 +66,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   private static final TField ID_FIELD_DESC = new TField("id", TType.I32, (short)16);
   private static final TField MIN_COMPACTION_THRESHOLD_FIELD_DESC = new TField("min_compaction_threshold", TType.I32, (short)17);
   private static final TField MAX_COMPACTION_THRESHOLD_FIELD_DESC = new TField("max_compaction_threshold", TType.I32, (short)18);
+  private static final TField ROW_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC = new TField("row_cache_save_period_in_seconds", TType.I32, (short)19);
+  private static final TField KEY_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC = new TField("key_cache_save_period_in_seconds", TType.I32, (short)20);
 
   public String keyspace;
   public String name;
@@ -83,6 +85,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   public int id;
   public int min_compaction_threshold;
   public int max_compaction_threshold;
+  public int row_cache_save_period_in_seconds;
+  public int key_cache_save_period_in_seconds;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
@@ -101,7 +105,9 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     DEFAULT_VALIDATION_CLASS((short)15, "default_validation_class"),
     ID((short)16, "id"),
     MIN_COMPACTION_THRESHOLD((short)17, "min_compaction_threshold"),
-    MAX_COMPACTION_THRESHOLD((short)18, "max_compaction_threshold");
+    MAX_COMPACTION_THRESHOLD((short)18, "max_compaction_threshold"),
+    ROW_CACHE_SAVE_PERIOD_IN_SECONDS((short)19, "row_cache_save_period_in_seconds"),
+    KEY_CACHE_SAVE_PERIOD_IN_SECONDS((short)20, "key_cache_save_period_in_seconds");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -148,6 +154,10 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
           return MIN_COMPACTION_THRESHOLD;
         case 18: // MAX_COMPACTION_THRESHOLD
           return MAX_COMPACTION_THRESHOLD;
+        case 19: // ROW_CACHE_SAVE_PERIOD_IN_SECONDS
+          return ROW_CACHE_SAVE_PERIOD_IN_SECONDS;
+        case 20: // KEY_CACHE_SAVE_PERIOD_IN_SECONDS
+          return KEY_CACHE_SAVE_PERIOD_IN_SECONDS;
         default:
           return null;
       }
@@ -196,7 +206,9 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   private static final int __ID_ISSET_ID = 5;
   private static final int __MIN_COMPACTION_THRESHOLD_ISSET_ID = 6;
   private static final int __MAX_COMPACTION_THRESHOLD_ISSET_ID = 7;
-  private BitSet __isset_bit_vector = new BitSet(8);
+  private static final int __ROW_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 8;
+  private static final int __KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 9;
+  private BitSet __isset_bit_vector = new BitSet(10);
 
   public static final Map<_Fields, FieldMetaData> metaDataMap;
   static {
@@ -233,6 +245,10 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     tmpMap.put(_Fields.MIN_COMPACTION_THRESHOLD, new FieldMetaData("min_compaction_threshold", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.I32)));
     tmpMap.put(_Fields.MAX_COMPACTION_THRESHOLD, new FieldMetaData("max_compaction_threshold", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.I32)));
+    tmpMap.put(_Fields.ROW_CACHE_SAVE_PERIOD_IN_SECONDS, new FieldMetaData("row_cache_save_period_in_seconds", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.I32)));
+    tmpMap.put(_Fields.KEY_CACHE_SAVE_PERIOD_IN_SECONDS, new FieldMetaData("key_cache_save_period_in_seconds", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.I32)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(CfDef.class, metaDataMap);
@@ -304,6 +320,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     this.id = other.id;
     this.min_compaction_threshold = other.min_compaction_threshold;
     this.max_compaction_threshold = other.max_compaction_threshold;
+    this.row_cache_save_period_in_seconds = other.row_cache_save_period_in_seconds;
+    this.key_cache_save_period_in_seconds = other.key_cache_save_period_in_seconds;
   }
 
   public CfDef deepCopy() {
@@ -706,6 +724,52 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     __isset_bit_vector.set(__MAX_COMPACTION_THRESHOLD_ISSET_ID, value);
   }
 
+  public int getRow_cache_save_period_in_seconds() {
+    return this.row_cache_save_period_in_seconds;
+  }
+
+  public CfDef setRow_cache_save_period_in_seconds(int row_cache_save_period_in_seconds) {
+    this.row_cache_save_period_in_seconds = row_cache_save_period_in_seconds;
+    setRow_cache_save_period_in_secondsIsSet(true);
+    return this;
+  }
+
+  public void unsetRow_cache_save_period_in_seconds() {
+    __isset_bit_vector.clear(__ROW_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID);
+  }
+
+  /** Returns true if field row_cache_save_period_in_seconds is set (has been asigned a value) and false otherwise */
+  public boolean isSetRow_cache_save_period_in_seconds() {
+    return __isset_bit_vector.get(__ROW_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID);
+  }
+
+  public void setRow_cache_save_period_in_secondsIsSet(boolean value) {
+    __isset_bit_vector.set(__ROW_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID, value);
+  }
+
+  public int getKey_cache_save_period_in_seconds() {
+    return this.key_cache_save_period_in_seconds;
+  }
+
+  public CfDef setKey_cache_save_period_in_seconds(int key_cache_save_period_in_seconds) {
+    this.key_cache_save_period_in_seconds = key_cache_save_period_in_seconds;
+    setKey_cache_save_period_in_secondsIsSet(true);
+    return this;
+  }
+
+  public void unsetKey_cache_save_period_in_seconds() {
+    __isset_bit_vector.clear(__KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID);
+  }
+
+  /** Returns true if field key_cache_save_period_in_seconds is set (has been asigned a value) and false otherwise */
+  public boolean isSetKey_cache_save_period_in_seconds() {
+    return __isset_bit_vector.get(__KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID);
+  }
+
+  public void setKey_cache_save_period_in_secondsIsSet(boolean value) {
+    __isset_bit_vector.set(__KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID, value);
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case KEYSPACE:
@@ -836,6 +900,22 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       }
       break;
 
+    case ROW_CACHE_SAVE_PERIOD_IN_SECONDS:
+      if (value == null) {
+        unsetRow_cache_save_period_in_seconds();
+      } else {
+        setRow_cache_save_period_in_seconds((Integer)value);
+      }
+      break;
+
+    case KEY_CACHE_SAVE_PERIOD_IN_SECONDS:
+      if (value == null) {
+        unsetKey_cache_save_period_in_seconds();
+      } else {
+        setKey_cache_save_period_in_seconds((Integer)value);
+      }
+      break;
+
     }
   }
 
@@ -893,6 +973,12 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     case MAX_COMPACTION_THRESHOLD:
       return new Integer(getMax_compaction_threshold());
 
+    case ROW_CACHE_SAVE_PERIOD_IN_SECONDS:
+      return new Integer(getRow_cache_save_period_in_seconds());
+
+    case KEY_CACHE_SAVE_PERIOD_IN_SECONDS:
+      return new Integer(getKey_cache_save_period_in_seconds());
+
     }
     throw new IllegalStateException();
   }
@@ -936,6 +1022,10 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return isSetMin_compaction_threshold();
     case MAX_COMPACTION_THRESHOLD:
       return isSetMax_compaction_threshold();
+    case ROW_CACHE_SAVE_PERIOD_IN_SECONDS:
+      return isSetRow_cache_save_period_in_seconds();
+    case KEY_CACHE_SAVE_PERIOD_IN_SECONDS:
+      return isSetKey_cache_save_period_in_seconds();
     }
     throw new IllegalStateException();
   }
@@ -1101,6 +1191,24 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         return false;
     }
 
+    boolean this_present_row_cache_save_period_in_seconds = true && this.isSetRow_cache_save_period_in_seconds();
+    boolean that_present_row_cache_save_period_in_seconds = true && that.isSetRow_cache_save_period_in_seconds();
+    if (this_present_row_cache_save_period_in_seconds || that_present_row_cache_save_period_in_seconds) {
+      if (!(this_present_row_cache_save_period_in_seconds && that_present_row_cache_save_period_in_seconds))
+        return false;
+      if (this.row_cache_save_period_in_seconds != that.row_cache_save_period_in_seconds)
+        return false;
+    }
+
+    boolean this_present_key_cache_save_period_in_seconds = true && this.isSetKey_cache_save_period_in_seconds();
+    boolean that_present_key_cache_save_period_in_seconds = true && that.isSetKey_cache_save_period_in_seconds();
+    if (this_present_key_cache_save_period_in_seconds || that_present_key_cache_save_period_in_seconds) {
+      if (!(this_present_key_cache_save_period_in_seconds && that_present_key_cache_save_period_in_seconds))
+        return false;
+      if (this.key_cache_save_period_in_seconds != that.key_cache_save_period_in_seconds)
+        return false;
+    }
+
     return true;
   }
 
@@ -1187,6 +1295,16 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     builder.append(present_max_compaction_threshold);
     if (present_max_compaction_threshold)
       builder.append(max_compaction_threshold);
+
+    boolean present_row_cache_save_period_in_seconds = true && (isSetRow_cache_save_period_in_seconds());
+    builder.append(present_row_cache_save_period_in_seconds);
+    if (present_row_cache_save_period_in_seconds)
+      builder.append(row_cache_save_period_in_seconds);
+
+    boolean present_key_cache_save_period_in_seconds = true && (isSetKey_cache_save_period_in_seconds());
+    builder.append(present_key_cache_save_period_in_seconds);
+    if (present_key_cache_save_period_in_seconds)
+      builder.append(key_cache_save_period_in_seconds);
 
     return builder.toHashCode();
   }
@@ -1343,6 +1461,24 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetRow_cache_save_period_in_seconds()).compareTo(typedOther.isSetRow_cache_save_period_in_seconds());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetRow_cache_save_period_in_seconds()) {      lastComparison = TBaseHelper.compareTo(this.row_cache_save_period_in_seconds, typedOther.row_cache_save_period_in_seconds);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetKey_cache_save_period_in_seconds()).compareTo(typedOther.isSetKey_cache_save_period_in_seconds());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetKey_cache_save_period_in_seconds()) {      lastComparison = TBaseHelper.compareTo(this.key_cache_save_period_in_seconds, typedOther.key_cache_save_period_in_seconds);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -1487,6 +1623,22 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 19: // ROW_CACHE_SAVE_PERIOD_IN_SECONDS
+          if (field.type == TType.I32) {
+            this.row_cache_save_period_in_seconds = iprot.readI32();
+            setRow_cache_save_period_in_secondsIsSet(true);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 20: // KEY_CACHE_SAVE_PERIOD_IN_SECONDS
+          if (field.type == TType.I32) {
+            this.key_cache_save_period_in_seconds = iprot.readI32();
+            setKey_cache_save_period_in_secondsIsSet(true);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           TProtocolUtil.skip(iprot, field.type);
       }
@@ -1599,6 +1751,16 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (isSetMax_compaction_threshold()) {
       oprot.writeFieldBegin(MAX_COMPACTION_THRESHOLD_FIELD_DESC);
       oprot.writeI32(this.max_compaction_threshold);
+      oprot.writeFieldEnd();
+    }
+    if (isSetRow_cache_save_period_in_seconds()) {
+      oprot.writeFieldBegin(ROW_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC);
+      oprot.writeI32(this.row_cache_save_period_in_seconds);
+      oprot.writeFieldEnd();
+    }
+    if (isSetKey_cache_save_period_in_seconds()) {
+      oprot.writeFieldBegin(KEY_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC);
+      oprot.writeI32(this.key_cache_save_period_in_seconds);
       oprot.writeFieldEnd();
     }
     oprot.writeFieldStop();
@@ -1731,6 +1893,18 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       if (!first) sb.append(", ");
       sb.append("max_compaction_threshold:");
       sb.append(this.max_compaction_threshold);
+      first = false;
+    }
+    if (isSetRow_cache_save_period_in_seconds()) {
+      if (!first) sb.append(", ");
+      sb.append("row_cache_save_period_in_seconds:");
+      sb.append(this.row_cache_save_period_in_seconds);
+      first = false;
+    }
+    if (isSetKey_cache_save_period_in_seconds()) {
+      if (!first) sb.append(", ");
+      sb.append("key_cache_save_period_in_seconds:");
+      sb.append(this.key_cache_save_period_in_seconds);
       first = false;
     }
     sb.append(")");

@@ -125,8 +125,8 @@ public final class CFMetaData
     public final AbstractType defaultValidator;     // default none, use comparator types
     public final Integer minCompactionThreshold;    // default 4
     public final Integer maxCompactionThreshold;    // default 32
-    public final int rowCacheSavePeriodInSeconds; //default 0 (off)
-    public final int keyCacheSavePeriodInSeconds; //default 0 (off)
+    public final int rowCacheSavePeriodInSeconds;   // default 0 (off)
+    public final int keyCacheSavePeriodInSeconds;   // default 3600 (1 hour)
     // NOTE: if you find yourself adding members to this class, make sure you keep the convert methods in lockstep.
 
     public final Map<byte[], ColumnDefinition> column_metadata;
@@ -548,8 +548,8 @@ public final class CFMetaData
                               cf_def.max_compaction_threshold,
                               cfId,
                               metadata,
-                              rowCacheSavePeriodInSeconds,
-                              keyCacheSavePeriodInSeconds);
+                              cf_def.row_cache_save_period_in_seconds,
+                              cf_def.key_cache_save_period_in_seconds);
     }
     
     // converts CFM to thrift CfDef
@@ -573,6 +573,8 @@ public final class CFMetaData
         def.setDefault_validation_class(cfm.defaultValidator.getClass().getName());
         def.setMin_compaction_threshold(cfm.minCompactionThreshold);
         def.setMax_compaction_threshold(cfm.maxCompactionThreshold);
+        def.setRow_cache_save_period_in_seconds(cfm.rowCacheSavePeriodInSeconds);
+        def.setKey_cache_save_period_in_seconds(cfm.keyCacheSavePeriodInSeconds);
         List<org.apache.cassandra.thrift.ColumnDef> column_meta = new ArrayList< org.apache.cassandra.thrift.ColumnDef>(cfm.column_metadata.size());
         for (ColumnDefinition cd : cfm.column_metadata.values())
         {
@@ -703,6 +705,8 @@ public final class CFMetaData
                ", defaultValidator=" + defaultValidator +
                ", minCompactionThreshold=" + minCompactionThreshold +
                ", maxCompactionThreshold=" + maxCompactionThreshold +
+               ", rowcachesaveperiodsecs= " + rowCacheSavePeriodInSeconds +
+               ", keycachesaveperiodsecs= " + keyCacheSavePeriodInSeconds +
                ", column_metadata=" + FBUtilities.toString(column_metadata) +
                '}';
     }

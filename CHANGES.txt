@@ -17,7 +17,7 @@ dev
    (CASSANDRA-1566)
  * allow keyspace creation with RF > N (CASSANDRA-1428)
  * improve cli error handling (CASSANDRA-1580)
- * add cache save/load ability (CASSANDRA-1417)
+ * add cache save/load ability (CASSANDRA-1417, 1606)
  * add StorageService.getDrainProgress (CASSANDRA-1588)
  * Disallow bootstrap to an in-use token (CASSANDRA-1561)
  * Allow dynamic secondary index creation and destruction (CASSANDRA-1532)
