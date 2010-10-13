@@ -34,6 +34,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.AbstractStatsDeque;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 /**
  * A dynamic snitch that sorts endpoints by latency with an adapted phi failure detector
@@ -41,8 +42,9 @@ import org.apache.cassandra.utils.FBUtilities;
 public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILatencySubscriber, DynamicEndpointSnitchMBean
 {
     private static int UPDATES_PER_INTERVAL = 10000;
-    private static int UPDATE_INTERVAL_IN_MS = 100;
-    private static int RESET_INTERVAL_IN_MS = 60000 * 10;
+    private static int UPDATE_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicUpdateInterval();
+    private static int RESET_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicResetInterval();
+    private static double BADNESS_THRESHOLD = DatabaseDescriptor.getDynamicBadnessThreshold();
     private static int WINDOW_SIZE = 100;
     private boolean registered = false;
 
@@ -119,6 +121,18 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     public List<InetAddress> sortByProximity(final InetAddress address, List<InetAddress> addresses)
     {
         assert address.equals(FBUtilities.getLocalAddress()); // we only know about ourself
+        if (BADNESS_THRESHOLD == 0)
+        {
+            return sortByProximityWithScore(address, addresses);
+        }
+        else
+        {
+            return sortByProximityWithBadness(address, addresses);
+        }
+    }
+
+    private List<InetAddress> sortByProximityWithScore(final InetAddress address, List<InetAddress> addresses)
+    {
         Collections.sort(addresses, new Comparator<InetAddress>()
         {
             public int compare(InetAddress a1, InetAddress a2)
@@ -127,6 +141,25 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
             }
         });
         return addresses;
+    }
+
+    private List<InetAddress> sortByProximityWithBadness(final InetAddress address, List<InetAddress> addresses)
+    {
+        if (addresses.size() < 2)
+            return addresses;
+        List<InetAddress> snitchordered = subsnitch.sortByProximity(address, addresses);
+        Double first = scores.get(snitchordered.get(0));
+        if (first == null)
+            return snitchordered;
+        for (InetAddress addr : addresses)
+        {
+            Double next = scores.get(addr);
+            if (next == null)
+                return snitchordered;
+            if ((first - next) / first > BADNESS_THRESHOLD)
+                return sortByProximityWithScore(address, addresses);
+        }
+        return snitchordered;
     }
 
     public int compareEndpoints(InetAddress target, InetAddress a1, InetAddress a2)

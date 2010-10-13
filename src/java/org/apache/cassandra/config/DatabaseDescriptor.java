@@ -561,6 +561,11 @@ public class    DatabaseDescriptor
                     throw new ConfigurationException("read_repair_chance must be between 0.0 and 1.0 (0% and 100%)");
                 }
 
+                if (conf.dynamic_snitch_badness_threshold < 0.0 || conf.dynamic_snitch_badness_threshold > 1.0)
+                {
+                    throw new ConfigurationException("dynamic_snitch_badness_threshold must be between 0.0 and 1.0 (0% and 100%)");
+                }
+                
                 if (cf.min_compaction_threshold < 0 || cf.max_compaction_threshold < 0)
                 {
                     throw new ConfigurationException("min/max_compaction_thresholds must be non-negative integers.");
@@ -1105,5 +1110,20 @@ public class    DatabaseDescriptor
     public static File getSerializedKeyCachePath(String ksName, String cfName)
     {
         return new File(conf.saved_caches_directory + File.separator + ksName + "-" + cfName + "-KeyCache");
+    }
+
+    public static int getDynamicUpdateInterval()
+    {
+        return conf.dynamic_snitch_update_interval_in_ms;
+    }
+
+    public static int getDynamicResetInterval()
+    {
+        return conf.dynamic_snitch_reset_interval_in_ms;
+    }
+
+    public static double getDynamicBadnessThreshold()
+    {
+        return conf.dynamic_snitch_badness_threshold;
     }
 }
