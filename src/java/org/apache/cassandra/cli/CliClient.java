@@ -610,11 +610,11 @@ public class CliClient
         CommonTree columnFamilySpec = (CommonTree)ast.getChild(0);
         assert(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS);
 
-        final String key = CliCompiler.getKey(columnFamilySpec);
-        final String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
-        final int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
-        final CfDef columnFamilyDef = getCfDef(columnFamily); 
-        final boolean isSuper = columnFamilyDef.comparator_type.equals("Super");
+        String key = CliCompiler.getKey(columnFamilySpec);
+        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
+        int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
+        CfDef columnFamilyDef = getCfDef(columnFamily);
+        boolean isSuper = columnFamilyDef.comparator_type.equals("Super");
         
         byte[] superColumnName = null;
         String columnName;
@@ -653,15 +653,15 @@ public class CliClient
             return;
         }
 
-        final byte[] columnNameInBytes = columnNameAsByteArray(columnName, columnFamily);
-        final AbstractType validator = getValidatorForValue(columnFamilyDef, columnNameInBytes);
+        byte[] columnNameInBytes = columnNameAsByteArray(columnName, columnFamily);
+        AbstractType validator = getValidatorForValue(columnFamilyDef, columnNameInBytes);
         
         // Perform a get()
         ColumnPath path = new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnNameInBytes);
         Column column = thriftClient_.get(key.getBytes(), path, ConsistencyLevel.ONE).column;
 
-        final byte[] columnValue = column.getValue();
-        final String valueAsString = (validator == null) ? new String(columnValue, "UTF-8") : validator.getString(columnValue);
+        byte[] columnValue = column.getValue();
+        String valueAsString = (validator == null) ? new String(columnValue, "UTF-8") : validator.getString(columnValue);
 
         // print results
         css_.out.printf("=> (column=%s, value=%s, timestamp=%d)\n",
@@ -711,8 +711,8 @@ public class CliClient
         }
 
 
-        final byte[] columnNameInBytes  = columnNameAsByteArray(columnName, columnFamily);
-        final byte[] columnValueInBytes = columnValueAsByteArray(columnNameInBytes, columnFamily, value);
+        byte[] columnNameInBytes  = columnNameAsByteArray(columnName, columnFamily);
+        byte[] columnValueInBytes = columnValueAsByteArray(columnNameInBytes, columnFamily, value);
         
         // do the insert
         thriftClient_.insert(key.getBytes(), new ColumnParent(columnFamily).setSuper_column(superColumnName),
@@ -740,12 +740,12 @@ public class CliClient
             return;
         }
         
-        //defaults
-        final List<CfDef> columnList = new LinkedList<CfDef>();
+        // defaults
+        List<CfDef> columnList = new LinkedList<CfDef>();
         
         // first value is the keyspace name, after that it is all key=value
-        final String keyspaceName = statement.getChild(0).getText();
-        final KsDef ksDef = new KsDef(keyspaceName, DEFAULT_PLACEMENT_STRATEGY, 1, columnList);
+        String keyspaceName = statement.getChild(0).getText();
+        KsDef ksDef = new KsDef(keyspaceName, DEFAULT_PLACEMENT_STRATEGY, 1, columnList);
 
         try
         {
@@ -775,8 +775,8 @@ public class CliClient
         }
 
         // first value is the column family name, after that it is all key=value
-        final String columnFamilyName = statement.getChild(0).getText();
-        final CfDef cfDef = new CfDef(keySpace, columnFamilyName);        
+        String columnFamilyName = statement.getChild(0).getText();
+        CfDef cfDef = new CfDef(keySpace, columnFamilyName);
 
         try
         {
@@ -797,19 +797,19 @@ public class CliClient
      * Update existing keyspace identified by name
      * @param statement - tree represeting statement
      */
-    private void executeUpdateKeyspace(final Tree statement)
+    private void executeUpdateKeyspace(Tree statement)
     {
         if (!CliMain.isConnected())
         {
             return;
         }
 
-        final String keyspaceName = statement.getChild(0).getText();
+        String keyspaceName = statement.getChild(0).getText();
         
         try
         {
-            final KsDef currentKsDef = getKSMetaData(keyspaceName);
-            final KsDef updatedKsDef = updateKsDefAttributes(statement, currentKsDef);
+            KsDef currentKsDef = getKSMetaData(keyspaceName);
+            KsDef updatedKsDef = updateKsDefAttributes(statement, currentKsDef);
 
             css_.out.println(thriftClient_.system_update_keyspace(updatedKsDef));
             keyspacesMap.put(keyspaceName, thriftClient_.describe_keyspace(keyspaceName));
@@ -828,15 +828,15 @@ public class CliClient
      * Update existing column family identified by name
      * @param statement - tree represeting statement
      */
-    private void executeUpdateColumnFamily(final Tree statement)
+    private void executeUpdateColumnFamily(Tree statement)
     {
         if (!CliMain.isConnected() || !hasKeySpace())
         {
             return;
         }
 
-        final String columnFamilyName = statement.getChild(0).getText();
-        final CfDef cfDef = getCfDef(columnFamilyName);
+        String columnFamilyName = statement.getChild(0).getText();
+        CfDef cfDef = getCfDef(columnFamilyName);
 
         try
         {
@@ -859,18 +859,18 @@ public class CliClient
      * @param ksDefToUpdate - keyspace definition to update
      * @return ksDef - updated keyspace definition
      */
-    private KsDef updateKsDefAttributes(final Tree statement, final KsDef ksDefToUpdate)
+    private KsDef updateKsDefAttributes(Tree statement, KsDef ksDefToUpdate)
     {
-        final KsDef ksDef = new KsDef(ksDefToUpdate);
+        KsDef ksDef = new KsDef(ksDefToUpdate);
         
         // removing all column definitions - thrift system_update_keyspace method requires that 
         ksDef.setCf_defs(new LinkedList<CfDef>());
         
         for(int i = 1; i < statement.getChildCount(); i += 2)
         {
-            final String currentStatement = statement.getChild(i).getText().toUpperCase();
-            final AddKeyspaceArgument mArgument = AddKeyspaceArgument.valueOf(currentStatement);
-            final String mValue = statement.getChild(i + 1).getText();
+            String currentStatement = statement.getChild(i).getText().toUpperCase();
+            AddKeyspaceArgument mArgument = AddKeyspaceArgument.valueOf(currentStatement);
+            String mValue = statement.getChild(i + 1).getText();
 
             switch(mArgument)
             {
@@ -898,15 +898,15 @@ public class CliClient
      * @param cfDefToUpdate - column family definition to apply updates on
      * @return cfDef - updated column family definition
      */
-    private CfDef updateCfDefAttributes(final Tree statement, final CfDef cfDefToUpdate)
+    private CfDef updateCfDefAttributes(Tree statement, CfDef cfDefToUpdate)
     {
-        final CfDef cfDef = new CfDef(cfDefToUpdate);
+        CfDef cfDef = new CfDef(cfDefToUpdate);
 
-        for(int i = 1; i < statement.getChildCount(); i += 2)
+        for (int i = 1; i < statement.getChildCount(); i += 2)
         {
-            final String currentArgument = statement.getChild(i).getText().toUpperCase();
-            final AddColumnFamilyArgument mArgument = AddColumnFamilyArgument.valueOf(currentArgument);
-            final String mValue = statement.getChild(i + 1).getText();
+            String currentArgument = statement.getChild(i).getText().toUpperCase();
+            AddColumnFamilyArgument mArgument = AddColumnFamilyArgument.valueOf(currentArgument);
+            String mValue = statement.getChild(i + 1).getText();
 
             switch(mArgument)
             {
@@ -947,7 +947,7 @@ public class CliClient
                 break;
 
             case COLUMN_METADATA:
-                final Tree arrayOfMetaAttributes = statement.getChild(i + 1);
+                Tree arrayOfMetaAttributes = statement.getChild(i + 1);
 
                 if (!arrayOfMetaAttributes.getText().equals("ARRAY"))
                 {
@@ -1265,9 +1265,9 @@ public class CliClient
      * @param columnFamilyName column family name 
      * @return CfDef - Column family definition object
      */
-    private CfDef getCfDef(final String keySpaceName, final String columnFamilyName)
+    private CfDef getCfDef(String keySpaceName, String columnFamilyName)
     {
-        final KsDef keySpaceDefinition = keyspacesMap.get(keySpaceName);
+        KsDef keySpaceDefinition = keyspacesMap.get(keySpaceName);
         
         for (CfDef columnFamilyDef : keySpaceDefinition.cf_defs)
         {
@@ -1285,7 +1285,7 @@ public class CliClient
      * @param columnFamilyName column family name to find in specified keyspace
      * @return CfDef - Column family definition object
      */
-    private CfDef getCfDef(final String columnFamilyName)
+    private CfDef getCfDef(String columnFamilyName)
     {
         return getCfDef(this.keySpace, columnFamilyName);
     }
@@ -1297,17 +1297,17 @@ public class CliClient
      * 
      * meta is in following format - ^(ARRAY ^(HASH ^(PAIR .. ..) ^(PAIR .. ..)) ^(HASH ...))
      */
-    private List<ColumnDef> getCFColumnMetaFromTree(final Tree meta)
+    private List<ColumnDef> getCFColumnMetaFromTree(Tree meta)
     {
         // this list will be returned
-        final List<ColumnDef> columnDefinitions = new ArrayList<ColumnDef>();
+        List<ColumnDef> columnDefinitions = new ArrayList<ColumnDef>();
         
         // each child node is a ^(HASH ...)
         for (int i = 0; i < meta.getChildCount(); i++)
         {
             Tree metaHash = meta.getChild(i);
 
-            final ColumnDef columnDefinition = new ColumnDef();
+            ColumnDef columnDefinition = new ColumnDef();
             
             // each child node is ^(PAIR $key $value)
             for (int j = 0; j < metaHash.getChildCount(); j++)
@@ -1365,10 +1365,10 @@ public class CliClient
      * @param indexTypeAsString - string return by parser corresponding to IndexType 
      * @return IndexType - an IndexType object
      */
-    private IndexType getIndexTypeFromString(final String indexTypeAsString)
+    private IndexType getIndexTypeFromString(String indexTypeAsString)
     {
-        final Integer indexTypeId;
-        final IndexType indexType;
+        Integer indexTypeId;
+        IndexType indexType;
 
         try {
             indexTypeId = new Integer(indexTypeAsString);
@@ -1393,11 +1393,11 @@ public class CliClient
      * @return byte[] - object in the byte array representation
      * @throws UnsupportedEncodingException - raised but String.getBytes(encoding)
      */
-    private byte[] getBytesAccordingToType(final String object, final AbstractType comparator) throws UnsupportedEncodingException
+    private byte[] getBytesAccordingToType(String object, AbstractType comparator) throws UnsupportedEncodingException
     {
         if (comparator instanceof LongType)
         {
-            final long longType;
+            long longType;
             try
             {
                 longType = Long.valueOf(object);
@@ -1411,7 +1411,7 @@ public class CliClient
         }
         else if (comparator instanceof IntegerType)
         {
-            final BigInteger integerType;
+            BigInteger integerType;
 
             try
             {
@@ -1444,10 +1444,10 @@ public class CliClient
      * @throws IllegalAccessException - raised from getFormatTypeForColumn call
      * @throws UnsupportedEncodingException - raised from getBytes() calls
      */
-    private byte[] columnNameAsByteArray(final String column, final String columnFamily) throws NoSuchFieldException, InstantiationException, IllegalAccessException, UnsupportedEncodingException
+    private byte[] columnNameAsByteArray(String column, String columnFamily) throws NoSuchFieldException, InstantiationException, IllegalAccessException, UnsupportedEncodingException
     {
-        final CfDef columnFamilyDef   = getCfDef(columnFamily);
-        final String comparatorClass  = columnFamilyDef.comparator_type;
+        CfDef columnFamilyDef   = getCfDef(columnFamily);
+        String comparatorClass  = columnFamilyDef.comparator_type;
 
         return getBytesAccordingToType(column, getFormatTypeForColumn(comparatorClass));   
     }
@@ -1459,19 +1459,19 @@ public class CliClient
      * @param columnValue - actual column value
      * @return byte[] - value in byte array representation
      */
-    private byte[] columnValueAsByteArray(final byte[] columnName, final String columnFamilyName, final String columnValue)
+    private byte[] columnValueAsByteArray(byte[] columnName, String columnFamilyName, String columnValue)
     {
-        final CfDef columnFamilyDef = getCfDef(columnFamilyName);
+        CfDef columnFamilyDef = getCfDef(columnFamilyName);
         
         for (ColumnDef columnDefinition : columnFamilyDef.getColumn_metadata())
         {
-            final byte[] currentColumnName = columnDefinition.getName();
+            byte[] currentColumnName = columnDefinition.getName();
 
             if (Arrays.equals(currentColumnName, columnName))
             {
                 try
                 {
-                    final String validationClass = columnDefinition.getValidation_class();
+                    String validationClass = columnDefinition.getValidation_class();
                     return getBytesAccordingToType(columnValue, getFormatTypeForColumn(validationClass));
                 }
                 catch (Exception e)
@@ -1491,13 +1491,13 @@ public class CliClient
      * @param columnNameInBytes - column name as byte array
      * @return AbstractType - validator for column value
      */
-    private AbstractType getValidatorForValue(final CfDef ColumnFamilyDef, final byte[] columnNameInBytes)
+    private AbstractType getValidatorForValue(CfDef ColumnFamilyDef, byte[] columnNameInBytes)
     {
-        final String defaultValidator = ColumnFamilyDef.default_validation_class;
+        String defaultValidator = ColumnFamilyDef.default_validation_class;
         
         for (ColumnDef columnDefinition : ColumnFamilyDef.getColumn_metadata())
         {
-            final byte[] nameInBytes = columnDefinition.getName();
+            byte[] nameInBytes = columnDefinition.getName();
 
             if (Arrays.equals(nameInBytes, columnNameInBytes))
             {
@@ -1518,10 +1518,10 @@ public class CliClient
      * @param options - tree representing options
      * @return Map - strategy_options map
      */
-    private Map<String, String> getStrategyOptionsFromTree(final Tree options)
+    private Map<String, String> getStrategyOptionsFromTree(Tree options)
     {
         // this map will be returned
-        final Map<String, String> strategyOptions = new HashMap<String, String>();
+        Map<String, String> strategyOptions = new HashMap<String, String>();
 
         // each child node is a ^(HASH ...)
         for (int i = 0; i < options.getChildCount(); i++)
@@ -1534,9 +1534,9 @@ public class CliClient
                 Tree optionPair = optionsHash.getChild(j);
 
                 // current $key
-                final String key = CliUtils.unescapeSQLString(optionPair.getChild(0).getText());
+                String key = CliUtils.unescapeSQLString(optionPair.getChild(0).getText());
                 // current $value
-                final String val = CliUtils.unescapeSQLString(optionPair.getChild(1).getText());
+                String val = CliUtils.unescapeSQLString(optionPair.getChild(1).getText());
 
                 strategyOptions.put(key, val);
             }
