@@ -31,6 +31,8 @@ dev
  * remove ConsistencyLevel.ZERO (CASSANDRA-1607)
  * expose in-progress compaction type in jmx (CASSANDRA-1586)
  * removed IClock & related classes from internals (CASSANDRA-1502)
+ * fix removing tokens from SystemTable on decommission and removetoken
+   (CASSANDRA-1609)
 
 
 0.7-beta2

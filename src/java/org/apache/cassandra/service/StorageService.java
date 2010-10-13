@@ -732,23 +732,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         assert pieces.length == 2;
         Token token = getPartitioner().getTokenFactory().fromString(pieces[1]);
 
-        // endpoint itself is leaving
         if (logger_.isDebugEnabled())
             logger_.debug("Node " + endpoint + " state left, token " + token);
 
-        // If the node is member, remove all references to it. If not, call
-        // removeBootstrapToken just in case it is there (very unlikely chain of events)
-        if (tokenMetadata_.isMember(endpoint))
-        {
-            if (!tokenMetadata_.getToken(endpoint).equals(token))
-                logger_.warn("Node " + endpoint + " 'left' token mismatch. Long network partition?");
-            tokenMetadata_.removeEndpoint(endpoint);
-            HintedHandOffManager.deleteHintsForEndPoint(endpoint);
-        }
-
-        // remove token from bootstrap tokens just in case it is still there
-        tokenMetadata_.removeBootstrapToken(token);
-        calculatePendingRanges();
+        excise(token, endpoint);
     }
 
     /**
@@ -771,10 +758,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         if (VersionedValue.REMOVED_TOKEN.equals(state))
         {
-            Gossiper.instance.removeEndpoint(removeEndpoint);
-            tokenMetadata_.removeEndpoint(removeEndpoint);
-            HintedHandOffManager.deleteHintsForEndPoint(removeEndpoint);
-            tokenMetadata_.removeBootstrapToken(removeToken);
+            excise(removeToken, removeEndpoint);
         }
         else if (VersionedValue.REMOVING_TOKEN.equals(state))
         {
@@ -788,10 +772,19 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             // grab any data we are now responsible for and notify responsible node
             restoreReplicaCount(removeEndpoint, endpoint);
         }
+    }
+
+    private void excise(Token token, InetAddress endpoint)
+    {
+        Gossiper.instance.removeEndpoint(endpoint);
+        tokenMetadata_.removeEndpoint(endpoint);
+        HintedHandOffManager.deleteHintsForEndPoint(endpoint);
+        tokenMetadata_.removeBootstrapToken(token);
+        calculatePendingRanges();
         if (!isClientMode)
         {
-            logger_.info("Removing token " + removeToken + " for " + removeEndpoint);
-            SystemTable.removeToken(removeToken);
+            logger_.info("Removing token " + token + " for " + endpoint);
+            SystemTable.removeToken(token);
         }
     }
 
@@ -1778,13 +1771,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             }
         }
 
-        Gossiper.instance.removeEndpoint(endpoint);
-        tokenMetadata_.removeBootstrapToken(token);
-        tokenMetadata_.removeEndpoint(endpoint);
-        HintedHandOffManager.deleteHintsForEndPoint(endpoint);
+        excise(token, endpoint);
 
         // indicate the token has left
-        calculatePendingRanges();
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.removedNonlocal(localToken, token));
 
         replicatingNodes = null;
