@@ -58,7 +58,8 @@ public class CliClient
      */
     private enum AddKeyspaceArgument {
         REPLICATION_FACTOR,
-        PLACEMENT_STRATEGY
+        PLACEMENT_STRATEGY,
+        STRATEGY_OPTIONS
     }
 
     private Cassandra.Client thriftClient_ = null;
@@ -226,10 +227,12 @@ public class CliClient
                 css_.out.println("                        this keyspace. Valid values are");
                 css_.out.println("                        org.apache.cassandra.locator.SimpleStrategy,");
                 css_.out.println("                        org.apache.cassandra.locator.NetworkTopologyStrategy,");
-                css_.out.println("                        and org.apache.cassandra.locator.OldNetworkTopologyStrategy\n");
+                css_.out.println("                        and org.apache.cassandra.locator.OldNetworkTopologyStrategy");
+                css_.out.println("      strategy_options: additional options for placement_strategy.\n");
                 css_.out.println("example:");
                 css_.out.println("create keyspace foo with replication_factor = 3 and ");
                 css_.out.println("        placement_strategy = 'org.apache.cassandra.locator.SimpleStrategy'");
+                css_.out.println("        and strategy_options=[{DC1:2, DC2:2}]");
                 break;
 
             case CliParser.NODE_UPDATE_KEYSPACE:
@@ -244,10 +247,12 @@ public class CliClient
                 css_.out.println("                        this keyspace. Valid values are");
                 css_.out.println("                        org.apache.cassandra.locator.SimpleStrategy,");
                 css_.out.println("                        org.apache.cassandra.locator.NetworkTopologyStrategy,");
-                css_.out.println("                        and org.apache.cassandra.locator.OldNetworkTopologyStrategy\n");
+                css_.out.println("                        and org.apache.cassandra.locator.OldNetworkTopologyStrategy");
+                css_.out.println("      strategy_options: additional options for placement_strategy.\n");
                 css_.out.println("example:");
                 css_.out.println("update keyspace foo with replication_factor = 2 and ");
                 css_.out.println("        placement_strategy = 'org.apache.cassandra.locator.LocalStrategy'");
+                css_.out.println("        and strategy_options=[{DC1:1, DC2:4, DC3:2}]");
                 break;
 
             case CliParser.NODE_ADD_COLUMN_FAMILY:
@@ -874,6 +879,9 @@ public class CliClient
                 break;
             case REPLICATION_FACTOR:
                 ksDef.setReplication_factor(Integer.parseInt(mValue));
+                break;
+            case STRATEGY_OPTIONS:
+                ksDef.setStrategy_options(getStrategyOptionsFromTree(statement.getChild(i + 1)));
                 break;
             default:
                 //must match one of the above or we'd throw an exception at the valueOf statement above.
@@ -1503,6 +1511,38 @@ public class CliClient
         }
 
         return null;
+    }
+
+    /**
+     * Used to get Map of the provided options by create/update keyspace commands
+     * @param options - tree representing options
+     * @return Map - strategy_options map
+     */
+    private Map<String, String> getStrategyOptionsFromTree(final Tree options)
+    {
+        // this map will be returned
+        final Map<String, String> strategyOptions = new HashMap<String, String>();
+
+        // each child node is a ^(HASH ...)
+        for (int i = 0; i < options.getChildCount(); i++)
+        {
+            Tree optionsHash = options.getChild(i);
+            
+            // each child node is ^(PAIR $key $value)
+            for (int j = 0; j < optionsHash.getChildCount(); j++)
+            {
+                Tree optionPair = optionsHash.getChild(j);
+
+                // current $key
+                final String key = CliUtils.unescapeSQLString(optionPair.getChild(0).getText());
+                // current $value
+                final String val = CliUtils.unescapeSQLString(optionPair.getChild(1).getText());
+
+                strategyOptions.put(key, val);
+            }
+        }
+
+        return strategyOptions;
     }
 
 }
