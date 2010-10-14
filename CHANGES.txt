@@ -33,6 +33,7 @@ dev
  * removed IClock & related classes from internals (CASSANDRA-1502)
  * fix removing tokens from SystemTable on decommission and removetoken
    (CASSANDRA-1609)
+ * include CF metadata in cli 'show keyspaces' (CASSANDRA-1613)
 
 
 0.7-beta2

@@ -1177,34 +1177,46 @@ public class CliClient
 
     private void describeTableInternal(String tableName, KsDef metadata) throws TException {
         // Describe and display
-        css_.out.println("Keyspace: " + tableName);
+        css_.out.println("Keyspace: " + tableName + ":");
         try
         {
             KsDef ks_def;
-            if (metadata != null) {
-                ks_def = metadata;
-            }
-            else {
-                ks_def = thriftClient_.describe_keyspace(tableName);
-            }
+            ks_def = metadata == null ? thriftClient_.describe_keyspace(tableName) : metadata;
             css_.out.println("  Replication Factor: " + ks_def.replication_factor);
             css_.out.println("  Column Families:");
 
             for (CfDef cf_def : ks_def.cf_defs)
             {
-                /**
-                String desc = columnMap.get("Desc");
-                String columnFamilyType = columnMap.get("Type");
-                String sort = columnMap.get("CompareWith");
-                String flushperiod = columnMap.get("FlushPeriodInMinutes");
-                css_.out.println(desc);
-                 */
-                //css_.out.println("description");
-                css_.out.println("    Column Family Name: " + cf_def.name + " {");
+                css_.out.println("    Column Family Name: " + cf_def.name);
                 css_.out.println("      Column Family Type: " + cf_def.column_type);
                 css_.out.println("      Column Sorted By: " + cf_def.comparator_type);
-                //css_.out.println("      flush period: " + flushperiod + " minutes");
-                css_.out.println("    }");
+
+                if (cf_def.getColumn_metadataSize() != 0)
+                {
+                    String leftSpace = "      ";
+                    String columnLeftSpace = leftSpace + "    ";
+
+                    AbstractType columnNameValidator = getFormatTypeForColumn(cf_def.comparator_type);
+
+                    css_.out.println(leftSpace + "Column Metadata:");
+                    for (ColumnDef columnDef : cf_def.getColumn_metadata())
+                    {
+                        String columnName = columnNameValidator.getString(columnDef.getName());
+
+                        css_.out.println(leftSpace + "  Column Name: " + columnName);
+                        css_.out.println(columnLeftSpace + "Validation Class: " + columnDef.getValidation_class());
+
+                        if (columnDef.isSetIndex_name())
+                        {
+                            css_.out.println(columnLeftSpace + "Index Name: " + columnDef.getIndex_name());
+                        }
+
+                        if (columnDef.isSetIndex_type())
+                        {
+                            css_.out.println(columnLeftSpace + "Index Type: " + columnDef.getIndex_type().name());
+                        }
+                    }
+                }
             }
         }
         catch (InvalidRequestException e)
