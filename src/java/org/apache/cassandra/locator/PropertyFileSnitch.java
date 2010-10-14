@@ -54,7 +54,8 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
      */
     private static Logger logger_ = LoggerFactory.getLogger(PropertyFileSnitch.class);
 
-    public PropertyFileSnitch() throws ConfigurationException {
+    public PropertyFileSnitch() throws ConfigurationException
+    {
         reloadConfiguration();
         Runnable runnable = new WrappedRunnable()
         {
@@ -68,12 +69,12 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
 
     /**
      * Get the raw information about an end point
-     * 
+     *
      * @param endpoint endpoint to process
-     * 
      * @return a array of string with the first index being the data center and the second being the rack
      */
-    public String[] getEndpointInfo(InetAddress endpoint) {
+    public String[] getEndpointInfo(InetAddress endpoint)
+    {
         String key = endpoint.getHostAddress();
         String value = hostProperties.getProperty(key);
         if (value == null)
@@ -85,29 +86,30 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
         if (st.countTokens() < 2)
         {
             logger_.error("Value for " + key + " is invalid: " + value);
-            return new String [] {"default", "default"};
+            return new String[] { "default", "default" };
         }
-        return new String[] {st.nextToken(), st.nextToken()};
+        return new String[] { st.nextToken(), st.nextToken() };
     }
 
     /**
      * Return the data center for which an endpoint resides in
-     *  
+     *
      * @param endpoint the endpoint to process
      * @return string of data center
      */
-    public String getDatacenter(InetAddress endpoint) {
+    public String getDatacenter(InetAddress endpoint)
+    {
         return getEndpointInfo(endpoint)[0];
     }
 
     /**
      * Return the rack for which an endpoint resides in
-     *  
+     *
      * @param endpoint the endpoint to process
-     * 
      * @return string of rack
      */
-    public String getRack(InetAddress endpoint) {
+    public String getRack(InetAddress endpoint)
+    {
         return getEndpointInfo(endpoint)[1];
     }
 
