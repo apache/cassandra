@@ -66,16 +66,15 @@ public abstract class AbstractNetworkTopologySnitch extends AbstractEndpointSnit
      * @param addresses the nodes to sort
      * @return the sorted <tt>List</tt>
      */
-    public List<InetAddress> sortByProximity(final InetAddress address, List<InetAddress> addresses)
+    public void sortByProximity(final InetAddress address, List<InetAddress> addresses)
     {
         Collections.sort(addresses, new Comparator<InetAddress>()
         {
             public int compare(InetAddress a1, InetAddress a2)
             {
                    return compareEndpoints(address, a1, a2);
-            };
+            }
         });
-        return addresses;
     }
 
     public int compareEndpoints(InetAddress address, InetAddress a1, InetAddress a2)

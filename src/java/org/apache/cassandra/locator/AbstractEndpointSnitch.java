@@ -57,7 +57,7 @@ public abstract class AbstractEndpointSnitch implements IEndpointSnitch
     }
 
     public abstract List<InetAddress> getSortedListByProximity(InetAddress address, Collection<InetAddress> unsortedAddress);
-    public abstract List<InetAddress> sortByProximity(InetAddress address, List<InetAddress> addresses);
+    public abstract void sortByProximity(InetAddress address, List<InetAddress> addresses);
 
     public int compareEndpoints(InetAddress target, InetAddress a1, InetAddress a2)
     {

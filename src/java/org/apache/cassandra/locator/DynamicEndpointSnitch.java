@@ -118,20 +118,20 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         return list;
     }
 
-    public List<InetAddress> sortByProximity(final InetAddress address, List<InetAddress> addresses)
+    public void sortByProximity(final InetAddress address, List<InetAddress> addresses)
     {
         assert address.equals(FBUtilities.getLocalAddress()); // we only know about ourself
         if (BADNESS_THRESHOLD == 0)
         {
-            return sortByProximityWithScore(address, addresses);
+            sortByProximityWithScore(address, addresses);
         }
         else
         {
-            return sortByProximityWithBadness(address, addresses);
+            sortByProximityWithBadness(address, addresses);
         }
     }
 
-    private List<InetAddress> sortByProximityWithScore(final InetAddress address, List<InetAddress> addresses)
+    private void sortByProximityWithScore(final InetAddress address, List<InetAddress> addresses)
     {
         Collections.sort(addresses, new Comparator<InetAddress>()
         {
@@ -140,26 +140,27 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
                 return compareEndpoints(address, a1, a2);
             }
         });
-        return addresses;
     }
 
-    private List<InetAddress> sortByProximityWithBadness(final InetAddress address, List<InetAddress> addresses)
+    private void sortByProximityWithBadness(final InetAddress address, List<InetAddress> addresses)
     {
         if (addresses.size() < 2)
-            return addresses;
-        List<InetAddress> snitchordered = subsnitch.sortByProximity(address, addresses);
-        Double first = scores.get(snitchordered.get(0));
+            return;
+        subsnitch.sortByProximity(address, addresses);
+        Double first = scores.get(addresses.get(0));
         if (first == null)
-            return snitchordered;
+            return;
         for (InetAddress addr : addresses)
         {
             Double next = scores.get(addr);
             if (next == null)
-                return snitchordered;
+                return;
             if ((first - next) / first > BADNESS_THRESHOLD)
-                return sortByProximityWithScore(address, addresses);
+            {
+                sortByProximityWithScore(address, addresses);
+                return;
+            }
         }
-        return snitchordered;
     }
 
     public int compareEndpoints(InetAddress target, InetAddress a1, InetAddress a2)

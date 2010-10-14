@@ -51,7 +51,7 @@ public interface IEndpointSnitch
     /**
      * This method will sort the <tt>List</tt> by proximity to the given address.
      */
-    public List<InetAddress> sortByProximity(InetAddress address, List<InetAddress> addresses);
+    public void sortByProximity(InetAddress address, List<InetAddress> addresses);
 
     /**
      * compares two endpoints in relation to the target endpoint, returning as Comparator.compare would

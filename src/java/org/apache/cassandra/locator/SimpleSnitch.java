@@ -45,8 +45,7 @@ public class SimpleSnitch extends AbstractEndpointSnitch
         return new ArrayList<InetAddress>(addresses);
     }
 
-    public List<InetAddress> sortByProximity(final InetAddress address, List<InetAddress> addresses)
+    public void sortByProximity(final InetAddress address, List<InetAddress> addresses)
     {
-        return addresses;
     }
 }
