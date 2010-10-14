@@ -38,6 +38,7 @@ dev
    avoid synchronization bottleneck (CASSANDRA-1481)
  * PropertyFileSnitch configuration file renamed to 
    cassandra-topology.properties
+ * add cli support for get_range_slices (CASSANDRA-1088)
 
 
 0.7-beta2

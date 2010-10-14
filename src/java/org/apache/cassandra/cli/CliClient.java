@@ -22,6 +22,7 @@ import java.math.BigInteger;
 import java.util.*;
 
 import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang.StringUtils;
 
 import org.antlr.runtime.tree.CommonTree;
 import org.antlr.runtime.tree.Tree;
@@ -144,6 +145,9 @@ public class CliClient
                 	break;
                 case CliParser.NODE_CONNECT:
                     executeConnect(ast);
+                    break;
+                case CliParser.NODE_LIST:
+                	executeList(ast);
                     break;
                 case CliParser.NODE_NO_OP:
                     // comment lines come here; they are treated as no ops.
@@ -376,6 +380,14 @@ public class CliClient
                 css_.out.println("count bar['testkey']['my super']");
                 css_.out.println("count baz['testkey']");
                 break;
+
+            case CliParser.NODE_LIST:
+                css_.out.println("list <cf>['<startKey>':'<endKey']\n");
+                css_.out.println("list <cf>['<startKey>':'<endKey'] limit M\n");
+                css_.out.println("list <cf>['<startKey>':'<endKey']['<super>']\n");
+                css_.out.println("list <cf>['<startKey>':'<endKey']['<super>'] limit M\n");
+                css_.out.println("List a range of rows in the column or supercolumn family.\n");
+                break;
                 
             default:
                 css_.out.println("?");
@@ -419,6 +431,9 @@ public class CliClient
             css_.out.println("del <cf>['<key>']['<super>']['<col>']                         Delete sub column.");
             css_.out.println("count <cf>['<key>']                                     Count columns in record.");
             css_.out.println("count <cf>['<key>']['<super>']                  Count columns in a super column.");
+            css_.out.println("list <cf>['<startKey>':'<endKey']                List rows in the column family.");
+            css_.out.println("list <cf>['<startKey>':'<endKey']['<super>']  List the super column across rows.");
+            css_.out.println("list ... limit N                                    Limit the list results to N.");
         } 
     }
 
@@ -1039,6 +1054,104 @@ public class CliClient
         String columnNewName = ast.getChild(1).getText();
 
         css_.out.println(thriftClient_.system_rename_column_family(columnName, columnNewName));
+    }
+
+    private void executeList(CommonTree ast)
+    throws TException, InvalidRequestException, NotFoundException, IllegalAccessException, InstantiationException, NoSuchFieldException, UnavailableException, TimedOutException, UnsupportedEncodingException
+    {
+        if (!CliMain.isConnected())
+            return;
+
+        // AST check
+        assert (ast.getChildCount() == 1 || ast.getChildCount() == 2) : "Incorrect AST Construct!";
+
+        CommonTree keyRangeSpec = (CommonTree) ast.getChild(0);
+        assert (keyRangeSpec.getType() == CliParser.NODE_KEY_RANGE_ACCESS);
+
+        // extract key range, column family, and super column name
+        String columnFamily = keyRangeSpec.getChild(0).getText();
+        String startKey = CliUtils.unescapeSQLString(keyRangeSpec.getChild(1).getText());
+        String endKey = CliUtils.unescapeSQLString(keyRangeSpec.getChild(2).getText());
+
+        String superColumnName = null;
+        if (keyRangeSpec.getChildCount() == 4)
+        {
+            superColumnName = CliUtils.unescapeSQLString(keyRangeSpec.getChild(3).getText());
+        }
+
+        // extract LIMIT clause
+        int limitCount = Integer.MAX_VALUE;
+        if (ast.getChildCount() == 2)
+        {
+            CommonTree limitSpec = (CommonTree) ast.getChild(1);
+            assert (limitSpec.getType() == CliParser.NODE_LIMIT);
+            limitCount = Integer.parseInt(limitSpec.getChild(0).getText());
+        }
+        assert (limitCount > 0) : "Limit count should be > 0!";
+
+        List<String> cfnames = new ArrayList<String>();
+        for (CfDef cfd : keyspacesMap.get(keySpace).cf_defs)
+        {
+            cfnames.add(cfd.name);
+        }
+
+        int idx = cfnames.indexOf(columnFamily);
+        if (idx == -1)
+        {
+            css_.out.println("No such column family: " + columnFamily);
+            return;
+        }
+
+        // read all columns and superColumns
+        SlicePredicate predicate = new SlicePredicate();
+        SliceRange sliceRange = new SliceRange();
+        sliceRange.setStart(new byte[0]).setFinish(new byte[0]);
+        predicate.setSlice_range(sliceRange);
+
+        // set the key range
+        KeyRange range = new KeyRange(10);
+        range.setStart_key(startKey.getBytes()).setEnd_key(endKey.getBytes());
+
+        ColumnParent columnParent = new ColumnParent(columnFamily);
+        if (StringUtils.isNotBlank(superColumnName))
+        {
+            columnParent.setSuper_column(superColumnName.getBytes());
+        }
+
+        List<KeySlice> keySlices = thriftClient_.get_range_slices(columnParent, predicate, range, ConsistencyLevel.ONE);
+        int toIndex = keySlices.size();
+        if (limitCount < keySlices.size()) // limitCount could be Integer.MAX_VALUE
+            toIndex = limitCount;
+        List<KeySlice> limitSlices = keySlices.subList(0, toIndex);
+
+        for (KeySlice ks : limitSlices)
+        {
+            css_.out.printf("-------------------\nRowKey: %s\n", new String(ks.key, "UTF-8"));
+            Iterator<ColumnOrSuperColumn> iterator = ks.getColumnsIterator();
+            while (iterator.hasNext())
+            {
+                ColumnOrSuperColumn columnOrSuperColumn = iterator.next();
+                if (columnOrSuperColumn.column != null)
+                {
+                    Column col = columnOrSuperColumn.column;
+                    css_.out.printf("=> (column=%s, value=%s, timestamp=%d)\n",
+                                    formatColumnName(keySpace, columnFamily, col), new String(col.value, "UTF-8"), col.timestamp);
+                }
+                else if (columnOrSuperColumn.super_column != null)
+                {
+                    SuperColumn superCol = columnOrSuperColumn.super_column;
+                    css_.out.printf("=> (super_column=%s,", formatSuperColumnName(keySpace, columnFamily, superCol));
+                    for (Column col : superCol.columns)
+                    {
+                        css_.out.printf("\n     (column=%s, value=%s, timestamp=%d)",
+                                        formatSubcolumnName(keySpace, columnFamily, col), new String(col.value, "UTF-8"), col.timestamp);
+                    }
+                    css_.out.println(")");
+                }
+            }
+        }
+
+        css_.out.printf("\n%d Row%s Returned.\n", limitSlices.size(), (limitSlices.size() > 1 ? "s" : ""));
     }
 
     private void executeShowVersion() throws TException
