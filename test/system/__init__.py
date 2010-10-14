@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os, sys, time, signal, httplib
+import os, sys, time, signal, httplib, errno
 
 __all__ = ['root', 'thrift_client']
 
@@ -124,13 +124,30 @@ class BaseTester(object):
         self.define_schema()
 
     def tearDown(self):
+        def is_alive(pid):
+            try:
+                os.kill(pid, 0)
+                return 1
+            except OSError, err:
+                return err.errno == errno.EPERM
+
         if self.runserver:
+            spid = pid()
+            max_wait = 1
             self.close_client()
-            open('/tmp/kill', 'w').write('killing %s\n' % pid())
-            os.kill(pid(), signal.SIGTERM)
-            # TODO kill server with SIGKILL if it's still alive
-            time.sleep(0.5)
-            # TODO assert server is Truly Dead
+            open('/tmp/kill', 'w').write('killing %s\n' % spid)
+            os.kill(spid, signal.SIGTERM)
+            slept = 0
+            while (slept < max_wait):
+                time.sleep(0.5)
+                if not is_alive(spid):
+                    break
+                slept += 0.5
+            if (slept > max_wait and is_alive(spid)):
+                os.kill(spid, signal.SIGKILL)
+                fpath = os.path.join(root, pid_fname)
+                if os.path.exists(fpath): os.unlink(fpath)
+                raise Exception('Server did not shutdown correctly')
 
 class ThriftTester(BaseTester):
     client = thrift_client
