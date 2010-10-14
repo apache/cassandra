@@ -676,9 +676,15 @@ public class FBUtilities
         StringBuilder sb = new StringBuilder("{");
         for (Map.Entry<?,?> entry : map.entrySet())
         {
-            sb.append(entry.getKey()).append(": ").append(entry.getValue()).append(", ");
+            sb.append(toString(entry.getKey())).append(": ").append(toString(entry.getValue())).append(", ");
         }
         sb.append("}");
         return sb.toString();
+    }
+
+    /** slow! */
+    private static Object toString(Object o)
+    {
+        return o.getClass().isArray() ? Arrays.toString((Object[]) o) : o.toString();
     }
 }

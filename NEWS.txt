@@ -76,6 +76,8 @@ Configuraton
 ------------
     - Configuration file renamed to cassandra.yaml and log4j.properties to
       log4j-server.properties
+    - PropertyFileSnitch configuration file renamed to 
+      cassandra-topology.properties
     - The ThriftAddress and ThriftPort directives have been renamed to
       RPCAddress and RPCPort respectively.
     - EndPointSnitch was renamed to RackInferringSnitch.  A new SimpleSnitch

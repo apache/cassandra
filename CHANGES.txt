@@ -34,6 +34,10 @@ dev
  * fix removing tokens from SystemTable on decommission and removetoken
    (CASSANDRA-1609)
  * include CF metadata in cli 'show keyspaces' (CASSANDRA-1613)
+ * switch from Properties to HashMap in PropertyFileSnitch to
+   avoid synchronization bottleneck (CASSANDRA-1481)
+ * PropertyFileSnitch configuration file renamed to 
+   cassandra-topology.properties
 
 
 0.7-beta2
