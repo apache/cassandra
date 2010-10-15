@@ -914,6 +914,9 @@ public class CassandraServer implements Cassandra.Iface
           throw new InvalidRequestException("Invalid column type " + cf_def.column_type);
         }
 
+        CFMetaData.validateMinMaxCompactionThresholds(cf_def);
+        CFMetaData.validateMemtableSettings(cf_def);
+
         return new CFMetaData(cf_def.keyspace,
                               cf_def.name,
                               cfType,
@@ -928,6 +931,11 @@ public class CassandraServer implements Cassandra.Iface
                               DatabaseDescriptor.getComparator(cf_def.default_validation_class),
                               cf_def.isSetMin_compaction_threshold() ? cf_def.min_compaction_threshold : CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD,
                               cf_def.isSetMax_compaction_threshold() ? cf_def.max_compaction_threshold : CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD,
+                              cf_def.isSetRow_cache_save_period_in_seconds() ? cf_def.row_cache_save_period_in_seconds : CFMetaData.DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS,
+                              cf_def.isSetKey_cache_save_period_in_seconds() ? cf_def.key_cache_save_period_in_seconds : CFMetaData.DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS,
+                              cf_def.isSetMemtable_flush_after_mins() ? cf_def.memtable_flush_after_mins : CFMetaData.DEFAULT_MEMTABLE_LIFETIME_IN_MINS,
+                              cf_def.isSetMemtable_throughput_in_mb() ? cf_def.memtable_throughput_in_mb : CFMetaData.DEFAULT_MEMTABLE_THROUGHPUT_IN_MB,
+                              cf_def.isSetMemtable_operations_in_millions() ? cf_def.memtable_operations_in_millions : CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS,
                               ColumnDefinition.fromColumnDef(cf_def.column_metadata));
     }
 

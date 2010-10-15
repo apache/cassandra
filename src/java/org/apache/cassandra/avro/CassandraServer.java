@@ -831,6 +831,7 @@ public class CassandraServer implements Cassandra {
         String subCompare = cf_def.subcomparator_type == null ? D_CF_SUBCOMPTYPE : cf_def.subcomparator_type.toString();
 
         CFMetaData.validateMinMaxCompactionThresholds(cf_def);
+        CFMetaData.validateMemtableSettings(cf_def);
 
         return new CFMetaData(cf_def.keyspace.toString(),
                               cf_def.name.toString(),
@@ -846,6 +847,11 @@ public class CassandraServer implements Cassandra {
                               DatabaseDescriptor.getComparator(validate),
                               cf_def.min_compaction_threshold == null ? CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD : cf_def.min_compaction_threshold,
                               cf_def.max_compaction_threshold == null ? CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD : cf_def.max_compaction_threshold,
+                              cf_def.row_cache_save_period_in_seconds == null ? CFMetaData.DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS : cf_def.row_cache_save_period_in_seconds,
+                              cf_def.key_cache_save_period_in_seconds == null ? CFMetaData.DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS : cf_def.key_cache_save_period_in_seconds,
+                              cf_def.memtable_flush_after_mins == null ? CFMetaData.DEFAULT_MEMTABLE_LIFETIME_IN_MINS : cf_def.memtable_flush_after_mins,
+                              cf_def.memtable_throughput_in_mb == null ? CFMetaData.DEFAULT_MEMTABLE_THROUGHPUT_IN_MB : cf_def.memtable_throughput_in_mb,
+                              cf_def.memtable_operations_in_millions == null ? CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS : cf_def.memtable_operations_in_millions,
                               ColumnDefinition.fromColumnDefs((Iterable<ColumnDef>) cf_def.column_metadata));
     }
 

@@ -62,11 +62,27 @@ public class Converter
             String endPointSnitchClassName = null; // Used as a sentinel. EPS cannot be undefined in 0.6.
             NodeList tablesxml = xmlUtils.getRequestedNodeList("/Storage/Keyspaces/Keyspace");
 
+            // Retrieve values that were previously global.
             String gcGrace = xmlUtils.getNodeValue("/Storage/GCGraceSeconds");
-            int gc_grace_seconds = 864000;
+            int gc_grace_seconds = CFMetaData.DEFAULT_GC_GRACE_SECONDS;
             if ( gcGrace != null )
                 gc_grace_seconds = Integer.parseInt(gcGrace);
 
+            String lifetime = xmlUtils.getNodeValue("/Storage/MemtableFlushAfterMinutes");
+            int memtime = CFMetaData.DEFAULT_MEMTABLE_LIFETIME_IN_MINS;
+            if (lifetime != null)
+                memtime = Integer.parseInt(lifetime);
+
+            String memtableSize = xmlUtils.getNodeValue("/Storage/MemtableThroughputInMB");
+            int memsize = CFMetaData.DEFAULT_MEMTABLE_THROUGHPUT_IN_MB;
+            if (memtableSize != null)
+                memsize = Integer.parseInt(memtableSize);
+
+            String memtableOps = xmlUtils.getNodeValue("/Storage/MemtableOperationsInMillions");
+            double memops = CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS;
+            if (memtableOps != null)
+                memops = Double.parseDouble(memtableOps);
+            
             int size = tablesxml.getLength();
             for ( int i = 0; i < size; ++i )
             {
@@ -135,7 +151,11 @@ public class Converter
                         ks.column_families[j].read_repair_chance = FBUtilities.parseDoubleOrPercent(value);
                     }
 
+                    // Values that were previously global and are now per-CF go here.
                     ks.column_families[j].gc_grace_seconds = gc_grace_seconds;
+                    ks.column_families[j].memtable_flush_after_mins = memtime;
+                    ks.column_families[j].memtable_throughput_in_mb = memsize;
+                    ks.column_families[j].memtable_operations_in_millions = memops;
 
                     ks.column_families[j].comment = xmlUtils.getNodeValue(xqlCF + "Comment");
                 }
@@ -266,18 +286,6 @@ public class Converter
             {
                 conf.auto_bootstrap = Boolean.valueOf(autoBootstr);
             }
-            
-            String lifetime = xmlUtils.getNodeValue("/Storage/MemtableFlushAfterMinutes");
-            if (lifetime != null)
-                conf.memtable_flush_after_mins = Integer.parseInt(lifetime);
-            
-            String memtableSize = xmlUtils.getNodeValue("/Storage/MemtableThroughputInMB");
-            if ( memtableSize != null )
-                conf.memtable_throughput_in_mb = Integer.parseInt(memtableSize);
-            
-            String memtableObjectCount = xmlUtils.getNodeValue("/Storage/MemtableOperationsInMillions");
-            if ( memtableObjectCount != null )
-                conf.memtable_operations_in_millions = Double.parseDouble(memtableObjectCount);
             
             String columnIndexSize = xmlUtils.getNodeValue("/Storage/ColumnIndexSizeInKB");
             if(columnIndexSize != null)

@@ -68,6 +68,9 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   private static final TField MAX_COMPACTION_THRESHOLD_FIELD_DESC = new TField("max_compaction_threshold", TType.I32, (short)18);
   private static final TField ROW_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC = new TField("row_cache_save_period_in_seconds", TType.I32, (short)19);
   private static final TField KEY_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC = new TField("key_cache_save_period_in_seconds", TType.I32, (short)20);
+  private static final TField MEMTABLE_FLUSH_AFTER_MINS_FIELD_DESC = new TField("memtable_flush_after_mins", TType.I32, (short)21);
+  private static final TField MEMTABLE_THROUGHPUT_IN_MB_FIELD_DESC = new TField("memtable_throughput_in_mb", TType.I32, (short)22);
+  private static final TField MEMTABLE_OPERATIONS_IN_MILLIONS_FIELD_DESC = new TField("memtable_operations_in_millions", TType.DOUBLE, (short)23);
 
   public String keyspace;
   public String name;
@@ -87,6 +90,9 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   public int max_compaction_threshold;
   public int row_cache_save_period_in_seconds;
   public int key_cache_save_period_in_seconds;
+  public int memtable_flush_after_mins;
+  public int memtable_throughput_in_mb;
+  public double memtable_operations_in_millions;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
@@ -107,7 +113,10 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     MIN_COMPACTION_THRESHOLD((short)17, "min_compaction_threshold"),
     MAX_COMPACTION_THRESHOLD((short)18, "max_compaction_threshold"),
     ROW_CACHE_SAVE_PERIOD_IN_SECONDS((short)19, "row_cache_save_period_in_seconds"),
-    KEY_CACHE_SAVE_PERIOD_IN_SECONDS((short)20, "key_cache_save_period_in_seconds");
+    KEY_CACHE_SAVE_PERIOD_IN_SECONDS((short)20, "key_cache_save_period_in_seconds"),
+    MEMTABLE_FLUSH_AFTER_MINS((short)21, "memtable_flush_after_mins"),
+    MEMTABLE_THROUGHPUT_IN_MB((short)22, "memtable_throughput_in_mb"),
+    MEMTABLE_OPERATIONS_IN_MILLIONS((short)23, "memtable_operations_in_millions");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -158,6 +167,12 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
           return ROW_CACHE_SAVE_PERIOD_IN_SECONDS;
         case 20: // KEY_CACHE_SAVE_PERIOD_IN_SECONDS
           return KEY_CACHE_SAVE_PERIOD_IN_SECONDS;
+        case 21: // MEMTABLE_FLUSH_AFTER_MINS
+          return MEMTABLE_FLUSH_AFTER_MINS;
+        case 22: // MEMTABLE_THROUGHPUT_IN_MB
+          return MEMTABLE_THROUGHPUT_IN_MB;
+        case 23: // MEMTABLE_OPERATIONS_IN_MILLIONS
+          return MEMTABLE_OPERATIONS_IN_MILLIONS;
         default:
           return null;
       }
@@ -208,7 +223,10 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   private static final int __MAX_COMPACTION_THRESHOLD_ISSET_ID = 7;
   private static final int __ROW_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 8;
   private static final int __KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 9;
-  private BitSet __isset_bit_vector = new BitSet(10);
+  private static final int __MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID = 10;
+  private static final int __MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID = 11;
+  private static final int __MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID = 12;
+  private BitSet __isset_bit_vector = new BitSet(13);
 
   public static final Map<_Fields, FieldMetaData> metaDataMap;
   static {
@@ -250,6 +268,12 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         new FieldValueMetaData(TType.I32)));
     tmpMap.put(_Fields.KEY_CACHE_SAVE_PERIOD_IN_SECONDS, new FieldMetaData("key_cache_save_period_in_seconds", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.I32)));
+    tmpMap.put(_Fields.MEMTABLE_FLUSH_AFTER_MINS, new FieldMetaData("memtable_flush_after_mins", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.I32)));
+    tmpMap.put(_Fields.MEMTABLE_THROUGHPUT_IN_MB, new FieldMetaData("memtable_throughput_in_mb", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.I32)));
+    tmpMap.put(_Fields.MEMTABLE_OPERATIONS_IN_MILLIONS, new FieldMetaData("memtable_operations_in_millions", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.DOUBLE)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(CfDef.class, metaDataMap);
   }
@@ -322,6 +346,9 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     this.max_compaction_threshold = other.max_compaction_threshold;
     this.row_cache_save_period_in_seconds = other.row_cache_save_period_in_seconds;
     this.key_cache_save_period_in_seconds = other.key_cache_save_period_in_seconds;
+    this.memtable_flush_after_mins = other.memtable_flush_after_mins;
+    this.memtable_throughput_in_mb = other.memtable_throughput_in_mb;
+    this.memtable_operations_in_millions = other.memtable_operations_in_millions;
   }
 
   public CfDef deepCopy() {
@@ -770,6 +797,75 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     __isset_bit_vector.set(__KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID, value);
   }
 
+  public int getMemtable_flush_after_mins() {
+    return this.memtable_flush_after_mins;
+  }
+
+  public CfDef setMemtable_flush_after_mins(int memtable_flush_after_mins) {
+    this.memtable_flush_after_mins = memtable_flush_after_mins;
+    setMemtable_flush_after_minsIsSet(true);
+    return this;
+  }
+
+  public void unsetMemtable_flush_after_mins() {
+    __isset_bit_vector.clear(__MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID);
+  }
+
+  /** Returns true if field memtable_flush_after_mins is set (has been asigned a value) and false otherwise */
+  public boolean isSetMemtable_flush_after_mins() {
+    return __isset_bit_vector.get(__MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID);
+  }
+
+  public void setMemtable_flush_after_minsIsSet(boolean value) {
+    __isset_bit_vector.set(__MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID, value);
+  }
+
+  public int getMemtable_throughput_in_mb() {
+    return this.memtable_throughput_in_mb;
+  }
+
+  public CfDef setMemtable_throughput_in_mb(int memtable_throughput_in_mb) {
+    this.memtable_throughput_in_mb = memtable_throughput_in_mb;
+    setMemtable_throughput_in_mbIsSet(true);
+    return this;
+  }
+
+  public void unsetMemtable_throughput_in_mb() {
+    __isset_bit_vector.clear(__MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID);
+  }
+
+  /** Returns true if field memtable_throughput_in_mb is set (has been asigned a value) and false otherwise */
+  public boolean isSetMemtable_throughput_in_mb() {
+    return __isset_bit_vector.get(__MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID);
+  }
+
+  public void setMemtable_throughput_in_mbIsSet(boolean value) {
+    __isset_bit_vector.set(__MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID, value);
+  }
+
+  public double getMemtable_operations_in_millions() {
+    return this.memtable_operations_in_millions;
+  }
+
+  public CfDef setMemtable_operations_in_millions(double memtable_operations_in_millions) {
+    this.memtable_operations_in_millions = memtable_operations_in_millions;
+    setMemtable_operations_in_millionsIsSet(true);
+    return this;
+  }
+
+  public void unsetMemtable_operations_in_millions() {
+    __isset_bit_vector.clear(__MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID);
+  }
+
+  /** Returns true if field memtable_operations_in_millions is set (has been asigned a value) and false otherwise */
+  public boolean isSetMemtable_operations_in_millions() {
+    return __isset_bit_vector.get(__MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID);
+  }
+
+  public void setMemtable_operations_in_millionsIsSet(boolean value) {
+    __isset_bit_vector.set(__MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID, value);
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case KEYSPACE:
@@ -916,6 +1012,30 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       }
       break;
 
+    case MEMTABLE_FLUSH_AFTER_MINS:
+      if (value == null) {
+        unsetMemtable_flush_after_mins();
+      } else {
+        setMemtable_flush_after_mins((Integer)value);
+      }
+      break;
+
+    case MEMTABLE_THROUGHPUT_IN_MB:
+      if (value == null) {
+        unsetMemtable_throughput_in_mb();
+      } else {
+        setMemtable_throughput_in_mb((Integer)value);
+      }
+      break;
+
+    case MEMTABLE_OPERATIONS_IN_MILLIONS:
+      if (value == null) {
+        unsetMemtable_operations_in_millions();
+      } else {
+        setMemtable_operations_in_millions((Double)value);
+      }
+      break;
+
     }
   }
 
@@ -979,6 +1099,15 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     case KEY_CACHE_SAVE_PERIOD_IN_SECONDS:
       return new Integer(getKey_cache_save_period_in_seconds());
 
+    case MEMTABLE_FLUSH_AFTER_MINS:
+      return new Integer(getMemtable_flush_after_mins());
+
+    case MEMTABLE_THROUGHPUT_IN_MB:
+      return new Integer(getMemtable_throughput_in_mb());
+
+    case MEMTABLE_OPERATIONS_IN_MILLIONS:
+      return new Double(getMemtable_operations_in_millions());
+
     }
     throw new IllegalStateException();
   }
@@ -1026,6 +1155,12 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return isSetRow_cache_save_period_in_seconds();
     case KEY_CACHE_SAVE_PERIOD_IN_SECONDS:
       return isSetKey_cache_save_period_in_seconds();
+    case MEMTABLE_FLUSH_AFTER_MINS:
+      return isSetMemtable_flush_after_mins();
+    case MEMTABLE_THROUGHPUT_IN_MB:
+      return isSetMemtable_throughput_in_mb();
+    case MEMTABLE_OPERATIONS_IN_MILLIONS:
+      return isSetMemtable_operations_in_millions();
     }
     throw new IllegalStateException();
   }
@@ -1209,6 +1344,33 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         return false;
     }
 
+    boolean this_present_memtable_flush_after_mins = true && this.isSetMemtable_flush_after_mins();
+    boolean that_present_memtable_flush_after_mins = true && that.isSetMemtable_flush_after_mins();
+    if (this_present_memtable_flush_after_mins || that_present_memtable_flush_after_mins) {
+      if (!(this_present_memtable_flush_after_mins && that_present_memtable_flush_after_mins))
+        return false;
+      if (this.memtable_flush_after_mins != that.memtable_flush_after_mins)
+        return false;
+    }
+
+    boolean this_present_memtable_throughput_in_mb = true && this.isSetMemtable_throughput_in_mb();
+    boolean that_present_memtable_throughput_in_mb = true && that.isSetMemtable_throughput_in_mb();
+    if (this_present_memtable_throughput_in_mb || that_present_memtable_throughput_in_mb) {
+      if (!(this_present_memtable_throughput_in_mb && that_present_memtable_throughput_in_mb))
+        return false;
+      if (this.memtable_throughput_in_mb != that.memtable_throughput_in_mb)
+        return false;
+    }
+
+    boolean this_present_memtable_operations_in_millions = true && this.isSetMemtable_operations_in_millions();
+    boolean that_present_memtable_operations_in_millions = true && that.isSetMemtable_operations_in_millions();
+    if (this_present_memtable_operations_in_millions || that_present_memtable_operations_in_millions) {
+      if (!(this_present_memtable_operations_in_millions && that_present_memtable_operations_in_millions))
+        return false;
+      if (this.memtable_operations_in_millions != that.memtable_operations_in_millions)
+        return false;
+    }
+
     return true;
   }
 
@@ -1305,6 +1467,21 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     builder.append(present_key_cache_save_period_in_seconds);
     if (present_key_cache_save_period_in_seconds)
       builder.append(key_cache_save_period_in_seconds);
+
+    boolean present_memtable_flush_after_mins = true && (isSetMemtable_flush_after_mins());
+    builder.append(present_memtable_flush_after_mins);
+    if (present_memtable_flush_after_mins)
+      builder.append(memtable_flush_after_mins);
+
+    boolean present_memtable_throughput_in_mb = true && (isSetMemtable_throughput_in_mb());
+    builder.append(present_memtable_throughput_in_mb);
+    if (present_memtable_throughput_in_mb)
+      builder.append(memtable_throughput_in_mb);
+
+    boolean present_memtable_operations_in_millions = true && (isSetMemtable_operations_in_millions());
+    builder.append(present_memtable_operations_in_millions);
+    if (present_memtable_operations_in_millions)
+      builder.append(memtable_operations_in_millions);
 
     return builder.toHashCode();
   }
@@ -1479,6 +1656,33 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetMemtable_flush_after_mins()).compareTo(typedOther.isSetMemtable_flush_after_mins());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetMemtable_flush_after_mins()) {      lastComparison = TBaseHelper.compareTo(this.memtable_flush_after_mins, typedOther.memtable_flush_after_mins);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetMemtable_throughput_in_mb()).compareTo(typedOther.isSetMemtable_throughput_in_mb());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetMemtable_throughput_in_mb()) {      lastComparison = TBaseHelper.compareTo(this.memtable_throughput_in_mb, typedOther.memtable_throughput_in_mb);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetMemtable_operations_in_millions()).compareTo(typedOther.isSetMemtable_operations_in_millions());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetMemtable_operations_in_millions()) {      lastComparison = TBaseHelper.compareTo(this.memtable_operations_in_millions, typedOther.memtable_operations_in_millions);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -1639,6 +1843,30 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 21: // MEMTABLE_FLUSH_AFTER_MINS
+          if (field.type == TType.I32) {
+            this.memtable_flush_after_mins = iprot.readI32();
+            setMemtable_flush_after_minsIsSet(true);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 22: // MEMTABLE_THROUGHPUT_IN_MB
+          if (field.type == TType.I32) {
+            this.memtable_throughput_in_mb = iprot.readI32();
+            setMemtable_throughput_in_mbIsSet(true);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 23: // MEMTABLE_OPERATIONS_IN_MILLIONS
+          if (field.type == TType.DOUBLE) {
+            this.memtable_operations_in_millions = iprot.readDouble();
+            setMemtable_operations_in_millionsIsSet(true);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           TProtocolUtil.skip(iprot, field.type);
       }
@@ -1761,6 +1989,21 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (isSetKey_cache_save_period_in_seconds()) {
       oprot.writeFieldBegin(KEY_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC);
       oprot.writeI32(this.key_cache_save_period_in_seconds);
+      oprot.writeFieldEnd();
+    }
+    if (isSetMemtable_flush_after_mins()) {
+      oprot.writeFieldBegin(MEMTABLE_FLUSH_AFTER_MINS_FIELD_DESC);
+      oprot.writeI32(this.memtable_flush_after_mins);
+      oprot.writeFieldEnd();
+    }
+    if (isSetMemtable_throughput_in_mb()) {
+      oprot.writeFieldBegin(MEMTABLE_THROUGHPUT_IN_MB_FIELD_DESC);
+      oprot.writeI32(this.memtable_throughput_in_mb);
+      oprot.writeFieldEnd();
+    }
+    if (isSetMemtable_operations_in_millions()) {
+      oprot.writeFieldBegin(MEMTABLE_OPERATIONS_IN_MILLIONS_FIELD_DESC);
+      oprot.writeDouble(this.memtable_operations_in_millions);
       oprot.writeFieldEnd();
     }
     oprot.writeFieldStop();
@@ -1905,6 +2148,24 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       if (!first) sb.append(", ");
       sb.append("key_cache_save_period_in_seconds:");
       sb.append(this.key_cache_save_period_in_seconds);
+      first = false;
+    }
+    if (isSetMemtable_flush_after_mins()) {
+      if (!first) sb.append(", ");
+      sb.append("memtable_flush_after_mins:");
+      sb.append(this.memtable_flush_after_mins);
+      first = false;
+    }
+    if (isSetMemtable_throughput_in_mb()) {
+      if (!first) sb.append(", ");
+      sb.append("memtable_throughput_in_mb:");
+      sb.append(this.memtable_throughput_in_mb);
+      first = false;
+    }
+    if (isSetMemtable_operations_in_millions()) {
+      if (!first) sb.append(", ");
+      sb.append("memtable_operations_in_millions:");
+      sb.append(this.memtable_operations_in_millions);
       first = false;
     }
     sb.append(")");

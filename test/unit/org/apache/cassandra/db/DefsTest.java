@@ -693,10 +693,15 @@ public class DefsTest extends CleanupHelper
                               false,
                               1.0,
                               0,
-                              864000,
+                              CFMetaData.DEFAULT_GC_GRACE_SECONDS,
                               BytesType.instance,
-                              4,
-                              32,
+                              CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD,
+                              CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD,
+                              CFMetaData.DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS,
+                              CFMetaData.DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS,
+                              CFMetaData.DEFAULT_MEMTABLE_LIFETIME_IN_MINS,
+                              CFMetaData.DEFAULT_MEMTABLE_THROUGHPUT_IN_MB,
+                              CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS,
                               Collections.<byte[], ColumnDefinition>emptyMap());
     }
 

@@ -253,8 +253,13 @@ public class Table
             initCf(cfm.cfId, cfm.cfName);
         }
 
-        // check 10x as often as the lifetime, so we can exceed lifetime by 10% at most
-        int checkMs = DatabaseDescriptor.getMemtableLifetimeMS() / 10;
+        // check 10x as often as the shortest lifetime, so we can exceed all lifetimes by 10% at most
+        int minCheckMs = Integer.MAX_VALUE;
+        for (ColumnFamilyStore cfs : columnFamilyStores.values())
+        {
+            minCheckMs = Math.min(minCheckMs, cfs.metadata.memtableFlushAfterMins * 60 * 1000);
+        }
+
         Runnable runnable = new Runnable()
         {
             public void run()
@@ -265,7 +270,7 @@ public class Table
                 }
             }
         };
-        flushTask = StorageService.scheduledTasks.scheduleWithFixedDelay(runnable, checkMs, checkMs, TimeUnit.MILLISECONDS);
+        flushTask = StorageService.scheduledTasks.scheduleWithFixedDelay(runnable, minCheckMs, minCheckMs, TimeUnit.MILLISECONDS);
     }
     
     public void dropCf(Integer cfId) throws IOException

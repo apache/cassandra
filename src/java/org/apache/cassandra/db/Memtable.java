@@ -47,9 +47,6 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 
     private boolean isFrozen;
 
-    private final int THRESHOLD = DatabaseDescriptor.getMemtableThroughput() * 1024*1024; // not static since we might want to change at runtime
-    private final int THRESHOLD_COUNT = (int)(DatabaseDescriptor.getMemtableOperations() * 1024*1024);
-
     private final AtomicInteger currentThroughput = new AtomicInteger(0);
     private final AtomicInteger currentOperations = new AtomicInteger(0);
 
@@ -57,11 +54,16 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     private final ConcurrentNavigableMap<DecoratedKey, ColumnFamily> columnFamilies = new ConcurrentSkipListMap<DecoratedKey, ColumnFamily>();
     public final ColumnFamilyStore cfs;
 
+    private final int THRESHOLD;
+    private final int THRESHOLD_COUNT;
+
     public Memtable(ColumnFamilyStore cfs)
     {
 
         this.cfs = cfs;
         creationTime = System.currentTimeMillis();
+        this.THRESHOLD = cfs.metadata.memtableThroughputInMb * 1024 * 1024;
+        this.THRESHOLD_COUNT = (int) (cfs.metadata.memtableOperationsInMillions * 1024 * 1024);
     }
 
     /**
@@ -288,6 +290,6 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 
     public boolean isExpired()
     {
-        return System.currentTimeMillis() > creationTime + DatabaseDescriptor.getMemtableLifetimeMS();
+        return System.currentTimeMillis() > creationTime + cfs.metadata.memtableFlushAfterMins * 60 * 1000;
     }
 }

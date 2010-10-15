@@ -139,17 +139,6 @@ public class    DatabaseDescriptor
                 throw new ConfigurationException("Missing required directive CommitLogSync");
             }
 
-            if (conf.memtable_throughput_in_mb == null)
-            {
-                conf.memtable_throughput_in_mb = (int) (Runtime.getRuntime().maxMemory() / (1048576 * 8));
-                logger.info("memtable_throughput_in_mb not configured, using " + conf.memtable_throughput_in_mb);
-            }
-            if (conf.memtable_operations_in_millions == null)
-            {
-                conf.memtable_operations_in_millions = 0.3 * conf.memtable_throughput_in_mb / 64.0;
-                logger.info("memtable_operations_in_millions not configured, using " + conf.memtable_operations_in_millions);
-            }
-
             if (conf.commitlog_sync == Config.CommitLogSync.batch)
             {
                 if (conf.commitlog_sync_batch_window_in_ms == null)
@@ -322,13 +311,7 @@ public class    DatabaseDescriptor
                 logger.debug("setting auto_bootstrap to " + conf.auto_bootstrap);
             }
             
-            /* Number of objects in millions in the memtable before it is dumped */
-            if (conf.memtable_operations_in_millions != null && conf.memtable_operations_in_millions <= 0)
-            {
-                throw new ConfigurationException("memtable_operations_in_millions must be a positive double");
-            }
-            
-            if (conf.in_memory_compaction_limit_in_mb != null && conf.in_memory_compaction_limit_in_mb <= 0)
+           if (conf.in_memory_compaction_limit_in_mb != null && conf.in_memory_compaction_limit_in_mb <= 0)
             {
                 throw new ConfigurationException("in_memory_compaction_limit_in_mb must be a positive integer");
             }
@@ -568,14 +551,31 @@ public class    DatabaseDescriptor
                 
                 if (cf.min_compaction_threshold < 0 || cf.max_compaction_threshold < 0)
                 {
-                    throw new ConfigurationException("min/max_compaction_thresholds must be non-negative integers.");
+                    throw new ConfigurationException("min/max_compaction_thresholds must be positive integers.");
                 }
                 if ((cf.min_compaction_threshold > cf.max_compaction_threshold) && cf.max_compaction_threshold != 0)
                 {
                     throw new ConfigurationException("min_compaction_threshold must be smaller than max_compaction_threshold, or either must be 0 (disabled)");
                 }
 
-                Map<byte[], ColumnDefinition> metadata = new TreeMap<byte[], ColumnDefinition>(FBUtilities.byteArrayComparator);
+                if (cf.memtable_throughput_in_mb == null)
+                {
+                    cf.memtable_throughput_in_mb = sizeMemtableThroughput();
+                    logger.info("memtable_throughput_in_mb not configured for " + cf.name + ", using " + cf.memtable_throughput_in_mb);
+                }
+                if (cf.memtable_operations_in_millions == null)
+                {
+                    cf.memtable_operations_in_millions = sizeMemtableOperations(cf.memtable_throughput_in_mb);
+                    logger.info("memtable_operations_in_millions not configured for " + cf.name + ", using " + cf.memtable_operations_in_millions);
+                }
+
+                if (cf.memtable_operations_in_millions != null && cf.memtable_operations_in_millions <= 0)
+                {
+                    throw new ConfigurationException("memtable_operations_in_millions must be a positive double");
+                }
+
+                 Map<byte[], ColumnDefinition> metadata = new TreeMap<byte[], ColumnDefinition>(FBUtilities.byteArrayComparator);
+
                 for (RawColumnDefinition rcd : cf.column_metadata)
                 {
                     try
@@ -603,6 +603,11 @@ public class    DatabaseDescriptor
                                              default_validator,
                                              cf.min_compaction_threshold,
                                              cf.max_compaction_threshold,
+                                             cf.row_cache_save_period_in_seconds,
+                                             cf.key_cache_save_period_in_seconds,
+                                             cf.memtable_flush_after_mins,
+                                             cf.memtable_throughput_in_mb,
+                                             cf.memtable_operations_in_millions,
                                              metadata);
             }
             defs.add(new KSMetaData(keyspace.name,
@@ -728,27 +733,12 @@ public class    DatabaseDescriptor
     	return conf.column_index_size_in_kb * 1024;
     }
 
-    public static int getMemtableLifetimeMS()
-    {
-      return conf.memtable_flush_after_mins * 60 * 1000;
-    }
-
     public static String getInitialToken()
     {
-      return conf.initial_token;
+        return conf.initial_token;
     }
 
-    public static int getMemtableThroughput()
-    {
-      return conf.memtable_throughput_in_mb;
-    }
-
-    public static double getMemtableOperations()
-    {
-      return conf.memtable_operations_in_millions;
-    }
-
-    public static String getClusterName()
+   public static String getClusterName()
     {
         return conf.cluster_name;
     }
@@ -1126,4 +1116,13 @@ public class    DatabaseDescriptor
     {
         return conf.dynamic_snitch_badness_threshold;
     }
+
+    public static int sizeMemtableThroughput() {
+        return (int) (Runtime.getRuntime().maxMemory() / (1048576 * 8));
+    }
+
+    public static double sizeMemtableOperations(int mem_throughput) {
+        return 0.3 * mem_throughput / 64.0;
+    }
+
 }

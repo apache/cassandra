@@ -18,8 +18,6 @@ commitlog_rotation_threshold_in_mb: 128
 data_file_directories:
     - build/test/cassandra/data
 disk_access_mode: mmap
-memtable_throughput_in_mb: 1
-memtable_operations_in_millions: 0.00002
 seeds:
     - 127.0.0.2
 endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch

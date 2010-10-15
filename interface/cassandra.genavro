@@ -151,9 +151,12 @@ protocol Cassandra {
         union { null, string } default_validation_class = null;
         union { null, int } min_compaction_threshold = null;
         union { null, int } max_compaction_threshold = null;
-        union { int, null } id;
         union { int, null } row_cache_save_period_in_seconds = 0;
         union { int, null } key_cache_save_period_in_seconds = 3600;
+        union { int, null } memtable_flush_after_mins = 60;
+        union { null, int } memtable_throughput_in_mb = null;
+        union { null, double} memtable_operations_in_millions = null;
+        union { int, null } id;
         union { array<ColumnDef>, null } column_metadata;
     }
 

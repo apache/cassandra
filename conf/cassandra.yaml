@@ -163,20 +163,6 @@ snapshot_before_compaction: false
 # The threshold size in megabytes the binary memtable must grow to,
 # before it's submitted for flushing to disk.
 binary_memtable_throughput_in_mb: 256
-# The maximum time to leave a dirty memtable unflushed.
-# (While any affected columnfamilies have unflushed data from a
-# commit log segment, that segment cannot be deleted.)
-# This needs to be large enough that it won't cause a flush storm
-# of all your memtables flushing at once because none has hit
-# the size or count thresholds yet.
-# defaults to 60
-#memtable_flush_after_mins: 60
-# Size of the memtable in memory before it is flushed
-# if left undefined, 1/8 of the heap will be used
-#memtable_throughput_in_mb: 256
-# Number of objects in millions in the memtable before it is flushed
-# if left undefined, the memtable_throughput_in_mb / 64 * 0.3 will be used
-#memtable_operations_in_millions: 1.2 
 
 # Add column indexes to a row after its contents reach this size.
 # Increase if your column values are large, or if you have a very large
@@ -362,10 +348,20 @@ index_interval: 128
 #        before a minor compaction is forced.  decreasing this will cause
 #        minor compactions to start more frequently and be less intensive.
 #        setting this to 0 disables minor compactions.  defaults to 32.
-#     - row_cache_save_period_in_seconds: number of seconds between saving row caches.
-#        The row caches can be saved periodically and if one exists on startup it will be loaded.
-#     - key_cache_save_period_in_seconds: number of seconds between saving key caches.
-#        The key caches can be saved periodically and if one exists on startup it will be loaded.
+#     - row_cache_save_period_in_seconds: number of seconds between saving
+#        row caches.  The row caches can be saved periodically and if one
+#        exists on startup it will be loaded.
+#     - key_cache_save_period_in_seconds: number of seconds between saving
+#        key caches.  The key caches can be saved periodically and if one 
+#        exists on startup it will be loaded.
+#     - memtable_flush_after_mins: The maximum time to leave a dirty table
+#        unflushed.  This should be large enough that it won't cause a flush
+#        storm of all memtables during periods of inactivity.
+#     - memtable_throughput_in_mb: The maximum size of the memtable before
+#        it is flushed.  If undefined, 1/8 * heapsize will be used.
+#     - memtable_operations_in_millions: Number of operations in millions
+#        before the memtable is flushed. If undefined, throughput / 64 * 0.3
+#        will be used.
 #
 # NOTE: this keyspace definition is for demonstration purposes only.
 #       Cassandra will not load these definitions during startup. See
@@ -381,6 +377,9 @@ keyspaces:
           rows_cached: 1000
           row_cache_save_period_in_seconds: 0
           key_cache_save_period_in_seconds: 3600
+          memtable_flush_after_mins: 59
+          memtable_throughput_in_mb: 255
+          memtable_operations_in_millions: 0.29
 
         - name: Standard2
           compare_with: UTF8Type

@@ -44,4 +44,7 @@ public class RawColumnFamily
     public RawColumnDefinition[] column_metadata = new RawColumnDefinition[0];
     public int row_cache_save_period_in_seconds = CFMetaData.DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS;
     public int key_cache_save_period_in_seconds = CFMetaData.DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS;
+    public int memtable_flush_after_mins = CFMetaData.DEFAULT_MEMTABLE_LIFETIME_IN_MINS;
+    public Integer memtable_throughput_in_mb;
+    public Double memtable_operations_in_millions;
 }
