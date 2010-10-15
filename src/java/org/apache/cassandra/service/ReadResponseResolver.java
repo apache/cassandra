@@ -68,6 +68,9 @@ public class ReadResponseResolver implements IResponseResolver<Row>
       */
 	public Row resolve(Collection<Message> responses) throws DigestMismatchException, IOException
     {
+        if (logger_.isDebugEnabled())
+            logger_.debug("resolving " + responses.size() + " responses");
+
         long startTime = System.currentTimeMillis();
 		List<ColumnFamily> versions = new ArrayList<ColumnFamily>(responses.size());
 		List<InetAddress> endPoints = new ArrayList<InetAddress>(responses.size());
@@ -98,7 +101,11 @@ public class ReadResponseResolver implements IResponseResolver<Row>
                 key = result.row().key;
             }
         }
-		// If there was a digest query compare it with all the data digests 
+
+        if (logger_.isDebugEnabled())
+            logger_.debug("responses deserialized");
+
+		// If there was a digest query compare it with all the data digests
 		// If there is a mismatch then throw an exception so that read repair can happen.
         if (isDigestQuery)
         {
@@ -111,10 +118,22 @@ public class ReadResponseResolver implements IResponseResolver<Row>
                     throw new DigestMismatchException(s);
                 }
             }
+            if (logger_.isDebugEnabled())
+                logger_.debug("digests verified");
         }
 
-        ColumnFamily resolved = resolveSuperset(versions);
-        maybeScheduleRepairs(resolved, table, key, versions, endPoints);
+        ColumnFamily resolved;
+        if (versions.size() > 1)
+        {
+            resolved = resolveSuperset(versions);
+            if (logger_.isDebugEnabled())
+                logger_.debug("versions merged");
+            maybeScheduleRepairs(resolved, table, key, versions, endPoints);
+        }
+        else
+        {
+            resolved = versions.get(0);
+        }
 
         if (logger_.isDebugEnabled())
             logger_.debug("resolve: " + (System.currentTimeMillis() - startTime) + " ms.");
