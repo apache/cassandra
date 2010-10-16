@@ -40,6 +40,7 @@ dev
    cassandra-topology.properties
  * add cli support for get_range_slices (CASSANDRA-1088)
  * Make memtable flush thresholds per-CF instead of global (CASSANDRA-1007)
+ * add cli support for binary data without CfDef hints (CASSANDRA-1603)
 
 
 0.7-beta2

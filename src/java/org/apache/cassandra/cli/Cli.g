@@ -63,6 +63,8 @@ tokens {
     NODE_NEW_CF_ACCESS;
     NODE_NEW_KEYSPACE_ACCESS;
     
+    CONVERT_TO_TYPE;
+    FUNCTION_CALL;
     ARRAY;
     HASH;
     PAIR;
@@ -189,8 +191,12 @@ exitStatement
     ;
 
 getStatement
-    : K_GET columnFamilyExpr 
-        -> ^(NODE_THRIFT_GET columnFamilyExpr)
+    : K_GET columnFamilyExpr ('AS' typeIdentifier)?
+        -> ^(NODE_THRIFT_GET columnFamilyExpr ( ^(CONVERT_TO_TYPE typeIdentifier) )? )
+    ;
+
+typeIdentifier
+    : Identifier | StringLiteral | IntegerLiteral 
     ;
 
 setStatement
@@ -370,7 +376,16 @@ columnFamily: Identifier;
 
 rowKey:   (Identifier | StringLiteral);
 
-value: (Identifier | IntegerLiteral | StringLiteral);
+value: (Identifier | IntegerLiteral | StringLiteral | functionCall );
+
+functionCall 
+    : functionName=Identifier '(' functionArgument ')'
+        -> ^(FUNCTION_CALL $functionName functionArgument)
+    ;
+
+functionArgument 
+    : Identifier | StringLiteral | IntegerLiteral
+    ;
 
 startKey: (Identifier | StringLiteral);
 
@@ -442,21 +457,19 @@ Alnum
     ;
 
 // syntactic Elements
+IntegerLiteral
+   : Digit+
+   ;
+
 Identifier
-    : Letter ( Alnum | '_' | '-' )*
+    : (Letter | Alnum) (Alnum | '_' | '-' )*
     ;
 
 // literals
 StringLiteral
     :
-    '\'' (~'\'')* '\'' ( '\'' (~'\'')* '\'' )* 
+    '\'' (~'\'')* '\'' ( '\'' (~'\'')* '\'' )*
     ;
-
-
-IntegerLiteral
-   : Digit+
-   ;
-
 
 //
 // syntactic elements

@@ -236,7 +236,7 @@ public class CliMain
             if (css_.batch)
                 System.exit(4);
         }
-        catch (Exception e)
+        catch (Throwable e)
         {
             css_.err.println((e.getCause() == null) ? e.getMessage() : e.getCause().getMessage());
             
