@@ -275,14 +275,14 @@ public class SSTableWriter extends SSTable
             try
             {
                 DecoratedKey key;
-                long dataPosition = 0;
-                while (dataPosition < dfile.length())
+                long rowPosition = 0;
+                while (rowPosition < dfile.length())
                 {
                     key = SSTableReader.decodeKey(StorageService.getPartitioner(), desc, FBUtilities.readShortByteArray(dfile));
                     long dataSize = SSTableReader.readRowSize(dfile, desc);
-                    iwriter.afterAppend(key, dataPosition);
-                    dataPosition = dfile.getFilePointer() + dataSize;
-                    dfile.seek(dataPosition);
+                    iwriter.afterAppend(key, rowPosition);
+                    rowPosition = dfile.getFilePointer() + dataSize;
+                    dfile.seek(rowPosition);
                     rows++;
                 }
             }
