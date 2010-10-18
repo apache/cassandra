@@ -20,6 +20,7 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.*;
+import java.util.HashSet;
 import java.util.Set;
 
 import org.apache.cassandra.io.util.FileUtils;
@@ -55,7 +56,7 @@ public class SSTableWriter extends SSTable
 
     public SSTableWriter(String filename, long keyCount, CFMetaData metadata, IPartitioner partitioner) throws IOException
     {
-        super(Descriptor.fromFilename(filename), metadata, partitioner);
+        super(Descriptor.fromFilename(filename), new HashSet<Component>(), metadata, partitioner, SSTable.defaultRowHistogram(), SSTable.defaultColumnHistogram());
         iwriter = new IndexWriter(descriptor, partitioner, keyCount);
         dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
         dataFile = new BufferedRandomAccessFile(getFilename(), "rw", DatabaseDescriptor.getInMemoryCompactionLimit());

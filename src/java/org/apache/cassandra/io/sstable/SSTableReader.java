@@ -136,18 +136,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return count;
     }
 
-    private void loadStatistics(Descriptor desc) throws IOException
-    {
-        if (!new File(desc.filenameFor(SSTable.COMPONENT_STATS)).exists())
-            return;
-        if (logger.isDebugEnabled())
-            logger.debug("Load statistics for " + desc);
-        DataInputStream dis = new DataInputStream(new FileInputStream(desc.filenameFor(SSTable.COMPONENT_STATS)));
-        estimatedRowSize = EstimatedHistogram.serializer.deserialize(dis);
-        estimatedColumnCount = EstimatedHistogram.serializer.deserialize(dis);
-        dis.close();
-    }
-
     public static SSTableReader open(Descriptor desc) throws IOException
     {
         Set<Component> components = SSTable.componentsFor(desc);
@@ -166,7 +154,25 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         long start = System.currentTimeMillis();
         logger.info("Sampling index for " + descriptor);
 
-        SSTableReader sstable = new SSTableReader(descriptor, components, metadata, partitioner, null, null, null, null, System.currentTimeMillis(), null, null);
+        EstimatedHistogram rowSizes;
+        EstimatedHistogram columnCounts;
+        File statsFile = new File(descriptor.filenameFor(SSTable.COMPONENT_STATS));
+        if (statsFile.exists())
+        {
+            logger.debug("Load statistics for {}", descriptor);
+            DataInputStream dis = new DataInputStream(new FileInputStream(statsFile));
+            rowSizes = EstimatedHistogram.serializer.deserialize(dis);
+            columnCounts = EstimatedHistogram.serializer.deserialize(dis);
+            dis.close();
+        }
+        else
+        {
+            logger.debug("No statistics for {}", descriptor);
+            rowSizes = SSTable.defaultRowHistogram();
+            columnCounts = SSTable.defaultColumnHistogram();
+        }
+
+        SSTableReader sstable = new SSTableReader(descriptor, components, metadata, partitioner, null, null, null, null, System.currentTimeMillis(), rowSizes, columnCounts);
         sstable.setTrackedBy(tracker);
 
         // versions before 'c' encoded keys as utf-16 before hashing to the filter
@@ -179,8 +185,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
             sstable.load(false, savedKeys);
             sstable.loadBloomFilter();
         }
-        sstable.loadStatistics(descriptor);
-
         if (logger.isDebugEnabled())
             logger.debug("INDEX LOAD TIME for " + descriptor + ": " + (System.currentTimeMillis() - start) + " ms.");
 
@@ -209,19 +213,17 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                           IndexSummary indexSummary,
                           BloomFilter bloomFilter,
                           long maxDataAge,
-                          EstimatedHistogram rowsize,
-                          EstimatedHistogram columncount)
+                          EstimatedHistogram rowSizes,
+                          EstimatedHistogram columnCounts)
     throws IOException
     {
-        super(desc, components, metadata, partitioner);
+        super(desc, components, metadata, partitioner, rowSizes, columnCounts);
         this.maxDataAge = maxDataAge;
 
         this.ifile = ifile;
         this.dfile = dfile;
         this.indexSummary = indexSummary;
         this.bf = bloomFilter;
-        estimatedRowSize = rowsize;
-        estimatedColumnCount = columncount;
     }
 
     public void setTrackedBy(SSTableTracker tracker)
