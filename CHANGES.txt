@@ -43,6 +43,7 @@ dev
  * add cli support for binary data without CfDef hints (CASSANDRA-1603)
  * fix building SSTable statistics post-stream (CASSANDRA-1620)
  * fix potential infinite loop in 2ary index queries (CASSANDRA-1623)
+ * allow creating NTS keyspaces with no replicas configured (CASSANDRA-1626)
 
 
 0.7-beta2

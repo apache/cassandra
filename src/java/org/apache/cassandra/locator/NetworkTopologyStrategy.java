@@ -59,9 +59,12 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         this.snitch = snitch;
 
         Map<String, Integer> newDatacenters = new HashMap<String, Integer>();
-        for (Entry entry : configOptions.entrySet())
+        if (configOptions != null)
         {
-            newDatacenters.put((String) entry.getKey(), Integer.parseInt((String) entry.getValue()));
+            for (Entry entry : configOptions.entrySet())
+            {
+                newDatacenters.put((String) entry.getKey(), Integer.parseInt((String) entry.getValue()));
+            }
         }
 
         datacenters = Collections.unmodifiableMap(newDatacenters);
