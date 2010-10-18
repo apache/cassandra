@@ -1353,9 +1353,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 if (rows.size() == clause.count)
                     break outer;
             }
-            startKey = dataKey;
-            if (n < clause.count)
+            if (n < clause.count || Arrays.equals(startKey, dataKey))
                 break;
+            startKey = dataKey;
         }
 
         return rows;

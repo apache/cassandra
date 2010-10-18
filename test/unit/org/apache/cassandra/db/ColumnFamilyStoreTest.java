@@ -182,12 +182,20 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         assert rows.get(0).cf.getColumnCount() == 1 : rows.get(0).cf;
 
         // once more, this time with a slice rowset that needs to be expanded
-        SliceQueryFilter sqf = new SliceQueryFilter(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 0);
-        rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").scan(clause, range, sqf);
+        SliceQueryFilter emptyFilter = new SliceQueryFilter(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 0);
+        rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").scan(clause, range, emptyFilter);
 
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         assert Arrays.equals("k3".getBytes(), rows.get(0).key.key);
         assert rows.get(0).cf.getColumnCount() == 0;
+
+        // query with index hit but rejected by secondary clause, with a small enough count that just checking count
+        // doesn't tell the scan loop that it's done
+        IndexExpression expr3 = new IndexExpression("notbirthdate".getBytes("UTF8"), IndexOperator.EQ, FBUtilities.toByteArray(-1L));
+        clause = new IndexClause(Arrays.asList(expr, expr3), ArrayUtils.EMPTY_BYTE_ARRAY, 1);
+        rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").scan(clause, range, filter);
+
+        assert rows.isEmpty();
     }
 
     @Test

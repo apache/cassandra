@@ -42,6 +42,7 @@ dev
  * Make memtable flush thresholds per-CF instead of global (CASSANDRA-1007)
  * add cli support for binary data without CfDef hints (CASSANDRA-1603)
  * fix building SSTable statistics post-stream (CASSANDRA-1620)
+ * fix potential infinite loop in 2ary index queries (CASSANDRA-1623)
 
 
 0.7-beta2
