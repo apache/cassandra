@@ -172,7 +172,7 @@ public class SSTableWriter extends SSTable
         dataFile.close(); // calls force
 
         // write sstable statistics
-        writeStatistics(descriptor);
+        writeStatistics(descriptor, estimatedRowSize, estimatedColumnCount);
 
         // remove the 'tmp' marker from all components
         final Descriptor newdesc = rename(descriptor, components);
@@ -187,12 +187,12 @@ public class SSTableWriter extends SSTable
         return sstable;
     }
 
-    private void writeStatistics(Descriptor desc) throws IOException
+    private static void writeStatistics(Descriptor desc, EstimatedHistogram rowSizes, EstimatedHistogram columnnCounts) throws IOException
     {
-        DataOutputStream dos = new DataOutputStream(new FileOutputStream(desc.filenameFor(SSTable.COMPONENT_STATS)));
-        EstimatedHistogram.serializer.serialize(estimatedRowSize, dos);
-        EstimatedHistogram.serializer.serialize(estimatedColumnCount, dos);
-        dos.close();
+        DataOutputStream out = new DataOutputStream(new FileOutputStream(desc.filenameFor(SSTable.COMPONENT_STATS)));
+        EstimatedHistogram.serializer.serialize(rowSizes, out);
+        EstimatedHistogram.serializer.serialize(rowSizes, out);
+        out.close();
     }
 
     static Descriptor rename(Descriptor tmpdesc, Set<Component> components)
@@ -258,6 +258,9 @@ public class SSTableWriter extends SSTable
             assert !ifile.exists();
             assert !ffile.exists();
 
+            EstimatedHistogram rowSizes = SSTable.defaultRowHistogram();
+            EstimatedHistogram columnCounts = SSTable.defaultColumnHistogram();
+
             IndexWriter iwriter;
             long estimatedRows;
             try
@@ -280,12 +283,21 @@ public class SSTableWriter extends SSTable
                 while (rowPosition < dfile.length())
                 {
                     key = SSTableReader.decodeKey(StorageService.getPartitioner(), desc, FBUtilities.readShortByteArray(dfile));
-                    long dataSize = SSTableReader.readRowSize(dfile, desc);
                     iwriter.afterAppend(key, rowPosition);
+
+                    long dataSize = SSTableReader.readRowSize(dfile, desc);
+                    IndexHelper.skipBloomFilter(dfile);
+                    IndexHelper.skipIndex(dfile);
+                    ColumnFamily.serializer().deserializeFromSSTableNoColumns(ColumnFamily.create(cfs.metadata), dfile);
+                    rowSizes.add(dataSize);
+                    columnCounts.add(dfile.readInt());
+
                     rowPosition = dfile.getFilePointer() + dataSize;
                     dfile.seek(rowPosition);
                     rows++;
                 }
+
+                writeStatistics(desc, rowSizes, columnCounts);
             }
             finally
             {
