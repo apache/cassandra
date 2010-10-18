@@ -56,6 +56,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
+import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LatencyTracker;
 import org.apache.cassandra.utils.Pair;
@@ -126,6 +127,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private LatencyTracker readStats = new LatencyTracker();
     private LatencyTracker writeStats = new LatencyTracker();
+
+    // counts of sstables accessed by reads
+    private final EstimatedHistogram recentSSTablesPerRead = new EstimatedHistogram(35);
+    private final EstimatedHistogram sstablesPerRead = new EstimatedHistogram(35);
 
     public final CFMetaData metadata;
 
@@ -914,6 +919,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return ssTables.getSSTables();
     }
 
+    public long[] getRecentSSTablesPerReadHistogram()
+    {
+        return recentSSTablesPerRead.get(true);
+    }
+
+    public long[] getSSTablesPerReadHistogram()
+    {
+        return sstablesPerRead.get(false);
+    }
+
     public long getReadCount()
     {
         return readStats.getOpCount();
@@ -1115,6 +1130,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
 
             /* add the SSTables on disk */
+            int sstablesToIterate = 0;
             for (SSTableReader sstable : ssTables)
             {
                 iter = filter.getSSTableColumnIterator(sstable);
@@ -1122,8 +1138,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 {
                     returnCF.delete(iter.getColumnFamily());
                     iterators.add(iter);
+                    sstablesToIterate++;
                 }
             }
+            recentSSTablesPerRead.add(sstablesToIterate);
+            sstablesPerRead.add(sstablesToIterate);
 
             Comparator<IColumn> comparator = filter.filter.getColumnComparator(getComparator());
             Iterator collated = IteratorUtils.collatedIterator(comparator, iterators);

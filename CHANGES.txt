@@ -44,6 +44,7 @@ dev
  * fix building SSTable statistics post-stream (CASSANDRA-1620)
  * fix potential infinite loop in 2ary index queries (CASSANDRA-1623)
  * allow creating NTS keyspaces with no replicas configured (CASSANDRA-1626)
+ * add jmx histogram of sstables accessed per read (CASSANDRA-1624)
 
 
 0.7-beta2
