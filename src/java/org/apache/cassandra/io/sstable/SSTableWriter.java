@@ -286,13 +286,14 @@ public class SSTableWriter extends SSTable
                     iwriter.afterAppend(key, rowPosition);
 
                     long dataSize = SSTableReader.readRowSize(dfile, desc);
+                    rowPosition = dfile.getFilePointer() + dataSize; // next row
+
                     IndexHelper.skipBloomFilter(dfile);
                     IndexHelper.skipIndex(dfile);
                     ColumnFamily.serializer().deserializeFromSSTableNoColumns(ColumnFamily.create(cfs.metadata), dfile);
                     rowSizes.add(dataSize);
                     columnCounts.add(dfile.readInt());
 
-                    rowPosition = dfile.getFilePointer() + dataSize;
                     dfile.seek(rowPosition);
                     rows++;
                 }
