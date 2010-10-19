@@ -88,6 +88,9 @@ dev
    (CASSANDRA-1429)
  * Add CfDef.default_validation_class (CASSANDRA-891)
  * fix EstimatedHistogram.max (CASSANDRA-1413)
+ * quorum read optimization (CASSANDRA-1622)
+
+
  * handle zero-length (or missing) rows during HH paging (CASSANDRA-1432)
  * include secondary indexes during schema migrations (CASSANDRA-1406)
  * fix commitlog header race during schema change (CASSANDRA-1435)

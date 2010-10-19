@@ -22,16 +22,14 @@ import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOError;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
 import org.apache.cassandra.db.*;
 import java.net.InetAddress;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +42,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 {
 	private static Logger logger_ = LoggerFactory.getLogger(ReadResponseResolver.class);
     private final String table;
+    private final Map<Message, ReadResponse> results = new NonBlockingHashMap<Message, ReadResponse>();
 
     public ReadResponseResolver(String table)
     {
@@ -59,6 +58,9 @@ public class ReadResponseResolver implements IResponseResolver<Row>
       */
 	public Row resolve(Collection<Message> responses) throws DigestMismatchException, IOException
     {
+        if (logger_.isDebugEnabled())
+            logger_.debug("resolving " + responses.size() + " responses");
+
         long startTime = System.currentTimeMillis();
 		List<ColumnFamily> versions = new ArrayList<ColumnFamily>(responses.size());
 		List<InetAddress> endpoints = new ArrayList<InetAddress>(responses.size());
@@ -72,11 +74,11 @@ public class ReadResponseResolver implements IResponseResolver<Row>
          * query exists then we need to compare the digest with 
          * the digest of the data that is received.
         */
-		for (Message response : responses)
-		{					            
-            byte[] body = response.getMessageBody();
-            ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
-            ReadResponse result = ReadResponse.serializer().deserialize(new DataInputStream(bufIn));
+		for (Message message : responses)
+		{
+            ReadResponse result = results.get(message);
+            if (result == null)
+                continue; // arrived after quorum already achieved
             if (result.isDigestQuery())
             {
                 digest = result.digest();
@@ -85,11 +87,12 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             else
             {
                 versions.add(result.row().cf);
-                endpoints.add(response.getFrom());
+                endpoints.add(message.getFrom());
                 key = result.row().key;
             }
         }
-		// If there was a digest query compare it with all the data digests 
+
+		// If there was a digest query compare it with all the data digests
 		// If there is a mismatch then throw an exception so that read repair can happen.
         if (isDigestQuery)
         {
@@ -102,10 +105,22 @@ public class ReadResponseResolver implements IResponseResolver<Row>
                     throw new DigestMismatchException(s);
                 }
             }
+            if (logger_.isDebugEnabled())
+                logger_.debug("digests verified");
         }
 
-        ColumnFamily resolved = resolveSuperset(versions);
-        maybeScheduleRepairs(resolved, table, key, versions, endpoints);
+        ColumnFamily resolved;
+        if (versions.size() > 1)
+        {
+            resolved = resolveSuperset(versions);
+            if (logger_.isDebugEnabled())
+                logger_.debug("versions merged");
+            maybeScheduleRepairs(resolved, table, key, versions, endpoints);
+        }
+        else
+        {
+            resolved = versions.get(0);
+        }
 
         if (logger_.isDebugEnabled())
             logger_.debug("resolve: " + (System.currentTimeMillis() - startTime) + " ms.");
@@ -162,27 +177,31 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         return resolved;
     }
 
-	public boolean isDataPresent(Collection<Message> responses)
-	{
-        boolean isDataPresent = false;
-        for (Message response : responses)
+    public void preprocess(Message message)
+    {
+        byte[] body = message.getMessageBody();
+        ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
+        try
         {
-            byte[] body = response.getMessageBody();
-            ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
-            try
-            {
-                ReadResponse result = ReadResponse.serializer().deserialize(new DataInputStream(bufIn));
-                if (!result.isDigestQuery())
-                {
-                    isDataPresent = true;
-                }
-                bufIn.close();
-            }
-            catch (IOException ex)
-            {
-                throw new RuntimeException(ex);
-            }
+            ReadResponse result = ReadResponse.serializer().deserialize(new DataInputStream(bufIn));
+            results.put(message, result);
         }
-        return isDataPresent;
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+    }
+
+    public boolean isDataPresent(Collection<Message> responses)
+	{
+        for (Message message : responses)
+        {
+            ReadResponse result = results.get(message);
+            if (result == null)
+                continue; // arrived concurrently
+            if (result.isDigestQuery())
+                return true;
+        }
+        return false;
     }
 }

@@ -92,6 +92,7 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
     public void response(Message message)
     {
         responses.add(message);
+        responseResolver.preprocess(message);
         if (responses.size() < blockfor) {
             return;
         }

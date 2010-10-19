@@ -108,6 +108,10 @@ public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
         return resolvedRows;
     }
 
+    public void preprocess(Message message)
+    {
+    }
+
     public boolean isDataPresent(Collection<Message> responses)
     {
         return responses.size() >= sources.size();
