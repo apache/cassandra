@@ -37,4 +37,5 @@ public interface IResponseResolver<T> {
 	public T resolve(Collection<Message> responses) throws DigestMismatchException, IOException;
 	public boolean isDataPresent(Collection<Message> responses);
 
+    public void preprocess(Message message);
 }

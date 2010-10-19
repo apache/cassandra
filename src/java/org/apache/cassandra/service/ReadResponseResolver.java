@@ -22,10 +22,7 @@ import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOError;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ReadResponse;
@@ -37,6 +34,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import org.apache.log4j.Logger;
 
@@ -49,6 +47,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 	private static Logger logger_ = Logger.getLogger(ReadResponseResolver.class);
     private final String table;
     private final int responseCount;
+    private final Map<Message, ReadResponse> results = new NonBlockingHashMap<Message, ReadResponse>();
 
     public ReadResponseResolver(String table, int responseCount)
     {
@@ -84,11 +83,11 @@ public class ReadResponseResolver implements IResponseResolver<Row>
          * query exists then we need to compare the digest with 
          * the digest of the data that is received.
         */
-		for (Message response : responses)
-		{					            
-            byte[] body = response.getMessageBody();
-            ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
-            ReadResponse result = ReadResponse.serializer().deserialize(new DataInputStream(bufIn));
+		for (Message message : responses)
+		{
+            ReadResponse result = results.get(message);
+            if (result == null)
+                continue; // arrived after quorum already achieved
             if (result.isDigestQuery())
             {
                 digest = result.digest();
@@ -97,13 +96,10 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             else
             {
                 versions.add(result.row().cf);
-                endPoints.add(response.getFrom());
+                endPoints.add(message.getFrom());
                 key = result.row().key;
             }
         }
-
-        if (logger_.isDebugEnabled())
-            logger_.debug("responses deserialized");
 
 		// If there was a digest query compare it with all the data digests
 		// If there is a mismatch then throw an exception so that read repair can happen.
@@ -190,30 +186,36 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         return resolved;
     }
 
-	public boolean isDataPresent(Collection<Message> responses)
-	{
-        if (responses.size() < responseCount)
-            return false;
-
-        boolean isDataPresent = false;
-        for (Message response : responses)
+    public void preprocess(Message message)
+    {
+        byte[] body = message.getMessageBody();
+        ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
+        try
         {
-            byte[] body = response.getMessageBody();
-            ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
-            try
-            {
-                ReadResponse result = ReadResponse.serializer().deserialize(new DataInputStream(bufIn));
-                if (!result.isDigestQuery())
-                {
-                    isDataPresent = true;
-                }
-                bufIn.close();
-            }
-            catch (IOException ex)
-            {
-                throw new RuntimeException(ex);
-            }
+            ReadResponse result = ReadResponse.serializer().deserialize(new DataInputStream(bufIn));
+            results.put(message, result);
         }
-        return isDataPresent;
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
     }
+
+    public boolean isDataPresent(Collection<Message> responses)
+	{
+        int digests = 0;
+        int data = 0;
+        for (Message message : responses)
+        {
+            ReadResponse result = results.get(message);
+            if (result == null)
+                continue; // arrived concurrently
+            if (result.isDigestQuery())
+                digests++;
+            else
+                data++;
+        }
+        return data > 0 && (data + digests >= responseCount);
+    }
+
 }
