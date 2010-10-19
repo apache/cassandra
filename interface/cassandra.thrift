@@ -531,10 +531,6 @@ service Cassandra {
   /** drops a column family. returns the new schema id. */
   string system_drop_column_family(1:required string column_family)
     throws (1:InvalidRequestException ire), 
-    
-  /** renames a column family. returns the new schema id. */
-  string system_rename_column_family(1:required string old_name, 2:required string new_name)
-    throws (1:InvalidRequestException ire),
   
   /** adds a keyspace and any column families that are part of it. returns the new schema id. */
   string system_add_keyspace(1:required KsDef ks_def)
@@ -542,10 +538,6 @@ service Cassandra {
   
   /** drops a keyspace and any column families that are part of it. returns the new schema id. */
   string system_drop_keyspace(1:required string keyspace)
-    throws (1:InvalidRequestException ire),
-    
-  /** renames a keyspace. returns the new schema id. */
-  string system_rename_keyspace(1:required string old_name, 2:required string new_name)
     throws (1:InvalidRequestException ire),
   
   /** updates properties of a keyspace. returns the new schema id. */

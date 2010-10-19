@@ -45,6 +45,8 @@ dev
  * fix potential infinite loop in 2ary index queries (CASSANDRA-1623)
  * allow creating NTS keyspaces with no replicas configured (CASSANDRA-1626)
  * add jmx histogram of sstables accessed per read (CASSANDRA-1624)
+ * remove system_rename_column_family and system_rename_keyspace from the
+   client API until races can be fixed (CASSANDRA-1630, CASSANDRA-1585)
 
 
 0.7-beta2
