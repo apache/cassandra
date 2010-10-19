@@ -34,7 +34,8 @@ import java.util.List;
  * limitations under the License.
  */
 
-
+/** Deprecated until we can figure out how to rename on a live node without complicating flushing and compaction. */
+@Deprecated
 public class RenameColumnFamily extends Migration
 {
     private String tableName;

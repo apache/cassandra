@@ -38,6 +38,8 @@ import java.util.Set;
 
 import org.apache.commons.lang.StringUtils;
 
+/** Deprecated until we can figure out how to rename on a live node without complicating flushing and compaction. */
+@Deprecated
 public class RenameKeyspace extends Migration
 {
     private String oldName;
