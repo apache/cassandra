@@ -37,9 +37,10 @@ case "$1" in
         $0 start
         ;;
     status)
+        status -p $pid_file cassandra
         ;;
     *)
-        echo "Usage: `basename $0` start|stop|restart|reload"
+        echo "Usage: `basename $0` start|stop|status|restart|reload"
         exit 1
 esac
 
