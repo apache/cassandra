@@ -48,4 +48,14 @@ public class CliSessionState
         out = System.out;
         err = System.err;
     }
+
+    public void setOut(PrintStream newOut)
+    {
+        this.out = newOut;   
+    }
+
+    public void setErr(PrintStream newErr)
+    {
+        this.err = newErr;
+    }
 }
