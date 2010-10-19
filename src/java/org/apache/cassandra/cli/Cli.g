@@ -51,9 +51,7 @@ tokens {
     NODE_ADD_KEYSPACE;
     NODE_DEL_KEYSPACE;
     NODE_DEL_COLUMN_FAMILY;
-    NODE_RENAME_KEYSPACE;
     NODE_UPDATE_KEYSPACE;
-    NODE_RENAME_COLUMN_FAMILY;
     NODE_UPDATE_COLUMN_FAMILY;
     NODE_LIST;
 
@@ -115,8 +113,6 @@ statement
     | updateColumnFamily
     | delColumnFamily
     | delKeyspace
-    | renameColumnFamily
-    | renameKeyspace
     | useTable
     | delStatement
     | getStatement
@@ -165,10 +161,6 @@ helpStatement
         -> ^(NODE_HELP NODE_DEL_KEYSPACE)
     | K_HELP K_DROP K_COLUMN K_FAMILY 
         -> ^(NODE_HELP NODE_DEL_COLUMN_FAMILY)
-    | K_HELP K_RENAME K_TABLE 
-        -> ^(NODE_HELP NODE_RENAME_KEYSPACE)
-    | K_HELP K_RENAME K_COLUMN K_FAMILY 
-        -> ^(NODE_HELP NODE_RENAME_COLUMN_FAMILY)
     | K_HELP K_GET 
         -> ^(NODE_HELP NODE_THRIFT_GET)
     | K_HELP K_SET 
@@ -263,17 +255,6 @@ delColumnFamily
     : K_DROP K_COLUMN K_FAMILY columnFamily 
         -> ^(NODE_DEL_COLUMN_FAMILY columnFamily)
     ;
-
-renameKeyspace
-    : K_RENAME K_TABLE keyspace keyspaceNewName 
-        -> ^(NODE_RENAME_KEYSPACE keyspace keyspaceNewName)
-    ;
-
-renameColumnFamily
-    : K_RENAME K_COLUMN K_FAMILY columnFamily newColumnFamily 
-        -> ^(NODE_RENAME_COLUMN_FAMILY columnFamily newColumnFamily)
-    ;
-
 
 showVersion
     : K_SHOW K_VERSION 
@@ -429,7 +410,6 @@ K_TABLES:     'KEYSPACES';
 K_VERSION:    'API VERSION';
 K_CREATE:     'CREATE';
 K_DROP:       'DROP';
-K_RENAME:     'RENAME';
 K_COLUMN:     'COLUMN';
 K_FAMILY:     'FAMILY';
 K_WITH:       'WITH';

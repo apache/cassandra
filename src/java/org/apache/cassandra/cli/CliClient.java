@@ -165,12 +165,6 @@ public class CliClient
                 case CliParser.NODE_DEL_KEYSPACE:
                     executeDelKeyspace(ast);
                     break;
-                case CliParser.NODE_RENAME_COLUMN_FAMILY:
-                    executeRenameColumnFamily(ast);
-                    break;
-                case CliParser.NODE_RENAME_KEYSPACE:
-                    executeRenameKeyspace(ast);
-                    break;
                 case CliParser.NODE_SHOW_CLUSTER_NAME:
                     executeShowClusterName();
                     break;
@@ -356,20 +350,6 @@ public class CliClient
                 css_.out.print("update column family Foo with column_metadata=");
                 css_.out.print("[{ column_name:Test, validation_class:IntegerType, index_type:0, index_name:IdxName");
                 css_.out.println("}] and rows_cached=100 and comment='this is helpful comment.'");
-                break;
-
-            case CliParser.NODE_RENAME_KEYSPACE:
-                css_.out.println("rename keyspace <old_name> <new_name>\n");
-                css_.out.println("Renames the specified keyspace with the given new name.\n");
-                css_.out.println("example:");
-                css_.out.println("rename keyspace foo bar");
-                break;
-                
-            case CliParser.NODE_RENAME_COLUMN_FAMILY:
-                css_.out.println("rename column family <name> <new_name>\n");
-                css_.out.println("Renames the specified column family with the given new name.\n");
-                css_.out.println("example:");
-                css_.out.println("rename column family foo bar");
                 break;
                 
             case CliParser.NODE_DEL_KEYSPACE:
@@ -1098,44 +1078,6 @@ public class CliClient
         }
         String columnName = ast.getChild(0).getText();
         css_.out.println(thriftClient_.system_drop_column_family(columnName));
-    }
-
-    /**
-     * Rename existing keyspace
-     * @param ast - a token tree representing current statement
-     * @throws TException - exception
-     * @throws InvalidRequestException - exception
-     * @throws NotFoundException - exception
-     */
-    private void executeRenameKeyspace(CommonTree ast) throws TException, InvalidRequestException, NotFoundException
-    {
-        if (!CliMain.isConnected())
-        {
-            return;
-        }
-        String keyspaceName = ast.getChild(0).getText();
-        String keyspaceNewName = ast.getChild(1).getText();
-
-        css_.out.println(thriftClient_.system_rename_keyspace(keyspaceName, keyspaceNewName));
-    }
-
-    /**
-     * Rename existing column family
-     * @param ast - a token tree representing current statement
-     * @throws TException - exception
-     * @throws InvalidRequestException - exception
-     * @throws NotFoundException - exception
-     */
-    private void executeRenameColumnFamily(CommonTree ast) throws TException, InvalidRequestException, NotFoundException
-    {
-        if (!CliMain.isConnected() || !hasKeySpace())
-        {
-            return;
-        }
-        String columnName = ast.getChild(0).getText();
-        String columnNewName = ast.getChild(1).getText();
-
-        css_.out.println(thriftClient_.system_rename_column_family(columnName, columnNewName));
     }
 
     private void executeList(CommonTree ast)
