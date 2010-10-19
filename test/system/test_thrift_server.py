@@ -1109,10 +1109,6 @@ class TestMutations(ThriftTester):
         def invalid_keyspace():
             client.system_add_keyspace(KsDef('in-valid', 'org.apache.cassandra.locator.SimpleStrategy', {}, 1, []))
         _expect_exception(invalid_keyspace, InvalidRequestException)
-        
-        def invalid_rename():
-            client.system_rename_keyspace('Keyspace1', 'in-valid')
-        _expect_exception(invalid_rename, InvalidRequestException)
 
     def test_invalid_strategy_class(self):
         def add_invalid_keyspace():
@@ -1143,11 +1139,6 @@ class TestMutations(ThriftTester):
             _set_keyspace('system')
             client.system_add_keyspace(KsDef('ValidKsName_invalid_cf', 'org.apache.cassandra.locator.SimpleStrategy', {}, 1, [cf]))
         _expect_exception(invalid_cf_inside_new_ks, InvalidRequestException)
-        
-        def invalid_rename():
-            _set_keyspace('Keyspace1')
-            client.system_rename_column_family('Standard1', 'in-validcf')
-        _expect_exception(invalid_rename, InvalidRequestException)
     
     def test_system_cf_recreate(self):
         "ensures that keyspaces and column familes can be dropped and recreated in short order"
@@ -1197,18 +1188,10 @@ class TestMutations(ThriftTester):
         assert modks.replication_factor == modified_keyspace.replication_factor
         assert modks.strategy_class == modified_keyspace.strategy_class
         
-        # rename
-        client.system_rename_keyspace('CreateKeyspace', 'RenameKeyspace')
-        renameks = client.describe_keyspace('RenameKeyspace')
-        assert 'CreateKsCf' in [x.name for x in renameks.cf_defs]
-        def get_first_ks():
-            client.describe_keyspace('CreateKeyspace')
-        _expect_exception(get_first_ks, NotFoundException)
-        
         # drop
-        client.system_drop_keyspace('RenameKeyspace')
+        client.system_drop_keyspace('CreateKeyspace')
         def get_second_ks():
-            client.describe_keyspace('RenameKeyspace')
+            client.describe_keyspace('CreateKeyspace')
         _expect_exception(get_second_ks, NotFoundException)
         
     def test_create_then_drop_ks(self):
@@ -1223,28 +1206,7 @@ class TestMutations(ThriftTester):
         client.system_add_keyspace(keyspace)
         test_existence()
         client.system_drop_keyspace(keyspace.name)
-
-    def test_create_rename_recreate(self):
-        # create
-        keyspace1 = KsDef('CreateRenameRecreate',
-                strategy_class='org.apache.cassandra.locator.SimpleStrategy',
-                replication_factor=1,
-                cf_defs=[CfDef('CreateRenameRecreate','CF_1', column_metadata=[])])
-        client.set_keyspace('system')
-        client.system_add_keyspace(keyspace1)
-        def test_ks1_existence():
-            client.describe_keyspace(keyspace1.name)
-        test_ks1_existence()
-        
-        # rename
-        client.system_rename_keyspace(keyspace1.name, keyspace1.name + '_renamed')
-        _expect_exception(test_ks1_existence, NotFoundException)
-        keyspace2 = client.describe_keyspace(keyspace1.name + '_renamed')
-        
-        # recreate
-        client.system_add_keyspace(keyspace1)
-        test_ks1_existence()
-        
+  
     def test_column_validators(self):
         # columndef validation for regular CF
         ks = 'Keyspace1'
@@ -1324,16 +1286,9 @@ class TestMutations(ThriftTester):
         assert server_cf.row_cache_size == 25
         assert server_cf.gc_grace_seconds == 1
         
-        # rename
-        client.system_rename_column_family('NewColumnFamily', 'RenameColumnFamily')
-        ks1 = client.describe_keyspace('Keyspace1')
-        assert 'RenameColumnFamily' in [x.name for x in ks1.cf_defs]
-        assert 'NewColumnFamily' not in [x.name for x in ks1.cf_defs]
-        
         # drop
-        client.system_drop_column_family('RenameColumnFamily')
+        client.system_drop_column_family('NewColumnFamily')
         ks1 = client.describe_keyspace('Keyspace1')
-        assert 'RenameColumnFamily' not in [x.name for x in ks1.cf_defs]
         assert 'NewColumnFamily' not in [x.name for x in ks1.cf_defs]
         assert 'Standard1' in [x.name for x in ks1.cf_defs]
 
@@ -1387,16 +1342,9 @@ class TestMutations(ThriftTester):
         ks1 = client.describe_keyspace('Keyspace1')
         assert 'NewSuperColumnFamily' in [x.name for x in ks1.cf_defs]
         
-        # rename
-        client.system_rename_column_family('NewSuperColumnFamily', 'RenameSuperColumnFamily')
-        ks1 = client.describe_keyspace('Keyspace1')
-        assert 'RenameSuperColumnFamily' in [x.name for x in ks1.cf_defs]
-        assert 'NewSuperColumnFamily' not in [x.name for x in ks1.cf_defs]
-        
         # drop
-        client.system_drop_column_family('RenameSuperColumnFamily')
+        client.system_drop_column_family('NewSuperColumnFamily')
         ks1 = client.describe_keyspace('Keyspace1')
-        assert 'RenameSuperColumnFamily' not in [x.name for x in ks1.cf_defs]
         assert 'NewSuperColumnFamily' not in [x.name for x in ks1.cf_defs]
         assert 'Standard1' in [x.name for x in ks1.cf_defs]
 

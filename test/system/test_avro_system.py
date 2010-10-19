@@ -67,23 +67,13 @@ class TestSystemOperations(AvroTester):
         assert modks['replication_factor'] == modified_keyspace['replication_factor']
         assert modks['strategy_class'] == modified_keyspace['strategy_class']
         
-        # rename
-        self.client.request('set_keyspace', {'keyspace' : 'CreateKeyspace'})
-        s = self.client.request(
-                'system_rename_keyspace', {'old_name' : 'CreateKeyspace', 'new_name' : 'RenameKeyspace'})
-        assert isinstance(s, unicode), 'returned type is %s, (not \'unicode\')' % type(s)
-        renameks = self.client.request('describe_keyspace',
-                {'keyspace': 'RenameKeyspace'})
-        assert renameks['name'] == 'RenameKeyspace'
-        assert renameks['cf_defs'][0]['name'] == 'CreateKsCf'
-        
         # drop
-        s = self.client.request('system_drop_keyspace', {'keyspace' : 'RenameKeyspace'})
+        s = self.client.request('system_drop_keyspace', {'keyspace' : 'CreateKeyspace'})
         assert isinstance(s, unicode), 'returned type is %s, (not \'unicode\')' % type(s)
         avro_utils.assert_raises(AvroRemoteException,
                       self.client.request,
                       'describe_keyspace',
-                      {'keyspace' : 'RenameKeyspace'})
+                      {'keyspace' : 'CreateKeyspace'})
         
     def test_system_column_family_operations(self):
         "adding, renaming, and removing column families"
@@ -126,20 +116,12 @@ class TestSystemOperations(AvroTester):
         assert server_cf
         assert server_cf['row_cache_size'] == 25
         assert server_cf['gc_grace_seconds'] == 1
-        
-        # rename
-        self.client.request('system_rename_column_family',
-            {'old_name' : 'NewColumnFamily', 'new_name': 'RenameColumnFamily'})
-        ks1 = self.client.request(
-            'describe_keyspace', {'keyspace' : 'Keyspace1'})
-        assert 'RenameColumnFamily' in [x['name'] for x in ks1['cf_defs']]
 
         # drop
         self.client.request('system_drop_column_family',
-            {'column_family' : 'RenameColumnFamily'})
+            {'column_family' : 'NewColumnFamily'})
         ks1 = self.client.request(
                 'describe_keyspace', {'keyspace' : 'Keyspace1'})
-        assert 'RenameColumnFamily' not in [x['name'] for x in ks1['cf_defs']]
         assert 'NewColumnFamily' not in [x['name'] for x in ks1['cf_defs']]
         assert 'Standard1' in [x['name'] for x in ks1['cf_defs']]
     
@@ -176,29 +158,6 @@ class TestSystemOperations(AvroTester):
             assert len(cosc_list) == 0 , 'cosc length test failed'
             
             self.client.request('system_drop_keyspace', {'keyspace': keyspace})
-    
-    def test_create_rename_recreate(self):
-        # create
-        cf = {'keyspace': 'CreateRenameRecreate', 'name': 'CF_1'}
-        keyspace1 = {'name': 'CreateRenameRecreate',
-                'strategy_class': 'org.apache.cassandra.locator.SimpleStrategy',
-                'strategy_options': {},
-                'replication_factor': 1,
-                'cf_defs': [cf]}
-        self.client.request('set_keyspace', {'keyspace': 'system'})
-        self.client.request('system_add_keyspace', {'ks_def': keyspace1})
-        assert self.client.request('describe_keyspace', {'keyspace': keyspace1['name']})
-        
-        # rename
-        self.client.request('system_rename_keyspace', {'old_name': keyspace1['name'], 'new_name': keyspace1['name'] + '_renamed'})
-        assert self.client.request('describe_keyspace', {'keyspace': keyspace1['name'] + '_renamed'}) 
-        avro_utils.assert_raises(AvroRemoteException,
-                self.client.request,
-                'describe_keyspace',
-                {'keyspace': keyspace1['name']})
-        
-        # recreate
-        self.client.request('system_add_keyspace', {'ks_def': keyspace1})
-        assert self.client.request('describe_keyspace', {'keyspace': keyspace1['name']})
+
 
 

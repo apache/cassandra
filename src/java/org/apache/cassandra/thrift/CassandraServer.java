@@ -727,29 +727,6 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public String system_rename_column_family(String old_name, String new_name) throws InvalidRequestException, TException
-    {
-        state().hasColumnFamilyListAccess(Permission.WRITE);
-        
-        try
-        {
-            applyMigrationOnStage(new RenameColumnFamily(state().getKeyspace(), old_name, new_name));
-            return DatabaseDescriptor.getDefsVersion().toString();
-        }
-        catch (ConfigurationException e)
-        {
-            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
-        catch (IOException e)
-        {
-            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
-    }
-
     public String system_add_keyspace(KsDef ks_def) throws InvalidRequestException, TException
     {
         state().hasKeyspaceListAccess(Permission.WRITE);
@@ -800,29 +777,6 @@ public class CassandraServer implements Cassandra.Iface
         try
         {
             applyMigrationOnStage(new DropKeyspace(keyspace, true));
-            return DatabaseDescriptor.getDefsVersion().toString();
-        }
-        catch (ConfigurationException e)
-        {
-            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
-        catch (IOException e)
-        {
-            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
-    }
-
-    public String system_rename_keyspace(String old_name, String new_name) throws InvalidRequestException, TException
-    {
-        state().hasKeyspaceListAccess(Permission.WRITE);
-        
-        try
-        {
-            applyMigrationOnStage(new RenameKeyspace(old_name, new_name));
             return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)

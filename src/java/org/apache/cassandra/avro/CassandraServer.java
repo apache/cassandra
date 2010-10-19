@@ -881,26 +881,6 @@ public class CassandraServer implements Cassandra {
         return ksDef;
     }
 
-    public CharSequence system_rename_column_family(CharSequence old_name, CharSequence new_name)
-    throws AvroRemoteException, InvalidRequestException
-    {
-        checkKeyspaceAndLoginAuthorized(Permission.WRITE);
-        
-        try
-        {
-            applyMigrationOnStage(new RenameColumnFamily(state().getKeyspace(), old_name.toString(), new_name.toString()));
-            return DatabaseDescriptor.getDefsVersion().toString();
-        }
-        catch (ConfigurationException e)
-        {
-            throw newInvalidRequestException(e);
-        }
-        catch (IOException e)
-        {
-            throw newInvalidRequestException(e);
-        }
-    }
-
     public CharSequence system_drop_column_family(CharSequence column_family) throws AvroRemoteException, InvalidRequestException
     {
         checkKeyspaceAndLoginAuthorized(Permission.WRITE);
@@ -928,25 +908,6 @@ public class CassandraServer implements Cassandra {
         try
         {
             applyMigrationOnStage(new DropKeyspace(keyspace.toString(), true));
-            return DatabaseDescriptor.getDefsVersion().toString();
-        }
-        catch (ConfigurationException e)
-        {
-            throw newInvalidRequestException(e);
-        }
-        catch (IOException e)
-        {
-            throw newInvalidRequestException(e);
-        }
-    }
-
-    public CharSequence system_rename_keyspace(CharSequence old_name, CharSequence new_name) throws AvroRemoteException, InvalidRequestException
-    {
-        checkKeyspaceAndLoginAuthorized(Permission.WRITE);
-        
-        try
-        {
-            applyMigrationOnStage(new RenameKeyspace(old_name.toString(), new_name.toString()));
             return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)
