@@ -55,13 +55,12 @@ public class RowMutationVerbHandler implements IVerbHandler
             if (hintedBytes != null)
             {
                 assert hintedBytes.length > 0;
-                ByteBuffer bb = ByteBuffer.wrap(hintedBytes);
-                byte[] addressBytes = new byte[FBUtilities.getLocalAddress().getHostAddress().getBytes(UTF_8).length];
-                while (bb.remaining() > 0)
+                DataInputStream dis = new DataInputStream(new ByteArrayInputStream(hintedBytes));
+                while (dis.available() > 0)
                 {
-                    bb.get(addressBytes);
+                    byte[] addressBytes = FBUtilities.readShortByteArray(dis);
                     if (logger_.isDebugEnabled())
-                        logger_.debug("Adding hint for " + InetAddress.getByAddress(addressBytes));
+                        logger_.debug("Adding hint for " + InetAddress.getByName(new String(addressBytes)));
                     RowMutation hintedMutation = new RowMutation(Table.SYSTEM_TABLE, addressBytes);
                     hintedMutation.addHints(rm);
                     hintedMutation.apply();

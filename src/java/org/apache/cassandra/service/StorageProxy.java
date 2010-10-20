@@ -18,9 +18,7 @@
 
 package org.apache.cassandra.service;
 
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.IOException;
+import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.util.*;
@@ -180,12 +178,17 @@ public class StorageProxy implements StorageProxyMBean
 
     }
 
-    private static void addHintHeader(Message message, InetAddress target)
+    private static void addHintHeader(Message message, InetAddress target) throws IOException
     {
-        byte[] oldHint = message.getHeader(RowMutation.HINT);
-        byte[] address = target.getHostAddress().getBytes(UTF_8);
-        byte[] hint = oldHint == null ? address : ArrayUtils.addAll(oldHint, address);
-        message.setHeader(RowMutation.HINT, hint);
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(bos);
+        byte[] previousHints = message.getHeader(RowMutation.HINT);
+        if (previousHints != null)
+        {
+            dos.write(previousHints);
+        }
+        FBUtilities.writeShortByteArray(target.getHostAddress().getBytes(UTF_8), dos);
+        message.setHeader(RowMutation.HINT, bos.toByteArray());
     }
 
     private static void insertLocalMessage(final RowMutation rm, final IWriteResponseHandler responseHandler)
