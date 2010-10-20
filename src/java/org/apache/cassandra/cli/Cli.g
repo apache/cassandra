@@ -68,7 +68,7 @@ tokens {
     PAIR;
 
     NODE_LIMIT;
-    NODE_KEY_RANGE_ACCESS;
+    NODE_KEY_RANGE;
 }
 
 @parser::header {
@@ -213,12 +213,8 @@ showStatement
     ;
 
 listStatement
-    : K_LIST keyRangeExpr limitClause?
-        -> ^(NODE_LIST keyRangeExpr limitClause?)
-    ;
-
-limitClause
-    : K_LIMIT^ IntegerLiteral
+    : K_LIST columnFamily keyRangeExpr? ('LIMIT' limit=IntegerLiteral)?
+        -> ^(NODE_LIST columnFamily keyRangeExpr? ^(NODE_LIMIT $limit)?)
     ;
 
 showClusterName
@@ -319,10 +315,10 @@ columnFamilyExpr
     ;
 
 keyRangeExpr
-    :    columnFamily '[' startKey ':' endKey ']' ('[' columnOrSuperColumn ']')?
-      -> ^(NODE_KEY_RANGE_ACCESS columnFamily startKey endKey columnOrSuperColumn?)
+    :    '[' ( startKey? ':' endKey? )? ']'
+      -> ^(NODE_KEY_RANGE startKey? endKey?)
     ;
-
+    
 table: Identifier;
 
 columnName: Identifier;

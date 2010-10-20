@@ -413,11 +413,13 @@ public class CliClient
                 break;
 
             case CliParser.NODE_LIST:
-                css_.out.println("list <cf>['<startKey>':'<endKey']\n");
-                css_.out.println("list <cf>['<startKey>':'<endKey'] limit M\n");
-                css_.out.println("list <cf>['<startKey>':'<endKey']['<super>']\n");
-                css_.out.println("list <cf>['<startKey>':'<endKey']['<super>'] limit M\n");
+                css_.out.println("list <cf>");
+                css_.out.println("list <cf>[<startKey>:]");
+                css_.out.println("list <cf>[<startKey>:<endKey>]");
+                css_.out.println("list ... limit N");
                 css_.out.println("List a range of rows in the column or supercolumn family.\n");
+                css_.out.println("example:");
+                css_.out.println("list Users[j:] limit 40");
                 break;
                 
             default:
@@ -462,8 +464,11 @@ public class CliClient
             css_.out.println("del <cf>['<key>']['<super>']['<col>']                         Delete sub column.");
             css_.out.println("count <cf>['<key>']                                     Count columns in record.");
             css_.out.println("count <cf>['<key>']['<super>']                  Count columns in a super column.");
-            css_.out.println("list <cf>['<startKey>':'<endKey']                List rows in the column family.");
-            css_.out.println("list <cf>['<startKey>':'<endKey']['<super>']  List the super column across rows.");
+            css_.out.println("list <cf>                                  List all rows in the column family.");
+            css_.out.println("list <cf>[<startKey>:]");
+            css_.out.println("                       List rows in the column family beginning with <startKey>.");
+            css_.out.println("list <cf>[<startKey>:<endKey>]");
+            css_.out.println("        List rows in the column family in the range from <startKey> to <endKey>.");
             css_.out.println("list ... limit N                                    Limit the list results to N.");
         } 
     }
@@ -1086,32 +1091,51 @@ public class CliClient
         if (!CliMain.isConnected())
             return;
 
-        // AST check
-        assert (ast.getChildCount() == 1 || ast.getChildCount() == 2) : "Incorrect AST Construct!";
+        assert (ast.getChildCount() >= 1 || ast.getChildCount() <= 3) : "Incorrect AST Construct!";
+        Iterator<CommonTree> iter = ast.getChildren().iterator();
 
-        CommonTree keyRangeSpec = (CommonTree) ast.getChild(0);
-        assert (keyRangeSpec.getType() == CliParser.NODE_KEY_RANGE_ACCESS);
+        // extract column family
+        String columnFamily = iter.next().getText();
 
-        // extract key range, column family, and super column name
-        String columnFamily = keyRangeSpec.getChild(0).getText();
-        String startKey = CliUtils.unescapeSQLString(keyRangeSpec.getChild(1).getText());
-        String endKey = CliUtils.unescapeSQLString(keyRangeSpec.getChild(2).getText());
+        String startKey = "";
+        String endKey = "";
+        int limitCount = Integer.MAX_VALUE; // will reset to default later if it's not specified
 
-        String superColumnName = null;
-        if (keyRangeSpec.getChildCount() == 4)
+        // optional arguments: key range and limit
+        while (iter.hasNext())
         {
-            superColumnName = CliUtils.unescapeSQLString(keyRangeSpec.getChild(3).getText());
+            CommonTree child = iter.next();
+            if (child.getType() == CliParser.NODE_KEY_RANGE)
+            {
+                if (child.getChildCount() > 0)
+                {
+                    startKey = CliUtils.unescapeSQLString(child.getChild(0).getText());
+                    if (child.getChildCount() > 1)
+                        endKey = CliUtils.unescapeSQLString(child.getChild(1).getText());
+                }
+            }
+            else
+            {
+                assert child.getType() == CliParser.NODE_LIMIT;
+                if (child.getChildCount() != 1)
+                {
+                    css_.out.println("Invalid limit clause");
+                    return;
+                }
+                limitCount = Integer.parseInt(child.getChild(0).getText());
+                if (limitCount <= 0)
+                {
+                    css_.out.println("Invalid limit " + limitCount);
+                    return;
+                }
+            }
         }
 
-        // extract LIMIT clause
-        int limitCount = Integer.MAX_VALUE;
-        if (ast.getChildCount() == 2)
+        if (limitCount == Integer.MAX_VALUE)
         {
-            CommonTree limitSpec = (CommonTree) ast.getChild(1);
-            assert (limitSpec.getType() == CliParser.NODE_LIMIT);
-            limitCount = Integer.parseInt(limitSpec.getChild(0).getText());
+            limitCount = 100;
+            css_.out.println("Using default limit of 100");
         }
-        assert (limitCount > 0) : "Limit count should be > 0!";
 
         List<String> cfnames = new ArrayList<String>();
         for (CfDef cfd : keyspacesMap.get(keySpace).cf_defs)
@@ -1133,19 +1157,12 @@ public class CliClient
         predicate.setSlice_range(sliceRange);
 
         // set the key range
-        KeyRange range = new KeyRange(10);
+        KeyRange range = new KeyRange(limitCount);
         range.setStart_key(startKey.getBytes()).setEnd_key(endKey.getBytes());
 
         ColumnParent columnParent = new ColumnParent(columnFamily);
-        if (StringUtils.isNotBlank(superColumnName))
-        {
-            columnParent.setSuper_column(superColumnName.getBytes());
-        }
-
         List<KeySlice> keySlices = thriftClient_.get_range_slices(columnParent, predicate, range, ConsistencyLevel.ONE);
         int toIndex = keySlices.size();
-        if (limitCount < keySlices.size()) // limitCount could be Integer.MAX_VALUE
-            toIndex = limitCount;
         List<KeySlice> limitSlices = keySlices.subList(0, toIndex);
 
         for (KeySlice ks : limitSlices)
@@ -1175,7 +1192,7 @@ public class CliClient
             }
         }
 
-        css_.out.printf("\n%d Row%s Returned.\n", limitSlices.size(), (limitSlices.size() > 1 ? "s" : ""));
+        css_.out.printf("\n%d row%s returned\n", toIndex, (toIndex == 0 || toIndex > 1 ? "s" : ""));
     }
 
     private void executeShowVersion() throws TException

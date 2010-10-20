@@ -46,6 +46,11 @@ public class CliTest extends TestCase
         "create column family CF3 with comparator=UTF8Type and column_metadata=[{column_name:'big world', validation_class:LongType}]",
         "set CF3['hello']['big world'] = 3748",
         "get CF3['hello']['big world']",
+        "list CF3",
+        "list CF3[:]",
+        "list CF3[h:]",
+        "list CF3 limit 10",
+        "list CF3[h:g] limit 10",
         "update keyspace TestKeySpace with placement_strategy='org.apache.cassandra.locator.LocalStrategy'",
         "update keyspace TestKeySpace with replication_factor=1 and strategy_options=[{DC1:3, DC2:4, DC5:1}]"
     };
