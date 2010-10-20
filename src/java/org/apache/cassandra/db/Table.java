@@ -273,6 +273,7 @@ public class Table
         flushTask = StorageService.scheduledTasks.scheduleWithFixedDelay(runnable, minCheckMs, minCheckMs, TimeUnit.MILLISECONDS);
     }
     
+    // best invoked on the compaction mananger.
     public void dropCf(Integer cfId) throws IOException
     {
         assert columnFamilyStores.containsKey(cfId);

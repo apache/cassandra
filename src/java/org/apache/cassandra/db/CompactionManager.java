@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.io.File;
+import java.io.IOError;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
@@ -30,6 +31,7 @@ import java.util.concurrent.Future;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.commons.collections.PredicateUtils;
 import org.apache.commons.collections.iterators.CollatingIterator;
 import org.apache.commons.collections.iterators.FilterIterator;
@@ -497,6 +499,22 @@ public class CompactionManager implements CompactionManagerMBean
         return tablePairs;
     }
 
+    public Future submitDrop(final ColumnFamilyStore... stores)
+    {
+        Callable callable = new Callable()
+        {
+            public Object call() throws IOException
+            {
+                for (ColumnFamilyStore cfs : stores)
+                {
+                    cfs.table.dropCf(cfs.metadata.cfId);
+                }
+                return null;
+            }
+        };
+        return executor.submit(callable);
+    }
+    
     public Future submitIndexBuild(final ColumnFamilyStore cfs, final Table.IndexBuilder builder)
     {
         Runnable runnable = new Runnable()

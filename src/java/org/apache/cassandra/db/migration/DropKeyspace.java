@@ -22,6 +22,8 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
@@ -29,7 +31,9 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
+import java.io.IOError;
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 public class DropKeyspace extends Migration
 {
@@ -68,11 +72,26 @@ public class DropKeyspace extends Migration
         
         // remove all cfs from the table instance.
         for (CFMetaData cfm : ksm.cfMetaData().values())
-        {
             CFMetaData.purge(cfm);
-            if (!clientMode)
+        
+        if (!clientMode)
+        {
+            try
             {
-                table.dropCf(cfm.cfId);
+                CompactionManager.instance.submitDrop(table.getColumnFamilyStores().toArray(new ColumnFamilyStore[0])).get();
+            }
+            catch (InterruptedException ex)
+            {
+                throw new IOException(ex);
+            }
+            catch (ExecutionException ex)
+            {
+                // if the compaction manager catches IOException, it wraps it in an IOError and rethrows, which should
+                // get caught be the executor and rethrown as an ExecutionException.
+                if (ex.getCause() instanceof IOException)
+                    throw (IOException)ex.getCause();
+                else
+                    throw new IOException(ex);
             }
         }
                         
