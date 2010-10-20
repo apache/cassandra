@@ -507,7 +507,15 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 for (ColumnFamilyStore cfs : stores)
                 {
-                    cfs.table.dropCf(cfs.metadata.cfId);
+                    Table.flusherLock.writeLock().lock();
+                    try
+                    {
+                        cfs.table.dropCf(cfs.metadata.cfId);
+                    }
+                    finally
+                    {
+                        Table.flusherLock.writeLock().unlock();
+                    }
                 }
                 return null;
             }

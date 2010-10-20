@@ -58,7 +58,7 @@ public class Table
 
     /**
      * accesses to CFS.memtable should acquire this for thread safety.
-     * only Table.maybeSwitchMemtable should aquire the writeLock; see that method for the full explanation.
+     * Table.maybeSwitchMemtable should aquire the writeLock; see that method for the full explanation.
      */
     static final ReentrantReadWriteLock flusherLock = new ReentrantReadWriteLock(true);
 

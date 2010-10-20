@@ -569,6 +569,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             if (oldMemtable.isFrozen())
                 return null;
+            
+            if (DatabaseDescriptor.getCFMetaData(metadata.cfId) == null)
+                return null; // column family was dropped. no point in flushing.
 
             assert memtable == oldMemtable;
             memtable.freeze();
