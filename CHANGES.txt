@@ -49,6 +49,7 @@ dev
    client API until races can be fixed (CASSANDRA-1630, CASSANDRA-1585)
  * add cli sanity tests (CASSANDRA-1582)
  * update GC settings in cassandra.bat (CASSANDRA-1636)
+ * cli support for index queries (CASSANDRA-1635)
 
 
 0.7-beta2

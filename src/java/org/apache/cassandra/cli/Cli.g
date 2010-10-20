@@ -44,6 +44,7 @@ tokens {
     NODE_SHOW_VERSION;
     NODE_SHOW_TABLES;
     NODE_THRIFT_GET;
+    NODE_THRIFT_GET_WITH_CONDITIONS;
     NODE_THRIFT_SET;
     NODE_THRIFT_COUNT;
     NODE_THRIFT_DEL;
@@ -63,6 +64,8 @@ tokens {
     
     CONVERT_TO_TYPE;
     FUNCTION_CALL;
+    CONDITION;
+    CONDITIONS;
     ARRAY;
     HASH;
     PAIR;
@@ -185,6 +188,17 @@ exitStatement
 getStatement
     : K_GET columnFamilyExpr ('AS' typeIdentifier)?
         -> ^(NODE_THRIFT_GET columnFamilyExpr ( ^(CONVERT_TO_TYPE typeIdentifier) )? )
+    | K_GET columnFamily 'WHERE' getCondition ('AND' getCondition)* ('LIMIT' limit=IntegerLiteral)*
+        -> ^(NODE_THRIFT_GET_WITH_CONDITIONS columnFamily ^(CONDITIONS getCondition+) ^(NODE_LIMIT $limit)*) 
+    ;
+
+getCondition
+    : columnOrSuperColumn operator value
+        -> ^(CONDITION operator columnOrSuperColumn value)
+    ;
+
+operator
+    : '=' | '>' | '<' | '>=' | '<='
     ;
 
 typeIdentifier

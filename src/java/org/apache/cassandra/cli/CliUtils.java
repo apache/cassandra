@@ -1,4 +1,6 @@
 package org.apache.cassandra.cli;
+
+import org.apache.cassandra.thrift.IndexOperator;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -95,4 +97,34 @@ public class CliUtils
         return sb.toString();
     }
 
+    /**
+     * Returns IndexOperator from string representation
+     * @param operator - string representing IndexOperator (=, >=, >, <, <=)
+     * @return IndexOperator - enum value of IndexOperator or null if not found
+     */
+    public static IndexOperator getIndexOperator(String operator)
+    {
+        if (operator.equals("="))
+        {
+            return IndexOperator.EQ;
+        }
+        else if (operator.equals(">="))
+        {
+            return IndexOperator.GTE;
+        }
+        else if (operator.equals(">"))
+        {
+            return IndexOperator.GT;
+        }
+        else if (operator.equals("<"))
+        {
+            return IndexOperator.LT;
+        }
+        else if (operator.equals("<="))
+        {
+            return IndexOperator.LTE;
+        }
+
+        return null;
+    }
 }

@@ -33,11 +33,12 @@ public class CliTest extends TestCase
     // please add new statements here so they could be auto-runned by this test.
     private String[] statements = {
         "use TestKeySpace",
-        "create column family CF1 with comparator=UTF8Type and column_metadata=[{ column_name:world, validation_class:IntegerType }]",
+        "create column family CF1 with comparator=UTF8Type and column_metadata=[{ column_name:world, validation_class:IntegerType, index_type:0, index_name:IdxName }, { column_name:world2, validation_class:LongType, index_type:0, index_name:LongIdxName}]",
         "set CF1[hello][world] = 123848374878933948398384",
         "get CF1[hello][world]",
+        "set CF1[hello][world2] = 15",
+        "get CF1 where world2 = long(15)",
         "set CF1['hello'][time_spent_uuid] = timeuuid(a8098c1a-f86e-11da-bd1a-00112444be1e)",
-        "get CF1['hello'][time_spent_uuid] as LexicalUUIDType",
         "create column family CF2 with comparator=IntegerType",
         "set CF2['key'][98349387493847748398334] = 'some text'",
         "get CF2['key'][98349387493847748398334]",
@@ -91,7 +92,14 @@ public class CliTest extends TestCase
             }
             else if (statement.startsWith("get "))
             {
-                assertTrue(result.startsWith("=> (column="));
+                if (statement.contains("where"))
+                {
+                    assertTrue(result.startsWith("-------------------\nRowKey:"));
+                }
+                else
+                {
+                    assertTrue(result.startsWith("=> (column="));
+                }
             }
 
             outStream.reset(); // reset stream so we have only output from next statement all the time
