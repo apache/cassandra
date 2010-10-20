@@ -25,18 +25,16 @@ if NOT DEFINED JAVA_HOME goto err
 REM ***** JAVA options *****
 set JAVA_OPTS=^
  -ea^
- -Xdebug^
- -Xrunjdwp:transport=dt_socket,server=y,address=8888,suspend=n^
- -Xms128m^
+ -Xms1G^
  -Xmx1G^
- -XX:TargetSurvivorRatio=90^
- -XX:+AggressiveOpts^
+ -XX:+HeapDumpOnOutOfMemoryError^
  -XX:+UseParNewGC^
  -XX:+UseConcMarkSweepGC^
  -XX:+CMSParallelRemarkEnabled^
- -XX:+HeapDumpOnOutOfMemoryError^
- -XX:SurvivorRatio=128^
- -XX:MaxTenuringThreshold=0^
+ -XX:SurvivorRatio=8^
+ -XX:MaxTenuringThreshold=1^
+ -XX:CMSInitiatingOccupancyFraction=75^
+ -XX:+UseCMSInitiatingOccupancyOnly^
  -Dcom.sun.management.jmxremote.port=8080^
  -Dcom.sun.management.jmxremote.ssl=false^
  -Dcom.sun.management.jmxremote.authenticate=false
