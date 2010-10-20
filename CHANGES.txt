@@ -48,6 +48,7 @@ dev
  * remove system_rename_column_family and system_rename_keyspace from the
    client API until races can be fixed (CASSANDRA-1630, CASSANDRA-1585)
  * add cli sanity tests (CASSANDRA-1582)
+ * update GC settings in cassandra.bat (CASSANDRA-1636)
 
 
 0.7-beta2
