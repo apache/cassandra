@@ -1872,21 +1872,13 @@ public class CliClient
             AbstractType validator = function.getValidator();
             byte[] value = getBytesAccordingToType(functionArg, validator);
 
-            // updating CfDef
+            // performing ColumnDef local validator update
             if (withUpdate)
             {
                 updateColumnMetaData(columnFamily, columnName, validator.getClass().getName());
             }
 
             return value;
-        }
-        catch (InvalidRequestException e)
-        {
-            throw new RuntimeException(e.getWhy());
-        }
-        catch (TException e)
-        {
-            throw new RuntimeException(e);
         }
         catch (Exception e)
         {
@@ -1895,15 +1887,12 @@ public class CliClient
     }
 
     /**
-     * Used to update column family definition with new column metadata
+     * Used to locally update column family definition with new column metadata
      * @param columnFamily    - CfDef record
      * @param columnName      - column name represented as byte[]
      * @param validationClass - value validation class
-     * @throws InvalidRequestException - thrown when invalid request
-     * @throws TException - thrown when transport to thrift failed
      */
     private void updateColumnMetaData(CfDef columnFamily, byte[] columnName, String validationClass)
-            throws InvalidRequestException, TException
     {
         List<ColumnDef> columnMetaData = columnFamily.getColumn_metadata();
         ColumnDef column = getColumnDefByName(columnFamily, columnName);
@@ -1921,9 +1910,6 @@ public class CliClient
         {
             columnMetaData.add(new ColumnDef(columnName, validationClass));
         }
-        
-        // saving information
-        thriftClient_.system_update_column_family(columnFamily);
     }
 
     /**
