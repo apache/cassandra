@@ -300,6 +300,7 @@ attrValue
     : arrayConstruct
     | attrValueString
     | attrValueInt
+    | attrValueDouble
     ;
 
 
@@ -342,6 +343,8 @@ attr_name: Identifier;
 attrValueString: (Identifier | StringLiteral);
       
 attrValueInt: IntegerLiteral;
+
+attrValueDouble: DoubleLiteral;
   
 objectName: Identifier;
 
@@ -450,6 +453,9 @@ Alnum
 IntegerLiteral
    : Digit+
    ;
+   
+DoubleLiteral
+   : Digit+ DOT Digit+;
 
 Identifier
     : (Letter | Alnum) (Alnum | '_' | '-' )*

@@ -50,6 +50,7 @@ dev
  * add cli sanity tests (CASSANDRA-1582)
  * update GC settings in cassandra.bat (CASSANDRA-1636)
  * cli support for index queries (CASSANDRA-1635)
+ * cli support for updating schema memtable settings (CASSANDRA-1634)
 
 
 0.7-beta2

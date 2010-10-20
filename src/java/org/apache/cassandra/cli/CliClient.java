@@ -93,7 +93,10 @@ public class CliClient
         KEY_CACHE_SIZE,
         READ_REPAIR_CHANCE,
         GC_GRACE_SECONDS,
-        COLUMN_METADATA
+        COLUMN_METADATA,
+        MEMTABLE_OPERATIONS_IN_MILLIONS,
+        MEMTABLE_THROUGHPUT_IN_MB,
+        MEMTABLE_FLUSH_AFTER_MINS
     }
 
     /*
@@ -1139,6 +1142,18 @@ public class CliClient
                 cfDef.setColumn_metadata(getCFColumnMetaFromTree(arrayOfMetaAttributes));
                 break;
 
+            case MEMTABLE_OPERATIONS_IN_MILLIONS:
+                cfDef.setMemtable_operations_in_millions(Double.parseDouble(mValue));
+                break;
+            
+            case MEMTABLE_FLUSH_AFTER_MINS:
+                cfDef.setMemtable_flush_after_mins(Integer.parseInt(mValue));
+                break;
+                
+            case MEMTABLE_THROUGHPUT_IN_MB:
+                cfDef.setMemtable_throughput_in_mb(Integer.parseInt(mValue));
+                break;
+                
             default:
                 //must match one of the above or we'd throw an exception at the valueOf statement above.
                 assert(false);
