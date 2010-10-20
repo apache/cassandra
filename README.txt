@@ -43,45 +43,51 @@ remain in the foreground and log to standard out.
 
 Now let's try to read and write some data using the command line client.
 
-  * bin/cassandra-cli --host localhost --port 9160
+  * bin/cassandra-cli --host localhost
 
 The command line client is interactive so if everything worked you should
 be sitting in front of a prompt...
 
-  Connected to localhost/9160
+  Connected to: "Test Cluster" on localhost/9160
   Welcome to cassandra CLI.
-  
+
   Type 'help' or '?' for help. Type 'quit' or 'exit' to quit.
-  cassandra>
+  [default@unknown] 
 
 As the banner says, you can use 'help' or '?' to see what the CLI has to
 offer, and 'quit' or 'exit' when you've had enough fun. But lets try
 something slightly more interesting...
 
-  cassandra> set Keyspace1.Standard2['jsmith']['first'] = 'John'
+  [default@unknown] create keyspace Keyspace1
+  ece86bde-dc55-11df-8240-e700f669bcfc
+  [default@unknown] use Keyspace1
+  Authenticated to keyspace: Keyspace1
+  [default@Keyspace1] create column family Users with comparator=UTF8Type
+  737c7a71-dc56-11df-8240-e700f669bcfc
+
+  [default@KS1] set Users[jsmith][first] = 'John'
   Value inserted.
-  cassandra> set Keyspace1.Standard2['jsmith']['last'] = 'Smith'
+  [default@KS1] set Users[jsmith][last] = 'Smith'
   Value inserted.
-  cassandra> set Keyspace1.Standard2['jsmith']['age'] = '42'
+  [default@KS1] set Users[jsmith][age] = long(42)
   Value inserted.
-  cassandra> get Keyspace1.Standard2['jsmith']
-    (column=age, value=42; timestamp=1249930062801)
-    (column=first, value=John; timestamp=1249930053103)
-    (column=last, value=Smith; timestamp=1249930058345)
-  Returned 3 rows.
-  cassandra>
+  [default@KS1] get Users[jsmith]
+  => (column=last, value=Smith, timestamp=1287604215498000)
+  => (column=first, value=John, timestamp=1287604214111000)
+  => (column=age, value=42, timestamp=1287604216661000)
+  Returned 3 results.
 
 If your session looks similar to what's above, congrats, your single node
 cluster is operational! But what exactly was all of that? Let's break it
 down into pieces and see.
 
-  set Keyspace1.Standard2['jsmith']['first'] = 'John'
-       \            \         \        \          \
-        \            \         \_ key   \          \_ value
-         \            \                  \_ column
-          \_ keyspace  \_ column family
+  set Users[jsmith][first] = 'John'
+        \      \        \          \
+         \      \_ key   \          \_ value
+          \               \_ column
+           \_ column family
 
-Data stored in Cassandra is associated with a column family (Standard2),
+Data stored in Cassandra is associated with a column family (Users),
 which in turn is associated with a keyspace (Keyspace1). In the example
 above, we set the value 'John' in the 'first' column for key 'jsmith'.
 

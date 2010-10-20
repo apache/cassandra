@@ -597,6 +597,9 @@ public class CliClient
                                                                     new ColumnParent(columnFamily).setSuper_column(superColumnName),
                                                                     new SlicePredicate().setColumn_names(null).setSlice_range(range), ConsistencyLevel.ONE);
         int size = columns.size();
+
+        AbstractType validator;
+        CfDef cfDef = getCfDef(columnFamily);
         
         // Print out super columns or columns.
         for (ColumnOrSuperColumn cosc : columns)
@@ -607,16 +610,20 @@ public class CliClient
 
                 css_.out.printf("=> (super_column=%s,", formatSuperColumnName(keyspace, columnFamily, superColumn));
                 for (Column col : superColumn.getColumns())
+                {
+                    validator = getValidatorForValue(cfDef, col.getName());
                     css_.out.printf("\n     (column=%s, value=%s, timestamp=%d)", formatSubcolumnName(keyspace, columnFamily, col),
-                                    new String(col.value, "UTF-8"), col.timestamp);
+                                    validator.getString(col.value), col.timestamp);
+                }
                 
                 css_.out.println(")");
             }
             else
             {
                 Column column = cosc.column;
+                validator = getValidatorForValue(cfDef, column.getName());
                 css_.out.printf("=> (column=%s, value=%s, timestamp=%d)\n", formatColumnName(keyspace, columnFamily, column),
-                                new String(column.value, "UTF-8"), column.timestamp);
+                                validator.getString(column.value), column.timestamp);
             }
         }
         
