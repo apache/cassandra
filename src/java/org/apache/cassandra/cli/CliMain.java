@@ -47,6 +47,7 @@ public class CliMain
     public  static CliSessionState sessionState = new CliSessionState();
     private static CliClient cliClient;
     private static CliCompleter completer = new CliCompleter();
+    private static int lineNumber = 1;
 
     /**
      * Establish a thrift connection to cassandra instance
@@ -220,30 +221,38 @@ public class CliMain
 
     public static void processStatement(String query)
     {
+
         try
         {
             cliClient.executeCLIStmt(query);
         }
-        catch (InvalidRequestException ire)
+        catch (Exception e)
         {
-            sessionState.err.println(ire.why);
-            if (sessionState.debug)
-                ire.printStackTrace(sessionState.err);
+            String errorTemplate = sessionState.inFileMode() ? "Line " + lineNumber + " => " : "";
             
-            // Abort a batch run when errors are encountered
-            if (sessionState.batch)
-                System.exit(4);
-        }
-        catch (Throwable e)
-        {
-            sessionState.err.println((e.getCause() == null) ? e.getMessage() : e.getCause().getMessage());
+            if (e instanceof InvalidRequestException)
+            {
+                sessionState.err.println(errorTemplate + ((InvalidRequestException) e).getWhy());
+            }
+            else
+            {
+                String message = (e.getCause() == null) ? e.getMessage() : e.getCause().getMessage();
+                sessionState.err.println(errorTemplate + message);
+            }
             
             if (sessionState.debug)
+            {
                 e.printStackTrace(sessionState.err);
-            
-            // Abort a batch run when errors are encountered
-            if (sessionState.batch)
-                System.exit(8);
+            }
+
+            if (sessionState.batch || sessionState.inFileMode())
+            {
+                System.exit(4);
+            }
+        }
+        finally
+        {
+            lineNumber++;
         }
     }
 
@@ -272,6 +281,33 @@ public class CliMain
             // Connection parameter was either invalid or not present.
             // User must connect explicitly using the "connect" CLI statement.
             cliClient = new CliClient(sessionState, null);
+        }
+
+        // load statements from file and process them
+        if (sessionState.inFileMode())
+        {
+            FileReader fileReader;
+
+            try
+            {
+                fileReader = new FileReader(sessionState.filename);
+            }
+            catch (IOException e)
+            {
+                sessionState.err.println(e.getMessage());
+                return;
+            }
+
+            BufferedReader reader = new BufferedReader(fileReader);
+
+            String statement;
+
+            while ((statement = reader.readLine()) != null)
+            {
+                processStatement(statement);
+            }
+
+            return;
         }
 
         ConsoleReader reader = new ConsoleReader();

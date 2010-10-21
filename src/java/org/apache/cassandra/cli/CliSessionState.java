@@ -35,6 +35,8 @@ public class CliSessionState
     public String  password;      // cassandra login password (if SimpleAuthenticator is used)
     public String  keyspace;      // cassandra keyspace user is authenticating
     public boolean batch = false; // enable/disable batch processing mode
+    public String  filename = ""; // file to read commands from
+
     /*
      * Streams to read/write from
      */
@@ -57,5 +59,10 @@ public class CliSessionState
     public void setErr(PrintStream newErr)
     {
         this.err = newErr;
+    }
+
+    public boolean inFileMode()
+    {
+        return !this.filename.isEmpty();
     }
 }

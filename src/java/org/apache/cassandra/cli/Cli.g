@@ -86,7 +86,7 @@ package org.apache.cassandra.cli;
 {
     public void reportError(RecognitionException e) 
     {
-        throw new RuntimeException("Syntax error at " + e.line + "-" + e.charPositionInLine + ": " + this.getErrorMessage(e, this.getTokenNames()));
+        throw new RuntimeException("Syntax error at position " + e.charPositionInLine + ": " + this.getErrorMessage(e, this.getTokenNames()));
     }
 }
 
@@ -94,7 +94,7 @@ package org.apache.cassandra.cli;
 {
     public void reportError(RecognitionException e) 
     {
-        throw new RuntimeException("Syntax error at " + e.line + "-" + e.charPositionInLine + ": " + this.getErrorMessage(e, this.getTokenNames()));
+        throw new RuntimeException("Syntax error at position " + e.charPositionInLine + ": " + this.getErrorMessage(e, this.getTokenNames()));
     }
 }
 
