@@ -1429,11 +1429,12 @@ public class CliClient
 
             for (CfDef cf_def : ks_def.cf_defs)
             {
-                css_.out.println("    Column Family Name: " + cf_def.name);
+                css_.out.printf("    ColumnFamily: %s%s\n", cf_def.name, cf_def.column_type.equals("Super") ? " (Super)" : "");
                 if (cf_def.comment != null && !cf_def.comment.isEmpty())
                     css_.out.printf("    \"%s\"\n", cf_def.comment);
-                css_.out.println("      Column Family Type: " + cf_def.column_type);
-                css_.out.println("      Column Sorted By: " + cf_def.comparator_type);
+                css_.out.printf("      Columns sorted by: %s%s\n", cf_def.comparator_type, cf_def.column_type.equals("Super") ? "/" + cf_def.subcomparator_type : "");
+                if (cf_def.subcomparator_type != null)
+                    css_.out.println("      Subcolumns sorted by: " + cf_def.comparator_type);
                 css_.out.printf("      Row cache size / save period: %s/%s\n", cf_def.row_cache_size, cf_def.row_cache_save_period_in_seconds);
                 css_.out.printf("      Key cache size / save period: %s/%s\n", cf_def.key_cache_size, cf_def.key_cache_save_period_in_seconds);
                 css_.out.printf("      Memtable thresholds: %s/%s/%s\n",
@@ -1814,27 +1815,6 @@ public class CliClient
         }
 
         return strategyOptions;
-    }
-
-    /**
-     * Used to check weather value validator is set for the specific column or not
-     * @param columnName - name of the column to search for value validator
-     * @param columnDefs - column definitions to search in
-     * @return boolean - true if found, false otherwise
-     */
-    private boolean hasValueValidator(byte[] columnName, List<ColumnDef> columnDefs)
-    {
-        for (ColumnDef columnDef : columnDefs)
-        {
-            byte[] currentColumnName = columnDef.getName();
-            
-            if (Arrays.equals(currentColumnName, columnName))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**
