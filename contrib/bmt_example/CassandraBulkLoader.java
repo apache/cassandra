@@ -48,27 +48,24 @@
 package org.apache.cassandra.bulkloader;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.math.BigInteger;
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.clock.TimestampReconciler;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.dht.BigIntegerToken;
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -81,8 +78,6 @@ import org.apache.hadoop.mapred.*;
 
 public class CassandraBulkLoader {
     public static class Map extends MapReduceBase implements Mapper<Text, Text, Text, Text> {
-        private Text word = new Text();
-
         public void map(Text key, Text value, OutputCollector<Text, Text> output, Reporter reporter) throws IOException {
             // This is a simple key/value mapper.
             output.collect(key, value);
@@ -91,7 +86,6 @@ public class CassandraBulkLoader {
 
     public static class Reduce extends MapReduceBase implements Reducer<Text, Text, Text, Text> {
         private Path[] localFiles;
-        private ArrayList<String> tokens = new ArrayList<String>();
         private JobConf jobconf;
 
         public void configure(JobConf job) {
@@ -176,7 +170,7 @@ public class CassandraBulkLoader {
                 String ColumnName = fields[2];
                 String ColumnValue = fields[3];
                 int timestamp = 0;
-                columnFamily.addColumn(new QueryPath(cfName, SuperColumnName.getBytes("UTF-8"), ColumnName.getBytes("UTF-8")), ColumnValue.getBytes(), new TimestampClock(timestamp));
+                columnFamily.addColumn(new QueryPath(cfName, SuperColumnName.getBytes("UTF-8"), ColumnName.getBytes("UTF-8")), ColumnValue.getBytes(), timestamp);
             }
 
             columnFamilies.add(columnFamily);
@@ -255,10 +249,8 @@ public class CassandraBulkLoader {
 
         /* Get the first column family from list, this is just to get past validation */
         baseColumnFamily = new ColumnFamily(ColumnFamilyType.Standard,
-                                            ClockType.Timestamp,
                                             DatabaseDescriptor.getComparator(Keyspace, CFName),
                                             DatabaseDescriptor.getSubComparator(Keyspace, CFName),
-                                            TimestampReconciler.instance,
                                             CFMetaData.getId(Keyspace, CFName));
         
         for(ColumnFamily cf : ColumnFamiles) {
@@ -267,7 +259,7 @@ public class CassandraBulkLoader {
             byte[] data = new byte[bufOut.getLength()];
             System.arraycopy(bufOut.getData(), 0, data, 0, bufOut.getLength());
 
-            column = new Column(FBUtilities.toByteArray(cf.id()), data, new TimestampClock(0));
+            column = new Column(FBUtilities.toByteArray(cf.id()), data, 0);
             baseColumnFamily.addColumn(column);
         }
         rm = new RowMutation(Keyspace, Key);

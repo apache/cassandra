@@ -54,7 +54,7 @@ public class ClientOnlyExample
         {
             RowMutation change = new RowMutation("Keyspace1", ("key" + i).getBytes());
             ColumnPath cp = new ColumnPath("Standard1").setColumn(("colb").getBytes());
-            change.add(new QueryPath(cp), ("value" + i).getBytes(), new TimestampClock(0));
+            change.add(new QueryPath(cp), ("value" + i).getBytes(), 0);
 
             // don't call change.apply().  The reason is that is makes a static call into Table, which will perform
             // local storage initialization, which creates local directories.
