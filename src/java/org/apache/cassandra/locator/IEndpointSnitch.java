@@ -57,19 +57,4 @@ public interface IEndpointSnitch
      * compares two endpoints in relation to the target endpoint, returning as Comparator.compare would
      */
     public int compareEndpoints(InetAddress target, InetAddress a1, InetAddress a2);
-
-    /**
-     * returns a list of cached endpoints for a given token.
-     */
-    public ArrayList<InetAddress> getCachedEndpoints(Token t);
-
-    /**
-     * puts an address in the cache for a given token.
-     */
-    public void cacheEndpoint(Token t, ArrayList<InetAddress> addr);
-
-    /**
-     * clears all cache values.
-     */
-    public void clearEndpointCache();
 }

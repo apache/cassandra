@@ -39,19 +39,15 @@ import org.apache.cassandra.service.StorageServiceAccessor;
 public class SimpleStrategyTest extends SchemaLoader
 {
     @Test
+    public void tryValidTable()
+    {
+        assert StorageService.instance.getReplicationStrategy("Keyspace1") != null;
+    }
+
+    @Test(expected = AssertionError.class)
     public void tryBogusTable()
     {
-        AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy("Keyspace1");
-        assertNotNull(rs);
-        try
-        {
-            rs = StorageService.instance.getReplicationStrategy("SomeBogusTableThatDoesntExist");
-            throw new AssertionError("SS.createReplicationStrategy() should have thrown a RuntimeException.");
-        }
-        catch (RuntimeException ex)
-        {
-            // This exception should be thrown.
-        }
+        StorageService.instance.getReplicationStrategy("SomeBogusTableThatDoesntExist");
     }
 
     @Test

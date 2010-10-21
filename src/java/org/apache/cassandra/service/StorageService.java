@@ -168,7 +168,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                                                                                    "request");
 
     /* We use this interface to determine where replicas need to be placed */
-    private Map<String, AbstractReplicationStrategy> replicationStrategies;
+    private final Map<String, AbstractReplicationStrategy> replicationStrategies;
 
     private Set<InetAddress> replicatingNodes;
     private InetAddress removingNode;
@@ -252,10 +252,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public AbstractReplicationStrategy getReplicationStrategy(String table)
     {
         AbstractReplicationStrategy ars = replicationStrategies.get(table);
-        if (ars == null)
-            throw new RuntimeException(String.format("No replica strategy configured for %s", table));
-        else
-            return ars;
+        assert ars != null: String.format("No replica strategy configured for %s", table);
+        return ars;
     }
     
     public void initReplicationStrategy(String table)

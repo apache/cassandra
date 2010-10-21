@@ -52,6 +52,7 @@ dev
  * cli support for index queries (CASSANDRA-1635)
  * cli support for updating schema memtable settings (CASSANDRA-1634)
  * reduce automatically chosen memtable sizes by 50% (CASSANDRA-1641)
+ * move endpoint cache from snitch to strategy (CASSANDRA-1643)
 
 
 0.7-beta2

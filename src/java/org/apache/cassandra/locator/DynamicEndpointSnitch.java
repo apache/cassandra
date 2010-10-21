@@ -86,21 +86,6 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         }
     }
 
-    public ArrayList<InetAddress> getCachedEndpoints(Token t)
-    {
-        return subsnitch.getCachedEndpoints(t);
-    }
-
-    public void cacheEndpoint(Token t, ArrayList<InetAddress> addr)
-    {
-        subsnitch.cacheEndpoint(t, addr);
-    }
-
-    public void clearEndpointCache()
-    {
-        subsnitch.clearEndpointCache();
-    }
-
     public String getRack(InetAddress endpoint)
     {
         return subsnitch.getRack(endpoint);

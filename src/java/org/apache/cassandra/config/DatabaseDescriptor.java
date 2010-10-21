@@ -709,14 +709,6 @@ public class    DatabaseDescriptor
         return requestSchedulerId;
     }
 
-    public static Class<? extends AbstractReplicationStrategy> getReplicaPlacementStrategyClass(String table)
-    {
-    	KSMetaData meta = tables.get(table);
-    	if (meta == null)
-            throw new RuntimeException(table + " not found. Failure to call loadSchemas() perhaps?");
-        return meta.strategyClass;
-    }
-
     public static KSMetaData getKSMetaData(String table)
     {
         assert table != null;

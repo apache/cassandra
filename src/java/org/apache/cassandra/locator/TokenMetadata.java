@@ -121,7 +121,7 @@ public class TokenMetadata
                 sortedTokens = sortTokens();
             }
             leavingEndpoints.remove(endpoint);
-            fireTokenToEndpointMapChanged();
+            invalidateCaches();
         }
         finally
         {
@@ -197,7 +197,7 @@ public class TokenMetadata
             tokenToEndpointMap.inverse().remove(endpoint);
             leavingEndpoints.remove(endpoint);
             sortedTokens = sortTokens();
-            fireTokenToEndpointMapChanged();
+            invalidateCaches();
         }
         finally
         {
@@ -450,7 +450,7 @@ public class TokenMetadata
         tokenToEndpointMap.clear();
         leavingEndpoints.clear();
         pendingRanges.clear();
-        fireTokenToEndpointMapChanged();
+        invalidateCaches();
     }
 
     public String toString()
@@ -527,7 +527,7 @@ public class TokenMetadata
         return sb.toString();
     }
 
-    protected void fireTokenToEndpointMapChanged()
+    public void invalidateCaches()
     {
         for (AbstractReplicationStrategy subscriber : subscribers)
         {

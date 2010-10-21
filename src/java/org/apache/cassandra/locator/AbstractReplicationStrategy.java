@@ -19,29 +19,23 @@
 
 package org.apache.cassandra.locator;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.net.InetAddress;
 import java.util.*;
 
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.service.*;
-import org.apache.commons.lang.ObjectUtils;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.hadoop.util.StringUtils;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
@@ -51,10 +45,10 @@ public abstract class AbstractReplicationStrategy
 {
     private static final Logger logger = LoggerFactory.getLogger(AbstractReplicationStrategy.class);
 
-    public String table;
-    private TokenMetadata tokenMetadata;
+    public final String table;
+    private final TokenMetadata tokenMetadata;
     public final IEndpointSnitch snitch;
-    public Map<String, String> configOptions;
+    public final Map<String, String> configOptions;
 
     AbstractReplicationStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
@@ -68,6 +62,24 @@ public abstract class AbstractReplicationStrategy
         this.table = table;
     }
 
+    private final Map<Token, ArrayList<InetAddress>> cachedEndpoints = new NonBlockingHashMap<Token, ArrayList<InetAddress>>();
+
+    public ArrayList<InetAddress> getCachedEndpoints(Token t)
+    {
+        return cachedEndpoints.get(t);
+    }
+
+    public void cacheEndpoint(Token t, ArrayList<InetAddress> addr)
+    {
+        cachedEndpoints.put(t, addr);
+    }
+
+    public void clearEndpointCache()
+    {
+        logger.debug("clearing cached endpoints");
+        cachedEndpoints.clear();
+    }
+
     /**
      * get the (possibly cached) endpoints that should store the given Token
      * Note that while the endpoints are conceptually a Set (no duplicates will be included),
@@ -79,13 +91,13 @@ public abstract class AbstractReplicationStrategy
     public ArrayList<InetAddress> getNaturalEndpoints(Token searchToken) throws IllegalStateException
     {
         Token keyToken = TokenMetadata.firstToken(tokenMetadata.sortedTokens(), searchToken);
-        ArrayList<InetAddress> endpoints = snitch.getCachedEndpoints(keyToken);
+        ArrayList<InetAddress> endpoints = getCachedEndpoints(keyToken);
         if (endpoints == null)
         {
             TokenMetadata tokenMetadataClone = tokenMetadata.cloneOnlyTokenMap();
             keyToken = TokenMetadata.firstToken(tokenMetadataClone.sortedTokens(), searchToken);
             endpoints = new ArrayList<InetAddress>(calculateNaturalEndpoints(searchToken, tokenMetadataClone));
-            snitch.cacheEndpoint(keyToken, endpoints);
+            cacheEndpoint(keyToken, endpoints);
             // calculateNaturalEndpoints should have checked this already, this is a safety
             assert getReplicationFactor() <= endpoints.size() : String.format("endpoints %s generated for RF of %s",
                                                                               Arrays.toString(endpoints.toArray()),
@@ -220,7 +232,7 @@ public abstract class AbstractReplicationStrategy
 
     public void invalidateCachedTokenEndpointValues()
     {
-        snitch.clearEndpointCache();
+        clearEndpointCache();
     }
 
     public static AbstractReplicationStrategy createReplicationStrategy(String table,
