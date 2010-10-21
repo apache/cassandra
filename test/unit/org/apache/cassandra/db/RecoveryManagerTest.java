@@ -63,6 +63,7 @@ public class RecoveryManagerTest extends CleanupHelper
         table1.getColumnFamilyStore("Standard1").clearUnsafe();
         table2.getColumnFamilyStore("Standard3").clearUnsafe();
 
+        CommitLog.instance.resetUnsafe(); // disassociate segments from live CL
         CommitLog.recover();
 
         assertColumns(Util.getColumnFamily(table1, dk, "Standard1"), "col1");

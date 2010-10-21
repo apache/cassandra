@@ -575,7 +575,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             assert memtable == oldMemtable;
             memtable.freeze();
-            final CommitLogSegment.CommitLogContext ctx = writeCommitLog ? CommitLog.instance().getContext() : null;
+            final CommitLogSegment.CommitLogContext ctx = writeCommitLog ? CommitLog.instance.getContext() : null;
             logger.info("switching in a fresh Memtable for " + columnFamily + " at " + ctx);
 
             // submit the memtable for any indexed sub-cfses, and our own.
@@ -605,7 +605,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     {
                         // if we're not writing to the commit log, we are replaying the log, so marking
                         // the log header with "you can discard anything written before the context" is not valid
-                        CommitLog.instance().discardCompletedSegments(metadata.cfId, ctx);
+                        CommitLog.instance.discardCompletedSegments(metadata.cfId, ctx);
                     }
                 }
             });

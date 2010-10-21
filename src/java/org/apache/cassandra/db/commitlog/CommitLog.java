@@ -80,26 +80,13 @@ public class CommitLog
 
     static final Logger logger = LoggerFactory.getLogger(CommitLog.class);
 
-    public static CommitLog instance()
-    {
-        return CLHandle.instance;
-    }
-
-    private static class CLHandle
-    {
-        public static final CommitLog instance = new CommitLog();
-    }
+    public static final CommitLog instance = new CommitLog();
 
     private final Deque<CommitLogSegment> segments = new ArrayDeque<CommitLogSegment>();
 
     public static void setSegmentSize(int size)
     {
         SEGMENT_SIZE = size;
-    }
-
-    public int getSegmentCount()
-    {
-        return segments.size();
     }
 
     private final ICommitLogExecutorService executor;
@@ -112,10 +99,19 @@ public class CommitLog
     */
     private CommitLog()
     {
+        try
+        {
+            DatabaseDescriptor.createAllDirectories();
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+
         // all old segments are recovered and deleted before CommitLog is instantiated.
         // All we need to do is create a new one.
         segments.add(new CommitLogSegment());
-        
+
         if (DatabaseDescriptor.getCommitLogSync() == Config.CommitLogSync.periodic)
         {
             executor = new PeriodicCommitLogExecutorService();
@@ -157,6 +153,22 @@ public class CommitLog
         }
     }
 
+    public void resetUnsafe()
+    {
+        segments.clear();
+        segments.add(new CommitLogSegment());
+    }
+
+    private boolean manages(String name)
+    {
+        for (CommitLogSegment segment : segments)
+        {
+            if (segment.getPath().endsWith(name))
+                return true;
+        }
+        return false;
+    }
+
     public static void recover() throws IOException
     {
         String directory = DatabaseDescriptor.getCommitLogLocation();
@@ -164,11 +176,17 @@ public class CommitLog
         {
             public boolean accept(File dir, String name)
             {
-                return CommitLogSegment.possibleCommitLogFile(name);
+                // we used to try to avoid instantiating commitlog (thus creating an empty segment ready for writes)
+                // until after recover was finished.  this turns out to be fragile; it is less error-prone to go
+                // ahead and allow writes before recover(), and just skip active segments when we do.
+                return CommitLogSegment.possibleCommitLogFile(name) && !instance.manages(name);
             }
         });
         if (files.length == 0)
+        {
+            logger.info("No commitlog files found; skipping replay");
             return;
+        }
 
         Arrays.sort(files, new FileUtils.FileComparator());
         logger.info("Replaying " + StringUtils.join(files, ", "));

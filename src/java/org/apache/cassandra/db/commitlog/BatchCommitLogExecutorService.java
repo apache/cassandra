@@ -95,7 +95,7 @@ class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService imp
         // now sync and set the tasks' values (which allows thread calling get() to proceed)
         try
         {
-            CommitLog.instance().sync();
+            CommitLog.instance.sync();
         }
         catch (IOException e)
         {

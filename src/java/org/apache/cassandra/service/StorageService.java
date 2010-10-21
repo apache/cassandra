@@ -339,8 +339,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         initialized = true;
         isClientMode = false;
 
-        DatabaseDescriptor.createAllDirectories();
-
         try
         {
             GCInspector.instance.start();

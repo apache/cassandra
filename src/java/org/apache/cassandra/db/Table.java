@@ -62,9 +62,8 @@ public class Table
      */
     static final ReentrantReadWriteLock flusherLock = new ReentrantReadWriteLock(true);
 
-    // This is a result of pushing down the point in time when storage directories get created.  It used to happen in
-    // CassandraDaemon, but it is possible to call Table.open without a running daemon, so it made sense to ensure
-    // proper directories here.
+    // It is possible to call Table.open without a running daemon, so it makes sense to ensure
+    // proper directories here as well as in CassandraDaemon.
     static
     {
         try
@@ -73,7 +72,7 @@ public class Table
         }
         catch (IOException ex)
         {
-            throw new RuntimeException(ex);
+            throw new IOError(ex);
         }
     }
 
@@ -350,7 +349,7 @@ public class Table
         try
         {
             if (writeCommitLog)
-                CommitLog.instance().add(mutation, serializedMutation);
+                CommitLog.instance.add(mutation, serializedMutation);
         
             DecoratedKey key = StorageService.getPartitioner().decorateKey(mutation.key());
             for (ColumnFamily cf : mutation.getColumnFamilies())

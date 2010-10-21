@@ -24,6 +24,7 @@ import java.io.IOException;
 import org.junit.BeforeClass;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.io.util.FileUtils;
 
 import org.slf4j.Logger;
@@ -39,6 +40,7 @@ public class CleanupHelper extends SchemaLoader
         mkdirs();
         cleanup();
         mkdirs();
+        CommitLog.instance.resetUnsafe(); // cleanup screws w/ CommitLog, this brings it back to safe state
     }
 
     public static void cleanup() throws IOException

@@ -62,6 +62,7 @@ public class RecoveryManager2Test extends CleanupHelper
 
         logger.debug("begin manual replay");
         // replay the commit log (nothing should be replayed since everything was flushed)
+        CommitLog.instance.resetUnsafe();
         CommitLog.recover();
 
         // since everything that was flushed was removed (i.e. clearUnsafe)

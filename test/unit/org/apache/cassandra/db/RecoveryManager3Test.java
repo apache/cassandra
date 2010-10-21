@@ -31,6 +31,7 @@ import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.io.util.FileUtils;
 
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.db.TableTest.assertColumns;
@@ -66,10 +67,10 @@ public class RecoveryManager3Test extends CleanupHelper
         for (File file : new File(DatabaseDescriptor.getCommitLogLocation()).listFiles())
         {
             if (file.getName().endsWith(".header"))
-                if (!file.delete())
-                    throw new AssertionError();
+                FileUtils.deleteWithConfirm(file);
         }
 
+        CommitLog.instance.resetUnsafe(); // disassociate segments from live CL
         CommitLog.recover();
 
         assertColumns(Util.getColumnFamily(table1, dk, "Standard1"), "col1");

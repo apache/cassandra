@@ -54,6 +54,8 @@ dev
  * cli --file option (CASSANDRA-1616)
  * reduce automatically chosen memtable sizes by 50% (CASSANDRA-1641)
  * move endpoint cache from snitch to strategy (CASSANDRA-1643)
+ * fix commitlog recovery deleting the newly-created segment as well as
+   the old ones (CASSANDRA-1644)
 
 
 0.7-beta2
@@ -95,8 +97,6 @@ dev
  * Add CfDef.default_validation_class (CASSANDRA-891)
  * fix EstimatedHistogram.max (CASSANDRA-1413)
  * quorum read optimization (CASSANDRA-1622)
-
-
  * handle zero-length (or missing) rows during HH paging (CASSANDRA-1432)
  * include secondary indexes during schema migrations (CASSANDRA-1406)
  * fix commitlog header race during schema change (CASSANDRA-1435)
