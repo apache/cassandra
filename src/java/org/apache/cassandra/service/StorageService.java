@@ -94,6 +94,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         BOOTSTRAP_TOKEN,
         TREE_REQUEST,
         TREE_RESPONSE,
+        JOIN, // Deprecated
         GOSSIP_DIGEST_SYN,
         GOSSIP_DIGEST_ACK,
         GOSSIP_DIGEST_ACK2,
