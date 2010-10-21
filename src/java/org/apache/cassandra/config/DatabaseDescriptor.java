@@ -1118,7 +1118,7 @@ public class    DatabaseDescriptor
     }
 
     public static int sizeMemtableThroughput() {
-        return (int) (Runtime.getRuntime().maxMemory() / (1048576 * 8));
+        return (int) (Runtime.getRuntime().maxMemory() / (1048576 * 16));
     }
 
     public static double sizeMemtableOperations(int mem_throughput) {
