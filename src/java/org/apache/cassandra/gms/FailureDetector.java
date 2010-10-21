@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.gms;
 
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.IOError;
@@ -46,18 +47,13 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     private static Logger logger_ = LoggerFactory.getLogger(FailureDetector.class);
     private static final int sampleSize_ = 1000;
     private static int phiConvictThreshold_;
-    /* The Failure Detector has to have been up for at least 1 min. */
-    private static final long uptimeThreshold_ = 60000;
-    /* The time when the module was instantiated. */
-    private static long creationTime_;
-    
+
     private Map<InetAddress, ArrivalWindow> arrivalSamples_ = new Hashtable<InetAddress, ArrivalWindow>();
     private List<IFailureDetectionEventListener> fdEvntListeners_ = new ArrayList<IFailureDetectionEventListener>();
     
     public FailureDetector()
     {
         phiConvictThreshold_ = DatabaseDescriptor.getPhiConvictThreshold();
-        creationTime_ = System.currentTimeMillis();
         // Register this instance with JMX
         try
         {
@@ -89,7 +85,8 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     {
         try
         {
-            FileOutputStream fos = new FileOutputStream("/var/tmp/output-" + System.currentTimeMillis() + ".dat", true);
+            File file = File.createTempFile("failuredetector-", ".dat");
+            FileOutputStream fos = new FileOutputStream(file, true);
             fos.write(toString().getBytes());
             fos.close();
         }
@@ -99,31 +96,6 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         }
     }
     
-    /**
-     * We dump the arrival window for any endpoint only if the 
-     * local Failure Detector module has been up for more than a 
-     * minute.
-     * 
-     * @param ep for which the arrival window needs to be dumped.
-     */
-    private void dumpInterArrivalTimes(InetAddress ep)
-    {
-        long now = System.currentTimeMillis();
-        if ( (now - FailureDetector.creationTime_) <= FailureDetector.uptimeThreshold_ )
-            return;
-        try
-        {
-            FileOutputStream fos = new FileOutputStream("/var/tmp/output-" + System.currentTimeMillis() + "-" + ep + ".dat", true);
-            ArrivalWindow hWnd = arrivalSamples_.get(ep);
-            fos.write(hWnd.toString().getBytes());
-            fos.close();
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
-    }
-
     public void setPhiConvictThreshold(int phi)
     {
         phiConvictThreshold_ = phi;
