@@ -1430,8 +1430,15 @@ public class CliClient
             for (CfDef cf_def : ks_def.cf_defs)
             {
                 css_.out.println("    Column Family Name: " + cf_def.name);
+                if (cf_def.comment != null)
+                    css_.out.printf("    \"%s\"\n", cf_def.comment);
                 css_.out.println("      Column Family Type: " + cf_def.column_type);
-                css_.out.println("      Column Sorted By: " + cf_def.comparator_type);
+                css_.out.printf("      Row cache size / save period: %s/%s\n", cf_def.row_cache_size, cf_def.row_cache_save_period_in_seconds);
+                css_.out.printf("      Key cache size / save period: %s/%s\n", cf_def.key_cache_size, cf_def.key_cache_save_period_in_seconds);
+                css_.out.printf("      Memtable thresholds: %s/%s/%s\n",
+                                cf_def.memtable_operations_in_millions, cf_def.memtable_throughput_in_mb, cf_def.memtable_flush_after_mins);
+                css_.out.printf("      GC grace seconds: %s\n", cf_def.gc_grace_seconds);
+                css_.out.printf("      Compaction min/max thresholds: %s/%s\n", cf_def.min_compaction_threshold, cf_def.max_compaction_threshold);
 
                 if (cf_def.getColumn_metadataSize() != 0)
                 {
