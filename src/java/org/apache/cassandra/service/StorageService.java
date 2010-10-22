@@ -1779,6 +1779,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         replicatingNodes = Collections.synchronizedSet(new HashSet<InetAddress>());
         for (String table : DatabaseDescriptor.getNonSystemTables())
         {
+            // if the replication factor is 1 the data is lost so we shouldn't wait for confirmation
+            if (DatabaseDescriptor.getReplicationFactor(table) == 1)
+                continue;
+
             // get all ranges that change ownership (that is, a node needs
             // to take responsibility for new range)
             Multimap<Range, InetAddress> changedRanges = getChangedRangesForLeaving(table, endpoint);
