@@ -178,9 +178,9 @@ public class SystemTable
             {
                 try
                 {
-                    byte[] addr = new byte[column.value().remaining()];
-                    System.arraycopy(column.value().array(), column.value().position()+column.value().arrayOffset(), addr, 0, column.value().remaining());
-                    
+                    ByteBuffer v = column.value();
+                    byte[] addr = new byte[v.remaining()];
+                    System.arraycopy(v.array(), v.position() + v.arrayOffset(), addr, 0, v.remaining());
                     tokenMap.put(p.getTokenFactory().fromByteArray(column.name()), InetAddress.getByAddress(addr));
                 }
                 catch (UnknownHostException e)
@@ -304,8 +304,10 @@ public class SystemTable
                                                         new QueryPath(STATUS_CF),
                                                         BOOTSTRAP);
         ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
+        if (cf == null)
+            return false;
         IColumn c = cf.getColumn(BOOTSTRAP);
-        return cf != null && c.value().array()[c.value().position()+c.value().arrayOffset()] == 1;
+        return c.value().get(0) == 1;
     }
 
     public static void setBootstrapped(boolean isBootstrapped)

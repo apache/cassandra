@@ -1949,7 +1949,7 @@ public class CliClient
         for (KeySlice ks : slices)
         {
             css_.out.printf("-------------------\n");
-            css_.out.printf("RowKey: %s\n", new String(ks.key.array(),ks.key.position(),ks.key.remaining(), Charsets.UTF_8));
+            css_.out.printf("RowKey: %s\n", ByteBufferUtil.string(ks.key, Charsets.UTF_8));
 
             Iterator<ColumnOrSuperColumn> iterator = ks.getColumnsIterator();
 

@@ -88,7 +88,7 @@ class ReadResponseSerializer implements ICompactSerializer<ReadResponse>
 	public void serialize(ReadResponse rm, DataOutputStream dos) throws IOException
 	{
         dos.writeInt(rm.digest().remaining());
-        dos.write(rm.digest().array(),rm.digest().position()+rm.digest().arrayOffset(),rm.digest().remaining());
+        dos.write(rm.digest().array(), rm.digest().position() + rm.digest().arrayOffset(), rm.digest().remaining());
         dos.writeBoolean(rm.isDigestQuery());
         
         if( !rm.isDigestQuery() && rm.row() != null )

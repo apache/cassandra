@@ -120,9 +120,10 @@ class RangeSliceCommandSerializer implements ICompactSerializer<RangeSliceComman
     {
         dos.writeUTF(sliceCommand.keyspace);
         dos.writeUTF(sliceCommand.column_family);
-        dos.writeInt(sliceCommand.super_column == null ? 0 : sliceCommand.super_column.remaining());
-        if (sliceCommand.super_column != null)
-            dos.write(sliceCommand.super_column.array(),sliceCommand.super_column.position()+sliceCommand.super_column.arrayOffset(),sliceCommand.super_column.remaining());
+        ByteBuffer sc = sliceCommand.super_column;
+        dos.writeInt(sc == null ? 0 : sc.remaining());
+        if (sc != null)
+            dos.write(sc.array(), sc.position() + sc.arrayOffset(), sc.remaining());
 
         TSerializer ser = new TSerializer(new TBinaryProtocol.Factory());
         FBUtilities.serialize(ser, sliceCommand.predicate, dos);
