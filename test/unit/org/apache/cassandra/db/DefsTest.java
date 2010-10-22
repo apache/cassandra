@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
@@ -148,9 +149,9 @@ public class DefsTest extends CleanupHelper
         assert m3.getClass().equals(reconstituded[2].getClass());
         
         // verify that the row mutations are the same. rather than exposing the private fields, serialize and verify.
-        assert Arrays.equals(m1.serialize(), reconstituded[0].serialize());
-        assert Arrays.equals(m2.serialize(), reconstituded[1].serialize());
-        assert Arrays.equals(m3.serialize(), reconstituded[2].serialize());
+        assert m1.serialize().equals(reconstituded[0].serialize());
+        assert m2.serialize().equals(reconstituded[1].serialize());
+        assert m3.serialize().equals(reconstituded[2].serialize());
     }
 
     @Test
@@ -171,16 +172,16 @@ public class DefsTest extends CleanupHelper
         // now read and write to it.
         DecoratedKey dk = Util.dk("key0");
         RowMutation rm = new RowMutation(ks, dk.key);
-        rm.add(new QueryPath(cf, null, "col0".getBytes()), "value0".getBytes(), 1L);
+        rm.add(new QueryPath(cf, null, ByteBuffer.wrap("col0".getBytes())), ByteBuffer.wrap("value0".getBytes()), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(ks).getColumnFamilyStore(cf);
         assert store != null;
         store.forceBlockingFlush();
         
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(cf), "col0".getBytes()));
-        assert cfam.getColumn("col0".getBytes()) != null;
-        IColumn col = cfam.getColumn("col0".getBytes());
-        assert Arrays.equals("value0".getBytes(), col.value());
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(cf), ByteBuffer.wrap("col0".getBytes())));
+        assert cfam.getColumn(ByteBuffer.wrap("col0".getBytes())) != null;
+        IColumn col = cfam.getColumn(ByteBuffer.wrap("col0".getBytes()));
+        assert ByteBuffer.wrap("value0".getBytes()).equals(col.value());
     }
 
     @Test
@@ -196,7 +197,7 @@ public class DefsTest extends CleanupHelper
         // write some data, force a flush, then verify that files exist on disk.
         RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
-            rm.add(new QueryPath(cfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), 1L);
+            rm.add(new QueryPath(cfm.cfName, null, ByteBuffer.wrap(("col" + i).getBytes())), ByteBuffer.wrap("anyvalue".getBytes()), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(cfm.tableName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
@@ -213,7 +214,7 @@ public class DefsTest extends CleanupHelper
         boolean success = true;
         try
         {
-            rm.add(new QueryPath("Standard1", null, "col0".getBytes()), "value0".getBytes(), 1L);
+            rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap("col0".getBytes())), ByteBuffer.wrap("value0".getBytes()), 1L);
             rm.apply();
         }
         catch (Throwable th)
@@ -242,7 +243,7 @@ public class DefsTest extends CleanupHelper
         // write some data, force a flush, then verify that files exist on disk.
         RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
-            rm.add(new QueryPath(oldCfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), 1L);
+            rm.add(new QueryPath(oldCfm.cfName, null, ByteBuffer.wrap(("col" + i).getBytes())), ByteBuffer.wrap("anyvalue".getBytes()), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(oldCfm.tableName).getColumnFamilyStore(oldCfm.cfName);
         assert store != null;
@@ -262,18 +263,18 @@ public class DefsTest extends CleanupHelper
         // do some reads.
         store = Table.open(oldCfm.tableName).getColumnFamilyStore(cfName);
         assert store != null;
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getSliceFilter(dk, new QueryPath(cfName), "".getBytes(), "".getBytes(), false, 1000));
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getSliceFilter(dk, new QueryPath(cfName), FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER, false, 1000));
         assert cfam.getSortedColumns().size() == 100; // should be good enough?
         
         // do some writes
         rm = new RowMutation(ks.name, dk.key);
-        rm.add(new QueryPath(cfName, null, "col5".getBytes()), "updated".getBytes(), 2L);
+        rm.add(new QueryPath(cfName, null, ByteBuffer.wrap("col5".getBytes())), ByteBuffer.wrap("updated".getBytes()), 2L);
         rm.apply();
         store.forceBlockingFlush();
         
-        cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(cfName), "col5".getBytes()));
+        cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(cfName), ByteBuffer.wrap("col5".getBytes())));
         assert cfam.getColumnCount() == 1;
-        assert Arrays.equals(cfam.getColumn("col5".getBytes()).value(), "updated".getBytes());
+        assert cfam.getColumn(ByteBuffer.wrap("col5".getBytes())).value().equals( ByteBuffer.wrap("updated".getBytes()));
     }
     
     @Test
@@ -291,16 +292,16 @@ public class DefsTest extends CleanupHelper
 
         // test reads and writes.
         RowMutation rm = new RowMutation(newCf.tableName, dk.key);
-        rm.add(new QueryPath(newCf.cfName, null, "col0".getBytes()), "value0".getBytes(), 1L);
+        rm.add(new QueryPath(newCf.cfName, null, ByteBuffer.wrap("col0".getBytes())), ByteBuffer.wrap("value0".getBytes()), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(newCf.tableName).getColumnFamilyStore(newCf.cfName);
         assert store != null;
         store.forceBlockingFlush();
         
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(newCf.cfName), "col0".getBytes()));
-        assert cfam.getColumn("col0".getBytes()) != null;
-        IColumn col = cfam.getColumn("col0".getBytes());
-        assert Arrays.equals("value0".getBytes(), col.value());
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(newCf.cfName), ByteBuffer.wrap("col0".getBytes())));
+        assert cfam.getColumn(ByteBuffer.wrap("col0".getBytes())) != null;
+        IColumn col = cfam.getColumn(ByteBuffer.wrap("col0".getBytes()));
+        assert ByteBuffer.wrap("value0".getBytes()).equals(col.value());
     }
     
     @Test
@@ -316,7 +317,7 @@ public class DefsTest extends CleanupHelper
         // write some data, force a flush, then verify that files exist on disk.
         RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
-            rm.add(new QueryPath(cfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), 1L);
+            rm.add(new QueryPath(cfm.cfName, null, ByteBuffer.wrap(("col" + i).getBytes())), ByteBuffer.wrap("anyvalue".getBytes()), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(cfm.tableName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
@@ -332,7 +333,7 @@ public class DefsTest extends CleanupHelper
         boolean success = true;
         try
         {
-            rm.add(new QueryPath("Standard1", null, "col0".getBytes()), "value0".getBytes(), 1L);
+            rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap("col0".getBytes())), ByteBuffer.wrap("value0".getBytes()), 1L);
             rm.apply();
         }
         catch (Throwable th)
@@ -366,7 +367,7 @@ public class DefsTest extends CleanupHelper
         // write some data that we hope to read back later.
         RowMutation rm = new RowMutation(oldKs.name, dk.key);
         for (int i = 0; i < 10; i++)
-            rm.add(new QueryPath(cfName, null, ("col" + i).getBytes()), "value".getBytes(), 1L);
+            rm.add(new QueryPath(cfName, null, ByteBuffer.wrap(("col" + i).getBytes())), ByteBuffer.wrap("value".getBytes()), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(oldKs.name).getColumnFamilyStore(cfName);
         assert store != null;
@@ -395,11 +396,11 @@ public class DefsTest extends CleanupHelper
         }
         
         // write on old should fail.
-        rm = new RowMutation(oldKs.name, "any key will do".getBytes());
+        rm = new RowMutation(oldKs.name, ByteBuffer.wrap("any key will do".getBytes()));
         boolean success = true;
         try
         {
-            rm.add(new QueryPath(cfName, null, "col0".getBytes()), "value0".getBytes(), 1L);
+            rm.add(new QueryPath(cfName, null, ByteBuffer.wrap("col0".getBytes())), ByteBuffer.wrap("value0".getBytes()), 1L);
             rm.apply();
         }
         catch (Throwable th)
@@ -410,22 +411,22 @@ public class DefsTest extends CleanupHelper
         
         // write on new should work.
         rm = new RowMutation(newKsName, dk.key);
-        rm.add(new QueryPath(cfName, null, "col0".getBytes()), "newvalue".getBytes(), 2L);
+        rm.add(new QueryPath(cfName, null, ByteBuffer.wrap("col0".getBytes())), ByteBuffer.wrap("newvalue".getBytes()), 2L);
         rm.apply();
         store = Table.open(newKs.name).getColumnFamilyStore(cfName);
         assert store != null;
         store.forceBlockingFlush();
         
         // read on new should work.
-        SortedSet<byte[]> cols = new TreeSet<byte[]>(BytesType.instance);
-        cols.add("col0".getBytes());
-        cols.add("col1".getBytes());
+        SortedSet<ByteBuffer> cols = new TreeSet<ByteBuffer>(BytesType.instance);
+        cols.add(ByteBuffer.wrap("col0".getBytes()));
+        cols.add(ByteBuffer.wrap("col1".getBytes()));
         ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(cfName), cols));
         assert cfam.getColumnCount() == cols.size();
         // tests new write.
-        assert Arrays.equals(cfam.getColumn("col0".getBytes()).value(), "newvalue".getBytes());
+        assert Arrays.equals(cfam.getColumn(ByteBuffer.wrap("col0".getBytes())).value().array(), "newvalue".getBytes());
         // tests old write.
-        assert Arrays.equals(cfam.getColumn("col1".getBytes()).value(), "value".getBytes());
+        assert Arrays.equals(cfam.getColumn(ByteBuffer.wrap("col1".getBytes())).value().array(), "value".getBytes());
     }
 
     @Test
@@ -452,16 +453,16 @@ public class DefsTest extends CleanupHelper
         // now read and write to it.
         DecoratedKey dk = Util.dk("key0");
         RowMutation rm = new RowMutation(newKs.name, dk.key);
-        rm.add(new QueryPath(newCf.cfName, null, "col0".getBytes()), "value0".getBytes(), 1L);
+        rm.add(new QueryPath(newCf.cfName, null, ByteBuffer.wrap("col0".getBytes())), ByteBuffer.wrap("value0".getBytes()), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(newKs.name).getColumnFamilyStore(newCf.cfName);
         assert store != null;
         store.forceBlockingFlush();
 
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(newCf.cfName), "col0".getBytes()));
-        assert cfam.getColumn("col0".getBytes()) != null;
-        IColumn col = cfam.getColumn("col0".getBytes());
-        assert Arrays.equals("value0".getBytes(), col.value());
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(newCf.cfName), ByteBuffer.wrap("col0".getBytes())));
+        assert cfam.getColumn(ByteBuffer.wrap("col0".getBytes())) != null;
+        IColumn col = cfam.getColumn(ByteBuffer.wrap("col0".getBytes()));
+        assert ByteBuffer.wrap("value0".getBytes()).equals(col.value());
     }
     
     @Test
@@ -702,7 +703,7 @@ public class DefsTest extends CleanupHelper
                               CFMetaData.DEFAULT_MEMTABLE_LIFETIME_IN_MINS,
                               CFMetaData.DEFAULT_MEMTABLE_THROUGHPUT_IN_MB,
                               CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS,
-                              Collections.<byte[], ColumnDefinition>emptyMap());
+                              Collections.<ByteBuffer, ColumnDefinition>emptyMap());
     }
 
 }

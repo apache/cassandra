@@ -22,6 +22,7 @@ package org.apache.cassandra.db;
 
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 import org.junit.Test;
 
@@ -72,7 +73,7 @@ public class RecoveryManager2Test extends CleanupHelper
 
     private void insertRow(String cfname, String key) throws IOException
     {
-        RowMutation rm = new RowMutation("Keyspace1", key.getBytes());
+        RowMutation rm = new RowMutation("Keyspace1", ByteBuffer.wrap(key.getBytes()));
         ColumnFamily cf = ColumnFamily.create("Keyspace1", cfname);
         cf.addColumn(column("col1", "val1", 1L));
         rm.add(cf);

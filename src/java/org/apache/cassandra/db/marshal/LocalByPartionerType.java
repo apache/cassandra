@@ -19,6 +19,8 @@
 
 package org.apache.cassandra.db.marshal;
 
+import java.nio.ByteBuffer;
+
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 
@@ -33,12 +35,12 @@ public class LocalByPartionerType<T extends Token> extends AbstractType
         this.partitioner = partitioner;
     }
 
-    public String getString(byte[] bytes)
+    public String getString(ByteBuffer bytes)
     {
         return null;
     }
 
-    public int compare(byte[] o1, byte[] o2)
+    public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         return partitioner.decorateKey(o1).compareTo(partitioner.decorateKey(o2));
     }

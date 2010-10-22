@@ -18,28 +18,54 @@
 */
 package org.apache.cassandra.dht;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class BytesToken extends Token<byte[]>
 {
-    public BytesToken(byte... token)
+	public BytesToken(ByteBuffer token)
+	{
+		super(convertByteBuffer(token));
+	}
+	
+    public BytesToken(byte[] token)
     {
         super(token);
+    }
+    
+    private static byte[] convertByteBuffer(ByteBuffer token)
+    {
+    	if(token.position() == 0 && token.arrayOffset() == 0 && 
+    			   token.limit() == token.capacity())
+    	{
+    		return token.array();
+    	}
+    	else
+    	{
+    		token.mark();
+    		byte[] buf = new byte[token.remaining()];
+    		token.get(buf);
+    		token.reset();
+    				
+    		return buf;
+    	} 	
     }
     
     @Override
     public String toString()
     {
-        return "Token(bytes[" + FBUtilities.bytesToHex(token) + "])";
+        return "Token(bytes[" + FBUtilities.bytesToHex(ByteBuffer.wrap(token)) + "])";
     }
 
     @Override
     public int compareTo(Token<byte[]> o)
-    {
-        return FBUtilities.compareByteArrays(token, o.token);
+    {   
+        return FBUtilities.compareByteArrays(token, o.token, 0, 0, token.length, o.token.length);
     }
+    
 
     @Override
     public int hashCode()
@@ -56,6 +82,7 @@ public class BytesToken extends Token<byte[]>
         if (!(obj instanceof BytesToken))
             return false;
         BytesToken other = (BytesToken) obj;
+           
         return Arrays.equals(token, other.token);
     }
 

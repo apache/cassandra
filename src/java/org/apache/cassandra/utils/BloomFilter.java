@@ -21,10 +21,10 @@ package org.apache.cassandra.utils;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.BitSet;
 
 import org.apache.cassandra.io.ICompactSerializer;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -116,7 +116,7 @@ public class BloomFilter extends Filter
         return filter_;
     }
 
-    public boolean isPresent(byte[] key)
+    public boolean isPresent(ByteBuffer key)
     {
         for (int bucketIndex : getHashBuckets(key))
         {
@@ -133,7 +133,7 @@ public class BloomFilter extends Filter
      the filter_.
      This is a general purpose API.
      */
-    public void add(byte[] key)
+    public void add(ByteBuffer key)
     {
         for (int bucketIndex : getHashBuckets(key))
         {

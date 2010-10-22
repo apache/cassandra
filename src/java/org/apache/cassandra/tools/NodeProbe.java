@@ -25,6 +25,7 @@ import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
 import java.lang.management.RuntimeMXBean;
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
@@ -374,7 +375,7 @@ public class NodeProbe
     public List<InetAddress> getEndpoints(String keyspace, String key)
     {
         // FIXME: string key
-        return ssProxy.getNaturalEndpoints(keyspace, key.getBytes(UTF_8));
+        return ssProxy.getNaturalEndpoints(keyspace, ByteBuffer.wrap(key.getBytes(UTF_8)));
     }
 
     public Set<InetAddress> getStreamDestinations()

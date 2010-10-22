@@ -23,11 +23,10 @@ package org.apache.cassandra.db.columniterator;
 
 import java.io.IOError;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
-
-import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ColumnFamily;
@@ -35,9 +34,10 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.IndexHelper;
-import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
+
+import com.google.common.collect.AbstractIterator;
 
 /**
  *  This is a reader that finds the block for a starting column and returns
@@ -50,15 +50,15 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
 
     private final List<IndexHelper.IndexInfo> indexes;
     private final FileDataInput file;
-    private final byte[] startColumn;
-    private final byte[] finishColumn;
+    private final ByteBuffer startColumn;
+    private final ByteBuffer finishColumn;
     private final boolean reversed;
 
     private BlockFetcher fetcher;
     private Deque<IColumn> blockColumns = new ArrayDeque<IColumn>();
     private AbstractType comparator;
 
-    public IndexedSliceReader(CFMetaData metadata, FileDataInput input, byte[] startColumn, byte[] finishColumn, boolean reversed)
+    public IndexedSliceReader(CFMetaData metadata, FileDataInput input, ByteBuffer startColumn, ByteBuffer finishColumn, boolean reversed)
     {
         this.file = input;
         this.startColumn = startColumn;
@@ -91,15 +91,15 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
 
     private boolean isColumnNeeded(IColumn column)
     {
-        if (startColumn.length == 0 && finishColumn.length == 0)
+        if (startColumn.remaining() == 0 && finishColumn.remaining() == 0)
             return true;
-        else if (startColumn.length == 0 && !reversed)
+        else if (startColumn.remaining() == 0 && !reversed)
             return comparator.compare(column.name(), finishColumn) <= 0;
-        else if (startColumn.length == 0 && reversed)
+        else if (startColumn.remaining() == 0 && reversed)
             return comparator.compare(column.name(), finishColumn) >= 0;
-        else if (finishColumn.length == 0 && !reversed)
+        else if (finishColumn.remaining() == 0 && !reversed)
             return comparator.compare(column.name(), startColumn) >= 0;
-        else if (finishColumn.length == 0 && reversed)
+        else if (finishColumn.remaining() == 0 && reversed)
             return comparator.compare(column.name(), startColumn) <= 0;
         else if (!reversed)
             return comparator.compare(column.name(), startColumn) >= 0 && comparator.compare(column.name(), finishColumn) <= 0;
@@ -160,14 +160,14 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
             /* see if this read is really necessary. */
             if (reversed)
             {
-                if ((finishColumn.length > 0 && comparator.compare(finishColumn, curColPosition.lastName) > 0) ||
-                    (startColumn.length > 0 && comparator.compare(startColumn, curColPosition.firstName) < 0))
+                if ((finishColumn.remaining() > 0 && comparator.compare(finishColumn, curColPosition.lastName) > 0) ||
+                    (startColumn.remaining() > 0 && comparator.compare(startColumn, curColPosition.firstName) < 0))
                     return false;
             }
             else
             {
-                if ((startColumn.length > 0 && comparator.compare(startColumn, curColPosition.lastName) > 0) ||
-                    (finishColumn.length > 0 && comparator.compare(finishColumn, curColPosition.firstName) < 0))
+                if ((startColumn.remaining() > 0 && comparator.compare(startColumn, curColPosition.lastName) > 0) ||
+                    (finishColumn.remaining() > 0 && comparator.compare(finishColumn, curColPosition.firstName) < 0))
                     return false;
             }
 
@@ -184,9 +184,9 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
                     blockColumns.addLast(column);
 
                 /* see if we can stop seeking. */
-                if (!reversed && finishColumn.length > 0)
+                if (!reversed && finishColumn.remaining() > 0)
                     outOfBounds = comparator.compare(column.name(), finishColumn) >= 0;
-                else if (reversed && startColumn.length > 0)
+                else if (reversed && startColumn.remaining() > 0)
                     outOfBounds = comparator.compare(column.name(), startColumn) >= 0;
             }
 
@@ -213,9 +213,9 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
 
                 /* see if we can stop seeking. */
                 boolean outOfBounds = false;
-                if (!reversed && finishColumn.length > 0)
+                if (!reversed && finishColumn.remaining() > 0)
                     outOfBounds = comparator.compare(column.name(), finishColumn) >= 0;
-                else if (reversed && startColumn.length > 0)
+                else if (reversed && startColumn.remaining() > 0)
                     outOfBounds = comparator.compare(column.name(), startColumn) >= 0;
                 if (outOfBounds)
                     break;

@@ -36,12 +36,16 @@
 
 package org.apache.cassandra.db;
 
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnParent;
@@ -51,12 +55,6 @@ import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TSerializer;
 import org.apache.thrift.protocol.TBinaryProtocol;
 
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.util.Arrays;
-
 public class RangeSliceCommand
 {
     private static final RangeSliceCommandSerializer serializer = new RangeSliceCommandSerializer();
@@ -64,7 +62,7 @@ public class RangeSliceCommand
     public final String keyspace;
 
     public final String column_family;
-    public final byte[] super_column;
+    public final ByteBuffer super_column;
 
     public final SlicePredicate predicate;
 
@@ -73,10 +71,10 @@ public class RangeSliceCommand
 
     public RangeSliceCommand(String keyspace, ColumnParent column_parent, SlicePredicate predicate, AbstractBounds range, int max_keys)
     {
-        this(keyspace, column_parent.getColumn_family(), column_parent.getSuper_column(), predicate, range, max_keys);
+        this(keyspace, column_parent.getColumn_family(), column_parent.super_column, predicate, range, max_keys);
     }
 
-    public RangeSliceCommand(String keyspace, String column_family, byte[] super_column, SlicePredicate predicate, AbstractBounds range, int max_keys)
+    public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, SlicePredicate predicate, AbstractBounds range, int max_keys)
     {
         this.keyspace = keyspace;
         this.column_family = column_family;
@@ -122,9 +120,9 @@ class RangeSliceCommandSerializer implements ICompactSerializer<RangeSliceComman
     {
         dos.writeUTF(sliceCommand.keyspace);
         dos.writeUTF(sliceCommand.column_family);
-        dos.writeInt(sliceCommand.super_column == null ? 0 : sliceCommand.super_column.length);
+        dos.writeInt(sliceCommand.super_column == null ? 0 : sliceCommand.super_column.remaining());
         if (sliceCommand.super_column != null)
-            dos.write(sliceCommand.super_column);
+            dos.write(sliceCommand.super_column.array(),sliceCommand.super_column.position()+sliceCommand.super_column.arrayOffset(),sliceCommand.super_column.remaining());
 
         TSerializer ser = new TSerializer(new TBinaryProtocol.Factory());
         FBUtilities.serialize(ser, sliceCommand.predicate, dos);
@@ -138,9 +136,9 @@ class RangeSliceCommandSerializer implements ICompactSerializer<RangeSliceComman
         String column_family = dis.readUTF();
 
         int scLength = dis.readInt();
-        byte[] super_column = null;
+        ByteBuffer super_column = null;
         if (scLength > 0)
-            super_column = readBuf(scLength, dis);
+            super_column = ByteBuffer.wrap(readBuf(scLength, dis));
 
         TDeserializer dser = new TDeserializer(new TBinaryProtocol.Factory());
         SlicePredicate pred = new SlicePredicate();

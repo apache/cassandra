@@ -48,17 +48,17 @@ public class Util
 {
     public static DecoratedKey dk(String key)
     {
-        return StorageService.getPartitioner().decorateKey(key.getBytes(UTF_8));
+        return StorageService.getPartitioner().decorateKey(ByteBuffer.wrap(key.getBytes(UTF_8)));
     }
 
     public static Column column(String name, String value, long timestamp)
     {
-        return new Column(name.getBytes(), value.getBytes(), timestamp);
+        return new Column(ByteBuffer.wrap(name.getBytes()), ByteBuffer.wrap(value.getBytes()), timestamp);
     }
 
     public static Token token(String key)
     {
-        return StorageService.getPartitioner().getToken(key.getBytes());
+        return StorageService.getPartitioner().getToken(ByteBuffer.wrap(key.getBytes()));
     }
 
     public static Range range(String left, String right)
@@ -68,7 +68,7 @@ public class Util
 
     public static Range range(IPartitioner p, String left, String right)
     {
-        return new Range(p.getToken(left.getBytes()), p.getToken(right.getBytes()));
+        return new Range(p.getToken(ByteBuffer.wrap(left.getBytes())), p.getToken(ByteBuffer.wrap(right.getBytes())));
     }
 
     public static Bounds bounds(String left, String right)
@@ -78,15 +78,16 @@ public class Util
 
     public static void addMutation(RowMutation rm, String columnFamilyName, String superColumnName, long columnName, String value, long timestamp)
     {
-        rm.add(new QueryPath(columnFamilyName, superColumnName.getBytes(), getBytes(columnName)), value.getBytes(), timestamp);
+        rm.add(new QueryPath(columnFamilyName, ByteBuffer.wrap(superColumnName.getBytes()), getBytes(columnName)), ByteBuffer.wrap(value.getBytes()), timestamp);
     }
 
-    public static byte[] getBytes(long v)
+    public static ByteBuffer getBytes(long v)
     {
         byte[] bytes = new byte[8];
         ByteBuffer bb = ByteBuffer.wrap(bytes);
         bb.putLong(v);
-        return bytes;
+        bb.rewind();
+        return bb;
     }
     
     public static List<Row> getRangeSlice(ColumnFamilyStore cfs) throws IOException, ExecutionException, InterruptedException

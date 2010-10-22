@@ -20,6 +20,8 @@ package org.apache.cassandra.hadoop;
  * 
  */
 
+import java.nio.ByteBuffer;
+
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.thrift.SlicePredicate;
@@ -164,7 +166,7 @@ public class ConfigHelper
         TSerializer serializer = new TSerializer(new TBinaryProtocol.Factory());
         try
         {
-            return FBUtilities.bytesToHex(serializer.serialize(predicate));
+            return FBUtilities.bytesToHex(ByteBuffer.wrap(serializer.serialize(predicate)));
         }
         catch (TException e)
         {

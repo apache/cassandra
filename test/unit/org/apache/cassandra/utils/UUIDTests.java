@@ -27,6 +27,7 @@ import org.junit.Test;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.util.UUID;
 
 
@@ -54,7 +55,7 @@ public class UUIDTests
     {
         UUID a = UUIDGen.makeType1UUIDFromHost(InetAddress.getByName("127.0.0.1"));
         byte[] decomposed = UUIDGen.decompose(a);
-        UUID b = UUIDGen.makeType1UUID(decomposed);
+        UUID b = UUIDGen.makeType1UUID(ByteBuffer.wrap(decomposed));
         assert a.equals(b);
     }
 
@@ -62,11 +63,11 @@ public class UUIDTests
     public void testTimeUUIDType() throws UnknownHostException
     {
         TimeUUIDType comp = TimeUUIDType.instance;
-        byte[] first = UUIDGen.decompose(UUIDGen.makeType1UUIDFromHost(InetAddress.getByName("127.0.0.1")));
-        byte[] second = UUIDGen.decompose(UUIDGen.makeType1UUIDFromHost(InetAddress.getByName("127.0.0.1")));
+        ByteBuffer first = ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.makeType1UUIDFromHost(InetAddress.getByName("127.0.0.1"))));
+        ByteBuffer second = ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.makeType1UUIDFromHost(InetAddress.getByName("127.0.0.1"))));
         assert comp.compare(first, second) < 0;
         assert comp.compare(second, first) > 0;
-        byte[] sameAsFirst = UUIDGen.decompose(UUIDGen.makeType1UUID(first));
+        ByteBuffer sameAsFirst = ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.makeType1UUID(first)));
         assert comp.compare(first, sameAsFirst) == 0;
     }
 

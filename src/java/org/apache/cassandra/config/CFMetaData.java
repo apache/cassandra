@@ -19,18 +19,20 @@
 package org.apache.cassandra.config;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
-import org.apache.commons.lang.builder.EqualsBuilder;
-import org.apache.commons.lang.builder.HashCodeBuilder;
-import org.apache.commons.lang.builder.ToStringBuilder;
 
 import org.apache.avro.util.Utf8;
 import org.apache.cassandra.avro.ColumnDef;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.db.HintedHandOffManager;
+import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
@@ -39,6 +41,12 @@ import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.commons.lang.builder.EqualsBuilder;
+import org.apache.commons.lang.builder.HashCodeBuilder;
+import org.apache.commons.lang.builder.ToStringBuilder;
+
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 
 
 public final class CFMetaData
@@ -90,7 +98,7 @@ public final class CFMetaData
                               DEFAULT_MEMTABLE_THROUGHPUT_IN_MB,
                               DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS,
                               cfId,
-                              Collections.<byte[], ColumnDefinition>emptyMap());
+                              Collections.<ByteBuffer, ColumnDefinition>emptyMap());
     }
 
     /**
@@ -141,7 +149,7 @@ public final class CFMetaData
     public final double memtableOperationsInMillions; // default based on throughput
     // NOTE: if you find yourself adding members to this class, make sure you keep the convert methods in lockstep.
 
-    public final Map<byte[], ColumnDefinition> column_metadata;
+    public final Map<ByteBuffer, ColumnDefinition> column_metadata;
 
     private CFMetaData(String tableName,
                        String cfName,
@@ -163,7 +171,7 @@ public final class CFMetaData
                        Integer memtableThroughputInMb,
                        Double memtableOperationsInMillions,
                        Integer cfId,
-                       Map<byte[], ColumnDefinition> column_metadata)
+                       Map<ByteBuffer, ColumnDefinition> column_metadata)
 
     {
         assert column_metadata != null;
@@ -230,7 +238,7 @@ public final class CFMetaData
                       Integer memSize,
                       Double memOps,
                       //This constructor generates the id!
-                      Map<byte[], ColumnDefinition> column_metadata)
+                      Map<ByteBuffer, ColumnDefinition> column_metadata)
     {
         this(tableName,
              cfName,
@@ -276,7 +284,7 @@ public final class CFMetaData
                               DEFAULT_MEMTABLE_LIFETIME_IN_MINS,
                               DEFAULT_MEMTABLE_THROUGHPUT_IN_MB,
                               DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS,
-                              Collections.<byte[], ColumnDefinition>emptyMap());
+                              Collections.<ByteBuffer, ColumnDefinition>emptyMap());
     }
 
     /** clones an existing CFMetaData using the same id. */
@@ -386,7 +394,7 @@ public final class CFMetaData
         {
             throw new RuntimeException("Could not inflate CFMetaData for " + cf, ex);
         }
-        Map<byte[], ColumnDefinition> column_metadata = new TreeMap<byte[], ColumnDefinition>(FBUtilities.byteArrayComparator);
+        Map<ByteBuffer, ColumnDefinition> column_metadata = new TreeMap<ByteBuffer, ColumnDefinition>(BytesType.instance);
         for (ColumnDef aColumn_metadata : cf.column_metadata)
         {
             ColumnDefinition cd = ColumnDefinition.inflate(aColumn_metadata);
@@ -491,7 +499,7 @@ public final class CFMetaData
         return idGen.getAndIncrement();
     }
 
-    public AbstractType getValueValidator(byte[] column)
+    public AbstractType getValueValidator(ByteBuffer column)
     {
         AbstractType validator = defaultValidator;
         ColumnDefinition columnDefinition = column_metadata.get(column);
@@ -574,7 +582,7 @@ public final class CFMetaData
         validateMinMaxCompactionThresholds(cf_def);
         validateMemtableSettings(cf_def);
 
-        Map<byte[], ColumnDefinition> metadata = new HashMap<byte[], ColumnDefinition>();
+        Map<ByteBuffer, ColumnDefinition> metadata = new HashMap<ByteBuffer, ColumnDefinition>();
         if (cf_def.column_metadata == null)
         {
             metadata = column_metadata;
@@ -685,7 +693,7 @@ public final class CFMetaData
             org.apache.cassandra.avro.ColumnDef tcd = new org.apache.cassandra.avro.ColumnDef();
             tcd.index_name = cd.index_name;
             tcd.index_type = org.apache.cassandra.avro.IndexType.valueOf(cd.index_type.name());
-            tcd.name = ByteBuffer.wrap(cd.name);
+            tcd.name = cd.name;
             tcd.validation_class = cd.validator.getClass().getName();
             column_meta.add(tcd);
         }

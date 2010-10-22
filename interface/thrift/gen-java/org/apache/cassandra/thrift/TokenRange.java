@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -175,9 +176,11 @@ public class TokenRange implements TBase<TokenRange, TokenRange._Fields>, java.i
     return new TokenRange(this);
   }
 
-  @Deprecated
-  public TokenRange clone() {
-    return new TokenRange(this);
+  @Override
+  public void clear() {
+    this.start_token = null;
+    this.end_token = null;
+    this.endpoints = null;
   }
 
   public String getStart_token() {
@@ -296,10 +299,6 @@ public class TokenRange implements TBase<TokenRange, TokenRange._Fields>, java.i
     }
   }
 
-  public void setFieldValue(int fieldID, Object value) {
-    setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
-  }
-
   public Object getFieldValue(_Fields field) {
     switch (field) {
     case START_TOKEN:
@@ -315,12 +314,12 @@ public class TokenRange implements TBase<TokenRange, TokenRange._Fields>, java.i
     throw new IllegalStateException();
   }
 
-  public Object getFieldValue(int fieldId) {
-    return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-  }
-
   /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
+    if (field == null) {
+      throw new IllegalArgumentException();
+    }
+
     switch (field) {
     case START_TOKEN:
       return isSetStart_token();
@@ -330,10 +329,6 @@ public class TokenRange implements TBase<TokenRange, TokenRange._Fields>, java.i
       return isSetEndpoints();
     }
     throw new IllegalStateException();
-  }
-
-  public boolean isSet(int fieldID) {
-    return isSet(_Fields.findByThriftIdOrThrow(fieldID));
   }
 
   @Override
@@ -413,7 +408,8 @@ public class TokenRange implements TBase<TokenRange, TokenRange._Fields>, java.i
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetStart_token()) {      lastComparison = TBaseHelper.compareTo(this.start_token, typedOther.start_token);
+    if (isSetStart_token()) {
+      lastComparison = TBaseHelper.compareTo(this.start_token, typedOther.start_token);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -422,7 +418,8 @@ public class TokenRange implements TBase<TokenRange, TokenRange._Fields>, java.i
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetEnd_token()) {      lastComparison = TBaseHelper.compareTo(this.end_token, typedOther.end_token);
+    if (isSetEnd_token()) {
+      lastComparison = TBaseHelper.compareTo(this.end_token, typedOther.end_token);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -431,12 +428,17 @@ public class TokenRange implements TBase<TokenRange, TokenRange._Fields>, java.i
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetEndpoints()) {      lastComparison = TBaseHelper.compareTo(this.endpoints, typedOther.endpoints);
+    if (isSetEndpoints()) {
+      lastComparison = TBaseHelper.compareTo(this.endpoints, typedOther.endpoints);
       if (lastComparison != 0) {
         return lastComparison;
       }
     }
     return 0;
+  }
+
+  public _Fields fieldForId(int fieldId) {
+    return _Fields.findByThriftId(fieldId);
   }
 
   public void read(TProtocol iprot) throws TException {

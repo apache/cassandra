@@ -19,19 +19,59 @@ package org.apache.cassandra.cli;
 
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
-import java.util.*;
-
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.utils.UUIDGen;
-import org.apache.commons.lang.ArrayUtils;
-import org.apache.commons.lang.StringUtils;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 import org.antlr.runtime.tree.CommonTree;
 import org.antlr.runtime.tree.Tree;
 import org.apache.cassandra.auth.SimpleAuthenticator;
-import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.LexicalUUIDType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.thrift.AuthenticationException;
+import org.apache.cassandra.thrift.AuthenticationRequest;
+import org.apache.cassandra.thrift.AuthorizationException;
+import org.apache.cassandra.thrift.Cassandra;
+import org.apache.cassandra.thrift.CfDef;
+import org.apache.cassandra.thrift.Column;
+import org.apache.cassandra.thrift.ColumnDef;
+import org.apache.cassandra.thrift.ColumnOrSuperColumn;
+import org.apache.cassandra.thrift.ColumnParent;
+import org.apache.cassandra.thrift.ColumnPath;
+import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.thrift.IndexClause;
+import org.apache.cassandra.thrift.IndexExpression;
+import org.apache.cassandra.thrift.IndexOperator;
+import org.apache.cassandra.thrift.IndexType;
+import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.thrift.KeyRange;
+import org.apache.cassandra.thrift.KeySlice;
+import org.apache.cassandra.thrift.KsDef;
+import org.apache.cassandra.thrift.NotFoundException;
+import org.apache.cassandra.thrift.SlicePredicate;
+import org.apache.cassandra.thrift.SliceRange;
+import org.apache.cassandra.thrift.SuperColumn;
+import org.apache.cassandra.thrift.TimedOutException;
+import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.UUIDGen;
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.thrift.TException;
 
 // Cli Client Side Library
@@ -515,7 +555,7 @@ public class CliClient
        
        if (columnSpecCnt == 0)
        {
-           colParent = new ColumnParent(columnFamily).setSuper_column(null);
+           colParent = new ColumnParent(columnFamily).setSuper_column((ByteBuffer)null);
        }
        else
        {
@@ -523,10 +563,10 @@ public class CliClient
            colParent = new ColumnParent(columnFamily).setSuper_column(CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8"));
        }
 
-       SliceRange range = new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, Integer.MAX_VALUE);
+       SliceRange range = new SliceRange(FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER, false, Integer.MAX_VALUE);
        SlicePredicate predicate = new SlicePredicate().setColumn_names(null).setSlice_range(range);
        
-       int count = thriftClient_.get_count(key.getBytes(), colParent, predicate, ConsistencyLevel.ONE);
+       int count = thriftClient_.get_count(ByteBuffer.wrap(key.getBytes("UTF-8")), colParent, predicate, ConsistencyLevel.ONE);
        css_.out.printf("%d columns\n", count);
     }
     
@@ -584,7 +624,14 @@ public class CliClient
             columnName = CliCompiler.getColumn(columnFamilySpec, 1).getBytes("UTF-8");
         }
 
-        thriftClient_.remove(key.getBytes(), new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnName),
+        ColumnPath path = new ColumnPath(columnFamily);
+        if(superColumnName != null)
+            path.setSuper_column(superColumnName);
+        
+        if(columnName != null)
+            path.setColumn(columnName);
+        
+        thriftClient_.remove(ByteBuffer.wrap(key.getBytes("UTF-8")), path,
                              FBUtilities.timestampMicros(), ConsistencyLevel.ONE);
         css_.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "column"));
     }
@@ -592,9 +639,13 @@ public class CliClient
     private void doSlice(String keyspace, String key, String columnFamily, byte[] superColumnName)
             throws InvalidRequestException, UnavailableException, TimedOutException, TException, UnsupportedEncodingException, IllegalAccessException, NotFoundException, InstantiationException, NoSuchFieldException
     {
-        SliceRange range = new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 1000000);
-        List<ColumnOrSuperColumn> columns = thriftClient_.get_slice(key.getBytes(),
-                                                                    new ColumnParent(columnFamily).setSuper_column(superColumnName),
+        
+        ColumnParent parent = new ColumnParent(columnFamily);
+        if(superColumnName != null)
+            parent.setSuper_column(superColumnName);
+                
+        SliceRange range = new SliceRange(FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER, true, 1000000);
+        List<ColumnOrSuperColumn> columns = thriftClient_.get_slice(ByteBuffer.wrap(key.getBytes("UTF-8")),parent,
                                                                     new SlicePredicate().setColumn_names(null).setSlice_range(range), ConsistencyLevel.ONE);
         int size = columns.size();
 
@@ -623,7 +674,7 @@ public class CliClient
                 Column column = cosc.column;
                 validator = getValidatorForValue(cfDef, column.getName());
                 css_.out.printf("=> (column=%s, value=%s, timestamp=%d)\n", formatColumnName(keyspace, columnFamily, column),
-                                validator.getString(column.value), column.timestamp);
+                               validator.getString(column.value), column.timestamp);
             }
         }
         
@@ -720,15 +771,16 @@ public class CliClient
             return;
         }
 
-        byte[] columnNameInBytes = columnNameAsByteArray(columnName, columnFamily);
-        AbstractType validator = getValidatorForValue(columnFamilyDef, columnNameInBytes);
+        ByteBuffer columnNameInBytes = columnNameAsByteArray(columnName, columnFamily);
+        AbstractType validator = getValidatorForValue(columnFamilyDef, columnNameInBytes.array());
         
         // Perform a get()
-        ColumnPath path = new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnNameInBytes);
-        Column column = thriftClient_.get(key.getBytes(), path, ConsistencyLevel.ONE).column;
+        ColumnPath path = new ColumnPath(columnFamily);
+        if(superColumnName != null) path.setSuper_column(superColumnName);
+        if(columnNameInBytes != null) path.setColumn(columnNameInBytes);
+        Column column = thriftClient_.get(ByteBuffer.wrap(key.getBytes("UTF-8")), path, ConsistencyLevel.ONE).column;
 
-        byte[] columnValue = column.getValue();
-        
+        byte[] columnValue = column.getValue();       
         String valueAsString;
         
         // we have ^(CONVERT_TO_TYPE <type>) inside of GET statement
@@ -744,13 +796,13 @@ public class CliClient
             AbstractType valueValidator = getFormatTypeForColumn(typeName);
 
             // setting value for output
-            valueAsString = valueValidator.getString(columnValue);
+            valueAsString = valueValidator.getString(ByteBuffer.wrap(columnValue));
             // updating column value validator class
             updateColumnMetaData(columnFamilyDef, columnNameInBytes, valueValidator.getClass().getName());
         }
         else
         {
-            valueAsString = (validator == null) ? new String(columnValue, "UTF-8") : validator.getString(columnValue);
+            valueAsString = (validator == null) ? new String(columnValue, "UTF-8") : validator.getString(ByteBuffer.wrap(columnValue));
         }
 
         // print results
@@ -795,8 +847,8 @@ public class CliClient
 
             try
             {
-                byte[] value;
-                byte[] columnName = columnNameAsByteArray(columnNameString, columnFamily);
+                ByteBuffer value;
+                ByteBuffer columnName = columnNameAsByteArray(columnNameString, columnFamily);
 
                 if (valueTree.getType() == CliParser.FUNCTION_CALL)
                 {
@@ -894,8 +946,8 @@ public class CliClient
         }
 
 
-        byte[] columnNameInBytes = columnNameAsByteArray(columnName, columnFamily);
-        byte[] columnValueInBytes;
+        ByteBuffer columnNameInBytes = columnNameAsByteArray(columnName, columnFamily);
+        ByteBuffer columnValueInBytes;
 
         switch (valueTree.getType())
         {
@@ -906,8 +958,12 @@ public class CliClient
             columnValueInBytes = columnValueAsByteArray(columnNameInBytes, columnFamily, value);
         }
 
+        ColumnParent parent = new ColumnParent(columnFamily);
+        if(superColumnName != null)
+            parent.setSuper_column(superColumnName);
+        
         // do the insert
-        thriftClient_.insert(key.getBytes(), new ColumnParent(columnFamily).setSuper_column(superColumnName),
+        thriftClient_.insert(ByteBuffer.wrap(key.getBytes("UTF-8")), parent,
                              new Column(columnNameInBytes, columnValueInBytes, FBUtilities.timestampMicros()), ConsistencyLevel.ONE);
         
         css_.out.println("Value inserted.");
@@ -1275,6 +1331,7 @@ public class CliClient
 
         if (limitCount < keySlices.size())
         {
+
             // limitCount could be Integer.MAX_VALUE
             toIndex = limitCount;
         }
@@ -1452,7 +1509,7 @@ public class CliClient
                     css_.out.println(leftSpace + "Column Metadata:");
                     for (ColumnDef columnDef : cf_def.getColumn_metadata())
                     {
-                        String columnName = columnNameValidator.getString(columnDef.getName());
+                        String columnName = columnNameValidator.getString(columnDef.name);
 
                         css_.out.println(leftSpace + "  Column Name: " + columnName);
                         css_.out.println(columnLeftSpace + "Validation Class: " + columnDef.getValidation_class());
@@ -1656,7 +1713,7 @@ public class CliClient
      * @return byte[] - object in the byte array representation
      * @throws UnsupportedEncodingException - raised but String.getBytes(encoding)
      */
-    private byte[] getBytesAccordingToType(String object, AbstractType comparator) throws UnsupportedEncodingException
+    private ByteBuffer getBytesAccordingToType(String object, AbstractType comparator) throws UnsupportedEncodingException
     {
         if (comparator instanceof LongType)
         {
@@ -1679,7 +1736,7 @@ public class CliClient
             if (comparator instanceof TimeUUIDType && uuid.version() != 1)
                 throw new IllegalArgumentException("TimeUUID supports only version 1 UUIDs");    
 
-            return UUIDGen.decompose(uuid);    
+            return ByteBuffer.wrap(UUIDGen.decompose(uuid));    
         }
         else if (comparator instanceof IntegerType)
         {
@@ -1694,15 +1751,15 @@ public class CliClient
                 throw new RuntimeException("'" + object + "' could not be translated into an IntegerType.");
             }
 
-            return integerType.toByteArray();
+            return ByteBuffer.wrap(integerType.toByteArray());
         }
         else if (comparator instanceof AsciiType)
         {
-            return object.getBytes("US-ASCII");
+            return ByteBuffer.wrap(object.getBytes("US-ASCII"));
         }
         else
         {
-            return object.getBytes("UTF-8");
+            return ByteBuffer.wrap(object.getBytes("UTF-8"));
         }
     }
     
@@ -1716,7 +1773,7 @@ public class CliClient
      * @throws IllegalAccessException - raised from getFormatTypeForColumn call
      * @throws UnsupportedEncodingException - raised from getBytes() calls
      */
-    private byte[] columnNameAsByteArray(String column, String columnFamily) throws NoSuchFieldException, InstantiationException, IllegalAccessException, UnsupportedEncodingException
+    private ByteBuffer columnNameAsByteArray(String column, String columnFamily) throws NoSuchFieldException, InstantiationException, IllegalAccessException, UnsupportedEncodingException
     {
         CfDef columnFamilyDef   = getCfDef(columnFamily);
         String comparatorClass  = columnFamilyDef.comparator_type;
@@ -1731,7 +1788,7 @@ public class CliClient
      * @param columnValue - actual column value
      * @return byte[] - value in byte array representation
      */
-    private byte[] columnValueAsByteArray(byte[] columnName, String columnFamilyName, String columnValue)
+    private ByteBuffer columnValueAsByteArray(ByteBuffer columnName, String columnFamilyName, String columnValue)
     {
         CfDef columnFamilyDef = getCfDef(columnFamilyName);
         
@@ -1739,7 +1796,7 @@ public class CliClient
         {
             byte[] currentColumnName = columnDefinition.getName();
 
-            if (Arrays.equals(currentColumnName, columnName))
+            if (ByteBufferUtil.compare(currentColumnName,columnName)==0)
             {
                 try
                 {
@@ -1754,7 +1811,7 @@ public class CliClient
         }
 
         // if no validation were set returning simple .getBytes()
-        return columnValue.getBytes();
+        return ByteBuffer.wrap(columnValue.getBytes());
     }
 
     /**
@@ -1771,7 +1828,7 @@ public class CliClient
         {
             byte[] nameInBytes = columnDefinition.getName();
 
-            if (Arrays.equals(nameInBytes, columnNameInBytes))
+            if (nameInBytes.equals(columnNameInBytes))
             {
                 return getFormatTypeForColumn(columnDefinition.getValidation_class());
             }
@@ -1825,7 +1882,7 @@ public class CliClient
      * @param columnName   - also updates column family metadata for given column
      * @return byte[] - string value as byte[] 
      */
-    private byte[] convertValueByFunction(Tree functionCall, CfDef columnFamily, byte[] columnName)
+    private ByteBuffer convertValueByFunction(Tree functionCall, CfDef columnFamily, ByteBuffer columnName)
     {
         return convertValueByFunction(functionCall, columnFamily, columnName, false);
     }
@@ -1838,7 +1895,7 @@ public class CliClient
      * @param withUpdate   - also updates column family metadata for given column
      * @return byte[] - string value as byte[]
      */
-    private byte[] convertValueByFunction(Tree functionCall, CfDef columnFamily, byte[] columnName, boolean withUpdate)
+    private ByteBuffer convertValueByFunction(Tree functionCall, CfDef columnFamily, ByteBuffer columnName, boolean withUpdate)
     {
         String functionName = functionCall.getChild(0).getText();
         String functionArg  = CliUtils.unescapeSQLString(functionCall.getChild(1).getText());
@@ -1858,7 +1915,7 @@ public class CliClient
         try
         {
             AbstractType validator = function.getValidator();
-            byte[] value = getBytesAccordingToType(functionArg, validator);
+            ByteBuffer value = getBytesAccordingToType(functionArg, validator);
 
             // performing ColumnDef local validator update
             if (withUpdate)
@@ -1880,7 +1937,7 @@ public class CliClient
      * @param columnName      - column name represented as byte[]
      * @param validationClass - value validation class
      */
-    private void updateColumnMetaData(CfDef columnFamily, byte[] columnName, String validationClass)
+    private void updateColumnMetaData(CfDef columnFamily, ByteBuffer columnName, String validationClass)
     {
         List<ColumnDef> columnMetaData = columnFamily.getColumn_metadata();
         ColumnDef column = getColumnDefByName(columnFamily, columnName);
@@ -1906,13 +1963,13 @@ public class CliClient
      * @param columnName   - column name represented as byte[]
      * @return ColumnDef   - found column definition
      */
-    private ColumnDef getColumnDefByName(CfDef columnFamily, byte[] columnName)
+    private ColumnDef getColumnDefByName(CfDef columnFamily, ByteBuffer columnName)
     {
         for (ColumnDef columnDef : columnFamily.getColumn_metadata())
         {
             byte[] currName = columnDef.getName();
 
-            if (Arrays.equals(currName, columnName))
+            if (ByteBufferUtil.compare(currName, columnName) == 0)
             {
                 return columnDef;
             }
@@ -1941,7 +1998,7 @@ public class CliClient
         for (KeySlice ks : slices)
         {
             css_.out.printf("-------------------\n");
-            css_.out.printf("RowKey: %s\n", new String(ks.key, "UTF-8"));
+            css_.out.printf("RowKey: %s\n", new String(ks.key.array(),ks.key.position(),ks.key.remaining(), "UTF-8"));
 
             Iterator<ColumnOrSuperColumn> iterator = ks.getColumnsIterator();
 

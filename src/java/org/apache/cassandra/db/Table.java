@@ -21,18 +21,21 @@ package org.apache.cassandra.db;
 import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
-import java.util.*;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
-import com.google.common.base.Function;
-import com.google.common.collect.Iterables;
-import org.apache.commons.lang.ArrayUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -47,7 +50,13 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.commons.lang.ArrayUtils;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.base.Function;
+import com.google.common.collect.Iterables;
 
 public class Table
 {
@@ -361,13 +370,13 @@ public class Table
                     continue;
                 }
 
-                SortedSet<byte[]> mutatedIndexedColumns = null;
-                for (byte[] column : cfs.getIndexedColumns())
+                SortedSet<ByteBuffer> mutatedIndexedColumns = null;
+                for (ByteBuffer column : cfs.getIndexedColumns())
                 {
                     if (cf.getColumnNames().contains(column) || cf.isMarkedForDelete())
                     {
                         if (mutatedIndexedColumns == null)
-                            mutatedIndexedColumns = new TreeSet<byte[]>(FBUtilities.byteArrayComparator);
+                            mutatedIndexedColumns = new TreeSet<ByteBuffer>();
                         mutatedIndexedColumns.add(column);
                     }
                 }
@@ -416,7 +425,7 @@ public class Table
         return memtablesToFlush;
     }
 
-    private static void ignoreObsoleteMutations(ColumnFamily cf, SortedSet<byte[]> mutatedIndexedColumns, ColumnFamily oldIndexedColumns)
+    private static void ignoreObsoleteMutations(ColumnFamily cf, SortedSet<ByteBuffer> mutatedIndexedColumns, ColumnFamily oldIndexedColumns)
     {
         if (oldIndexedColumns == null)
             return;
@@ -440,7 +449,7 @@ public class Table
         }
     }
 
-    private static ColumnFamily readCurrentIndexedColumns(DecoratedKey key, ColumnFamilyStore cfs, SortedSet<byte[]> mutatedIndexedColumns)
+    private static ColumnFamily readCurrentIndexedColumns(DecoratedKey key, ColumnFamilyStore cfs, SortedSet<ByteBuffer> mutatedIndexedColumns)
     {
         QueryFilter filter = QueryFilter.getNamesFilter(key, new QueryPath(cfs.getColumnFamilyName()), mutatedIndexedColumns);
         return cfs.getColumnFamily(filter);
@@ -450,16 +459,16 @@ public class Table
      * removes obsolete index entries and creates new ones for the given row key and mutated columns.
      * @return list of full (index CF) memtables
      */
-    private static List<Memtable> applyIndexUpdates(byte[] key,
+    private static List<Memtable> applyIndexUpdates(ByteBuffer key,
                                                     ColumnFamily cf,
                                                     ColumnFamilyStore cfs,
-                                                    SortedSet<byte[]> mutatedIndexedColumns,
+                                                    SortedSet<ByteBuffer> mutatedIndexedColumns,
                                                     ColumnFamily oldIndexedColumns)
     {
         List<Memtable> fullMemtables = Collections.emptyList();
 
         // add new index entries
-        for (byte[] columnName : mutatedIndexedColumns)
+        for (ByteBuffer columnName : mutatedIndexedColumns)
         {
             IColumn column = cf.getColumn(columnName);
             if (column == null || column.isMarkedForDelete())
@@ -470,11 +479,11 @@ public class Table
             if (column instanceof ExpiringColumn)
             {
                 ExpiringColumn ec = (ExpiringColumn)column;
-                cfi.addColumn(new ExpiringColumn(key, ArrayUtils.EMPTY_BYTE_ARRAY, ec.timestamp, ec.getTimeToLive(), ec.getLocalDeletionTime()));
+                cfi.addColumn(new ExpiringColumn(key, FBUtilities.EMPTY_BYTE_BUFFER, ec.timestamp, ec.getTimeToLive(), ec.getLocalDeletionTime()));
             }
             else
             {
-                cfi.addColumn(new Column(key, ArrayUtils.EMPTY_BYTE_ARRAY, column.timestamp()));
+                cfi.addColumn(new Column(key, FBUtilities.EMPTY_BYTE_BUFFER, column.timestamp()));
             }
             Memtable fullMemtable = cfs.getIndexedColumnFamilyStore(columnName).apply(valueKey, cfi);
             if (fullMemtable != null)
@@ -485,9 +494,9 @@ public class Table
         if (oldIndexedColumns != null)
         {
             int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
-            for (Map.Entry<byte[], IColumn> entry : oldIndexedColumns.getColumnsMap().entrySet())
+            for (Map.Entry<ByteBuffer, IColumn> entry : oldIndexedColumns.getColumnsMap().entrySet())
             {
-                byte[] columnName = entry.getKey();
+                ByteBuffer columnName = entry.getKey();
                 IColumn column = entry.getValue();
                 if (column.isMarkedForDelete())
                     continue;
@@ -503,7 +512,7 @@ public class Table
         return fullMemtables;
     }
 
-    public IndexBuilder createIndexBuilder(ColumnFamilyStore cfs, SortedSet<byte[]> columns, ReducingKeyIterator iter)
+    public IndexBuilder createIndexBuilder(ColumnFamilyStore cfs, SortedSet<ByteBuffer> columns, ReducingKeyIterator iter)
     {
         return new IndexBuilder(cfs, columns, iter);
     }
@@ -511,10 +520,10 @@ public class Table
     public class IndexBuilder implements ICompactionInfo
     {
         private final ColumnFamilyStore cfs;
-        private final SortedSet<byte[]> columns;
+        private final SortedSet<ByteBuffer> columns;
         private final ReducingKeyIterator iter;
 
-        public IndexBuilder(ColumnFamilyStore cfs, SortedSet<byte[]> columns, ReducingKeyIterator iter)
+        public IndexBuilder(ColumnFamilyStore cfs, SortedSet<ByteBuffer> columns, ReducingKeyIterator iter)
         {
             this.cfs = cfs;
             this.columns = columns;
@@ -574,9 +583,9 @@ public class Table
         }
     }
 
-    private Object indexLockFor(byte[] key)
+    private Object indexLockFor(ByteBuffer key)
     {
-        return indexLocks[Math.abs(Arrays.hashCode(key) % indexLocks.length)];
+        return indexLocks[Math.abs(key.hashCode() % indexLocks.length)];
     }
 
     public List<Future<?>> flush() throws IOException

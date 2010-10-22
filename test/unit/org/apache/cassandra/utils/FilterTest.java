@@ -21,17 +21,17 @@ package org.apache.cassandra.utils;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
-import org.junit.Test;
-
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.junit.Test;
 
 public class FilterTest
 {
-    public void testManyHashes(Iterator<byte[]> keys)
+    public void testManyHashes(Iterator<ByteBuffer> keys)
     {
         int MAX_HASH_COUNT = 128;
         Set<Integer> hashes = new HashSet<Integer>();
@@ -60,22 +60,22 @@ public class FilterTest
     public static final BloomCalculations.BloomSpecification spec = BloomCalculations.computeBloomSpec(15, MAX_FAILURE_RATE);
     static final int ELEMENTS = 10000;
 
-    static final ResetableIterator<byte[]> intKeys()
+    static final ResetableIterator<ByteBuffer> intKeys()
     {
         return new KeyGenerator.IntGenerator(ELEMENTS);
     }
 
-    static final ResetableIterator<byte[]> randomKeys()
+    static final ResetableIterator<ByteBuffer> randomKeys()
     {
         return new KeyGenerator.RandomStringGenerator(314159, ELEMENTS);
     }
 
-    static final ResetableIterator<byte[]> randomKeys2()
+    static final ResetableIterator<ByteBuffer> randomKeys2()
     {
         return new KeyGenerator.RandomStringGenerator(271828, ELEMENTS);
     }
 
-    public static void testFalsePositives(Filter f, ResetableIterator<byte[]> keys, ResetableIterator<byte[]> otherkeys)
+    public static void testFalsePositives(Filter f, ResetableIterator<ByteBuffer> keys, ResetableIterator<ByteBuffer> otherkeys)
     {
         assert keys.size() == otherkeys.size();
 
@@ -99,15 +99,15 @@ public class FilterTest
 
     public static Filter testSerialize(Filter f) throws IOException
     {
-        f.add("a".getBytes());
+        f.add(ByteBuffer.wrap("a".getBytes()));
         DataOutputBuffer out = new DataOutputBuffer();
         f.getSerializer().serialize(f, out);
 
         ByteArrayInputStream in = new ByteArrayInputStream(out.getData(), 0, out.getLength());
         Filter f2 = f.getSerializer().deserialize(new DataInputStream(in));
 
-        assert f2.isPresent("a".getBytes());
-        assert !f2.isPresent("b".getBytes());
+        assert f2.isPresent(ByteBuffer.wrap("a".getBytes()));
+        assert !f2.isPresent(ByteBuffer.wrap("b".getBytes()));
         return f2;
     }
 

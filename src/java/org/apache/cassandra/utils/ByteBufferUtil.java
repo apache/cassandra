@@ -1,6 +1,4 @@
-package org.apache.cassandra.db.marshal;
 /*
- * 
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,33 +15,33 @@ package org.apache.cassandra.db.marshal;
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
  */
-
+package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
+/**
+ * Utility methods to make ByteBuffers less painful
+ *
+ */
+public class ByteBufferUtil {
 
-public class BytesType extends AbstractType
-{
-    public static final BytesType instance = new BytesType();
-
-    BytesType() {} // singleton
+    public static int compare(ByteBuffer o1, ByteBuffer o2)
+    {
+        return FBUtilities.compareByteArrays(o1.array(), o2.array(), o1.arrayOffset()+o1.position(), o2.arrayOffset()+o2.position(), o1.limit(), o2.limit());
+    }
     
-    public int compare(ByteBuffer o1, ByteBuffer o2)
+    public static int compare(byte[] o1, ByteBuffer o2)
     {
-        if(null == o1){
-            if(null == o2) return 0;
-            else return -1;
-        }
-              
-        return ByteBufferUtil.compare(o1, o2);
+        return FBUtilities.compareByteArrays(o1, o2.array(), 0, o2.arrayOffset()+o2.position(), o1.length, o2.limit());
     }
-
-    public String getString(ByteBuffer bytes)
+    public static int compare(ByteBuffer o1, byte[] o2)
     {
-        return FBUtilities.bytesToHex(bytes);
+        return FBUtilities.compareByteArrays(o1.array(), o2, o1.arrayOffset()+o1.position(), 0, o1.limit(), o2.length);
     }
+    
+    public static boolean equals(ByteBuffer o1, ByteBuffer o2)
+    {
+        return compare(o1, o2) == 0;
+    }   
 }

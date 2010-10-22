@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutionException;
 
 import org.junit.Test;
@@ -42,8 +43,8 @@ public class RemoveColumnFamilyWithFlush1Test extends CleanupHelper
 
         // add data
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
-        rm.add(new QueryPath("Standard1", null, "Column2".getBytes()), "asdf".getBytes(), 0);
+        rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap("Column1".getBytes())), ByteBuffer.wrap("asdf".getBytes()), 0);
+        rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap("Column2".getBytes())), ByteBuffer.wrap("asdf".getBytes()), 0);
         rm.apply();
         store.forceBlockingFlush();
 
@@ -54,7 +55,7 @@ public class RemoveColumnFamilyWithFlush1Test extends CleanupHelper
 
         ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, new QueryPath("Standard1")));
         assert retrieved.isMarkedForDelete();
-        assertNull(retrieved.getColumn("Column1".getBytes()));
+        assertNull(retrieved.getColumn(ByteBuffer.wrap("Column1".getBytes())));
         assertNull(Util.cloneAndRemoveDeleted(retrieved, Integer.MAX_VALUE));
     }
 }

@@ -19,26 +19,33 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.*;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOError;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.apache.cassandra.io.util.FileUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.AbstractCompactedRow;
 import org.apache.cassandra.io.ICompactionInfo;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SegmentedFile;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilter;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.utils.FBUtilities;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SSTableWriter extends SSTable
 {
@@ -148,13 +155,13 @@ public class SSTableWriter extends SSTable
         estimatedColumnCount.add(columnCount);
     }
 
-    public void append(DecoratedKey decoratedKey, byte[] value) throws IOException
+    public void append(DecoratedKey decoratedKey, ByteBuffer value) throws IOException
     {
         long currentPosition = beforeAppend(decoratedKey);
         FBUtilities.writeShortByteArray(decoratedKey.key, dataFile);
-        assert value.length > 0;
-        dataFile.writeLong(value.length);
-        dataFile.write(value);
+        assert value.remaining() > 0;
+        dataFile.writeLong(value.remaining());
+        dataFile.write(value.array(),value.position()+value.arrayOffset(),value.remaining());
         afterAppend(decoratedKey, currentPosition);
     }
 

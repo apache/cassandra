@@ -19,7 +19,11 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.util.*;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -27,16 +31,15 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class BinaryMemtable implements IFlushable
 {
@@ -46,7 +49,7 @@ public class BinaryMemtable implements IFlushable
 
     /* Table and ColumnFamily name are used to determine the ColumnFamilyStore */
     private boolean isFrozen = false;
-    private final Map<DecoratedKey, byte[]> columnFamilies = new NonBlockingHashMap<DecoratedKey, byte[]>();
+    private final Map<DecoratedKey, ByteBuffer> columnFamilies = new NonBlockingHashMap<DecoratedKey, ByteBuffer>();
     /* Lock and Condition for notifying new clients about Memtable switches */
     private final Lock lock = new ReentrantLock();
     Condition condition;
@@ -69,7 +72,7 @@ public class BinaryMemtable implements IFlushable
      * the memtable. This version will respect the threshold and flush
      * the memtable to disk when the size exceeds the threshold.
     */
-    void put(DecoratedKey key, byte[] buffer)
+    void put(DecoratedKey key, ByteBuffer buffer)
     {
         if (isThresholdViolated())
         {
@@ -103,10 +106,10 @@ public class BinaryMemtable implements IFlushable
         return columnFamilies.isEmpty();
     }
 
-    private void resolve(DecoratedKey key, byte[] buffer)
+    private void resolve(DecoratedKey key, ByteBuffer buffer)
     {
         columnFamilies.put(key, buffer);
-        currentSize.addAndGet(buffer.length + key.key.length);
+        currentSize.addAndGet(buffer.remaining() + key.key.remaining());
     }
 
     private List<DecoratedKey> getSortedKeys()
@@ -126,8 +129,8 @@ public class BinaryMemtable implements IFlushable
 
         for (DecoratedKey key : sortedKeys)
         {
-            byte[] bytes = columnFamilies.get(key);
-            assert bytes.length > 0;
+            ByteBuffer bytes = columnFamilies.get(key);
+            assert bytes.remaining() > 0;
             writer.append(key, bytes);
         }
         SSTableReader sstable = writer.closeAndOpenReader();

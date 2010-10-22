@@ -71,8 +71,8 @@ public abstract class Migration
     public static final String NAME_VALIDATOR_REGEX = "\\w+";
     public static final String MIGRATIONS_CF = "Migrations";
     public static final String SCHEMA_CF = "Schema";
-    public static final byte[] MIGRATIONS_KEY = "Migrations Key".getBytes(UTF_8);
-    public static final byte[] LAST_MIGRATION_KEY = "Last Migration".getBytes(UTF_8);
+    public static final ByteBuffer MIGRATIONS_KEY = ByteBuffer.wrap("Migrations Key".getBytes(UTF_8));
+    public static final ByteBuffer LAST_MIGRATION_KEY = ByteBuffer.wrap("Last Migration".getBytes(UTF_8));
     
     protected RowMutation rm;
     protected UUID newVersion;
@@ -111,15 +111,15 @@ public abstract class Migration
         if (!clientMode)
         {
             long now = System.currentTimeMillis();
-            byte[] buf = serialize();
+            ByteBuffer buf = serialize();
             RowMutation migration = new RowMutation(Table.SYSTEM_TABLE, MIGRATIONS_KEY);
-            migration.add(new QueryPath(MIGRATIONS_CF, null, UUIDGen.decompose(newVersion)), buf, now);
+            migration.add(new QueryPath(MIGRATIONS_CF, null, ByteBuffer.wrap(UUIDGen.decompose(newVersion))), buf, now);
             migration.apply();
             
             // note that we're storing this in the system table, which is not replicated
             logger.debug("Applying migration " + newVersion.toString());
             migration = new RowMutation(Table.SYSTEM_TABLE, LAST_MIGRATION_KEY);
-            migration.add(new QueryPath(SCHEMA_CF, null, LAST_MIGRATION_KEY), UUIDGen.decompose(newVersion), now);
+            migration.add(new QueryPath(SCHEMA_CF, null, LAST_MIGRATION_KEY), ByteBuffer.wrap(UUIDGen.decompose(newVersion)), now);
             migration.apply();
 
             // if we fail here, there will be schema changes in the CL that will get replayed *AFTER* the schema is loaded.
@@ -218,17 +218,17 @@ public abstract class Migration
         long now = System.currentTimeMillis();
         // add a column for each keyspace
         for (KSMetaData ksm : ksms)
-            rm.add(new QueryPath(SCHEMA_CF, null, ksm.name.getBytes(UTF_8)), SerDeUtils.serialize(ksm.deflate()), now);
+            rm.add(new QueryPath(SCHEMA_CF, null, ByteBuffer.wrap(ksm.name.getBytes(UTF_8))), SerDeUtils.serialize(ksm.deflate()), now);
         // add the schema
         rm.add(new QueryPath(SCHEMA_CF,
                              null,
                              DefsTable.DEFINITION_SCHEMA_COLUMN_NAME),
-                             org.apache.cassandra.avro.KsDef.SCHEMA$.toString().getBytes(UTF_8),
+                             ByteBuffer.wrap(org.apache.cassandra.avro.KsDef.SCHEMA$.toString().getBytes(UTF_8)),
                              now);
         return rm;
     }
         
-    public byte[] serialize() throws IOException
+    public ByteBuffer serialize() throws IOException
     {
         // super deflate
         org.apache.cassandra.db.migration.avro.Migration mi = new org.apache.cassandra.db.migration.avro.Migration();
@@ -256,7 +256,7 @@ public abstract class Migration
         return SerDeUtils.serializeWithSchema(mi);
     }
 
-    public static Migration deserialize(byte[] bytes) throws IOException
+    public static Migration deserialize(ByteBuffer bytes) throws IOException
     {
         // deserialize
         org.apache.cassandra.db.migration.avro.Migration mi = SerDeUtils.deserializeWithSchema(bytes, new org.apache.cassandra.db.migration.avro.Migration());
@@ -276,8 +276,8 @@ public abstract class Migration
         }
         
         // super inflate
-        migration.lastVersion = UUIDGen.makeType1UUID(mi.old_version.bytes());
-        migration.newVersion = UUIDGen.makeType1UUID(mi.new_version.bytes());
+        migration.lastVersion = UUIDGen.makeType1UUID(ByteBuffer.wrap(mi.old_version.bytes()));
+        migration.newVersion = UUIDGen.makeType1UUID(ByteBuffer.wrap(mi.new_version.bytes()));
         try
         {
             migration.rm = RowMutation.serializer().deserialize(SerDeUtils.createDataInputStream(mi.row_mutation));
@@ -297,14 +297,14 @@ public abstract class Migration
         DecoratedKey dkey = StorageService.getPartitioner().decorateKey(MIGRATIONS_KEY);
         Table defs = Table.open(Table.SYSTEM_TABLE);
         ColumnFamilyStore cfStore = defs.getColumnFamilyStore(Migration.MIGRATIONS_CF);
-        QueryFilter filter = QueryFilter.getSliceFilter(dkey, new QueryPath(MIGRATIONS_CF), UUIDGen.decompose(start), UUIDGen.decompose(end), false, 1000);
+        QueryFilter filter = QueryFilter.getSliceFilter(dkey, new QueryPath(MIGRATIONS_CF), ByteBuffer.wrap(UUIDGen.decompose(start)), ByteBuffer.wrap(UUIDGen.decompose(end)), false, 1000);   
         ColumnFamily cf = cfStore.getColumnFamily(filter);
         return cf.getSortedColumns();
     }
     
-    public static byte[] toUTF8Bytes(UUID version)
+    public static ByteBuffer toUTF8Bytes(UUID version)
     {
-        return version.toString().getBytes(UTF_8);
+        return ByteBuffer.wrap(version.toString().getBytes(UTF_8));
     }
     
     public static boolean isLegalName(String s)

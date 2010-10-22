@@ -23,27 +23,74 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.*;
-import java.util.concurrent.*;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
-import org.apache.commons.lang.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.concurrent.*;
-import org.apache.cassandra.config.*;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.concurrent.RetryingScheduledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.RawColumnDefinition;
+import org.apache.cassandra.config.RawColumnFamily;
+import org.apache.cassandra.config.RawKeyspace;
+import org.apache.cassandra.db.BinaryVerbHandler;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DefinitionsAnnounceVerbHandler;
+import org.apache.cassandra.db.DefinitionsUpdateResponseVerbHandler;
+import org.apache.cassandra.db.DefsTable;
+import org.apache.cassandra.db.HintedHandOffManager;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadRepairVerbHandler;
+import org.apache.cassandra.db.ReadVerbHandler;
+import org.apache.cassandra.db.Row;
+import org.apache.cassandra.db.RowMutationVerbHandler;
+import org.apache.cassandra.db.SchemaCheckVerbHandler;
+import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.TruncateVerbHandler;
 import org.apache.cassandra.db.migration.AddKeyspace;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.*;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.EndpointState;
+import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.gms.GossipDigestAck2VerbHandler;
+import org.apache.cassandra.gms.GossipDigestAckVerbHandler;
+import org.apache.cassandra.gms.GossipDigestSynVerbHandler;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
+import org.apache.cassandra.gms.IFailureDetector;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.DeletionService;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -54,17 +101,28 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ResponseVerbHandler;
 import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
-import org.apache.cassandra.streaming.*;
+import org.apache.cassandra.streaming.ReplicationFinishedVerbHandler;
+import org.apache.cassandra.streaming.StreamIn;
+import org.apache.cassandra.streaming.StreamOut;
+import org.apache.cassandra.streaming.StreamReplyVerbHandler;
+import org.apache.cassandra.streaming.StreamRequestVerbHandler;
+import org.apache.cassandra.streaming.StreamingService;
 import org.apache.cassandra.thrift.Constants;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SkipNullRepresenter;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Level;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Dumper;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.nodes.Tag;
+
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 
 /*
  * This abstraction contains the token/identifier of this node
@@ -1392,7 +1450,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * @param key - key for which we need to find the endpoint return value -
      * the endpoint responsible for this key
      */
-    public List<InetAddress> getNaturalEndpoints(String table, byte[] key)
+    public List<InetAddress> getNaturalEndpoints(String table, ByteBuffer key)
     {
         return getNaturalEndpoints(table, partitioner_.getToken(key));
     }
@@ -1416,7 +1474,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * @param key - key for which we need to find the endpoint return value -
      * the endpoint responsible for this key
      */
-    public List<InetAddress> getLiveNaturalEndpoints(String table, byte[] key)
+    public List<InetAddress> getLiveNaturalEndpoints(String table, ByteBuffer key)
     {
         return getLiveNaturalEndpoints(table, partitioner_.getToken(key));
     }
@@ -1438,7 +1496,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     /**
      * This function finds the closest live endpoint that contains a given key.
      */
-    public InetAddress findSuitableEndpoint(String table, byte[] key) throws IOException, UnavailableException
+    public InetAddress findSuitableEndpoint(String table, ByteBuffer key) throws IOException, UnavailableException
     {
         List<InetAddress> endpoints = getNaturalEndpoints(table, key);
         DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), endpoints);
@@ -1983,7 +2041,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     RawColumnDefinition rcd = new RawColumnDefinition();
                     rcd.index_name = cd.index_name;
                     rcd.index_type = cd.index_type;
-                    rcd.name = new String(cd.name, "UTF8");
+                    rcd.name = new String(cd.name.array(),cd.name.position()+cd.name.arrayOffset(),cd.name.remaining(), "UTF8");
                     rcd.validator_class = cd.validator.getClass().getName();
                     rcf.column_metadata[j++] = rcd;
                 }

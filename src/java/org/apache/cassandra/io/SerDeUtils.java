@@ -61,9 +61,9 @@ public final class SerDeUtils
      * @param ob An empty object to deserialize into (must not be null).
      * @throws IOException
      */
-    public static <T extends SpecificRecord> T deserialize(Schema writer, byte[] bytes, T ob) throws IOException
+    public static <T extends SpecificRecord> T deserialize(Schema writer, ByteBuffer bytes, T ob) throws IOException
     {
-        BinaryDecoder dec = DIRECT_DECODERS.createBinaryDecoder(bytes, null);
+        BinaryDecoder dec = DIRECT_DECODERS.createBinaryDecoder(bytes.array(),bytes.position()+bytes.arrayOffset(),bytes.remaining(), null);
         SpecificDatumReader<T> reader = new SpecificDatumReader<T>(writer);
         reader.setExpected(ob.getSchema());
         return reader.read(ob, dec);
@@ -73,14 +73,14 @@ public final class SerDeUtils
      * Serializes a single object.
      * @param o Object to serialize
      */
-    public static <T extends SpecificRecord> byte[] serialize(T o) throws IOException
+    public static <T extends SpecificRecord> ByteBuffer serialize(T o) throws IOException
     {
         OutputBuffer buff = new OutputBuffer();
         BinaryEncoder enc = new BinaryEncoder(buff);
         SpecificDatumWriter<T> writer = new SpecificDatumWriter<T>(o.getSchema());
         writer.write(o, enc);
         enc.flush();
-        return buff.asByteArray();
+        return ByteBuffer.wrap(buff.asByteArray());
     }
 
 	/**
@@ -89,9 +89,9 @@ public final class SerDeUtils
      * @param bytes Array to deserialize from
      * @throws IOException
      */
-    public static <T extends SpecificRecord> T deserializeWithSchema(byte[] bytes, T ob) throws IOException
+    public static <T extends SpecificRecord> T deserializeWithSchema(ByteBuffer bytes, T ob) throws IOException
     {
-        BinaryDecoder dec = DIRECT_DECODERS.createBinaryDecoder(bytes, null);
+        BinaryDecoder dec = DIRECT_DECODERS.createBinaryDecoder(bytes.array(),bytes.position()+bytes.arrayOffset(), bytes.remaining(), null);
         Schema writer = Schema.parse(dec.readString(new Utf8()).toString());
         SpecificDatumReader<T> reader = new SpecificDatumReader<T>(writer);
         reader.setExpected(ob.getSchema());
@@ -103,7 +103,7 @@ public final class SerDeUtils
      * more efficient to store the Schema independently.
      * @param o Object to serialize
      */
-    public static <T extends SpecificRecord> byte[] serializeWithSchema(T o) throws IOException
+    public static <T extends SpecificRecord> ByteBuffer serializeWithSchema(T o) throws IOException
     {
         OutputBuffer buff = new OutputBuffer();
         BinaryEncoder enc = new BinaryEncoder(buff);
@@ -111,7 +111,7 @@ public final class SerDeUtils
         SpecificDatumWriter<T> writer = new SpecificDatumWriter<T>(o.getSchema());
         writer.write(o, enc);
         enc.flush();
-        return buff.asByteArray();
+        return ByteBuffer.wrap(buff.asByteArray());
     }
 
     /**

@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -154,9 +155,10 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
     return new Mutation(this);
   }
 
-  @Deprecated
-  public Mutation clone() {
-    return new Mutation(this);
+  @Override
+  public void clear() {
+    this.column_or_supercolumn = null;
+    this.deletion = null;
   }
 
   public ColumnOrSuperColumn getColumn_or_supercolumn() {
@@ -228,10 +230,6 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
     }
   }
 
-  public void setFieldValue(int fieldID, Object value) {
-    setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
-  }
-
   public Object getFieldValue(_Fields field) {
     switch (field) {
     case COLUMN_OR_SUPERCOLUMN:
@@ -244,12 +242,12 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
     throw new IllegalStateException();
   }
 
-  public Object getFieldValue(int fieldId) {
-    return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-  }
-
   /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
+    if (field == null) {
+      throw new IllegalArgumentException();
+    }
+
     switch (field) {
     case COLUMN_OR_SUPERCOLUMN:
       return isSetColumn_or_supercolumn();
@@ -257,10 +255,6 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
       return isSetDeletion();
     }
     throw new IllegalStateException();
-  }
-
-  public boolean isSet(int fieldID) {
-    return isSet(_Fields.findByThriftIdOrThrow(fieldID));
   }
 
   @Override
@@ -326,7 +320,8 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetColumn_or_supercolumn()) {      lastComparison = TBaseHelper.compareTo(this.column_or_supercolumn, typedOther.column_or_supercolumn);
+    if (isSetColumn_or_supercolumn()) {
+      lastComparison = TBaseHelper.compareTo(this.column_or_supercolumn, typedOther.column_or_supercolumn);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -335,12 +330,17 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetDeletion()) {      lastComparison = TBaseHelper.compareTo(this.deletion, typedOther.deletion);
+    if (isSetDeletion()) {
+      lastComparison = TBaseHelper.compareTo(this.deletion, typedOther.deletion);
       if (lastComparison != 0) {
         return lastComparison;
       }
     }
     return 0;
+  }
+
+  public _Fields fieldForId(int fieldId) {
+    return _Fields.findByThriftId(fieldId);
   }
 
   public void read(TProtocol iprot) throws TException {

@@ -58,9 +58,9 @@ public class RowMutationVerbHandler implements IVerbHandler
                 DataInputStream dis = new DataInputStream(new ByteArrayInputStream(hintedBytes));
                 while (dis.available() > 0)
                 {
-                    byte[] addressBytes = FBUtilities.readShortByteArray(dis);
+                    ByteBuffer addressBytes = FBUtilities.readShortByteArray(dis);
                     if (logger_.isDebugEnabled())
-                        logger_.debug("Adding hint for " + InetAddress.getByName(new String(addressBytes)));
+                        logger_.debug("Adding hint for " + InetAddress.getByName(new String(addressBytes.array(),addressBytes.position()+addressBytes.arrayOffset(),addressBytes.remaining())));
                     RowMutation hintedMutation = new RowMutation(Table.SYSTEM_TABLE, addressBytes);
                     hintedMutation.addHints(rm);
                     hintedMutation.apply();

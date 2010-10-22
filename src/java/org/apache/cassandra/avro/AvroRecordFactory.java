@@ -104,10 +104,9 @@ public class AvroRecordFactory
         return entry;
     }
 
-    public static KeySlice newKeySlice(byte[] key, List<ColumnOrSuperColumn> columns) {
+    public static KeySlice newKeySlice(ByteBuffer key, List<ColumnOrSuperColumn> columns) {
         KeySlice slice = new KeySlice();
-        ByteBuffer wrappedKey = (key != null) ? ByteBuffer.wrap(key) : null;
-        slice.key = wrappedKey;
+        slice.key = key;
         slice.columns = columns;
         return slice;
     }

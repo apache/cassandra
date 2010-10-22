@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,7 +56,7 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
   private static final TField INDEX_TYPE_FIELD_DESC = new TField("index_type", TType.I32, (short)3);
   private static final TField INDEX_NAME_FIELD_DESC = new TField("index_name", TType.STRING, (short)4);
 
-  public byte[] name;
+  public ByteBuffer name;
   public String validation_class;
   /**
    * 
@@ -156,7 +157,7 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
   }
 
   public ColumnDef(
-    byte[] name,
+    ByteBuffer name,
     String validation_class)
   {
     this();
@@ -169,8 +170,8 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
    */
   public ColumnDef(ColumnDef other) {
     if (other.isSetName()) {
-      this.name = new byte[other.name.length];
-      System.arraycopy(other.name, 0, name, 0, other.name.length);
+      this.name = TBaseHelper.copyBinary(other.name);
+;
     }
     if (other.isSetValidation_class()) {
       this.validation_class = other.validation_class;
@@ -187,16 +188,29 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
     return new ColumnDef(this);
   }
 
-  @Deprecated
-  public ColumnDef clone() {
-    return new ColumnDef(this);
+  @Override
+  public void clear() {
+    this.name = null;
+    this.validation_class = null;
+    this.index_type = null;
+    this.index_name = null;
   }
 
   public byte[] getName() {
-    return this.name;
+    setName(TBaseHelper.rightSize(name));
+    return name.array();
+  }
+
+  public ByteBuffer BufferForName() {
+    return name;
   }
 
   public ColumnDef setName(byte[] name) {
+    setName(ByteBuffer.wrap(name));
+    return this;
+  }
+
+  public ColumnDef setName(ByteBuffer name) {
     this.name = name;
     return this;
   }
@@ -302,7 +316,7 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
       if (value == null) {
         unsetName();
       } else {
-        setName((byte[])value);
+        setName((ByteBuffer)value);
       }
       break;
 
@@ -333,10 +347,6 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
     }
   }
 
-  public void setFieldValue(int fieldID, Object value) {
-    setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
-  }
-
   public Object getFieldValue(_Fields field) {
     switch (field) {
     case NAME:
@@ -355,12 +365,12 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
     throw new IllegalStateException();
   }
 
-  public Object getFieldValue(int fieldId) {
-    return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-  }
-
   /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
+    if (field == null) {
+      throw new IllegalArgumentException();
+    }
+
     switch (field) {
     case NAME:
       return isSetName();
@@ -372,10 +382,6 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
       return isSetIndex_name();
     }
     throw new IllegalStateException();
-  }
-
-  public boolean isSet(int fieldID) {
-    return isSet(_Fields.findByThriftIdOrThrow(fieldID));
   }
 
   @Override
@@ -396,7 +402,7 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
     if (this_present_name || that_present_name) {
       if (!(this_present_name && that_present_name))
         return false;
-      if (!java.util.Arrays.equals(this.name, that.name))
+      if (!this.name.equals(that.name))
         return false;
     }
 
@@ -469,7 +475,8 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetName()) {      lastComparison = TBaseHelper.compareTo(this.name, typedOther.name);
+    if (isSetName()) {
+      lastComparison = TBaseHelper.compareTo(this.name, typedOther.name);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -478,7 +485,8 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetValidation_class()) {      lastComparison = TBaseHelper.compareTo(this.validation_class, typedOther.validation_class);
+    if (isSetValidation_class()) {
+      lastComparison = TBaseHelper.compareTo(this.validation_class, typedOther.validation_class);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -487,7 +495,8 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetIndex_type()) {      lastComparison = TBaseHelper.compareTo(this.index_type, typedOther.index_type);
+    if (isSetIndex_type()) {
+      lastComparison = TBaseHelper.compareTo(this.index_type, typedOther.index_type);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -496,12 +505,17 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetIndex_name()) {      lastComparison = TBaseHelper.compareTo(this.index_name, typedOther.index_name);
+    if (isSetIndex_name()) {
+      lastComparison = TBaseHelper.compareTo(this.index_name, typedOther.index_name);
       if (lastComparison != 0) {
         return lastComparison;
       }
     }
     return 0;
+  }
+
+  public _Fields fieldForId(int fieldId) {
+    return _Fields.findByThriftId(fieldId);
   }
 
   public void read(TProtocol iprot) throws TException {
@@ -594,12 +608,7 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
     if (this.name == null) {
       sb.append("null");
     } else {
-        int __name_size = Math.min(this.name.length, 128);
-        for (int i = 0; i < __name_size; i++) {
-          if (i != 0) sb.append(" ");
-          sb.append(Integer.toHexString(this.name[i]).length() > 1 ? Integer.toHexString(this.name[i]).substring(Integer.toHexString(this.name[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.name[i]).toUpperCase());
-        }
-        if (this.name.length > 128) sb.append(" ...");
+      TBaseHelper.toString(this.name, sb);
     }
     first = false;
     if (!first) sb.append(", ");

@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -130,18 +131,13 @@ public class TimedOutException extends Exception implements TBase<TimedOutExcept
     return new TimedOutException(this);
   }
 
-  @Deprecated
-  public TimedOutException clone() {
-    return new TimedOutException(this);
+  @Override
+  public void clear() {
   }
 
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     }
-  }
-
-  public void setFieldValue(int fieldID, Object value) {
-    setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
   }
 
   public Object getFieldValue(_Fields field) {
@@ -150,19 +146,15 @@ public class TimedOutException extends Exception implements TBase<TimedOutExcept
     throw new IllegalStateException();
   }
 
-  public Object getFieldValue(int fieldId) {
-    return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-  }
-
   /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
+    if (field == null) {
+      throw new IllegalArgumentException();
+    }
+
     switch (field) {
     }
     throw new IllegalStateException();
-  }
-
-  public boolean isSet(int fieldID) {
-    return isSet(_Fields.findByThriftIdOrThrow(fieldID));
   }
 
   @Override
@@ -197,6 +189,10 @@ public class TimedOutException extends Exception implements TBase<TimedOutExcept
     TimedOutException typedOther = (TimedOutException)other;
 
     return 0;
+  }
+
+  public _Fields fieldForId(int fieldId) {
+    return _Fields.findByThriftId(fieldId);
   }
 
   public void read(TProtocol iprot) throws TException {

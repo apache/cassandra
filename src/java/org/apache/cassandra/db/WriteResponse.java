@@ -22,6 +22,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
@@ -51,10 +52,10 @@ public class WriteResponse
     }
 
 	private final String table_;
-	private final byte[] key_;
+	private final ByteBuffer key_;
 	private final boolean status_;
 
-	public WriteResponse(String table, byte[] key, boolean bVal) {
+	public WriteResponse(String table, ByteBuffer key, boolean bVal) {
 		table_ = table;
 		key_ = key;
 		status_ = bVal;
@@ -65,7 +66,7 @@ public class WriteResponse
 		return table_;
 	}
 
-	public byte[] key()
+	public ByteBuffer key()
 	{
 		return key_;
 	}
@@ -87,7 +88,7 @@ public class WriteResponse
         public WriteResponse deserialize(DataInputStream dis) throws IOException
         {
             String table = dis.readUTF();
-            byte[] key = FBUtilities.readShortByteArray(dis);
+            ByteBuffer key = FBUtilities.readShortByteArray(dis);
             boolean status = dis.readBoolean();
             return new WriteResponse(table, key, status);
         }

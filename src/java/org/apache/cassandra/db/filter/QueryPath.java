@@ -21,24 +21,23 @@ package org.apache.cassandra.db.filter;
  */
 
 
+import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.DataInputStream;
-
-import org.apache.commons.lang.ArrayUtils;
+import java.nio.ByteBuffer;
 
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.ColumnPath;
-import org.apache.cassandra.db.ColumnSerializer;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.commons.lang.ArrayUtils;
 
 public class QueryPath
 {
     public final String columnFamilyName;
-    public final byte[] superColumnName;
-    public final byte[] columnName;
+    public final ByteBuffer superColumnName;
+    public final ByteBuffer columnName;
 
-    public QueryPath(String columnFamilyName, byte[] superColumnName, byte[] columnName)
+    public QueryPath(String columnFamilyName, ByteBuffer superColumnName, ByteBuffer columnName)
     {
         this.columnFamilyName = columnFamilyName;
         this.superColumnName = superColumnName;
@@ -50,7 +49,7 @@ public class QueryPath
         this(columnParent.column_family, columnParent.super_column, null);
     }
 
-    public QueryPath(String columnFamilyName, byte[] superColumnName)
+    public QueryPath(String columnFamilyName, ByteBuffer superColumnName)
     {
         this(columnFamilyName, superColumnName, null);
     }
@@ -65,7 +64,7 @@ public class QueryPath
         this(column_path.column_family, column_path.super_column, column_path.column);
     }
 
-    public static QueryPath column(byte[] columnName)
+    public static QueryPath column(ByteBuffer columnName)
     {
         return new QueryPath(null, null, columnName);
     }
@@ -83,18 +82,20 @@ public class QueryPath
     public void serialize(DataOutputStream dos) throws IOException
     {
         assert !"".equals(columnFamilyName);
-        assert superColumnName == null || superColumnName.length > 0;
-        assert columnName == null || columnName.length > 0;
+        assert superColumnName == null || superColumnName.remaining() > 0;
+        assert columnName == null || columnName.remaining() > 0;
         dos.writeUTF(columnFamilyName == null ? "" : columnFamilyName);
-        FBUtilities.writeShortByteArray(superColumnName == null ? ArrayUtils.EMPTY_BYTE_ARRAY : superColumnName, dos);
-        FBUtilities.writeShortByteArray(columnName == null ? ArrayUtils.EMPTY_BYTE_ARRAY : columnName, dos);
+        FBUtilities.writeShortByteArray(superColumnName == null ? FBUtilities.EMPTY_BYTE_BUFFER : superColumnName, dos);
+        FBUtilities.writeShortByteArray(columnName == null ? FBUtilities.EMPTY_BYTE_BUFFER : columnName, dos);
     }
 
     public static QueryPath deserialize(DataInputStream din) throws IOException
     {
         String cfName = din.readUTF();
-        byte[] scName = FBUtilities.readShortByteArray(din);
-        byte[] cName = FBUtilities.readShortByteArray(din);
-        return new QueryPath(cfName.isEmpty() ? null : cfName, scName.length == 0 ? null : scName, cName.length == 0 ? null : cName);
+        ByteBuffer scName = FBUtilities.readShortByteArray(din);
+        ByteBuffer cName = FBUtilities.readShortByteArray(din);
+        return new QueryPath(cfName.isEmpty() ? null : cfName, 
+                             scName.remaining() == 0 ? null : scName, 
+                             cName.remaining() == 0 ? null : cName);
     }
 }

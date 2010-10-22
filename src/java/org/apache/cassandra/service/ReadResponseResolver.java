@@ -26,6 +26,8 @@ import java.util.*;
 
 import org.apache.cassandra.db.*;
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
+
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -65,7 +67,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 		List<ColumnFamily> versions = new ArrayList<ColumnFamily>(responses.size());
 		List<InetAddress> endpoints = new ArrayList<InetAddress>(responses.size());
 		DecoratedKey key = null;
-		byte[] digest = new byte[0];
+		ByteBuffer digest = FBUtilities.EMPTY_BYTE_BUFFER;
 		boolean isDigestQuery = false;
         
         /*
@@ -96,9 +98,10 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 		// If there is a mismatch then throw an exception so that read repair can happen.
         if (isDigestQuery)
         {
+            
             for (ColumnFamily cf : versions)
             {
-                if (!Arrays.equals(ColumnFamily.digest(cf), digest))
+                if (!ColumnFamily.digest(cf).equals(digest))
                 {
                     /* Wrap the key as the context in this exception */
                     String s = String.format("Mismatch for key %s (%s vs %s)", key, FBUtilities.bytesToHex(ColumnFamily.digest(cf)), FBUtilities.bytesToHex(digest));

@@ -19,20 +19,32 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.*;
+import java.io.DataInput;
+import java.io.DataInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOError;
+import java.io.IOException;
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
-import java.util.*;
-
-import com.google.common.base.Function;
-import com.google.common.collect.Collections2;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 
 import org.apache.cassandra.cache.InstrumentedCache;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.SuperColumn;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -47,6 +59,11 @@ import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.base.Function;
+import com.google.common.collect.Collections2;
 
 /**
  * SSTableReaders are open()ed by Table.onStart; after that they are created by SSTableWriter.renameAndOpen.
@@ -278,9 +295,9 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                     break;
 
                 boolean shouldAddEntry = indexSummary.shouldAddEntry();
-                byte[] key = (shouldAddEntry || cacheLoading || recreatebloom)
+                ByteBuffer key = (ByteBuffer) ((shouldAddEntry || cacheLoading || recreatebloom)
                              ? FBUtilities.readShortByteArray(input)
-                             : FBUtilities.skipShortByteArray(input);
+                             : FBUtilities.skipShortByteArray(input));
                 long dataPosition = input.readLong();
                 if (key != null)
                 {
@@ -583,7 +600,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     /**
      * Conditionally use the deprecated 'IPartitioner.convertFromDiskFormat' method.
      */
-    public static DecoratedKey decodeKey(IPartitioner p, Descriptor d, byte[] bytes)
+    public static DecoratedKey decodeKey(IPartitioner p, Descriptor d, ByteBuffer bytes)
     {
         if (d.hasEncodedKeys)
             return p.convertFromDiskFormat(bytes);

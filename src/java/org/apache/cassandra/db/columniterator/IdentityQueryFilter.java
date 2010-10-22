@@ -21,10 +21,9 @@ package org.apache.cassandra.db.columniterator;
  */
 
 
-import org.apache.commons.lang.ArrayUtils;
-
 import org.apache.cassandra.db.SuperColumn;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class IdentityQueryFilter extends SliceQueryFilter
 {
@@ -33,7 +32,7 @@ public class IdentityQueryFilter extends SliceQueryFilter
      */
     public IdentityQueryFilter()
     {
-        super(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, Integer.MAX_VALUE);
+        super(FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER, false, Integer.MAX_VALUE);
     }
 
     public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore)

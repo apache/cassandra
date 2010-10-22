@@ -74,8 +74,8 @@
       <available file="${build.src.java}" type="dir" />
     </condition>
 
-    <!-- 
-	 Add all the dependencies.
+    <!--
+         Add all the dependencies.
     -->
     <path id="autoivy.classpath">
         <fileset dir="${build.dir.lib}">
@@ -99,7 +99,7 @@
     </path>
 
     <!--
-	Setup the output directories.
+        Setup the output directories.
     -->
     <target name="init">
         <fail unless="is.source.artifact"
@@ -126,11 +126,11 @@
        This generates the CLI grammar files from Cli.g
     -->
     <target name="check-gen-cli-grammar">
-        <uptodate property="cliUpToDate" 
-                srcfile="${build.src.java}/org/apache/cassandra/cli/Cli.g" 
+        <uptodate property="cliUpToDate"
+                srcfile="${build.src.java}/org/apache/cassandra/cli/Cli.g"
                 targetfile="${build.src.gen-java}/org/apache/cassandra/cli/Cli.tokens"/>
     </target>
- 
+
     <target name="gen-cli-grammar" depends="check-gen-cli-grammar" unless="cliUpToDate">
       <echo>Building Grammar ${build.src.java}/org/apache/cassandra/cli/Cli.g  ....</echo>
       <java classname="org.antlr.Tool"
@@ -139,7 +139,7 @@
          <arg value="${build.src.java}/org/apache/cassandra/cli/Cli.g" />
          <arg value="-fo" />
          <arg value="${build.src.gen-java}/org/apache/cassandra/cli/" />
-      </java> 
+      </java>
     </target>
 
     <!--
@@ -215,7 +215,7 @@
           <arg value="@{inputfile}" />
           <arg value="@{jsondir}/@{protocolname}.avpr" />
         </java>
-    
+
         <!-- Generate java code from JSON protocol schema -->
         <avro-protocol destdir="@{outputdir}/gen-java">
             <fileset file="@{jsondir}/@{protocolname}.avpr" />
@@ -254,21 +254,21 @@
     </target>
 
     <!-- create properties file with C version -->
-    <target name="createVersionPropFile"> 
+    <target name="createVersionPropFile">
       <taskdef name="propertyfile" classname="org.apache.tools.ant.taskdefs.optional.PropertyFile"/>
       <propertyfile file="${version.properties.dir}/version.properties">
-	<entry key="CassandraVersion" value="${version}"/>
+        <entry key="CassandraVersion" value="${version}"/>
       </propertyfile>
     </target>
 
     <!--
-	The build target builds all the .class files
+        The build target builds all the .class files
     -->
     <target name="build"
         depends="ivy-retrieve-build,avro-generate,build-subprojects,build-project" description="Compile Cassandra classes"/>
     <target name="build-subprojects" description="Compile Cassandra contrib projects"/>
     <target name="codecoverage" depends="cobertura-instrument,test,cobertura-report" description="Create code coverage report"/>
-    	
+
     <target depends="init,avro-generate,gen-cli-grammar" name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <javac debug="true" debuglevel="${debuglevel}" destdir="${build.classes}">
@@ -277,7 +277,7 @@
             <src path="${interface.thrift.dir}/gen-java"/>
                 <classpath refid="cassandra.classpath"/>
         </javac>
-        
+
         <taskdef name="paranamer" classname="com.thoughtworks.paranamer.ant.ParanamerGeneratorTask">
           <classpath refid="cassandra.classpath" />
         </taskdef>
@@ -290,7 +290,7 @@
 
 
     <!--
-	The jar target makes cassandra.jar output.
+        The jar target makes cassandra.jar output.
     -->
     <target name="jar" depends="build" description="Assemble Cassandra JAR files">
       <mkdir dir="${build.classes}/META-INF"/>
@@ -309,7 +309,7 @@
       </jar>
     </target>
 
-    <!-- creates a release tarball -->	
+    <!-- creates a release tarball -->
     <target name="release" depends="jar,javadoc,rat-init" description="Create a full Cassandra binary distribution including tar.gz">
       <mkdir dir="${dist.dir}"/>
       <copy todir="${dist.dir}/lib">
@@ -326,20 +326,20 @@
       </copy>
       <copy todir="${dist.dir}/conf">
         <fileset dir="conf"/>
-      </copy>   
+      </copy>
       <copy todir="${dist.dir}/interface">
         <fileset dir="interface">
           <include name="**/*.thrift" />
           <include name="cassandra.genavro" />
           <include name="avro/cassandra.avpr" />
         </fileset>
-      </copy>      
+      </copy>
       <copy todir="${dist.dir}/">
         <fileset dir="${basedir}">
           <include name="*.txt" />
         </fileset>
       </copy>
-      
+
       <tar compression="gzip" longfile="gnu"
         destfile="${build.dir}/${final.name}-bin.tar.gz">
 
@@ -356,9 +356,9 @@
         <tarfileset dir="${dist.dir}" prefix="${final.name}" mode="755">
           <include name="bin/*"/>
           <not>
-        	<filename name="bin/*.in.sh" />
+                <filename name="bin/*.in.sh" />
           </not>
-        </tarfileset>	
+        </tarfileset>
       </tar>
       <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
                   reportFile="${build.dir}/${final.name}-bin.rat.txt">
@@ -392,7 +392,7 @@
           <include name="bin/*"/>
           <exclude name="bin/*.in.sh" />
           <exclude name="bin/*.bat" />
-        </tarfileset>	
+        </tarfileset>
       </tar>
 
       <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
@@ -415,7 +415,7 @@
       <src path="${test.long.src}"/>
     </javac>
 
-    <!-- Non-java resources needed by the test suite -->    
+    <!-- Non-java resources needed by the test suite -->
     <copy todir="${test.classes}">
       <fileset dir="${test.resources}"/>
     </copy>
@@ -459,7 +459,7 @@
   <target name="long-test" depends="build-test" description="Execute functional tests">
     <testmacro suitename="long" inputdir="${test.long.src}" timeout="300000" />
   </target>
-	
+
   <!-- instruments the classes to later create code coverage reports -->
   <target name="cobertura-instrument" depends="build,build-test">
     <taskdef resource="tasks.properties">
@@ -470,12 +470,12 @@
         </fileset>
       </classpath>
     </taskdef>
-    
+
     <delete file="${cobertura.datafile}"/>
-    
+
     <cobertura-instrument todir="${cobertura.classes.dir}" datafile="${cobertura.datafile}">
       <ignore regex="org.apache.log4j.*"/>
-      
+
       <fileset dir="${build.classes}">
         <include name="**/*.class"/>
         <exclude name="**/*Test.class"/>
@@ -483,9 +483,9 @@
         <exclude name="**/test/*.class"/>
         <exclude name="${cobertura.excludes}"/>
       </fileset>
-     
+
     </cobertura-instrument>
-  </target>	
+  </target>
 
   <!-- create both html and xml code coverage reports -->
   <target name="cobertura-report">
@@ -528,7 +528,7 @@
       <arg value="." />
     </java>
   </target>
-	
+
   <target name="javadoc" depends="init" description="Create javadoc">
     <tstamp>
       <format property="YEAR" pattern="yyyy"/>

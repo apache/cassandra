@@ -22,23 +22,27 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.*;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-import org.apache.commons.lang.ArrayUtils;
-import org.apache.commons.lang.StringUtils;
-
-import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.service.*;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnOrSuperColumn;
 import org.apache.cassandra.thrift.Deletion;
 import org.apache.cassandra.thrift.Mutation;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang.StringUtils;
 
 public class RowMutation
 {
@@ -56,11 +60,11 @@ public class RowMutation
     }
 
     private String table_;
-    private byte[] key_;
+    private ByteBuffer key_;
     // map of column family id to mutations for that column family.
     protected Map<Integer, ColumnFamily> modifications_ = new HashMap<Integer, ColumnFamily>();
 
-    public RowMutation(String table, byte[] key)
+    public RowMutation(String table, ByteBuffer key)
     {
         table_ = table;
         key_ = key;
@@ -73,7 +77,7 @@ public class RowMutation
         add(row.cf);
     }
 
-    protected RowMutation(String table, byte[] key, Map<Integer, ColumnFamily> modifications)
+    protected RowMutation(String table, ByteBuffer key, Map<Integer, ColumnFamily> modifications)
     {
         table_ = table;
         key_ = key;
@@ -85,7 +89,7 @@ public class RowMutation
         return table_;
     }
 
-    public byte[] key()
+    public ByteBuffer key()
     {
         return key_;
     }
@@ -99,9 +103,9 @@ public class RowMutation
     {
         for (ColumnFamily cf : rm.getColumnFamilies())
         {
-            byte[] combined = HintedHandOffManager.makeCombinedName(rm.getTable(), cf.metadata().cfName);
+            ByteBuffer combined = HintedHandOffManager.makeCombinedName(rm.getTable(), cf.metadata().cfName);
             QueryPath path = new QueryPath(HintedHandOffManager.HINTS_CF, rm.key(), combined);
-            add(path, ArrayUtils.EMPTY_BYTE_ARRAY, System.currentTimeMillis(), cf.metadata().gcGraceSeconds);
+            add(path, FBUtilities.EMPTY_BYTE_BUFFER, System.currentTimeMillis(), cf.metadata().gcGraceSeconds);
         }
     }
 
@@ -138,7 +142,7 @@ public class RowMutation
      * param @ timestamp - timestamp associated with this data.
      * param @ timeToLive - ttl for the column, 0 for standard (non expiring) columns
     */
-    public void add(QueryPath path, byte[] value, long timestamp, int timeToLive)
+    public void add(QueryPath path, ByteBuffer value, long timestamp, int timeToLive)
     {
         Integer id = CFMetaData.getId(table_, path.columnFamilyName);
         ColumnFamily columnFamily = modifications_.get(id);
@@ -150,7 +154,7 @@ public class RowMutation
         columnFamily.addColumn(path, value, timestamp, timeToLive);
     }
 
-    public void add(QueryPath path, byte[] value, long timestamp)
+    public void add(QueryPath path, ByteBuffer value, long timestamp)
     {
         add(path, value, timestamp, 0);
     }
@@ -215,7 +219,7 @@ public class RowMutation
         return new Message(FBUtilities.getLocalAddress(), verb, bos.toByteArray());
     }
 
-    public static RowMutation getRowMutationFromMutations(String keyspace, byte[] key, Map<String, List<Mutation>> cfmap)
+    public static RowMutation getRowMutationFromMutations(String keyspace, ByteBuffer key, Map<String, List<Mutation>> cfmap)
     {
         RowMutation rm = new RowMutation(keyspace, key);
         for (Map.Entry<String, List<Mutation>> entry : cfmap.entrySet())
@@ -236,7 +240,7 @@ public class RowMutation
         return rm;
     }
     
-    public static RowMutation getRowMutation(String table, byte[] key, Map<String, List<ColumnOrSuperColumn>> cfmap)
+    public static RowMutation getRowMutation(String table, ByteBuffer key, Map<String, List<ColumnOrSuperColumn>> cfmap)
     {
         RowMutation rm = new RowMutation(table, key);
         for (Map.Entry<String, List<ColumnOrSuperColumn>> entry : cfmap.entrySet())
@@ -314,7 +318,7 @@ public class RowMutation
     {
         if (del.predicate != null && del.predicate.column_names != null)
         {
-            for(byte[] c : del.predicate.column_names)
+            for(ByteBuffer c : del.predicate.column_names)
             {
                 if (del.super_column == null && DatabaseDescriptor.getColumnFamilyType(rm.table_, cfName) == ColumnFamilyType.Super)
                     rm.delete(new QueryPath(cfName, c), del.timestamp);
@@ -370,7 +374,7 @@ class RowMutationSerializer implements ICompactSerializer<RowMutation>
     public RowMutation deserialize(DataInputStream dis) throws IOException
     {
         String table = dis.readUTF();
-        byte[] key = FBUtilities.readShortByteArray(dis);
+        ByteBuffer key = FBUtilities.readShortByteArray(dis);
         Map<Integer, ColumnFamily> modifications = defreezeTheMaps(dis);
         return new RowMutation(table, key, modifications);
     }

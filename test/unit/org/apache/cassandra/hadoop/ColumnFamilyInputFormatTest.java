@@ -21,6 +21,7 @@ package org.apache.cassandra.hadoop;
  */
 
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -36,9 +37,9 @@ public class ColumnFamilyInputFormatTest
     public void testSlicePredicate()
     {
         long columnValue = 1271253600000l;
-        byte[] columnBytes = FBUtilities.toByteArray(columnValue);
+        ByteBuffer columnBytes = FBUtilities.toByteArray(columnValue);
 
-        List<byte[]> columnNames = new ArrayList<byte[]>();
+        List<ByteBuffer> columnNames = new ArrayList<ByteBuffer>();
         columnNames.add(columnBytes);
         SlicePredicate originalPredicate = new SlicePredicate().setColumn_names(columnNames);
 
@@ -47,6 +48,6 @@ public class ColumnFamilyInputFormatTest
 
         SlicePredicate rtPredicate = ConfigHelper.getInputSlicePredicate(conf);
         assert rtPredicate.column_names.size() == 1;
-        assert Arrays.equals(originalPredicate.column_names.get(0), rtPredicate.column_names.get(0));
+        assert originalPredicate.column_names.get(0).equals(rtPredicate.column_names.get(0));
     }
 }

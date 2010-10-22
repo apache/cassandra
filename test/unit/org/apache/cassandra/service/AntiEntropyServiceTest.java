@@ -19,6 +19,7 @@
 package org.apache.cassandra.service;
 
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -102,8 +103,8 @@ public class AntiEntropyServiceTest extends CleanupHelper
         // write
         List<RowMutation> rms = new LinkedList<RowMutation>();
         RowMutation rm;
-        rm = new RowMutation(tablename, "key1".getBytes());
-        rm.add(new QueryPath(cfname, null, "Column1".getBytes()), "asdf".getBytes(), 0);
+        rm = new RowMutation(tablename, ByteBuffer.wrap("key1".getBytes()));
+        rm.add(new QueryPath(cfname, null, ByteBuffer.wrap("Column1".getBytes())), ByteBuffer.wrap("asdf".getBytes()), 0);
         rms.add(rm);
         Util.writeColumnFamily(rms);
 
@@ -137,11 +138,11 @@ public class AntiEntropyServiceTest extends CleanupHelper
         validator.prepare(store);
 
         // add a row with the minimum token
-        validator.add(new PrecompactedRow(new DecoratedKey(min, "nonsense!".getBytes(UTF_8)),
+        validator.add(new PrecompactedRow(new DecoratedKey(min, ByteBuffer.wrap("nonsense!".getBytes(UTF_8))),
                                        new DataOutputBuffer()));
 
         // and a row after it
-        validator.add(new PrecompactedRow(new DecoratedKey(mid, "inconceivable!".getBytes(UTF_8)),
+        validator.add(new PrecompactedRow(new DecoratedKey(mid, ByteBuffer.wrap("inconceivable!".getBytes(UTF_8))),
                                        new DataOutputBuffer()));
         validator.complete();
 

@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.base.Charsets;
 import org.apache.commons.collections.iterators.CollatingIterator;
+import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,17 +61,19 @@ public class FBUtilities
 
     public static final BigInteger TWO = new BigInteger("2");
 
+    public static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(ArrayUtils.EMPTY_BYTE_ARRAY);
+    
     private static volatile InetAddress localInetAddress_;
 
     public static final int MAX_UNSIGNED_SHORT = 0xFFFF;
 
-    public static final Comparator<byte[]> byteArrayComparator = new Comparator<byte[]>()
+    /*public static final Comparator<byte[]> byteArrayComparator = new Comparator<byte[]>()
     {
         public int compare(byte[] o1, byte[] o2)
         {
             return compareByteArrays(o1, o2);
         }
-    };
+    };*/
 
     /**
      * Parses a string representing either a fraction, absolute value or percentage.
@@ -155,24 +158,24 @@ public class FBUtilities
         return new Pair(midpoint, remainder);
     }
 
-    public static byte[] toByteArray(int i)
+    public static ByteBuffer toByteArray(int i)
     {
         byte[] bytes = new byte[4];
         bytes[0] = (byte)( ( i >>> 24 ) & 0xFF);
         bytes[1] = (byte)( ( i >>> 16 ) & 0xFF);
         bytes[2] = (byte)( ( i >>> 8 ) & 0xFF);
         bytes[3] = (byte)( i & 0xFF );
-        return bytes;
+        return ByteBuffer.wrap(bytes);
     }
 
-    public static int byteArrayToInt(byte[] bytes)
+    public static int byteArrayToInt(ByteBuffer bytes)
     {
     	return byteArrayToInt(bytes, 0);
     }
 
-    public static int byteArrayToInt(byte[] bytes, int offset)
+    public static int byteArrayToInt(ByteBuffer bytes, int offset)
     {
-        if ( bytes.length - offset < 4 )
+        if ( bytes.remaining() - offset < 4 )
         {
             throw new IllegalArgumentException("An integer must be 4 bytes in size.");
         }
@@ -180,28 +183,28 @@ public class FBUtilities
         for ( int i = 0; i < 4; ++i )
         {
             n <<= 8;
-            n |= bytes[offset + i] & 0xFF;
+            n |= bytes.array()[bytes.position()+bytes.arrayOffset()+ offset + i] & 0xFF;
         }
         return n;
     }
-
-    public static int compareByteArrays(byte[] bytes1, byte[] bytes2){
+    
+    public static int compareByteArrays(byte[] bytes1, byte[] bytes2, int offset1, int offset2,  int len1, int len2){
         if(null == bytes1){
             if(null == bytes2) return 0;
             else return -1;
         }
         if(null == bytes2) return 1;
 
-        int minLength = Math.min(bytes1.length, bytes2.length);
-        for(int i = 0; i < minLength; i++)
+        int minLength = Math.min(len1-offset1, len2-offset2);
+        for(int x=0, i = offset1, j=offset2; x < minLength; x++,i++,j++)
         {
-            if(bytes1[i] == bytes2[i])
+            if(bytes1[i] == bytes2[j])
                 continue;
             // compare non-equal bytes as unsigned
-            return (bytes1[i] & 0xFF) < (bytes2[i] & 0xFF) ? -1 : 1;
+            return (bytes1[i] & 0xFF) < (bytes2[j] & 0xFF) ? -1 : 1;
         }
-        if(bytes1.length == bytes2.length) return 0;
-        else return (bytes1.length < bytes2.length)? -1 : 1;
+        if((len1-offset1) == (len2-offset2)) return 0;
+        else return ((len1-offset1) < (len2-offset2))? -1 : 1;
     }
 
     /**
@@ -228,21 +231,21 @@ public class FBUtilities
         return out;
     }
 
-    public static BigInteger md5hash(byte[] data)
+    public static BigInteger md5hash(ByteBuffer data)
     {
         byte[] result = hash("MD5", data);
         BigInteger hash = new BigInteger(result);
         return hash.abs();        
     }
 
-    public static byte[] hash(String type, byte[]... data)
+    public static byte[] hash(String type, ByteBuffer... data)
     {
     	byte[] result;
     	try
         {
             MessageDigest messageDigest = MessageDigest.getInstance(type);
-            for(byte[] block : data)
-                messageDigest.update(block);
+            for(ByteBuffer block : data)
+                messageDigest.update(block.array(),block.position()+block.arrayOffset(),block.remaining());
             result = messageDigest.digest();
     	}
     	catch (Exception e)
@@ -252,13 +255,13 @@ public class FBUtilities
     	return result;
 	}
 
-    public static void writeByteArray(byte[] bytes, DataOutput out) throws IOException
+    public static void writeByteArray(ByteBuffer bytes, DataOutput out) throws IOException
     {
-        out.writeInt(bytes.length);
-        out.write(bytes);
+        out.writeInt(bytes.remaining());
+        out.write(bytes.array(),bytes.position()+bytes.arrayOffset(),bytes.remaining());
     }
 
-    public static byte[] readByteArray(DataInput in) throws IOException
+    public static ByteBuffer readByteArray(DataInput in) throws IOException
     {
         int length = in.readInt();
         if (length < 0)
@@ -270,24 +273,26 @@ public class FBUtilities
         {
             in.readFully(value);
         }
-        return value;
+        return ByteBuffer.wrap(value);
     }
 
-    public static void writeShortByteArray(byte[] name, DataOutput out)
+    public static void writeShortByteArray(ByteBuffer name, DataOutput out)
     {
-        int length = name.length;
+        int length = name.remaining();
         assert 0 <= length && length <= MAX_UNSIGNED_SHORT;
         try
         {
             out.writeByte((length >> 8) & 0xFF);
             out.writeByte(length & 0xFF);
-            out.write(name);
+            out.write(name.array(), name.position()+name.arrayOffset(), name.remaining());
         }
         catch (IOException e)
         {
             throw new RuntimeException(e);
         }
     }
+    
+    
 
     /** @return An unsigned short in an integer. */
     private static int readShortLength(DataInput in) throws IOException
@@ -296,11 +301,11 @@ public class FBUtilities
         return length | (in.readByte() & 0xFF);
     }
 
-    public static byte[] readShortByteArray(DataInput in) throws IOException
+    public static ByteBuffer readShortByteArray(DataInput in) throws IOException
     {
         byte[] bytes = new byte[readShortLength(in)];
         in.readFully(bytes);
-        return bytes;
+        return ByteBuffer.wrap(bytes);
     }
 
     /** @return null */
@@ -328,12 +333,12 @@ public class FBUtilities
         return bytes;
     }
 
-    public static String bytesToHex(byte... bytes)
+    public static String bytesToHex(ByteBuffer bytes)
     {
         StringBuilder sb = new StringBuilder();
-        for (byte b : bytes)
+        for (int i=bytes.position()+bytes.arrayOffset(); i<bytes.limit(); i++)
         {
-            int bint = b & 0xff;
+            int bint = bytes.array()[i] & 0xff;
             if (bint <= 0xF)
                 // toHexString does not 0 pad its results.
                 sb.append("0");
@@ -478,16 +483,20 @@ public class FBUtilities
         return utflen;
     }
 
-    public static String decodeToUTF8(byte[] bytes) throws CharacterCodingException
+    public static String decodeToUTF8(ByteBuffer bytes) throws CharacterCodingException
     {
-        return Charsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString();
+        bytes.mark();
+        String decoded  =  Charsets.UTF_8.newDecoder().decode(bytes).toString();
+        bytes.reset();
+        return decoded;
     }
 
-    public static byte[] toByteArray(long n)
+    public static ByteBuffer toByteArray(long n)
     {
         byte[] bytes = new byte[8];
-        ByteBuffer.wrap(bytes).putLong(n);
-        return bytes;
+        ByteBuffer bb = ByteBuffer.wrap(bytes).putLong(n);
+        bb.rewind();
+        return bb;
     }
 
     public static String resourceToFile(String filename) throws ConfigurationException
@@ -656,16 +665,16 @@ public class FBUtilities
         }
     }
 
-    public static TreeSet<byte[]> getSingleColumnSet(byte[] column)
+    public static TreeSet<ByteBuffer> getSingleColumnSet(ByteBuffer column)
     {
-        Comparator<byte[]> singleColumnComparator = new Comparator<byte[]>()
+        Comparator<ByteBuffer> singleColumnComparator = new Comparator<ByteBuffer>()
         {
-            public int compare(byte[] o1, byte[] o2)
+            public int compare(ByteBuffer o1, ByteBuffer o2)
             {
-                return Arrays.equals(o1, o2) ? 0 : -1;
+                return ByteBufferUtil.equals(o1, o2) ? 0 : -1;
             }
         };
-        TreeSet<byte[]> set = new TreeSet<byte[]>(singleColumnComparator);
+        TreeSet<ByteBuffer> set = new TreeSet<ByteBuffer>(singleColumnComparator);
         set.add(column);
         return set;
     }

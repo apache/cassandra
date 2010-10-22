@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -214,9 +215,14 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
     return new KsDef(this);
   }
 
-  @Deprecated
-  public KsDef clone() {
-    return new KsDef(this);
+  @Override
+  public void clear() {
+    this.name = null;
+    this.strategy_class = null;
+    this.strategy_options = null;
+    setReplication_factorIsSet(false);
+    this.replication_factor = 0;
+    this.cf_defs = null;
   }
 
   public String getName() {
@@ -409,10 +415,6 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
     }
   }
 
-  public void setFieldValue(int fieldID, Object value) {
-    setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
-  }
-
   public Object getFieldValue(_Fields field) {
     switch (field) {
     case NAME:
@@ -434,12 +436,12 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
     throw new IllegalStateException();
   }
 
-  public Object getFieldValue(int fieldId) {
-    return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-  }
-
   /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
+    if (field == null) {
+      throw new IllegalArgumentException();
+    }
+
     switch (field) {
     case NAME:
       return isSetName();
@@ -453,10 +455,6 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
       return isSetCf_defs();
     }
     throw new IllegalStateException();
-  }
-
-  public boolean isSet(int fieldID) {
-    return isSet(_Fields.findByThriftIdOrThrow(fieldID));
   }
 
   @Override
@@ -564,7 +562,8 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetName()) {      lastComparison = TBaseHelper.compareTo(this.name, typedOther.name);
+    if (isSetName()) {
+      lastComparison = TBaseHelper.compareTo(this.name, typedOther.name);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -573,7 +572,8 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetStrategy_class()) {      lastComparison = TBaseHelper.compareTo(this.strategy_class, typedOther.strategy_class);
+    if (isSetStrategy_class()) {
+      lastComparison = TBaseHelper.compareTo(this.strategy_class, typedOther.strategy_class);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -582,7 +582,8 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetStrategy_options()) {      lastComparison = TBaseHelper.compareTo(this.strategy_options, typedOther.strategy_options);
+    if (isSetStrategy_options()) {
+      lastComparison = TBaseHelper.compareTo(this.strategy_options, typedOther.strategy_options);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -591,7 +592,8 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetReplication_factor()) {      lastComparison = TBaseHelper.compareTo(this.replication_factor, typedOther.replication_factor);
+    if (isSetReplication_factor()) {
+      lastComparison = TBaseHelper.compareTo(this.replication_factor, typedOther.replication_factor);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -600,12 +602,17 @@ public class KsDef implements TBase<KsDef, KsDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetCf_defs()) {      lastComparison = TBaseHelper.compareTo(this.cf_defs, typedOther.cf_defs);
+    if (isSetCf_defs()) {
+      lastComparison = TBaseHelper.compareTo(this.cf_defs, typedOther.cf_defs);
       if (lastComparison != 0) {
         return lastComparison;
       }
     }
     return 0;
+  }
+
+  public _Fields fieldForId(int fieldId) {
+    return _Fields.findByThriftId(fieldId);
   }
 
   public void read(TProtocol iprot) throws TException {

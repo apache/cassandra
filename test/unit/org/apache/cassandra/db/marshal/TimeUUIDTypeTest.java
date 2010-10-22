@@ -18,6 +18,7 @@
 */
 package org.apache.cassandra.db.marshal;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Random;
 
@@ -41,7 +42,7 @@ public class TimeUUIDTypeTest
         UUID a = generator.generateTimeBasedUUID();
         UUID b = new UUID(a.asByteArray());
 
-        assertEquals(0, timeUUIDType.compare(a.asByteArray(), b.asByteArray()));
+        assertEquals(0, timeUUIDType.compare(ByteBuffer.wrap(a.asByteArray()), ByteBuffer.wrap(b.asByteArray())));
     }
 
     @Test
@@ -51,9 +52,9 @@ public class TimeUUIDTypeTest
         UUID b = generator.generateTimeBasedUUID();
         UUID c = generator.generateTimeBasedUUID();
 
-        assert timeUUIDType.compare(a.asByteArray(), b.asByteArray()) < 0;
-        assert timeUUIDType.compare(b.asByteArray(), c.asByteArray()) < 0;
-        assert timeUUIDType.compare(a.asByteArray(), c.asByteArray()) < 0;
+        assert timeUUIDType.compare(ByteBuffer.wrap(a.asByteArray()), ByteBuffer.wrap(b.asByteArray())) < 0;
+        assert timeUUIDType.compare(ByteBuffer.wrap(b.asByteArray()), ByteBuffer.wrap(c.asByteArray())) < 0;
+        assert timeUUIDType.compare(ByteBuffer.wrap(a.asByteArray()), ByteBuffer.wrap(c.asByteArray())) < 0;
     }
 
     @Test
@@ -63,23 +64,23 @@ public class TimeUUIDTypeTest
         UUID b = generator.generateTimeBasedUUID();
         UUID c = generator.generateTimeBasedUUID();
 
-        assert timeUUIDType.compare(c.asByteArray(), b.asByteArray()) > 0;
-        assert timeUUIDType.compare(b.asByteArray(), a.asByteArray()) > 0;
-        assert timeUUIDType.compare(c.asByteArray(), a.asByteArray()) > 0;
+        assert timeUUIDType.compare(ByteBuffer.wrap(c.asByteArray()), ByteBuffer.wrap(b.asByteArray())) > 0;
+        assert timeUUIDType.compare(ByteBuffer.wrap(b.asByteArray()), ByteBuffer.wrap(a.asByteArray())) > 0;
+        assert timeUUIDType.compare(ByteBuffer.wrap(c.asByteArray()), ByteBuffer.wrap(a.asByteArray())) > 0;
     }
 
     @Test
     public void testTimestampComparison()
     {
         Random rng = new Random();
-        byte[][] uuids = new byte[100][];
+        ByteBuffer[] uuids = new ByteBuffer[100];
         for (int i = 0; i < uuids.length; i++)
         {
-            uuids[i] = new byte[16];
-            rng.nextBytes(uuids[i]);
+            uuids[i] = ByteBuffer.allocate(16);
+            rng.nextBytes(uuids[i].array());
             // set version to 1
-            uuids[i][6] &= 0x0F;
-            uuids[i][6] |= 0x10;
+            uuids[i].array()[6] &= 0x0F;
+            uuids[i].array()[6] |= 0x10;
         }
         Arrays.sort(uuids, timeUUIDType);
         for (int i = 1; i < uuids.length; i++)

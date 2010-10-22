@@ -27,7 +27,8 @@ import java.util.Arrays;
 import java.util.Random;
 import java.util.UUID;
 
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.junit.Test;
 
 public class TypeCompareTest
@@ -36,57 +37,58 @@ public class TypeCompareTest
     public void testAscii()
     {
         AsciiType comparator = new AsciiType();
-        assert comparator.compare(ArrayUtils.EMPTY_BYTE_ARRAY, "asdf".getBytes()) < 0;
-        assert comparator.compare("asdf".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY) > 0;
-        assert comparator.compare(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY) == 0;
-        assert comparator.compare("z".getBytes(), "a".getBytes()) > 0;
-        assert comparator.compare("a".getBytes(), "z".getBytes()) < 0;
-        assert comparator.compare("asdf".getBytes(), "asdf".getBytes()) == 0;
-        assert comparator.compare("asdz".getBytes(), "asdf".getBytes()) > 0;
+        assert comparator.compare(FBUtilities.EMPTY_BYTE_BUFFER, ByteBuffer.wrap("asdf".getBytes())) < 0;
+        assert comparator.compare(ByteBuffer.wrap("asdf".getBytes()), FBUtilities.EMPTY_BYTE_BUFFER) > 0;
+        assert comparator.compare(FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER) == 0;
+        assert comparator.compare(ByteBuffer.wrap("z".getBytes()), ByteBuffer.wrap("a".getBytes())) > 0;
+        assert comparator.compare(ByteBuffer.wrap("a".getBytes()), ByteBuffer.wrap("z".getBytes())) < 0;
+        assert comparator.compare(ByteBuffer.wrap("asdf".getBytes()), ByteBuffer.wrap("asdf".getBytes())) == 0;
+        assert comparator.compare(ByteBuffer.wrap("asdz".getBytes()), ByteBuffer.wrap("asdf".getBytes())) > 0;
     }
 
     @Test
     public void testBytes()
     {
         BytesType comparator = new BytesType();
-        assert comparator.compare(ArrayUtils.EMPTY_BYTE_ARRAY, "asdf".getBytes()) < 0;
-        assert comparator.compare("asdf".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY) > 0;
-        assert comparator.compare(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY) == 0;
-        assert comparator.compare("z".getBytes(), "a".getBytes()) > 0;
-        assert comparator.compare("a".getBytes(), "z".getBytes()) < 0;
-        assert comparator.compare("asdf".getBytes(), "asdf".getBytes()) == 0;
-        assert comparator.compare("asdz".getBytes(), "asdf".getBytes()) > 0;
+        assert comparator.compare(FBUtilities.EMPTY_BYTE_BUFFER, ByteBuffer.wrap("asdf".getBytes())) < 0;
+        assert comparator.compare(ByteBuffer.wrap("asdf".getBytes()), FBUtilities.EMPTY_BYTE_BUFFER) > 0;
+        assert comparator.compare(FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER) == 0;
+        assert comparator.compare(ByteBuffer.wrap("z".getBytes()), ByteBuffer.wrap("a".getBytes())) > 0;
+        assert comparator.compare(ByteBuffer.wrap("a".getBytes()), ByteBuffer.wrap("z".getBytes())) < 0;
+        assert comparator.compare(ByteBuffer.wrap("asdf".getBytes()), ByteBuffer.wrap("asdf".getBytes())) == 0;
+        assert comparator.compare(ByteBuffer.wrap("asdz".getBytes()), ByteBuffer.wrap("asdf".getBytes())) > 0;
     }
 
     @Test
     public void testUTF8() throws UnsupportedEncodingException
     {
         UTF8Type comparator = new UTF8Type();
-        assert comparator.compare(ArrayUtils.EMPTY_BYTE_ARRAY, "asdf".getBytes()) < 0;
-        assert comparator.compare("asdf".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY) > 0;
-        assert comparator.compare(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY) == 0;
-        assert comparator.compare("z".getBytes("UTF-8"), "a".getBytes("UTF-8")) > 0;
-        assert comparator.compare("z".getBytes("UTF-8"), "z".getBytes("UTF-8")) == 0;
-        assert comparator.compare("a".getBytes("UTF-8"), "z".getBytes("UTF-8")) < 0;
+        assert comparator.compare(FBUtilities.EMPTY_BYTE_BUFFER, ByteBuffer.wrap("asdf".getBytes())) < 0;
+        assert comparator.compare(ByteBuffer.wrap("asdf".getBytes()), FBUtilities.EMPTY_BYTE_BUFFER) > 0;
+        assert comparator.compare(FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER) == 0;
+        assert comparator.compare(ByteBuffer.wrap("z".getBytes("UTF-8")), ByteBuffer.wrap("a".getBytes("UTF-8"))) > 0;
+        assert comparator.compare(ByteBuffer.wrap("z".getBytes("UTF-8")), ByteBuffer.wrap("z".getBytes("UTF-8"))) == 0;
+        assert comparator.compare(ByteBuffer.wrap("a".getBytes("UTF-8")), ByteBuffer.wrap("z".getBytes("UTF-8"))) < 0;
     }
 
     @Test
     public void testLong()
     {
         Random rng = new Random();
-        byte[][] data = new byte[1000][];
+        ByteBuffer[] data = new ByteBuffer[1000];
         for (int i = 0; i < data.length; i++)
         {
-            data[i] = new byte[8];
-            rng.nextBytes(data[i]);
+            data[i] = ByteBuffer.allocate(8);
+            rng.nextBytes(data[i].array());
         }
 
         Arrays.sort(data, LongType.instance);
 
         for (int i = 1; i < data.length; i++)
         {
-            long l0 = ByteBuffer.wrap(data[i - 1]).getLong();
-            long l1 = ByteBuffer.wrap(data[i]).getLong();
+        	
+            long l0 = data[i - 1].getLong(data[i - 1].position()+data[i - 1].arrayOffset());
+            long l1 = data[i].getLong(data[i].position()+data[i].arrayOffset());
             assert l0 <= l1;
         }
     }
@@ -105,6 +107,6 @@ public class TypeCompareTest
         ByteBuffer bb2 = ByteBuffer.wrap(bytes2);
         bb2.putLong(uuid2.getMostSignificantBits());  bb2.putLong(uuid2.getLeastSignificantBits());
 
-        assert new TimeUUIDType().compare(bytes1, bytes2) != 0;
+        assert new TimeUUIDType().compare(ByteBuffer.wrap(bytes1), ByteBuffer.wrap(bytes2)) != 0;
     }
 }

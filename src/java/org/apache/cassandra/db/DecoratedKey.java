@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db;
 
+import java.nio.ByteBuffer;
 import java.util.Comparator;
 
 import org.apache.cassandra.dht.IPartitioner;
@@ -47,9 +48,9 @@ public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
     };
 
     public final T token;
-    public final byte[] key;
+    public final ByteBuffer key;
 
-    public DecoratedKey(T token, byte[] key)
+    public DecoratedKey(T token, ByteBuffer key)
     {
         super();
         assert token != null;

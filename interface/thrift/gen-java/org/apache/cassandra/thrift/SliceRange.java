@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,8 +72,8 @@ public class SliceRange implements TBase<SliceRange, SliceRange._Fields>, java.i
   private static final TField REVERSED_FIELD_DESC = new TField("reversed", TType.BOOL, (short)3);
   private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)4);
 
-  public byte[] start;
-  public byte[] finish;
+  public ByteBuffer start;
+  public ByteBuffer finish;
   public boolean reversed;
   public int count;
 
@@ -171,8 +172,8 @@ public class SliceRange implements TBase<SliceRange, SliceRange._Fields>, java.i
   }
 
   public SliceRange(
-    byte[] start,
-    byte[] finish,
+    ByteBuffer start,
+    ByteBuffer finish,
     boolean reversed,
     int count)
   {
@@ -192,12 +193,12 @@ public class SliceRange implements TBase<SliceRange, SliceRange._Fields>, java.i
     __isset_bit_vector.clear();
     __isset_bit_vector.or(other.__isset_bit_vector);
     if (other.isSetStart()) {
-      this.start = new byte[other.start.length];
-      System.arraycopy(other.start, 0, start, 0, other.start.length);
+      this.start = TBaseHelper.copyBinary(other.start);
+;
     }
     if (other.isSetFinish()) {
-      this.finish = new byte[other.finish.length];
-      System.arraycopy(other.finish, 0, finish, 0, other.finish.length);
+      this.finish = TBaseHelper.copyBinary(other.finish);
+;
     }
     this.reversed = other.reversed;
     this.count = other.count;
@@ -207,16 +208,31 @@ public class SliceRange implements TBase<SliceRange, SliceRange._Fields>, java.i
     return new SliceRange(this);
   }
 
-  @Deprecated
-  public SliceRange clone() {
-    return new SliceRange(this);
+  @Override
+  public void clear() {
+    this.start = null;
+    this.finish = null;
+    this.reversed = false;
+
+    this.count = 100;
+
   }
 
   public byte[] getStart() {
-    return this.start;
+    setStart(TBaseHelper.rightSize(start));
+    return start.array();
+  }
+
+  public ByteBuffer BufferForStart() {
+    return start;
   }
 
   public SliceRange setStart(byte[] start) {
+    setStart(ByteBuffer.wrap(start));
+    return this;
+  }
+
+  public SliceRange setStart(ByteBuffer start) {
     this.start = start;
     return this;
   }
@@ -237,10 +253,20 @@ public class SliceRange implements TBase<SliceRange, SliceRange._Fields>, java.i
   }
 
   public byte[] getFinish() {
-    return this.finish;
+    setFinish(TBaseHelper.rightSize(finish));
+    return finish.array();
+  }
+
+  public ByteBuffer BufferForFinish() {
+    return finish;
   }
 
   public SliceRange setFinish(byte[] finish) {
+    setFinish(ByteBuffer.wrap(finish));
+    return this;
+  }
+
+  public SliceRange setFinish(ByteBuffer finish) {
     this.finish = finish;
     return this;
   }
@@ -312,7 +338,7 @@ public class SliceRange implements TBase<SliceRange, SliceRange._Fields>, java.i
       if (value == null) {
         unsetStart();
       } else {
-        setStart((byte[])value);
+        setStart((ByteBuffer)value);
       }
       break;
 
@@ -320,7 +346,7 @@ public class SliceRange implements TBase<SliceRange, SliceRange._Fields>, java.i
       if (value == null) {
         unsetFinish();
       } else {
-        setFinish((byte[])value);
+        setFinish((ByteBuffer)value);
       }
       break;
 
@@ -343,10 +369,6 @@ public class SliceRange implements TBase<SliceRange, SliceRange._Fields>, java.i
     }
   }
 
-  public void setFieldValue(int fieldID, Object value) {
-    setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
-  }
-
   public Object getFieldValue(_Fields field) {
     switch (field) {
     case START:
@@ -365,12 +387,12 @@ public class SliceRange implements TBase<SliceRange, SliceRange._Fields>, java.i
     throw new IllegalStateException();
   }
 
-  public Object getFieldValue(int fieldId) {
-    return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-  }
-
   /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
+    if (field == null) {
+      throw new IllegalArgumentException();
+    }
+
     switch (field) {
     case START:
       return isSetStart();
@@ -382,10 +404,6 @@ public class SliceRange implements TBase<SliceRange, SliceRange._Fields>, java.i
       return isSetCount();
     }
     throw new IllegalStateException();
-  }
-
-  public boolean isSet(int fieldID) {
-    return isSet(_Fields.findByThriftIdOrThrow(fieldID));
   }
 
   @Override
@@ -406,7 +424,7 @@ public class SliceRange implements TBase<SliceRange, SliceRange._Fields>, java.i
     if (this_present_start || that_present_start) {
       if (!(this_present_start && that_present_start))
         return false;
-      if (!java.util.Arrays.equals(this.start, that.start))
+      if (!this.start.equals(that.start))
         return false;
     }
 
@@ -415,7 +433,7 @@ public class SliceRange implements TBase<SliceRange, SliceRange._Fields>, java.i
     if (this_present_finish || that_present_finish) {
       if (!(this_present_finish && that_present_finish))
         return false;
-      if (!java.util.Arrays.equals(this.finish, that.finish))
+      if (!this.finish.equals(that.finish))
         return false;
     }
 
@@ -479,7 +497,8 @@ public class SliceRange implements TBase<SliceRange, SliceRange._Fields>, java.i
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetStart()) {      lastComparison = TBaseHelper.compareTo(this.start, typedOther.start);
+    if (isSetStart()) {
+      lastComparison = TBaseHelper.compareTo(this.start, typedOther.start);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -488,7 +507,8 @@ public class SliceRange implements TBase<SliceRange, SliceRange._Fields>, java.i
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetFinish()) {      lastComparison = TBaseHelper.compareTo(this.finish, typedOther.finish);
+    if (isSetFinish()) {
+      lastComparison = TBaseHelper.compareTo(this.finish, typedOther.finish);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -497,7 +517,8 @@ public class SliceRange implements TBase<SliceRange, SliceRange._Fields>, java.i
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetReversed()) {      lastComparison = TBaseHelper.compareTo(this.reversed, typedOther.reversed);
+    if (isSetReversed()) {
+      lastComparison = TBaseHelper.compareTo(this.reversed, typedOther.reversed);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -506,12 +527,17 @@ public class SliceRange implements TBase<SliceRange, SliceRange._Fields>, java.i
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetCount()) {      lastComparison = TBaseHelper.compareTo(this.count, typedOther.count);
+    if (isSetCount()) {
+      lastComparison = TBaseHelper.compareTo(this.count, typedOther.count);
       if (lastComparison != 0) {
         return lastComparison;
       }
     }
     return 0;
+  }
+
+  public _Fields fieldForId(int fieldId) {
+    return _Fields.findByThriftId(fieldId);
   }
 
   public void read(TProtocol iprot) throws TException {
@@ -604,12 +630,7 @@ public class SliceRange implements TBase<SliceRange, SliceRange._Fields>, java.i
     if (this.start == null) {
       sb.append("null");
     } else {
-        int __start_size = Math.min(this.start.length, 128);
-        for (int i = 0; i < __start_size; i++) {
-          if (i != 0) sb.append(" ");
-          sb.append(Integer.toHexString(this.start[i]).length() > 1 ? Integer.toHexString(this.start[i]).substring(Integer.toHexString(this.start[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.start[i]).toUpperCase());
-        }
-        if (this.start.length > 128) sb.append(" ...");
+      TBaseHelper.toString(this.start, sb);
     }
     first = false;
     if (!first) sb.append(", ");
@@ -617,12 +638,7 @@ public class SliceRange implements TBase<SliceRange, SliceRange._Fields>, java.i
     if (this.finish == null) {
       sb.append("null");
     } else {
-        int __finish_size = Math.min(this.finish.length, 128);
-        for (int i = 0; i < __finish_size; i++) {
-          if (i != 0) sb.append(" ");
-          sb.append(Integer.toHexString(this.finish[i]).length() > 1 ? Integer.toHexString(this.finish[i]).substring(Integer.toHexString(this.finish[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.finish[i]).toUpperCase());
-        }
-        if (this.finish.length > 128) sb.append(" ...");
+      TBaseHelper.toString(this.finish, sb);
     }
     first = false;
     if (!first) sb.append(", ");

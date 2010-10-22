@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -355,9 +356,44 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     return new CfDef(this);
   }
 
-  @Deprecated
-  public CfDef clone() {
-    return new CfDef(this);
+  @Override
+  public void clear() {
+    this.keyspace = null;
+    this.name = null;
+    this.column_type = "Standard";
+
+    this.comparator_type = "BytesType";
+
+    this.subcomparator_type = null;
+    this.comment = null;
+    this.row_cache_size = (double)0;
+
+    this.preload_row_cache = false;
+
+    this.key_cache_size = (double)200000;
+
+    this.read_repair_chance = 1;
+
+    this.column_metadata = null;
+    setGc_grace_secondsIsSet(false);
+    this.gc_grace_seconds = 0;
+    this.default_validation_class = null;
+    setIdIsSet(false);
+    this.id = 0;
+    setMin_compaction_thresholdIsSet(false);
+    this.min_compaction_threshold = 0;
+    setMax_compaction_thresholdIsSet(false);
+    this.max_compaction_threshold = 0;
+    setRow_cache_save_period_in_secondsIsSet(false);
+    this.row_cache_save_period_in_seconds = 0;
+    setKey_cache_save_period_in_secondsIsSet(false);
+    this.key_cache_save_period_in_seconds = 0;
+    setMemtable_flush_after_minsIsSet(false);
+    this.memtable_flush_after_mins = 0;
+    setMemtable_throughput_in_mbIsSet(false);
+    this.memtable_throughput_in_mb = 0;
+    setMemtable_operations_in_millionsIsSet(false);
+    this.memtable_operations_in_millions = 0.0;
   }
 
   public String getKeyspace() {
@@ -1039,10 +1075,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     }
   }
 
-  public void setFieldValue(int fieldID, Object value) {
-    setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
-  }
-
   public Object getFieldValue(_Fields field) {
     switch (field) {
     case KEYSPACE:
@@ -1112,12 +1144,12 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     throw new IllegalStateException();
   }
 
-  public Object getFieldValue(int fieldId) {
-    return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-  }
-
   /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
+    if (field == null) {
+      throw new IllegalArgumentException();
+    }
+
     switch (field) {
     case KEYSPACE:
       return isSetKeyspace();
@@ -1163,10 +1195,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return isSetMemtable_operations_in_millions();
     }
     throw new IllegalStateException();
-  }
-
-  public boolean isSet(int fieldID) {
-    return isSet(_Fields.findByThriftIdOrThrow(fieldID));
   }
 
   @Override
@@ -1498,7 +1526,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetKeyspace()) {      lastComparison = TBaseHelper.compareTo(this.keyspace, typedOther.keyspace);
+    if (isSetKeyspace()) {
+      lastComparison = TBaseHelper.compareTo(this.keyspace, typedOther.keyspace);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1507,7 +1536,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetName()) {      lastComparison = TBaseHelper.compareTo(this.name, typedOther.name);
+    if (isSetName()) {
+      lastComparison = TBaseHelper.compareTo(this.name, typedOther.name);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1516,7 +1546,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetColumn_type()) {      lastComparison = TBaseHelper.compareTo(this.column_type, typedOther.column_type);
+    if (isSetColumn_type()) {
+      lastComparison = TBaseHelper.compareTo(this.column_type, typedOther.column_type);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1525,7 +1556,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetComparator_type()) {      lastComparison = TBaseHelper.compareTo(this.comparator_type, typedOther.comparator_type);
+    if (isSetComparator_type()) {
+      lastComparison = TBaseHelper.compareTo(this.comparator_type, typedOther.comparator_type);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1534,7 +1566,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetSubcomparator_type()) {      lastComparison = TBaseHelper.compareTo(this.subcomparator_type, typedOther.subcomparator_type);
+    if (isSetSubcomparator_type()) {
+      lastComparison = TBaseHelper.compareTo(this.subcomparator_type, typedOther.subcomparator_type);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1543,7 +1576,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetComment()) {      lastComparison = TBaseHelper.compareTo(this.comment, typedOther.comment);
+    if (isSetComment()) {
+      lastComparison = TBaseHelper.compareTo(this.comment, typedOther.comment);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1552,7 +1586,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetRow_cache_size()) {      lastComparison = TBaseHelper.compareTo(this.row_cache_size, typedOther.row_cache_size);
+    if (isSetRow_cache_size()) {
+      lastComparison = TBaseHelper.compareTo(this.row_cache_size, typedOther.row_cache_size);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1561,7 +1596,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetPreload_row_cache()) {      lastComparison = TBaseHelper.compareTo(this.preload_row_cache, typedOther.preload_row_cache);
+    if (isSetPreload_row_cache()) {
+      lastComparison = TBaseHelper.compareTo(this.preload_row_cache, typedOther.preload_row_cache);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1570,7 +1606,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetKey_cache_size()) {      lastComparison = TBaseHelper.compareTo(this.key_cache_size, typedOther.key_cache_size);
+    if (isSetKey_cache_size()) {
+      lastComparison = TBaseHelper.compareTo(this.key_cache_size, typedOther.key_cache_size);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1579,7 +1616,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetRead_repair_chance()) {      lastComparison = TBaseHelper.compareTo(this.read_repair_chance, typedOther.read_repair_chance);
+    if (isSetRead_repair_chance()) {
+      lastComparison = TBaseHelper.compareTo(this.read_repair_chance, typedOther.read_repair_chance);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1588,7 +1626,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetColumn_metadata()) {      lastComparison = TBaseHelper.compareTo(this.column_metadata, typedOther.column_metadata);
+    if (isSetColumn_metadata()) {
+      lastComparison = TBaseHelper.compareTo(this.column_metadata, typedOther.column_metadata);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1597,7 +1636,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetGc_grace_seconds()) {      lastComparison = TBaseHelper.compareTo(this.gc_grace_seconds, typedOther.gc_grace_seconds);
+    if (isSetGc_grace_seconds()) {
+      lastComparison = TBaseHelper.compareTo(this.gc_grace_seconds, typedOther.gc_grace_seconds);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1606,7 +1646,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetDefault_validation_class()) {      lastComparison = TBaseHelper.compareTo(this.default_validation_class, typedOther.default_validation_class);
+    if (isSetDefault_validation_class()) {
+      lastComparison = TBaseHelper.compareTo(this.default_validation_class, typedOther.default_validation_class);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1615,7 +1656,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetId()) {      lastComparison = TBaseHelper.compareTo(this.id, typedOther.id);
+    if (isSetId()) {
+      lastComparison = TBaseHelper.compareTo(this.id, typedOther.id);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1624,7 +1666,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetMin_compaction_threshold()) {      lastComparison = TBaseHelper.compareTo(this.min_compaction_threshold, typedOther.min_compaction_threshold);
+    if (isSetMin_compaction_threshold()) {
+      lastComparison = TBaseHelper.compareTo(this.min_compaction_threshold, typedOther.min_compaction_threshold);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1633,7 +1676,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetMax_compaction_threshold()) {      lastComparison = TBaseHelper.compareTo(this.max_compaction_threshold, typedOther.max_compaction_threshold);
+    if (isSetMax_compaction_threshold()) {
+      lastComparison = TBaseHelper.compareTo(this.max_compaction_threshold, typedOther.max_compaction_threshold);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1642,7 +1686,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetRow_cache_save_period_in_seconds()) {      lastComparison = TBaseHelper.compareTo(this.row_cache_save_period_in_seconds, typedOther.row_cache_save_period_in_seconds);
+    if (isSetRow_cache_save_period_in_seconds()) {
+      lastComparison = TBaseHelper.compareTo(this.row_cache_save_period_in_seconds, typedOther.row_cache_save_period_in_seconds);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1651,7 +1696,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetKey_cache_save_period_in_seconds()) {      lastComparison = TBaseHelper.compareTo(this.key_cache_save_period_in_seconds, typedOther.key_cache_save_period_in_seconds);
+    if (isSetKey_cache_save_period_in_seconds()) {
+      lastComparison = TBaseHelper.compareTo(this.key_cache_save_period_in_seconds, typedOther.key_cache_save_period_in_seconds);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1660,7 +1706,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetMemtable_flush_after_mins()) {      lastComparison = TBaseHelper.compareTo(this.memtable_flush_after_mins, typedOther.memtable_flush_after_mins);
+    if (isSetMemtable_flush_after_mins()) {
+      lastComparison = TBaseHelper.compareTo(this.memtable_flush_after_mins, typedOther.memtable_flush_after_mins);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1669,7 +1716,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetMemtable_throughput_in_mb()) {      lastComparison = TBaseHelper.compareTo(this.memtable_throughput_in_mb, typedOther.memtable_throughput_in_mb);
+    if (isSetMemtable_throughput_in_mb()) {
+      lastComparison = TBaseHelper.compareTo(this.memtable_throughput_in_mb, typedOther.memtable_throughput_in_mb);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1678,12 +1726,17 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetMemtable_operations_in_millions()) {      lastComparison = TBaseHelper.compareTo(this.memtable_operations_in_millions, typedOther.memtable_operations_in_millions);
+    if (isSetMemtable_operations_in_millions()) {
+      lastComparison = TBaseHelper.compareTo(this.memtable_operations_in_millions, typedOther.memtable_operations_in_millions);
       if (lastComparison != 0) {
         return lastComparison;
       }
     }
     return 0;
+  }
+
+  public _Fields fieldForId(int fieldId) {
+    return _Fields.findByThriftId(fieldId);
   }
 
   public void read(TProtocol iprot) throws TException {

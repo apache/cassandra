@@ -18,21 +18,45 @@
 
 package org.apache.cassandra.db;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FilenameFilter;
+import java.io.IOError;
+import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.lang.management.ManagementFactory;
-import java.util.*;
-import java.util.concurrent.*;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
+
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
-
-import com.google.common.collect.Iterables;
-import org.apache.commons.collections.IteratorUtils;
-import org.apache.commons.lang.ArrayUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
@@ -45,22 +69,46 @@ import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
-import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.filter.IFilter;
+import org.apache.cassandra.db.filter.NamesQueryFilter;
+import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.LocalByPartionerType;
-import org.apache.cassandra.dht.*;
-import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.LocalPartitioner;
+import org.apache.cassandra.dht.LocalToken;
+import org.apache.cassandra.dht.OrderPreservingPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.ReducingKeyIterator;
+import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.SSTableTracker;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LatencyTracker;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.commons.collections.IteratorUtils;
+import org.apache.commons.lang.ArrayUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.collect.Iterables;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
@@ -117,7 +165,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /* active memtable associated with this ColumnFamilyStore. */
     private Memtable memtable;
 
-    private final SortedMap<byte[], ColumnFamilyStore> indexedColumns;
+    private final SortedMap<ByteBuffer, ColumnFamilyStore> indexedColumns;
 
     // TODO binarymemtable ops are not threadsafe (do they need to be?)
     private AtomicReference<BinaryMemtable> binaryMemtable;
@@ -197,7 +245,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ssTables.add(sstables);
 
         // create the private ColumnFamilyStores for the secondary column indexes
-        indexedColumns = new ConcurrentSkipListMap<byte[], ColumnFamilyStore>(getComparator());
+        indexedColumns = new ConcurrentSkipListMap<ByteBuffer, ColumnFamilyStore>(getComparator());
         for (ColumnDefinition info : metadata.column_metadata.values())
         {
             if (info.index_type != null)
@@ -236,7 +284,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     int size = in.readInt();
                     byte[] bytes = new byte[size];
                     in.readFully(bytes);
-                    keys.add(StorageService.getPartitioner().decorateKey(bytes));
+                    keys.add(StorageService.getPartitioner().decorateKey(ByteBuffer.wrap(bytes)));
                 }
                 in.close();
                 if (logger.isDebugEnabled())
@@ -287,7 +335,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    public void buildSecondaryIndexes(Collection<SSTableReader> sstables, SortedSet<byte[]> columns)
+    public void buildSecondaryIndexes(Collection<SSTableReader> sstables, SortedSet<ByteBuffer> columns)
     {
         logger.debug("Submitting index build to compactionmanager");
         Table.IndexBuilder builder = table.createIndexBuilder(this, columns, new ReducingKeyIterator(sstables));
@@ -295,7 +343,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         try
         {
             future.get();
-            for (byte[] column : columns)
+            for (ByteBuffer column : columns)
                 getIndexedColumnFamilyStore(column).forceBlockingFlush();
         }
         catch (InterruptedException e)
@@ -621,7 +669,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    void switchBinaryMemtable(DecoratedKey key, byte[] buffer)
+    void switchBinaryMemtable(DecoratedKey key, ByteBuffer buffer)
     {
         binaryMemtable.set(new BinaryMemtable(this));
         binaryMemtable.get().put(key, buffer);
@@ -682,7 +730,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * needs to be used. param @ key - key for update/insert param @
      * columnFamily - columnFamily changes
      */
-    void applyBinary(DecoratedKey key, byte[] buffer)
+    void applyBinary(DecoratedKey key, ByteBuffer buffer)
     {
         long start = System.nanoTime();
         binaryMemtable.get().put(key, buffer);
@@ -725,9 +773,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private static void removeDeletedStandard(ColumnFamily cf, int gcBefore)
     {
-        for (Map.Entry<byte[], IColumn> entry : cf.getColumnsMap().entrySet())
+        for (Map.Entry<ByteBuffer, IColumn> entry : cf.getColumnsMap().entrySet())
         {
-            byte[] cname = entry.getKey();
+            ByteBuffer cname = entry.getKey();
             IColumn c = entry.getValue();
             // remove columns if
             // (a) the column itself is tombstoned or
@@ -746,7 +794,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // TODO assume deletion means "most are deleted?" and add to clone, instead of remove from original?
         // this could be improved by having compaction, or possibly even removeDeleted, r/m the tombstone
         // once gcBefore has passed, so if new stuff is added in it doesn't used the wrong algorithm forever
-        for (Map.Entry<byte[], IColumn> entry : cf.getColumnsMap().entrySet())
+        for (Map.Entry<ByteBuffer, IColumn> entry : cf.getColumnsMap().entrySet())
         {
             SuperColumn c = (SuperColumn) entry.getValue();
             long minTimestamp = Math.max(c.getMarkedForDeleteAt(), cf.getMarkedForDeleteAt());
@@ -988,7 +1036,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return writeStats.getRecentLatencyHistogramMicros();
     }
 
-    public ColumnFamily getColumnFamily(DecoratedKey key, QueryPath path, byte[] start, byte[] finish, boolean reversed, int limit)
+    public ColumnFamily getColumnFamily(DecoratedKey key, QueryPath path, ByteBuffer start, ByteBuffer finish, boolean reversed, int limit)
     {
         return getColumnFamily(QueryFilter.getSliceFilter(key, path, start, finish, reversed, limit));
     }
@@ -1031,6 +1079,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (ssTables.getRowCache().getCapacity() == 0)
             {
                 ColumnFamily cf = getTopLevelColumns(filter, gcBefore);
+                         
                 // TODO this is necessary because when we collate supercolumns together, we don't check
                 // their subcolumns for relevance, so we need to do a second prune post facto here.
                 return cf.isSuper() ? removeDeleted(cf, gcBefore) : removeDeletedCF(cf, gcBefore);
@@ -1039,7 +1088,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             ColumnFamily cached = cacheRow(filter.key);
             if (cached == null)
                 return null;
-
+ 
             return filterColumnFamily(cached, filter, gcBefore);
         }
         finally
@@ -1062,7 +1111,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (filter.filter instanceof SliceQueryFilter)
         {
             SliceQueryFilter sliceFilter = (SliceQueryFilter) filter.filter;
-            if (sliceFilter.start.length == 0 && sliceFilter.finish.length == 0)
+            if (sliceFilter.start.remaining() == 0 && sliceFilter.finish.remaining() == 0)
             {
                 if (cached.isSuper() && filter.path.superColumnName != null)
                 {
@@ -1081,7 +1130,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     // top-level columns
                     if (sliceFilter.count >= cached.getColumnCount())
                     {
-                        removeDeletedColumnsOnly(cached, gcBefore);
+                        removeDeletedColumnsOnly(cached, gcBefore);                    
                         return removeDeletedCF(cached, gcBefore);
                     }
                 }
@@ -1118,6 +1167,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (iter != null)
             {
                 returnCF.delete(iter.getColumnFamily());
+                    
                 iterators.add(iter);
             }
 
@@ -1149,7 +1199,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             Comparator<IColumn> comparator = filter.filter.getColumnComparator(getComparator());
             Iterator collated = IteratorUtils.collatedIterator(comparator, iterators);
+          
+                     
             filter.collectCollatedColumns(returnCF, collated, gcBefore);
+          
+            
             // Caller is responsible for final removeDeletedCF.  This is important for cacheRow to work correctly:
             // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)
             // and "there used to be data, but it's gone now" (we should cache the empty CF so we don't need to rebuild that slower)
@@ -1185,7 +1239,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
       * @param columnFilter description of the columns we're interested in for each row
       * @return true if we found all keys we were looking for, otherwise false
      */
-    public List<Row> getRangeSlice(byte[] superColumn, final AbstractBounds range, int maxResults, IFilter columnFilter)
+    public List<Row> getRangeSlice(ByteBuffer superColumn, final AbstractBounds range, int maxResults, IFilter columnFilter)
     throws ExecutionException, InterruptedException
     {
         assert range instanceof Bounds
@@ -1193,8 +1247,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                : range;
 
         List<Row> rows = new ArrayList<Row>();
-        DecoratedKey startWith = new DecoratedKey(range.left, (byte[])null);
-        DecoratedKey stopAt = new DecoratedKey(range.right, (byte[])null);
+        DecoratedKey startWith = new DecoratedKey(range.left, null);
+        DecoratedKey stopAt = new DecoratedKey(range.right, null);
 
         QueryFilter filter = new QueryFilter(null, new QueryPath(columnFamily, superColumn, null), columnFilter);
         Collection<Memtable> memtables = new ArrayList<Memtable>();
@@ -1268,14 +1322,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 // otherwise, create an extraFilter to fetch by name the columns referenced by the additional expressions.
                 if (getMaxRowSize() < DatabaseDescriptor.getColumnIndexSize())
                 {
-                    firstFilter = new SliceQueryFilter(ArrayUtils.EMPTY_BYTE_ARRAY,
-                                                       ArrayUtils.EMPTY_BYTE_ARRAY,
+                    firstFilter = new SliceQueryFilter(FBUtilities.EMPTY_BYTE_BUFFER,
+                                                       FBUtilities.EMPTY_BYTE_BUFFER,
                                                        ((SliceQueryFilter) dataFilter).reversed,
                                                        Integer.MAX_VALUE);
                 }
                 else
                 {
-                    SortedSet<byte[]> columns = new TreeSet<byte[]>(getComparator());
+                    SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(getComparator());
                     for (IndexExpression expr : clause.expressions)
                     {
                         if (expr == primary)
@@ -1289,7 +1343,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 // just add in columns that are not part of the resultset
                 assert dataFilter instanceof NamesQueryFilter;
-                SortedSet<byte[]> columns = new TreeSet<byte[]>(getComparator());
+                SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(getComparator());
                 for (IndexExpression expr : clause.expressions)
                 {
                     if (expr == primary || ((NamesQueryFilter) dataFilter).columns.contains(expr.column_name))
@@ -1305,7 +1359,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         List<Row> rows = new ArrayList<Row>();
-        byte[] startKey = clause.start_key;
+        ByteBuffer startKey = clause.start_key;
         QueryPath path = new QueryPath(columnFamily);
 
         // fetch row keys matching the primary expression, fetch the slice predicate for each
@@ -1320,14 +1374,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             QueryFilter indexFilter = QueryFilter.getSliceFilter(indexKey,
                                                                  new QueryPath(indexCFS.getColumnFamilyName()),
                                                                  startKey,
-                                                                 ArrayUtils.EMPTY_BYTE_ARRAY,
+                                                                 FBUtilities.EMPTY_BYTE_BUFFER,
                                                                  false,
                                                                  clause.count);
             ColumnFamily indexRow = indexCFS.getColumnFamily(indexFilter);
             if (indexRow == null)
                 break;
 
-            byte[] dataKey = null;
+            ByteBuffer dataKey = null;
             int n = 0;
             for (IColumn column : indexRow.getSortedColumns())
             {
@@ -1375,7 +1429,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 if (rows.size() == clause.count)
                     break outer;
             }
-            if (n < clause.count || Arrays.equals(startKey, dataKey))
+            if (n < clause.count || ByteBufferUtil.equals(startKey, dataKey))
                 break;
             startKey = dataKey;
         }
@@ -1743,22 +1797,22 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return (double) falseCount / (trueCount + falseCount);
     }
 
-    public SortedSet<byte[]> getIndexedColumns()
+    public SortedSet<ByteBuffer> getIndexedColumns()
     {
-        return (SortedSet<byte[]>) indexedColumns.keySet();
+        return (SortedSet<ByteBuffer>) indexedColumns.keySet();
     }
 
-    public ColumnFamilyStore getIndexedColumnFamilyStore(byte[] column)
+    public ColumnFamilyStore getIndexedColumnFamilyStore(ByteBuffer column)
     {
         return indexedColumns.get(column);
     }
 
-    public ColumnFamily newIndexedColumnFamily(byte[] column)
+    public ColumnFamily newIndexedColumnFamily(ByteBuffer column)
     {
         return ColumnFamily.create(indexedColumns.get(column).metadata);
     }
 
-    public DecoratedKey<LocalToken> getIndexKeyFor(byte[] name, byte[] value)
+    public DecoratedKey<LocalToken> getIndexKeyFor(ByteBuffer name, ByteBuffer value)
     {
         return indexedColumns.get(name).partitioner.decorateKey(value);
     }

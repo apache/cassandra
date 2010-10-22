@@ -20,7 +20,12 @@ package org.apache.cassandra.db;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.*;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -30,17 +35,17 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class SliceByNamesReadCommand extends ReadCommand
 {
-    public final SortedSet<byte[]> columnNames;
+    public final SortedSet<ByteBuffer> columnNames;
 
-    public SliceByNamesReadCommand(String table, byte[] key, ColumnParent column_parent, Collection<byte[]> columnNames)
+    public SliceByNamesReadCommand(String table, ByteBuffer key, ColumnParent column_parent, Collection<ByteBuffer> columnNames)
     {
         this(table, key, new QueryPath(column_parent), columnNames);
     }
 
-    public SliceByNamesReadCommand(String table, byte[] key, QueryPath path, Collection<byte[]> columnNames)
+    public SliceByNamesReadCommand(String table, ByteBuffer key, QueryPath path, Collection<ByteBuffer> columnNames)
     {
         super(table, key, path, CMD_TYPE_GET_SLICE_BY_NAMES);
-        this.columnNames = new TreeSet<byte[]>(getComparator());
+        this.columnNames = new TreeSet<ByteBuffer>(getComparator());
         this.columnNames.addAll(columnNames);
     }
 
@@ -85,7 +90,7 @@ class SliceByNamesReadCommandSerializer extends ReadCommandSerializer
         dos.writeInt(realRM.columnNames.size());
         if (realRM.columnNames.size() > 0)
         {
-            for (byte[] cName : realRM.columnNames)
+            for (ByteBuffer cName : realRM.columnNames)
             {
                 FBUtilities.writeShortByteArray(cName, dos);
             }
@@ -97,11 +102,11 @@ class SliceByNamesReadCommandSerializer extends ReadCommandSerializer
     {
         boolean isDigest = dis.readBoolean();
         String table = dis.readUTF();
-        byte[] key = FBUtilities.readShortByteArray(dis);
+        ByteBuffer key = FBUtilities.readShortByteArray(dis);
         QueryPath columnParent = QueryPath.deserialize(dis);
 
         int size = dis.readInt();
-        List<byte[]> columns = new ArrayList<byte[]>();
+        List<ByteBuffer> columns = new ArrayList<ByteBuffer>();
         for (int i = 0; i < size; ++i)
         {
             columns.add(FBUtilities.readShortByteArray(dis));

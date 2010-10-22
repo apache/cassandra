@@ -21,17 +21,28 @@ package org.apache.cassandra.db.filter;
  */
 
 
-import java.util.*;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.IColumnContainer;
+import org.apache.cassandra.db.Memtable;
+import org.apache.cassandra.db.SuperColumn;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.SliceRange;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ReducingIterator;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -84,7 +95,7 @@ public class QueryFilter
     }
 
     // here so it can be used by SQF and NQF.  non-package callers should call IFilter.getColumnComparator
-    static Comparator<IColumn> getColumnComparator(final Comparator<byte[]> comparator)
+    static Comparator<IColumn> getColumnComparator(final Comparator<ByteBuffer> comparator)
     {
         return new Comparator<IColumn>()
         {
@@ -105,7 +116,7 @@ public class QueryFilter
 
             protected boolean isEqual(IColumn o1, IColumn o2)
             {
-                return Arrays.equals(o1.name(), o2.name());
+                return ByteBufferUtil.equals(o1.name(), o2.name());              
             }
 
             public void reduce(IColumn current)
@@ -128,7 +139,8 @@ public class QueryFilter
                     c = filter.filterSuperColumn((SuperColumn)c, gcBefore);
                     ((SuperColumn)c).markForDeleteAt(c.getLocalDeletionTime(), deletedAt); // reset sc tombstone time to what it should be
                 }
-                curCF.clear();
+                curCF.clear();           
+
                 return c;
             }
         };
@@ -159,7 +171,7 @@ public class QueryFilter
      * @param reversed true to start with the largest column (as determined by configured sort order) instead of smallest
      * @param limit maximum number of non-deleted columns to return
      */
-    public static QueryFilter getSliceFilter(DecoratedKey key, QueryPath path, byte[] start, byte[] finish, boolean reversed, int limit)
+    public static QueryFilter getSliceFilter(DecoratedKey key, QueryPath path, ByteBuffer start, ByteBuffer finish, boolean reversed, int limit)
     {
         return new QueryFilter(key, path, new SliceQueryFilter(start, finish, reversed, limit));
     }
@@ -179,7 +191,7 @@ public class QueryFilter
      * @param path path to the level to slice at (CF or SuperColumn)
      * @param columns the column names to restrict the results to
      */
-    public static QueryFilter getNamesFilter(DecoratedKey key, QueryPath path, SortedSet<byte[]> columns)
+    public static QueryFilter getNamesFilter(DecoratedKey key, QueryPath path, SortedSet<ByteBuffer> columns)
     {
         return new QueryFilter(key, path, new NamesQueryFilter(columns));
     }
@@ -188,7 +200,7 @@ public class QueryFilter
     {
         if (predicate.column_names != null)
         {
-            final SortedSet<byte[]> columnNameSet = new TreeSet<byte[]>(comparator);
+            final SortedSet<ByteBuffer> columnNameSet = new TreeSet<ByteBuffer>(comparator);
             columnNameSet.addAll(predicate.column_names);
             return new NamesQueryFilter(columnNameSet);
         }
@@ -200,7 +212,7 @@ public class QueryFilter
     /**
      * convenience method for creating a name filter matching a single column
      */
-    public static QueryFilter getNamesFilter(DecoratedKey key, QueryPath path, byte[] column)
+    public static QueryFilter getNamesFilter(DecoratedKey key, QueryPath path, ByteBuffer column)
     {
         return new QueryFilter(key, path, new NamesQueryFilter(column));
     }

@@ -19,12 +19,19 @@
 package org.apache.cassandra.utils;
 
 import java.io.Serializable;
-import java.util.*;
+import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.PeekingIterator;
-
-import org.apache.cassandra.dht.*;
 
 /**
  * A MerkleTree implemented as a binary tree.
@@ -369,7 +376,7 @@ public class MerkleTree implements Serializable
         }
         return true;
     }
-
+    
     private Hashable splitHelper(Hashable hashable, Token pleft, Token pright, byte depth, Token t) throws StopRecursion.TooDeep
     {
         if (depth >= hashdepth)
@@ -708,8 +715,8 @@ public class MerkleTree implements Serializable
         public final byte[] hash;
         public RowHash(Token token, byte[] hash)
         {
-            this.token = token;
-            this.hash = hash;
+            this.token = token;      
+            this.hash  = hash;
         }
         
         @Override
@@ -780,7 +787,7 @@ public class MerkleTree implements Serializable
         {
             if (hash == null)
                 return "null";
-            return "[" + FBUtilities.bytesToHex(hash) + "]";
+            return "[" + FBUtilities.bytesToHex(ByteBuffer.wrap(hash)) + "]";
         }
     }
 

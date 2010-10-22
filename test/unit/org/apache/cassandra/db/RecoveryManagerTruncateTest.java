@@ -23,6 +23,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.CleanupHelper;
@@ -50,7 +51,7 @@ public class RecoveryManagerTruncateTest extends CleanupHelper
 		ColumnFamily cf;
 
 		// trucate clears memtable
-		rm = new RowMutation("Keyspace1", "keymulti".getBytes());
+		rm = new RowMutation("Keyspace1", ByteBuffer.wrap("keymulti".getBytes()));
 		cf = ColumnFamily.create("Keyspace1", "Standard1");
 		cf.addColumn(column("col1", "val1", 1L));
 		rm.add(cf);
@@ -67,7 +68,7 @@ public class RecoveryManagerTruncateTest extends CleanupHelper
 		assertNull(getFromTable(table, "Standard1", "keymulti", "col1"));
 
 		// truncate clears sstable
-		rm = new RowMutation("Keyspace1", "keymulti".getBytes());
+		rm = new RowMutation("Keyspace1", ByteBuffer.wrap("keymulti".getBytes()));
 		cf = ColumnFamily.create("Keyspace1", "Standard1");
 		cf.addColumn(column("col1", "val1", 1L));
 		rm.add(cf);
@@ -87,11 +88,11 @@ public class RecoveryManagerTruncateTest extends CleanupHelper
 			return null;
 		}
 		cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(
-		        Util.dk(keyName), new QueryPath(cfName), columnName.getBytes()));
+		        Util.dk(keyName), new QueryPath(cfName), ByteBuffer.wrap(columnName.getBytes())));
 		if (cf == null)
 		{
 			return null;
 		}
-		return cf.getColumn(columnName.getBytes());
+		return cf.getColumn(ByteBuffer.wrap(columnName.getBytes()));
 	}
 }

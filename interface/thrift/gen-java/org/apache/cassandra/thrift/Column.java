@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,8 +63,8 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
   private static final TField TIMESTAMP_FIELD_DESC = new TField("timestamp", TType.I64, (short)3);
   private static final TField TTL_FIELD_DESC = new TField("ttl", TType.I32, (short)4);
 
-  public byte[] name;
-  public byte[] value;
+  public ByteBuffer name;
+  public ByteBuffer value;
   public long timestamp;
   public int ttl;
 
@@ -158,8 +159,8 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
   }
 
   public Column(
-    byte[] name,
-    byte[] value,
+    ByteBuffer name,
+    ByteBuffer value,
     long timestamp)
   {
     this();
@@ -176,12 +177,12 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     __isset_bit_vector.clear();
     __isset_bit_vector.or(other.__isset_bit_vector);
     if (other.isSetName()) {
-      this.name = new byte[other.name.length];
-      System.arraycopy(other.name, 0, name, 0, other.name.length);
+      this.name = TBaseHelper.copyBinary(other.name);
+;
     }
     if (other.isSetValue()) {
-      this.value = new byte[other.value.length];
-      System.arraycopy(other.value, 0, value, 0, other.value.length);
+      this.value = TBaseHelper.copyBinary(other.value);
+;
     }
     this.timestamp = other.timestamp;
     this.ttl = other.ttl;
@@ -191,16 +192,31 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     return new Column(this);
   }
 
-  @Deprecated
-  public Column clone() {
-    return new Column(this);
+  @Override
+  public void clear() {
+    this.name = null;
+    this.value = null;
+    setTimestampIsSet(false);
+    this.timestamp = 0;
+    setTtlIsSet(false);
+    this.ttl = 0;
   }
 
   public byte[] getName() {
-    return this.name;
+    setName(TBaseHelper.rightSize(name));
+    return name.array();
+  }
+
+  public ByteBuffer BufferForName() {
+    return name;
   }
 
   public Column setName(byte[] name) {
+    setName(ByteBuffer.wrap(name));
+    return this;
+  }
+
+  public Column setName(ByteBuffer name) {
     this.name = name;
     return this;
   }
@@ -221,10 +237,20 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
   }
 
   public byte[] getValue() {
-    return this.value;
+    setValue(TBaseHelper.rightSize(value));
+    return value.array();
+  }
+
+  public ByteBuffer BufferForValue() {
+    return value;
   }
 
   public Column setValue(byte[] value) {
+    setValue(ByteBuffer.wrap(value));
+    return this;
+  }
+
+  public Column setValue(ByteBuffer value) {
     this.value = value;
     return this;
   }
@@ -296,7 +322,7 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
       if (value == null) {
         unsetName();
       } else {
-        setName((byte[])value);
+        setName((ByteBuffer)value);
       }
       break;
 
@@ -304,7 +330,7 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
       if (value == null) {
         unsetValue();
       } else {
-        setValue((byte[])value);
+        setValue((ByteBuffer)value);
       }
       break;
 
@@ -327,10 +353,6 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     }
   }
 
-  public void setFieldValue(int fieldID, Object value) {
-    setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
-  }
-
   public Object getFieldValue(_Fields field) {
     switch (field) {
     case NAME:
@@ -349,12 +371,12 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     throw new IllegalStateException();
   }
 
-  public Object getFieldValue(int fieldId) {
-    return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-  }
-
   /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
+    if (field == null) {
+      throw new IllegalArgumentException();
+    }
+
     switch (field) {
     case NAME:
       return isSetName();
@@ -366,10 +388,6 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
       return isSetTtl();
     }
     throw new IllegalStateException();
-  }
-
-  public boolean isSet(int fieldID) {
-    return isSet(_Fields.findByThriftIdOrThrow(fieldID));
   }
 
   @Override
@@ -390,7 +408,7 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     if (this_present_name || that_present_name) {
       if (!(this_present_name && that_present_name))
         return false;
-      if (!java.util.Arrays.equals(this.name, that.name))
+      if (!this.name.equals(that.name))
         return false;
     }
 
@@ -399,7 +417,7 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     if (this_present_value || that_present_value) {
       if (!(this_present_value && that_present_value))
         return false;
-      if (!java.util.Arrays.equals(this.value, that.value))
+      if (!this.value.equals(that.value))
         return false;
     }
 
@@ -463,7 +481,8 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetName()) {      lastComparison = TBaseHelper.compareTo(this.name, typedOther.name);
+    if (isSetName()) {
+      lastComparison = TBaseHelper.compareTo(this.name, typedOther.name);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -472,7 +491,8 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetValue()) {      lastComparison = TBaseHelper.compareTo(this.value, typedOther.value);
+    if (isSetValue()) {
+      lastComparison = TBaseHelper.compareTo(this.value, typedOther.value);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -481,7 +501,8 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetTimestamp()) {      lastComparison = TBaseHelper.compareTo(this.timestamp, typedOther.timestamp);
+    if (isSetTimestamp()) {
+      lastComparison = TBaseHelper.compareTo(this.timestamp, typedOther.timestamp);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -490,12 +511,17 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetTtl()) {      lastComparison = TBaseHelper.compareTo(this.ttl, typedOther.ttl);
+    if (isSetTtl()) {
+      lastComparison = TBaseHelper.compareTo(this.ttl, typedOther.ttl);
       if (lastComparison != 0) {
         return lastComparison;
       }
     }
     return 0;
+  }
+
+  public _Fields fieldForId(int fieldId) {
+    return _Fields.findByThriftId(fieldId);
   }
 
   public void read(TProtocol iprot) throws TException {
@@ -587,12 +613,7 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     if (this.name == null) {
       sb.append("null");
     } else {
-        int __name_size = Math.min(this.name.length, 128);
-        for (int i = 0; i < __name_size; i++) {
-          if (i != 0) sb.append(" ");
-          sb.append(Integer.toHexString(this.name[i]).length() > 1 ? Integer.toHexString(this.name[i]).substring(Integer.toHexString(this.name[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.name[i]).toUpperCase());
-        }
-        if (this.name.length > 128) sb.append(" ...");
+      TBaseHelper.toString(this.name, sb);
     }
     first = false;
     if (!first) sb.append(", ");
@@ -600,12 +621,7 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     if (this.value == null) {
       sb.append("null");
     } else {
-        int __value_size = Math.min(this.value.length, 128);
-        for (int i = 0; i < __value_size; i++) {
-          if (i != 0) sb.append(" ");
-          sb.append(Integer.toHexString(this.value[i]).length() > 1 ? Integer.toHexString(this.value[i]).substring(Integer.toHexString(this.value[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.value[i]).toUpperCase());
-        }
-        if (this.value.length > 128) sb.append(" ...");
+      TBaseHelper.toString(this.value, sb);
     }
     first = false;
     if (!first) sb.append(", ");

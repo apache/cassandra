@@ -18,8 +18,9 @@
 
 package org.apache.cassandra.db;
 
-import java.util.Collection;
+import java.nio.ByteBuffer;
 import java.security.MessageDigest;
+import java.util.Collection;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.FBUtilities;
@@ -31,13 +32,13 @@ public interface IColumn
     public boolean isMarkedForDelete();
     public long getMarkedForDeleteAt();
     public long mostRecentLiveChangeAt();
-    public byte[] name();
+    public ByteBuffer name();
     public int size();
     public int serializedSize();
     public long timestamp();
-    public byte[] value();
+    public ByteBuffer value();
     public Collection<IColumn> getSubColumns();
-    public IColumn getSubColumn(byte[] columnName);
+    public IColumn getSubColumn(ByteBuffer columnName);
     public void addColumn(IColumn column);
     public IColumn diff(IColumn column);
     public IColumn reconcile(IColumn column);

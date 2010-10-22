@@ -21,24 +21,30 @@ package org.apache.cassandra.io;
  */
 
 
+import static junit.framework.Assert.assertEquals;
+
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 
-import org.junit.Test;
-
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CompactionManager;
+import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-
-import static junit.framework.Assert.assertEquals;
+import org.apache.cassandra.utils.FBUtilities;
+import org.junit.Test;
 
 
 public class LazilyCompactedRowTest extends CleanupHelper
@@ -115,9 +121,9 @@ public class LazilyCompactedRowTest extends CleanupHelper
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
 
-        byte[] key = "k".getBytes();
+        ByteBuffer key = ByteBuffer.wrap("k".getBytes());
         RowMutation rm = new RowMutation("Keyspace1", key);
-        rm.add(new QueryPath("Standard1", null, "c".getBytes()), new byte[0], 0);
+        rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap("c".getBytes())), FBUtilities.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
         cfs.forceBlockingFlush();
 
@@ -132,10 +138,10 @@ public class LazilyCompactedRowTest extends CleanupHelper
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
 
-        byte[] key = "k".getBytes();
+        ByteBuffer key =ByteBuffer.wrap( "k".getBytes() );
         RowMutation rm = new RowMutation("Keyspace1", key);
-        rm.add(new QueryPath("Standard1", null, "c".getBytes()), new byte[0], 0);
-        rm.add(new QueryPath("Standard1", null, "d".getBytes()), new byte[0], 0);
+        rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap("c".getBytes())), FBUtilities.EMPTY_BYTE_BUFFER, 0);
+        rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap("d".getBytes())), FBUtilities.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
         cfs.forceBlockingFlush();
 
@@ -150,9 +156,9 @@ public class LazilyCompactedRowTest extends CleanupHelper
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
 
-        byte[] key = "k".getBytes();
+        ByteBuffer key = ByteBuffer.wrap("k".getBytes());
         RowMutation rm = new RowMutation("Keyspace1", key);
-        rm.add(new QueryPath("Standard1", null, "c".getBytes()), new byte[0], 0);
+        rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap("c".getBytes())), FBUtilities.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
         cfs.forceBlockingFlush();
 
@@ -170,10 +176,10 @@ public class LazilyCompactedRowTest extends CleanupHelper
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
 
-        byte[] key = "k".getBytes();
+        ByteBuffer key = ByteBuffer.wrap("k".getBytes());
         RowMutation rm = new RowMutation("Keyspace1", key);
-        rm.add(new QueryPath("Standard1", null, "c".getBytes()), new byte[0], 0);
-        rm.add(new QueryPath("Standard1", null, "d".getBytes()), new byte[0], 0);
+        rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap("c".getBytes())), FBUtilities.EMPTY_BYTE_BUFFER, 0);
+        rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap("d".getBytes())), FBUtilities.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
         cfs.forceBlockingFlush();
 
@@ -194,9 +200,9 @@ public class LazilyCompactedRowTest extends CleanupHelper
         final int ROWS_PER_SSTABLE = 10;
         for (int j = 0; j < (DatabaseDescriptor.getIndexInterval() * 3) / ROWS_PER_SSTABLE; j++) {
             for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
-                byte[] key = String.valueOf(i % 2).getBytes();
+                ByteBuffer key = ByteBuffer.wrap(String.valueOf(i % 2).getBytes());
                 RowMutation rm = new RowMutation("Keyspace1", key);
-                rm.add(new QueryPath("Standard1", null, String.valueOf(i / 2).getBytes()), new byte[0], j * ROWS_PER_SSTABLE + i);
+                rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap(String.valueOf(i / 2).getBytes())), FBUtilities.EMPTY_BYTE_BUFFER, j * ROWS_PER_SSTABLE + i);
                 rm.apply();
             }
             cfs.forceBlockingFlush();

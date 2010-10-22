@@ -18,20 +18,19 @@
 
 package org.apache.cassandra.db;
 
+import static com.google.common.base.Charsets.UTF_8;
+
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
-
-import org.apache.commons.lang.ArrayUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -42,25 +41,26 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
-
-import static com.google.common.base.Charsets.UTF_8;
+import org.apache.commons.lang.ArrayUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SystemTable
 {
     private static Logger logger = LoggerFactory.getLogger(SystemTable.class);
     public static final String STATUS_CF = "LocationInfo"; // keep the old CF string for backwards-compatibility
     public static final String INDEX_CF = "IndexInfo";
-    private static final byte[] LOCATION_KEY = "L".getBytes(UTF_8);
-    private static final byte[] RING_KEY = "Ring".getBytes(UTF_8);
-    private static final byte[] BOOTSTRAP_KEY = "Bootstrap".getBytes(UTF_8);
-    private static final byte[] COOKIE_KEY = "Cookies".getBytes(UTF_8);
-    private static final byte[] BOOTSTRAP = "B".getBytes(UTF_8);
-    private static final byte[] TOKEN = "Token".getBytes(UTF_8);
-    private static final byte[] GENERATION = "Generation".getBytes(UTF_8);
-    private static final byte[] CLUSTERNAME = "ClusterName".getBytes(UTF_8);
-    private static final byte[] PARTITIONER = "Partioner".getBytes(UTF_8);
+    private static final ByteBuffer LOCATION_KEY = ByteBuffer.wrap("L".getBytes(UTF_8));
+    private static final ByteBuffer RING_KEY = ByteBuffer.wrap("Ring".getBytes(UTF_8));
+    private static final ByteBuffer BOOTSTRAP_KEY = ByteBuffer.wrap("Bootstrap".getBytes(UTF_8));
+    private static final ByteBuffer COOKIE_KEY = ByteBuffer.wrap("Cookies".getBytes(UTF_8));
+    private static final ByteBuffer BOOTSTRAP = ByteBuffer.wrap("B".getBytes(UTF_8));
+    private static final ByteBuffer TOKEN = ByteBuffer.wrap("Token".getBytes(UTF_8));
+    private static final ByteBuffer GENERATION = ByteBuffer.wrap("Generation".getBytes(UTF_8));
+    private static final ByteBuffer CLUSTERNAME = ByteBuffer.wrap("ClusterName".getBytes(UTF_8));
+    private static final ByteBuffer PARTITIONER = ByteBuffer.wrap("Partioner".getBytes(UTF_8));
 
-    private static DecoratedKey decorate(byte[] key)
+    private static DecoratedKey decorate(ByteBuffer key)
     {
         return StorageService.getPartitioner().decorateKey(key);
     }
@@ -69,7 +69,7 @@ public class SystemTable
     public static void purgeIncompatibleHints() throws IOException
     {
         // 0.6->0.7
-        final byte[] hintsPurged6to7 = "Hints purged as part of upgrading from 0.6.x to 0.7".getBytes();
+        final ByteBuffer hintsPurged6to7 = ByteBuffer.wrap("Hints purged as part of upgrading from 0.6.x to 0.7".getBytes());
         Table table = Table.open(Table.SYSTEM_TABLE);
         QueryFilter dotSeven = QueryFilter.getNamesFilter(decorate(COOKIE_KEY), new QueryPath(STATUS_CF), hintsPurged6to7);
         ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(dotSeven);
@@ -79,7 +79,7 @@ public class SystemTable
             logger.info("Upgrading to 0.7. Purging hints if there are any. Old hints will be snapshotted.");
             new Truncation(Table.SYSTEM_TABLE, HintedHandOffManager.HINTS_CF).apply();
             RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, COOKIE_KEY);
-            rm.add(new QueryPath(STATUS_CF, null, hintsPurged6to7), "oh yes, it they were purged.".getBytes(), System.currentTimeMillis());
+            rm.add(new QueryPath(STATUS_CF, null, hintsPurged6to7), ByteBuffer.wrap("oh yes, it they were purged.".getBytes()), System.currentTimeMillis());
             rm.apply();
         }
     }
@@ -91,7 +91,7 @@ public class SystemTable
     {
         IPartitioner p = StorageService.getPartitioner();
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
-        cf.addColumn(new Column(p.getTokenFactory().toByteArray(token), ep.getAddress(), System.currentTimeMillis()));
+        cf.addColumn(new Column(p.getTokenFactory().toByteArray(token), ByteBuffer.wrap(ep.getAddress()), System.currentTimeMillis()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, RING_KEY);
         rm.add(cf);
         try
@@ -177,7 +177,10 @@ public class SystemTable
             {
                 try
                 {
-                    tokenMap.put(p.getTokenFactory().fromByteArray(column.name()), InetAddress.getByAddress(column.value()));
+                    byte[] addr = new byte[column.value().remaining()];
+                    System.arraycopy(column.value().array(), column.value().position()+column.value().arrayOffset(), addr, 0, column.value().remaining());
+                    
+                    tokenMap.put(p.getTokenFactory().fromByteArray(column.name()), InetAddress.getByAddress(addr));
                 }
                 catch (UnknownHostException e)
                 {
@@ -210,7 +213,7 @@ public class SystemTable
             throw ex;
         }
         
-        SortedSet<byte[]> cols = new TreeSet<byte[]>(BytesType.instance);
+        SortedSet<ByteBuffer> cols = new TreeSet<ByteBuffer>(BytesType.instance);
         cols.add(PARTITIONER);
         cols.add(CLUSTERNAME);
         QueryFilter filter = QueryFilter.getNamesFilter(decorate(LOCATION_KEY), new QueryPath(STATUS_CF), cols);
@@ -235,8 +238,8 @@ public class SystemTable
             // no system files.  this is a new node.
             RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
             cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.STATUS_CF);
-            cf.addColumn(new Column(PARTITIONER, DatabaseDescriptor.getPartitioner().getClass().getName().getBytes(UTF_8), FBUtilities.timestampMicros()));
-            cf.addColumn(new Column(CLUSTERNAME, DatabaseDescriptor.getClusterName().getBytes(), FBUtilities.timestampMicros()));
+            cf.addColumn(new Column(PARTITIONER, ByteBuffer.wrap(DatabaseDescriptor.getPartitioner().getClass().getName().getBytes(UTF_8)), FBUtilities.timestampMicros()));
+            cf.addColumn(new Column(CLUSTERNAME, ByteBuffer.wrap(DatabaseDescriptor.getClusterName().getBytes()), FBUtilities.timestampMicros()));
             rm.add(cf);
             rm.apply();
 
@@ -248,10 +251,13 @@ public class SystemTable
         IColumn clusterCol = cf.getColumn(CLUSTERNAME);
         assert partitionerCol != null;
         assert clusterCol != null;
-        if (!DatabaseDescriptor.getPartitioner().getClass().getName().equals(new String(partitionerCol.value(), UTF_8)))
+        if (!DatabaseDescriptor.getPartitioner().getClass().getName().equals(
+                new String(partitionerCol.value().array(), 
+                           partitionerCol.value().position()+partitionerCol.value().arrayOffset(),
+                           partitionerCol.value().remaining(), UTF_8)))
             throw new ConfigurationException("Detected partitioner mismatch! Did you change the partitioner?");
-        if (!DatabaseDescriptor.getClusterName().equals(new String(clusterCol.value())))
-            throw new ConfigurationException("Saved cluster name " + new String(clusterCol.value()) + " != configured name " + DatabaseDescriptor.getClusterName());
+        if (!DatabaseDescriptor.getClusterName().equals(new String(clusterCol.value().array(),clusterCol.value().position()+clusterCol.value().arrayOffset(),clusterCol.value().remaining())))
+            throw new ConfigurationException("Saved cluster name " + new String(clusterCol.value().array(),clusterCol.value().position()+clusterCol.value().arrayOffset(),clusterCol.value().remaining()) + " != configured name " + DatabaseDescriptor.getClusterName());
     }
 
     public static Token getSavedToken()
@@ -299,13 +305,16 @@ public class SystemTable
                                                         new QueryPath(STATUS_CF),
                                                         BOOTSTRAP);
         ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
-        return cf != null && cf.getColumn(BOOTSTRAP).value()[0] == 1;
+        IColumn c = cf.getColumn(BOOTSTRAP);
+        return cf != null && c.value().array()[c.value().position()+c.value().arrayOffset()] == 1;
     }
 
     public static void setBootstrapped(boolean isBootstrapped)
     {
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
-        cf.addColumn(new Column(BOOTSTRAP, new byte[] { (byte) (isBootstrapped ? 1 : 0) }, System.currentTimeMillis()));
+        cf.addColumn(new Column(BOOTSTRAP, 
+                                ByteBuffer.wrap(new byte[] { (byte) (isBootstrapped ? 1 : 0) }), 
+                                System.currentTimeMillis()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, BOOTSTRAP_KEY);
         rm.add(cf);
         try
@@ -321,17 +330,17 @@ public class SystemTable
     public static boolean isIndexBuilt(String table, String indexName)
     {
         ColumnFamilyStore cfs = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(INDEX_CF);
-        QueryFilter filter = QueryFilter.getNamesFilter(decorate(table.getBytes(UTF_8)),
+        QueryFilter filter = QueryFilter.getNamesFilter(decorate(ByteBuffer.wrap(table.getBytes(UTF_8))),
                                                         new QueryPath(INDEX_CF),
-                                                        indexName.getBytes(UTF_8));
+                                                        ByteBuffer.wrap(indexName.getBytes(UTF_8)));
         return cfs.getColumnFamily(filter) != null;
     }
 
     public static void setIndexBuilt(String table, String indexName)
     {
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, INDEX_CF);
-        cf.addColumn(new Column(indexName.getBytes(UTF_8), ArrayUtils.EMPTY_BYTE_ARRAY, System.currentTimeMillis()));
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, table.getBytes(UTF_8));
+        cf.addColumn(new Column(ByteBuffer.wrap(indexName.getBytes(UTF_8)), FBUtilities.EMPTY_BYTE_BUFFER, System.currentTimeMillis()));
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, ByteBuffer.wrap(table.getBytes(UTF_8)));
         rm.add(cf);
         try
         {
@@ -347,8 +356,8 @@ public class SystemTable
 
     public static void setIndexRemoved(String table, String indexName)
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, table.getBytes(UTF_8));
-        rm.delete(new QueryPath(INDEX_CF, null, indexName.getBytes(UTF_8)), System.currentTimeMillis());
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, ByteBuffer.wrap(table.getBytes(UTF_8)));
+        rm.delete(new QueryPath(INDEX_CF, null, ByteBuffer.wrap(indexName.getBytes(UTF_8))), System.currentTimeMillis());
         try
         {
             rm.apply();

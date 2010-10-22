@@ -21,6 +21,7 @@ package org.apache.cassandra.tools;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.commons.cli.*;
@@ -201,7 +202,7 @@ public class SSTableExport
         {
             if (excludeSet.contains(key))
                 continue;
-            DecoratedKey<?> dk = partitioner.decorateKey(hexToBytes(key));
+            DecoratedKey<?> dk = partitioner.decorateKey(ByteBuffer.wrap(hexToBytes(key)));
             scanner.seekTo(dk);
             
             i++;

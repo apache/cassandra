@@ -19,11 +19,17 @@
 package org.apache.cassandra.dht;
 
 import java.io.Serializable;
-import java.util.*;
-
-import org.apache.commons.lang.ObjectUtils;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.commons.lang.ObjectUtils;
 
 /**
  * A representation of the range that a node is responsible for on the DHT ring.
@@ -65,7 +71,7 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
             /*
              * This is the range (a, b] where a < b. 
              */
-            return (bi.compareTo(left) > 0 && right.compareTo(bi) >= 0);
+            return ( compare(bi,left) > 0 && compare(right,bi) >= 0);
         }
     }
 
@@ -81,13 +87,13 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
         boolean thatwraps = isWrapAround(that.left, that.right);
         if (thiswraps == thatwraps)
         {
-            return left.compareTo(that.left) <= 0 && that.right.compareTo(right) <= 0;
+            return compare(left,that.left) <= 0 && compare(that.right,right) <= 0;
         }
         else if (thiswraps)
         {
             // wrapping might contain non-wrapping
             // that is contained if both its tokens are in one of our wrap segments
-            return left.compareTo(that.left) <= 0 || that.right.compareTo(right) <= 0;
+            return compare(left,that.left) <= 0 || compare(that.right,right) <= 0;
         }
         else
         {
@@ -207,7 +213,44 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
      */
     public static boolean isWrapAround(Token left, Token right)
     {
-        return left.compareTo(right) >= 0;
+       return compare(left,right) >= 0;           
+    }
+    
+    public static int compare(Token left, Token right){
+        byte[] l,r;
+        int lo,ll,ro,rl;
+        
+        if(left.token instanceof byte[])
+        {
+            l  = (byte[]) left.token;
+            lo = 0;
+            ll = l.length;
+        }
+        else if(left.token instanceof ByteBuffer)
+        {
+            l  = ((ByteBuffer)left.token).array();
+            lo = ((ByteBuffer)left.token).position()+((ByteBuffer)left.token).arrayOffset();
+            ll = ((ByteBuffer)left.token).limit();
+        }else{
+            //Handles other token types
+            return left.compareTo(right);
+        }
+            
+        if(right.token instanceof byte[])
+        {
+            r  = (byte[]) right.token;
+            ro = 0;
+            rl = r.length;
+        }
+        else
+        {
+            r  = ((ByteBuffer)right.token).array();
+            ro = ((ByteBuffer)right.token).position()+((ByteBuffer)right.token).arrayOffset();
+            rl = ((ByteBuffer)right.token).limit();
+        }
+       
+            
+        return FBUtilities.compareByteArrays(l, r, lo, ro, ll, rl);
     }
     
     public int compareTo(Range rhs)
@@ -222,7 +265,7 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
         if ( isWrapAround(rhs.left, rhs.right) )
             return 1;
         
-        return right.compareTo(rhs.right);
+        return compare(right,rhs.right);
     }
     
 
@@ -246,7 +289,7 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
         if (!(o instanceof Range))
             return false;
         Range rhs = (Range)o;
-        return left.equals(rhs.left) && right.equals(rhs.right);
+        return compare(left,rhs.left) == 0 && compare(right,rhs.right) == 0;
     }
     
     public String toString()

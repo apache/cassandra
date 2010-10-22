@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,7 +56,7 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
   private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)3);
 
   public List<IndexExpression> expressions;
-  public byte[] start_key;
+  public ByteBuffer start_key;
   public int count;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
@@ -147,7 +148,7 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
 
   public IndexClause(
     List<IndexExpression> expressions,
-    byte[] start_key,
+    ByteBuffer start_key,
     int count)
   {
     this();
@@ -171,8 +172,8 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
       this.expressions = __this__expressions;
     }
     if (other.isSetStart_key()) {
-      this.start_key = new byte[other.start_key.length];
-      System.arraycopy(other.start_key, 0, start_key, 0, other.start_key.length);
+      this.start_key = TBaseHelper.copyBinary(other.start_key);
+;
     }
     this.count = other.count;
   }
@@ -181,9 +182,12 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
     return new IndexClause(this);
   }
 
-  @Deprecated
-  public IndexClause clone() {
-    return new IndexClause(this);
+  @Override
+  public void clear() {
+    this.expressions = null;
+    this.start_key = null;
+    this.count = 100;
+
   }
 
   public int getExpressionsSize() {
@@ -226,10 +230,20 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
   }
 
   public byte[] getStart_key() {
-    return this.start_key;
+    setStart_key(TBaseHelper.rightSize(start_key));
+    return start_key.array();
+  }
+
+  public ByteBuffer BufferForStart_key() {
+    return start_key;
   }
 
   public IndexClause setStart_key(byte[] start_key) {
+    setStart_key(ByteBuffer.wrap(start_key));
+    return this;
+  }
+
+  public IndexClause setStart_key(ByteBuffer start_key) {
     this.start_key = start_key;
     return this;
   }
@@ -286,7 +300,7 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
       if (value == null) {
         unsetStart_key();
       } else {
-        setStart_key((byte[])value);
+        setStart_key((ByteBuffer)value);
       }
       break;
 
@@ -299,10 +313,6 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
       break;
 
     }
-  }
-
-  public void setFieldValue(int fieldID, Object value) {
-    setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
   }
 
   public Object getFieldValue(_Fields field) {
@@ -320,12 +330,12 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
     throw new IllegalStateException();
   }
 
-  public Object getFieldValue(int fieldId) {
-    return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-  }
-
   /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
+    if (field == null) {
+      throw new IllegalArgumentException();
+    }
+
     switch (field) {
     case EXPRESSIONS:
       return isSetExpressions();
@@ -335,10 +345,6 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
       return isSetCount();
     }
     throw new IllegalStateException();
-  }
-
-  public boolean isSet(int fieldID) {
-    return isSet(_Fields.findByThriftIdOrThrow(fieldID));
   }
 
   @Override
@@ -368,7 +374,7 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
     if (this_present_start_key || that_present_start_key) {
       if (!(this_present_start_key && that_present_start_key))
         return false;
-      if (!java.util.Arrays.equals(this.start_key, that.start_key))
+      if (!this.start_key.equals(that.start_key))
         return false;
     }
 
@@ -418,7 +424,8 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetExpressions()) {      lastComparison = TBaseHelper.compareTo(this.expressions, typedOther.expressions);
+    if (isSetExpressions()) {
+      lastComparison = TBaseHelper.compareTo(this.expressions, typedOther.expressions);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -427,7 +434,8 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetStart_key()) {      lastComparison = TBaseHelper.compareTo(this.start_key, typedOther.start_key);
+    if (isSetStart_key()) {
+      lastComparison = TBaseHelper.compareTo(this.start_key, typedOther.start_key);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -436,12 +444,17 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetCount()) {      lastComparison = TBaseHelper.compareTo(this.count, typedOther.count);
+    if (isSetCount()) {
+      lastComparison = TBaseHelper.compareTo(this.count, typedOther.count);
       if (lastComparison != 0) {
         return lastComparison;
       }
     }
     return 0;
+  }
+
+  public _Fields fieldForId(int fieldId) {
+    return _Fields.findByThriftId(fieldId);
   }
 
   public void read(TProtocol iprot) throws TException {
@@ -546,12 +559,7 @@ public class IndexClause implements TBase<IndexClause, IndexClause._Fields>, jav
     if (this.start_key == null) {
       sb.append("null");
     } else {
-        int __start_key_size = Math.min(this.start_key.length, 128);
-        for (int i = 0; i < __start_key_size; i++) {
-          if (i != 0) sb.append(" ");
-          sb.append(Integer.toHexString(this.start_key[i]).length() > 1 ? Integer.toHexString(this.start_key[i]).substring(Integer.toHexString(this.start_key[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.start_key[i]).toUpperCase());
-        }
-        if (this.start_key.length > 128) sb.append(" ...");
+      TBaseHelper.toString(this.start_key, sb);
     }
     first = false;
     if (!first) sb.append(", ");

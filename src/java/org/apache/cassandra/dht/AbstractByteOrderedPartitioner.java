@@ -19,17 +19,14 @@
 package org.apache.cassandra.dht;
 
 import java.math.BigInteger;
-import java.text.Collator;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Locale;
 import java.util.Random;
-
-import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.commons.lang.ArrayUtils;
 
 public abstract class AbstractByteOrderedPartitioner implements IPartitioner<BytesToken>
 {
@@ -37,21 +34,45 @@ public abstract class AbstractByteOrderedPartitioner implements IPartitioner<Byt
     
     public static final BigInteger BYTE_MASK = new BigInteger("255");
 
-    public DecoratedKey<BytesToken> decorateKey(byte[] key)
+    public DecoratedKey<BytesToken> decorateKey(ByteBuffer key)
     {
         return new DecoratedKey<BytesToken>(getToken(key), key);
     }
     
-    public DecoratedKey<BytesToken> convertFromDiskFormat(byte[] key)
+    public DecoratedKey<BytesToken> convertFromDiskFormat(ByteBuffer key)
     {
         return new DecoratedKey<BytesToken>(getToken(key), key);
     }
 
-    public BytesToken midpoint(BytesToken ltoken, BytesToken rtoken)
+    public BytesToken midpoint(Token ltoken, Token rtoken)
     {
-        int sigbytes = Math.max(ltoken.token.length, rtoken.token.length);
-        BigInteger left = bigForBytes(ltoken.token, sigbytes);
-        BigInteger right = bigForBytes(rtoken.token, sigbytes);
+        int ll,rl;
+        ByteBuffer lb,rb;
+        
+        if(ltoken.token instanceof byte[])
+        {
+            ll = ((byte[])ltoken.token).length;
+            lb = ByteBuffer.wrap(((byte[])ltoken.token));
+        }
+        else
+        {
+            ll = ((ByteBuffer)ltoken.token).remaining();
+            lb = (ByteBuffer)ltoken.token;
+        }
+        
+        if(rtoken.token instanceof byte[])
+        {
+            rl = ((byte[])rtoken.token).length;
+            rb = ByteBuffer.wrap(((byte[])rtoken.token));
+        }
+        else
+        {
+            rl = ((ByteBuffer)rtoken.token).remaining();
+            rb = (ByteBuffer)rtoken.token;
+        }
+        int sigbytes = Math.max(ll, rl);
+        BigInteger left = bigForBytes(lb, sigbytes);
+        BigInteger right = bigForBytes(rb, sigbytes);
 
         Pair<BigInteger,Boolean> midpair = FBUtilities.midpoint(left, right, 8*sigbytes);
         return new BytesToken(bytesForBig(midpair.left, sigbytes, midpair.right));
@@ -61,14 +82,23 @@ public abstract class AbstractByteOrderedPartitioner implements IPartitioner<Byt
      * Convert a byte array containing the most significant of 'sigbytes' bytes
      * representing a big-endian magnitude into a BigInteger.
      */
-    private BigInteger bigForBytes(byte[] bytes, int sigbytes)
+    private BigInteger bigForBytes(ByteBuffer bytes, int sigbytes)
     {
-        if (bytes.length != sigbytes)
+        byte[] b = new byte[sigbytes];
+        
+        // append zeros
+        Arrays.fill(b, (byte) 0);
+        
+        if (bytes.remaining() != sigbytes)
+        {                     
+            System.arraycopy(bytes.array(), bytes.position()+bytes.arrayOffset(), b, 0, bytes.remaining());
+        } 
+        else
         {
-            // append zeros
-            bytes = Arrays.copyOf(bytes, sigbytes);
+            System.arraycopy(bytes.array(), bytes.position()+bytes.arrayOffset(), b, 0, sigbytes);
         }
-        return new BigInteger(1, bytes);
+        
+        return new BigInteger(1, b);
     }
 
     /**
@@ -108,19 +138,19 @@ public abstract class AbstractByteOrderedPartitioner implements IPartitioner<Byt
     }
 
     private final Token.TokenFactory<byte[]> tokenFactory = new Token.TokenFactory<byte[]>() {
-        public byte[] toByteArray(Token<byte[]> bytesToken)
+        public ByteBuffer toByteArray(Token<byte[]> bytesToken)
         {
-            return bytesToken.token;
+            return ByteBuffer.wrap(bytesToken.token);
         }
 
-        public Token<byte[]> fromByteArray(byte[] bytes)
+        public Token<byte[]> fromByteArray(ByteBuffer bytes)
         {
             return new BytesToken(bytes);
         }
 
         public String toString(Token<byte[]> bytesToken)
         {
-            return FBUtilities.bytesToHex(bytesToken.token);
+            return FBUtilities.bytesToHex(ByteBuffer.wrap(bytesToken.token));
         }
 
         public Token<byte[]> fromString(String string)
@@ -139,5 +169,5 @@ public abstract class AbstractByteOrderedPartitioner implements IPartitioner<Byt
         return true;
     }
 
-    public abstract BytesToken getToken(byte[] key);
+    public abstract BytesToken getToken(ByteBuffer key);
 }

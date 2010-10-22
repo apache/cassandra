@@ -18,22 +18,22 @@
 
 package org.apache.cassandra.db;
 
-import java.io.*;
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.concurrent.ConcurrentSkipListMap;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.security.MessageDigest;
+import java.util.Collection;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.FBUtilities;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 public class SuperColumn implements IColumn, IColumnContainer
@@ -45,20 +45,20 @@ public class SuperColumn implements IColumn, IColumnContainer
         return new SuperColumnSerializer(comparator);
     }
 
-    private byte[] name_;
-    private ConcurrentSkipListMap<byte[], IColumn> columns_;
+    private ByteBuffer name_;
+    private ConcurrentSkipListMap<ByteBuffer, IColumn> columns_;
     private AtomicInteger localDeletionTime = new AtomicInteger(Integer.MIN_VALUE);
     private AtomicLong markedForDeleteAt = new AtomicLong(Long.MIN_VALUE);
 
-    public SuperColumn(byte[] name, AbstractType comparator)
+    public SuperColumn(ByteBuffer name, AbstractType comparator)
     {
-        this(name, new ConcurrentSkipListMap<byte[], IColumn>(comparator));
+        this(name, new ConcurrentSkipListMap<ByteBuffer, IColumn>(comparator));
     }
 
-    private SuperColumn(byte[] name, ConcurrentSkipListMap<byte[], IColumn> columns)
+    private SuperColumn(ByteBuffer name, ConcurrentSkipListMap<ByteBuffer, IColumn> columns)
     {
         assert name != null;
-        assert name.length <= IColumn.MAX_NAME_LENGTH;
+        assert name.remaining() <= IColumn.MAX_NAME_LENGTH;
         name_ = name;
         columns_ = columns;
     }
@@ -77,7 +77,7 @@ public class SuperColumn implements IColumn, IColumnContainer
 
     public IColumn cloneMe()
     {
-        SuperColumn sc = new SuperColumn(name_, new ConcurrentSkipListMap<byte[], IColumn>(columns_));
+        SuperColumn sc = new SuperColumn(name_, new ConcurrentSkipListMap<ByteBuffer, IColumn>(columns_));
         sc.markForDeleteAt(localDeletionTime.get(), markedForDeleteAt.get());
         return sc;
     }
@@ -87,7 +87,7 @@ public class SuperColumn implements IColumn, IColumnContainer
         return markedForDeleteAt.get() > Long.MIN_VALUE;
 	}
 
-    public byte[] name()
+    public ByteBuffer name()
     {
     	return name_;
     }
@@ -97,7 +97,7 @@ public class SuperColumn implements IColumn, IColumnContainer
     	return columns_.values();
     }
 
-    public IColumn getSubColumn(byte[] columnName)
+    public IColumn getSubColumn(ByteBuffer columnName)
     {
         IColumn column = columns_.get(columnName);
         assert column == null || column instanceof Column;
@@ -127,10 +127,10 @@ public class SuperColumn implements IColumn, IColumnContainer
     	 * We need to keep the way we are calculating the column size in sync with the
     	 * way we are calculating the size for the column family serializer.
     	 */
-      return DBConstants.shortSize_ + name_.length + DBConstants.intSize_ + DBConstants.longSize_ + DBConstants.intSize_ + size();
+      return DBConstants.shortSize_ + name_.remaining() + DBConstants.intSize_ + DBConstants.longSize_ + DBConstants.intSize_ + size();
     }
 
-    public void remove(byte[] columnName)
+    public void remove(ByteBuffer columnName)
     {
     	columns_.remove(columnName);
     }
@@ -153,7 +153,7 @@ public class SuperColumn implements IColumn, IColumnContainer
         return max;
     }
 
-    public byte[] value()
+    public ByteBuffer value()
     {
     	throw new UnsupportedOperationException("This operation is not supported for Super Columns.");
     }
@@ -162,7 +162,7 @@ public class SuperColumn implements IColumn, IColumnContainer
     {
         assert column instanceof Column : "A super column can only contain simple columns";
 
-        byte[] name = column.name();
+        ByteBuffer name = column.name();
         IColumn oldColumn = columns_.putIfAbsent(name, column);
         if (oldColumn != null)
         {
@@ -236,7 +236,7 @@ public class SuperColumn implements IColumn, IColumnContainer
     public void updateDigest(MessageDigest digest)
     {
         assert name_ != null;
-        digest.update(name_);
+        digest.update(name_.array(),name_.position()+name_.arrayOffset(),name_.remaining());
         DataOutputBuffer buffer = new DataOutputBuffer();
         try
         {
@@ -326,7 +326,7 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
 
     public IColumn deserialize(DataInput dis) throws IOException
     {
-        byte[] name = FBUtilities.readShortByteArray(dis);
+        ByteBuffer name = FBUtilities.readShortByteArray(dis);
         SuperColumn superColumn = new SuperColumn(name, comparator);
         int localDeleteTime = dis.readInt();
         if (localDeleteTime != Integer.MIN_VALUE && localDeleteTime <= 0)

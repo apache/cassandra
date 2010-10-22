@@ -24,6 +24,7 @@ package org.apache.cassandra.io.sstable;
 import static org.junit.Assert.*;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -53,25 +54,25 @@ public class SSTableWriterTest extends CleanupHelper {
     {
         RowMutation rm;
 
-        rm = new RowMutation("Keyspace1", "k1".getBytes());
-        rm.add(new QueryPath("Indexed1", null, "birthdate".getBytes("UTF8")), FBUtilities.toByteArray(1L), 0);
+        rm = new RowMutation("Keyspace1", ByteBuffer.wrap("k1".getBytes()));
+        rm.add(new QueryPath("Indexed1", null, ByteBuffer.wrap("birthdate".getBytes("UTF8"))), FBUtilities.toByteArray(1L), 0);
         rm.apply();
         
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Indexed1");        
-        cf.addColumn(new Column("birthdate".getBytes(), FBUtilities.toByteArray(1L), 0));
-        cf.addColumn(new Column("anydate".getBytes(), FBUtilities.toByteArray(1L), 0));
+        cf.addColumn(new Column(ByteBuffer.wrap("birthdate".getBytes()), FBUtilities.toByteArray(1L), 0));
+        cf.addColumn(new Column(ByteBuffer.wrap("anydate".getBytes()), FBUtilities.toByteArray(1L), 0));
         
-        Map<byte[], byte[]> entries = new HashMap<byte[], byte[]>();
+        Map<ByteBuffer, ByteBuffer> entries = new HashMap<ByteBuffer, ByteBuffer>();
         
         DataOutputBuffer buffer = new DataOutputBuffer();
         ColumnFamily.serializer().serializeWithIndexes(cf, buffer);
-        entries.put("k2".getBytes(), Arrays.copyOf(buffer.getData(), buffer.getLength()));        
+        entries.put(ByteBuffer.wrap("k2".getBytes()), ByteBuffer.wrap(Arrays.copyOf(buffer.getData(), buffer.getLength())));        
         cf.clear();
         
-        cf.addColumn(new Column("anydate".getBytes(), FBUtilities.toByteArray(1L), 0));
+        cf.addColumn(new Column(ByteBuffer.wrap("anydate".getBytes()), FBUtilities.toByteArray(1L), 0));
         buffer = new DataOutputBuffer();
         ColumnFamily.serializer().serializeWithIndexes(cf, buffer);               
-        entries.put("k3".getBytes(), Arrays.copyOf(buffer.getData(), buffer.getLength()));
+        entries.put(ByteBuffer.wrap("k3".getBytes()), ByteBuffer.wrap(Arrays.copyOf(buffer.getData(), buffer.getLength())));
         
         SSTableReader orig = SSTableUtils.writeRawSSTable("Keyspace1", "Indexed1", entries);        
         // whack the index to trigger the recover
@@ -83,14 +84,14 @@ public class SSTableWriterTest extends CleanupHelper {
         cfs.addSSTable(sstr);
         cfs.buildSecondaryIndexes(cfs.getSSTables(), cfs.getIndexedColumns());
         
-        IndexExpression expr = new IndexExpression("birthdate".getBytes("UTF8"), IndexOperator.EQ, FBUtilities.toByteArray(1L));
-        IndexClause clause = new IndexClause(Arrays.asList(expr), "".getBytes(), 100);
+        IndexExpression expr = new IndexExpression(ByteBuffer.wrap("birthdate".getBytes("UTF8")), IndexOperator.EQ, FBUtilities.toByteArray(1L));
+        IndexClause clause = new IndexClause(Arrays.asList(expr), FBUtilities.EMPTY_BYTE_BUFFER, 100);
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
         List<Row> rows = cfs.scan(clause, range, filter);
         
         assertEquals("IndexExpression should return two rows on recoverAndOpen", 2, rows.size());
-        assertTrue("First result should be 'k1'",Arrays.equals("k1".getBytes(), rows.get(0).key.key));
+        assertTrue("First result should be 'k1'",ByteBuffer.wrap("k1".getBytes()).equals(rows.get(0).key.key));
     }
 }

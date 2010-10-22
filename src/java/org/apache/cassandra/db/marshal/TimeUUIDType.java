@@ -21,7 +21,9 @@ package org.apache.cassandra.db.marshal;
  */
 
 
+import java.nio.ByteBuffer;
 import java.util.UUID;
+
 import org.apache.cassandra.utils.FBUtilities;
 
 public class TimeUUIDType extends AbstractType
@@ -30,48 +32,51 @@ public class TimeUUIDType extends AbstractType
 
     TimeUUIDType() {} // singleton
 
-    public int compare(byte[] o1, byte[] o2)
+    public int compare(ByteBuffer o1, ByteBuffer o2)
     {
-        if (o1.length == 0)
+        if (o1.remaining() == 0)
         {
-            return o2.length == 0 ? 0 : -1;
+            return o2.remaining() == 0 ? 0 : -1;
         }
-        if (o2.length == 0)
+        if (o2.remaining() == 0)
         {
             return 1;
         }
         int res = compareTimestampBytes(o1, o2);
         if (res != 0)
             return res;
-        return FBUtilities.compareByteArrays(o1, o2);
+        return o1.compareTo(o2);
     }
 
-    private static int compareTimestampBytes(byte[] o1, byte[] o2)
+    private static int compareTimestampBytes(ByteBuffer o1, ByteBuffer o2)
     {
-        int d = (o1[6] & 0xF) - (o2[6] & 0xF);
+        int o1Pos = o1.position()+o1.arrayOffset();
+        int o2Pos = o2.position()+o2.arrayOffset();
+        
+        int d = (o1.array()[o1Pos+6] & 0xF) - (o2.array()[o2Pos+6] & 0xF);
         if (d != 0) return d;
-        d = (o1[7] & 0xFF) - (o2[7] & 0xFF);
+        d = (o1.array()[o1Pos+7] & 0xFF) - (o2.array()[o2Pos+7] & 0xFF);
         if (d != 0) return d;
-        d = (o1[4] & 0xFF) - (o2[4] & 0xFF);
+        d = (o1.array()[o1Pos+4] & 0xFF) - (o2.array()[o2Pos+4] & 0xFF);
         if (d != 0) return d;
-        d = (o1[5] & 0xFF) - (o2[5] & 0xFF);
+        d = (o1.array()[o1Pos+5] & 0xFF) - (o2.array()[o2Pos+5] & 0xFF);
         if (d != 0) return d;
-        d = (o1[0] & 0xFF) - (o2[0] & 0xFF);
+        d = (o1.array()[o1Pos+0] & 0xFF) - (o2.array()[o2Pos+0] & 0xFF);
         if (d != 0) return d;
-        d = (o1[1] & 0xFF) - (o2[1] & 0xFF);
+        d = (o1.array()[o1Pos+1] & 0xFF) - (o2.array()[o2Pos+1] & 0xFF);
         if (d != 0) return d;
-        d = (o1[2] & 0xFF) - (o2[2] & 0xFF);
+        d = (o1.array()[o1Pos+2] & 0xFF) - (o2.array()[o2Pos+2] & 0xFF);
         if (d != 0) return d;
-        return (o1[3] & 0xFF) - (o2[3] & 0xFF);
+        return (o1.array()[o1Pos+3] & 0xFF) - (o2.array()[o2Pos+3] & 0xFF);
     }
 
-    public String getString(byte[] bytes)
+    public String getString(ByteBuffer bytes)
     {
-        if (bytes.length == 0)
+        if (bytes.remaining() == 0)
         {
             return "";
         }
-        if (bytes.length != 16)
+        if (bytes.remaining() != 16)
         {
             throw new MarshalException("UUIDs must be exactly 16 bytes");
         }

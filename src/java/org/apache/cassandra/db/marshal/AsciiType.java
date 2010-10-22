@@ -22,6 +22,7 @@ package org.apache.cassandra.db.marshal;
 
 
 import java.io.UnsupportedEncodingException;
+import java.nio.ByteBuffer;
 
 public class AsciiType extends BytesType
 {
@@ -30,11 +31,11 @@ public class AsciiType extends BytesType
     AsciiType() {} // singleton
 
     @Override
-    public String getString(byte[] bytes)
+    public String getString(ByteBuffer bytes)
     {
         try
         {
-            return new String(bytes, "US-ASCII");
+            return new String(bytes.array(),bytes.position()+bytes.arrayOffset(),bytes.remaining(), "US-ASCII");
         }
         catch (UnsupportedEncodingException e)
         {

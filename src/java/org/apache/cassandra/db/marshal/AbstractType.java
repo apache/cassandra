@@ -21,41 +21,42 @@ package org.apache.cassandra.db.marshal;
  */
 
 
-import java.util.Comparator;
+import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.Comparator;
 
 import org.apache.cassandra.db.IColumn;
 
 /**
- * Specifies a Comparator for a specific type of byte[].
+ * Specifies a Comparator for a specific type of ByteBuffer.
  *
- * Note that empty byte[] are used to represent "start at the beginning"
+ * Note that empty ByteBuffer are used to represent "start at the beginning"
  * or "stop at the end" arguments to get_slice, so the Comparator
  * should always handle those values even if they normally do not
- * represent a valid byte[] for the type being compared.
+ * represent a valid ByteBuffer for the type being compared.
  */
-public abstract class AbstractType implements Comparator<byte[]>
+public abstract class AbstractType implements Comparator<ByteBuffer>
 {
     /** get a string representation of the bytes suitable for log messages */
-    public abstract String getString(byte[] bytes);
+    public abstract String getString(ByteBuffer bytes);
 
     /** validate that the byte array is a valid sequence for the type we are supposed to be comparing */
-    public void validate(byte[] bytes)
+    public void validate(ByteBuffer bytes)
     {
         getString(bytes);
     }
 
-    public Comparator<byte[]> getReverseComparator()
+    public Comparator<ByteBuffer> getReverseComparator()
     {
-        return new Comparator<byte[]>()
+        return new Comparator<ByteBuffer>()
         {
-            public int compare(byte[] o1, byte[] o2)
+            public int compare(ByteBuffer o1, ByteBuffer o2)
             {
-                if (o1.length == 0)
+                if (o1.remaining() == 0)
                 {
-                    return o2.length == 0 ? 0 : -1;
+                    return o2.remaining() == 0 ? 0 : -1;
                 }
-                if (o2.length == 0)
+                if (o2.remaining() == 0)
                 {
                     return 1;
                 }
@@ -66,10 +67,10 @@ public abstract class AbstractType implements Comparator<byte[]>
     }
 
     /** convenience method */
-    public String getString(Collection<byte[]> names)
+    public String getString(Collection<ByteBuffer> names)
     {
         StringBuilder builder = new StringBuilder();
-        for (byte[] name : names)
+        for (ByteBuffer name : names)
         {
             builder.append(getString(name)).append(",");
         }

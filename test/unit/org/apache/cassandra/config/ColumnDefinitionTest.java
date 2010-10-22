@@ -21,6 +21,8 @@ package org.apache.cassandra.config;
  */
 
 
+import java.nio.ByteBuffer;
+
 import org.junit.Test;
 
 import org.apache.cassandra.thrift.IndexType;
@@ -30,12 +32,12 @@ public class ColumnDefinitionTest
     @Test
     public void testSerializeDeserialize() throws Exception
     {
-        ColumnDefinition cd0 = new ColumnDefinition("TestColumnDefinitionName0".getBytes("UTF8"),
+        ColumnDefinition cd0 = new ColumnDefinition(ByteBuffer.wrap("TestColumnDefinitionName0".getBytes("UTF8")),
                                                     "BytesType",
                                                     IndexType.KEYS,
                                                     "random index name 0");
 
-        ColumnDefinition cd1 = new ColumnDefinition("TestColumnDefinition1".getBytes("UTF8"),
+        ColumnDefinition cd1 = new ColumnDefinition(ByteBuffer.wrap("TestColumnDefinition1".getBytes("UTF8")),
                                                     "LongType",
                                                     null,
                                                     null);

@@ -18,14 +18,23 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.*;
-import java.util.*;
+import java.io.ByteArrayInputStream;
+import java.io.DataInput;
+import java.io.DataInputStream;
+import java.io.DataOutput;
+import java.io.EOFException;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.utils.BloomFilter;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
+import org.apache.cassandra.utils.BloomFilter;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Provides helper to serialize, deserialize and use column indexes.
@@ -102,9 +111,9 @@ public class IndexHelper
      * the index of the IndexInfo in which @name will be found.
      * If the index is @indexList.size(), the @name appears nowhere.
      */
-    public static int indexFor(byte[] name, List<IndexInfo> indexList, AbstractType comparator, boolean reversed)
+    public static int indexFor(ByteBuffer name, List<IndexInfo> indexList, AbstractType comparator, boolean reversed)
     {
-        if (name.length == 0 && reversed)
+        if (name.remaining() == 0 && reversed)
             return indexList.size() - 1;
         IndexInfo target = new IndexInfo(name, name, 0, 0);
         int index = Collections.binarySearch(indexList, target, getComparator(comparator));
@@ -125,11 +134,11 @@ public class IndexHelper
     public static class IndexInfo
     {
         public final long width;
-        public final byte[] lastName;
-        public final byte[] firstName;
+        public final ByteBuffer lastName;
+        public final ByteBuffer firstName;
         public final long offset;
 
-        public IndexInfo(byte[] firstName, byte[] lastName, long offset, long width)
+        public IndexInfo(ByteBuffer firstName, ByteBuffer lastName, long offset, long width)
         {
             this.firstName = firstName;
             this.lastName = lastName;
@@ -147,7 +156,7 @@ public class IndexHelper
 
         public int serializedSize()
         {
-            return 2 + firstName.length + 2 + lastName.length + 8 + 8;
+            return 2 + firstName.remaining() + 2 + lastName.remaining() + 8 + 8;
         }
 
         public static IndexInfo deserialize(FileDataInput dis) throws IOException

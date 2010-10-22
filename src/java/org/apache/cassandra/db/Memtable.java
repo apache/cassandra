@@ -19,27 +19,31 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.util.*;
+import java.nio.ByteBuffer;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.collect.Iterators;
-import com.google.common.collect.PeekingIterator;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.SimpleAbstractColumnIterator;
-import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.filter.AbstractColumnIterator;
+import org.apache.cassandra.db.filter.NamesQueryFilter;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.collect.Iterators;
+import com.google.common.collect.PeekingIterator;
 
 public class Memtable implements Comparable<Memtable>, IFlushable
 {
@@ -211,7 +215,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         Comparator<IColumn> comparator = filter.getColumnComparator(typeComparator);
 
         final PeekingIterator<IColumn> filteredIter = Iterators.peekingIterator(filteredColumns.iterator());
-        if (!filter.reversed || filter.start.length != 0)
+        if (!filter.reversed || filter.start.remaining() != 0)
         {
             while (filteredIter.hasNext() && comparator.compare(filteredIter.peek(), startColumn) < 0)
             {
@@ -238,7 +242,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 
             public IColumn next()
             {
-                return filteredIter.next();
+                return filteredIter.next();                
             }
         };
     }
@@ -250,8 +254,8 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 
         return new SimpleAbstractColumnIterator()
         {
-            private Iterator<byte[]> iter = filter.columns.iterator();
-            private byte[] current;
+            private Iterator<ByteBuffer> iter = filter.columns.iterator();
+            private ByteBuffer current;
 
             public ColumnFamily getColumnFamily()
             {

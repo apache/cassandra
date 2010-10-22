@@ -21,16 +21,16 @@ package org.apache.cassandra.utils;
  */
 
 
-import org.safehaus.uuid.EthernetAddress;
-import org.safehaus.uuid.UUIDGenerator;
-
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.UUID;
+
+import org.safehaus.uuid.EthernetAddress;
+import org.safehaus.uuid.UUIDGenerator;
 
 /**
  * Generates type 1 (time-based) UUIDs
@@ -47,7 +47,7 @@ public class UUIDGen
             byte[] md5 = digest.digest();
             byte[] fauxMac = new byte[6];
             System.arraycopy(md5, 0, fauxMac, 0, Math.min(md5.length, fauxMac.length));
-            return makeType1UUID(UUIDGenerator.getInstance().generateTimeBasedUUID(new EthernetAddress(fauxMac)).toByteArray());
+            return makeType1UUID(ByteBuffer.wrap(UUIDGenerator.getInstance().generateTimeBasedUUID(new EthernetAddress(fauxMac)).toByteArray()));
         }
         catch (NoSuchAlgorithmException ex)
         {
@@ -59,19 +59,19 @@ public class UUIDGen
     {
         byte[] b = new byte[16];
         in.readFully(b);
-        return makeType1UUID(b);
+        return makeType1UUID(ByteBuffer.wrap(b));
     }
 
     /** creates a type 1 uuid from raw bytes. */
-    public static UUID makeType1UUID(byte[] raw)
+    public static UUID makeType1UUID(ByteBuffer raw)
     {
         long most = 0;
         long least = 0;
-        assert raw.length == 16;
+        assert raw.remaining() == 16;
         for (int i = 0; i < 8; i++)
-            most = (most << 8) | (raw[i] & 0xff);
+            most = (most << 8) | (raw.array()[raw.position()+raw.arrayOffset() + i] & 0xff);
         for (int i =8 ; i < 16; i++)
-            least = (least << 8) | (raw[i] & 0xff);
+            least = (least << 8) | (raw.array()[raw.position()+raw.arrayOffset() + i] & 0xff);
         return new UUID(most, least);
     }
 

@@ -18,17 +18,22 @@
 */
 package org.apache.cassandra.utils;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
 import java.util.Random;
 
 public class KeyGenerator {
-    private static byte[] randomKey(Random r) {
+    private static ByteBuffer randomKey(Random r) {
         byte[] bytes = new byte[48];
         r.nextBytes(bytes);
-        return bytes;
+        return ByteBuffer.wrap(bytes);
     }
 
-    static class RandomStringGenerator implements ResetableIterator<byte[]> {
+    static class RandomStringGenerator implements ResetableIterator<ByteBuffer> {
         int i, n, seed;
         Random random;
 
@@ -51,7 +56,7 @@ public class KeyGenerator {
             return i < n;
         }
 
-        public byte[] next() {
+        public ByteBuffer next() {
             i++;
             return randomKey(random);
         }
@@ -61,7 +66,7 @@ public class KeyGenerator {
         }
     }
 
-    static class IntGenerator implements ResetableIterator<byte[]> {
+    static class IntGenerator implements ResetableIterator<ByteBuffer> {
         private int i, start, n;
 
         IntGenerator(int n) {
@@ -86,8 +91,8 @@ public class KeyGenerator {
             return i < n;
         }
 
-        public byte[] next() {
-            return Integer.toString(i++).getBytes();
+        public ByteBuffer next() {
+            return ByteBuffer.wrap(Integer.toString(i++).getBytes());
         }
 
         public void remove() {
@@ -95,7 +100,7 @@ public class KeyGenerator {
         }
     }
 
-    static class WordGenerator implements ResetableIterator<byte[]> {
+    static class WordGenerator implements ResetableIterator<ByteBuffer> {
         static int WORDS;
 
         static {
@@ -145,14 +150,14 @@ public class KeyGenerator {
             return next != null;
         }
 
-        public byte[] next() {
+        public ByteBuffer next() {
             try {
                 byte[] s = next;
                 for (int i = 0; i < modulo; i++) {
                     String line = reader.readLine();
                     next = line == null ? null : line.getBytes();
                 }
-                return s;
+                return s == null ? null : ByteBuffer.wrap(s);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

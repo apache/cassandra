@@ -21,6 +21,7 @@
 
 package org.apache.cassandra.auth;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.apache.cassandra.utils.FBUtilities;
@@ -42,7 +43,7 @@ public final class Resources
         {
             buff.append("/");
             if (component instanceof byte[])
-                buff.append(FBUtilities.bytesToHex((byte[])component));
+                buff.append(FBUtilities.bytesToHex(ByteBuffer.wrap((byte[])component)));
             else
                 buff.append(component.toString());
         }

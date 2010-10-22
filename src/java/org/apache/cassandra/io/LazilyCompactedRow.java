@@ -193,7 +193,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         @Override
         protected boolean isEqual(IColumn o1, IColumn o2)
         {
-            return Arrays.equals(o1.name(), o2.name());
+            return o1.name().equals(o2.name());
         }
 
         public void reduce(IColumn current)

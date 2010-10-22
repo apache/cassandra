@@ -23,7 +23,7 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class LongType extends AbstractType
 {
@@ -31,33 +31,37 @@ public class LongType extends AbstractType
 
     LongType() {} // singleton
 
-    public int compare(byte[] o1, byte[] o2)
+    public int compare(ByteBuffer o1, ByteBuffer o2)
     {
-        if (o1.length == 0)
+        if (o1.remaining() == 0)
         {
-            return o2.length == 0 ? 0 : -1;
+            return o2.remaining() == 0 ? 0 : -1;
         }
-        if (o2.length == 0)
+        if (o2.remaining() == 0)
         {
             return 1;
         }
 
-        int diff = o1[0] - o2[0];
+        int diff = o1.array()[o1.position()+o1.arrayOffset()] - o2.array()[o2.position()+o2.arrayOffset()];
         if (diff != 0)
             return diff;
-        return FBUtilities.compareByteArrays(o1, o2);
+        
+       
+        return ByteBufferUtil.compare(o1, o2);
     }
 
-    public String getString(byte[] bytes)
+    public String getString(ByteBuffer bytes)
     {
-        if (bytes.length == 0)
+        if (bytes.remaining() == 0)
         {
             return "";
         }
-        if (bytes.length != 8)
+        if (bytes.remaining() != 8)
         {
-            throw new MarshalException("A long is exactly 8 bytes");
+            throw new MarshalException("A long is exactly 8 bytes: "+bytes.remaining());
         }
-        return String.valueOf(ByteBuffer.wrap(bytes).getLong());
+        
+        
+        return String.valueOf(bytes.getLong(bytes.position()+bytes.arrayOffset()));
     }
 }

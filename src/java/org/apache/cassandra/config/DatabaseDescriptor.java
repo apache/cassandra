@@ -18,16 +18,27 @@
 
 package org.apache.cassandra.config;
 
-import java.io.*;
-import java.lang.reflect.Field;
+import java.io.File;
+import java.io.FileFilter;
+import java.io.IOError;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.UnknownHostException;
-import java.util.*;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.UUID;
 
 import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.auth.AllowAllAuthority;
@@ -43,12 +54,18 @@ import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.locator.*;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.DynamicEndpointSnitch;
+import org.apache.cassandra.locator.EndpointSnitchInfo;
+import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.scheduler.NoScheduler;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Loader;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
@@ -574,13 +591,13 @@ public class    DatabaseDescriptor
                     throw new ConfigurationException("memtable_operations_in_millions must be a positive double");
                 }
 
-                 Map<byte[], ColumnDefinition> metadata = new TreeMap<byte[], ColumnDefinition>(FBUtilities.byteArrayComparator);
+                 Map<ByteBuffer, ColumnDefinition> metadata = new TreeMap<ByteBuffer, ColumnDefinition>();
 
                 for (RawColumnDefinition rcd : cf.column_metadata)
                 {
                     try
                     {
-                        byte[] columnName = rcd.name.getBytes("UTF-8");
+                        ByteBuffer columnName = ByteBuffer.wrap(rcd.name.getBytes("UTF-8"));
                         metadata.put(columnName, new ColumnDefinition(columnName, rcd.validator_class, rcd.index_type, rcd.index_name));
                     }
                     catch (UnsupportedEncodingException e)
@@ -1069,7 +1086,7 @@ public class    DatabaseDescriptor
         return conf.hinted_handoff_enabled;
     }
 
-    public static AbstractType getValueValidator(String keyspace, String cf, byte[] column)
+    public static AbstractType getValueValidator(String keyspace, String cf, ByteBuffer column)
     {
         return getCFMetaData(keyspace, cf).getValueValidator(column);
     }

@@ -22,6 +22,7 @@ import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -112,9 +113,9 @@ class ConsistencyChecker implements Runnable
                 byte[] body = response.getMessageBody();
                 ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
                 ReadResponse result = ReadResponse.serializer().deserialize(new DataInputStream(bufIn));
-                byte[] digest = result.digest();
+                ByteBuffer digest = result.digest();
 
-                if (!Arrays.equals(ColumnFamily.digest(row_.cf), digest))
+                if (!ColumnFamily.digest(row_.cf).equals(digest))
                 {
                     IResponseResolver<Row> readResponseResolver = new ReadResponseResolver(table_);
                     IAsyncCallback responseHandler;

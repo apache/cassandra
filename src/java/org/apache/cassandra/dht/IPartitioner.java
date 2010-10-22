@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.dht;
 
-import java.util.Comparator;
+import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.DecoratedKey;
 
@@ -31,7 +31,7 @@ public interface IPartitioner<T extends Token>
      * @param key On disk representation 
      * @return DecoratedKey object
      */
-    public DecoratedKey<T> convertFromDiskFormat(byte[] key);
+    public DecoratedKey<T> convertFromDiskFormat(ByteBuffer key);
     
     /**
      * Transform key to object representation of the on-disk format.
@@ -39,7 +39,7 @@ public interface IPartitioner<T extends Token>
      * @param key the raw, client-facing key
      * @return decorated version of key
      */
-    public DecoratedKey<T> decorateKey(byte[] key);
+    public DecoratedKey<T> decorateKey(ByteBuffer key);
 
     /**
      * Calculate a Token representing the approximate "middle" of the given
@@ -47,7 +47,7 @@ public interface IPartitioner<T extends Token>
      *
      * @return The approximate midpoint between left and right.
      */
-    public T midpoint(T left, T right);
+    public Token midpoint(Token left, Token right);
 
 	/**
 	 * @return The minimum possible Token in the range that is being partitioned.
@@ -59,7 +59,7 @@ public interface IPartitioner<T extends Token>
      * (This is NOT a method to create a Token from its string representation;
      * for that, use TokenFactory.fromString.)
      */
-    public T getToken(byte[] key);
+    public T getToken(ByteBuffer key);
 
     /**
      * @return a randomly generated token

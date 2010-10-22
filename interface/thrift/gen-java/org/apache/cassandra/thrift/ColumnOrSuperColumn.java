@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -159,9 +160,10 @@ public class ColumnOrSuperColumn implements TBase<ColumnOrSuperColumn, ColumnOrS
     return new ColumnOrSuperColumn(this);
   }
 
-  @Deprecated
-  public ColumnOrSuperColumn clone() {
-    return new ColumnOrSuperColumn(this);
+  @Override
+  public void clear() {
+    this.column = null;
+    this.super_column = null;
   }
 
   public Column getColumn() {
@@ -233,10 +235,6 @@ public class ColumnOrSuperColumn implements TBase<ColumnOrSuperColumn, ColumnOrS
     }
   }
 
-  public void setFieldValue(int fieldID, Object value) {
-    setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
-  }
-
   public Object getFieldValue(_Fields field) {
     switch (field) {
     case COLUMN:
@@ -249,12 +247,12 @@ public class ColumnOrSuperColumn implements TBase<ColumnOrSuperColumn, ColumnOrS
     throw new IllegalStateException();
   }
 
-  public Object getFieldValue(int fieldId) {
-    return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-  }
-
   /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
+    if (field == null) {
+      throw new IllegalArgumentException();
+    }
+
     switch (field) {
     case COLUMN:
       return isSetColumn();
@@ -262,10 +260,6 @@ public class ColumnOrSuperColumn implements TBase<ColumnOrSuperColumn, ColumnOrS
       return isSetSuper_column();
     }
     throw new IllegalStateException();
-  }
-
-  public boolean isSet(int fieldID) {
-    return isSet(_Fields.findByThriftIdOrThrow(fieldID));
   }
 
   @Override
@@ -331,7 +325,8 @@ public class ColumnOrSuperColumn implements TBase<ColumnOrSuperColumn, ColumnOrS
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetColumn()) {      lastComparison = TBaseHelper.compareTo(this.column, typedOther.column);
+    if (isSetColumn()) {
+      lastComparison = TBaseHelper.compareTo(this.column, typedOther.column);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -340,12 +335,17 @@ public class ColumnOrSuperColumn implements TBase<ColumnOrSuperColumn, ColumnOrS
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetSuper_column()) {      lastComparison = TBaseHelper.compareTo(this.super_column, typedOther.super_column);
+    if (isSetSuper_column()) {
+      lastComparison = TBaseHelper.compareTo(this.super_column, typedOther.super_column);
       if (lastComparison != 0) {
         return lastComparison;
       }
     }
     return 0;
+  }
+
+  public _Fields fieldForId(int fieldId) {
+    return _Fields.findByThriftId(fieldId);
   }
 
   public void read(TProtocol iprot) throws TException {

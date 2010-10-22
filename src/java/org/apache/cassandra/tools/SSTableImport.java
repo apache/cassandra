@@ -20,6 +20,7 @@ package org.apache.cassandra.tools;
 
 import java.io.FileReader;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -92,11 +93,11 @@ public class SSTableImport
         for (Object c : row)
         {
             JsonColumn col = new JsonColumn(c);
-            QueryPath path = new QueryPath(cfm.cfName, null, hexToBytes(col.name));
+            QueryPath path = new QueryPath(cfm.cfName, null, ByteBuffer.wrap(hexToBytes(col.name)));
             if (col.isDeleted) {
-                cfamily.addColumn(path, hexToBytes(col.value), col.timestamp);
+                cfamily.addColumn(path, ByteBuffer.wrap(hexToBytes(col.value)), col.timestamp);
             } else {
-                cfamily.addTombstone(path, hexToBytes(col.value), col.timestamp);
+                cfamily.addTombstone(path, ByteBuffer.wrap(hexToBytes(col.value)), col.timestamp);
             }
         }
     }
@@ -114,7 +115,7 @@ public class SSTableImport
         // Super columns
         for (Map.Entry<String, JSONObject> entry : (Set<Map.Entry<String, JSONObject>>)row.entrySet())
         {
-            byte[] superName = hexToBytes(entry.getKey());
+            ByteBuffer superName = ByteBuffer.wrap(hexToBytes(entry.getKey()));
             long deletedAt = (Long)entry.getValue().get("deletedAt");
             JSONArray subColumns = (JSONArray)entry.getValue().get("subColumns");
             
@@ -122,11 +123,11 @@ public class SSTableImport
             for (Object c : subColumns)
             {
                 JsonColumn col = new JsonColumn(c);
-                QueryPath path = new QueryPath(cfm.cfName, superName, hexToBytes(col.name));
+                QueryPath path = new QueryPath(cfm.cfName, superName, ByteBuffer.wrap(hexToBytes(col.name)));
                 if (col.isDeleted) {
-                    cfamily.addColumn(path, hexToBytes(col.value), col.timestamp);
+                    cfamily.addColumn(path, ByteBuffer.wrap(hexToBytes(col.value)), col.timestamp);
                 } else {
-                    cfamily.addTombstone(path, hexToBytes(col.value), col.timestamp);
+                    cfamily.addTombstone(path, ByteBuffer.wrap(hexToBytes(col.value)), col.timestamp);
                 }
             }
             
@@ -161,7 +162,7 @@ public class SSTableImport
             
             // sort by dk representation, but hold onto the hex version
             for (String key : (Set<String>)json.keySet())
-                decoratedKeys.put(partitioner.decorateKey(hexToBytes(key)), key);
+                decoratedKeys.put(partitioner.decorateKey(ByteBuffer.wrap(hexToBytes(key))), key);
 
             for (Map.Entry<DecoratedKey, String> rowKey : decoratedKeys.entrySet())
             {

@@ -18,7 +18,6 @@
 */
 package org.apache.cassandra.dht;
 
-import org.apache.cassandra.service.StorageService;
 
 public class StringToken extends Token<String>
 {

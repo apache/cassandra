@@ -32,6 +32,7 @@ import org.apache.cassandra.Util;
 import static org.apache.cassandra.Util.addMutation;
 
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static junit.framework.Assert.assertEquals;
 
@@ -65,15 +66,15 @@ public class NameSortTest extends CleanupHelper
 
         for (int i = 0; i < N; ++i)
         {
-            byte[] key = Integer.toString(i).getBytes();
+            ByteBuffer key = ByteBuffer.wrap(Integer.toString(i).getBytes());
             RowMutation rm;
 
             // standard
             for (int j = 0; j < 8; ++j)
             {
-                byte[] bytes = j % 2 == 0 ? "a".getBytes() : "b".getBytes();
+                ByteBuffer bytes = ByteBuffer.wrap(j % 2 == 0 ? "a".getBytes() : "b".getBytes());
                 rm = new RowMutation("Keyspace1", key);
-                rm.add(new QueryPath("Standard1", null, ("Column-" + j).getBytes()), bytes, j);
+                rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap(("Column-" + j).getBytes())), bytes, j);
                 rm.apply();
             }
 
@@ -108,9 +109,9 @@ public class NameSortTest extends CleanupHelper
             Collection<IColumn> columns = cf.getSortedColumns();
             for (IColumn column : columns)
             {
-                int j = Integer.valueOf(new String(column.name()).split("-")[1]);
+                int j = Integer.valueOf(new String(column.name().array()).split("-")[1]);
                 byte[] bytes = j % 2 == 0 ? "a".getBytes() : "b".getBytes();
-                assert Arrays.equals(bytes, column.value());
+                assert Arrays.equals(bytes, column.value().array());
             }
 
             cf = Util.getColumnFamily(table, key, "Super1");
@@ -119,14 +120,14 @@ public class NameSortTest extends CleanupHelper
             assert superColumns.size() == 8 : cf;
             for (IColumn superColumn : superColumns)
             {
-                int j = Integer.valueOf(new String(superColumn.name()).split("-")[1]);
+                int j = Integer.valueOf(new String(superColumn.name().array()).split("-")[1]);
                 Collection<IColumn> subColumns = superColumn.getSubColumns();
                 assert subColumns.size() == 4;
                 for (IColumn subColumn : subColumns)
                 {
-                    long k = ByteBuffer.wrap(subColumn.name()).getLong();
+                    long k = subColumn.name().getLong(subColumn.name().position()+subColumn.name().arrayOffset());                   
                     byte[] bytes = (j + k) % 2 == 0 ? "a".getBytes() : "b".getBytes();
-                    assert Arrays.equals(bytes, subColumn.value());
+                    assert Arrays.equals(bytes, subColumn.value().array());
                 }
             }
         }

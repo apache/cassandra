@@ -18,18 +18,16 @@
 
 package org.apache.cassandra.db;
 
+import static com.google.common.base.Charsets.UTF_8;
+
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 
-import org.apache.commons.lang.ArrayUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import static com.google.common.base.Charsets.UTF_8;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -43,8 +41,12 @@ import org.apache.cassandra.service.IWriteResponseHandler;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.commons.lang.ArrayUtils;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
@@ -87,7 +89,7 @@ public class HintedHandOffManager
 
     private final ExecutorService executor_ = new JMXEnabledThreadPoolExecutor("HintedHandoff", DatabaseDescriptor.getCompactionThreadPriority());
 
-    private static boolean sendMessage(InetAddress endpoint, String tableName, String cfName, byte[] key) throws IOException
+    private static boolean sendMessage(InetAddress endpoint, String tableName, String cfName, ByteBuffer key) throws IOException
     {
         if (!Gossiper.instance.isKnownEndpoint(endpoint))
         {
@@ -102,10 +104,10 @@ public class HintedHandOffManager
         Table table = Table.open(tableName);
         DecoratedKey dkey = StorageService.getPartitioner().decorateKey(key);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
-        byte[] startColumn = ArrayUtils.EMPTY_BYTE_ARRAY;
+        ByteBuffer startColumn = FBUtilities.EMPTY_BYTE_BUFFER;
         while (true)
         {
-            QueryFilter filter = QueryFilter.getSliceFilter(dkey, new QueryPath(cfs.getColumnFamilyName()), startColumn, ArrayUtils.EMPTY_BYTE_ARRAY, false, PAGE_SIZE);
+            QueryFilter filter = QueryFilter.getSliceFilter(dkey, new QueryPath(cfs.getColumnFamilyName()), startColumn, FBUtilities.EMPTY_BYTE_BUFFER, false, PAGE_SIZE);
             ColumnFamily cf = cfs.getColumnFamily(filter);
             if (pagingFinished(cf, startColumn))
                 break;
@@ -133,7 +135,7 @@ public class HintedHandOffManager
         return true;
     }
 
-    private static void deleteHintKey(byte[] endpointAddress, byte[] key, byte[] tableCF, long timestamp) throws IOException
+    private static void deleteHintKey(ByteBuffer endpointAddress, ByteBuffer key, ByteBuffer tableCF, long timestamp) throws IOException
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, endpointAddress);
         rm.delete(new QueryPath(HINTS_CF, key, tableCF), timestamp);
@@ -143,7 +145,7 @@ public class HintedHandOffManager
     public static void deleteHintsForEndPoint(InetAddress endpoint)
     {
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, endpoint.getAddress());
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, ByteBuffer.wrap(endpoint.getAddress()));
         rm.delete(new QueryPath(HINTS_CF), System.currentTimeMillis());
         try {
             logger_.info("Deleting any stored hints for " + endpoint);
@@ -157,28 +159,28 @@ public class HintedHandOffManager
         }
     }
 
-    private static boolean pagingFinished(ColumnFamily hintColumnFamily, byte[] startColumn)
+    private static boolean pagingFinished(ColumnFamily hintColumnFamily, ByteBuffer startColumn)
     {
         // done if no hints found or the start column (same as last column processed in previous iteration) is the only one
         return hintColumnFamily == null
                || (hintColumnFamily.getSortedColumns().size() == 1 && hintColumnFamily.getColumn(startColumn) != null);
     }
 
-    public static byte[] makeCombinedName(String tableName, String columnFamily)
+    public static ByteBuffer makeCombinedName(String tableName, String columnFamily)
     {
         byte[] withsep = ArrayUtils.addAll(tableName.getBytes(UTF_8), SEPARATOR.getBytes());
-        return ArrayUtils.addAll(withsep, columnFamily.getBytes(UTF_8));
+        return ByteBuffer.wrap(ArrayUtils.addAll(withsep, columnFamily.getBytes(UTF_8)));
     }
 
-    private static String[] getTableAndCFNames(byte[] joined)
+    private static String[] getTableAndCFNames(ByteBuffer joined)
     {
         int index;
-        index = ArrayUtils.lastIndexOf(joined, SEPARATOR.getBytes()[0]);
+        index = ArrayUtils.lastIndexOf(joined.array(), SEPARATOR.getBytes()[0],joined.position()+joined.arrayOffset());
         if (index < 1)
             throw new RuntimeException("Corrupted hint name " + joined.toString());
         String[] parts = new String[2];
-        parts[0] = new String(ArrayUtils.subarray(joined, 0, index));
-        parts[1] = new String(ArrayUtils.subarray(joined, index+1, joined.length));
+        parts[0] = new String(ArrayUtils.subarray(joined.array(), joined.position()+joined.arrayOffset(), index));
+        parts[1] = new String(ArrayUtils.subarray(joined.array(), index+1, joined.limit()));
         return parts;
 
     }
@@ -193,14 +195,14 @@ public class HintedHandOffManager
         // 3. Delete the subcolumn if the write was successful
         // 4. Force a flush
         // 5. Do major compaction to clean up all deletes etc.
-        DecoratedKey epkey =  StorageService.getPartitioner().decorateKey(endpoint.getHostAddress().getBytes(UTF_8));
+        DecoratedKey epkey =  StorageService.getPartitioner().decorateKey(ByteBuffer.wrap(endpoint.getHostAddress().getBytes(UTF_8)));
         int rowsReplayed = 0;
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
-        byte[] startColumn = ArrayUtils.EMPTY_BYTE_ARRAY;
+        ByteBuffer startColumn = FBUtilities.EMPTY_BYTE_BUFFER;
         delivery:
             while (true)
             {
-                QueryFilter filter = QueryFilter.getSliceFilter(epkey, new QueryPath(HINTS_CF), startColumn, ArrayUtils.EMPTY_BYTE_ARRAY, false, PAGE_SIZE);
+                QueryFilter filter = QueryFilter.getSliceFilter(epkey, new QueryPath(HINTS_CF), startColumn, FBUtilities.EMPTY_BYTE_BUFFER, false, PAGE_SIZE);
                 ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
                 if (pagingFinished(hintColumnFamily, startColumn))
                     break;
@@ -214,7 +216,7 @@ public class HintedHandOffManager
                         String[] parts = getTableAndCFNames(tableCF.name());
                         if (sendMessage(endpoint, parts[0], parts[1], keyColumn.name()))
                         {
-                            deleteHintKey(endpoint.getHostAddress().getBytes(UTF_8), keyColumn.name(), tableCF.name(), tableCF.timestamp());
+                            deleteHintKey(ByteBuffer.wrap(endpoint.getHostAddress().getBytes(UTF_8)), keyColumn.name(), tableCF.name(), tableCF.timestamp());
                             rowsReplayed++;
                         }
                         else
@@ -248,26 +250,26 @@ public class HintedHandOffManager
     /** called when a keyspace is dropped or rename. newTable==null in the case of a drop. */
     public static void renameHints(String oldTable, String newTable) throws IOException
     {
-        DecoratedKey oldTableKey = StorageService.getPartitioner().decorateKey(oldTable.getBytes(UTF_8));
+        DecoratedKey oldTableKey = StorageService.getPartitioner().decorateKey(ByteBuffer.wrap(oldTable.getBytes(UTF_8)));
         // we're basically going to fetch, drop and add the scf for the old and new table. we need to do it piecemeal 
         // though since there could be GB of data.
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
-        byte[] startCol = ArrayUtils.EMPTY_BYTE_ARRAY;
+        ByteBuffer startCol = FBUtilities.EMPTY_BYTE_BUFFER;
         long now = System.currentTimeMillis();
         while (true)
         {
-            QueryFilter filter = QueryFilter.getSliceFilter(oldTableKey, new QueryPath(HINTS_CF), startCol, ArrayUtils.EMPTY_BYTE_ARRAY, false, PAGE_SIZE);
+            QueryFilter filter = QueryFilter.getSliceFilter(oldTableKey, new QueryPath(HINTS_CF), startCol, FBUtilities.EMPTY_BYTE_BUFFER, false, PAGE_SIZE);
             ColumnFamily cf = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
             if (pagingFinished(cf, startCol))
                 break;
             if (newTable != null)
             {
-                RowMutation insert = new RowMutation(Table.SYSTEM_TABLE, newTable.getBytes(UTF_8));
+                RowMutation insert = new RowMutation(Table.SYSTEM_TABLE, ByteBuffer.wrap(newTable.getBytes(UTF_8)));
                 insert.add(cf);
                 insert.apply();
             }
             RowMutation drop = new RowMutation(Table.SYSTEM_TABLE, oldTableKey.key);
-            for (byte[] key : cf.getColumnNames())
+            for (ByteBuffer key : cf.getColumnNames())
             {
                 drop.delete(new QueryPath(HINTS_CF, key), now);
                 startCol = key;

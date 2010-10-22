@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -149,9 +150,9 @@ public class AuthorizationException extends Exception implements TBase<Authoriza
     return new AuthorizationException(this);
   }
 
-  @Deprecated
-  public AuthorizationException clone() {
-    return new AuthorizationException(this);
+  @Override
+  public void clear() {
+    this.why = null;
   }
 
   public String getWhy() {
@@ -191,10 +192,6 @@ public class AuthorizationException extends Exception implements TBase<Authoriza
     }
   }
 
-  public void setFieldValue(int fieldID, Object value) {
-    setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
-  }
-
   public Object getFieldValue(_Fields field) {
     switch (field) {
     case WHY:
@@ -204,21 +201,17 @@ public class AuthorizationException extends Exception implements TBase<Authoriza
     throw new IllegalStateException();
   }
 
-  public Object getFieldValue(int fieldId) {
-    return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-  }
-
   /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
+    if (field == null) {
+      throw new IllegalArgumentException();
+    }
+
     switch (field) {
     case WHY:
       return isSetWhy();
     }
     throw new IllegalStateException();
-  }
-
-  public boolean isSet(int fieldID) {
-    return isSet(_Fields.findByThriftIdOrThrow(fieldID));
   }
 
   @Override
@@ -270,12 +263,17 @@ public class AuthorizationException extends Exception implements TBase<Authoriza
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetWhy()) {      lastComparison = TBaseHelper.compareTo(this.why, typedOther.why);
+    if (isSetWhy()) {
+      lastComparison = TBaseHelper.compareTo(this.why, typedOther.why);
       if (lastComparison != 0) {
         return lastComparison;
       }
     }
     return 0;
+  }
+
+  public _Fields fieldForId(int fieldId) {
+    return _Fields.findByThriftId(fieldId);
   }
 
   public void read(TProtocol iprot) throws TException {

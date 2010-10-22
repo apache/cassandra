@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutionException;
 import java.util.Set;
 import java.util.HashSet;
@@ -29,6 +30,7 @@ import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.CleanupHelper;
 
 public class OneCompactionTest extends CleanupHelper
@@ -44,7 +46,7 @@ public class OneCompactionTest extends CleanupHelper
         for (int j = 0; j < insertsPerTable; j++) {
             DecoratedKey key = Util.dk(String.valueOf(j));
             RowMutation rm = new RowMutation("Keyspace1", key.key);
-            rm.add(new QueryPath(columnFamilyName, null, "0".getBytes()), new byte[0], j);
+            rm.add(new QueryPath(columnFamilyName, null, ByteBuffer.wrap("0".getBytes())), FBUtilities.EMPTY_BYTE_BUFFER, j);
             rm.apply();
             inserted.add(key);
             store.forceBlockingFlush();

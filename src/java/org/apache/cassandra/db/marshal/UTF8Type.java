@@ -20,7 +20,7 @@ package org.apache.cassandra.db.marshal;
  * 
  */
 
-import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.Arrays;
 
@@ -32,7 +32,7 @@ public class UTF8Type extends BytesType
 
     UTF8Type() {} // singleton
 
-    public String getString(byte[] bytes)
+    public String getString(ByteBuffer bytes)
     {
         try
         {
@@ -40,7 +40,7 @@ public class UTF8Type extends BytesType
         }
         catch (CharacterCodingException e)
         {
-            throw new MarshalException("invalid UTF8 bytes " + Arrays.toString(bytes));
+            throw new MarshalException("invalid UTF8 bytes " + Arrays.toString(bytes.array()));
         }
     }
 }

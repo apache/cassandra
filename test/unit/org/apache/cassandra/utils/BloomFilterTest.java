@@ -19,6 +19,7 @@
 package org.apache.cassandra.utils;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -54,9 +55,9 @@ public class BloomFilterTest
     @Test
     public void testOne()
     {
-        bf.add("a".getBytes());
-        assert bf.isPresent("a".getBytes());
-        assert !bf.isPresent("b".getBytes());
+        bf.add(ByteBuffer.wrap("a".getBytes()));
+        assert bf.isPresent(ByteBuffer.wrap("a".getBytes()));
+        assert !bf.isPresent(ByteBuffer.wrap("b".getBytes()));
     }
 
     @Test

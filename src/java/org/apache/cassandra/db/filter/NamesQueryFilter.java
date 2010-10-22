@@ -21,27 +21,35 @@ package org.apache.cassandra.db.filter;
  */
 
 
-import java.util.*;
+import java.nio.ByteBuffer;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.SortedSet;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.IColumnContainer;
+import org.apache.cassandra.db.Memtable;
+import org.apache.cassandra.db.SuperColumn;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.SSTableNamesIterator;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class NamesQueryFilter implements IFilter
 {
-    public final SortedSet<byte[]> columns;
+    public final SortedSet<ByteBuffer> columns;
 
-    public NamesQueryFilter(SortedSet<byte[]> columns)
+    public NamesQueryFilter(SortedSet<ByteBuffer> columns)
     {
         this.columns = columns;
     }
 
-    public NamesQueryFilter(byte[] column)
+    public NamesQueryFilter(ByteBuffer column)
     {
         this(FBUtilities.getSingleColumnSet(column));
     }

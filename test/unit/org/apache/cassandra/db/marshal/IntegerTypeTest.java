@@ -18,14 +18,17 @@
  */
 package org.apache.cassandra.db.marshal;
 
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Random;
 
 import org.junit.ComparisonFailure;
 import org.junit.Test;
-
-import static org.junit.Assert.*;
 
 public class IntegerTypeTest
 {
@@ -41,34 +44,34 @@ public class IntegerTypeTest
     @Test
     public void testTrimming()
     {
-        byte[] n1, n2;
-        n1 = new byte[] {0};
-        n2 = new byte[] {0, 0, 0, 0};
+        ByteBuffer n1, n2;
+        n1 = ByteBuffer.wrap(new byte[] {0});
+        n2 = ByteBuffer.wrap(new byte[] {0, 0, 0, 0});
         assertEquals(0, comparator.compare(n1, n2));
-        n1 = new byte[] {1, 0, 0, 1};
-        n2 = new byte[] {0, 0, 0, 1, 0, 0, 1};
+        n1 = ByteBuffer.wrap(new byte[] {1, 0, 0, 1});
+        n2 = ByteBuffer.wrap(new byte[] {0, 0, 0, 1, 0, 0, 1});
         assertEquals(0, comparator.compare(n1, n2));
-        n1 = new byte[] {-1, 0, 0, -1 };
-        n2 = new byte[] {-1, -1, -1, -1, 0, 0, -1};
+        n1 = ByteBuffer.wrap(new byte[] {-1, 0, 0, -1 });
+        n2 = ByteBuffer.wrap(new byte[] {-1, -1, -1, -1, 0, 0, -1});
         assertEquals(0, comparator.compare(n1, n2));
-        n1 = new byte[] {-1, 0};
-        n2 = new byte[] {0, -1, 0};
+        n1 = ByteBuffer.wrap(new byte[] {-1, 0});
+        n2 = ByteBuffer.wrap(new byte[] {0, -1, 0});
         assertSignum("", -1, comparator.compare(n1, n2));
-        n1 = new byte[] {1, 0};
-        n2 = new byte[] {0, -1, 0};
+        n1 = ByteBuffer.wrap(new byte[] {1, 0});
+        n2 = ByteBuffer.wrap(new byte[] {0, -1, 0});
         assertSignum("", -1, comparator.compare(n1, n2));
     }
 
     @Test(expected = NullPointerException.class)
     public void testNullLeft()
     {
-        comparator.compare(null, new byte[1]);
+        comparator.compare(null, ByteBuffer.wrap(new byte[1]));
     }
 
     @Test(expected = NullPointerException.class)
     public void testNullRight()
     {
-        comparator.compare(new byte[1], null);
+        comparator.compare(ByteBuffer.wrap(new byte[1]), null);
     }
 
     @Test(expected = NullPointerException.class)
@@ -80,17 +83,17 @@ public class IntegerTypeTest
     @Test
     public void testZeroLengthArray()
     {
-        assertSignum("0-1", -1, comparator.compare(new byte[0], new byte[1]));
-        assertSignum("1-0", 1, comparator.compare(new byte[1], new byte[0]));
-        assertSignum("0-0", 0, comparator.compare(new byte[0], new byte[0]));
+        assertSignum("0-1", -1, comparator.compare(ByteBuffer.wrap(new byte[0]), ByteBuffer.wrap(new byte[1])));
+        assertSignum("1-0", 1, comparator.compare(ByteBuffer.wrap(new byte[1]), ByteBuffer.wrap(new byte[0])));
+        assertSignum("0-0", 0, comparator.compare(ByteBuffer.wrap(new byte[0]), ByteBuffer.wrap(new byte[0])));
     }
 
     @Test
     public void testSanity()
     {
-        byte[] nN = new byte[] {-1};
-        byte[] nZ = new byte[] {0};
-        byte[] nP = new byte[] {1};
+        ByteBuffer nN = ByteBuffer.wrap(new byte[] {-1});
+        ByteBuffer nZ = ByteBuffer.wrap(new byte[] {0});
+        ByteBuffer nP = ByteBuffer.wrap(new byte[] {1});
         assertSignum("ZN", 1, comparator.compare(nZ, nN));
         assertSignum("NZ", -1, comparator.compare(nN, nZ));
         assertSignum("ZP", -1, comparator.compare(nZ, nP));
@@ -102,10 +105,10 @@ public class IntegerTypeTest
     @Test
     public void testSameLength()
     {
-        byte[] n1 = new byte[] {-2, 2, -4, -5};
-        byte[] n2 = new byte[] {-2, 3, -5, -4};
-        byte[] p1 = new byte[] {2, 3, -4, -5};
-        byte[] p2 = new byte[] {2, -2, -5, -4};
+        ByteBuffer n1 = ByteBuffer.wrap(new byte[] {-2, 2, -4, -5});
+        ByteBuffer n2 = ByteBuffer.wrap(new byte[] {-2, 3, -5, -4});
+        ByteBuffer p1 = ByteBuffer.wrap(new byte[] {2, 3, -4, -5});
+        ByteBuffer p2 = ByteBuffer.wrap(new byte[] {2, -2, -5, -4});
 
         assertSignum("n1n2", -1, comparator.compare(n1, n2));
         assertSignum("n2n1", 1, comparator.compare(n2, n1));
@@ -122,51 +125,51 @@ public class IntegerTypeTest
     @Test
     public void testCommonPrefix()
     {
-        byte[][] data = {
-                {1, 0, 0, 1},
-                {1, 0, 0, 1, 0},
-                {1, 0, 0, 1},
-                {1, 0, 0, 1, 0},
-                {-1, 0, 0, 1},
-                {-1, 0, 0, 1, 0},
-                {-1, 0, 0, 1},
-                {-1, 0, 0, 1, 0}
+        ByteBuffer[] data = {
+                ByteBuffer.wrap(new byte[]{1, 0, 0, 1}),
+                ByteBuffer.wrap(new byte[]{1, 0, 0, 1, 0}),
+                ByteBuffer.wrap(new byte[]{1, 0, 0, 1}),
+                ByteBuffer.wrap(new byte[]{1, 0, 0, 1, 0}),
+                ByteBuffer.wrap(new byte[]{-1, 0, 0, 1}),
+                ByteBuffer.wrap(new byte[]{-1, 0, 0, 1, 0}),
+                ByteBuffer.wrap(new byte[]{-1, 0, 0, 1}),
+                ByteBuffer.wrap(new byte[]{-1, 0, 0, 1, 0})
         };
 
         Arrays.sort(data, comparator);
-        assertArrayEquals(new byte[]{-1, 0, 0, 1, 0}, data[0]);
-        assertArrayEquals(new byte[]{-1, 0, 0, 1, 0}, data[1]);
-        assertArrayEquals(new byte[]{-1, 0, 0, 1}, data[2]);
-        assertArrayEquals(new byte[]{-1, 0, 0, 1}, data[3]);
-        assertArrayEquals(new byte[]{1, 0, 0, 1}, data[4]);
-        assertArrayEquals(new byte[]{1, 0, 0, 1}, data[5]);
-        assertArrayEquals(new byte[]{1, 0, 0, 1, 0}, data[6]);
-        assertArrayEquals(new byte[]{1, 0, 0, 1, 0}, data[7]);
+        assertArrayEquals(new byte[]{-1, 0, 0, 1, 0}, data[0].array());
+        assertArrayEquals(new byte[]{-1, 0, 0, 1, 0},data[1].array());
+        assertArrayEquals(new byte[]{-1, 0, 0, 1},data[2].array());
+        assertArrayEquals(new byte[]{-1, 0, 0, 1},data[3].array());
+        assertArrayEquals(new byte[]{1, 0, 0, 1},data[4].array());
+        assertArrayEquals(new byte[]{1, 0, 0, 1},data[5].array());
+        assertArrayEquals(new byte[]{1, 0, 0, 1, 0},data[6].array());
+        assertArrayEquals(new byte[]{1, 0, 0, 1, 0},data[7].array());
     }
 
     @Test
     public void testSorting()
     {
-        byte[][] data = {
-                { 1, 0, 0, 0},
-                {-2, 0, 0},
-                { 3, 0},
-                {-4},
-                { 4},
-                {-3, 0},
-                { 2, 0, 0},
-                {-1, 0, 0, 0}
+        ByteBuffer[] data = {
+                ByteBuffer.wrap(new byte[]{ 1, 0, 0, 0}),
+                ByteBuffer.wrap(new byte[]{-2, 0, 0}),
+                ByteBuffer.wrap(new byte[]{ 3, 0}),
+                ByteBuffer.wrap(new byte[]{-4}),
+                ByteBuffer.wrap(new byte[]{ 4}),
+                ByteBuffer.wrap(new byte[]{-3, 0}),
+                ByteBuffer.wrap(new byte[]{ 2, 0, 0}),
+                ByteBuffer.wrap(new byte[]{-1, 0, 0, 0})
         };
 
         Arrays.sort(data, comparator);
-        assertArrayEquals("-1", new byte[] {-1, 0, 0, 0}, data[0]);
-        assertArrayEquals("-2", new byte[] {-2, 0, 0}, data[1]);
-        assertArrayEquals("-3", new byte[] {-3, 0}, data[2]);
-        assertArrayEquals("-4", new byte[] {-4}, data[3]);
-        assertArrayEquals(" 4", new byte[] { 4}, data[4]);
-        assertArrayEquals(" 3", new byte[] { 3, 0}, data[5]);
-        assertArrayEquals(" 2", new byte[] { 2, 0, 0}, data[6]);
-        assertArrayEquals(" 1", new byte[] { 1, 0, 0, 0}, data[7]);
+        assertArrayEquals("-1", new byte[] {-1, 0, 0, 0}, data[0].array());
+        assertArrayEquals("-2", new byte[] {-2, 0, 0}, data[1].array());
+        assertArrayEquals("-3", new byte[] {-3, 0}, data[2].array());
+        assertArrayEquals("-4", new byte[] {-4}, data[3].array());
+        assertArrayEquals(" 4", new byte[] { 4}, data[4].array());
+        assertArrayEquals(" 3", new byte[] { 3, 0}, data[5].array());
+        assertArrayEquals(" 2", new byte[] { 2, 0, 0}, data[6].array());
+        assertArrayEquals(" 1", new byte[] { 1, 0, 0, 0}, data[7].array());
     }
 
     @Test
@@ -174,19 +177,19 @@ public class IntegerTypeTest
     {
         Random rng = new Random(-9078270684023566599L);
 
-        byte[][] data = new byte[10000][];
+        ByteBuffer[] data = new ByteBuffer[10000];
         for (int i = 0; i < data.length; i++)
         {
-            data[i] = new byte[rng.nextInt(32) + 1];
-            rng.nextBytes(data[i]);
+            data[i] = ByteBuffer.allocate(rng.nextInt(32) + 1);
+            rng.nextBytes(data[i].array());
         }
 
         Arrays.sort(data, comparator);
 
         for (int i = 1; i < data.length; i++)
         {
-            BigInteger i0 = new BigInteger(data[i - 1]);
-            BigInteger i1 = new BigInteger(data[i]);
+            BigInteger i0 = new BigInteger(data[i - 1].array());
+            BigInteger i1 = new BigInteger(data[i].array());
             assertTrue("#" + i, i0.compareTo(i1) <= 0);
         }
     }

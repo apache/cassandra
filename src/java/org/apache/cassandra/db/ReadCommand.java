@@ -22,17 +22,16 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.concurrent.StageManager;
 
 
 public abstract class ReadCommand
@@ -58,11 +57,11 @@ public abstract class ReadCommand
 
     public final QueryPath queryPath;
     public final String table;
-    public final byte[] key;
+    public final ByteBuffer key;
     private boolean isDigestQuery = false;    
     protected final byte commandType;
 
-    protected ReadCommand(String table, byte[] key, QueryPath queryPath, byte cmdType)
+    protected ReadCommand(String table, ByteBuffer key, QueryPath queryPath, byte cmdType)
     {
         this.table = table;
         this.key = key;

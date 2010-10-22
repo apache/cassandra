@@ -1322,7 +1322,7 @@ class TestMutations(ThriftTester):
         assert server_cf
         assert server_cf.column_metadata[0].index_type == modified_cd.index_type
         assert server_cf.column_metadata[0].index_name == modified_cd.index_name
- 
+
         # simple query on one index expression
         cp = ColumnParent('ToBeIndexed')
         sp = SlicePredicate(slice_range=SliceRange('', ''))

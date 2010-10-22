@@ -18,12 +18,16 @@
 
 package org.apache.cassandra.utils;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.util.Random;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.*;
-import java.net.*;
-import java.security.*;
 
 public class GuidGenerator {
     private static Logger logger_ = LoggerFactory.getLogger(GuidGenerator.class);
@@ -57,11 +61,11 @@ public class GuidGenerator {
 
 
     public static String guid() {
-        byte[] array = guidAsBytes();
+        ByteBuffer array = guidAsBytes();
         
         StringBuilder sb = new StringBuilder();
-        for (int j = 0; j < array.length; ++j) {
-            int b = array[j] & 0xFF;
+        for (int j = array.position()+array.arrayOffset(); j < array.limit(); ++j) {
+            int b = array.array()[j] & 0xFF;
             if (b < 0x10) sb.append('0');
             sb.append(Integer.toHexString(b));
         }
@@ -81,7 +85,7 @@ public class GuidGenerator {
         return convertToStandardFormat( sb.toString() );
     }
     
-    public static byte[] guidAsBytes()
+    public static ByteBuffer guidAsBytes()
     {
         StringBuilder sbValueBeforeMD5 = new StringBuilder();
         long time = System.currentTimeMillis();
@@ -94,7 +98,7 @@ public class GuidGenerator {
         				.append(Long.toString(rand));
 
         String valueBeforeMD5 = sbValueBeforeMD5.toString();
-        return md5.digest(valueBeforeMD5.getBytes());
+        return ByteBuffer.wrap(md5.digest(valueBeforeMD5.getBytes()));
     }
 
     /*

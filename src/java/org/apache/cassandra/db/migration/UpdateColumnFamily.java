@@ -1,16 +1,21 @@
 package org.apache.cassandra.db.migration;
 
-import org.apache.cassandra.config.*;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -84,9 +89,9 @@ public class UpdateColumnFamily extends Migration
             table.reloadCf(newCfm.cfId);
 
             // clean up obsolete index data files
-            for (Map.Entry<byte[], ColumnDefinition> entry : oldCfm.column_metadata.entrySet())
+            for (Map.Entry<ByteBuffer, ColumnDefinition> entry : oldCfm.column_metadata.entrySet())
             {
-                byte[] column = entry.getKey();
+                ByteBuffer column = entry.getKey();
                 ColumnDefinition def = entry.getValue();
                 if (def.index_type != null
                     && (!newCfm.column_metadata.containsKey(column) || newCfm.column_metadata.get(column).index_type == null))

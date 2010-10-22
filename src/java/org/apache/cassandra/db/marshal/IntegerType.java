@@ -19,20 +19,22 @@
 
 package org.apache.cassandra.db.marshal;
 
+import java.nio.ByteBuffer;
+
 public final class IntegerType extends AbstractType
 {
     public static final IntegerType instance = new IntegerType();
 
-    private static int findMostSignificantByte(byte[] bytes)
+    private static int findMostSignificantByte(ByteBuffer bytes)
     {
-        int len = bytes.length - 1;
+        int len = bytes.remaining() - 1;
         int i = 0;
         for (; i < len; i++)
         {
-            byte b0 = bytes[i];
+            byte b0 = bytes.array()[bytes.position()+bytes.arrayOffset()+i];
             if (b0 != 0 && b0 != -1)
                 break;
-            byte b1 = bytes[i + 1];
+            byte b1 = bytes.array()[bytes.position()+bytes.arrayOffset()+ i + 1];
             if (b0 == 0 && b1 != 0)
             {
                 if (b1 > 0)
@@ -51,10 +53,10 @@ public final class IntegerType extends AbstractType
 
     IntegerType() {/* singleton */}
 
-    public int compare(byte[] lhs, byte[] rhs)
+    public int compare(ByteBuffer lhs, ByteBuffer rhs)
     {
-        int lhsLen = lhs.length;
-        int rhsLen = rhs.length;
+        int lhsLen = lhs.remaining();
+        int rhsLen = rhs.remaining();
 
         if (lhsLen == 0)
             return rhsLen == 0 ? 0 : -1;
@@ -68,8 +70,8 @@ public final class IntegerType extends AbstractType
         int lhsLenDiff = lhsLen - lhsMsbIdx;
         int rhsLenDiff = rhsLen - rhsMsbIdx;
 
-        byte lhsMsb = lhs[lhsMsbIdx];
-        byte rhsMsb = rhs[rhsMsbIdx];
+        byte lhsMsb = lhs.array()[lhs.position()+lhs.arrayOffset()+lhsMsbIdx];
+        byte rhsMsb = rhs.array()[rhs.position()+rhs.arrayOffset()+rhsMsbIdx];
 
         /*         +    -
          *      -----------
@@ -99,8 +101,8 @@ public final class IntegerType extends AbstractType
         // remaining bytes are compared unsigned
         while (lhsMsbIdx < lhsLen)
         {
-            lhsMsb = lhs[lhsMsbIdx++];
-            rhsMsb = rhs[rhsMsbIdx++];
+            lhsMsb = lhs.array()[lhs.position()+lhs.arrayOffset()+lhsMsbIdx++];
+            rhsMsb = rhs.array()[rhs.position()+rhs.arrayOffset()+rhsMsbIdx++];
             if (lhsMsb != rhsMsb)
                 return (lhsMsb & 0xFF) - (rhsMsb & 0xFF);
         }
@@ -109,13 +111,13 @@ public final class IntegerType extends AbstractType
     }
 
     @Override
-    public String getString(byte[] bytes)
+    public String getString(ByteBuffer bytes)
     {
         if (bytes == null)
             return "null";
-        if (bytes.length == 0)
+        if (bytes.remaining() == 0)
             return "empty";
 
-        return new java.math.BigInteger(bytes).toString(10);
+        return new java.math.BigInteger(bytes.array()).toString(10);
     }
 }

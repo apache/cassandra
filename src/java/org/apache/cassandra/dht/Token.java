@@ -22,6 +22,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
+import java.nio.ByteBuffer;
 
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.service.StorageService;
@@ -36,7 +37,7 @@ public abstract class Token<T> implements Comparable<Token<T>>, Serializable
         return serializer;
     }
 
-    T token;
+    public final T token;
 
     protected Token(T token)
     {
@@ -68,8 +69,8 @@ public abstract class Token<T> implements Comparable<Token<T>>, Serializable
 
     public static abstract class TokenFactory<T>
     {
-        public abstract byte[] toByteArray(Token<T> token);
-        public abstract Token<T> fromByteArray(byte[] bytes);
+        public abstract ByteBuffer toByteArray(Token<T> token);
+        public abstract Token<T> fromByteArray(ByteBuffer bytes);
         public abstract String toString(Token<T> token); // serialize as string, not necessarily human-readable
         public abstract Token<T> fromString(String string); // deserialize
     }
@@ -79,9 +80,9 @@ public abstract class Token<T> implements Comparable<Token<T>>, Serializable
         public void serialize(Token token, DataOutput dos) throws IOException
         {
             IPartitioner p = StorageService.getPartitioner();
-            byte[] b = p.getTokenFactory().toByteArray(token);
-            dos.writeInt(b.length);
-            dos.write(b);
+            ByteBuffer b = p.getTokenFactory().toByteArray(token);
+            dos.writeInt(b.remaining());
+            dos.write(b.array(),b.position()+b.arrayOffset(),b.remaining());
         }
 
         public Token deserialize(DataInput dis) throws IOException
@@ -90,7 +91,7 @@ public abstract class Token<T> implements Comparable<Token<T>>, Serializable
             int size = dis.readInt();
             byte[] bytes = new byte[size];
             dis.readFully(bytes);
-            return p.getTokenFactory().fromByteArray(bytes);
+            return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
         }
     }
 }

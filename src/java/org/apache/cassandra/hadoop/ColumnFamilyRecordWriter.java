@@ -120,8 +120,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
     @Override
     public void write(ByteBuffer keybuff, List<org.apache.cassandra.avro.Mutation> value) throws IOException
     {
-        byte[] key = copy(keybuff);
-        Range range = ringCache.getRange(key);
+        Range range = ringCache.getRange(keybuff);
 
         // get the client for the given range, or create a new one
         RangeClient client = clients.get(range);
@@ -134,7 +133,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
         }
 
         for (org.apache.cassandra.avro.Mutation amut : value)
-            client.put(new Pair<byte[],Mutation>(key, avroToThrift(amut)));
+            client.put(new Pair<ByteBuffer,Mutation>(keybuff, avroToThrift(amut)));
     }
 
     /**
@@ -155,7 +154,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
             else
             {
                 // super column
-                byte[] scolname = copy(acosc.super_column.name);
+                ByteBuffer scolname = acosc.super_column.name;
                 List<Column> scolcols = new ArrayList<Column>(acosc.super_column.columns.size());
                 for (org.apache.cassandra.avro.Column acol : acosc.super_column.columns)
                     scolcols.add(avroToThrift(acol));
@@ -174,9 +173,9 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
             else if (apred.column_names != null)
             {
                 // column names
-                List<byte[]> names = new ArrayList<byte[]>(apred.column_names.size());
+                List<ByteBuffer> names = new ArrayList<ByteBuffer>(apred.column_names.size());
                 for (ByteBuffer name : apred.column_names)
-                    names.add(copy(name));
+                    names.add(name);
                 deletion.setPredicate(new SlicePredicate().setColumn_names(names));
             }
             else
@@ -190,12 +189,12 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
 
     private SliceRange avroToThrift(org.apache.cassandra.avro.SliceRange asr)
     {
-        return new SliceRange(copy(asr.start), copy(asr.finish), asr.reversed, asr.count);
+        return new SliceRange(asr.start, asr.finish, asr.reversed, asr.count);
     }
 
     private Column avroToThrift(org.apache.cassandra.avro.Column acol)
     {
-        return new Column(copy(acol.name), copy(acol.value), acol.timestamp);
+        return new Column(acol.name, acol.value, acol.timestamp);
     }
 
     /**
@@ -241,7 +240,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
         private final List<InetAddress> endpoints;
         private final String columnFamily = ConfigHelper.getOutputColumnFamily(conf);
         // A bounded queue of incoming mutations for this range
-        private final BlockingQueue<Pair<byte[], Mutation>> queue = new ArrayBlockingQueue<Pair<byte[],Mutation>>(queueSize);
+        private final BlockingQueue<Pair<ByteBuffer, Mutation>> queue = new ArrayBlockingQueue<Pair<ByteBuffer,Mutation>>(queueSize);
 
         private volatile boolean run = true;
         private volatile IOException lastException;
@@ -262,7 +261,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
         /**
          * enqueues the given value to Cassandra
          */
-        public void put(Pair<byte[],Mutation> value) throws IOException
+        public void put(Pair<ByteBuffer,Mutation> value) throws IOException
         {
             while (true)
             {
@@ -306,7 +305,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
             outer:
             while (run || !queue.isEmpty())
             {
-                Pair<byte[], Mutation> mutation;
+                Pair<ByteBuffer, Mutation> mutation;
                 try
                 {
                     mutation = queue.take();
@@ -317,7 +316,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
                     continue;
                 }
 
-                Map<byte[], Map<String, List<Mutation>>> batch = new HashMap<byte[], Map<String, List<Mutation>>>();
+                Map<ByteBuffer, Map<String, List<Mutation>>> batch = new HashMap<ByteBuffer, Map<String, List<Mutation>>>();
                 while (batch.size() < batchThreshold)
                 {
                     Map<String, List<Mutation>> subBatch = Collections.singletonMap(columnFamily, Arrays.asList(mutation.right));

@@ -17,6 +17,8 @@
 */
 package org.apache.cassandra.db;
 
+import java.nio.ByteBuffer;
+
 import org.junit.Test;
 
 import static junit.framework.Assert.assertNotNull;
@@ -28,8 +30,8 @@ public class SuperColumnTest
 {   
     @Test
     public void testMissingSubcolumn() {
-    	SuperColumn sc = new SuperColumn("sc1".getBytes(), LongType.instance);
-    	sc.addColumn(new Column(getBytes(1), "value".getBytes(), 1));
+    	SuperColumn sc = new SuperColumn(ByteBuffer.wrap("sc1".getBytes()), LongType.instance);
+    	sc.addColumn(new Column(getBytes(1), ByteBuffer.wrap("value".getBytes()), 1));
     	assertNotNull(sc.getSubColumn(getBytes(1)));
     	assertNull(sc.getSubColumn(getBytes(2)));
     }

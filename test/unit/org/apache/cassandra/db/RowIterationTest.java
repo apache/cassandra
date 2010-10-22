@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.ArrayList;
@@ -52,7 +53,7 @@ public class RowIterationTest extends CleanupHelper
         for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
             DecoratedKey key = Util.dk(String.valueOf(i));
             RowMutation rm = new RowMutation(TABLE1, key.key);
-            rm.add(new QueryPath("Super3", "sc".getBytes(), String.valueOf(i).getBytes()), new byte[ROWS_PER_SSTABLE * 10 - i * 2], i);
+            rm.add(new QueryPath("Super3", ByteBuffer.wrap("sc".getBytes()), ByteBuffer.wrap(String.valueOf(i).getBytes())), ByteBuffer.wrap(new byte[ROWS_PER_SSTABLE * 10 - i * 2]), i);
             rm.apply();
             inserted.add(key);
         }

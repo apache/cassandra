@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,8 +66,8 @@ public class ColumnPath implements TBase<ColumnPath, ColumnPath._Fields>, java.i
   private static final TField COLUMN_FIELD_DESC = new TField("column", TType.STRING, (short)5);
 
   public String column_family;
-  public byte[] super_column;
-  public byte[] column;
+  public ByteBuffer super_column;
+  public ByteBuffer column;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
@@ -165,12 +166,12 @@ public class ColumnPath implements TBase<ColumnPath, ColumnPath._Fields>, java.i
       this.column_family = other.column_family;
     }
     if (other.isSetSuper_column()) {
-      this.super_column = new byte[other.super_column.length];
-      System.arraycopy(other.super_column, 0, super_column, 0, other.super_column.length);
+      this.super_column = TBaseHelper.copyBinary(other.super_column);
+;
     }
     if (other.isSetColumn()) {
-      this.column = new byte[other.column.length];
-      System.arraycopy(other.column, 0, column, 0, other.column.length);
+      this.column = TBaseHelper.copyBinary(other.column);
+;
     }
   }
 
@@ -178,9 +179,11 @@ public class ColumnPath implements TBase<ColumnPath, ColumnPath._Fields>, java.i
     return new ColumnPath(this);
   }
 
-  @Deprecated
-  public ColumnPath clone() {
-    return new ColumnPath(this);
+  @Override
+  public void clear() {
+    this.column_family = null;
+    this.super_column = null;
+    this.column = null;
   }
 
   public String getColumn_family() {
@@ -208,10 +211,20 @@ public class ColumnPath implements TBase<ColumnPath, ColumnPath._Fields>, java.i
   }
 
   public byte[] getSuper_column() {
-    return this.super_column;
+    setSuper_column(TBaseHelper.rightSize(super_column));
+    return super_column.array();
+  }
+
+  public ByteBuffer BufferForSuper_column() {
+    return super_column;
   }
 
   public ColumnPath setSuper_column(byte[] super_column) {
+    setSuper_column(ByteBuffer.wrap(super_column));
+    return this;
+  }
+
+  public ColumnPath setSuper_column(ByteBuffer super_column) {
     this.super_column = super_column;
     return this;
   }
@@ -232,10 +245,20 @@ public class ColumnPath implements TBase<ColumnPath, ColumnPath._Fields>, java.i
   }
 
   public byte[] getColumn() {
-    return this.column;
+    setColumn(TBaseHelper.rightSize(column));
+    return column.array();
+  }
+
+  public ByteBuffer BufferForColumn() {
+    return column;
   }
 
   public ColumnPath setColumn(byte[] column) {
+    setColumn(ByteBuffer.wrap(column));
+    return this;
+  }
+
+  public ColumnPath setColumn(ByteBuffer column) {
     this.column = column;
     return this;
   }
@@ -269,7 +292,7 @@ public class ColumnPath implements TBase<ColumnPath, ColumnPath._Fields>, java.i
       if (value == null) {
         unsetSuper_column();
       } else {
-        setSuper_column((byte[])value);
+        setSuper_column((ByteBuffer)value);
       }
       break;
 
@@ -277,15 +300,11 @@ public class ColumnPath implements TBase<ColumnPath, ColumnPath._Fields>, java.i
       if (value == null) {
         unsetColumn();
       } else {
-        setColumn((byte[])value);
+        setColumn((ByteBuffer)value);
       }
       break;
 
     }
-  }
-
-  public void setFieldValue(int fieldID, Object value) {
-    setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
   }
 
   public Object getFieldValue(_Fields field) {
@@ -303,12 +322,12 @@ public class ColumnPath implements TBase<ColumnPath, ColumnPath._Fields>, java.i
     throw new IllegalStateException();
   }
 
-  public Object getFieldValue(int fieldId) {
-    return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-  }
-
   /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
+    if (field == null) {
+      throw new IllegalArgumentException();
+    }
+
     switch (field) {
     case COLUMN_FAMILY:
       return isSetColumn_family();
@@ -318,10 +337,6 @@ public class ColumnPath implements TBase<ColumnPath, ColumnPath._Fields>, java.i
       return isSetColumn();
     }
     throw new IllegalStateException();
-  }
-
-  public boolean isSet(int fieldID) {
-    return isSet(_Fields.findByThriftIdOrThrow(fieldID));
   }
 
   @Override
@@ -351,7 +366,7 @@ public class ColumnPath implements TBase<ColumnPath, ColumnPath._Fields>, java.i
     if (this_present_super_column || that_present_super_column) {
       if (!(this_present_super_column && that_present_super_column))
         return false;
-      if (!java.util.Arrays.equals(this.super_column, that.super_column))
+      if (!this.super_column.equals(that.super_column))
         return false;
     }
 
@@ -360,7 +375,7 @@ public class ColumnPath implements TBase<ColumnPath, ColumnPath._Fields>, java.i
     if (this_present_column || that_present_column) {
       if (!(this_present_column && that_present_column))
         return false;
-      if (!java.util.Arrays.equals(this.column, that.column))
+      if (!this.column.equals(that.column))
         return false;
     }
 
@@ -401,7 +416,8 @@ public class ColumnPath implements TBase<ColumnPath, ColumnPath._Fields>, java.i
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetColumn_family()) {      lastComparison = TBaseHelper.compareTo(this.column_family, typedOther.column_family);
+    if (isSetColumn_family()) {
+      lastComparison = TBaseHelper.compareTo(this.column_family, typedOther.column_family);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -410,7 +426,8 @@ public class ColumnPath implements TBase<ColumnPath, ColumnPath._Fields>, java.i
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetSuper_column()) {      lastComparison = TBaseHelper.compareTo(this.super_column, typedOther.super_column);
+    if (isSetSuper_column()) {
+      lastComparison = TBaseHelper.compareTo(this.super_column, typedOther.super_column);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -419,12 +436,17 @@ public class ColumnPath implements TBase<ColumnPath, ColumnPath._Fields>, java.i
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetColumn()) {      lastComparison = TBaseHelper.compareTo(this.column, typedOther.column);
+    if (isSetColumn()) {
+      lastComparison = TBaseHelper.compareTo(this.column, typedOther.column);
       if (lastComparison != 0) {
         return lastComparison;
       }
     }
     return 0;
+  }
+
+  public _Fields fieldForId(int fieldId) {
+    return _Fields.findByThriftId(fieldId);
   }
 
   public void read(TProtocol iprot) throws TException {
@@ -514,12 +536,7 @@ public class ColumnPath implements TBase<ColumnPath, ColumnPath._Fields>, java.i
       if (this.super_column == null) {
         sb.append("null");
       } else {
-          int __super_column_size = Math.min(this.super_column.length, 128);
-          for (int i = 0; i < __super_column_size; i++) {
-            if (i != 0) sb.append(" ");
-            sb.append(Integer.toHexString(this.super_column[i]).length() > 1 ? Integer.toHexString(this.super_column[i]).substring(Integer.toHexString(this.super_column[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.super_column[i]).toUpperCase());
-          }
-          if (this.super_column.length > 128) sb.append(" ...");
+        TBaseHelper.toString(this.super_column, sb);
       }
       first = false;
     }
@@ -529,12 +546,7 @@ public class ColumnPath implements TBase<ColumnPath, ColumnPath._Fields>, java.i
       if (this.column == null) {
         sb.append("null");
       } else {
-          int __column_size = Math.min(this.column.length, 128);
-          for (int i = 0; i < __column_size; i++) {
-            if (i != 0) sb.append(" ");
-            sb.append(Integer.toHexString(this.column[i]).length() > 1 ? Integer.toHexString(this.column[i]).substring(Integer.toHexString(this.column[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.column[i]).toUpperCase());
-          }
-          if (this.column.length > 128) sb.append(" ...");
+        TBaseHelper.toString(this.column, sb);
       }
       first = false;
     }

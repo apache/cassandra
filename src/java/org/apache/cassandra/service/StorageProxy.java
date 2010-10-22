@@ -21,6 +21,7 @@ package org.apache.cassandra.service;
 import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 import javax.management.MBeanServer;
@@ -187,7 +188,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             dos.write(previousHints);
         }
-        FBUtilities.writeShortByteArray(target.getHostAddress().getBytes(UTF_8), dos);
+        FBUtilities.writeShortByteArray(ByteBuffer.wrap(target.getHostAddress().getBytes(UTF_8)), dos);
         message.setHeader(RowMutation.HINT, bos.toByteArray());
     }
 

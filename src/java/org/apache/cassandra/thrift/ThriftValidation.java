@@ -20,15 +20,17 @@ package org.apache.cassandra.thrift;
  * 
  */
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Set;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.KeyspaceNotDefinedException;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.dht.IPartitioner;
@@ -36,21 +38,23 @@ import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ThriftValidation
 {
     private static final Logger logger = LoggerFactory.getLogger(ThriftValidation.class);
 
-    static void validateKey(byte[] key) throws InvalidRequestException
+    static void validateKey(ByteBuffer key) throws InvalidRequestException
     {
-        if (key == null || key.length == 0)
+        if (key == null || key.remaining() == 0)
         {
             throw new InvalidRequestException("Key may not be empty");
         }
         // check that key can be handled by FBUtilities.writeShortByteArray
-        if (key.length > FBUtilities.MAX_UNSIGNED_SHORT)
+        if (key.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
         {
-            throw new InvalidRequestException("Key length of " + key.length +
+            throw new InvalidRequestException("Key length of " + key.remaining() +
                                               " is longer than maximum of " + FBUtilities.MAX_UNSIGNED_SHORT);
         }
     }
@@ -146,24 +150,24 @@ public class ThriftValidation
         }
     }
 
-    private static void validateColumns(String keyspace, String columnFamilyName, byte[] superColumnName, Iterable<byte[]> column_names)
+    private static void validateColumns(String keyspace, String columnFamilyName, ByteBuffer superColumnName, Iterable<ByteBuffer> column_names)
             throws InvalidRequestException
     {
         if (superColumnName != null)
         {
-            if (superColumnName.length > IColumn.MAX_NAME_LENGTH)
+            if (superColumnName.remaining() > IColumn.MAX_NAME_LENGTH)
                 throw new InvalidRequestException("supercolumn name length must not be greater than " + IColumn.MAX_NAME_LENGTH);
-            if (superColumnName.length == 0)
+            if (superColumnName.remaining() == 0)
                 throw new InvalidRequestException("supercolumn name must not be empty");
             if (DatabaseDescriptor.getColumnFamilyType(keyspace, columnFamilyName) == ColumnFamilyType.Standard)
                 throw new InvalidRequestException("supercolumn specified to ColumnFamily " + columnFamilyName + " containing normal columns");
         }
         AbstractType comparator = ColumnFamily.getComparatorFor(keyspace, columnFamilyName, superColumnName);
-        for (byte[] name : column_names)
+        for (ByteBuffer name : column_names)
         {
-            if (name.length > IColumn.MAX_NAME_LENGTH)
+            if (name.remaining() > IColumn.MAX_NAME_LENGTH)
                 throw new InvalidRequestException("column name length must not be greater than " + IColumn.MAX_NAME_LENGTH);
-            if (name.length == 0)
+            if (name.remaining() == 0)
                 throw new InvalidRequestException("column name must not be empty");
             try
             {
@@ -176,7 +180,7 @@ public class ThriftValidation
         }
     }
 
-    public static void validateColumns(String keyspace, ColumnParent column_parent, Iterable<byte[]> column_names) throws InvalidRequestException
+    public static void validateColumns(String keyspace, ColumnParent column_parent, Iterable<ByteBuffer> column_names) throws InvalidRequestException
     {
         validateColumns(keyspace, column_parent.column_family, column_parent.super_column, column_names);
     }
@@ -197,9 +201,9 @@ public class ThriftValidation
         if (range.count < 0)
             throw new InvalidRequestException("get_slice requires non-negative count");
 
-        Comparator<byte[]> orderedComparator = range.isReversed() ? comparator.getReverseComparator() : comparator;
-        if (range.start.length > 0
-            && range.finish.length > 0
+        Comparator<ByteBuffer> orderedComparator = range.isReversed() ? comparator.getReverseComparator() : comparator;
+        if (range.start.remaining() > 0
+            && range.finish.remaining() > 0
             && orderedComparator.compare(range.start, range.finish) > 0)
         {
             throw new InvalidRequestException("range finish must come after start in the order of traversal");
@@ -212,7 +216,7 @@ public class ThriftValidation
         if (cosc.column != null)
         {
             validateTtl(cosc.column);
-            ThriftValidation.validateColumnPath(keyspace, new ColumnPath(cfName).setSuper_column(null).setColumn(cosc.column.name));
+            ThriftValidation.validateColumnPath(keyspace, new ColumnPath(cfName).setSuper_column((ByteBuffer)null).setColumn(cosc.column.name));
         }
 
         if (cosc.super_column != null)
@@ -278,7 +282,7 @@ public class ThriftValidation
         }
     }
 
-    public static void validateSlicePredicate(String keyspace, String cfName, byte[] scName, SlicePredicate predicate) throws InvalidRequestException
+    public static void validateSlicePredicate(String keyspace, String cfName, ByteBuffer scName, SlicePredicate predicate) throws InvalidRequestException
     {
         if (predicate.column_names == null && predicate.slice_range == null)
             throw new InvalidRequestException("A SlicePredicate must be given a list of Columns, a SliceRange, or both");
@@ -365,7 +369,7 @@ public class ThriftValidation
     {
         if (index_clause.expressions.isEmpty())
             throw new InvalidRequestException("index clause list may not be empty");
-        Set<byte[]> indexedColumns = Table.open(keyspace).getColumnFamilyStore(columnFamily).getIndexedColumns();
+        Set<ByteBuffer> indexedColumns = Table.open(keyspace).getColumnFamilyStore(columnFamily).getIndexedColumns();
         for (IndexExpression expression : index_clause.expressions)
         {
             if (expression.op.equals(IndexOperator.EQ) && indexedColumns.contains(expression.column_name))

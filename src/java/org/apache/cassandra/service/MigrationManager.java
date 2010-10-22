@@ -42,6 +42,7 @@ import java.io.DataOutputStream;
 import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -192,10 +193,10 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         for (IColumn col : migrations)
         {
             assert col instanceof Column;
-            dout.writeInt(col.name().length);
-            dout.write(col.name());
-            dout.writeInt(col.value().length);
-            dout.write(col.value());
+            dout.writeInt(col.name().remaining());
+            dout.write(col.name().array(),col.name().position()+col.name().arrayOffset(),col.name().remaining());
+            dout.writeInt(col.value().remaining());
+            dout.write(col.value().array(),col.value().position()+col.value().arrayOffset(),col.value().remaining());
         }
         dout.close();
         byte[] body = bout.toByteArray();
@@ -214,7 +215,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
             in.readFully(name);
             byte[] value = new byte[in.readInt()];
             in.readFully(value);
-            cols.add(new Column(name, value));
+            cols.add(new Column(ByteBuffer.wrap(name), ByteBuffer.wrap(value)));
         }
         in.close();
         return cols;

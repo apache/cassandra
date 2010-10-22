@@ -20,7 +20,7 @@ package org.apache.cassandra.db;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.List;
+import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -30,16 +30,16 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class SliceFromReadCommand extends ReadCommand
 {
-    public final byte[] start, finish;
+    public final ByteBuffer start, finish;
     public final boolean reversed;
     public final int count;
 
-    public SliceFromReadCommand(String table, byte[] key, ColumnParent column_parent, byte[] start, byte[] finish, boolean reversed, int count)
+    public SliceFromReadCommand(String table, ByteBuffer key, ColumnParent column_parent, ByteBuffer start, ByteBuffer finish, boolean reversed, int count)
     {
         this(table, key, new QueryPath(column_parent), start, finish, reversed, count);
     }
 
-    public SliceFromReadCommand(String table, byte[] key, QueryPath path, byte[] start, byte[] finish, boolean reversed, int count)
+    public SliceFromReadCommand(String table, ByteBuffer key, QueryPath path, ByteBuffer start, ByteBuffer finish, boolean reversed, int count)
     {
         super(table, key, path, CMD_TYPE_GET_SLICE);
         this.start = start;

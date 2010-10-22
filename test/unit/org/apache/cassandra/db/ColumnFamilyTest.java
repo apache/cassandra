@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.TreeMap;
 
@@ -77,7 +78,7 @@ public class ColumnFamilyTest extends SchemaLoader
         cf = ColumnFamily.serializer().deserialize(new DataInputStream(bufIn));
         for (String cName : map.navigableKeySet())
         {
-            assert new String(cf.getColumn(cName.getBytes()).value()).equals(map.get(cName));
+            assert new String(cf.getColumn(ByteBuffer.wrap(cName.getBytes())).value().array()).equals(map.get(cName));
         }
         assert cf.getColumnNames().size() == map.size();
     }
@@ -104,7 +105,7 @@ public class ColumnFamilyTest extends SchemaLoader
         cf.addColumn(column("col1", "val2", 2)); // same timestamp, new value
         cf.addColumn(column("col1", "val3", 1)); // older timestamp -- should be ignored
 
-        assert Arrays.equals("val2".getBytes(), cf.getColumn("col1".getBytes()).value());
+        assert Arrays.equals("val2".getBytes(), cf.getColumn(ByteBuffer.wrap("col1".getBytes())).value().array());
     }
 
     @Test
@@ -113,33 +114,33 @@ public class ColumnFamilyTest extends SchemaLoader
         ColumnFamily cf_new = ColumnFamily.create("Keyspace1", "Standard1");
         ColumnFamily cf_old = ColumnFamily.create("Keyspace1", "Standard1");
         ColumnFamily cf_result = ColumnFamily.create("Keyspace1", "Standard1");
-        byte val[] = "sample value".getBytes();
-        byte val2[] = "x value ".getBytes();
+        ByteBuffer val = ByteBuffer.wrap("sample value".getBytes());
+        ByteBuffer val2 = ByteBuffer.wrap("x value ".getBytes());
 
         // exercise addColumn(QueryPath, ...)
-        cf_new.addColumn(QueryPath.column("col1".getBytes()), val, 3);
-        cf_new.addColumn(QueryPath.column("col2".getBytes()), val, 4);
+        cf_new.addColumn(QueryPath.column(ByteBuffer.wrap("col1".getBytes())), val, 3);
+        cf_new.addColumn(QueryPath.column(ByteBuffer.wrap("col2".getBytes())), val, 4);
 
-        cf_old.addColumn(QueryPath.column("col2".getBytes()), val2, 1);
-        cf_old.addColumn(QueryPath.column("col3".getBytes()), val2, 2);
+        cf_old.addColumn(QueryPath.column(ByteBuffer.wrap("col2".getBytes())), val2, 1);
+        cf_old.addColumn(QueryPath.column(ByteBuffer.wrap("col3".getBytes())), val2, 2);
 
         cf_result.addAll(cf_new);
         cf_result.addAll(cf_old);
 
         assert 3 == cf_result.getColumnCount() : "Count is " + cf_new.getColumnCount();
         //addcolumns will only add if timestamp >= old timestamp
-        assert Arrays.equals(val, cf_result.getColumn("col2".getBytes()).value());
+        assert val.equals(cf_result.getColumn(ByteBuffer.wrap("col2".getBytes())).value());
 
         // check that tombstone wins timestamp ties
-        cf_result.addTombstone("col1".getBytes(), 0, 3);
-        assert cf_result.getColumn("col1".getBytes()).isMarkedForDelete();
-        cf_result.addColumn(QueryPath.column("col1".getBytes()), val2, 3);
-        assert cf_result.getColumn("col1".getBytes()).isMarkedForDelete();
+        cf_result.addTombstone(ByteBuffer.wrap("col1".getBytes()), 0, 3);
+        assert cf_result.getColumn(ByteBuffer.wrap("col1".getBytes())).isMarkedForDelete();
+        cf_result.addColumn(QueryPath.column(ByteBuffer.wrap("col1".getBytes())), val2, 3);
+        assert cf_result.getColumn(ByteBuffer.wrap("col1".getBytes())).isMarkedForDelete();
 
         // check that column value wins timestamp ties in absence of tombstone
-        cf_result.addColumn(QueryPath.column("col3".getBytes()), val, 2);
-        assert Arrays.equals(cf_result.getColumn("col3".getBytes()).value(), val2);
-        cf_result.addColumn(QueryPath.column("col3".getBytes()), "z".getBytes(), 2);
-        assert Arrays.equals(cf_result.getColumn("col3".getBytes()).value(), "z".getBytes());
+        cf_result.addColumn(QueryPath.column(ByteBuffer.wrap("col3".getBytes())), val, 2);
+        assert cf_result.getColumn(ByteBuffer.wrap("col3".getBytes())).value().equals(val2);
+        cf_result.addColumn(QueryPath.column(ByteBuffer.wrap("col3".getBytes())), ByteBuffer.wrap("z".getBytes()), 2);
+        assert cf_result.getColumn(ByteBuffer.wrap("col3".getBytes())).value().equals(ByteBuffer.wrap("z".getBytes()));
     }
 }

@@ -19,10 +19,12 @@
 
 package org.apache.cassandra.dht;
 
-import org.apache.commons.lang.ArrayUtils;
+import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.commons.lang.ArrayUtils;
 
 public class LocalPartitioner implements IPartitioner<LocalToken>
 {
@@ -33,27 +35,27 @@ public class LocalPartitioner implements IPartitioner<LocalToken>
         this.comparator = comparator;
     }
 
-    public DecoratedKey<LocalToken> convertFromDiskFormat(byte[] key)
+    public DecoratedKey<LocalToken> convertFromDiskFormat(ByteBuffer key)
     {
         return decorateKey(key);
     }
 
-    public DecoratedKey<LocalToken> decorateKey(byte[] key)
+    public DecoratedKey<LocalToken> decorateKey(ByteBuffer key)
     {
         return new DecoratedKey<LocalToken>(getToken(key), key);
     }
 
-    public LocalToken midpoint(LocalToken left, LocalToken right)
+    public Token midpoint(Token left, Token right)
     {
         throw new UnsupportedOperationException();
     }
 
     public LocalToken getMinimumToken()
     {
-        return new LocalToken(comparator, ArrayUtils.EMPTY_BYTE_ARRAY);
+        return new LocalToken(comparator, FBUtilities.EMPTY_BYTE_BUFFER);
     }
 
-    public LocalToken getToken(byte[] key)
+    public LocalToken getToken(ByteBuffer key)
     {
         return new LocalToken(comparator, key);
     }

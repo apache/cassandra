@@ -18,21 +18,41 @@
 */
 package org.apache.cassandra.utils;
 
-import java.io.*;
-import java.util.*;
+import static org.apache.cassandra.utils.MerkleTree.RECOMMENDED_DEPTH;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Random;
 
-import org.apache.cassandra.dht.*;
-import static org.apache.cassandra.utils.MerkleTree.*;
-
+import org.apache.cassandra.dht.BigIntegerToken;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.RandomPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.utils.MerkleTree.Hashable;
+import org.apache.cassandra.utils.MerkleTree.RowHash;
+import org.apache.cassandra.utils.MerkleTree.TreeRange;
+import org.apache.cassandra.utils.MerkleTree.TreeRangeIterator;
+import org.junit.Before;
+import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.AbstractIterator;
-
-import org.junit.Before;
-import org.junit.Test;
-import static org.junit.Assert.*;
 
 public class MerkleTreeTest
 {
@@ -64,8 +84,8 @@ public class MerkleTreeTest
 
     public static void assertHashEquals(String message, final byte[] left, final byte[] right)
     {
-        String lstring = left == null ? "null" : FBUtilities.bytesToHex(left);
-        String rstring = right == null ? "null" : FBUtilities.bytesToHex(right);
+        String lstring = left == null ? "null" : FBUtilities.bytesToHex(ByteBuffer.wrap(left));
+        String rstring = right == null ? "null" : FBUtilities.bytesToHex(ByteBuffer.wrap(right));
         assertEquals(message, lstring, rstring);
     }
 

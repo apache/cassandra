@@ -18,17 +18,13 @@
 
 package org.apache.cassandra.db;
 
-import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
-
 import org.apache.commons.lang.ArrayUtils;
 
 
@@ -52,10 +48,10 @@ private static ICompactSerializer<ReadResponse> serializer_;
     }
     
 	private Row row_;
-	private byte[] digest_ = ArrayUtils.EMPTY_BYTE_ARRAY;
+	private ByteBuffer digest_ = FBUtilities.EMPTY_BYTE_BUFFER;
     private boolean isDigestQuery_ = false;
 
-	public ReadResponse(byte[] digest )
+	public ReadResponse(ByteBuffer digest )
     {
         assert digest != null;
 		digest_= digest;
@@ -71,7 +67,7 @@ private static ICompactSerializer<ReadResponse> serializer_;
 		return row_;
     }
         
-	public byte[] digest() 
+	public ByteBuffer digest() 
     {
 		return digest_;
 	}
@@ -91,8 +87,8 @@ class ReadResponseSerializer implements ICompactSerializer<ReadResponse>
 {
 	public void serialize(ReadResponse rm, DataOutputStream dos) throws IOException
 	{
-        dos.writeInt(rm.digest().length);
-        dos.write(rm.digest());
+        dos.writeInt(rm.digest().remaining());
+        dos.write(rm.digest().array(),rm.digest().position()+rm.digest().arrayOffset(),rm.digest().remaining());
         dos.writeBoolean(rm.isDigestQuery());
         
         if( !rm.isDigestQuery() && rm.row() != null )
@@ -114,7 +110,7 @@ class ReadResponseSerializer implements ICompactSerializer<ReadResponse>
             row = Row.serializer().deserialize(dis);
         }
 
-        ReadResponse rmsg = isDigest ? new ReadResponse(digest) : new ReadResponse(row);
+        ReadResponse rmsg = isDigest ? new ReadResponse(ByteBuffer.wrap(digest)) : new ReadResponse(row);
         rmsg.setIsDigestQuery(isDigest);
     	return rmsg;
     } 

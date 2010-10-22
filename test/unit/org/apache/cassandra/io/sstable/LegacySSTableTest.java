@@ -21,14 +21,19 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
-
-import org.junit.BeforeClass;
-import org.junit.Test;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.utils.FBUtilities;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 /**
  * Tests backwards compatibility for SSTables. Requires that older SSTables match up with the existing config file,
@@ -40,7 +45,7 @@ public class LegacySSTableTest extends CleanupHelper
     public static final String KSNAME = "Keyspace1";
     public static final String CFNAME = "Standard1";
 
-    public static Map<byte[], byte[]> TEST_DATA;
+    public static Map<ByteBuffer, ByteBuffer> TEST_DATA;
     public static File LEGACY_SSTABLE_ROOT;
 
     @BeforeClass
@@ -51,10 +56,10 @@ public class LegacySSTableTest extends CleanupHelper
         LEGACY_SSTABLE_ROOT = new File(scp).getAbsoluteFile();
         assert LEGACY_SSTABLE_ROOT.isDirectory();
 
-        TEST_DATA = new HashMap<byte[],byte[]>();
+        TEST_DATA = new HashMap<ByteBuffer,ByteBuffer>();
         for (int i = 100; i < 1000; ++i)
         {
-            TEST_DATA.put(Integer.toString(i).getBytes(), ("Avinash Lakshman is a good man: " + i).getBytes());
+            TEST_DATA.put(ByteBuffer.wrap(Integer.toString(i).getBytes()), ByteBuffer.wrap(("Avinash Lakshman is a good man: " + i).getBytes()));
         }
     }
 
@@ -102,14 +107,14 @@ public class LegacySSTableTest extends CleanupHelper
         {
             SSTableReader reader = SSTableReader.open(getDescriptor(version));
 
-            List<byte[]> keys = new ArrayList<byte[]>(TEST_DATA.keySet());
+            List<ByteBuffer> keys = new ArrayList<ByteBuffer>(TEST_DATA.keySet());
             Collections.shuffle(keys);
             BufferedRandomAccessFile file = new BufferedRandomAccessFile(reader.getFilename(), "r");
-            for (byte[] key : keys)
+            for (ByteBuffer key : keys)
             {
                 // confirm that the bloom filter does not reject any keys
                 file.seek(reader.getPosition(reader.partitioner.decorateKey(key), SSTableReader.Operator.EQ));
-                assert Arrays.equals(key, FBUtilities.readShortByteArray(file));
+                assert key.equals( FBUtilities.readShortByteArray(file));
             }
         }
         catch (Throwable e)

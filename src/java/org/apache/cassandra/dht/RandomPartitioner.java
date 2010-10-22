@@ -18,15 +18,16 @@
 
 package org.apache.cassandra.dht;
 
+import static com.google.common.base.Charsets.UTF_8;
+
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.GuidGenerator;
 import org.apache.cassandra.utils.Pair;
-
-import static com.google.common.base.Charsets.UTF_8;
 
 /**
  * This class generates a BigIntegerToken using MD5 hash.
@@ -39,18 +40,18 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
 
     private static final byte DELIMITER_BYTE = ":".getBytes()[0];
 
-    public DecoratedKey<BigIntegerToken> decorateKey(byte[] key)
+    public DecoratedKey<BigIntegerToken> decorateKey(ByteBuffer key)
     {
         return new DecoratedKey<BigIntegerToken>(getToken(key), key);
     }
     
-    public DecoratedKey<BigIntegerToken> convertFromDiskFormat(byte[] fromdisk)
+    public DecoratedKey<BigIntegerToken> convertFromDiskFormat(ByteBuffer fromdisk)
     {
         // find the delimiter position
         int splitPoint = -1;
-        for (int i = 0; i < fromdisk.length; i++)
+        for (int i = fromdisk.position()+fromdisk.arrayOffset(); i < fromdisk.limit(); i++)
         {
-            if (fromdisk[i] == DELIMITER_BYTE)
+            if (fromdisk.array()[i] == DELIMITER_BYTE)
             {
                 splitPoint = i;
                 break;
@@ -59,14 +60,14 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
         assert splitPoint != -1;
 
         // and decode the token and key
-        String token = new String(fromdisk, 0, splitPoint, UTF_8);
-        byte[] key = Arrays.copyOfRange(fromdisk, splitPoint + 1, fromdisk.length);
-        return new DecoratedKey<BigIntegerToken>(new BigIntegerToken(token), key);
+        String token = new String(fromdisk.array(), fromdisk.position()+fromdisk.arrayOffset(), splitPoint, UTF_8);
+        byte[] key = Arrays.copyOfRange(fromdisk.array(), splitPoint + 1, fromdisk.limit());
+        return new DecoratedKey<BigIntegerToken>(new BigIntegerToken(token), ByteBuffer.wrap(key));
     }
 
-    public BigIntegerToken midpoint(BigIntegerToken ltoken, BigIntegerToken rtoken)
+    public Token midpoint(Token ltoken, Token rtoken)
     {
-        Pair<BigInteger,Boolean> midpair = FBUtilities.midpoint(ltoken.token, rtoken.token, 127);
+        Pair<BigInteger,Boolean> midpair = FBUtilities.midpoint(((BigIntegerToken)ltoken).token, ((BigIntegerToken)rtoken).token, 127);
         // discard the remainder
         return new BigIntegerToken(midpair.left);
     }
@@ -78,21 +79,25 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
 
     public BigIntegerToken getRandomToken()
     {
-        BigInteger token = FBUtilities.md5hash(GuidGenerator.guid().getBytes());
+        BigInteger token = FBUtilities.md5hash(GuidGenerator.guidAsBytes());
         if ( token.signum() == -1 )
             token = token.multiply(BigInteger.valueOf(-1L));
         return new BigIntegerToken(token);
     }
 
     private final Token.TokenFactory<BigInteger> tokenFactory = new Token.TokenFactory<BigInteger>() {
-        public byte[] toByteArray(Token<BigInteger> bigIntegerToken)
+        public ByteBuffer toByteArray(Token<BigInteger> bigIntegerToken)
         {
-            return bigIntegerToken.token.toByteArray();
+            return ByteBuffer.wrap(bigIntegerToken.token.toByteArray());
         }
 
-        public Token<BigInteger> fromByteArray(byte[] bytes)
+        public Token<BigInteger> fromByteArray(ByteBuffer bytes)
         {
-            return new BigIntegerToken(new BigInteger(bytes));
+            byte[] b = new byte[bytes.remaining()];
+            bytes.get(b);
+            bytes.rewind();
+            
+            return new BigIntegerToken(new BigInteger(b));
         }
 
         public String toString(Token<BigInteger> bigIntegerToken)
@@ -116,9 +121,9 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
         return false;
     }
 
-    public BigIntegerToken getToken(byte[] key)
+    public BigIntegerToken getToken(ByteBuffer key)
     {
-        if (key.length == 0)
+        if (key.remaining() == 0)
             return MINIMUM;
         return new BigIntegerToken(FBUtilities.md5hash(key));
     }

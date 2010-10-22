@@ -56,21 +56,22 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
 
     public Column deserialize(DataInput dis) throws IOException
     {
-        byte[] name = FBUtilities.readShortByteArray(dis);
+        ByteBuffer name = FBUtilities.readShortByteArray(dis);
         int b = dis.readUnsignedByte();
         if ((b & EXPIRATION_MASK) != 0)
         {
             int ttl = dis.readInt();
             int expiration = dis.readInt();
             long ts = dis.readLong();
-            byte[] value = FBUtilities.readByteArray(dis);
+            ByteBuffer value = FBUtilities.readByteArray(dis);
             if ((int) (System.currentTimeMillis() / 1000 ) > expiration)
             {
                 // the column is now expired, we can safely return a simple
                 // tombstone
                 ByteBuffer bytes = ByteBuffer.allocate(4);
                 bytes.putInt(expiration);
-                return new DeletedColumn(name, bytes.array(), ts);
+                bytes.rewind();
+                return new DeletedColumn(name, bytes, ts);
             }
             else
             {
@@ -81,7 +82,7 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
         {
             boolean delete = (b & DELETION_MASK) != 0;
             long ts = dis.readLong();
-            byte[] value = FBUtilities.readByteArray(dis);
+            ByteBuffer value = FBUtilities.readByteArray(dis);
             if ((b & DELETION_MASK) != 0) {
                 return new DeletedColumn(name, value, ts);
             } else {

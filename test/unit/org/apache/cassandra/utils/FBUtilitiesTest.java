@@ -22,6 +22,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.Arrays;
 
@@ -35,7 +36,7 @@ public class FBUtilitiesTest
         for (int i = Byte.MIN_VALUE; i <= Byte.MAX_VALUE; i++)
         {
             byte[] b = new byte[]{ (byte)i };
-            String s = FBUtilities.bytesToHex(b);
+            String s = FBUtilities.bytesToHex(ByteBuffer.wrap(b));
             byte[] c = FBUtilities.hexToBytes(s);
             assertArrayEquals(b, c);
         }
@@ -78,7 +79,7 @@ public class FBUtilitiesTest
         };
 
         for (int i : ints) {
-            byte[] ba = FBUtilities.toByteArray(i);
+            ByteBuffer ba = FBUtilities.toByteArray(i);
             int actual = FBUtilities.byteArrayToInt(ba);
             assertEquals(i, actual);
         }
@@ -87,7 +88,7 @@ public class FBUtilitiesTest
     @Test(expected=CharacterCodingException.class)
     public void testDecode() throws IOException
     {
-        byte[] bytes = new byte[]{(byte)0xff, (byte)0xfe};
+        ByteBuffer bytes = ByteBuffer.wrap(new byte[]{(byte)0xff, (byte)0xfe});
         FBUtilities.decodeToUTF8(bytes);
     } 
 }

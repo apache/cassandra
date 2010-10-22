@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,8 +65,8 @@ public class KeyRange implements TBase<KeyRange, KeyRange._Fields>, java.io.Seri
   private static final TField END_TOKEN_FIELD_DESC = new TField("end_token", TType.STRING, (short)4);
   private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)5);
 
-  public byte[] start_key;
-  public byte[] end_key;
+  public ByteBuffer start_key;
+  public ByteBuffer end_key;
   public String start_token;
   public String end_token;
   public int count;
@@ -181,12 +182,12 @@ public class KeyRange implements TBase<KeyRange, KeyRange._Fields>, java.io.Seri
     __isset_bit_vector.clear();
     __isset_bit_vector.or(other.__isset_bit_vector);
     if (other.isSetStart_key()) {
-      this.start_key = new byte[other.start_key.length];
-      System.arraycopy(other.start_key, 0, start_key, 0, other.start_key.length);
+      this.start_key = TBaseHelper.copyBinary(other.start_key);
+;
     }
     if (other.isSetEnd_key()) {
-      this.end_key = new byte[other.end_key.length];
-      System.arraycopy(other.end_key, 0, end_key, 0, other.end_key.length);
+      this.end_key = TBaseHelper.copyBinary(other.end_key);
+;
     }
     if (other.isSetStart_token()) {
       this.start_token = other.start_token;
@@ -201,16 +202,31 @@ public class KeyRange implements TBase<KeyRange, KeyRange._Fields>, java.io.Seri
     return new KeyRange(this);
   }
 
-  @Deprecated
-  public KeyRange clone() {
-    return new KeyRange(this);
+  @Override
+  public void clear() {
+    this.start_key = null;
+    this.end_key = null;
+    this.start_token = null;
+    this.end_token = null;
+    this.count = 100;
+
   }
 
   public byte[] getStart_key() {
-    return this.start_key;
+    setStart_key(TBaseHelper.rightSize(start_key));
+    return start_key.array();
+  }
+
+  public ByteBuffer BufferForStart_key() {
+    return start_key;
   }
 
   public KeyRange setStart_key(byte[] start_key) {
+    setStart_key(ByteBuffer.wrap(start_key));
+    return this;
+  }
+
+  public KeyRange setStart_key(ByteBuffer start_key) {
     this.start_key = start_key;
     return this;
   }
@@ -231,10 +247,20 @@ public class KeyRange implements TBase<KeyRange, KeyRange._Fields>, java.io.Seri
   }
 
   public byte[] getEnd_key() {
-    return this.end_key;
+    setEnd_key(TBaseHelper.rightSize(end_key));
+    return end_key.array();
+  }
+
+  public ByteBuffer BufferForEnd_key() {
+    return end_key;
   }
 
   public KeyRange setEnd_key(byte[] end_key) {
+    setEnd_key(ByteBuffer.wrap(end_key));
+    return this;
+  }
+
+  public KeyRange setEnd_key(ByteBuffer end_key) {
     this.end_key = end_key;
     return this;
   }
@@ -331,7 +357,7 @@ public class KeyRange implements TBase<KeyRange, KeyRange._Fields>, java.io.Seri
       if (value == null) {
         unsetStart_key();
       } else {
-        setStart_key((byte[])value);
+        setStart_key((ByteBuffer)value);
       }
       break;
 
@@ -339,7 +365,7 @@ public class KeyRange implements TBase<KeyRange, KeyRange._Fields>, java.io.Seri
       if (value == null) {
         unsetEnd_key();
       } else {
-        setEnd_key((byte[])value);
+        setEnd_key((ByteBuffer)value);
       }
       break;
 
@@ -370,10 +396,6 @@ public class KeyRange implements TBase<KeyRange, KeyRange._Fields>, java.io.Seri
     }
   }
 
-  public void setFieldValue(int fieldID, Object value) {
-    setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
-  }
-
   public Object getFieldValue(_Fields field) {
     switch (field) {
     case START_KEY:
@@ -395,12 +417,12 @@ public class KeyRange implements TBase<KeyRange, KeyRange._Fields>, java.io.Seri
     throw new IllegalStateException();
   }
 
-  public Object getFieldValue(int fieldId) {
-    return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-  }
-
   /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
+    if (field == null) {
+      throw new IllegalArgumentException();
+    }
+
     switch (field) {
     case START_KEY:
       return isSetStart_key();
@@ -414,10 +436,6 @@ public class KeyRange implements TBase<KeyRange, KeyRange._Fields>, java.io.Seri
       return isSetCount();
     }
     throw new IllegalStateException();
-  }
-
-  public boolean isSet(int fieldID) {
-    return isSet(_Fields.findByThriftIdOrThrow(fieldID));
   }
 
   @Override
@@ -438,7 +456,7 @@ public class KeyRange implements TBase<KeyRange, KeyRange._Fields>, java.io.Seri
     if (this_present_start_key || that_present_start_key) {
       if (!(this_present_start_key && that_present_start_key))
         return false;
-      if (!java.util.Arrays.equals(this.start_key, that.start_key))
+      if (!this.start_key.equals(that.start_key))
         return false;
     }
 
@@ -447,7 +465,7 @@ public class KeyRange implements TBase<KeyRange, KeyRange._Fields>, java.io.Seri
     if (this_present_end_key || that_present_end_key) {
       if (!(this_present_end_key && that_present_end_key))
         return false;
-      if (!java.util.Arrays.equals(this.end_key, that.end_key))
+      if (!this.end_key.equals(that.end_key))
         return false;
     }
 
@@ -525,7 +543,8 @@ public class KeyRange implements TBase<KeyRange, KeyRange._Fields>, java.io.Seri
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetStart_key()) {      lastComparison = TBaseHelper.compareTo(this.start_key, typedOther.start_key);
+    if (isSetStart_key()) {
+      lastComparison = TBaseHelper.compareTo(this.start_key, typedOther.start_key);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -534,7 +553,8 @@ public class KeyRange implements TBase<KeyRange, KeyRange._Fields>, java.io.Seri
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetEnd_key()) {      lastComparison = TBaseHelper.compareTo(this.end_key, typedOther.end_key);
+    if (isSetEnd_key()) {
+      lastComparison = TBaseHelper.compareTo(this.end_key, typedOther.end_key);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -543,7 +563,8 @@ public class KeyRange implements TBase<KeyRange, KeyRange._Fields>, java.io.Seri
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetStart_token()) {      lastComparison = TBaseHelper.compareTo(this.start_token, typedOther.start_token);
+    if (isSetStart_token()) {
+      lastComparison = TBaseHelper.compareTo(this.start_token, typedOther.start_token);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -552,7 +573,8 @@ public class KeyRange implements TBase<KeyRange, KeyRange._Fields>, java.io.Seri
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetEnd_token()) {      lastComparison = TBaseHelper.compareTo(this.end_token, typedOther.end_token);
+    if (isSetEnd_token()) {
+      lastComparison = TBaseHelper.compareTo(this.end_token, typedOther.end_token);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -561,12 +583,17 @@ public class KeyRange implements TBase<KeyRange, KeyRange._Fields>, java.io.Seri
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetCount()) {      lastComparison = TBaseHelper.compareTo(this.count, typedOther.count);
+    if (isSetCount()) {
+      lastComparison = TBaseHelper.compareTo(this.count, typedOther.count);
       if (lastComparison != 0) {
         return lastComparison;
       }
     }
     return 0;
+  }
+
+  public _Fields fieldForId(int fieldId) {
+    return _Fields.findByThriftId(fieldId);
   }
 
   public void read(TProtocol iprot) throws TException {
@@ -678,12 +705,7 @@ public class KeyRange implements TBase<KeyRange, KeyRange._Fields>, java.io.Seri
       if (this.start_key == null) {
         sb.append("null");
       } else {
-          int __start_key_size = Math.min(this.start_key.length, 128);
-          for (int i = 0; i < __start_key_size; i++) {
-            if (i != 0) sb.append(" ");
-            sb.append(Integer.toHexString(this.start_key[i]).length() > 1 ? Integer.toHexString(this.start_key[i]).substring(Integer.toHexString(this.start_key[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.start_key[i]).toUpperCase());
-          }
-          if (this.start_key.length > 128) sb.append(" ...");
+        TBaseHelper.toString(this.start_key, sb);
       }
       first = false;
     }
@@ -693,12 +715,7 @@ public class KeyRange implements TBase<KeyRange, KeyRange._Fields>, java.io.Seri
       if (this.end_key == null) {
         sb.append("null");
       } else {
-          int __end_key_size = Math.min(this.end_key.length, 128);
-          for (int i = 0; i < __end_key_size; i++) {
-            if (i != 0) sb.append(" ");
-            sb.append(Integer.toHexString(this.end_key[i]).length() > 1 ? Integer.toHexString(this.end_key[i]).substring(Integer.toHexString(this.end_key[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.end_key[i]).toUpperCase());
-          }
-          if (this.end_key.length > 128) sb.append(" ...");
+        TBaseHelper.toString(this.end_key, sb);
       }
       first = false;
     }

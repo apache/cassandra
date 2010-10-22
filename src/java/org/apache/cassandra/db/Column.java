@@ -18,18 +18,17 @@
 
 package org.apache.cassandra.db;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.security.MessageDigest;
 import java.io.IOException;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.apache.commons.lang.ArrayUtils;
+import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.util.Collection;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
@@ -47,41 +46,41 @@ public class Column implements IColumn
         return new ColumnSerializer();
     }
 
-    protected final byte[] name;
-    protected final byte[] value;
+    protected final ByteBuffer name;
+    protected final ByteBuffer value;
     protected final long timestamp;
 
-    Column(byte[] name)
+    Column(ByteBuffer name)
     {
-        this(name, ArrayUtils.EMPTY_BYTE_ARRAY);
+        this(name, FBUtilities.EMPTY_BYTE_BUFFER);
     }
 
-    public Column(byte[] name, byte[] value)
+    public Column(ByteBuffer name, ByteBuffer value)
     {
         this(name, value, 0);
     }
 
-    public Column(byte[] name, byte[] value, long timestamp)
+    public Column(ByteBuffer name, ByteBuffer value, long timestamp)
     {
         assert name != null;
         assert value != null;
-        assert name.length <= IColumn.MAX_NAME_LENGTH;
+        assert name.remaining() <= IColumn.MAX_NAME_LENGTH;
         this.name = name;
         this.value = value;
         this.timestamp = timestamp;
     }
 
-    public byte[] name()
+    public ByteBuffer name()
     {
         return name;
     }
 
-    public Column getSubColumn(byte[] columnName)
+    public Column getSubColumn(ByteBuffer columnName)
     {
         throw new UnsupportedOperationException("This operation is unsupported on simple columns.");
     }
 
-    public byte[] value()
+    public ByteBuffer value()
     {
         return value;
     }
@@ -121,7 +120,7 @@ public class Column implements IColumn
          * + 4 bytes which basically indicates the size of the byte array
          * + entire byte array.
         */
-        return DBConstants.shortSize_ + name.length + DBConstants.boolSize_ + DBConstants.tsSize_ + DBConstants.intSize_ + value.length;
+        return DBConstants.shortSize_ + name.remaining() + DBConstants.boolSize_ + DBConstants.tsSize_ + DBConstants.intSize_ + value.remaining();
     }
 
     /*
@@ -149,8 +148,9 @@ public class Column implements IColumn
 
     public void updateDigest(MessageDigest digest)
     {
-        digest.update(name);
-        digest.update(value);
+        digest.update(name.array(),name.position()+name.arrayOffset(),name.remaining());
+        digest.update(value.array(),value.position()+name.arrayOffset(),value.remaining());        
+        
         DataOutputBuffer buffer = new DataOutputBuffer();
         try
         {
@@ -178,7 +178,7 @@ public class Column implements IColumn
             return timestamp() > column.timestamp() ? this : column;
         // break ties by comparing values.
         if (timestamp() == column.timestamp())
-            return FBUtilities.compareByteArrays(value(), column.value()) < 0 ? column : this;
+            return value().compareTo(column.value()) < 0 ? column : this;
         // neither is tombstoned and timestamps are different
         return timestamp() < column.timestamp() ? column : this;
     }
@@ -195,17 +195,17 @@ public class Column implements IColumn
 
         if (timestamp != column.timestamp)
             return false;
-        if (!Arrays.equals(name, column.name))
+        if (!name.equals(column.name))
             return false;
 
-        return Arrays.equals(value, column.value);
+        return value.equals(column.value);
     }
 
     @Override
     public int hashCode()
     {
-        int result = name != null ? Arrays.hashCode(name) : 0;
-        result = 31 * result + (value != null ? Arrays.hashCode(value) : 0);
+        int result = name != null ? name.hashCode() : 0;
+        result = 31 * result + (value != null ? value.hashCode() : 0);
         result = 31 * result + (int)(timestamp ^ (timestamp >>> 32));
         return result;
     }
@@ -217,7 +217,7 @@ public class Column implements IColumn
         sb.append(":");
         sb.append(isMarkedForDelete());
         sb.append(":");
-        sb.append(value.length);
+        sb.append(value.remaining());
         sb.append("@");
         sb.append(timestamp());
         return sb.toString();

@@ -18,16 +18,17 @@
 */
 package org.apache.cassandra.dht;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class LocalToken extends Token<byte[]>
+public class LocalToken extends Token<ByteBuffer>
 {
     private final AbstractType comparator;
 
-    public LocalToken(AbstractType comparator, byte... token)
+    public LocalToken(AbstractType comparator, ByteBuffer token)
     {
         super(token);
         this.comparator = comparator;
@@ -40,7 +41,7 @@ public class LocalToken extends Token<byte[]>
     }
 
     @Override
-    public int compareTo(Token<byte[]> o)
+    public int compareTo(Token<ByteBuffer> o)
     {
         return comparator.compare(token, o.token);
     }
@@ -49,7 +50,7 @@ public class LocalToken extends Token<byte[]>
     public int hashCode()
     {
         final int prime = 31;
-        return prime + Arrays.hashCode(token);
+        return prime + token.hashCode();
     }
 
     @Override
@@ -60,7 +61,7 @@ public class LocalToken extends Token<byte[]>
         if (!(obj instanceof LocalToken))
             return false;
         LocalToken other = (LocalToken) obj;
-        return Arrays.equals(token, other.token);
+        return ByteBufferUtil.equals(token, other.token);
     }
 
 }

@@ -17,30 +17,29 @@
  */
 package org.apache.cassandra.client;
 
-import java.util.*;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.TokenMetadata;
-
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.TokenRange;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import com.google.common.collect.Multimap;
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
 
 /**
  * A class for caching the ring map at the client. For usage example, see
@@ -120,12 +119,12 @@ public class RingCache
         return (List<InetAddress>) rangeMap.get(range);
     }
 
-    public List<InetAddress> getEndpoint(byte[] key)
+    public List<InetAddress> getEndpoint(ByteBuffer key)
     {
         return getEndpoint(getRange(key));
     }
 
-    public Range getRange(byte[] key)
+    public Range getRange(ByteBuffer key)
     {
         // TODO: naive linear search of the token map
         Token<?> t = partitioner_.getToken(key);

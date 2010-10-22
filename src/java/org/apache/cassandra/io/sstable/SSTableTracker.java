@@ -19,19 +19,29 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.*;
-import java.util.*;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileDescriptor;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectOutputStream;
+import java.nio.ByteBuffer;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
-
-import com.google.common.base.Function;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.JMXInstrumentedCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.base.Function;
 
 public class SSTableTracker implements Iterable<SSTableReader>
 {
@@ -58,7 +68,7 @@ public class SSTableTracker implements Iterable<SSTableReader>
 
     protected class CacheWriter<K, V>
     {
-        public void saveCache(JMXInstrumentedCache<K, V> cache, File savedCachePath, Function<K, byte[]> converter) throws IOException
+        public void saveCache(JMXInstrumentedCache<K, V> cache, File savedCachePath, Function<K, ByteBuffer> converter) throws IOException
         {
             long start = System.currentTimeMillis();
             String msgSuffix = " " + savedCachePath.getName() + " for " + cfname + " of " + ksname;
@@ -70,9 +80,9 @@ public class SSTableTracker implements Iterable<SSTableReader>
             FileDescriptor fd = fout.getFD();
             for (K key : cache.getKeySet())
             {
-                byte[] bytes = converter.apply(key);
-                out.writeInt(bytes.length);
-                out.write(bytes);
+                ByteBuffer bytes = converter.apply(key);
+                out.writeInt(bytes.remaining());
+                out.write(bytes.array(),bytes.position()+bytes.arrayOffset(),bytes.remaining());
                 ++count;
             }
             out.flush();
@@ -87,9 +97,9 @@ public class SSTableTracker implements Iterable<SSTableReader>
 
     public void saveKeyCache() throws IOException
     {
-        Function<Pair<Descriptor, DecoratedKey>, byte[]> function = new Function<Pair<Descriptor, DecoratedKey>, byte[]>()
+        Function<Pair<Descriptor, DecoratedKey>, ByteBuffer> function = new Function<Pair<Descriptor, DecoratedKey>, ByteBuffer>()
         {
-            public byte[] apply(Pair<Descriptor, DecoratedKey> key)
+            public ByteBuffer apply(Pair<Descriptor, DecoratedKey> key)
             {
                 return key.right.key;
             }
@@ -100,9 +110,9 @@ public class SSTableTracker implements Iterable<SSTableReader>
 
     public void saveRowCache() throws IOException
     {
-        Function<DecoratedKey, byte[]> function = new Function<DecoratedKey, byte[]>()
+        Function<DecoratedKey, ByteBuffer> function = new Function<DecoratedKey, ByteBuffer>()
         {
-            public byte[] apply(DecoratedKey key)
+            public ByteBuffer apply(DecoratedKey key)
             {
                 return key.key;
             }

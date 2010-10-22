@@ -48,21 +48,17 @@ import static org.apache.cassandra.avro.AvroRecordFactory.newColumnPath;
  */
 public class AvroValidation
 {    
-    static void validateKey(byte[] key) throws InvalidRequestException
+    static void validateKey(ByteBuffer key) throws InvalidRequestException
     {
-        if (key == null || key.length == 0)
+        if (key == null || key.remaining() == 0)
             throw newInvalidRequestException("Key may not be empty");
         
         // check that key can be handled by FBUtilities.writeShortByteArray
-        if (key.length > FBUtilities.MAX_UNSIGNED_SHORT)
-            throw newInvalidRequestException("Key length of " + key.length +
+        if (key.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
+            throw newInvalidRequestException("Key length of " + key.remaining() +
                     " is longer than maximum of " + FBUtilities.MAX_UNSIGNED_SHORT);
     }
     
-    static void validateKey(ByteBuffer key) throws InvalidRequestException
-    {
-        validateKey(key.array());
-    }
     
     // FIXME: could use method in ThriftValidation
     static void validateKeyspace(String keyspace) throws KeyspaceNotDefinedException
@@ -90,27 +86,24 @@ public class AvroValidation
         String column_family = cp.column_family.toString();
         ColumnFamilyType cfType = validateColumnFamily(keyspace, column_family);
         
-        byte[] column = null, super_column = null;
-        if (cp.super_column != null) super_column = cp.super_column.array();
-        if (cp.column != null) column = cp.column.array();
-        
+       
         if (cfType == ColumnFamilyType.Standard)
         {
-            if (super_column != null)
+            if (cp.super_column != null)
                 throw newInvalidRequestException("supercolumn parameter is invalid for standard CF " + column_family);
             
-            if (column == null)
+            if (cp.column == null)
                 throw newInvalidRequestException("column parameter is not optional for standard CF " + column_family);
         }
         else
         {
-            if (super_column == null)
+            if (cp.super_column == null)
                 throw newInvalidRequestException("supercolumn parameter is not optional for super CF " + column_family);
         }
          
-        if (column != null)
-            validateColumns(keyspace, column_family, super_column, Arrays.asList(cp.column));
-        if (super_column != null)
+        if (cp.column != null)
+            validateColumns(keyspace, column_family, cp.super_column, Arrays.asList(cp.column));
+        if (cp.super_column != null)
             validateColumns(keyspace, column_family, null, Arrays.asList(cp.super_column));
     }
     
@@ -128,14 +121,14 @@ public class AvroValidation
     }
     
     // FIXME: could use method in ThriftValidation
-    static void validateColumns(String keyspace, String cfName, byte[] superColumnName, Iterable<ByteBuffer> columnNames)
+    static void validateColumns(String keyspace, String cfName, ByteBuffer superColumnName, Iterable<ByteBuffer> columnNames)
     throws InvalidRequestException
     {
         if (superColumnName != null)
         {
-            if (superColumnName.length > IColumn.MAX_NAME_LENGTH)
+            if (superColumnName.remaining() > IColumn.MAX_NAME_LENGTH)
                 throw newInvalidRequestException("supercolumn name length must not be greater than " + IColumn.MAX_NAME_LENGTH);
-            if (superColumnName.length == 0)
+            if (superColumnName.remaining() == 0)
                 throw newInvalidRequestException("supercolumn name must not be empty");
             if (DatabaseDescriptor.getColumnFamilyType(keyspace, cfName) == ColumnFamilyType.Standard)
                 throw newInvalidRequestException("supercolumn specified to ColumnFamily " + cfName + " containing normal columns");
@@ -144,16 +137,15 @@ public class AvroValidation
         AbstractType comparator = ColumnFamily.getComparatorFor(keyspace, cfName, superColumnName);
         for (ByteBuffer buff : columnNames)
         {
-            byte[] name = buff.array();
-
-            if (name.length > IColumn.MAX_NAME_LENGTH)
+           
+            if (buff.remaining() > IColumn.MAX_NAME_LENGTH)
                 throw newInvalidRequestException("column name length must not be greater than " + IColumn.MAX_NAME_LENGTH);
-            if (name.length == 0)
+            if (buff.remaining() == 0)
                 throw newInvalidRequestException("column name must not be empty");
             
             try
             {
-                comparator.validate(name);
+                comparator.validate(buff);
             }
             catch (MarshalException e)
             {
@@ -167,7 +159,7 @@ public class AvroValidation
     {
         validateColumns(keyspace,
                         parent.column_family.toString(),
-                        parent.super_column == null ? null : parent.super_column.array(),
+                        parent.super_column,
                         columnNames);
     }
     
@@ -192,17 +184,16 @@ public class AvroValidation
             throw newInvalidRequestException("ColumnOrSuperColumn must have one or both of Column or SuperColumn");
     }
 
-    static void validateRange(String keyspace, String cfName, byte[] superName, SliceRange range)
+    static void validateRange(String keyspace, String cfName, ByteBuffer superName, SliceRange range)
     throws InvalidRequestException
     {
         AbstractType comparator = ColumnFamily.getComparatorFor(keyspace, cfName, superName);
-        byte[] start = range.start.array();
-        byte[] finish = range.finish.array();
+        
 
         try
         {
-            comparator.validate(start);
-            comparator.validate(finish);
+            comparator.validate(range.start);
+            comparator.validate(range.finish);
         }
         catch (MarshalException me)
         {
@@ -212,18 +203,17 @@ public class AvroValidation
         if (range.count < 0)
             throw newInvalidRequestException("Ranges require a non-negative count.");
 
-        Comparator<byte[]> orderedComparator = range.reversed ? comparator.getReverseComparator() : comparator;
-        if (start.length > 0 && finish.length > 0 && orderedComparator.compare(start, finish) > 0)
+        Comparator<ByteBuffer> orderedComparator = range.reversed ? comparator.getReverseComparator() : comparator;
+        if (range.start.remaining() > 0 && range.finish.remaining() > 0 && orderedComparator.compare(range.start, range.finish) > 0)
             throw newInvalidRequestException("range finish must come after start in the order of traversal");
     }
     
     static void validateRange(String keyspace, ColumnParent cp, SliceRange range) throws InvalidRequestException
     {
-        byte[] superName = cp.super_column == null ? null : cp.super_column.array();
-        validateRange(keyspace, cp.column_family.toString(), superName, range);
+        validateRange(keyspace, cp.column_family.toString(), cp.super_column, range);
     }
 
-    static void validateSlicePredicate(String keyspace, String cfName, byte[] superName, SlicePredicate predicate)
+    static void validateSlicePredicate(String keyspace, String cfName, ByteBuffer superName, SlicePredicate predicate)
     throws InvalidRequestException
     {
         if (predicate.column_names == null && predicate.slice_range == null)
@@ -244,8 +234,7 @@ public class AvroValidation
 
         if (del.predicate != null)
         {
-            byte[] superName = del.super_column == null ? null : del.super_column.array();
-            validateSlicePredicate(keyspace, cfName, superName, del.predicate);
+            validateSlicePredicate(keyspace, cfName, del.super_column, del.predicate);
             if (del.predicate.slice_range != null)
                 throw newInvalidRequestException("Deletion does not yet support SliceRange predicates.");
         }
@@ -313,8 +302,8 @@ public class AvroValidation
         if (range.start_key != null)
         {
             IPartitioner p = StorageService.getPartitioner();
-            Token startToken = p.getToken(range.start_key.array());
-            Token endToken = p.getToken(range.end_key.array());
+            Token startToken = p.getToken(range.start_key);
+            Token endToken = p.getToken(range.end_key);
             if (startToken.compareTo(endToken) > 0 && !endToken.equals(p.getMinimumToken()))
             {
                 if (p instanceof RandomPartitioner)
@@ -335,7 +324,7 @@ public class AvroValidation
     {
         if (index_clause.expressions.isEmpty())
             throw newInvalidRequestException("index clause list may not be empty");
-        Set<byte[]> indexedColumns = Table.open(keyspace).getColumnFamilyStore(columnFamily).getIndexedColumns();
+        Set<ByteBuffer> indexedColumns = Table.open(keyspace).getColumnFamilyStore(columnFamily).getIndexedColumns();
         for (IndexExpression expression : index_clause.expressions)
         {
             if (expression.op.equals(IndexOperator.EQ) && indexedColumns.contains(expression.column_name.array()))

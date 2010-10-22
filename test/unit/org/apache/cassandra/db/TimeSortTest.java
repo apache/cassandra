@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutionException;
 import java.util.*;
 
@@ -34,6 +35,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class TimeSortTest extends CleanupHelper
 {
@@ -46,15 +48,15 @@ public class TimeSortTest extends CleanupHelper
         DecoratedKey key = Util.dk("key0");
 
         rm = new RowMutation("Keyspace1", key.key);
-        rm.add(new QueryPath("StandardLong1", null, getBytes(100)), "a".getBytes(), 100);
+        rm.add(new QueryPath("StandardLong1", null, getBytes(100)), ByteBuffer.wrap("a".getBytes()), 100);
         rm.apply();
         cfStore.forceBlockingFlush();
 
         rm = new RowMutation("Keyspace1", key.key);
-        rm.add(new QueryPath("StandardLong1", null, getBytes(0)), "b".getBytes(), 0);
+        rm.add(new QueryPath("StandardLong1", null, getBytes(0)), ByteBuffer.wrap("b".getBytes()), 0);
         rm.apply();
 
-        ColumnFamily cf = cfStore.getColumnFamily(key, new QueryPath("StandardLong1"), getBytes(10), ArrayUtils.EMPTY_BYTE_ARRAY, false, 1000);
+        ColumnFamily cf = cfStore.getColumnFamily(key, new QueryPath("StandardLong1"), getBytes(10), FBUtilities.EMPTY_BYTE_BUFFER, false, 1000);
         Collection<IColumn> columns = cf.getSortedColumns();
         assert columns.size() == 1;
     }
@@ -67,10 +69,10 @@ public class TimeSortTest extends CleanupHelper
 
         for (int i = 900; i < 1000; ++i)
         {
-            RowMutation rm = new RowMutation("Keyspace1", Integer.toString(i).getBytes());
+            RowMutation rm = new RowMutation("Keyspace1", ByteBuffer.wrap(Integer.toString(i).getBytes()));
             for (int j = 0; j < 8; ++j)
             {
-                rm.add(new QueryPath("StandardLong1", null, getBytes(j * 2)), "a".getBytes(), j * 2);
+                rm.add(new QueryPath("StandardLong1", null, getBytes(j * 2)), ByteBuffer.wrap("a".getBytes()), j * 2);
             }
             rm.apply();
         }
@@ -85,17 +87,17 @@ public class TimeSortTest extends CleanupHelper
         RowMutation rm = new RowMutation("Keyspace1", key.key);
         for (int j = 0; j < 4; ++j)
         {
-            rm.add(new QueryPath("StandardLong1", null, getBytes(j * 2 + 1)), "b".getBytes(), j * 2 + 1);
+            rm.add(new QueryPath("StandardLong1", null, getBytes(j * 2 + 1)), ByteBuffer.wrap("b".getBytes()), j * 2 + 1);
         }
         rm.apply();
         // and some overwrites
         rm = new RowMutation("Keyspace1", key.key);
-        rm.add(new QueryPath("StandardLong1", null, getBytes(0)), "c".getBytes(), 100);
-        rm.add(new QueryPath("StandardLong1", null, getBytes(10)), "c".getBytes(), 100);
+        rm.add(new QueryPath("StandardLong1", null, getBytes(0)), ByteBuffer.wrap("c".getBytes()), 100);
+        rm.add(new QueryPath("StandardLong1", null, getBytes(10)), ByteBuffer.wrap("c".getBytes()), 100);
         rm.apply();
 
         // verify
-        ColumnFamily cf = cfStore.getColumnFamily(key, new QueryPath("StandardLong1"), getBytes(0), ArrayUtils.EMPTY_BYTE_ARRAY, false, 1000);
+        ColumnFamily cf = cfStore.getColumnFamily(key, new QueryPath("StandardLong1"), getBytes(0), FBUtilities.EMPTY_BYTE_BUFFER, false, 1000);
         Collection<IColumn> columns = cf.getSortedColumns();
         assertEquals(12, columns.size());
         Iterator<IColumn> iter = columns.iterator();
@@ -103,14 +105,14 @@ public class TimeSortTest extends CleanupHelper
         for (int j = 0; j < 8; j++)
         {
             column = iter.next();
-            assert Arrays.equals(column.name(), getBytes(j));
+            assert column.name().equals(getBytes(j));
         }
-        TreeSet<byte[]> columnNames = new TreeSet<byte[]>(LongType.instance);
+        TreeSet<ByteBuffer> columnNames = new TreeSet<ByteBuffer>(LongType.instance);
         columnNames.add(getBytes(10));
         columnNames.add(getBytes(0));
         cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(Util.dk("900"), new QueryPath("StandardLong1"), columnNames));
-        assert "c".equals(new String(cf.getColumn(getBytes(0)).value()));
-        assert "c".equals(new String(cf.getColumn(getBytes(10)).value()));
+        assert "c".equals(new String(cf.getColumn(getBytes(0)).value().array()));
+        assert "c".equals(new String(cf.getColumn(getBytes(10)).value().array()));
     }
 
     private void validateTimeSort(Table table) throws IOException
@@ -120,7 +122,7 @@ public class TimeSortTest extends CleanupHelper
             DecoratedKey key = Util.dk(Integer.toString(i));
             for (int j = 0; j < 8; j += 3)
             {
-                ColumnFamily cf = table.getColumnFamilyStore("StandardLong1").getColumnFamily(key, new QueryPath("StandardLong1"), getBytes(j * 2), ArrayUtils.EMPTY_BYTE_ARRAY, false, 1000);
+                ColumnFamily cf = table.getColumnFamilyStore("StandardLong1").getColumnFamily(key, new QueryPath("StandardLong1"), getBytes(j * 2), FBUtilities.EMPTY_BYTE_BUFFER, false, 1000);
                 Collection<IColumn> columns = cf.getSortedColumns();
                 assert columns.size() == 8 - j;
                 int k = j;

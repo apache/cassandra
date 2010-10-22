@@ -23,6 +23,7 @@ package org.apache.cassandra.db.columniterator;
 
 import java.io.IOError;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 import com.google.common.collect.AbstractIterator;
 
@@ -39,14 +40,14 @@ import org.apache.cassandra.io.util.FileMark;
 class SimpleSliceReader extends AbstractIterator<IColumn> implements IColumnIterator
 {
     private final FileDataInput file;
-    private final byte[] finishColumn;
+    private final ByteBuffer finishColumn;
     private final AbstractType comparator;
     private final ColumnFamily emptyColumnFamily;
     private final int columns;
     private int i;
     private FileMark mark;
 
-    public SimpleSliceReader(CFMetaData metadata, FileDataInput input, byte[] finishColumn)
+    public SimpleSliceReader(CFMetaData metadata, FileDataInput input, ByteBuffer finishColumn)
     {
         this.file = input;
         this.finishColumn = finishColumn;
@@ -81,7 +82,7 @@ class SimpleSliceReader extends AbstractIterator<IColumn> implements IColumnIter
         {
             throw new RuntimeException("error reading " + i + " of " + columns, e);
         }
-        if (finishColumn.length > 0 && comparator.compare(column.name(), finishColumn) > 0)
+        if (finishColumn.remaining() > 0 && comparator.compare(column.name(), finishColumn) > 0)
             return endOfData();
 
         mark = file.mark();

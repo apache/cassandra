@@ -22,10 +22,12 @@ package org.apache.cassandra.db.columniterator;
 
 import java.io.IOError;
 import java.io.IOException;
-import java.util.*;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -39,6 +41,8 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FBUtilities;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SSTableNamesIterator extends SimpleAbstractColumnIterator implements IColumnIterator
 {
@@ -46,10 +50,10 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
 
     private ColumnFamily cf;
     private Iterator<IColumn> iter;
-    public final SortedSet<byte[]> columns;
+    public final SortedSet<ByteBuffer> columns;
     public final DecoratedKey key;
 
-    public SSTableNamesIterator(SSTableReader sstable, DecoratedKey key, SortedSet<byte[]> columns)
+    public SSTableNamesIterator(SSTableReader sstable, DecoratedKey key, SortedSet<ByteBuffer> columns)
     {
         assert columns != null;
         this.columns = columns;
@@ -85,7 +89,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         }
     }
 
-    public SSTableNamesIterator(CFMetaData metadata, FileDataInput file, DecoratedKey key, SortedSet<byte[]> columns)
+    public SSTableNamesIterator(CFMetaData metadata, FileDataInput file, DecoratedKey key, SortedSet<ByteBuffer> columns)
     {
         assert columns != null;
         this.columns = columns;
@@ -114,8 +118,8 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         // we can't stop before initializing the cf above, in case there's a relevant tombstone
         cf = ColumnFamily.serializer().deserializeFromSSTableNoColumns(ColumnFamily.create(metadata), file);
 
-        List<byte[]> filteredColumnNames = new ArrayList<byte[]>(columns.size());
-        for (byte[] name : columns)
+        List<ByteBuffer> filteredColumnNames = new ArrayList<ByteBuffer>(columns.size());
+        for (ByteBuffer name : columns)
         {
             if (bf.isPresent(name))
             {
@@ -134,7 +138,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         iter = cf.getSortedColumns().iterator();
     }
 
-    private void readSimpleColumns(FileDataInput file, SortedSet<byte[]> columnNames, List<byte[]> filteredColumnNames) throws IOException
+    private void readSimpleColumns(FileDataInput file, SortedSet<ByteBuffer> columnNames, List<ByteBuffer> filteredColumnNames) throws IOException
     {
         int columns = file.readInt();
         int n = 0;
@@ -150,7 +154,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         }
     }
 
-    private void readIndexedColumns(CFMetaData metadata, FileDataInput file, SortedSet<byte[]> columnNames, List<byte[]> filteredColumnNames, List<IndexHelper.IndexInfo> indexList)
+    private void readIndexedColumns(CFMetaData metadata, FileDataInput file, SortedSet<ByteBuffer> columnNames, List<ByteBuffer> filteredColumnNames, List<IndexHelper.IndexInfo> indexList)
     throws IOException
     {
         file.readInt(); // column count
@@ -158,7 +162,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         /* get the various column ranges we have to read */
         AbstractType comparator = metadata.comparator;
         SortedSet<IndexHelper.IndexInfo> ranges = new TreeSet<IndexHelper.IndexInfo>(IndexHelper.getComparator(comparator));
-        for (byte[] name : filteredColumnNames)
+        for (ByteBuffer name : filteredColumnNames)
         {
             int index = IndexHelper.indexFor(name, indexList, comparator, false);
             if (index == indexList.size())

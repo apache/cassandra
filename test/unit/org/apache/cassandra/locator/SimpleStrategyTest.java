@@ -21,6 +21,7 @@ package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -71,7 +72,7 @@ public class SimpleStrategyTest extends SchemaLoader
         List<Token> keyTokens = new ArrayList<Token>();
         for (int i = 0; i < 5; i++) {
             endpointTokens.add(new StringToken(String.valueOf((char)('a' + i * 2))));
-            keyTokens.add(partitioner.getToken(String.valueOf((char)('a' + i * 2 + 1)).getBytes()));
+            keyTokens.add(partitioner.getToken(ByteBuffer.wrap(String.valueOf((char)('a' + i * 2 + 1)).getBytes())));
         }
         verifyGetNaturalEndpoints(endpointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]));
     }

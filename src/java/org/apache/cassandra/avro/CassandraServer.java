@@ -141,14 +141,14 @@ public class CassandraServer implements Cassandra {
         AvroValidation.validateColumnPath(state().getKeyspace(), columnPath);
         
         // FIXME: This is repetitive.
-        byte[] column, super_column;
-        column = columnPath.column == null ? null : columnPath.column.array();
-        super_column = columnPath.super_column == null ? null : columnPath.super_column.array();
+        ByteBuffer column, super_column;
+        column = columnPath.column == null ? null : columnPath.column;
+        super_column = columnPath.super_column == null ? null : columnPath.super_column;
         
         QueryPath path = new QueryPath(columnPath.column_family.toString(), column == null ? null : super_column);
-        List<byte[]> nameAsList = Arrays.asList(column == null ? super_column : column);
-        AvroValidation.validateKey(key.array());
-        ReadCommand command = new SliceByNamesReadCommand(state().getKeyspace(), key.array(), path, nameAsList);
+        List<ByteBuffer> nameAsList = Arrays.asList(column == null ? super_column : column);
+        AvroValidation.validateKey(key);
+        ReadCommand command = new SliceByNamesReadCommand(state().getKeyspace(), key, path, nameAsList);
         
         Map<DecoratedKey<?>, ColumnFamily> cfamilies = readColumnFamily(Arrays.asList(command), consistencyLevel);
         ColumnFamily cf = cfamilies.get(StorageService.getPartitioner().decorateKey(command.key));
@@ -320,8 +320,7 @@ public class CassandraServer implements Cassandra {
         AvroValidation.validateColumnParent(keyspace, columnParent);
         AvroValidation.validatePredicate(keyspace, columnParent, predicate);
         
-        byte[] superName = columnParent.super_column == null ? null : columnParent.super_column.array();
-        QueryPath queryPath = new QueryPath(columnParent.column_family.toString(), superName);
+        QueryPath queryPath = new QueryPath(columnParent.column_family.toString(), columnParent.super_column);
 
         List<ReadCommand> commands = new ArrayList<ReadCommand>();
         if (predicate.column_names != null)
@@ -329,13 +328,8 @@ public class CassandraServer implements Cassandra {
             for (ByteBuffer key : keys)
             {
                 AvroValidation.validateKey(key);
-                
-                // FIXME: Copying the collection for the sake of SliceByNamesReadCommands
-                Collection<byte[]> column_names = new ArrayList<byte[]>();
-                for (ByteBuffer name : predicate.column_names)
-                    column_names.add(name.array());
-                
-                commands.add(new SliceByNamesReadCommand(keyspace, key.array(), queryPath, column_names));
+                    
+                commands.add(new SliceByNamesReadCommand(keyspace, key, queryPath, predicate.column_names));
             }
         }
         else
@@ -344,7 +338,7 @@ public class CassandraServer implements Cassandra {
             for (ByteBuffer key : keys)
             {
                 AvroValidation.validateKey(key);
-                commands.add(new SliceFromReadCommand(keyspace, key.array(), queryPath, range.start.array(), range.finish.array(), range.reversed, range.count));
+                commands.add(new SliceFromReadCommand(keyspace, key, queryPath, range.start, range.finish, range.reversed, range.count));
             }
         }
         
@@ -363,7 +357,7 @@ public class CassandraServer implements Cassandra {
             ColumnFamily cf = columnFamilies.get(StorageService.getPartitioner().decorateKey(cmd.key));
             boolean reverseOrder = cmd instanceof SliceFromReadCommand && ((SliceFromReadCommand)cmd).reversed;
             GenericArray<ColumnOrSuperColumn> avroColumns = avronateColumnFamily(cf, cmd.queryPath.superColumnName != null, reverseOrder);
-            columnFamiliesList.add(newCoscsMapEntry(ByteBuffer.wrap(cmd.key), avroColumns));
+            columnFamiliesList.add(newCoscsMapEntry(cmd.key, avroColumns));
         }
         
         return columnFamiliesList;
@@ -394,17 +388,17 @@ public class CassandraServer implements Cassandra {
         if (logger.isDebugEnabled())
             logger.debug("insert");
 
-        AvroValidation.validateKey(key.array());
+        AvroValidation.validateKey(key);
         AvroValidation.validateColumnParent(state().getKeyspace(), parent);
         AvroValidation.validateColumn(state().getKeyspace(), parent, column);
 
-        RowMutation rm = new RowMutation(state().getKeyspace(), key.array());
+        RowMutation rm = new RowMutation(state().getKeyspace(), key);
         try
         {
             rm.add(new QueryPath(parent.column_family.toString(),
-                   parent.super_column == null ? null : parent.super_column.array(),
-                   column.name.array()),
-                   column.value.array(),
+                   parent.super_column,
+                   column.name),
+                   column.value,
                    column.timestamp,
                    column.ttl == null ? 0 : column.ttl);
         }
@@ -423,12 +417,11 @@ public class CassandraServer implements Cassandra {
         if (logger.isDebugEnabled())
             logger.debug("remove");
         
-        AvroValidation.validateKey(key.array());
+        AvroValidation.validateKey(key);
         AvroValidation.validateColumnPath(state().getKeyspace(), columnPath);
 
-        RowMutation rm = new RowMutation(state().getKeyspace(), key.array());
-        byte[] superName = columnPath.super_column == null ? null : columnPath.super_column.array();
-        rm.delete(new QueryPath(columnPath.column_family.toString(), superName), timestamp);
+        RowMutation rm = new RowMutation(state().getKeyspace(), key);
+        rm.delete(new QueryPath(columnPath.column_family.toString(), columnPath.super_column), timestamp);
         
         doInsert(consistencyLevel, rm);
         
@@ -466,7 +459,7 @@ public class CassandraServer implements Cassandra {
         
         for (MutationsMapEntry pair: mutationMap)
         {
-            AvroValidation.validateKey(pair.key.array());
+            AvroValidation.validateKey(pair.key);
             Map<CharSequence, List<Mutation>> cfToMutations = pair.mutations;
             
             for (Map.Entry<CharSequence, List<Mutation>> cfMutations : cfToMutations.entrySet())
@@ -476,7 +469,7 @@ public class CassandraServer implements Cassandra {
                 for (Mutation mutation : cfMutations.getValue())
                     AvroValidation.validateMutation(state().getKeyspace(), cfName, mutation);
             }
-            rowMutations.add(getRowMutationFromMutations(state().getKeyspace(), pair.key.array(), cfToMutations));
+            rowMutations.add(getRowMutationFromMutations(state().getKeyspace(), pair.key, cfToMutations));
         }
         
         try
@@ -502,7 +495,7 @@ public class CassandraServer implements Cassandra {
     }
 
     // FIXME: This is copypasta from o.a.c.db.RowMutation, (RowMutation.getRowMutation uses Thrift types directly).
-    private static RowMutation getRowMutationFromMutations(String keyspace, byte[] key, Map<CharSequence, List<Mutation>> cfMap)
+    private static RowMutation getRowMutationFromMutations(String keyspace, ByteBuffer key, Map<CharSequence, List<Mutation>> cfMap)
     {
         RowMutation rm = new RowMutation(keyspace, key);
         
@@ -528,32 +521,31 @@ public class CassandraServer implements Cassandra {
         if (cosc.column == null)
         {
             for (Column column : cosc.super_column.columns)
-                rm.add(new QueryPath(cfName, cosc.super_column.name.array(), column.name.array()), column.value.array(), column.timestamp);
+                rm.add(new QueryPath(cfName, cosc.super_column.name, column.name), column.value, column.timestamp);
         }
         else
         {
-            rm.add(new QueryPath(cfName, null, cosc.column.name.array()), cosc.column.value.array(), cosc.column.timestamp);
+            rm.add(new QueryPath(cfName, null, cosc.column.name), cosc.column.value, cosc.column.timestamp);
         }
     }
     
     // FIXME: This is copypasta from o.a.c.db.RowMutation, (RowMutation.getRowMutation uses Thrift types directly).
     private static void deleteColumnOrSuperColumnToRowMutation(RowMutation rm, String cfName, Deletion del)
     {
-        byte[] superName = del.super_column == null ? null : del.super_column.array();
         
         if (del.predicate != null && del.predicate.column_names != null)
         {
             for (ByteBuffer col : del.predicate.column_names)
             {
                 if (del.super_column == null && DatabaseDescriptor.getColumnFamilyType(rm.getTable(), cfName) == ColumnFamilyType.Super)
-                    rm.delete(new QueryPath(cfName, col.array()), del.timestamp);
+                    rm.delete(new QueryPath(cfName, col), del.timestamp);
                 else
-                    rm.delete(new QueryPath(cfName, superName, col.array()), del.timestamp);
+                    rm.delete(new QueryPath(cfName, del.super_column, col), del.timestamp);
             }
         }
         else
         {
-            rm.delete(new QueryPath(cfName, superName), del.timestamp);
+            rm.delete(new QueryPath(cfName, del.super_column), del.timestamp);
         }
     }
     
@@ -1039,7 +1031,7 @@ public class CassandraServer implements Cassandra {
             }
             else
             {
-                bounds = new Bounds(p.getToken(range.start_key.array()), p.getToken(range.end_key.array()));
+                bounds = new Bounds(p.getToken(range.start_key), p.getToken(range.end_key));
             }
             try
             {
@@ -1129,31 +1121,22 @@ public class CassandraServer implements Cassandra {
     {
         org.apache.cassandra.thrift.ColumnParent cp = new org.apache.cassandra.thrift.ColumnParent(avro_column_parent.column_family.toString());
         if (avro_column_parent.super_column != null)
-            cp.super_column = avro_column_parent.super_column.array();
+            cp.super_column = avro_column_parent.super_column;
 
         return cp;
     }
 
     private org.apache.cassandra.thrift.SlicePredicate thriftSlicePredicate(SlicePredicate avro_pred) {
         // One or the other are set, so check for nulls of either
-
-        List<byte[]> bufs = null;
-        if (avro_pred.column_names != null)
-        {
-            bufs = new ArrayList<byte[]>();
-            for(ByteBuffer buf : avro_pred.column_names)
-                bufs.add(buf.array());
-        }
-
         org.apache.cassandra.thrift.SliceRange slice_range = (avro_pred.slice_range != null)
                                                                 ? thriftSliceRange(avro_pred.slice_range)
                                                                 : null;
 
-        return new org.apache.cassandra.thrift.SlicePredicate().setColumn_names(bufs).setSlice_range(slice_range);
+        return new org.apache.cassandra.thrift.SlicePredicate().setColumn_names(avro_pred.column_names).setSlice_range(slice_range);
     }
 
     private org.apache.cassandra.thrift.SliceRange thriftSliceRange(SliceRange avro_range) {
-        return new org.apache.cassandra.thrift.SliceRange(avro_range.start.array(), avro_range.finish.array(), avro_range.reversed, avro_range.count);
+        return new org.apache.cassandra.thrift.SliceRange(avro_range.start, avro_range.finish, avro_range.reversed, avro_range.count);
     }
 
     private org.apache.cassandra.thrift.IndexClause thriftIndexClause(IndexClause avro_clause) {
@@ -1161,11 +1144,11 @@ public class CassandraServer implements Cassandra {
         for(IndexExpression exp : avro_clause.expressions)
             expressions.add(thriftIndexExpression(exp));
 
-        return new org.apache.cassandra.thrift.IndexClause(expressions, avro_clause.start_key.array(), avro_clause.count);
+        return new org.apache.cassandra.thrift.IndexClause(expressions, avro_clause.start_key, avro_clause.count);
     }
 
     private org.apache.cassandra.thrift.IndexExpression thriftIndexExpression(IndexExpression avro_exp) {
-        return new org.apache.cassandra.thrift.IndexExpression(avro_exp.column_name.array(), thriftIndexOperator(avro_exp.op), avro_exp.value.array());
+        return new org.apache.cassandra.thrift.IndexExpression(avro_exp.column_name, thriftIndexOperator(avro_exp.op), avro_exp.value);
     }
 
     private org.apache.cassandra.thrift.IndexOperator thriftIndexOperator(IndexOperator avro_op) {

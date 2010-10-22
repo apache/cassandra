@@ -18,13 +18,13 @@
 
 package org.apache.cassandra.db;
 
-import java.security.MessageDigest;
 import java.io.IOException;
-
-import org.apache.log4j.Logger;
+import java.nio.ByteBuffer;
+import java.security.MessageDigest;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.log4j.Logger;
 
 /**
  * Alternative to Column that have an expiring time.
@@ -43,12 +43,12 @@ public class ExpiringColumn extends Column
     private final int localExpirationTime;
     private final int timeToLive;
 
-    public ExpiringColumn(byte[] name, byte[] value, long timestamp, int timeToLive)
+    public ExpiringColumn(ByteBuffer name, ByteBuffer value, long timestamp, int timeToLive)
     {
       this(name, value, timestamp, timeToLive, (int) (System.currentTimeMillis() / 1000) + timeToLive);
     }
 
-    public ExpiringColumn(byte[] name, byte[] value, long timestamp, int timeToLive, int localExpirationTime)
+    public ExpiringColumn(ByteBuffer name, ByteBuffer value, long timestamp, int timeToLive, int localExpirationTime)
     {
         super(name, value, timestamp);
         assert timeToLive > 0;

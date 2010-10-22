@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,13 +55,13 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
   private static final TField OP_FIELD_DESC = new TField("op", TType.I32, (short)2);
   private static final TField VALUE_FIELD_DESC = new TField("value", TType.STRING, (short)3);
 
-  public byte[] column_name;
+  public ByteBuffer column_name;
   /**
    * 
    * @see IndexOperator
    */
   public IndexOperator op;
-  public byte[] value;
+  public ByteBuffer value;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
@@ -149,9 +150,9 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
   }
 
   public IndexExpression(
-    byte[] column_name,
+    ByteBuffer column_name,
     IndexOperator op,
-    byte[] value)
+    ByteBuffer value)
   {
     this();
     this.column_name = column_name;
@@ -164,15 +165,15 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
    */
   public IndexExpression(IndexExpression other) {
     if (other.isSetColumn_name()) {
-      this.column_name = new byte[other.column_name.length];
-      System.arraycopy(other.column_name, 0, column_name, 0, other.column_name.length);
+      this.column_name = TBaseHelper.copyBinary(other.column_name);
+;
     }
     if (other.isSetOp()) {
       this.op = other.op;
     }
     if (other.isSetValue()) {
-      this.value = new byte[other.value.length];
-      System.arraycopy(other.value, 0, value, 0, other.value.length);
+      this.value = TBaseHelper.copyBinary(other.value);
+;
     }
   }
 
@@ -180,16 +181,28 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
     return new IndexExpression(this);
   }
 
-  @Deprecated
-  public IndexExpression clone() {
-    return new IndexExpression(this);
+  @Override
+  public void clear() {
+    this.column_name = null;
+    this.op = null;
+    this.value = null;
   }
 
   public byte[] getColumn_name() {
-    return this.column_name;
+    setColumn_name(TBaseHelper.rightSize(column_name));
+    return column_name.array();
+  }
+
+  public ByteBuffer BufferForColumn_name() {
+    return column_name;
   }
 
   public IndexExpression setColumn_name(byte[] column_name) {
+    setColumn_name(ByteBuffer.wrap(column_name));
+    return this;
+  }
+
+  public IndexExpression setColumn_name(ByteBuffer column_name) {
     this.column_name = column_name;
     return this;
   }
@@ -242,10 +255,20 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
   }
 
   public byte[] getValue() {
-    return this.value;
+    setValue(TBaseHelper.rightSize(value));
+    return value.array();
+  }
+
+  public ByteBuffer BufferForValue() {
+    return value;
   }
 
   public IndexExpression setValue(byte[] value) {
+    setValue(ByteBuffer.wrap(value));
+    return this;
+  }
+
+  public IndexExpression setValue(ByteBuffer value) {
     this.value = value;
     return this;
   }
@@ -271,7 +294,7 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
       if (value == null) {
         unsetColumn_name();
       } else {
-        setColumn_name((byte[])value);
+        setColumn_name((ByteBuffer)value);
       }
       break;
 
@@ -287,15 +310,11 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
       if (value == null) {
         unsetValue();
       } else {
-        setValue((byte[])value);
+        setValue((ByteBuffer)value);
       }
       break;
 
     }
-  }
-
-  public void setFieldValue(int fieldID, Object value) {
-    setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
   }
 
   public Object getFieldValue(_Fields field) {
@@ -313,12 +332,12 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
     throw new IllegalStateException();
   }
 
-  public Object getFieldValue(int fieldId) {
-    return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-  }
-
   /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
+    if (field == null) {
+      throw new IllegalArgumentException();
+    }
+
     switch (field) {
     case COLUMN_NAME:
       return isSetColumn_name();
@@ -328,10 +347,6 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
       return isSetValue();
     }
     throw new IllegalStateException();
-  }
-
-  public boolean isSet(int fieldID) {
-    return isSet(_Fields.findByThriftIdOrThrow(fieldID));
   }
 
   @Override
@@ -352,7 +367,7 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
     if (this_present_column_name || that_present_column_name) {
       if (!(this_present_column_name && that_present_column_name))
         return false;
-      if (!java.util.Arrays.equals(this.column_name, that.column_name))
+      if (!this.column_name.equals(that.column_name))
         return false;
     }
 
@@ -370,7 +385,7 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
     if (this_present_value || that_present_value) {
       if (!(this_present_value && that_present_value))
         return false;
-      if (!java.util.Arrays.equals(this.value, that.value))
+      if (!this.value.equals(that.value))
         return false;
     }
 
@@ -411,7 +426,8 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetColumn_name()) {      lastComparison = TBaseHelper.compareTo(this.column_name, typedOther.column_name);
+    if (isSetColumn_name()) {
+      lastComparison = TBaseHelper.compareTo(this.column_name, typedOther.column_name);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -420,7 +436,8 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetOp()) {      lastComparison = TBaseHelper.compareTo(this.op, typedOther.op);
+    if (isSetOp()) {
+      lastComparison = TBaseHelper.compareTo(this.op, typedOther.op);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -429,12 +446,17 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetValue()) {      lastComparison = TBaseHelper.compareTo(this.value, typedOther.value);
+    if (isSetValue()) {
+      lastComparison = TBaseHelper.compareTo(this.value, typedOther.value);
       if (lastComparison != 0) {
         return lastComparison;
       }
     }
     return 0;
+  }
+
+  public _Fields fieldForId(int fieldId) {
+    return _Fields.findByThriftId(fieldId);
   }
 
   public void read(TProtocol iprot) throws TException {
@@ -511,12 +533,7 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
     if (this.column_name == null) {
       sb.append("null");
     } else {
-        int __column_name_size = Math.min(this.column_name.length, 128);
-        for (int i = 0; i < __column_name_size; i++) {
-          if (i != 0) sb.append(" ");
-          sb.append(Integer.toHexString(this.column_name[i]).length() > 1 ? Integer.toHexString(this.column_name[i]).substring(Integer.toHexString(this.column_name[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.column_name[i]).toUpperCase());
-        }
-        if (this.column_name.length > 128) sb.append(" ...");
+      TBaseHelper.toString(this.column_name, sb);
     }
     first = false;
     if (!first) sb.append(", ");
@@ -532,12 +549,7 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
     if (this.value == null) {
       sb.append("null");
     } else {
-        int __value_size = Math.min(this.value.length, 128);
-        for (int i = 0; i < __value_size; i++) {
-          if (i != 0) sb.append(" ");
-          sb.append(Integer.toHexString(this.value[i]).length() > 1 ? Integer.toHexString(this.value[i]).substring(Integer.toHexString(this.value[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.value[i]).toUpperCase());
-        }
-        if (this.value.length > 128) sb.append(" ...");
+      TBaseHelper.toString(this.value, sb);
     }
     first = false;
     sb.append(")");

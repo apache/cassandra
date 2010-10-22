@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,7 +61,7 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
   private static final TField SUPER_COLUMN_FIELD_DESC = new TField("super_column", TType.STRING, (short)4);
 
   public String column_family;
-  public byte[] super_column;
+  public ByteBuffer super_column;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
@@ -154,8 +155,8 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
       this.column_family = other.column_family;
     }
     if (other.isSetSuper_column()) {
-      this.super_column = new byte[other.super_column.length];
-      System.arraycopy(other.super_column, 0, super_column, 0, other.super_column.length);
+      this.super_column = TBaseHelper.copyBinary(other.super_column);
+;
     }
   }
 
@@ -163,9 +164,10 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
     return new ColumnParent(this);
   }
 
-  @Deprecated
-  public ColumnParent clone() {
-    return new ColumnParent(this);
+  @Override
+  public void clear() {
+    this.column_family = null;
+    this.super_column = null;
   }
 
   public String getColumn_family() {
@@ -193,10 +195,20 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
   }
 
   public byte[] getSuper_column() {
-    return this.super_column;
+    setSuper_column(TBaseHelper.rightSize(super_column));
+    return super_column.array();
+  }
+
+  public ByteBuffer BufferForSuper_column() {
+    return super_column;
   }
 
   public ColumnParent setSuper_column(byte[] super_column) {
+    setSuper_column(ByteBuffer.wrap(super_column));
+    return this;
+  }
+
+  public ColumnParent setSuper_column(ByteBuffer super_column) {
     this.super_column = super_column;
     return this;
   }
@@ -230,15 +242,11 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
       if (value == null) {
         unsetSuper_column();
       } else {
-        setSuper_column((byte[])value);
+        setSuper_column((ByteBuffer)value);
       }
       break;
 
     }
-  }
-
-  public void setFieldValue(int fieldID, Object value) {
-    setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
   }
 
   public Object getFieldValue(_Fields field) {
@@ -253,12 +261,12 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
     throw new IllegalStateException();
   }
 
-  public Object getFieldValue(int fieldId) {
-    return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
-  }
-
   /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
+    if (field == null) {
+      throw new IllegalArgumentException();
+    }
+
     switch (field) {
     case COLUMN_FAMILY:
       return isSetColumn_family();
@@ -266,10 +274,6 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
       return isSetSuper_column();
     }
     throw new IllegalStateException();
-  }
-
-  public boolean isSet(int fieldID) {
-    return isSet(_Fields.findByThriftIdOrThrow(fieldID));
   }
 
   @Override
@@ -299,7 +303,7 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
     if (this_present_super_column || that_present_super_column) {
       if (!(this_present_super_column && that_present_super_column))
         return false;
-      if (!java.util.Arrays.equals(this.super_column, that.super_column))
+      if (!this.super_column.equals(that.super_column))
         return false;
     }
 
@@ -335,7 +339,8 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetColumn_family()) {      lastComparison = TBaseHelper.compareTo(this.column_family, typedOther.column_family);
+    if (isSetColumn_family()) {
+      lastComparison = TBaseHelper.compareTo(this.column_family, typedOther.column_family);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -344,12 +349,17 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetSuper_column()) {      lastComparison = TBaseHelper.compareTo(this.super_column, typedOther.super_column);
+    if (isSetSuper_column()) {
+      lastComparison = TBaseHelper.compareTo(this.super_column, typedOther.super_column);
       if (lastComparison != 0) {
         return lastComparison;
       }
     }
     return 0;
+  }
+
+  public _Fields fieldForId(int fieldId) {
+    return _Fields.findByThriftId(fieldId);
   }
 
   public void read(TProtocol iprot) throws TException {
@@ -425,12 +435,7 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
       if (this.super_column == null) {
         sb.append("null");
       } else {
-          int __super_column_size = Math.min(this.super_column.length, 128);
-          for (int i = 0; i < __super_column_size; i++) {
-            if (i != 0) sb.append(" ");
-            sb.append(Integer.toHexString(this.super_column[i]).length() > 1 ? Integer.toHexString(this.super_column[i]).substring(Integer.toHexString(this.super_column[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.super_column[i]).toUpperCase());
-          }
-          if (this.super_column.length > 128) sb.append(" ...");
+        TBaseHelper.toString(this.super_column, sb);
       }
       first = false;
     }
