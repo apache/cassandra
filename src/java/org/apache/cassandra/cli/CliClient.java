@@ -82,21 +82,45 @@ public class CliClient
      * the <i>add column family</i> command requires a list of arguments, 
      *  this enum defines which arguments are valid.
      */
-    private enum AddColumnFamilyArgument {
+    private enum ColumnFamilyArgument
+    {
         COLUMN_TYPE,
         COMPARATOR,
         SUBCOMPARATOR,
         COMMENT,
         ROWS_CACHED,
-        PRELOAD_ROW_CACHE,
-        KEY_CACHE_SIZE,
+        ROW_CACHE_SAVE_PERIOD,
+        KEYS_CACHED,
+        KEY_CACHE_SAVE_PERIOD,
         READ_REPAIR_CHANCE,
-        GC_GRACE_SECONDS,
+        GC_GRACE,
         COLUMN_METADATA,
-        MEMTABLE_OPERATIONS_IN_MILLIONS,
-        MEMTABLE_THROUGHPUT_IN_MB,
-        MEMTABLE_FLUSH_AFTER_MINS
+        MEMTABLE_OPERATIONS,
+        MEMTABLE_THROUGHPUT,
+        MEMTABLE_FLUSH_AFTER,
+        DEFAULT_VALIDATION_CLASS,
+        MIN_COMPACTION_THRESHOLD,
+        MAX_COMPACTION_THRESHOLD,
     }
+
+    private EnumMap<ColumnFamilyArgument, String> argumentExplanations = new EnumMap<ColumnFamilyArgument, String>(ColumnFamilyArgument.class)
+    {{
+        put(ColumnFamilyArgument.COLUMN_TYPE, "Super or Standard");
+        put(ColumnFamilyArgument.COMMENT, "Human-readable column family description. Any string is acceptable");
+        put(ColumnFamilyArgument.COMPARATOR, "The class used as a comparator when sorting column names.\n                  Valid options include: AsciiType, BytesType, LexicalUUIDType,\n                  LongType, TimeUUIDType, and UTF8Type");
+        put(ColumnFamilyArgument.SUBCOMPARATOR, "Comparator for sorting subcolumn names, for Super columns only");
+        put(ColumnFamilyArgument.MEMTABLE_OPERATIONS, "Flush memtables after this many operations");
+        put(ColumnFamilyArgument.MEMTABLE_THROUGHPUT, "... or after this many bytes have been written");
+        put(ColumnFamilyArgument.MEMTABLE_FLUSH_AFTER, "... or after this many seconds");
+        put(ColumnFamilyArgument.ROWS_CACHED, "Number or percentage of rows to cache");
+        put(ColumnFamilyArgument.ROW_CACHE_SAVE_PERIOD, "Period with which to persist the row cache, in seconds");
+        put(ColumnFamilyArgument.KEYS_CACHED, "Number or percentage of keys to cache");
+        put(ColumnFamilyArgument.KEY_CACHE_SAVE_PERIOD, "Period with which to persist the key cache, in seconds");
+        put(ColumnFamilyArgument.READ_REPAIR_CHANCE, "Probability (0.0-1.0) with which to perform read repairs on CL.ONE reads");
+        put(ColumnFamilyArgument.GC_GRACE, "Discard tombstones after this many seconds");
+        put(ColumnFamilyArgument.MIN_COMPACTION_THRESHOLD, "Avoid minor compactions of less than this number of sstable files");
+        put(ColumnFamilyArgument.MAX_COMPACTION_THRESHOLD, "Compact no more than this number of sstable files at once");
+    }};
 
     /*
      * the <i>add keyspace</i> command requires a list of arguments,
@@ -308,19 +332,8 @@ public class CliClient
                 css_.out.println("Create a new column family with the specified values for the given set of");
                 css_.out.println("attributes. Note that you must be using a keyspace.\n");
                 css_.out.println("valid attributes are:");
-                css_.out.println("    - column_type: One of Super or Standard");
-                css_.out.println("    - comparator: The class used as a comparator when sorting column names.");
-                css_.out.println("                  Valid options include: AsciiType, BytesType, LexicalUUIDType,");
-                css_.out.println("                  LongType, TimeUUIDType, and UTF8Type");
-                css_.out.println("    - subcomparator: Name of comparator used for subcolumns (when");
-                css_.out.println("                     column_type=Super only). Valid options are identical to");
-                css_.out.println("                     comparator above.");
-                css_.out.println("    - comment: Human-readable column family description. Any string is valid.");
-                css_.out.println("    - rows_cached: Number of rows to cache");
-                css_.out.println("    - preload_row_cache: Set to true to automatically load the row cache");
-                css_.out.println("    - key_cache_size: Number of keys to cache");
-                css_.out.println("    - read_repair_chance: Valid values for this attribute are any number");
-                css_.out.println("                          between 0.0 and 1.0\n");
+                for (ColumnFamilyArgument argument : ColumnFamilyArgument.values())
+                    css_.out.printf("    - %s: %s\n", argument.toString().toLowerCase(), argumentExplanations.get(argument));
                 css_.out.println("    - column_metadata: Metadata which describes columns of column family.");
                 css_.out.println("        Supported format is [{ k:v, k:v, ... }, { ... }, ...]");
                 css_.out.println("        Valid attributes: column_name, validation_class (see comparator),");
@@ -341,12 +354,12 @@ public class CliClient
                 css_.out.println("Update a column family with the specified values for the given set of");
                 css_.out.println("attributes. Note that you must be using a keyspace.\n");
                 css_.out.println("valid attributes are:");
-                css_.out.println("    - comment: Human-readable column family description. Any string is valid.");
-                css_.out.println("    - rows_cached: Number of rows to cache");
-                css_.out.println("    - preload_row_cache: Set to true to automatically load the row cache");
-                css_.out.println("    - key_cache_size: Number of keys to cache");
-                css_.out.println("    - read_repair_chance: Valid values for this attribute are any number");
-                css_.out.println("                          between 0.0 and 1.0\n");
+                for (ColumnFamilyArgument argument : ColumnFamilyArgument.values())
+                {
+                    if (argument == ColumnFamilyArgument.COMPARATOR || argument == ColumnFamilyArgument.SUBCOMPARATOR)
+                        continue;
+                    css_.out.printf("    - %s: %s\n", argument.toString().toLowerCase(), argumentExplanations.get(argument));
+                }
                 css_.out.println("    - column_metadata: Metadata which describes columns of column family.");
                 css_.out.println("        Supported format is [{ k:v, k:v, ... }, { ... }, ...]");
                 css_.out.println("        Valid attributes: column_name, validation_class (see comparator),");
@@ -1112,7 +1125,7 @@ public class CliClient
         for (int i = 1; i < statement.getChildCount(); i += 2)
         {
             String currentArgument = statement.getChild(i).getText().toUpperCase();
-            AddColumnFamilyArgument mArgument = AddColumnFamilyArgument.valueOf(currentArgument);
+            ColumnFamilyArgument mArgument = ColumnFamilyArgument.valueOf(currentArgument);
             String mValue = statement.getChild(i + 1).getText();
 
             switch(mArgument)
@@ -1120,62 +1133,57 @@ public class CliClient
             case COLUMN_TYPE:
                 cfDef.setColumn_type(CliUtils.unescapeSQLString(mValue));
                 break;
-
             case COMPARATOR:
                 cfDef.setComparator_type(CliUtils.unescapeSQLString(mValue));
                 break;
-
             case SUBCOMPARATOR:
                 cfDef.setSubcomparator_type(CliUtils.unescapeSQLString(mValue));
                 break;
-
             case COMMENT:
                 cfDef.setComment(CliUtils.unescapeSQLString(mValue));
                 break;
-
             case ROWS_CACHED:
                 cfDef.setRow_cache_size(Double.parseDouble(mValue));
                 break;
-
-            case PRELOAD_ROW_CACHE:
-                cfDef.setPreload_row_cache(Boolean.parseBoolean(CliUtils.unescapeSQLString(mValue)));
-                break;
-
-            case KEY_CACHE_SIZE:
+            case KEYS_CACHED:
                 cfDef.setKey_cache_size(Double.parseDouble(mValue));
                 break;
-
             case READ_REPAIR_CHANCE:
                 cfDef.setRead_repair_chance(Double.parseDouble(mValue));
                 break;
-
-            case GC_GRACE_SECONDS:
+            case GC_GRACE:
                 cfDef.setGc_grace_seconds(Integer.parseInt(mValue));
                 break;
-
             case COLUMN_METADATA:
                 Tree arrayOfMetaAttributes = statement.getChild(i + 1);
-
                 if (!arrayOfMetaAttributes.getText().equals("ARRAY"))
-                {
                     throw new RuntimeException("'column_metadata' format - [{ k:v, k:v, ..}, { ... }, ...]");
-                }
-
                 cfDef.setColumn_metadata(getCFColumnMetaFromTree(arrayOfMetaAttributes));
                 break;
-
-            case MEMTABLE_OPERATIONS_IN_MILLIONS:
+            case MEMTABLE_OPERATIONS:
                 cfDef.setMemtable_operations_in_millions(Double.parseDouble(mValue));
                 break;
-            
-            case MEMTABLE_FLUSH_AFTER_MINS:
+            case MEMTABLE_FLUSH_AFTER:
                 cfDef.setMemtable_flush_after_mins(Integer.parseInt(mValue));
                 break;
-                
-            case MEMTABLE_THROUGHPUT_IN_MB:
+            case MEMTABLE_THROUGHPUT:
                 cfDef.setMemtable_throughput_in_mb(Integer.parseInt(mValue));
                 break;
-                
+            case ROW_CACHE_SAVE_PERIOD:
+                cfDef.setRow_cache_save_period_in_seconds(Integer.parseInt(mValue));
+                break;
+            case KEY_CACHE_SAVE_PERIOD:
+                cfDef.setKey_cache_save_period_in_seconds(Integer.parseInt(mValue));
+                break;
+            case DEFAULT_VALIDATION_CLASS:
+                cfDef.setDefault_validation_class(mValue);
+                break;
+            case MIN_COMPACTION_THRESHOLD:
+                cfDef.setMin_compaction_threshold(Integer.parseInt(mValue));
+                break;
+            case MAX_COMPACTION_THRESHOLD:
+                cfDef.setMax_compaction_threshold(Integer.parseInt(mValue));
+                break;
             default:
                 //must match one of the above or we'd throw an exception at the valueOf statement above.
                 assert(false);
