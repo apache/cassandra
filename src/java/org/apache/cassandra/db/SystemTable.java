@@ -40,6 +40,7 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import org.slf4j.Logger;
@@ -251,13 +252,11 @@ public class SystemTable
         IColumn clusterCol = cf.getColumn(CLUSTERNAME);
         assert partitionerCol != null;
         assert clusterCol != null;
-        if (!DatabaseDescriptor.getPartitioner().getClass().getName().equals(
-                new String(partitionerCol.value().array(), 
-                           partitionerCol.value().position()+partitionerCol.value().arrayOffset(),
-                           partitionerCol.value().remaining(), UTF_8)))
+        if (!DatabaseDescriptor.getPartitioner().getClass().getName().equals(ByteBufferUtil.string(partitionerCol.value(), UTF_8)))
             throw new ConfigurationException("Detected partitioner mismatch! Did you change the partitioner?");
-        if (!DatabaseDescriptor.getClusterName().equals(new String(clusterCol.value().array(),clusterCol.value().position()+clusterCol.value().arrayOffset(),clusterCol.value().remaining())))
-            throw new ConfigurationException("Saved cluster name " + new String(clusterCol.value().array(),clusterCol.value().position()+clusterCol.value().arrayOffset(),clusterCol.value().remaining()) + " != configured name " + DatabaseDescriptor.getClusterName());
+        String savedClusterName = ByteBufferUtil.string(clusterCol.value(), UTF_8);
+        if (!DatabaseDescriptor.getClusterName().equals(savedClusterName))
+            throw new ConfigurationException("Saved cluster name " + savedClusterName + " != configured name " + DatabaseDescriptor.getClusterName());
     }
 
     public static Token getSavedToken()

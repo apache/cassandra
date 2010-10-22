@@ -31,6 +31,7 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.hadoop.ColumnFamilyInputFormat;
 import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.cassandra.thrift.SlicePredicate;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
@@ -80,7 +81,7 @@ public class WordCount extends Configured implements Tool
             IColumn column = columns.get(columnName.getBytes());
             if (column == null)
                 return;
-            String value = new String(column.value());
+            String value = ByteBufferUtil.string(column.value(), Charsets.UTF_8);
             logger.debug("read " + key + ":" + value + " from " + context.getInputSplit());
 
             StringTokenizer itr = new StringTokenizer(value);
@@ -214,10 +215,8 @@ public class WordCount extends Configured implements Tool
             ConfigHelper.setInitialAddress(job.getConfiguration(), "localhost");
             ConfigHelper.setPartitioner(job.getConfiguration(), "org.apache.cassandra.dht.RandomPartitioner");
             ConfigHelper.setInputColumnFamily(job.getConfiguration(), KEYSPACE, COLUMN_FAMILY);
-            SlicePredicate predicate = new SlicePredicate().setColumn_names(Arrays.asList(columnName.getBytes()));
+            SlicePredicate predicate = new SlicePredicate().setColumn_names(Arrays.asList(ByteBuffer.wrap(columnName.getBytes())));
             ConfigHelper.setInputSlicePredicate(job.getConfiguration(), predicate);
-
-
 
             job.waitForCompletion(true);
         }

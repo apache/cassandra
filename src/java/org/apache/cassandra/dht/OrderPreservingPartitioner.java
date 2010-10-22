@@ -24,7 +24,10 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.Random;
 
+import com.google.common.base.Charsets;
+
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -109,29 +112,16 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
         return new StringToken(buffer.toString());
     }
 
-    private final Token.TokenFactory<String> tokenFactory = new Token.TokenFactory<String>() {
+    private final Token.TokenFactory<String> tokenFactory = new Token.TokenFactory<String>()
+    {
         public ByteBuffer toByteArray(Token<String> stringToken)
         {
-            try
-            {
-                return ByteBuffer.wrap(stringToken.token.getBytes("UTF-8"));
-            }
-            catch (UnsupportedEncodingException e)
-            {
-                throw new RuntimeException(e);
-            }
+            return ByteBuffer.wrap(stringToken.token.getBytes(Charsets.UTF_8));
         }
 
         public Token<String> fromByteArray(ByteBuffer bytes)
         {
-            try
-            {
-                return new StringToken(new String(bytes.array(),bytes.position()+bytes.arrayOffset(),bytes.limit(), "UTF-8"));
-            }
-            catch (UnsupportedEncodingException e)
-            {
-                throw new RuntimeException(e);
-            }
+            return new StringToken(ByteBufferUtil.string(bytes, Charsets.UTF_8));
         }
 
         public String toString(Token<String> stringToken)

@@ -18,7 +18,9 @@
  */
 package org.apache.cassandra.utils;
 
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 
 /**
  * Utility methods to make ByteBuffers less painful
@@ -35,8 +37,19 @@ public class ByteBufferUtil {
     {
         return FBUtilities.compareUnsigned(o1, o2.array(), 0, o2.arrayOffset()+o2.position(), o1.length, o2.limit());
     }
+
     public static int compare(ByteBuffer o1, byte[] o2)
     {
         return FBUtilities.compareUnsigned(o1.array(), o2, o1.arrayOffset()+o1.position(), 0, o1.limit(), o2.length);
+    }
+
+    public static String string(ByteBuffer b, Charset charset)
+    {
+        return new String(b.array(), b.arrayOffset() + b.position(), b.remaining(), charset);
+    }
+
+    public static String string(ByteBuffer b)
+    {
+        return new String(b.array(), b.arrayOffset() + b.position(), b.remaining());
     }
 }

@@ -109,6 +109,7 @@ import org.apache.cassandra.streaming.StreamRequestVerbHandler;
 import org.apache.cassandra.streaming.StreamingService;
 import org.apache.cassandra.thrift.Constants;
 import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SkipNullRepresenter;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -121,6 +122,7 @@ import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.nodes.Tag;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
@@ -2031,7 +2033,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     RawColumnDefinition rcd = new RawColumnDefinition();
                     rcd.index_name = cd.index_name;
                     rcd.index_type = cd.index_type;
-                    rcd.name = new String(cd.name.array(),cd.name.position()+cd.name.arrayOffset(),cd.name.remaining(), "UTF8");
+                    rcd.name = ByteBufferUtil.string(cd.name, Charsets.UTF_8);
                     rcd.validator_class = cd.validator.getClass().getName();
                     rcf.column_metadata[j++] = rcd;
                 }

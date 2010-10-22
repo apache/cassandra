@@ -62,6 +62,9 @@ Thrift API
 ----------
     - The Cassandra server now defaults to framed mode, rather than
       unframed.  Unframed is obsolete and will be removed in the future.
+    - The Cassandra Thrift interface file has been updated for Thrift 0.5.
+      If you are compiling your own client code from the interface, you
+      will need to upgrade the Thrift compiler to match.
     - Row keys are now bytes: keys stored by versions prior to 0.7.0 will be
       returned as UTF-8 encoded bytes. OrderPreservingPartitioner and
       CollatingOrderPreservingPartitioner continue to expect that keys contain

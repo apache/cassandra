@@ -23,6 +23,8 @@ import java.io.*;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 
+import com.google.common.base.Charsets;
+
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 
@@ -30,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static com.google.common.base.Charsets.UTF_8;
@@ -60,7 +63,7 @@ public class RowMutationVerbHandler implements IVerbHandler
                 {
                     ByteBuffer addressBytes = FBUtilities.readShortByteArray(dis);
                     if (logger_.isDebugEnabled())
-                        logger_.debug("Adding hint for " + InetAddress.getByName(new String(addressBytes.array(),addressBytes.position()+addressBytes.arrayOffset(),addressBytes.remaining())));
+                        logger_.debug("Adding hint for " + InetAddress.getByName(ByteBufferUtil.string(addressBytes, Charsets.UTF_8)));
                     RowMutation hintedMutation = new RowMutation(Table.SYSTEM_TABLE, addressBytes);
                     hintedMutation.addHints(rm);
                     hintedMutation.apply();

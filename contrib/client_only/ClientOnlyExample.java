@@ -16,21 +16,19 @@
  * limitations under the License.
  */
 
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.service.*;
-import org.apache.cassandra.thrift.ColumnPath;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.UnavailableException;
-
-import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.TimeoutException;
+
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.thrift.ColumnPath;
+import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ClientOnlyExample
 {
@@ -49,12 +47,11 @@ public class ClientOnlyExample
         }
 
         // do some writing.
-        final AbstractType comp = ColumnFamily.getComparatorFor("Keyspace1", "Standard1", null);
         for (int i = 0; i < 100; i++)
         {
-            RowMutation change = new RowMutation("Keyspace1", ("key" + i).getBytes());
+            RowMutation change = new RowMutation("Keyspace1", ByteBuffer.wrap(("key" + i).getBytes()));
             ColumnPath cp = new ColumnPath("Standard1").setColumn(("colb").getBytes());
-            change.add(new QueryPath(cp), ("value" + i).getBytes(), 0);
+            change.add(new QueryPath(cp), ByteBuffer.wrap(("value" + i).getBytes()), 0);
 
             // don't call change.apply().  The reason is that is makes a static call into Table, which will perform
             // local storage initialization, which creates local directories.
@@ -81,14 +78,15 @@ public class ClientOnlyExample
         }
 
         // do some queries.
-        Collection<byte[]> cols = new ArrayList<byte[]>()
+        Collection<ByteBuffer> cols = new ArrayList<ByteBuffer>()
         {{
-            add("colb".getBytes());
+            add(ByteBuffer.wrap("colb".getBytes()));
         }};
         for (int i = 0; i < 100; i++)
         {
             List<ReadCommand> commands = new ArrayList<ReadCommand>();
-            SliceByNamesReadCommand readCommand = new SliceByNamesReadCommand("Keyspace1", ("key" + i).getBytes(), new QueryPath("Standard1", null, null), cols);
+            SliceByNamesReadCommand readCommand = new SliceByNamesReadCommand("Keyspace1", ByteBuffer.wrap(("key" + i).getBytes()),
+                                                                              new QueryPath("Standard1", null, null), cols);
             readCommand.setDigestQuery(false);
             commands.add(readCommand);
             List<Row> rows = StorageProxy.readProtocol(commands, ConsistencyLevel.ONE);
@@ -99,7 +97,7 @@ public class ClientOnlyExample
             {
                 for (IColumn col : cf.getSortedColumns())
                 {
-                    System.out.println(new String(col.name()) + ", " + new String(col.value()));
+                    System.out.println(ByteBufferUtil.string(col.name(), Charsets.UTF_8) + ", " + ByteBufferUtil.string(col.value(), Charsets.UTF_8));
                 }
             }
             else
