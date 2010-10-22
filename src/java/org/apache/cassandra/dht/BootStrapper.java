@@ -19,12 +19,12 @@
 package org.apache.cassandra.dht;
 
  import java.io.IOException;
- import java.io.UnsupportedEncodingException;
  import java.net.InetAddress;
  import java.util.*;
  import java.util.concurrent.locks.Condition;
  import java.util.concurrent.CountDownLatch;
 
+ import com.google.common.base.Charsets;
  import com.google.common.collect.ArrayListMultimap;
  import com.google.common.collect.HashMultimap;
  import com.google.common.collect.Multimap;
@@ -253,15 +253,7 @@ public class BootStrapper
         {
             StorageService ss = StorageService.instance;
             String tokenString = StorageService.getPartitioner().getTokenFactory().toString(ss.getBootstrapToken());
-            Message response;
-            try
-            {
-                response = message.getReply(FBUtilities.getLocalAddress(), tokenString.getBytes("UTF-8"));
-            }
-            catch (UnsupportedEncodingException e)
-            {
-                throw new AssertionError();
-            }
+            Message response = message.getReply(FBUtilities.getLocalAddress(), tokenString.getBytes(Charsets.UTF_8));
             MessagingService.instance.sendOneWay(response, message.getFrom());
         }
     }
@@ -286,14 +278,7 @@ public class BootStrapper
 
         public void response(Message msg)
         {
-            try
-            {
-                token = StorageService.getPartitioner().getTokenFactory().fromString(new String(msg.getMessageBody(), "UTF-8"));
-            }
-            catch (UnsupportedEncodingException e)
-            {
-                throw new AssertionError();
-            }
+            token = StorageService.getPartitioner().getTokenFactory().fromString(new String(msg.getMessageBody(), Charsets.UTF_8));
             condition.signalAll();
         }
     }

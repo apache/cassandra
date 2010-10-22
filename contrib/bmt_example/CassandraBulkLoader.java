@@ -51,12 +51,15 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+
+import com.google.common.base.Charsets;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -70,6 +73,7 @@ import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.Path;
@@ -170,7 +174,11 @@ public class CassandraBulkLoader {
                 String ColumnName = fields[2];
                 String ColumnValue = fields[3];
                 int timestamp = 0;
-                columnFamily.addColumn(new QueryPath(cfName, SuperColumnName.getBytes("UTF-8"), ColumnName.getBytes("UTF-8")), ColumnValue.getBytes(), timestamp);
+                columnFamily.addColumn(new QueryPath(cfName,
+                                                     ByteBuffer.wrap(SuperColumnName.getBytes(Charsets.UTF_8)),
+                                                     ByteBuffer.wrap(ColumnName.getBytes(Charsets.UTF_8))), 
+                                       ByteBuffer.wrap(ColumnValue.getBytes()),
+                                       timestamp);
             }
 
             columnFamilies.add(columnFamily);
@@ -178,7 +186,7 @@ public class CassandraBulkLoader {
             /* Get serialized message to send to cluster */
             message = createMessage(keyspace, key.getBytes(), cfName, columnFamilies);
             List<IAsyncResult> results = new ArrayList<IAsyncResult>();
-            for (InetAddress endpoint: StorageService.instance.getNaturalEndpoints(keyspace, key.getBytes()))
+            for (InetAddress endpoint: StorageService.instance.getNaturalEndpoints(keyspace, ByteBuffer.wrap(key.getBytes())))
             {
                 /* Send message to end point */
                 results.add(MessagingService.instance.sendRR(message, endpoint));
@@ -239,7 +247,7 @@ public class CassandraBulkLoader {
         }
     }
 
-    public static Message createMessage(String Keyspace, byte[] Key, String CFName, List<ColumnFamily> ColumnFamiles)
+    public static Message createMessage(String keyspace, byte[] key, String columnFamily, List<ColumnFamily> columnFamilies)
     {
         ColumnFamily baseColumnFamily;
         DataOutputBuffer bufOut = new DataOutputBuffer();
@@ -249,20 +257,20 @@ public class CassandraBulkLoader {
 
         /* Get the first column family from list, this is just to get past validation */
         baseColumnFamily = new ColumnFamily(ColumnFamilyType.Standard,
-                                            DatabaseDescriptor.getComparator(Keyspace, CFName),
-                                            DatabaseDescriptor.getSubComparator(Keyspace, CFName),
-                                            CFMetaData.getId(Keyspace, CFName));
+                                            DatabaseDescriptor.getComparator(keyspace, columnFamily),
+                                            DatabaseDescriptor.getSubComparator(keyspace, columnFamily),
+                                            CFMetaData.getId(keyspace, columnFamily));
         
-        for(ColumnFamily cf : ColumnFamiles) {
+        for(ColumnFamily cf : columnFamilies) {
             bufOut.reset();
             ColumnFamily.serializer().serializeWithIndexes(cf, bufOut);
             byte[] data = new byte[bufOut.getLength()];
             System.arraycopy(bufOut.getData(), 0, data, 0, bufOut.getLength());
 
-            column = new Column(FBUtilities.toByteBuffer(cf.id()), data, 0);
+            column = new Column(FBUtilities.toByteBuffer(cf.id()), ByteBuffer.wrap(data), 0);
             baseColumnFamily.addColumn(column);
         }
-        rm = new RowMutation(Keyspace, Key);
+        rm = new RowMutation(keyspace, ByteBuffer.wrap(key));
         rm.add(baseColumnFamily);
 
         try

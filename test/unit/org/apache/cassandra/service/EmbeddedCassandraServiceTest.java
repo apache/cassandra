@@ -19,9 +19,9 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 
+import com.google.common.base.Charsets;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -84,8 +84,7 @@ public class EmbeddedCassandraServiceTest
 
     @Test
     public void testEmbeddedCassandraService() throws AuthenticationException, AuthorizationException,
-    UnsupportedEncodingException, InvalidRequestException,
-            UnavailableException, TimedOutException, TException, NotFoundException
+    InvalidRequestException, UnavailableException, TimedOutException, TException, NotFoundException
     {
         Cassandra.Client client = getClient();
         client.set_keyspace("Keyspace1");
@@ -95,18 +94,18 @@ public class EmbeddedCassandraServiceTest
         long timestamp = System.currentTimeMillis();
         ColumnPath cp = new ColumnPath("Standard1");
         ColumnParent par = new ColumnParent("Standard1");
-        cp.column = ByteBuffer.wrap("name".getBytes("utf-8"));
+        cp.column = ByteBuffer.wrap("name".getBytes(Charsets.UTF_8));
 
         // insert
-        client.insert(key_user_id, par, new Column(ByteBuffer.wrap("name".getBytes("utf-8")),
-                ByteBuffer.wrap( "Ran".getBytes("UTF-8")), timestamp), ConsistencyLevel.ONE);
+        client.insert(key_user_id, par, new Column(ByteBuffer.wrap("name".getBytes(Charsets.UTF_8)),
+                ByteBuffer.wrap( "Ran".getBytes(Charsets.UTF_8)), timestamp), ConsistencyLevel.ONE);
 
         // read
         ColumnOrSuperColumn got = client.get(key_user_id, cp, ConsistencyLevel.ONE);
 
         // assert
         assertNotNull("Got a null ColumnOrSuperColumn", got);
-        assertEquals("Ran", new String(got.getColumn().getValue(), "utf-8"));
+        assertEquals("Ran", new String(got.getColumn().getValue(), Charsets.UTF_8));
     }
 
     /**

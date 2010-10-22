@@ -17,10 +17,11 @@
  */
 package org.apache.cassandra.cli;
 
-import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.*;
+
+import com.google.common.base.Charsets;
 
 import org.antlr.runtime.tree.CommonTree;
 import org.antlr.runtime.tree.Tree;
@@ -151,83 +152,76 @@ public class CliClient
     {
         CommonTree ast = CliCompiler.compileQuery(stmt);
 
-        try
+        switch (ast.getType())
         {
-            switch (ast.getType())
-            {
-                case CliParser.NODE_EXIT:
-                    cleanupAndExit();
-                    break;
-                case CliParser.NODE_THRIFT_GET:
-                    executeGet(ast);
-                    break;
-                case CliParser.NODE_THRIFT_GET_WITH_CONDITIONS:
-                    executeGetWithConditions(ast);
-                    break;       
-                case CliParser.NODE_HELP:
-                	printCmdHelp(ast);
-                    break;
-                case CliParser.NODE_THRIFT_SET:
-                    executeSet(ast);
-                    break;
-                case CliParser.NODE_THRIFT_DEL:
-                    executeDelete(ast);
-                    break;
-                case CliParser.NODE_THRIFT_COUNT:
-                    executeCount(ast);
-                    break;
-                case CliParser.NODE_ADD_KEYSPACE:
-                    executeAddKeyspace(ast.getChild(0));
-                    break;
-                case CliParser.NODE_ADD_COLUMN_FAMILY:
-                    executeAddColumnFamily(ast.getChild(0));
-                    break;
-                case CliParser.NODE_UPDATE_KEYSPACE:
-                    executeUpdateKeyspace(ast.getChild(0));
-                    break;
-                case CliParser.NODE_UPDATE_COLUMN_FAMILY:
-                    executeUpdateColumnFamily(ast.getChild(0));
-                    break;
-                case CliParser.NODE_DEL_COLUMN_FAMILY:
-                    executeDelColumnFamily(ast);
-                    break;
-                case CliParser.NODE_DEL_KEYSPACE:
-                    executeDelKeyspace(ast);
-                    break;
-                case CliParser.NODE_SHOW_CLUSTER_NAME:
-                    executeShowClusterName();
-                    break;
-                case CliParser.NODE_SHOW_VERSION:
-                    executeShowVersion();
-                    break;
-                case CliParser.NODE_SHOW_TABLES:
-                    executeShowTables();
-                    break;
-                case CliParser.NODE_DESCRIBE_TABLE:
-                    executeDescribeTable(ast);
-                    break;
-                case CliParser.NODE_USE_TABLE:
-                	executeUseTable(ast);
-                	break;
-                case CliParser.NODE_CONNECT:
-                    executeConnect(ast);
-                    break;
-                case CliParser.NODE_LIST:
-                	executeList(ast);
-                    break;
-                case CliParser.NODE_NO_OP:
-                    // comment lines come here; they are treated as no ops.
-                    break;
-                default:
-                    css_.err.println("Invalid Statement (Type: " + ast.getType() + ")");
-                    if (css_.batch)
-                        System.exit(2);
-                    break;
-            }
-        }
-        catch (UnsupportedEncodingException e)
-        {
-            throw new RuntimeException("Unable to encode string as UTF-8", e);
+            case CliParser.NODE_EXIT:
+                cleanupAndExit();
+                break;
+            case CliParser.NODE_THRIFT_GET:
+                executeGet(ast);
+                break;
+            case CliParser.NODE_THRIFT_GET_WITH_CONDITIONS:
+                executeGetWithConditions(ast);
+                break;
+            case CliParser.NODE_HELP:
+                printCmdHelp(ast);
+                break;
+            case CliParser.NODE_THRIFT_SET:
+                executeSet(ast);
+                break;
+            case CliParser.NODE_THRIFT_DEL:
+                executeDelete(ast);
+                break;
+            case CliParser.NODE_THRIFT_COUNT:
+                executeCount(ast);
+                break;
+            case CliParser.NODE_ADD_KEYSPACE:
+                executeAddKeyspace(ast.getChild(0));
+                break;
+            case CliParser.NODE_ADD_COLUMN_FAMILY:
+                executeAddColumnFamily(ast.getChild(0));
+                break;
+            case CliParser.NODE_UPDATE_KEYSPACE:
+                executeUpdateKeyspace(ast.getChild(0));
+                break;
+            case CliParser.NODE_UPDATE_COLUMN_FAMILY:
+                executeUpdateColumnFamily(ast.getChild(0));
+                break;
+            case CliParser.NODE_DEL_COLUMN_FAMILY:
+                executeDelColumnFamily(ast);
+                break;
+            case CliParser.NODE_DEL_KEYSPACE:
+                executeDelKeyspace(ast);
+                break;
+            case CliParser.NODE_SHOW_CLUSTER_NAME:
+                executeShowClusterName();
+                break;
+            case CliParser.NODE_SHOW_VERSION:
+                executeShowVersion();
+                break;
+            case CliParser.NODE_SHOW_TABLES:
+                executeShowTables();
+                break;
+            case CliParser.NODE_DESCRIBE_TABLE:
+                executeDescribeTable(ast);
+                break;
+            case CliParser.NODE_USE_TABLE:
+                executeUseTable(ast);
+                break;
+            case CliParser.NODE_CONNECT:
+                executeConnect(ast);
+                break;
+            case CliParser.NODE_LIST:
+                executeList(ast);
+                break;
+            case CliParser.NODE_NO_OP:
+                // comment lines come here; they are treated as no ops.
+                break;
+            default:
+                css_.err.println("Invalid Statement (Type: " + ast.getType() + ")");
+                if (css_.batch)
+                    System.exit(2);
+                break;
         }
     }
 
@@ -508,7 +502,7 @@ public class CliClient
         return keyspacesMap.get(keyspace);
     }
     
-    private void executeCount(CommonTree ast) throws TException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException
+    private void executeCount(CommonTree ast) throws TException, InvalidRequestException, UnavailableException, TimedOutException
     {
        if (!CliMain.isConnected() || !hasKeySpace())
            return;
@@ -532,17 +526,17 @@ public class CliClient
        else
        {
            assert (columnSpecCnt == 1);
-           colParent = new ColumnParent(columnFamily).setSuper_column(CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8"));
+           colParent = new ColumnParent(columnFamily).setSuper_column(CliCompiler.getColumn(columnFamilySpec, 0).getBytes(Charsets.UTF_8));
        }
 
        SliceRange range = new SliceRange(FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER, false, Integer.MAX_VALUE);
        SlicePredicate predicate = new SlicePredicate().setColumn_names(null).setSlice_range(range);
        
-       int count = thriftClient_.get_count(ByteBuffer.wrap(key.getBytes("UTF-8")), colParent, predicate, ConsistencyLevel.ONE);
+       int count = thriftClient_.get_count(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)), colParent, predicate, ConsistencyLevel.ONE);
        css_.out.printf("%d columns\n", count);
     }
     
-    private void executeDelete(CommonTree ast) throws TException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException
+    private void executeDelete(CommonTree ast) throws TException, InvalidRequestException, UnavailableException, TimedOutException
     {
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
@@ -585,15 +579,15 @@ public class CliClient
         {
             // table.cf['key']['column']
             if (isSuper)
-                superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
+                superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes(Charsets.UTF_8);
             else
-                columnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
+                columnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes(Charsets.UTF_8);
         }
         else if (columnSpecCnt == 2)
         {
             // table.cf['key']['column']['column']
-            superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
-            columnName = CliCompiler.getColumn(columnFamilySpec, 1).getBytes("UTF-8");
+            superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes(Charsets.UTF_8);
+            columnName = CliCompiler.getColumn(columnFamilySpec, 1).getBytes(Charsets.UTF_8);
         }
 
         ColumnPath path = new ColumnPath(columnFamily);
@@ -603,13 +597,13 @@ public class CliClient
         if(columnName != null)
             path.setColumn(columnName);
         
-        thriftClient_.remove(ByteBuffer.wrap(key.getBytes("UTF-8")), path,
+        thriftClient_.remove(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)), path,
                              FBUtilities.timestampMicros(), ConsistencyLevel.ONE);
         css_.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "column"));
     }
 
     private void doSlice(String keyspace, String key, String columnFamily, byte[] superColumnName)
-            throws InvalidRequestException, UnavailableException, TimedOutException, TException, UnsupportedEncodingException, IllegalAccessException, NotFoundException, InstantiationException, NoSuchFieldException
+            throws InvalidRequestException, UnavailableException, TimedOutException, TException, IllegalAccessException, NotFoundException, InstantiationException, NoSuchFieldException
     {
         
         ColumnParent parent = new ColumnParent(columnFamily);
@@ -617,7 +611,7 @@ public class CliClient
             parent.setSuper_column(superColumnName);
                 
         SliceRange range = new SliceRange(FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER, true, 1000000);
-        List<ColumnOrSuperColumn> columns = thriftClient_.get_slice(ByteBuffer.wrap(key.getBytes("UTF-8")),parent,
+        List<ColumnOrSuperColumn> columns = thriftClient_.get_slice(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)),parent,
                                                                     new SlicePredicate().setColumn_names(null).setSlice_range(range), ConsistencyLevel.ONE);
         int size = columns.size();
 
@@ -693,7 +687,7 @@ public class CliClient
     }
 
     // Execute GET statement
-    private void executeGet(CommonTree ast) throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException, IllegalAccessException, InstantiationException, ClassNotFoundException, NoSuchFieldException
+    private void executeGet(CommonTree ast) throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException, IllegalAccessException, InstantiationException, ClassNotFoundException, NoSuchFieldException
     {
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
@@ -721,7 +715,7 @@ public class CliClient
         {
             if (isSuper)
             {
-                superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
+                superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes(Charsets.UTF_8);
                 doSlice(keySpace, key, columnFamily, superColumnName);
                 return;
             }
@@ -733,7 +727,7 @@ public class CliClient
         // table.cf['key']['column']['column'] -- get of a sub-column
         else if (columnSpecCnt == 2)
         {
-            superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
+            superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes(Charsets.UTF_8);
             columnName = CliCompiler.getColumn(columnFamilySpec, 1);
         }
         // The parser groks an arbitrary number of these so it is possible to get here.
@@ -750,7 +744,7 @@ public class CliClient
         ColumnPath path = new ColumnPath(columnFamily);
         if(superColumnName != null) path.setSuper_column(superColumnName);
         if(columnNameInBytes != null) path.setColumn(columnNameInBytes);
-        Column column = thriftClient_.get(ByteBuffer.wrap(key.getBytes("UTF-8")), path, ConsistencyLevel.ONE).column;
+        Column column = thriftClient_.get(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)), path, ConsistencyLevel.ONE).column;
 
         byte[] columnValue = column.getValue();       
         String valueAsString;
@@ -774,7 +768,7 @@ public class CliClient
         }
         else
         {
-            valueAsString = (validator == null) ? new String(columnValue, "UTF-8") : validator.getString(ByteBuffer.wrap(columnValue));
+            valueAsString = (validator == null) ? new String(columnValue, Charsets.UTF_8) : validator.getString(ByteBuffer.wrap(columnValue));
         }
 
         // print results
@@ -878,7 +872,7 @@ public class CliClient
 
     // Execute SET statement
     private void executeSet(CommonTree ast)
-    throws TException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException, NoSuchFieldException, InstantiationException, IllegalAccessException
+    throws TException, InvalidRequestException, UnavailableException, TimedOutException, NoSuchFieldException, InstantiationException, IllegalAccessException
     {
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
@@ -913,7 +907,7 @@ public class CliClient
             assert (columnSpecCnt == 2) : "serious parsing error (this is a bug).";
             
             // get the super column and column names
-            superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
+            superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes(Charsets.UTF_8);
             columnName = CliCompiler.getColumn(columnFamilySpec, 1);
         }
 
@@ -935,7 +929,7 @@ public class CliClient
             parent.setSuper_column(superColumnName);
         
         // do the insert
-        thriftClient_.insert(ByteBuffer.wrap(key.getBytes("UTF-8")), parent,
+        thriftClient_.insert(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)), parent,
                              new Column(columnNameInBytes, columnValueInBytes, FBUtilities.timestampMicros()), ConsistencyLevel.ONE);
         
         css_.out.println("Value inserted.");
@@ -1231,7 +1225,7 @@ public class CliClient
     }
 
     private void executeList(CommonTree ast)
-    throws TException, InvalidRequestException, NotFoundException, IllegalAccessException, InstantiationException, NoSuchFieldException, UnavailableException, TimedOutException, UnsupportedEncodingException
+    throws TException, InvalidRequestException, NotFoundException, IllegalAccessException, InstantiationException, NoSuchFieldException, UnavailableException, TimedOutException
     {
         if (!CliMain.isConnected())
             return;
@@ -1608,14 +1602,7 @@ public class CliClient
 
                 if (metaKey.equals("column_name"))
                 {
-                    try
-                    {
-                        columnDefinition.setName(metaVal.getBytes("UTF-8"));
-                    }
-                    catch (UnsupportedEncodingException e)
-                    {
-                        throw new RuntimeException(e.getMessage(), e);
-                    }
+                    columnDefinition.setName(metaVal.getBytes(Charsets.UTF_8));
                 }
                 else if (metaKey.equals("validation_class"))
                 {
@@ -1678,9 +1665,8 @@ public class CliClient
      * @param object - object to covert into byte array
      * @param comparator - comparator used to convert object
      * @return byte[] - object in the byte array representation
-     * @throws UnsupportedEncodingException - raised but String.getBytes(encoding)
      */
-    private ByteBuffer getBytesAccordingToType(String object, AbstractType comparator) throws UnsupportedEncodingException
+    private ByteBuffer getBytesAccordingToType(String object, AbstractType comparator)
     {
         if (comparator instanceof LongType)
         {
@@ -1722,11 +1708,11 @@ public class CliClient
         }
         else if (comparator instanceof AsciiType)
         {
-            return ByteBuffer.wrap(object.getBytes("US-ASCII"));
+            return ByteBuffer.wrap(object.getBytes(Charsets.US_ASCII));
         }
         else
         {
-            return ByteBuffer.wrap(object.getBytes("UTF-8"));
+            return ByteBuffer.wrap(object.getBytes(Charsets.UTF_8));
         }
     }
     
@@ -1738,9 +1724,8 @@ public class CliClient
      * @throws NoSuchFieldException - raised from getFormatTypeForColumn call
      * @throws InstantiationException - raised from getFormatTypeForColumn call
      * @throws IllegalAccessException - raised from getFormatTypeForColumn call
-     * @throws UnsupportedEncodingException - raised from getBytes() calls
      */
-    private ByteBuffer columnNameAsBytes(String column, String columnFamily) throws NoSuchFieldException, InstantiationException, IllegalAccessException, UnsupportedEncodingException
+    private ByteBuffer columnNameAsBytes(String column, String columnFamily) throws NoSuchFieldException, InstantiationException, IllegalAccessException
     {
         CfDef columnFamilyDef   = getCfDef(columnFamily);
         String comparatorClass  = columnFamilyDef.comparator_type;
@@ -1949,7 +1934,6 @@ public class CliClient
      * Prints out KeySlice list
      * @param columnFamilyDef - column family definition
      * @param slices - list of the KeySlice's to print out
-     * @throws UnsupportedEncodingException -  when trying to covert key
      * @throws NotFoundException - column not found
      * @throws TException - transfer is broken
      * @throws IllegalAccessException - can't do operation
@@ -1957,7 +1941,7 @@ public class CliClient
      * @throws NoSuchFieldException - column not found
      */
     private void printSliceList(CfDef columnFamilyDef, List<KeySlice> slices)
-            throws UnsupportedEncodingException, NotFoundException, TException, IllegalAccessException, InstantiationException, NoSuchFieldException
+    throws NotFoundException, TException, IllegalAccessException, InstantiationException, NoSuchFieldException
     {
         AbstractType validator;
         String columnFamilyName = columnFamilyDef.getName();
@@ -1965,7 +1949,7 @@ public class CliClient
         for (KeySlice ks : slices)
         {
             css_.out.printf("-------------------\n");
-            css_.out.printf("RowKey: %s\n", new String(ks.key.array(),ks.key.position(),ks.key.remaining(), "UTF-8"));
+            css_.out.printf("RowKey: %s\n", new String(ks.key.array(),ks.key.position(),ks.key.remaining(), Charsets.UTF_8));
 
             Iterator<ColumnOrSuperColumn> iterator = ks.getColumnsIterator();
 

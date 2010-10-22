@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.dht;
 
-import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;

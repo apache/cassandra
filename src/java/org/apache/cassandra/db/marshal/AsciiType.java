@@ -21,7 +21,6 @@ package org.apache.cassandra.db.marshal;
  */
 
 
-import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 
 import com.google.common.base.Charsets;

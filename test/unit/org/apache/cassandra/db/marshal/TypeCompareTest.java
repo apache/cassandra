@@ -27,6 +27,8 @@ import java.util.Arrays;
 import java.util.Random;
 import java.util.UUID;
 
+import com.google.common.base.Charsets;
+
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.junit.Test;
@@ -60,15 +62,15 @@ public class TypeCompareTest
     }
 
     @Test
-    public void testUTF8() throws UnsupportedEncodingException
+    public void testUTF8()
     {
         UTF8Type comparator = new UTF8Type();
         assert comparator.compare(FBUtilities.EMPTY_BYTE_BUFFER, ByteBuffer.wrap("asdf".getBytes())) < 0;
         assert comparator.compare(ByteBuffer.wrap("asdf".getBytes()), FBUtilities.EMPTY_BYTE_BUFFER) > 0;
         assert comparator.compare(FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER) == 0;
-        assert comparator.compare(ByteBuffer.wrap("z".getBytes("UTF-8")), ByteBuffer.wrap("a".getBytes("UTF-8"))) > 0;
-        assert comparator.compare(ByteBuffer.wrap("z".getBytes("UTF-8")), ByteBuffer.wrap("z".getBytes("UTF-8"))) == 0;
-        assert comparator.compare(ByteBuffer.wrap("a".getBytes("UTF-8")), ByteBuffer.wrap("z".getBytes("UTF-8"))) < 0;
+        assert comparator.compare(ByteBuffer.wrap("z".getBytes(Charsets.UTF_8)), ByteBuffer.wrap("a".getBytes(Charsets.UTF_8))) > 0;
+        assert comparator.compare(ByteBuffer.wrap("z".getBytes(Charsets.UTF_8)), ByteBuffer.wrap("z".getBytes(Charsets.UTF_8))) == 0;
+        assert comparator.compare(ByteBuffer.wrap("a".getBytes(Charsets.UTF_8)), ByteBuffer.wrap("z".getBytes(Charsets.UTF_8))) < 0;
     }
 
     @Test
