@@ -66,8 +66,8 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 
         this.cfs = cfs;
         creationTime = System.currentTimeMillis();
-        this.THRESHOLD = cfs.metadata.memtableThroughputInMb * 1024 * 1024;
-        this.THRESHOLD_COUNT = (int) (cfs.metadata.memtableOperationsInMillions * 1024 * 1024);
+        this.THRESHOLD = cfs.getMemtableThroughputInMB() * 1024 * 1024;
+        this.THRESHOLD_COUNT = (int) (cfs.getMemtableOperationsInMillions() * 1024 * 1024);
     }
 
     /**
@@ -294,6 +294,6 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 
     public boolean isExpired()
     {
-        return System.currentTimeMillis() > creationTime + cfs.metadata.memtableFlushAfterMins * 60 * 1000;
+        return System.currentTimeMillis() > creationTime + cfs.getMemtableFlushAfterMins() * 60 * 1000;
     }
 }

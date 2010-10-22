@@ -201,4 +201,13 @@ public interface ColumnFamilyStoreMBean
      * Disable automatic compaction.
      */
     public void disableAutoCompaction();
+
+    public int getMemtableFlushAfterMins();
+    public void setMemtableFlushAfterMins(int time);
+
+    public int getMemtableThroughputInMB();
+    public void setMemtableThroughputInMB(int size);
+
+    public double getMemtableOperationsInMillions();
+    public void setMemtableOperationsInMillions(double ops);
 }

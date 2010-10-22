@@ -183,6 +183,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /* These are locally held copies to be changed from the config during runtime */
     private int minCompactionThreshold;
     private int maxCompactionThreshold;
+    private int memtime;
+    private int memsize;
+    private double memops;
 
     private final Runnable rowCacheSaverTask = new WrappedRunnable()
     {
@@ -208,6 +211,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         this.metadata = metadata;
         this.minCompactionThreshold = metadata.minCompactionThreshold;
         this.maxCompactionThreshold = metadata.maxCompactionThreshold;
+        this.memtime = metadata.memtableFlushAfterMins;
+        this.memsize = metadata.memtableThroughputInMb;
+        this.memops = metadata.memtableOperationsInMillions;
         this.partitioner = partitioner;
         fileIndexGenerator.set(generation);
         memtable = new Memtable(this);
@@ -580,7 +586,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public String getFlushPath()
     {
-        long guessedSize = 2 * metadata.memtableThroughputInMb * 1024*1024; // 2* adds room for keys, column indexes
+        long guessedSize = 2 * memsize * 1024*1024; // 2* adds room for keys, column indexes
         String location = DatabaseDescriptor.getDataFileLocationForTable(table.name, guessedSize);
         if (location == null)
             throw new RuntimeException("Insufficient disk space to flush");
@@ -1831,7 +1837,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     
     public void setMinimumCompactionThreshold(int minCompactionThreshold)
     {
-        //TODO: If someone complains this is too rude, make it more friendly.
         if ((minCompactionThreshold > this.maxCompactionThreshold) && this.maxCompactionThreshold != 0) {
             throw new RuntimeException("The min_compaction_threshold cannot be larger than the max.");
         }
@@ -1845,7 +1850,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void setMaximumCompactionThreshold(int maxCompactionThreshold)
     {
-        //TODO: If someone complains this is too rude, make it more friendly.
         if (maxCompactionThreshold < this.minCompactionThreshold) {
             throw new RuntimeException("The max_compaction_threshold cannot be smaller than the min.");
         }
@@ -1856,5 +1860,41 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         this.minCompactionThreshold = 0;
         this.maxCompactionThreshold = 0;
+    }
+
+    public int getMemtableFlushAfterMins()
+    {
+        return memtime;
+    }
+    public void setMemtableFlushAfterMins(int time)
+    {
+        if (time <= 0) {
+            throw new RuntimeException("MemtableFlushAfterMins must be greater than 0.");
+        }
+        this.memtime = time;
+    }
+
+    public int getMemtableThroughputInMB()
+    {
+        return memsize;
+    }
+    public void setMemtableThroughputInMB(int size)
+    {
+        if (size <= 0) {
+            throw new RuntimeException("MemtableThroughputInMB must be greater than 0.");
+        }
+        this.memsize = size;
+    }
+
+    public double getMemtableOperationsInMillions()
+    {
+        return memops;
+    }
+    public void setMemtableOperationsInMillions(double ops)
+    {
+        if (ops <= 0) {
+            throw new RuntimeException("MemtableOperationsInMillions must be greater than 0.0.");
+        }
+        this.memops = ops;
     }
 }

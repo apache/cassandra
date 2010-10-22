@@ -39,7 +39,8 @@ dev
  * PropertyFileSnitch configuration file renamed to 
    cassandra-topology.properties
  * add cli support for get_range_slices (CASSANDRA-1088, CASSANDRA-1619)
- * Make memtable flush thresholds per-CF instead of global (CASSANDRA-1007)
+ * Make memtable flush thresholds per-CF instead of global 
+   (CASSANDRA-1007, 1637)
  * add cli support for binary data without CfDef hints (CASSANDRA-1603)
  * fix building SSTable statistics post-stream (CASSANDRA-1620)
  * fix potential infinite loop in 2ary index queries (CASSANDRA-1623)
