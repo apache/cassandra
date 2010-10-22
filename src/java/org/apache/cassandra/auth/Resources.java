@@ -43,7 +43,7 @@ public final class Resources
         {
             buff.append("/");
             if (component instanceof byte[])
-                buff.append(FBUtilities.bytesToHex(ByteBuffer.wrap((byte[])component)));
+                buff.append(FBUtilities.bytesToHex((byte[])component));
             else
                 buff.append(component.toString());
         }

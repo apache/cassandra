@@ -250,7 +250,7 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
         }
        
             
-        return FBUtilities.compareByteArrays(l, r, lo, ro, ll, rl);
+        return FBUtilities.compareUnsigned(l, r, lo, ro, ll, rl);
     }
     
     public int compareTo(Range rhs)

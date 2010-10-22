@@ -47,7 +47,7 @@ public class LongType extends AbstractType
             return diff;
         
        
-        return ByteBufferUtil.compare(o1, o2);
+        return ByteBufferUtil.compareUnsigned(o1, o2);
     }
 
     public String getString(ByteBuffer bytes)

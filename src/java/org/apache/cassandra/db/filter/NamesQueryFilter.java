@@ -51,7 +51,7 @@ public class NamesQueryFilter implements IFilter
 
     public NamesQueryFilter(ByteBuffer column)
     {
-        this(FBUtilities.getSingleColumnSet(column));
+        this(FBUtilities.singleton(column));
     }
 
     public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key, AbstractType comparator)

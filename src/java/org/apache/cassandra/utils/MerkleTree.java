@@ -787,7 +787,7 @@ public class MerkleTree implements Serializable
         {
             if (hash == null)
                 return "null";
-            return "[" + FBUtilities.bytesToHex(ByteBuffer.wrap(hash)) + "]";
+            return "[" + FBUtilities.bytesToHex(hash) + "]";
         }
     }
 

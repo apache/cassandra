@@ -26,8 +26,6 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.commons.lang.ArrayUtils;
-
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
@@ -71,7 +69,7 @@ public class StreamingTransferTest extends CleanupHelper
             RowMutation rm = new RowMutation("Keyspace1", ByteBuffer.wrap(key.getBytes()));
             ColumnFamily cf = ColumnFamily.create(table.name, cfs.columnFamily);
             cf.addColumn(column(key, "v", 0));
-            cf.addColumn(new Column(ByteBuffer.wrap("birthdate".getBytes("UTF8")), FBUtilities.toByteArray((long) i), 0));
+            cf.addColumn(new Column(ByteBuffer.wrap("birthdate".getBytes("UTF8")), FBUtilities.toByteBuffer((long) i), 0));
             rm.add(cf);
             rm.apply();
         }
@@ -103,7 +101,7 @@ public class StreamingTransferTest extends CleanupHelper
         assert null != cfs.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("key3"), new QueryPath(cfs.columnFamily)));
 
         // and that the secondary index works
-        IndexExpression expr = new IndexExpression(ByteBuffer.wrap("birthdate".getBytes("UTF8")), IndexOperator.EQ, FBUtilities.toByteArray(3L));
+        IndexExpression expr = new IndexExpression(ByteBuffer.wrap("birthdate".getBytes("UTF8")), IndexOperator.EQ, FBUtilities.toByteBuffer(3L));
         IndexClause clause = new IndexClause(Arrays.asList(expr), FBUtilities.EMPTY_BYTE_BUFFER, 100);
         IFilter filter = new IdentityQueryFilter();
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());

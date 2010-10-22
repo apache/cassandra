@@ -22,7 +22,6 @@ package org.apache.cassandra.db.filter;
 
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.SortedSet;
@@ -41,7 +40,6 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.SliceRange;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ReducingIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -116,7 +114,7 @@ public class QueryFilter
 
             protected boolean isEqual(IColumn o1, IColumn o2)
             {
-                return ByteBufferUtil.equals(o1.name(), o2.name());              
+                return o1.name().equals(o2.name());
             }
 
             public void reduce(IColumn current)

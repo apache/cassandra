@@ -41,7 +41,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.commons.lang.ArrayUtils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -284,13 +284,13 @@ public class SystemTable
         }
         else
         {
-            generation = Math.max(FBUtilities.byteArrayToInt(cf.getColumn(GENERATION).value()) + 1,
+            generation = Math.max(FBUtilities.byteBufferToInt(cf.getColumn(GENERATION).value()) + 1,
                                   (int) (System.currentTimeMillis() / 1000));
         }
 
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
         cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.STATUS_CF);
-        cf.addColumn(new Column(GENERATION, FBUtilities.toByteArray(generation), FBUtilities.timestampMicros()));
+        cf.addColumn(new Column(GENERATION, FBUtilities.toByteBuffer(generation), FBUtilities.timestampMicros()));
         rm.add(cf);
         rm.apply();
         forceBlockingFlush(STATUS_CF);

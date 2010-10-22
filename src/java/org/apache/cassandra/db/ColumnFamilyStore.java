@@ -97,14 +97,12 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LatencyTracker;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.commons.collections.IteratorUtils;
-import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -329,7 +327,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 throw new AssertionError(e);
             }
-            buildSecondaryIndexes(getSSTables(), FBUtilities.getSingleColumnSet(info.name));
+            buildSecondaryIndexes(getSSTables(), FBUtilities.singleton(info.name));
             logger.info("Index {} complete", indexedCfMetadata.cfName);
             SystemTable.setIndexBuilt(table.name, indexedCfMetadata.cfName);
         }
@@ -1429,7 +1427,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 if (rows.size() == clause.count)
                     break outer;
             }
-            if (n < clause.count || ByteBufferUtil.equals(startKey, dataKey))
+            if (n < clause.count || startKey.equals(dataKey))
                 break;
             startKey = dataKey;
         }

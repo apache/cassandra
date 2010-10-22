@@ -23,7 +23,6 @@ package org.apache.cassandra.hadoop;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import org.apache.cassandra.thrift.SlicePredicate;
@@ -37,7 +36,7 @@ public class ColumnFamilyInputFormatTest
     public void testSlicePredicate()
     {
         long columnValue = 1271253600000l;
-        ByteBuffer columnBytes = FBUtilities.toByteArray(columnValue);
+        ByteBuffer columnBytes = FBUtilities.toByteBuffer(columnValue);
 
         List<ByteBuffer> columnNames = new ArrayList<ByteBuffer>();
         columnNames.add(columnBytes);

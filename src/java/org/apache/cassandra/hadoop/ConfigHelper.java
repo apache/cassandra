@@ -166,7 +166,7 @@ public class ConfigHelper
         TSerializer serializer = new TSerializer(new TBinaryProtocol.Factory());
         try
         {
-            return FBUtilities.bytesToHex(ByteBuffer.wrap(serializer.serialize(predicate)));
+            return FBUtilities.bytesToHex(serializer.serialize(predicate));
         }
         catch (TException e)
         {

@@ -23,7 +23,6 @@ import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -50,7 +49,6 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.commons.lang.ArrayUtils;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -609,7 +607,7 @@ public class Table
             Collection<IColumn> columns = columnFamily.getSortedColumns();
             for (IColumn column : columns)
             {
-                ColumnFamilyStore cfStore = columnFamilyStores.get(FBUtilities.byteArrayToInt(column.name()));
+                ColumnFamilyStore cfStore = columnFamilyStores.get(FBUtilities.byteBufferToInt(column.name()));
                 cfStore.applyBinary(key, column.value());
             }
         }

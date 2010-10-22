@@ -28,7 +28,6 @@ import java.util.concurrent.ExecutionException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.lang.ArrayUtils;
 import org.junit.Test;
 
 import static junit.framework.Assert.*;
@@ -237,7 +236,7 @@ public class TableTest extends CleanupHelper
         {
             RowMutation rm = new RowMutation("Keyspace1", ROW.key);
             ColumnFamily cf = ColumnFamily.create("Keyspace1", "StandardLong1");
-            cf.addColumn(new Column(FBUtilities.toByteArray((long)i), FBUtilities.EMPTY_BYTE_BUFFER, 0));
+            cf.addColumn(new Column(FBUtilities.toByteBuffer((long)i), FBUtilities.EMPTY_BYTE_BUFFER, 0));
             rm.add(cf);
             rm.apply();
         }
@@ -248,7 +247,7 @@ public class TableTest extends CleanupHelper
         {
             RowMutation rm = new RowMutation("Keyspace1", ROW.key);
             ColumnFamily cf = ColumnFamily.create("Keyspace1", "StandardLong1");
-            cf.addColumn(new Column(FBUtilities.toByteArray((long)i), FBUtilities.EMPTY_BYTE_BUFFER, 0));
+            cf.addColumn(new Column(FBUtilities.toByteBuffer((long)i), FBUtilities.EMPTY_BYTE_BUFFER, 0));
             rm.add(cf);
             rm.apply();
 

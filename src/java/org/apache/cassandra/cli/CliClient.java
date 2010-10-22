@@ -20,58 +20,17 @@ package org.apache.cassandra.cli;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 import org.antlr.runtime.tree.CommonTree;
 import org.antlr.runtime.tree.Tree;
 import org.apache.cassandra.auth.SimpleAuthenticator;
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.IntegerType;
-import org.apache.cassandra.db.marshal.LexicalUUIDType;
-import org.apache.cassandra.db.marshal.LongType;
-import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.thrift.AuthenticationException;
-import org.apache.cassandra.thrift.AuthenticationRequest;
-import org.apache.cassandra.thrift.AuthorizationException;
-import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.CfDef;
-import org.apache.cassandra.thrift.Column;
-import org.apache.cassandra.thrift.ColumnDef;
-import org.apache.cassandra.thrift.ColumnOrSuperColumn;
-import org.apache.cassandra.thrift.ColumnParent;
-import org.apache.cassandra.thrift.ColumnPath;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.IndexClause;
-import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.thrift.IndexOperator;
-import org.apache.cassandra.thrift.IndexType;
-import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.KeyRange;
-import org.apache.cassandra.thrift.KeySlice;
-import org.apache.cassandra.thrift.KsDef;
-import org.apache.cassandra.thrift.NotFoundException;
-import org.apache.cassandra.thrift.SlicePredicate;
-import org.apache.cassandra.thrift.SliceRange;
-import org.apache.cassandra.thrift.SuperColumn;
-import org.apache.cassandra.thrift.TimedOutException;
-import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
-import org.apache.commons.lang.ArrayUtils;
 import org.apache.thrift.TException;
 
 // Cli Client Side Library
@@ -674,7 +633,7 @@ public class CliClient
                 Column column = cosc.column;
                 validator = getValidatorForValue(cfDef, column.getName());
                 css_.out.printf("=> (column=%s, value=%s, timestamp=%d)\n", formatColumnName(keyspace, columnFamily, column),
-                               validator.getString(column.value), column.timestamp);
+                                validator.getString(column.value), column.timestamp);
             }
         }
         
@@ -771,7 +730,7 @@ public class CliClient
             return;
         }
 
-        ByteBuffer columnNameInBytes = columnNameAsByteArray(columnName, columnFamily);
+        ByteBuffer columnNameInBytes = columnNameAsBytes(columnName, columnFamily);
         AbstractType validator = getValidatorForValue(columnFamilyDef, columnNameInBytes.array());
         
         // Perform a get()
@@ -848,7 +807,7 @@ public class CliClient
             try
             {
                 ByteBuffer value;
-                ByteBuffer columnName = columnNameAsByteArray(columnNameString, columnFamily);
+                ByteBuffer columnName = columnNameAsBytes(columnNameString, columnFamily);
 
                 if (valueTree.getType() == CliParser.FUNCTION_CALL)
                 {
@@ -857,7 +816,7 @@ public class CliClient
                 else
                 {
                     String valueString = CliUtils.unescapeSQLString(valueTree.getText());
-                    value = columnValueAsByteArray(columnName, columnFamily, valueString);
+                    value = columnValueAsBytes(columnName, columnFamily, valueString);
                 }
 
                 // index operator from string
@@ -946,7 +905,7 @@ public class CliClient
         }
 
 
-        ByteBuffer columnNameInBytes = columnNameAsByteArray(columnName, columnFamily);
+        ByteBuffer columnNameInBytes = columnNameAsBytes(columnName, columnFamily);
         ByteBuffer columnValueInBytes;
 
         switch (valueTree.getType())
@@ -955,7 +914,7 @@ public class CliClient
             columnValueInBytes = convertValueByFunction(valueTree, getCfDef(columnFamily), columnNameInBytes, true);
             break;
         default:
-            columnValueInBytes = columnValueAsByteArray(columnNameInBytes, columnFamily, value);
+            columnValueInBytes = columnValueAsBytes(columnNameInBytes, columnFamily, value);
         }
 
         ColumnParent parent = new ColumnParent(columnFamily);
@@ -1727,7 +1686,7 @@ public class CliClient
                 throw new RuntimeException("'" + object + "' could not be translated into a LongType.");
             }
 
-            return FBUtilities.toByteArray(longType);
+            return FBUtilities.toByteBuffer(longType);
         }
         else if (comparator instanceof LexicalUUIDType || comparator instanceof TimeUUIDType)
         {
@@ -1773,7 +1732,7 @@ public class CliClient
      * @throws IllegalAccessException - raised from getFormatTypeForColumn call
      * @throws UnsupportedEncodingException - raised from getBytes() calls
      */
-    private ByteBuffer columnNameAsByteArray(String column, String columnFamily) throws NoSuchFieldException, InstantiationException, IllegalAccessException, UnsupportedEncodingException
+    private ByteBuffer columnNameAsBytes(String column, String columnFamily) throws NoSuchFieldException, InstantiationException, IllegalAccessException, UnsupportedEncodingException
     {
         CfDef columnFamilyDef   = getCfDef(columnFamily);
         String comparatorClass  = columnFamilyDef.comparator_type;
@@ -1788,7 +1747,7 @@ public class CliClient
      * @param columnValue - actual column value
      * @return byte[] - value in byte array representation
      */
-    private ByteBuffer columnValueAsByteArray(ByteBuffer columnName, String columnFamilyName, String columnValue)
+    private ByteBuffer columnValueAsBytes(ByteBuffer columnName, String columnFamilyName, String columnValue)
     {
         CfDef columnFamilyDef = getCfDef(columnFamilyName);
         

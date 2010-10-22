@@ -19,10 +19,8 @@
 package org.apache.cassandra.dht;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class LocalToken extends Token<ByteBuffer>
 {
@@ -61,7 +59,7 @@ public class LocalToken extends Token<ByteBuffer>
         if (!(obj instanceof LocalToken))
             return false;
         LocalToken other = (LocalToken) obj;
-        return ByteBufferUtil.equals(token, other.token);
+        return token.equals(other.token);
     }
 
 }

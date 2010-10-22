@@ -85,19 +85,8 @@ public abstract class AbstractByteOrderedPartitioner implements IPartitioner<Byt
     private BigInteger bigForBytes(ByteBuffer bytes, int sigbytes)
     {
         byte[] b = new byte[sigbytes];
-        
-        // append zeros
-        Arrays.fill(b, (byte) 0);
-        
-        if (bytes.remaining() != sigbytes)
-        {                     
-            System.arraycopy(bytes.array(), bytes.position()+bytes.arrayOffset(), b, 0, bytes.remaining());
-        } 
-        else
-        {
-            System.arraycopy(bytes.array(), bytes.position()+bytes.arrayOffset(), b, 0, sigbytes);
-        }
-        
+        Arrays.fill(b, (byte) 0); // append zeros
+        System.arraycopy(bytes.array(), bytes.position()+bytes.arrayOffset(), b, 0, bytes.remaining());
         return new BigInteger(1, b);
     }
 
@@ -150,7 +139,7 @@ public abstract class AbstractByteOrderedPartitioner implements IPartitioner<Byt
 
         public String toString(Token<byte[]> bytesToken)
         {
-            return FBUtilities.bytesToHex(ByteBuffer.wrap(bytesToken.token));
+            return FBUtilities.bytesToHex(bytesToken.token);
         }
 
         public Token<byte[]> fromString(String string)

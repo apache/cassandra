@@ -259,7 +259,7 @@ public class CassandraBulkLoader {
             byte[] data = new byte[bufOut.getLength()];
             System.arraycopy(bufOut.getData(), 0, data, 0, bufOut.getLength());
 
-            column = new Column(FBUtilities.toByteArray(cf.id()), data, 0);
+            column = new Column(FBUtilities.toByteBuffer(cf.id()), data, 0);
             baseColumnFamily.addColumn(column);
         }
         rm = new RowMutation(Keyspace, Key);

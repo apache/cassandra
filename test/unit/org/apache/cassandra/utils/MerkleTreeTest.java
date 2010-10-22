@@ -84,8 +84,8 @@ public class MerkleTreeTest
 
     public static void assertHashEquals(String message, final byte[] left, final byte[] right)
     {
-        String lstring = left == null ? "null" : FBUtilities.bytesToHex(ByteBuffer.wrap(left));
-        String rstring = right == null ? "null" : FBUtilities.bytesToHex(ByteBuffer.wrap(right));
+        String lstring = left == null ? "null" : FBUtilities.bytesToHex(left);
+        String rstring = right == null ? "null" : FBUtilities.bytesToHex(right);
         assertEquals(message, lstring, rstring);
     }
 

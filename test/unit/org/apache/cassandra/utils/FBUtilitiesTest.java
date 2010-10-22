@@ -36,7 +36,7 @@ public class FBUtilitiesTest
         for (int i = Byte.MIN_VALUE; i <= Byte.MAX_VALUE; i++)
         {
             byte[] b = new byte[]{ (byte)i };
-            String s = FBUtilities.bytesToHex(ByteBuffer.wrap(b));
+            String s = FBUtilities.bytesToHex(b);
             byte[] c = FBUtilities.hexToBytes(s);
             assertArrayEquals(b, c);
         }
@@ -79,8 +79,8 @@ public class FBUtilitiesTest
         };
 
         for (int i : ints) {
-            ByteBuffer ba = FBUtilities.toByteArray(i);
-            int actual = FBUtilities.byteArrayToInt(ba);
+            ByteBuffer ba = FBUtilities.toByteBuffer(i);
+            int actual = FBUtilities.byteBufferToInt(ba);
             assertEquals(i, actual);
         }
     }

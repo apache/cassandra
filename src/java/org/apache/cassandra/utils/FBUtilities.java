@@ -158,7 +158,7 @@ public class FBUtilities
         return new Pair(midpoint, remainder);
     }
 
-    public static ByteBuffer toByteArray(int i)
+    public static ByteBuffer toByteBuffer(int i)
     {
         byte[] bytes = new byte[4];
         bytes[0] = (byte)( ( i >>> 24 ) & 0xFF);
@@ -168,14 +168,9 @@ public class FBUtilities
         return ByteBuffer.wrap(bytes);
     }
 
-    public static int byteArrayToInt(ByteBuffer bytes)
+    public static int byteBufferToInt(ByteBuffer bytes)
     {
-    	return byteArrayToInt(bytes, 0);
-    }
-
-    public static int byteArrayToInt(ByteBuffer bytes, int offset)
-    {
-        if ( bytes.remaining() - offset < 4 )
+        if (bytes.remaining() < 4 )
         {
             throw new IllegalArgumentException("An integer must be 4 bytes in size.");
         }
@@ -183,28 +178,29 @@ public class FBUtilities
         for ( int i = 0; i < 4; ++i )
         {
             n <<= 8;
-            n |= bytes.array()[bytes.position()+bytes.arrayOffset()+ offset + i] & 0xFF;
+            n |= bytes.array()[bytes.position() + bytes.arrayOffset() + i] & 0xFF;
         }
         return n;
     }
-    
-    public static int compareByteArrays(byte[] bytes1, byte[] bytes2, int offset1, int offset2,  int len1, int len2){
-        if(null == bytes1){
-            if(null == bytes2) return 0;
-            else return -1;
-        }
-        if(null == bytes2) return 1;
 
-        int minLength = Math.min(len1-offset1, len2-offset2);
-        for(int x=0, i = offset1, j=offset2; x < minLength; x++,i++,j++)
+    public static int compareUnsigned(byte[] bytes1, byte[] bytes2, int offset1, int offset2, int len1, int len2)
+    {
+        if (bytes1 == null)
         {
-            if(bytes1[i] == bytes2[j])
+            return bytes2 == null ? 0 : -1;
+        }
+        if (bytes2 == null) return 1;
+
+        int minLength = Math.min(len1 - offset1, len2 - offset2);
+        for (int x = 0, i = offset1, j = offset2; x < minLength; x++, i++, j++)
+        {
+            if (bytes1[i] == bytes2[j])
                 continue;
             // compare non-equal bytes as unsigned
             return (bytes1[i] & 0xFF) < (bytes2[j] & 0xFF) ? -1 : 1;
         }
-        if((len1-offset1) == (len2-offset2)) return 0;
-        else return ((len1-offset1) < (len2-offset2))? -1 : 1;
+        if ((len1 - offset1) == (len2 - offset2)) return 0;
+        else return ((len1 - offset1) < (len2 - offset2)) ? -1 : 1;
     }
 
     /**
@@ -331,6 +327,20 @@ public class FBUtilities
             bytes[i] = (byte)Integer.parseInt(str.substring(i*2, i*2+2), 16);
         }
         return bytes;
+    }
+
+    public static String bytesToHex(byte... bytes)
+    {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes)
+        {
+            int bint = b & 0xff;
+            if (bint <= 0xF)
+                // toHexString does not 0 pad its results.
+                sb.append("0");
+            sb.append(Integer.toHexString(bint));
+        }
+        return sb.toString();
     }
 
     public static String bytesToHex(ByteBuffer bytes)
@@ -491,7 +501,7 @@ public class FBUtilities
         return decoded;
     }
 
-    public static ByteBuffer toByteArray(long n)
+    public static ByteBuffer toByteBuffer(long n)
     {
         byte[] bytes = new byte[8];
         ByteBuffer bb = ByteBuffer.wrap(bytes).putLong(n);
@@ -665,18 +675,9 @@ public class FBUtilities
         }
     }
 
-    public static TreeSet<ByteBuffer> getSingleColumnSet(ByteBuffer column)
+    public static <T extends Comparable> SortedSet<T> singleton(T column)
     {
-        Comparator<ByteBuffer> singleColumnComparator = new Comparator<ByteBuffer>()
-        {
-            public int compare(ByteBuffer o1, ByteBuffer o2)
-            {
-                return ByteBufferUtil.equals(o1, o2) ? 0 : -1;
-            }
-        };
-        TreeSet<ByteBuffer> set = new TreeSet<ByteBuffer>(singleColumnComparator);
-        set.add(column);
-        return set;
+        return new TreeSet<T>(Arrays.asList(column));
     }
 
     public static String toString(Map<?,?> map)

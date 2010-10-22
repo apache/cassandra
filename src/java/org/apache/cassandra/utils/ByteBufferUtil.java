@@ -26,22 +26,17 @@ import java.nio.ByteBuffer;
  */
 public class ByteBufferUtil {
 
-    public static int compare(ByteBuffer o1, ByteBuffer o2)
+    public static int compareUnsigned(ByteBuffer o1, ByteBuffer o2)
     {
-        return FBUtilities.compareByteArrays(o1.array(), o2.array(), o1.arrayOffset()+o1.position(), o2.arrayOffset()+o2.position(), o1.limit(), o2.limit());
+        return FBUtilities.compareUnsigned(o1.array(), o2.array(), o1.arrayOffset()+o1.position(), o2.arrayOffset()+o2.position(), o1.limit(), o2.limit());
     }
     
     public static int compare(byte[] o1, ByteBuffer o2)
     {
-        return FBUtilities.compareByteArrays(o1, o2.array(), 0, o2.arrayOffset()+o2.position(), o1.length, o2.limit());
+        return FBUtilities.compareUnsigned(o1, o2.array(), 0, o2.arrayOffset()+o2.position(), o1.length, o2.limit());
     }
     public static int compare(ByteBuffer o1, byte[] o2)
     {
-        return FBUtilities.compareByteArrays(o1.array(), o2, o1.arrayOffset()+o1.position(), 0, o1.limit(), o2.length);
+        return FBUtilities.compareUnsigned(o1.array(), o2, o1.arrayOffset()+o1.position(), 0, o1.limit(), o2.length);
     }
-    
-    public static boolean equals(ByteBuffer o1, ByteBuffer o2)
-    {
-        return compare(o1, o2) == 0;
-    }   
 }

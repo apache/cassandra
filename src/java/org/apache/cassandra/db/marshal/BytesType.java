@@ -39,7 +39,7 @@ public class BytesType extends AbstractType
             else return -1;
         }
               
-        return ByteBufferUtil.compare(o1, o2);
+        return ByteBufferUtil.compareUnsigned(o1, o2);
     }
 
     public String getString(ByteBuffer bytes)

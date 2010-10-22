@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,7 +30,7 @@ public class DeletedColumn extends Column
     
     public DeletedColumn(ByteBuffer name, int localDeletionTime, long timestamp)
     {
-        this(name, FBUtilities.toByteArray(localDeletionTime), timestamp);
+        this(name, FBUtilities.toByteBuffer(localDeletionTime), timestamp);
     }
 
     public DeletedColumn(ByteBuffer name, ByteBuffer value, long timestamp)
