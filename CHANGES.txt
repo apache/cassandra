@@ -1,4 +1,4 @@
-dev
+0.7.0-rc1
  * add strategy options to describe_keyspace output (CASSANDRA-1560)
  * log warning when using randomly generated token (CASSANDRA-1552)
  * re-organize JMX into .db, .net, .internal, .request (CASSANDRA-1217)
