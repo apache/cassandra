@@ -95,7 +95,7 @@ public final class SerDeUtils
         Schema writer = Schema.parse(dec.readString(new Utf8()).toString());
         SpecificDatumReader<T> reader = new SpecificDatumReader<T>(writer);
         reader.setExpected(ob.getSchema());
-        return new SpecificDatumReader<T>(writer).read(ob, dec);
+        return reader.read(ob, dec);
     }
 
 	/**
