@@ -42,7 +42,7 @@ public interface StorageServiceMBean
      *
      * @return set of IP addresses, as Strings
      */
-    public Set<String> getLiveNodes();
+    public List<String> getLiveNodes();
 
     /**
      * Retrieve the list of unreachable nodes in the cluster, as determined
@@ -50,21 +50,21 @@ public interface StorageServiceMBean
      *
      * @return set of IP addresses, as Strings
      */
-    public Set<String> getUnreachableNodes();
+    public List<String> getUnreachableNodes();
 
     /**
      * Retrieve the list of nodes currently bootstrapping into the ring.
      *
      * @return set of IP addresses, as Strings
      */
-    public Set<String> getJoiningNodes();
+    public List<String> getJoiningNodes();
 
     /**
      * Retrieve the list of nodes currently leaving the ring.
      *
      * @return set of IP addresses, as Strings
      */
-    public Set<String> getLeavingNodes();
+    public List<String> getLeavingNodes();
 
     /**
      * Fetch a string representation of the token.

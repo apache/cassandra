@@ -166,22 +166,22 @@ public class NodeProbe
         return ssProxy.getTokenToEndpointMap();
     }
 
-    public Set<String> getLiveNodes()
+    public List<String> getLiveNodes()
     {
         return ssProxy.getLiveNodes();
     }
 
-    public Set<String> getJoiningNodes()
+    public List<String> getJoiningNodes()
     {
         return ssProxy.getJoiningNodes();
     }
 
-    public Set<String> getLeavingNodes()
+    public List<String> getLeavingNodes()
     {
         return ssProxy.getLeavingNodes();
     }
     
-    public Set<String> getUnreachableNodes()
+    public List<String> getUnreachableNodes()
     {
         return ssProxy.getUnreachableNodes();
     }

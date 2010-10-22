@@ -160,30 +160,18 @@ public class ClusterCmd {
      */
     public void takeGlobalSnapshot(String snapshotName) throws IOException, InterruptedException
     {
-        Set<String> liveNodes = probe.getLiveNodes();
-        try
-        {
-            probe.takeSnapshot(snapshotName);
-            System.out.println(host + " snapshot taken");
-        }
-        catch (IOException e)
-        {
-            System.out.println(host + " snapshot FAILED: " + e.getMessage());
-        }
 
-        liveNodes.remove(this.host);
-        for (String liveNode : liveNodes)
+        for (String liveNode : probe.getLiveNodes())
         {
             try
             {
-                this.host = liveNode;
-                probe = new NodeProbe(host, port);
-                probe.takeSnapshot(snapshotName);
-                System.out.println(host + " snapshot taken");
+                NodeProbe hostProbe = new NodeProbe(liveNode, port);
+                hostProbe.takeSnapshot(snapshotName);
+                System.out.println(liveNode + " snapshot taken");
             }
             catch (IOException e)
             {
-                System.out.println(host + " snapshot FAILED: " + e.getMessage());
+                System.out.println(liveNode + " snapshot FAILED: " + e.getMessage());
             }
         }
     }
@@ -193,30 +181,17 @@ public class ClusterCmd {
      */
     public void clearGlobalSnapshot() throws IOException, InterruptedException
     {
-        Set<String> liveNodes = probe.getLiveNodes();
-        try
-        {
-            probe.clearSnapshot();
-            System.out.println(host + " snapshot cleared");
-        }
-        catch (IOException e)
-        {
-            System.out.println(host + " snapshot clear FAILED: " + e.getMessage());
-        }
-
-        liveNodes.remove(this.host);
-        for (String liveNode : liveNodes)
+        for (String liveNode : probe.getLiveNodes())
         {
             try
             {
-                this.host = liveNode;
-                probe = new NodeProbe(host, port);
-                probe.clearSnapshot();
-                System.out.println(host + " snapshot cleared");
+                NodeProbe hostProbe = new NodeProbe(liveNode, port);
+                hostProbe.clearSnapshot();
+                System.out.println(liveNode + " snapshot cleared");
             }
             catch (IOException e)
             {
-                System.out.println(host + " snapshot clear FAILED: " + e.getMessage());
+                System.out.println(liveNode + " snapshot clear FAILED: " + e.getMessage());
             }
         }
     }

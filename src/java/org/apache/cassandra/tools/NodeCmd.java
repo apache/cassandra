@@ -88,10 +88,10 @@ public class NodeCmd {
         List<Token> sortedTokens = new ArrayList<Token>(tokenToEndpoint.keySet());
         Collections.sort(sortedTokens);
 
-        Set<String> liveNodes = probe.getLiveNodes();
-        Set<String> deadNodes = probe.getUnreachableNodes();
-        Set<String> joiningNodes = probe.getJoiningNodes();
-        Set<String> leavingNodes = probe.getLeavingNodes();
+        Collection<String> liveNodes = probe.getLiveNodes();
+        Collection<String> deadNodes = probe.getUnreachableNodes();
+        Collection<String> joiningNodes = probe.getJoiningNodes();
+        Collection<String> leavingNodes = probe.getLeavingNodes();
         Map<String, String> loadMap = probe.getLoadMap();
 
         outs.printf("%-16s%-7s%-8s%-16s%-44s\n", "Address", "Status", "State", "Load", "Token");

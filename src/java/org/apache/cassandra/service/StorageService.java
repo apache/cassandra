@@ -1181,37 +1181,27 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return FBUtilities.getReleaseVersionString();
     }
 
-    public Set<String> getLeavingNodes()
+    public List<String> getLeavingNodes()
     {
         return stringify(tokenMetadata_.getLeavingEndpoints());
     }
 
-    public Set<String> getJoiningNodes()
+    public List<String> getJoiningNodes()
     {
         return stringify(tokenMetadata_.getBootstrapTokens().values());
     }
 
-    public Set<String> getLiveNodes()
+    public List<String> getLiveNodes()
     {
         return stringify(Gossiper.instance.getLiveMembers());
     }
 
-    public Set<String> getUnreachableNodes()
+    public List<String> getUnreachableNodes()
     {
         return stringify(Gossiper.instance.getUnreachableMembers());
     }
 
-    private Set<String> stringify(Collection<InetAddress> endpoints)
-    {
-        Set<String> stringEndpoints = new HashSet<String>();
-        for (InetAddress ep : endpoints)
-        {
-            stringEndpoints.add(ep.getHostAddress());
-        }
-        return stringEndpoints;
-    }
-
-    private List<String> stringify(List<InetAddress> endpoints)
+    private List<String> stringify(Iterable<InetAddress> endpoints)
     {
         List<String> stringEndpoints = new ArrayList<String>();
         for (InetAddress ep : endpoints)
