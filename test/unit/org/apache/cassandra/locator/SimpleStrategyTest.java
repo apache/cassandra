@@ -33,6 +33,7 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceAccessor;
@@ -42,13 +43,7 @@ public class SimpleStrategyTest extends SchemaLoader
     @Test
     public void tryValidTable()
     {
-        assert StorageService.instance.getReplicationStrategy("Keyspace1") != null;
-    }
-
-    @Test(expected = AssertionError.class)
-    public void tryBogusTable()
-    {
-        StorageService.instance.getReplicationStrategy("SomeBogusTableThatDoesntExist");
+        assert Table.open("Keyspace1").replicationStrategy != null;
     }
 
     @Test

@@ -37,7 +37,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -47,6 +49,7 @@ import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableDeletingReference;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -92,6 +95,7 @@ public class Table
     public final Map<Integer, ColumnFamilyStore> columnFamilyStores = new HashMap<Integer, ColumnFamilyStore>(); // TODO make private again
     private final Object[] indexLocks;
     private ScheduledFuture<?> flushTask;
+    public final AbstractReplicationStrategy replicationStrategy;
 
     public static Table open(String table)
     {
@@ -231,6 +235,20 @@ public class Table
     private Table(String table)
     {
         name = table;
+        KSMetaData ksm = DatabaseDescriptor.getKSMetaData(table);
+        try
+        {
+            replicationStrategy = AbstractReplicationStrategy.createReplicationStrategy(table,
+                                                                                        ksm.strategyClass,
+                                                                                        StorageService.instance.getTokenMetadata(),
+                                                                                        DatabaseDescriptor.getEndpointSnitch(),
+                                                                                        ksm.strategyOptions);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new RuntimeException(e);
+        }
+
         indexLocks = new Object[DatabaseDescriptor.getConcurrentWriters() * 8];
         for (int i = 0; i < indexLocks.length; i++)
             indexLocks[i] = new Object();

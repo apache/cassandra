@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.net.Message;
@@ -63,7 +63,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
         super(writeEndpoints, hintedEndpoints, consistencyLevel);
         assert consistencyLevel == ConsistencyLevel.DCQUORUM;
 
-        strategy = (NetworkTopologyStrategy) StorageService.instance.getReplicationStrategy(table);
+        strategy = (NetworkTopologyStrategy) Table.open(table).replicationStrategy;
 
         for (String dc : strategy.getDatacenters())
         {

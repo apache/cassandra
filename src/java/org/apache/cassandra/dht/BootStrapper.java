@@ -34,6 +34,7 @@ package org.apache.cassandra.dht;
  import org.slf4j.LoggerFactory;
 
  import org.apache.cassandra.config.DatabaseDescriptor;
+ import org.apache.cassandra.db.Table;
  import org.apache.cassandra.gms.FailureDetector;
  import org.apache.cassandra.gms.IFailureDetector;
  import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -190,7 +191,7 @@ public class BootStrapper
     Multimap<Range, InetAddress> getRangesWithSources(String table)
     {
         assert tokenMetadata.sortedTokens().size() > 0;
-        final AbstractReplicationStrategy strat = StorageService.instance.getReplicationStrategy(table);
+        final AbstractReplicationStrategy strat = Table.open(table).replicationStrategy;
         Collection<Range> myRanges = strat.getPendingAddressRanges(tokenMetadata, token, address);
 
         Multimap<Range, InetAddress> myRangeAddresses = ArrayListMultimap.create();

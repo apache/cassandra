@@ -24,7 +24,7 @@ package org.apache.cassandra.service;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.net.Message;
@@ -65,7 +65,7 @@ public class DatacenterQuorumResponseHandler<T> extends QuorumResponseHandler<T>
     @Override
     public int determineBlockFor(ConsistencyLevel consistency_level, String table)
 	{
-		NetworkTopologyStrategy stategy = (NetworkTopologyStrategy) StorageService.instance.getReplicationStrategy(table);
+        NetworkTopologyStrategy stategy = (NetworkTopologyStrategy) Table.open(table).replicationStrategy;
 		return (stategy.getReplicationFactor(localdc) / 2) + 1;
 	}
 }

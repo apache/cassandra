@@ -27,7 +27,6 @@ import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Multimap;
 import static com.google.common.base.Charsets.UTF_8;
 import org.apache.commons.lang.ArrayUtils;
@@ -104,7 +103,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 mostRecentRowMutation = rm;
                 String table = rm.getTable();
-                AbstractReplicationStrategy rs = ss.getReplicationStrategy(table);
+                AbstractReplicationStrategy rs = Table.open(table).replicationStrategy;
 
                 List<InetAddress> naturalEndpoints = ss.getNaturalEndpoints(table, rm.key());
                 Collection<InetAddress> writeEndpoints = ss.getTokenMetadata().getWriteEndpoints(StorageService.getPartitioner().getToken(rm.key()), table, naturalEndpoints);
@@ -342,7 +341,7 @@ public class StorageProxy implements StorageProxyMBean
                 if (logger.isDebugEnabled())
                     logger.debug("strongread reading " + (m == message ? "data" : "digest") + " for " + command + " from " + m.getMessageId() + "@" + endpoint);
             }
-            AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(command.table);
+            AbstractReplicationStrategy rs = Table.open(command.table).replicationStrategy;
             QuorumResponseHandler<Row> quorumResponseHandler = rs.getQuorumResponseHandler(new ReadResponseResolver(command.table), consistency_level);
             MessagingService.instance.sendRR(messages, endpoints, quorumResponseHandler);
             quorumResponseHandlers.add(quorumResponseHandler);
@@ -368,7 +367,7 @@ public class StorageProxy implements StorageProxyMBean
             }
             catch (DigestMismatchException ex)
             {
-                AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(command.table);
+                AbstractReplicationStrategy rs = Table.open(command.table).replicationStrategy;
                 QuorumResponseHandler<Row> qrhRepair = rs.getQuorumResponseHandler(new ReadResponseResolver(command.table), ConsistencyLevel.QUORUM);
                 if (logger.isDebugEnabled())
                     logger.debug("Digest mismatch:", ex);
@@ -448,7 +447,7 @@ public class StorageProxy implements StorageProxyMBean
 
                 // collect replies and resolve according to consistency level
                 RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, liveEndpoints);
-                AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(command.keyspace);
+                AbstractReplicationStrategy rs = Table.open(command.keyspace).replicationStrategy;
                 QuorumResponseHandler<List<Row>> handler = rs.getQuorumResponseHandler(resolver, consistency_level);
                 // TODO bail early if live endpoints can't satisfy requested consistency level
                 for (InetAddress endpoint : liveEndpoints) 
@@ -661,7 +660,7 @@ public class StorageProxy implements StorageProxyMBean
 
             // collect replies and resolve according to consistency level
             RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(keyspace, liveEndpoints);
-            AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy(keyspace);
+            AbstractReplicationStrategy rs = Table.open(keyspace).replicationStrategy;
             QuorumResponseHandler<List<Row>> handler = rs.getQuorumResponseHandler(resolver, consistency_level);
             // TODO bail early if live endpoints can't satisfy requested consistency level
             IndexScanCommand command = new IndexScanCommand(keyspace, column_family, index_clause, column_predicate, range);

@@ -227,9 +227,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                                                                                    new NamedThreadFactory("ReadRepair"),
                                                                                    "request");
 
-    /* We use this interface to determine where replicas need to be placed */
-    private final Map<String, AbstractReplicationStrategy> replicationStrategies;
-
     private Set<InetAddress> replicatingNodes;
     private InetAddress removingNode;
 
@@ -300,52 +297,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         MessagingService.instance.registerVerbHandlers(Verb.TRUNCATE, new TruncateVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.SCHEMA_CHECK, new SchemaCheckVerbHandler());
 
-        replicationStrategies = new HashMap<String, AbstractReplicationStrategy>();
-        for (String table : DatabaseDescriptor.getTables())
-            initReplicationStrategy(table);
-
         // spin up the streaming serivice so it is available for jmx tools.
         if (StreamingService.instance == null)
             throw new RuntimeException("Streaming service is unavailable.");
-    }
-
-    public AbstractReplicationStrategy getReplicationStrategy(String table)
-    {
-        AbstractReplicationStrategy ars = replicationStrategies.get(table);
-        assert ars != null: String.format("No replica strategy configured for %s", table);
-        return ars;
-    }
-    
-    public void initReplicationStrategy(String table)
-    {
-        AbstractReplicationStrategy strat = createReplicationStrategy(tokenMetadata_, table);
-        replicationStrategies.put(table, strat);
-    }
-    
-    public void clearReplicationStrategy(String table)
-    {
-        replicationStrategies.remove(table);
-    }
-
-    public static AbstractReplicationStrategy createReplicationStrategy(TokenMetadata tokenMetadata, String table)
-    {
-        AbstractReplicationStrategy replicationStrategy;
-        KSMetaData ksm = DatabaseDescriptor.getKSMetaData(table);
-        try
-        {
-            replicationStrategy = AbstractReplicationStrategy.createReplicationStrategy(
-                    table,
-                    ksm.strategyClass,
-                    tokenMetadata,
-                    DatabaseDescriptor.getEndpointSnitch(),
-                    ksm.strategyOptions
-            );
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
-        return replicationStrategy;
     }
 
     public void stopClient()
@@ -606,7 +560,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Map<Range, List<InetAddress>> rangeToEndpointMap = new HashMap<Range, List<InetAddress>>();
         for (Range range : ranges)
         {
-            rangeToEndpointMap.put(range, getReplicationStrategy(keyspace).getNaturalEndpoints(range.right));
+            rangeToEndpointMap.put(range, Table.open(keyspace).replicationStrategy.getNaturalEndpoints(range.right));
         }
         return rangeToEndpointMap;
     }
@@ -868,7 +822,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     private void calculatePendingRanges()
     {
         for (String table : DatabaseDescriptor.getNonSystemTables())
-            calculatePendingRanges(getReplicationStrategy(table), table);
+            calculatePendingRanges(Table.open(table).replicationStrategy, table);
     }
 
     // public & static for testing purposes
@@ -938,7 +892,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     private Multimap<InetAddress, Range> getNewSourceRanges(String table, Set<Range> ranges) 
     {
         InetAddress myAddress = FBUtilities.getLocalAddress();
-        Multimap<Range, InetAddress> rangeAddresses = getReplicationStrategy(table).getRangeAddresses(tokenMetadata_);
+        Multimap<Range, InetAddress> rangeAddresses = Table.open(table).replicationStrategy.getRangeAddresses(tokenMetadata_);
         Multimap<InetAddress, Range> sourceRanges = HashMultimap.create();
         IFailureDetector failureDetector = FailureDetector.instance;
 
@@ -1061,7 +1015,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         // Find (for each range) all nodes that store replicas for these ranges as well
         for (Range range : ranges)
-            currentReplicaEndpoints.put(range, getReplicationStrategy(table).calculateNaturalEndpoints(range.right, tokenMetadata_));
+            currentReplicaEndpoints.put(range, Table.open(table).replicationStrategy.calculateNaturalEndpoints(range.right, tokenMetadata_));
 
         TokenMetadata temp = tokenMetadata_.cloneAfterAllLeft();
 
@@ -1079,7 +1033,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // range.
         for (Range range : ranges)
         {
-            Collection<InetAddress> newReplicaEndpoints = getReplicationStrategy(table).calculateNaturalEndpoints(range.right, temp);
+            Collection<InetAddress> newReplicaEndpoints = Table.open(table).replicationStrategy.calculateNaturalEndpoints(range.right, temp);
             newReplicaEndpoints.removeAll(currentReplicaEndpoints.get(range));
             if (logger_.isDebugEnabled())
                 if (newReplicaEndpoints.isEmpty())
@@ -1403,7 +1357,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     Collection<Range> getRangesForEndpoint(String table, InetAddress ep)
     {
-        return getReplicationStrategy(table).getAddressRanges().get(ep);
+        return Table.open(table).replicationStrategy.getAddressRanges().get(ep);
     }
 
     /**
@@ -1453,7 +1407,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public List<InetAddress> getNaturalEndpoints(String table, Token token)
     {
-        return getReplicationStrategy(table).getNaturalEndpoints(token);
+        return Table.open(table).replicationStrategy.getNaturalEndpoints(token);
     }
 
     /**
@@ -1471,7 +1425,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public List<InetAddress> getLiveNaturalEndpoints(String table, Token token)
     {
         List<InetAddress> liveEps = new ArrayList<InetAddress>();
-        List<InetAddress> endpoints = getReplicationStrategy(table).getNaturalEndpoints(token);
+        List<InetAddress> endpoints = Table.open(table).replicationStrategy.getNaturalEndpoints(token);
 
         for (InetAddress endpoint : endpoints)
         {

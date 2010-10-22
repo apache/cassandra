@@ -963,13 +963,11 @@ public class    DatabaseDescriptor
     {
         tables.put(ksm.name, ksm);
         DatabaseDescriptor.defsVersion = newVersion;
-        StorageService.instance.initReplicationStrategy(ksm.name);
     }
     
     public static void clearTableDefinition(KSMetaData ksm, UUID newVersion)
     {
         tables.remove(ksm.name);
-        StorageService.instance.clearReplicationStrategy(ksm.name);
         DatabaseDescriptor.defsVersion = newVersion;
     }
     

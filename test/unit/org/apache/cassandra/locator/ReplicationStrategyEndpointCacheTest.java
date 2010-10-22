@@ -22,7 +22,8 @@ package org.apache.cassandra.locator;
 import java.net.InetAddress;
 import java.util.*;
 
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.db.Table;
+
 import org.apache.commons.lang.StringUtils;
 import org.junit.Test;
 
@@ -42,7 +43,7 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
         tmd = new TokenMetadata();
         searchToken = new BigIntegerToken(String.valueOf(15));
 
-        strategy = getStrategyWithNewTokenMetadata(StorageService.instance.getReplicationStrategy("Keyspace3"), tmd);
+        strategy = getStrategyWithNewTokenMetadata(Table.open("Keyspace3").replicationStrategy, tmd);
 
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(10)), InetAddress.getByName("127.0.0.1"));
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(20)), InetAddress.getByName("127.0.0.2"));

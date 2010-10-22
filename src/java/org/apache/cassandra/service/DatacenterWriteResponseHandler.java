@@ -28,7 +28,7 @@ import java.net.InetAddress;
 import java.util.Collection;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.net.Message;
@@ -65,7 +65,7 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
     @Override
     protected int determineBlockFor(String table)
     {
-        NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) StorageService.instance.getReplicationStrategy(table);
+        NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) Table.open(table).replicationStrategy;
         return (strategy.getReplicationFactor(localdc) / 2) + 1;
     }
 
