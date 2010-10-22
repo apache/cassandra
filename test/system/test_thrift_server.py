@@ -1447,6 +1447,16 @@ class TestMutations(ThriftTester):
         time.sleep(2)
         result = client.get_indexed_slices(cp, clause, sp, ConsistencyLevel.ONE)
         assert len(result) == 0, result
+     
+    def test_column_not_found_quorum(self): 
+        _set_keyspace('Keyspace1')
+        key = 'doesntexist'
+        column_path = ColumnPath(column_family="Standard1", column="idontexist")
+        try:
+            client.get(key, column_path, ConsistencyLevel.QUORUM)
+            assert False, ('columnpath %s existed in %s when it should not' % (column_path, key))
+        except NotFoundException:
+            assert True, 'column did not exist'
 
 class TestTruncate(ThriftTester):
     def test_truncate(self):

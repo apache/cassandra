@@ -202,7 +202,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             ReadResponse result = results.get(message);
             if (result == null)
                 continue; // arrived concurrently
-            if (result.isDigestQuery())
+            if (!result.isDigestQuery())
                 return true;
         }
         return false;
