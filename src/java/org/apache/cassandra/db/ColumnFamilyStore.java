@@ -1550,40 +1550,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    public void loadRowCache()
-    {
-        if (metadata.preloadRowCache)
-        {
-            logger.debug(String.format("Loading cache for keyspace/columnfamily %s/%s", table, columnFamily));
-            int ROWS = 4096;
-            Token min = partitioner.getMinimumToken();
-            Token start = min;
-            long i = 0;
-            while (i < ssTables.getRowCache().getCapacity())
-            {
-                List<Row> result;
-                try
-                {
-                    result = getRangeSlice(null, new Bounds(start, min), ROWS, new IdentityQueryFilter());
-                }
-                catch (Exception e)
-                {
-                    throw new RuntimeException(e);
-                }
-
-                for (Row row : result)
-                    ssTables.getRowCache().put(row.key, row.cf);
-                i += result.size();
-                if (result.size() < ROWS)
-                    break;
-
-                start = partitioner.getToken(result.get(ROWS - 1).key.key);
-            }
-            logger.info(String.format("Loaded %s rows into the %s cache", i, columnFamily));
-        }
-    }
-
-
     public boolean hasUnreclaimedSpace()
     {
         return ssTables.getLiveSize() < ssTables.getTotalSize();

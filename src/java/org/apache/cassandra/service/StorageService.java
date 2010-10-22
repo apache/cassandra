@@ -493,9 +493,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             setMode("Normal", false);
         } 
         
-        for (ColumnFamilyStore cfs: ColumnFamilyStore.all())
-        	cfs.loadRowCache();
-        
         assert tokenMetadata_.sortedTokens().size() > 0;
     }
 
@@ -2022,7 +2019,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 rcf.column_type = cfm.cfType;
                 rcf.comment = cfm.comment;
                 rcf.keys_cached = cfm.keyCacheSize;
-                rcf.preload_row_cache = cfm.preloadRowCache;
                 rcf.read_repair_chance = cfm.readRepairChance;
                 rcf.gc_grace_seconds = cfm.gcGraceSeconds;
                 rcf.rows_cached = cfm.rowCacheSize;

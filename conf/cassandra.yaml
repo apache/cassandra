@@ -333,8 +333,6 @@ index_interval: 128
 #     - read_repair_chance: specifies the probability with which read
 #        repairs should be invoked on non-quorum reads.  must be between 0
 #        and 1. defaults to 1.0 (always read repair).
-#     - preload_row_cache: If true, will populate row cache on startup.
-#        Defaults to false.
 #     - gc_grace_seconds: specifies the time to wait before garbage
 #        collecting tombstones (deletion markers). defaults to 864000 (10
 #        days). See http://wiki.apache.org/cassandra/DistributedDeletes
@@ -400,7 +398,6 @@ keyspaces:
         - name: Super2
           column_type: Super
           compare_subcolumns_with: UTF8Type
-          preload_row_cache: true
           rows_cached: 10000
           keys_cached: 50
           comment: 'A column family with supercolumns, whose column and subcolumn names are UTF8 strings'

@@ -590,7 +590,6 @@ public class    DatabaseDescriptor
                                              subcolumnComparator, 
                                              cf.comment, 
                                              cf.rows_cached,
-                                             cf.preload_row_cache, 
                                              cf.keys_cached, 
                                              cf.read_repair_chance,
                                              cf.gc_grace_seconds,

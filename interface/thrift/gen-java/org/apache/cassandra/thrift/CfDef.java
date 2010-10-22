@@ -58,7 +58,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   private static final TField SUBCOMPARATOR_TYPE_FIELD_DESC = new TField("subcomparator_type", TType.STRING, (short)6);
   private static final TField COMMENT_FIELD_DESC = new TField("comment", TType.STRING, (short)8);
   private static final TField ROW_CACHE_SIZE_FIELD_DESC = new TField("row_cache_size", TType.DOUBLE, (short)9);
-  private static final TField PRELOAD_ROW_CACHE_FIELD_DESC = new TField("preload_row_cache", TType.BOOL, (short)10);
   private static final TField KEY_CACHE_SIZE_FIELD_DESC = new TField("key_cache_size", TType.DOUBLE, (short)11);
   private static final TField READ_REPAIR_CHANCE_FIELD_DESC = new TField("read_repair_chance", TType.DOUBLE, (short)12);
   private static final TField COLUMN_METADATA_FIELD_DESC = new TField("column_metadata", TType.LIST, (short)13);
@@ -80,7 +79,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   public String subcomparator_type;
   public String comment;
   public double row_cache_size;
-  public boolean preload_row_cache;
   public double key_cache_size;
   public double read_repair_chance;
   public List<ColumnDef> column_metadata;
@@ -104,7 +102,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     SUBCOMPARATOR_TYPE((short)6, "subcomparator_type"),
     COMMENT((short)8, "comment"),
     ROW_CACHE_SIZE((short)9, "row_cache_size"),
-    PRELOAD_ROW_CACHE((short)10, "preload_row_cache"),
     KEY_CACHE_SIZE((short)11, "key_cache_size"),
     READ_REPAIR_CHANCE((short)12, "read_repair_chance"),
     COLUMN_METADATA((short)13, "column_metadata"),
@@ -146,8 +143,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
           return COMMENT;
         case 9: // ROW_CACHE_SIZE
           return ROW_CACHE_SIZE;
-        case 10: // PRELOAD_ROW_CACHE
-          return PRELOAD_ROW_CACHE;
         case 11: // KEY_CACHE_SIZE
           return KEY_CACHE_SIZE;
         case 12: // READ_REPAIR_CHANCE
@@ -215,19 +210,18 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
 
   // isset id assignments
   private static final int __ROW_CACHE_SIZE_ISSET_ID = 0;
-  private static final int __PRELOAD_ROW_CACHE_ISSET_ID = 1;
-  private static final int __KEY_CACHE_SIZE_ISSET_ID = 2;
-  private static final int __READ_REPAIR_CHANCE_ISSET_ID = 3;
-  private static final int __GC_GRACE_SECONDS_ISSET_ID = 4;
-  private static final int __ID_ISSET_ID = 5;
-  private static final int __MIN_COMPACTION_THRESHOLD_ISSET_ID = 6;
-  private static final int __MAX_COMPACTION_THRESHOLD_ISSET_ID = 7;
-  private static final int __ROW_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 8;
-  private static final int __KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 9;
-  private static final int __MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID = 10;
-  private static final int __MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID = 11;
-  private static final int __MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID = 12;
-  private BitSet __isset_bit_vector = new BitSet(13);
+  private static final int __KEY_CACHE_SIZE_ISSET_ID = 1;
+  private static final int __READ_REPAIR_CHANCE_ISSET_ID = 2;
+  private static final int __GC_GRACE_SECONDS_ISSET_ID = 3;
+  private static final int __ID_ISSET_ID = 4;
+  private static final int __MIN_COMPACTION_THRESHOLD_ISSET_ID = 5;
+  private static final int __MAX_COMPACTION_THRESHOLD_ISSET_ID = 6;
+  private static final int __ROW_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 7;
+  private static final int __KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 8;
+  private static final int __MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID = 9;
+  private static final int __MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID = 10;
+  private static final int __MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID = 11;
+  private BitSet __isset_bit_vector = new BitSet(12);
 
   public static final Map<_Fields, FieldMetaData> metaDataMap;
   static {
@@ -246,8 +240,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         new FieldValueMetaData(TType.STRING)));
     tmpMap.put(_Fields.ROW_CACHE_SIZE, new FieldMetaData("row_cache_size", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.DOUBLE)));
-    tmpMap.put(_Fields.PRELOAD_ROW_CACHE, new FieldMetaData("preload_row_cache", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.BOOL)));
     tmpMap.put(_Fields.KEY_CACHE_SIZE, new FieldMetaData("key_cache_size", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.DOUBLE)));
     tmpMap.put(_Fields.READ_REPAIR_CHANCE, new FieldMetaData("read_repair_chance", TFieldRequirementType.OPTIONAL, 
@@ -285,8 +277,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     this.comparator_type = "BytesType";
 
     this.row_cache_size = (double)0;
-
-    this.preload_row_cache = false;
 
     this.key_cache_size = (double)200000;
 
@@ -328,7 +318,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       this.comment = other.comment;
     }
     this.row_cache_size = other.row_cache_size;
-    this.preload_row_cache = other.preload_row_cache;
     this.key_cache_size = other.key_cache_size;
     this.read_repair_chance = other.read_repair_chance;
     if (other.isSetColumn_metadata()) {
@@ -367,8 +356,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     this.subcomparator_type = null;
     this.comment = null;
     this.row_cache_size = (double)0;
-
-    this.preload_row_cache = false;
 
     this.key_cache_size = (double)200000;
 
@@ -561,29 +548,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
 
   public void setRow_cache_sizeIsSet(boolean value) {
     __isset_bit_vector.set(__ROW_CACHE_SIZE_ISSET_ID, value);
-  }
-
-  public boolean isPreload_row_cache() {
-    return this.preload_row_cache;
-  }
-
-  public CfDef setPreload_row_cache(boolean preload_row_cache) {
-    this.preload_row_cache = preload_row_cache;
-    setPreload_row_cacheIsSet(true);
-    return this;
-  }
-
-  public void unsetPreload_row_cache() {
-    __isset_bit_vector.clear(__PRELOAD_ROW_CACHE_ISSET_ID);
-  }
-
-  /** Returns true if field preload_row_cache is set (has been asigned a value) and false otherwise */
-  public boolean isSetPreload_row_cache() {
-    return __isset_bit_vector.get(__PRELOAD_ROW_CACHE_ISSET_ID);
-  }
-
-  public void setPreload_row_cacheIsSet(boolean value) {
-    __isset_bit_vector.set(__PRELOAD_ROW_CACHE_ISSET_ID, value);
   }
 
   public double getKey_cache_size() {
@@ -960,14 +924,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       }
       break;
 
-    case PRELOAD_ROW_CACHE:
-      if (value == null) {
-        unsetPreload_row_cache();
-      } else {
-        setPreload_row_cache((Boolean)value);
-      }
-      break;
-
     case KEY_CACHE_SIZE:
       if (value == null) {
         unsetKey_cache_size();
@@ -1098,9 +1054,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     case ROW_CACHE_SIZE:
       return new Double(getRow_cache_size());
 
-    case PRELOAD_ROW_CACHE:
-      return new Boolean(isPreload_row_cache());
-
     case KEY_CACHE_SIZE:
       return new Double(getKey_cache_size());
 
@@ -1165,8 +1118,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return isSetComment();
     case ROW_CACHE_SIZE:
       return isSetRow_cache_size();
-    case PRELOAD_ROW_CACHE:
-      return isSetPreload_row_cache();
     case KEY_CACHE_SIZE:
       return isSetKey_cache_size();
     case READ_REPAIR_CHANCE:
@@ -1270,15 +1221,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       if (!(this_present_row_cache_size && that_present_row_cache_size))
         return false;
       if (this.row_cache_size != that.row_cache_size)
-        return false;
-    }
-
-    boolean this_present_preload_row_cache = true && this.isSetPreload_row_cache();
-    boolean that_present_preload_row_cache = true && that.isSetPreload_row_cache();
-    if (this_present_preload_row_cache || that_present_preload_row_cache) {
-      if (!(this_present_preload_row_cache && that_present_preload_row_cache))
-        return false;
-      if (this.preload_row_cache != that.preload_row_cache)
         return false;
     }
 
@@ -1441,11 +1383,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (present_row_cache_size)
       builder.append(row_cache_size);
 
-    boolean present_preload_row_cache = true && (isSetPreload_row_cache());
-    builder.append(present_preload_row_cache);
-    if (present_preload_row_cache)
-      builder.append(preload_row_cache);
-
     boolean present_key_cache_size = true && (isSetKey_cache_size());
     builder.append(present_key_cache_size);
     if (present_key_cache_size)
@@ -1588,16 +1525,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     }
     if (isSetRow_cache_size()) {
       lastComparison = TBaseHelper.compareTo(this.row_cache_size, typedOther.row_cache_size);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = Boolean.valueOf(isSetPreload_row_cache()).compareTo(typedOther.isSetPreload_row_cache());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetPreload_row_cache()) {
-      lastComparison = TBaseHelper.compareTo(this.preload_row_cache, typedOther.preload_row_cache);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1799,14 +1726,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 10: // PRELOAD_ROW_CACHE
-          if (field.type == TType.BOOL) {
-            this.preload_row_cache = iprot.readBool();
-            setPreload_row_cacheIsSet(true);
-          } else { 
-            TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
         case 11: // KEY_CACHE_SIZE
           if (field.type == TType.DOUBLE) {
             this.key_cache_size = iprot.readDouble();
@@ -1978,11 +1897,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       oprot.writeDouble(this.row_cache_size);
       oprot.writeFieldEnd();
     }
-    if (isSetPreload_row_cache()) {
-      oprot.writeFieldBegin(PRELOAD_ROW_CACHE_FIELD_DESC);
-      oprot.writeBool(this.preload_row_cache);
-      oprot.writeFieldEnd();
-    }
     if (isSetKey_cache_size()) {
       oprot.writeFieldBegin(KEY_CACHE_SIZE_FIELD_DESC);
       oprot.writeDouble(this.key_cache_size);
@@ -2127,12 +2041,6 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       if (!first) sb.append(", ");
       sb.append("row_cache_size:");
       sb.append(this.row_cache_size);
-      first = false;
-    }
-    if (isSetPreload_row_cache()) {
-      if (!first) sb.append(", ");
-      sb.append("preload_row_cache:");
-      sb.append(this.preload_row_cache);
       first = false;
     }
     if (isSetKey_cache_size()) {

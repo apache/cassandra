@@ -832,7 +832,6 @@ public class CassandraServer implements Cassandra {
                               subCompare.length() == 0 ? null : DatabaseDescriptor.getComparator(subCompare),
                               cf_def.comment == null ? "" : cf_def.comment.toString(),
                               cf_def.row_cache_size == null ? CFMetaData.DEFAULT_ROW_CACHE_SIZE : cf_def.row_cache_size,
-                              cf_def.preload_row_cache == null ? CFMetaData.DEFAULT_PRELOAD_ROW_CACHE : cf_def.preload_row_cache,
                               cf_def.key_cache_size == null ? CFMetaData.DEFAULT_KEY_CACHE_SIZE : cf_def.key_cache_size,
                               cf_def.read_repair_chance == null ? CFMetaData.DEFAULT_READ_REPAIR_CHANCE : cf_def.read_repair_chance,
                               cf_def.gc_grace_seconds != null ? cf_def.gc_grace_seconds : CFMetaData.DEFAULT_GC_GRACE_SECONDS,

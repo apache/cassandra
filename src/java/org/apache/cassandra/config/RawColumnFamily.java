@@ -36,7 +36,6 @@ public class RawColumnFamily
     public double rows_cached = CFMetaData.DEFAULT_ROW_CACHE_SIZE; 
     public double keys_cached = CFMetaData.DEFAULT_KEY_CACHE_SIZE; 
     public double read_repair_chance = CFMetaData.DEFAULT_READ_REPAIR_CHANCE;
-    public boolean preload_row_cache = CFMetaData.DEFAULT_PRELOAD_ROW_CACHE;
     public int gc_grace_seconds = CFMetaData.DEFAULT_GC_GRACE_SECONDS;
     public String default_validation_class;
     public int min_compaction_threshold = CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD;

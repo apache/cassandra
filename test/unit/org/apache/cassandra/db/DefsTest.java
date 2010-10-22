@@ -534,7 +534,6 @@ public class DefsTest extends CleanupHelper
         cf_def.setSubcomparator_type(null);
         cf_def.setGc_grace_seconds(cf.gcGraceSeconds);
         cf_def.setKey_cache_size(cf.keyCacheSize);
-        cf_def.setPreload_row_cache(cf.preloadRowCache);
         cf_def.setRead_repair_chance(cf.readRepairChance);
         cf_def.setRow_cache_size(43.3);
         cf_def.setColumn_metadata(new ArrayList<ColumnDef>());
@@ -568,11 +567,6 @@ public class DefsTest extends CleanupHelper
         new UpdateColumnFamily(cf, updateCfm).apply();
         cf = updateCfm;
         
-        cf_def.setPreload_row_cache(!cf_def.preload_row_cache);
-        updateCfm = cf.apply(cf_def);
-        new UpdateColumnFamily(cf, updateCfm).apply();
-        cf = updateCfm;
-        
         cf_def.setDefault_validation_class("UTF8Type");
         updateCfm = cf.apply(cf_def);
         new UpdateColumnFamily(cf, updateCfm).apply();
@@ -596,7 +590,6 @@ public class DefsTest extends CleanupHelper
         assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).keyCacheSize == cf_def.key_cache_size;
         assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).readRepairChance == cf_def.read_repair_chance;
         assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).gcGraceSeconds == cf_def.gc_grace_seconds;
-        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).preloadRowCache == cf_def.preload_row_cache;
         assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).defaultValidator == UTF8Type.instance;
         
         // make sure some invalid operations fail.
@@ -691,7 +684,6 @@ public class DefsTest extends CleanupHelper
                               null,
                               comment,
                               0,
-                              false,
                               1.0,
                               0,
                               CFMetaData.DEFAULT_GC_GRACE_SECONDS,

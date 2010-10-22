@@ -213,7 +213,6 @@ class AvroTester(BaseTester):
             'subcomparator_type': 'LongType',
             'comment': '',
             'row_cache_size': 1000,
-            'preload_row_cache': False,
             'key_cache_size': 0
         })
         

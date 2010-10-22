@@ -56,7 +56,6 @@ public final class CFMetaData
     public final static double DEFAULT_READ_REPAIR_CHANCE = 1.0;
     public final static int DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS = 0;
     public final static int DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS = 3600;
-    public final static boolean DEFAULT_PRELOAD_ROW_CACHE = false;
     public final static int DEFAULT_GC_GRACE_SECONDS = 864000;
     public final static int DEFAULT_MIN_COMPACTION_THRESHOLD = 4;
     public final static int DEFAULT_MAX_COMPACTION_THRESHOLD = 32;
@@ -85,7 +84,6 @@ public final class CFMetaData
                               subComparator,
                               comment,
                               0,
-                              false,
                               0.01,
                               0,
                               0,
@@ -137,7 +135,6 @@ public final class CFMetaData
     public final double rowCacheSize;                 // default 0
     public final double keyCacheSize;                 // default 0.01
     public final double readRepairChance;             // default 1.0 (always), chance [0.0,1.0] of read repair
-    public final boolean preloadRowCache;             // default false
     public final int gcGraceSeconds;                  // default 864000 (ten days)
     public final AbstractType defaultValidator;       // default none, use comparator types
     public final Integer minCompactionThreshold;      // default 4
@@ -158,7 +155,6 @@ public final class CFMetaData
                        AbstractType subcolumnComparator,
                        String comment,
                        double rowCacheSize,
-                       boolean preloadRowCache,
                        double keyCacheSize,
                        double readRepairChance,
                        int gcGraceSeconds,
@@ -186,7 +182,6 @@ public final class CFMetaData
                                    : subcolumnComparator;
         this.comment = comment == null ? "" : comment;
         this.rowCacheSize = rowCacheSize;
-        this.preloadRowCache = preloadRowCache;
         this.keyCacheSize = keyCacheSize;
         this.readRepairChance = readRepairChance;
         this.gcGraceSeconds = gcGraceSeconds;
@@ -225,7 +220,6 @@ public final class CFMetaData
                       AbstractType subcolumnComparator,
                       String comment,
                       double rowCacheSize,
-                      boolean preloadRowCache,
                       double keyCacheSize,
                       double readRepairChance,
                       int gcGraceSeconds,
@@ -247,7 +241,6 @@ public final class CFMetaData
              subcolumnComparator,
              comment,
              rowCacheSize,
-             preloadRowCache,
              keyCacheSize,
              readRepairChance,
              gcGraceSeconds,
@@ -272,7 +265,6 @@ public final class CFMetaData
                               null,
                               "",
                               0,
-                              false,
                               0,
                               0,
                               DEFAULT_GC_GRACE_SECONDS,
@@ -297,7 +289,6 @@ public final class CFMetaData
                               cfm.subcolumnComparator,
                               cfm.comment,
                               cfm.rowCacheSize,
-                              cfm.preloadRowCache,
                               cfm.keyCacheSize,
                               cfm.readRepairChance,
                               cfm.gcGraceSeconds,
@@ -323,7 +314,6 @@ public final class CFMetaData
                               cfm.subcolumnComparator,
                               cfm.comment,
                               cfm.rowCacheSize,
-                              cfm.preloadRowCache,
                               cfm.keyCacheSize,
                               cfm.readRepairChance,
                               cfm.gcGraceSeconds,
@@ -358,7 +348,6 @@ public final class CFMetaData
         cf.comment = new Utf8(comment);
         cf.row_cache_size = rowCacheSize;
         cf.key_cache_size = keyCacheSize;
-        cf.preload_row_cache = preloadRowCache;
         cf.read_repair_chance = readRepairChance;
         cf.gc_grace_seconds = gcGraceSeconds;
         cf.default_validation_class = new Utf8(defaultValidator.getClass().getName());
@@ -417,7 +406,6 @@ public final class CFMetaData
                               subcolumnComparator,
                               cf.comment.toString(),
                               cf.row_cache_size,
-                              cf.preload_row_cache,
                               cf.key_cache_size,
                               cf.read_repair_chance,
                               cf.gc_grace_seconds,
@@ -540,8 +528,7 @@ public final class CFMetaData
                               subcolumnComparator, 
                               cf_def.comment == null ? "" : cf_def.comment.toString(), 
                               cf_def.row_cache_size, 
-                              cf_def.preload_row_cache, 
-                              cf_def.key_cache_size, 
+                              cf_def.key_cache_size,
                               cf_def.read_repair_chance, 
                               cf_def.gc_grace_seconds, 
                               DatabaseDescriptor.getComparator(cf_def.default_validation_class == null ? null : cf_def.default_validation_class.toString()),
@@ -603,8 +590,7 @@ public final class CFMetaData
                               subcolumnComparator, 
                               cf_def.comment, 
                               cf_def.row_cache_size, 
-                              cf_def.preload_row_cache, 
-                              cf_def.key_cache_size, 
+                              cf_def.key_cache_size,
                               cf_def.read_repair_chance, 
                               cf_def.gc_grace_seconds, 
                               DatabaseDescriptor.getComparator(cf_def.default_validation_class == null ? null : cf_def.default_validation_class),
@@ -633,7 +619,6 @@ public final class CFMetaData
         }
         def.setComment(cfm.comment == null ? "" : cfm.comment);
         def.setRow_cache_size(cfm.rowCacheSize);
-        def.setPreload_row_cache(cfm.preloadRowCache);
         def.setKey_cache_size(cfm.keyCacheSize);
         def.setRead_repair_chance(cfm.readRepairChance);
         def.setGc_grace_seconds(cfm.gcGraceSeconds);
@@ -675,7 +660,6 @@ public final class CFMetaData
         }
         def.comment = cfm.comment == null ? "" : cfm.comment;
         def.row_cache_size = cfm.rowCacheSize;
-        def.preload_row_cache = cfm.preloadRowCache;
         def.key_cache_size = cfm.keyCacheSize;
         def.read_repair_chance = cfm.readRepairChance;
         def.gc_grace_seconds = cfm.gcGraceSeconds;
@@ -801,7 +785,6 @@ public final class CFMetaData
             .append("rowCacheSize", rowCacheSize)
             .append("keyCacheSize", keyCacheSize)
             .append("readRepairChance", readRepairChance)
-            .append("preloadRowCache", preloadRowCache)
             .append("gcGraceSeconds", gcGraceSeconds)
             .append("defaultValidator", defaultValidator)
             .append("minCompactionThreshold", minCompactionThreshold)
