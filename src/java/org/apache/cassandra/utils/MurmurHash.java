@@ -36,15 +36,15 @@ public class MurmurHash {
 
     int len_4 = length >> 2;
 
-    for (int i = offset; i < offset + len_4; i++) {
+    for (int i = 0; i < len_4; i++) {
       int i_4 = i << 2;
-      int k = data[i_4 + 3];
+      int k = data[offset + i_4 + 3];
       k = k << 8;
-      k = k | (data[i_4 + 2] & 0xff);
+      k = k | (data[offset + i_4 + 2] & 0xff);
       k = k << 8;
-      k = k | (data[i_4 + 1] & 0xff);
+      k = k | (data[offset + i_4 + 1] & 0xff);
       k = k << 8;
-      k = k | (data[i_4 + 0] & 0xff);
+      k = k | (data[offset + i_4 + 0] & 0xff);
       k *= m;
       k ^= k >>> r;
       k *= m;
