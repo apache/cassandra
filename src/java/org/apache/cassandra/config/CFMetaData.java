@@ -60,8 +60,8 @@ public final class CFMetaData
     public final static int DEFAULT_MIN_COMPACTION_THRESHOLD = 4;
     public final static int DEFAULT_MAX_COMPACTION_THRESHOLD = 32;
     public final static int DEFAULT_MEMTABLE_LIFETIME_IN_MINS = 60;
-    public final static int DEFAULT_MEMTABLE_THROUGHPUT_IN_MB = DatabaseDescriptor.sizeMemtableThroughput();
-    public final static double DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS = DatabaseDescriptor.sizeMemtableOperations(DEFAULT_MEMTABLE_THROUGHPUT_IN_MB);
+    public final static int DEFAULT_MEMTABLE_THROUGHPUT_IN_MB = sizeMemtableThroughput();
+    public final static double DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS = sizeMemtableOperations(DEFAULT_MEMTABLE_THROUGHPUT_IN_MB);
 
     private static final int MIN_CF_ID = 1000;
 
@@ -97,6 +97,22 @@ public final class CFMetaData
                               DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS,
                               cfId,
                               Collections.<ByteBuffer, ColumnDefinition>emptyMap());
+    }
+
+    /**
+     * @return A calculated memtable throughput size for this machine.
+     */
+    public static int sizeMemtableThroughput()
+    {
+        return (int) (Runtime.getRuntime().maxMemory() / (1048576 * 16));
+    }
+
+    /**
+     * @return A calculated memtable operation count for this machine.
+     */
+    public static double sizeMemtableOperations(int mem_throughput)
+    {
+        return 0.3 * mem_throughput / 64.0;
     }
 
     /**
