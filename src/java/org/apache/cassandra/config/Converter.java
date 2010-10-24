@@ -54,7 +54,6 @@ public class Converter
 
     private static List<RawKeyspace> readTablesFromXml(XMLUtils xmlUtils) throws ConfigurationException
     {
-
         List<RawKeyspace> keyspaces = new ArrayList<RawKeyspace>();
         /* Read the table related stuff from config */
         try
@@ -184,7 +183,6 @@ public class Converter
             throw new ConfigurationException("Error occurred during the transformation process.");
         }
     }
-
     
     private static void loadPreviousConfig(String config) throws ConfigurationException
     {
@@ -266,14 +264,9 @@ public class Converter
             String framedRaw = xmlUtils.getNodeValue("/Storage/ThriftFramedTransport");
             if (framedRaw != null && !Boolean.valueOf(framedRaw))
             {
-                conf.thrift_framed_transport_size_in_mb = 0;
-                System.out.println("WARN : Thrift uses framed Transport by default in 0.7! Setting TFramedTransportSize to 0MB (disabled).");
+                System.out.println("WARN : Cassandra uses a Thrift framed Transport by default in 0.7! Clients will need to match.");
             }
-            else
-            {
-                conf.thrift_framed_transport_size_in_mb = 15;
-                System.out.println("TFramedTransport will have a maximum frame size of 15MB");
-            }
+            conf.thrift_framed_transport_size_in_mb = 15;
             
             String sbc = xmlUtils.getNodeValue("/Storage/SnapshotBeforeCompaction");
             if (sbc != null)

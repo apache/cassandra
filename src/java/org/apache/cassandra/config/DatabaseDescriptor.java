@@ -561,12 +561,12 @@ public class    DatabaseDescriptor
 
                 if (cf.memtable_throughput_in_mb == null)
                 {
-                    cf.memtable_throughput_in_mb = sizeMemtableThroughput();
+                    cf.memtable_throughput_in_mb = CFMetaData.sizeMemtableThroughput();
                     logger.info("memtable_throughput_in_mb not configured for " + cf.name + ", using " + cf.memtable_throughput_in_mb);
                 }
                 if (cf.memtable_operations_in_millions == null)
                 {
-                    cf.memtable_operations_in_millions = sizeMemtableOperations(cf.memtable_throughput_in_mb);
+                    cf.memtable_operations_in_millions = CFMetaData.sizeMemtableOperations(cf.memtable_throughput_in_mb);
                     logger.info("memtable_operations_in_millions not configured for " + cf.name + ", using " + cf.memtable_operations_in_millions);
                 }
 
@@ -1099,13 +1099,4 @@ public class    DatabaseDescriptor
     {
         return conf.dynamic_snitch_badness_threshold;
     }
-
-    public static int sizeMemtableThroughput() {
-        return (int) (Runtime.getRuntime().maxMemory() / (1048576 * 16));
-    }
-
-    public static double sizeMemtableOperations(int mem_throughput) {
-        return 0.3 * mem_throughput / 64.0;
-    }
-
 }
