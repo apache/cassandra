@@ -42,7 +42,7 @@ import com.google.common.collect.Multimap;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
- * This class blocks for a quorum of responses _in all datacenters_ (CL.DCQUORUMSYNC).
+ * This class blocks for a quorum of responses _in all datacenters_ (CL.EACH_QUORUM).
  */
 public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHandler
 {
@@ -61,7 +61,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
     {
         // Response is been managed by the map so make it 1 for the superclass.
         super(writeEndpoints, hintedEndpoints, consistencyLevel);
-        assert consistencyLevel == ConsistencyLevel.DCQUORUM;
+        assert consistencyLevel == ConsistencyLevel.LOCAL_QUORUM;
 
         strategy = (NetworkTopologyStrategy) Table.open(table).replicationStrategy;
 

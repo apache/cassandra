@@ -194,7 +194,7 @@ protocol Cassandra {
     }
 
     enum ConsistencyLevel {
-        ONE, QUORUM, DCQUORUM, DCQUORUMSYNC, ALL
+        ONE, QUORUM, LOCAL_QUORUM, EACH_QUORUM, ALL
     }
 
     error InvalidRequestException {

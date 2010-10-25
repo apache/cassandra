@@ -591,8 +591,8 @@ public class CassandraServer implements Cassandra {
         {
             case ONE: return org.apache.cassandra.thrift.ConsistencyLevel.ONE;
             case QUORUM: return org.apache.cassandra.thrift.ConsistencyLevel.QUORUM;
-            case DCQUORUM: return org.apache.cassandra.thrift.ConsistencyLevel.DCQUORUM;
-            case DCQUORUMSYNC: return org.apache.cassandra.thrift.ConsistencyLevel.DCQUORUMSYNC;
+            case LOCAL_QUORUM: return org.apache.cassandra.thrift.ConsistencyLevel.LOCAL_QUORUM;
+            case EACH_QUORUM: return org.apache.cassandra.thrift.ConsistencyLevel.EACH_QUORUM;
             case ALL: return org.apache.cassandra.thrift.ConsistencyLevel.ALL;
         }
         return null;
