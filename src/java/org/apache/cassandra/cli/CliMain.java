@@ -95,15 +95,8 @@ public class CliMain
         {
             try {
                 thriftClient.set_keyspace(sessionState.keyspace);
-                cliClient.setKeyspace(sessionState.keyspace);
-
-                Set<String> cfnames = new HashSet<String>();
-                KsDef ksd = cliClient.getKSMetaData(sessionState.keyspace);
-                for (CfDef cfd : ksd.cf_defs) {
-                    cfnames.add(cfd.name);
-                }
-                updateCompletor(cfnames);
-                
+                cliClient.setKeySpace(sessionState.keyspace);
+                updateCompletor(CliUtils.getCfNamesByKeySpace(cliClient.getKSMetaData(sessionState.keyspace)));
             }
             catch (InvalidRequestException e)
             {
@@ -224,22 +217,15 @@ public class CliMain
 
         try
         {
-            cliClient.executeCLIStmt(query);
+            cliClient.executeCLIStatement(query);
         }
         catch (Exception e)
         {
             String errorTemplate = sessionState.inFileMode() ? "Line " + lineNumber + " => " : "";
-            
-            if (e instanceof InvalidRequestException)
-            {
-                sessionState.err.println(errorTemplate + ((InvalidRequestException) e).getWhy());
-            }
-            else
-            {
-                String message = (e.getCause() == null) ? e.getMessage() : e.getCause().getMessage();
-                sessionState.err.println(errorTemplate + message);
-            }
-            
+
+            String message = (e.getCause() == null) ? e.getMessage() : e.getCause().getMessage();
+            sessionState.err.println(errorTemplate + message);
+
             if (sessionState.debug)
             {
                 e.printStackTrace(sessionState.err);

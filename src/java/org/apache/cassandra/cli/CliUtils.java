@@ -1,6 +1,11 @@
 package org.apache.cassandra.cli;
 
+import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.IndexOperator;
+import org.apache.cassandra.thrift.KsDef;
+
+import java.util.LinkedHashSet;
+import java.util.Set;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -126,5 +131,22 @@ public class CliUtils
         }
 
         return null;
+    }
+
+    /**
+     * Returns set of column family names in specified keySpace.
+     * @param keySpace - keyspace definition to get column family names from.
+     * @return Set - column family names
+     */
+    public static Set<String> getCfNamesByKeySpace(KsDef keySpace)
+    {
+        Set<String> names = new LinkedHashSet<String>();
+
+        for (CfDef cfDef : keySpace.getCf_defs())
+        {
+            names.add(cfDef.getName());
+        }
+
+        return names;
     }
 }
