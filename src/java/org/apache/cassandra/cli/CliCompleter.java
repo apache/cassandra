@@ -55,12 +55,16 @@ public class CliCompleter extends SimpleCompletor
             "help set",
             "help del",
             "help count",
+            "help list",
+            "help truncate"
     };
     private static String[] keyspaceCommands = {
             "get",
             "set",
             "count",
-            "del"
+            "del",
+            "list",
+            "truncate"
     };
 
     public CliCompleter()

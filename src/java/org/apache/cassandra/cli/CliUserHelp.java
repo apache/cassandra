@@ -281,6 +281,13 @@ public class CliUserHelp {
                 state.out.println("list Users[j:] limit 40");
                 break;
 
+            case CliParser.NODE_TRUNCATE:
+                state.out.println("truncate <column_family>");
+                state.out.println("Truncate specified column family.\n");
+                state.out.println("example:");
+                state.out.println("truncate Category");
+                break;
+            
             default:
                 state.out.println("?");
                 break;
@@ -324,7 +331,8 @@ public class CliUserHelp {
             state.out.println("del <cf>['<key>']['<super>']['<col>']                         Delete sub column.");
             state.out.println("count <cf>['<key>']                                     Count columns in record.");
             state.out.println("count <cf>['<key>']['<super>']                  Count columns in a super column.");
-            state.out.println("list <cf>                                  List all rows in the column family.");
+            state.out.println("truncate <column_family>                       Truncate specified column family.");            
+            state.out.println("list <cf>                                    List all rows in the column family.");
             state.out.println("list <cf>[<startKey>:]");
             state.out.println("                       List rows in the column family beginning with <startKey>.");
             state.out.println("list <cf>[<startKey>:<endKey>]");

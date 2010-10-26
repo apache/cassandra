@@ -55,6 +55,7 @@ tokens {
     NODE_UPDATE_KEYSPACE;
     NODE_UPDATE_COLUMN_FAMILY;
     NODE_LIST;
+    NODE_TRUNCATE;
 
     // Internal Nodes.
     NODE_COLUMN_ACCESS;
@@ -123,6 +124,7 @@ statement
     | setStatement
     | showStatement
     | listStatement
+    | truncateStatement
     | -> ^(NODE_NO_OP)
     ;
 
@@ -174,6 +176,8 @@ helpStatement
         -> ^(NODE_HELP NODE_THRIFT_COUNT)
     | K_HELP K_LIST 
         -> ^(NODE_HELP NODE_LIST)
+    | K_HELP K_TRUNCATE
+        -> ^(NODE_HELP NODE_TRUNCATE)
     | K_HELP 
         -> ^(NODE_HELP)
     | '?'    
@@ -229,6 +233,11 @@ showStatement
 listStatement
     : K_LIST columnFamily keyRangeExpr? ('LIMIT' limit=IntegerLiteral)?
         -> ^(NODE_LIST columnFamily keyRangeExpr? ^(NODE_LIMIT $limit)?)
+    ;
+
+truncateStatement
+    : K_TRUNCATE columnFamily
+        -> ^(NODE_TRUNCATE columnFamily)
     ;
 
 showClusterName
@@ -430,6 +439,7 @@ K_AND:        'AND';
 K_UPDATE:     'UPDATE';
 K_LIST:       'LIST';
 K_LIMIT:      'LIMIT';
+K_TRUNCATE:   'TRUNCATE';
 
 // private syntactic rules
 fragment
