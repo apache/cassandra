@@ -146,6 +146,11 @@ public class ClusterCmd {
         hf.printHelp(usage, "", options, header);
     }
     
+    public void close() throws IOException
+    {
+        probe.close(); 
+    }
+
     public void printEndpoints(String keyspace, String key)
     {
         List<InetAddress> endpoints = probe.getEndpoints(keyspace, key);
