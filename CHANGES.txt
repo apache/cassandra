@@ -1,6 +1,7 @@
 dev
  * quorum read optimization (CASSANDRA-1622)
  * update GC settings in cassandra.bat (CASSANDRA-1636)
+ * fix hinted handoff replay (CASSANDRA-1656)
 
 
 0.6.6

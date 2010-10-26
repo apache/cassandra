@@ -116,7 +116,7 @@ public class HintedHandOffManager
             byte[] startColumn = ArrayUtils.EMPTY_BYTE_ARRAY;
             while (true)
             {
-                QueryFilter filter = new SliceQueryFilter(tableName, new QueryPath(cfs.getColumnFamilyName()), startColumn, ArrayUtils.EMPTY_BYTE_ARRAY, false, PAGE_SIZE);
+                QueryFilter filter = new SliceQueryFilter(key, new QueryPath(cfs.getColumnFamilyName()), startColumn, ArrayUtils.EMPTY_BYTE_ARRAY, false, PAGE_SIZE);
                 ColumnFamily cf = cfs.getColumnFamily(filter);
                 if (pagingFinished(cf, startColumn))
                     break;
