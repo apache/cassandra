@@ -64,6 +64,7 @@ public class NodeProbe
     private String host;
     private int port;
 
+    private JMXConnector jmxc;
     private MBeanServerConnection mbeanServerConn;
     private StorageServiceMBean ssProxy;
     private MemoryMXBean memProxy;
@@ -105,7 +106,7 @@ public class NodeProbe
     private void connect() throws IOException
     {
         JMXServiceURL jmxUrl = new JMXServiceURL(String.format(fmtUrl, host, port));
-        JMXConnector jmxc = JMXConnectorFactory.connect(jmxUrl, null);
+        jmxc = JMXConnectorFactory.connect(jmxUrl, null);
         mbeanServerConn = jmxc.getMBeanServerConnection();
         
         try
@@ -124,6 +125,11 @@ public class NodeProbe
                 ManagementFactory.MEMORY_MXBEAN_NAME, MemoryMXBean.class);
         runtimeProxy = ManagementFactory.newPlatformMXBeanProxy(
                 mbeanServerConn, ManagementFactory.RUNTIME_MXBEAN_NAME, RuntimeMXBean.class);
+    }
+
+    public void close() throws IOException
+    {
+        jmxc.close();
     }
 
     public void forceTableCleanup() throws IOException, ExecutionException, InterruptedException

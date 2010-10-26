@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.cli;
 
-import junit.framework.TestCase;
+import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.thrift.transport.TTransportException;
@@ -28,7 +28,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 
-public class CliTest extends TestCase
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+public class CliTest extends CleanupHelper
 {
     // please add new statements here so they could be auto-runned by this test.
     private String[] statements = {
