@@ -52,6 +52,7 @@ public class CliTest extends TestCase
         "list CF3[h:]",
         "list CF3 limit 10",
         "list CF3[h:g] limit 10",
+        "truncate CF1",
         "update keyspace TestKeySpace with placement_strategy='org.apache.cassandra.locator.LocalStrategy'",
         "update keyspace TestKeySpace with replication_factor=1 and strategy_options=[{DC1:3, DC2:4, DC5:1}]"
     };
@@ -100,6 +101,10 @@ public class CliTest extends TestCase
                 {
                     assertTrue(result.startsWith("=> (column="));
                 }
+            }
+            else if (statement.startsWith("truncate "))
+            {
+                assertTrue(result.contains(" truncated."));
             }
 
             outStream.reset(); // reset stream so we have only output from next statement all the time

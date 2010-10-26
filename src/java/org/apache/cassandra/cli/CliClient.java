@@ -171,6 +171,9 @@ public class CliClient extends CliUserHelp
                 case CliParser.NODE_LIST:
                     executeList(tree);
                     break;
+                case CliParser.NODE_TRUNCATE:
+                    executeTruncate(tree.getChild(0).getText());
+                    break;
                 case CliParser.NODE_NO_OP:
                     // comment lines come here; they are treated as no ops.
                     break;
@@ -941,6 +944,30 @@ public class CliClient extends CliUserHelp
         ColumnParent columnParent = new ColumnParent(columnFamily);
         List<KeySlice> keySlices = thriftClient.get_range_slices(columnParent, predicate, range, ConsistencyLevel.ONE);
         printSliceList(columnFamilyDef, keySlices);
+    }
+
+    // TRUNCATE <columnFamily>
+    private void executeTruncate(String columnFamily)
+    {
+        if (!CliMain.isConnected() || !hasKeySpace())
+            return;
+
+        // getting CfDef, it will fail if there is no such column family in current keySpace. 
+        CfDef cfDef = getCfDef(columnFamily);
+
+        try
+        {
+            thriftClient.truncate(cfDef.getName());
+            sessionState.out.println(columnFamily + " truncated.");
+        }
+        catch (InvalidRequestException e)
+        {
+            throw new RuntimeException(e.getWhy());
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e.getMessage());
+        }
     }
 
     // SHOW API VERSION

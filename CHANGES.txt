@@ -59,6 +59,8 @@
    the old ones (CASSANDRA-1644)
  * upgrade to Thrift 0.5 (CASSANDRA-1367)
  * renamed CL.DCQUORUM to LOCAL_QUORUM and DCQUORUMSYNC to EACH_QUORUM
+ * cli truncate support (CASSANDRA-1653)
+ * update GC settings in cassandra.bat (CASSANDRA-1636)
 
 
 0.7-beta2
