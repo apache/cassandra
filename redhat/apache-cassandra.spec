@@ -63,6 +63,7 @@ cp -p bin/* %{buildroot}/usr/bin
 cp build/%{name}-%{version}.jar %{buildroot}/usr/share/%{username}/lib
 mkdir -p %{buildroot}/var/lib/%{username}/commitlog
 mkdir -p %{buildroot}/var/lib/%{username}/data
+mkdir -p %{buildroot}/var/lib/%{username}/saved_caches
 mkdir -p %{buildroot}/var/run/%{username}
 mkdir -p %{buildroot}/var/log/%{username}
 
