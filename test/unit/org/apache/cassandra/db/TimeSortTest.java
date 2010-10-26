@@ -36,6 +36,8 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ByteBufferUtil;
+
 
 public class TimeSortTest extends CleanupHelper
 {
@@ -48,12 +50,12 @@ public class TimeSortTest extends CleanupHelper
         DecoratedKey key = Util.dk("key0");
 
         rm = new RowMutation("Keyspace1", key.key);
-        rm.add(new QueryPath("StandardLong1", null, getBytes(100)), ByteBuffer.wrap("a".getBytes()), 100);
+        rm.add(new QueryPath("StandardLong1", null, getBytes(100)), ByteBufferUtil.bytes("a"), 100);
         rm.apply();
         cfStore.forceBlockingFlush();
 
         rm = new RowMutation("Keyspace1", key.key);
-        rm.add(new QueryPath("StandardLong1", null, getBytes(0)), ByteBuffer.wrap("b".getBytes()), 0);
+        rm.add(new QueryPath("StandardLong1", null, getBytes(0)), ByteBufferUtil.bytes("b"), 0);
         rm.apply();
 
         ColumnFamily cf = cfStore.getColumnFamily(key, new QueryPath("StandardLong1"), getBytes(10), FBUtilities.EMPTY_BYTE_BUFFER, false, 1000);
@@ -72,7 +74,7 @@ public class TimeSortTest extends CleanupHelper
             RowMutation rm = new RowMutation("Keyspace1", ByteBuffer.wrap(Integer.toString(i).getBytes()));
             for (int j = 0; j < 8; ++j)
             {
-                rm.add(new QueryPath("StandardLong1", null, getBytes(j * 2)), ByteBuffer.wrap("a".getBytes()), j * 2);
+                rm.add(new QueryPath("StandardLong1", null, getBytes(j * 2)), ByteBufferUtil.bytes("a"), j * 2);
             }
             rm.apply();
         }
@@ -87,13 +89,13 @@ public class TimeSortTest extends CleanupHelper
         RowMutation rm = new RowMutation("Keyspace1", key.key);
         for (int j = 0; j < 4; ++j)
         {
-            rm.add(new QueryPath("StandardLong1", null, getBytes(j * 2 + 1)), ByteBuffer.wrap("b".getBytes()), j * 2 + 1);
+            rm.add(new QueryPath("StandardLong1", null, getBytes(j * 2 + 1)), ByteBufferUtil.bytes("b"), j * 2 + 1);
         }
         rm.apply();
         // and some overwrites
         rm = new RowMutation("Keyspace1", key.key);
-        rm.add(new QueryPath("StandardLong1", null, getBytes(0)), ByteBuffer.wrap("c".getBytes()), 100);
-        rm.add(new QueryPath("StandardLong1", null, getBytes(10)), ByteBuffer.wrap("c".getBytes()), 100);
+        rm.add(new QueryPath("StandardLong1", null, getBytes(0)), ByteBufferUtil.bytes("c"), 100);
+        rm.add(new QueryPath("StandardLong1", null, getBytes(10)), ByteBufferUtil.bytes("c"), 100);
         rm.apply();
 
         // verify

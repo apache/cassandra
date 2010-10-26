@@ -39,38 +39,38 @@ public class TypeCompareTest
     public void testAscii()
     {
         AsciiType comparator = new AsciiType();
-        assert comparator.compare(FBUtilities.EMPTY_BYTE_BUFFER, ByteBuffer.wrap("asdf".getBytes())) < 0;
-        assert comparator.compare(ByteBuffer.wrap("asdf".getBytes()), FBUtilities.EMPTY_BYTE_BUFFER) > 0;
+        assert comparator.compare(FBUtilities.EMPTY_BYTE_BUFFER, ByteBufferUtil.bytes("asdf")) < 0;
+        assert comparator.compare(ByteBufferUtil.bytes("asdf"), FBUtilities.EMPTY_BYTE_BUFFER) > 0;
         assert comparator.compare(FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER) == 0;
-        assert comparator.compare(ByteBuffer.wrap("z".getBytes()), ByteBuffer.wrap("a".getBytes())) > 0;
-        assert comparator.compare(ByteBuffer.wrap("a".getBytes()), ByteBuffer.wrap("z".getBytes())) < 0;
-        assert comparator.compare(ByteBuffer.wrap("asdf".getBytes()), ByteBuffer.wrap("asdf".getBytes())) == 0;
-        assert comparator.compare(ByteBuffer.wrap("asdz".getBytes()), ByteBuffer.wrap("asdf".getBytes())) > 0;
+        assert comparator.compare(ByteBufferUtil.bytes("z"), ByteBufferUtil.bytes("a")) > 0;
+        assert comparator.compare(ByteBufferUtil.bytes("a"), ByteBufferUtil.bytes("z")) < 0;
+        assert comparator.compare(ByteBufferUtil.bytes("asdf"), ByteBufferUtil.bytes("asdf")) == 0;
+        assert comparator.compare(ByteBufferUtil.bytes("asdz"), ByteBufferUtil.bytes("asdf")) > 0;
     }
 
     @Test
     public void testBytes()
     {
         BytesType comparator = new BytesType();
-        assert comparator.compare(FBUtilities.EMPTY_BYTE_BUFFER, ByteBuffer.wrap("asdf".getBytes())) < 0;
-        assert comparator.compare(ByteBuffer.wrap("asdf".getBytes()), FBUtilities.EMPTY_BYTE_BUFFER) > 0;
+        assert comparator.compare(FBUtilities.EMPTY_BYTE_BUFFER, ByteBufferUtil.bytes("asdf")) < 0;
+        assert comparator.compare(ByteBufferUtil.bytes("asdf"), FBUtilities.EMPTY_BYTE_BUFFER) > 0;
         assert comparator.compare(FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER) == 0;
-        assert comparator.compare(ByteBuffer.wrap("z".getBytes()), ByteBuffer.wrap("a".getBytes())) > 0;
-        assert comparator.compare(ByteBuffer.wrap("a".getBytes()), ByteBuffer.wrap("z".getBytes())) < 0;
-        assert comparator.compare(ByteBuffer.wrap("asdf".getBytes()), ByteBuffer.wrap("asdf".getBytes())) == 0;
-        assert comparator.compare(ByteBuffer.wrap("asdz".getBytes()), ByteBuffer.wrap("asdf".getBytes())) > 0;
+        assert comparator.compare(ByteBufferUtil.bytes("z"), ByteBufferUtil.bytes("a")) > 0;
+        assert comparator.compare(ByteBufferUtil.bytes("a"), ByteBufferUtil.bytes("z")) < 0;
+        assert comparator.compare(ByteBufferUtil.bytes("asdf"), ByteBufferUtil.bytes("asdf")) == 0;
+        assert comparator.compare(ByteBufferUtil.bytes("asdz"), ByteBufferUtil.bytes("asdf")) > 0;
     }
 
     @Test
     public void testUTF8()
     {
         UTF8Type comparator = new UTF8Type();
-        assert comparator.compare(FBUtilities.EMPTY_BYTE_BUFFER, ByteBuffer.wrap("asdf".getBytes())) < 0;
-        assert comparator.compare(ByteBuffer.wrap("asdf".getBytes()), FBUtilities.EMPTY_BYTE_BUFFER) > 0;
+        assert comparator.compare(FBUtilities.EMPTY_BYTE_BUFFER, ByteBufferUtil.bytes("asdf")) < 0;
+        assert comparator.compare(ByteBufferUtil.bytes("asdf"), FBUtilities.EMPTY_BYTE_BUFFER) > 0;
         assert comparator.compare(FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER) == 0;
-        assert comparator.compare(ByteBuffer.wrap("z".getBytes(Charsets.UTF_8)), ByteBuffer.wrap("a".getBytes(Charsets.UTF_8))) > 0;
-        assert comparator.compare(ByteBuffer.wrap("z".getBytes(Charsets.UTF_8)), ByteBuffer.wrap("z".getBytes(Charsets.UTF_8))) == 0;
-        assert comparator.compare(ByteBuffer.wrap("a".getBytes(Charsets.UTF_8)), ByteBuffer.wrap("z".getBytes(Charsets.UTF_8))) < 0;
+        assert comparator.compare(ByteBufferUtil.bytes("z"), ByteBufferUtil.bytes("a")) > 0;
+        assert comparator.compare(ByteBufferUtil.bytes("z"), ByteBufferUtil.bytes("z")) == 0;
+        assert comparator.compare(ByteBufferUtil.bytes("a"), ByteBufferUtil.bytes("z")) < 0;
     }
 
     @Test

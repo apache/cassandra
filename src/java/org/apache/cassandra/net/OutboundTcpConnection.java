@@ -104,7 +104,7 @@ public class OutboundTcpConnection extends Thread
     {
         try
         {
-            output.write(bb.array(), 0, bb.limit());
+            output.write(bb.array(), bb.position()+bb.arrayOffset(), bb.limit()+bb.arrayOffset());
             if (queue.peek() == null)
             {
                 output.flush();

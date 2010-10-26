@@ -81,7 +81,7 @@ public class WordCount extends Configured implements Tool
             IColumn column = columns.get(columnName.getBytes());
             if (column == null)
                 return;
-            String value = ByteBufferUtil.string(column.value(), Charsets.UTF_8);
+            String value = ByteBufferUtil.string(column.value());
             logger.debug("read " + key + ":" + value + " from " + context.getInputSplit());
 
             StringTokenizer itr = new StringTokenizer(value);

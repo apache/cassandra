@@ -230,7 +230,7 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
         {
             l  = ((ByteBuffer)left.token).array();
             lo = ((ByteBuffer)left.token).position()+((ByteBuffer)left.token).arrayOffset();
-            ll = ((ByteBuffer)left.token).limit();
+            ll = ((ByteBuffer)left.token).limit()+((ByteBuffer)left.token).arrayOffset();
         }else{
             //Handles other token types
             return left.compareTo(right);
@@ -246,7 +246,7 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
         {
             r  = ((ByteBuffer)right.token).array();
             ro = ((ByteBuffer)right.token).position()+((ByteBuffer)right.token).arrayOffset();
-            rl = ((ByteBuffer)right.token).limit();
+            rl = ((ByteBuffer)right.token).limit()+((ByteBuffer)right.token).arrayOffset();
         }
        
             

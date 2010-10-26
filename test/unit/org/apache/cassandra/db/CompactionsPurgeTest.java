@@ -35,6 +35,8 @@ import org.apache.cassandra.Util;
 
 import static junit.framework.Assert.assertEquals;
 import static org.apache.cassandra.db.TableTest.assertColumns;
+import org.apache.cassandra.utils.ByteBufferUtil;
+
 
 public class CompactionsPurgeTest extends CleanupHelper
 {
@@ -209,18 +211,18 @@ public class CompactionsPurgeTest extends CleanupHelper
 
         // inserts
         rm = new RowMutation(TABLE1, key1.key);
-        rm.add(new QueryPath(cfName, null, ByteBuffer.wrap("1".getBytes())), FBUtilities.EMPTY_BYTE_BUFFER, 0);
+        rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes("1")), FBUtilities.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
         rm = new RowMutation(TABLE1, key2.key);
-        rm.add(new QueryPath(cfName, null, ByteBuffer.wrap("2".getBytes())), FBUtilities.EMPTY_BYTE_BUFFER, 0);
+        rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes("2")), FBUtilities.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
 
         // deletes
         rm = new RowMutation(TABLE1, key1.key);
-        rm.delete(new QueryPath(cfName, null, ByteBuffer.wrap("1".getBytes())), 1);
+        rm.delete(new QueryPath(cfName, null, ByteBufferUtil.bytes("1")), 1);
         rm.apply();
         rm = new RowMutation(TABLE1, key2.key);
-        rm.delete(new QueryPath(cfName, null, ByteBuffer.wrap("2".getBytes())), 1);
+        rm.delete(new QueryPath(cfName, null, ByteBufferUtil.bytes("2")), 1);
         rm.apply();
 
         // After a flush, the cache should expand to be X% of indices * INDEX_INTERVAL.

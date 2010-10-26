@@ -38,6 +38,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.MmappedSegmentedFile;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -64,7 +65,7 @@ public class SSTableReaderTest extends CleanupHelper
         {
             ByteBuffer key = ByteBuffer.wrap(String.valueOf(j).getBytes());
             RowMutation rm = new RowMutation("Keyspace1", key);
-            rm.add(new QueryPath("Standard2", null, ByteBuffer.wrap("0".getBytes())), FBUtilities.EMPTY_BYTE_BUFFER, j);
+            rm.add(new QueryPath("Standard2", null, ByteBufferUtil.bytes("0")), FBUtilities.EMPTY_BYTE_BUFFER, j);
             rm.apply();
         }
         store.forceBlockingFlush();
@@ -105,7 +106,7 @@ public class SSTableReaderTest extends CleanupHelper
         {
             ByteBuffer key = ByteBuffer.wrap(String.valueOf(j).getBytes());
             RowMutation rm = new RowMutation("Keyspace1", key);
-            rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap("0".getBytes())), FBUtilities.EMPTY_BYTE_BUFFER, j);
+            rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("0")), FBUtilities.EMPTY_BYTE_BUFFER, j);
             rm.apply();
         }
         store.forceBlockingFlush();
@@ -142,7 +143,7 @@ public class SSTableReaderTest extends CleanupHelper
         {
             ByteBuffer key = ByteBuffer.wrap(String.valueOf(j).getBytes());
             RowMutation rm = new RowMutation("Keyspace1", key);
-            rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap("0".getBytes())), FBUtilities.EMPTY_BYTE_BUFFER, j);
+            rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("0")), FBUtilities.EMPTY_BYTE_BUFFER, j);
             rm.apply();
         }
         store.forceBlockingFlush();

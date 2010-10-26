@@ -31,6 +31,8 @@ import org.apache.cassandra.db.filter.QueryPath;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.utils.ByteBufferUtil;
+
 
 public class RemoveColumnTest extends CleanupHelper
 {
@@ -44,17 +46,17 @@ public class RemoveColumnTest extends CleanupHelper
 
         // add data
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap("Column1".getBytes())), ByteBuffer.wrap("asdf".getBytes()), 0);
+        rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("Column1")), ByteBufferUtil.bytes("asdf"), 0);
         rm.apply();
         store.forceBlockingFlush();
 
         // remove
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.delete(new QueryPath("Standard1", null, ByteBuffer.wrap("Column1".getBytes())), 1);
+        rm.delete(new QueryPath("Standard1", null, ByteBufferUtil.bytes("Column1")), 1);
         rm.apply();
 
-        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Standard1"), ByteBuffer.wrap("Column1".getBytes())));
-        assert retrieved.getColumn(ByteBuffer.wrap("Column1".getBytes())).isMarkedForDelete();
+        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Standard1"), ByteBufferUtil.bytes("Column1")));
+        assert retrieved.getColumn(ByteBufferUtil.bytes("Column1")).isMarkedForDelete();
         assertNull(Util.cloneAndRemoveDeleted(retrieved, Integer.MAX_VALUE));
         assertNull(Util.cloneAndRemoveDeleted(store.getColumnFamily(QueryFilter.getIdentityFilter(dk, new QueryPath("Standard1"))), Integer.MAX_VALUE));
     }

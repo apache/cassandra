@@ -45,6 +45,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class StreamingTransferTest extends CleanupHelper
 {
@@ -69,7 +70,7 @@ public class StreamingTransferTest extends CleanupHelper
             RowMutation rm = new RowMutation("Keyspace1", ByteBuffer.wrap(key.getBytes()));
             ColumnFamily cf = ColumnFamily.create(table.name, cfs.columnFamily);
             cf.addColumn(column(key, "v", 0));
-            cf.addColumn(new Column(ByteBuffer.wrap("birthdate".getBytes("UTF8")), FBUtilities.toByteBuffer((long) i), 0));
+            cf.addColumn(new Column(ByteBufferUtil.bytes("birthdate"), FBUtilities.toByteBuffer((long) i), 0));
             rm.add(cf);
             rm.apply();
         }
@@ -81,8 +82,8 @@ public class StreamingTransferTest extends CleanupHelper
         // transfer the first and last key
         IPartitioner p = StorageService.getPartitioner();
         List<Range> ranges = new ArrayList<Range>();
-        ranges.add(new Range(p.getMinimumToken(), p.getToken(ByteBuffer.wrap("key1".getBytes()))));
-        ranges.add(new Range(p.getToken(ByteBuffer.wrap("key2".getBytes())), p.getMinimumToken()));
+        ranges.add(new Range(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("key1"))));
+        ranges.add(new Range(p.getToken(ByteBufferUtil.bytes("key2")), p.getMinimumToken()));
         StreamOutSession session = StreamOutSession.create(table.name, LOCAL, null);
         StreamOut.transferSSTables(session, Arrays.asList(sstable), ranges);
         session.await();
@@ -90,24 +91,24 @@ public class StreamingTransferTest extends CleanupHelper
         // confirm that the SSTable was transferred and registered
         List<Row> rows = Util.getRangeSlice(cfs);
         assertEquals(2, rows.size());
-        assert rows.get(0).key.key.equals( ByteBuffer.wrap("key1".getBytes()));
-        assert rows.get(1).key.key.equals( ByteBuffer.wrap("key3".getBytes()));
+        assert rows.get(0).key.key.equals( ByteBufferUtil.bytes("key1"));
+        assert rows.get(1).key.key.equals( ByteBufferUtil.bytes("key3"));
         assertEquals(2, rows.get(0).cf.getColumnsMap().size());
         assertEquals(2, rows.get(1).cf.getColumnsMap().size());
-        assert rows.get(1).cf.getColumn(ByteBuffer.wrap("key3".getBytes())) != null;
+        assert rows.get(1).cf.getColumn(ByteBufferUtil.bytes("key3")) != null;
 
         // and that the index and filter were properly recovered
         assert null != cfs.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("key1"), new QueryPath(cfs.columnFamily)));
         assert null != cfs.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("key3"), new QueryPath(cfs.columnFamily)));
 
         // and that the secondary index works
-        IndexExpression expr = new IndexExpression(ByteBuffer.wrap("birthdate".getBytes("UTF8")), IndexOperator.EQ, FBUtilities.toByteBuffer(3L));
+        IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, FBUtilities.toByteBuffer(3L));
         IndexClause clause = new IndexClause(Arrays.asList(expr), FBUtilities.EMPTY_BYTE_BUFFER, 100);
         IFilter filter = new IdentityQueryFilter();
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
         rows = cfs.scan(clause, range, filter);
         assertEquals(1, rows.size());
-        assert rows.get(0).key.key.equals( ByteBuffer.wrap("key3".getBytes())) ;
+        assert rows.get(0).key.key.equals( ByteBufferUtil.bytes("key3")) ;
     }
 
     @Test
@@ -131,8 +132,8 @@ public class StreamingTransferTest extends CleanupHelper
         // transfer the first and last key
         IPartitioner p = StorageService.getPartitioner();
         List<Range> ranges = new ArrayList<Range>();
-        ranges.add(new Range(p.getMinimumToken(), p.getToken(ByteBuffer.wrap("transfer1".getBytes()))));
-        ranges.add(new Range(p.getToken(ByteBuffer.wrap("test2".getBytes())), p.getMinimumToken()));
+        ranges.add(new Range(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("transfer1"))));
+        ranges.add(new Range(p.getToken(ByteBufferUtil.bytes("test2")), p.getMinimumToken()));
         StreamOutSession session = StreamOutSession.create(tablename, LOCAL, null);
         StreamOut.transferSSTables(session, Arrays.asList(sstable, sstable2), ranges);
         session.await();
@@ -141,7 +142,7 @@ public class StreamingTransferTest extends CleanupHelper
         ColumnFamilyStore cfstore = Table.open(tablename).getColumnFamilyStore(cfname);
         List<Row> rows = Util.getRangeSlice(cfstore);
         assertEquals(6, rows.size());
-        assert rows.get(0).key.key.equals( ByteBuffer.wrap("test".getBytes()));
+        assert rows.get(0).key.key.equals( ByteBufferUtil.bytes("test"));
         assert rows.get(3).key.key.equals(ByteBuffer.wrap( "transfer1".getBytes() ));
         assert rows.get(0).cf.getColumnsMap().size() == 1;
         assert rows.get(3).cf.getColumnsMap().size() == 1;

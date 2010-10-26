@@ -99,15 +99,15 @@ public class FilterTest
 
     public static Filter testSerialize(Filter f) throws IOException
     {
-        f.add(ByteBuffer.wrap("a".getBytes()));
+        f.add(ByteBufferUtil.bytes("a"));
         DataOutputBuffer out = new DataOutputBuffer();
         f.getSerializer().serialize(f, out);
 
         ByteArrayInputStream in = new ByteArrayInputStream(out.getData(), 0, out.getLength());
         Filter f2 = f.getSerializer().deserialize(new DataInputStream(in));
 
-        assert f2.isPresent(ByteBuffer.wrap("a".getBytes()));
-        assert !f2.isPresent(ByteBuffer.wrap("b".getBytes()));
+        assert f2.isPresent(ByteBufferUtil.bytes("a"));
+        assert !f2.isPresent(ByteBufferUtil.bytes("b"));
         return f2;
     }
 

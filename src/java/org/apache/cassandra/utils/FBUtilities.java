@@ -67,14 +67,6 @@ public class FBUtilities
 
     public static final int MAX_UNSIGNED_SHORT = 0xFFFF;
 
-    /*public static final Comparator<byte[]> byteArrayComparator = new Comparator<byte[]>()
-    {
-        public int compare(byte[] o1, byte[] o2)
-        {
-            return compareByteArrays(o1, o2);
-        }
-    };*/
-
     /**
      * Parses a string representing either a fraction, absolute value or percentage.
      */
@@ -264,12 +256,13 @@ public class FBUtilities
         {
             throw new IOException("Corrupt (negative) value length encountered");
         }
-        byte[] value = new byte[length];
+       
+        ByteBuffer bb = ByteBuffer.allocate(length);
         if (length > 0)
         {
-            in.readFully(value);
+            in.readFully(bb.array(),bb.position(),bb.remaining());
         }
-        return ByteBuffer.wrap(value);
+        return bb;
     }
 
     public static void writeShortByteArray(ByteBuffer name, DataOutput out)
@@ -299,9 +292,10 @@ public class FBUtilities
 
     public static ByteBuffer readShortByteArray(DataInput in) throws IOException
     {
-        byte[] bytes = new byte[readShortLength(in)];
-        in.readFully(bytes);
-        return ByteBuffer.wrap(bytes);
+        int length = readShortLength(in);
+        ByteBuffer bb = ByteBuffer.allocate(length);
+        in.readFully(bb.array(),bb.position(),bb.remaining());
+        return bb;
     }
 
     /** @return null */
@@ -346,7 +340,7 @@ public class FBUtilities
     public static String bytesToHex(ByteBuffer bytes)
     {
         StringBuilder sb = new StringBuilder();
-        for (int i=bytes.position()+bytes.arrayOffset(); i<bytes.limit(); i++)
+        for (int i=bytes.position()+bytes.arrayOffset(); i<bytes.limit()+bytes.arrayOffset(); i++)
         {
             int bint = bytes.array()[i] & 0xff;
             if (bint <= 0xF)

@@ -51,6 +51,7 @@ import static com.google.common.base.Charsets.UTF_8;
 import static org.apache.cassandra.service.AntiEntropyService.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class AntiEntropyServiceTest extends CleanupHelper
 {
@@ -103,8 +104,8 @@ public class AntiEntropyServiceTest extends CleanupHelper
         // write
         List<RowMutation> rms = new LinkedList<RowMutation>();
         RowMutation rm;
-        rm = new RowMutation(tablename, ByteBuffer.wrap("key1".getBytes()));
-        rm.add(new QueryPath(cfname, null, ByteBuffer.wrap("Column1".getBytes())), ByteBuffer.wrap("asdf".getBytes()), 0);
+        rm = new RowMutation(tablename, ByteBufferUtil.bytes("key1"));
+        rm.add(new QueryPath(cfname, null, ByteBufferUtil.bytes("Column1")), ByteBufferUtil.bytes("asdf"), 0);
         rms.add(rm);
         Util.writeColumnFamily(rms);
 
@@ -138,11 +139,11 @@ public class AntiEntropyServiceTest extends CleanupHelper
         validator.prepare(store);
 
         // add a row with the minimum token
-        validator.add(new PrecompactedRow(new DecoratedKey(min, ByteBuffer.wrap("nonsense!".getBytes(UTF_8))),
+        validator.add(new PrecompactedRow(new DecoratedKey(min, ByteBufferUtil.bytes("nonsense!")),
                                        new DataOutputBuffer()));
 
         // and a row after it
-        validator.add(new PrecompactedRow(new DecoratedKey(mid, ByteBuffer.wrap("inconceivable!".getBytes(UTF_8))),
+        validator.add(new PrecompactedRow(new DecoratedKey(mid, ByteBufferUtil.bytes("inconceivable!")),
                                        new DataOutputBuffer()));
         validator.complete();
 

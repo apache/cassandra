@@ -80,7 +80,7 @@ public class ClientOnlyExample
         // do some queries.
         Collection<ByteBuffer> cols = new ArrayList<ByteBuffer>()
         {{
-            add(ByteBuffer.wrap("colb".getBytes()));
+            add(ByteBufferUtil.bytes("colb"));
         }};
         for (int i = 0; i < 100; i++)
         {
@@ -97,7 +97,7 @@ public class ClientOnlyExample
             {
                 for (IColumn col : cf.getSortedColumns())
                 {
-                    System.out.println(ByteBufferUtil.string(col.name(), Charsets.UTF_8) + ", " + ByteBufferUtil.string(col.value(), Charsets.UTF_8));
+                    System.out.println(ByteBufferUtil.string(col.name()) + ", " + ByteBufferUtil.string(col.value()));
                 }
             }
             else
