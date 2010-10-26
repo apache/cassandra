@@ -32,6 +32,7 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.junit.Test;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Test for the truncate operation.
@@ -51,7 +52,7 @@ public class RecoveryManagerTruncateTest extends CleanupHelper
 		ColumnFamily cf;
 
 		// trucate clears memtable
-		rm = new RowMutation("Keyspace1", ByteBuffer.wrap("keymulti".getBytes()));
+		rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("keymulti"));
 		cf = ColumnFamily.create("Keyspace1", "Standard1");
 		cf.addColumn(column("col1", "val1", 1L));
 		rm.add(cf);
@@ -68,7 +69,7 @@ public class RecoveryManagerTruncateTest extends CleanupHelper
 		assertNull(getFromTable(table, "Standard1", "keymulti", "col1"));
 
 		// truncate clears sstable
-		rm = new RowMutation("Keyspace1", ByteBuffer.wrap("keymulti".getBytes()));
+		rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("keymulti"));
 		cf = ColumnFamily.create("Keyspace1", "Standard1");
 		cf.addColumn(column("col1", "val1", 1L));
 		rm.add(cf);

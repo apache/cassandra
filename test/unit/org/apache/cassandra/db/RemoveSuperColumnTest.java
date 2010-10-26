@@ -35,6 +35,8 @@ import static org.apache.cassandra.Util.getBytes;
 
 import org.apache.cassandra.CleanupHelper;
 import static junit.framework.Assert.assertNotNull;
+import org.apache.cassandra.utils.ByteBufferUtil;
+
 
 public class RemoveSuperColumnTest extends CleanupHelper
 {
@@ -53,7 +55,7 @@ public class RemoveSuperColumnTest extends CleanupHelper
 
         // remove
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.delete(new QueryPath("Super1", ByteBuffer.wrap("SC1".getBytes())), 1);
+        rm.delete(new QueryPath("Super1", ByteBufferUtil.bytes("SC1")), 1);
         rm.apply();
 
         validateRemoveTwoSources(dk);
@@ -82,7 +84,7 @@ public class RemoveSuperColumnTest extends CleanupHelper
 
         // remove
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.delete(new QueryPath("Super3", ByteBuffer.wrap("SC1".getBytes()), Util.getBytes(1)), 1);
+        rm.delete(new QueryPath("Super3", ByteBufferUtil.bytes("SC1"), Util.getBytes(1)), 1);
         rm.apply();
 
         validateRemoveSubColumn(dk);
@@ -94,20 +96,20 @@ public class RemoveSuperColumnTest extends CleanupHelper
     private void validateRemoveSubColumn(DecoratedKey dk) throws IOException
     {
         ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super3");
-        ColumnFamily cf = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super3", ByteBuffer.wrap("SC1".getBytes())), Util.getBytes(1)));
+        ColumnFamily cf = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super3", ByteBufferUtil.bytes("SC1")), Util.getBytes(1)));
         assertNull(Util.cloneAndRemoveDeleted(cf, Integer.MAX_VALUE));
-        cf = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super3", ByteBuffer.wrap("SC1".getBytes())), Util.getBytes(2)));
+        cf = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super3", ByteBufferUtil.bytes("SC1")), Util.getBytes(2)));
         assertNotNull(Util.cloneAndRemoveDeleted(cf, Integer.MAX_VALUE));
     }
 
     private void validateRemoveTwoSources(DecoratedKey dk) throws IOException
     {
         ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super1");
-        ColumnFamily cf = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super1"), ByteBuffer.wrap("SC1".getBytes())));
+        ColumnFamily cf = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super1"), ByteBufferUtil.bytes("SC1")));
         assert cf.getSortedColumns().iterator().next().getMarkedForDeleteAt() == 1 : cf;
         assert cf.getSortedColumns().iterator().next().getSubColumns().size() == 0 : cf;
         assertNull(Util.cloneAndRemoveDeleted(cf, Integer.MAX_VALUE));
-        cf = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super1"), ByteBuffer.wrap("SC1".getBytes())));
+        cf = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super1"), ByteBufferUtil.bytes("SC1")));
         assertNull(Util.cloneAndRemoveDeleted(cf, Integer.MAX_VALUE));
         cf = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, new QueryPath("Super1")));
         assertNull(Util.cloneAndRemoveDeleted(cf, Integer.MAX_VALUE));
@@ -117,7 +119,7 @@ public class RemoveSuperColumnTest extends CleanupHelper
     private void validateRemoveCompacted(DecoratedKey dk) throws IOException
     {
         ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super1");
-        ColumnFamily resolved = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super1"), ByteBuffer.wrap("SC1".getBytes())));
+        ColumnFamily resolved = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super1"), ByteBufferUtil.bytes("SC1")));
         assert resolved.getSortedColumns().iterator().next().getMarkedForDeleteAt() == 1;
         Collection<IColumn> subColumns = resolved.getSortedColumns().iterator().next().getSubColumns();
         assert subColumns.size() == 0;
@@ -138,7 +140,7 @@ public class RemoveSuperColumnTest extends CleanupHelper
 
         // remove
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.delete(new QueryPath("Super2", ByteBuffer.wrap("SC1".getBytes())), 1);
+        rm.delete(new QueryPath("Super2", ByteBufferUtil.bytes("SC1")), 1);
         rm.apply();
 
         // new data
@@ -159,7 +161,7 @@ public class RemoveSuperColumnTest extends CleanupHelper
     private void validateRemoveWithNewData(DecoratedKey dk) throws IOException
     {
         ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super2");
-        ColumnFamily cf = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super2", ByteBuffer.wrap("SC1".getBytes())), getBytes(2)));
+        ColumnFamily cf = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super2", ByteBufferUtil.bytes("SC1")), getBytes(2)));
         Collection<IColumn> subColumns = cf.getSortedColumns().iterator().next().getSubColumns();
         assert subColumns.size() == 1;
         assert subColumns.iterator().next().timestamp() == 2;
@@ -179,9 +181,9 @@ public class RemoveSuperColumnTest extends CleanupHelper
 
         // remove
         rm = new RowMutation("Keyspace1", key.key);
-        rm.delete(new QueryPath("Super2", ByteBuffer.wrap("SC1".getBytes())), 1);
+        rm.delete(new QueryPath("Super2", ByteBufferUtil.bytes("SC1")), 1);
         rm.apply();
-        assertNull(Util.cloneAndRemoveDeleted(store.getColumnFamily(QueryFilter.getNamesFilter(key, new QueryPath("Super2"), ByteBuffer.wrap("SC1".getBytes()))), Integer.MAX_VALUE));
+        assertNull(Util.cloneAndRemoveDeleted(store.getColumnFamily(QueryFilter.getNamesFilter(key, new QueryPath("Super2"), ByteBufferUtil.bytes("SC1"))), Integer.MAX_VALUE));
 
         // resurrect
         rm = new RowMutation("Keyspace1", key.key);
@@ -189,7 +191,7 @@ public class RemoveSuperColumnTest extends CleanupHelper
         rm.apply();
 
         // validate
-        ColumnFamily cf = store.getColumnFamily(QueryFilter.getNamesFilter(key, new QueryPath("Super2"), ByteBuffer.wrap("SC1".getBytes())));
+        ColumnFamily cf = store.getColumnFamily(QueryFilter.getNamesFilter(key, new QueryPath("Super2"), ByteBufferUtil.bytes("SC1")));
         cf = Util.cloneAndRemoveDeleted(cf, Integer.MAX_VALUE);
         Collection<IColumn> subColumns = cf.getSortedColumns().iterator().next().getSubColumns();
         assert subColumns.size() == 1;

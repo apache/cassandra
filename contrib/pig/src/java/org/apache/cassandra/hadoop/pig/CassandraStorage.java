@@ -17,6 +17,7 @@
 package org.apache.cassandra.hadoop.pig;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.db.Column;
@@ -25,6 +26,7 @@ import org.apache.cassandra.db.SuperColumn;
 import org.apache.cassandra.hadoop.*;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.SliceRange;
+import org.apache.cassandra.utils.FBUtilities;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -52,7 +54,7 @@ public class CassandraStorage extends LoadFunc
     public final static String PIG_INITIAL_ADDRESS = "PIG_INITIAL_ADDRESS";
     public final static String PIG_PARTITIONER = "PIG_PARTITIONER";
 
-    private final static byte[] BOUND = new byte[0];
+    private final static ByteBuffer BOUND = FBUtilities.EMPTY_BYTE_BUFFER;
     private final static int LIMIT = 1024;
 
     private Configuration conf;
@@ -75,7 +77,11 @@ public class CassandraStorage extends LoadFunc
             ArrayList<Tuple> columns = new ArrayList<Tuple>();
             tuple.set(0, new DataByteArray(key));
             for (Map.Entry<byte[], IColumn> entry : cf.entrySet())
-                columns.add(columnToTuple(entry.getKey(), entry.getValue()));
+            {                    
+                byte[] name = entry.getKey();
+                columns.add(columnToTuple(name, 0, name.length, entry.getValue()));
+            }
+         
             tuple.set(1, new DefaultDataBag(columns));
             return tuple;
         }
@@ -85,21 +91,26 @@ public class CassandraStorage extends LoadFunc
         }
     }
 
-    private Tuple columnToTuple(byte[] name, IColumn col) throws IOException
+    private Tuple columnToTuple(byte[] name, int nameOffset, int nameLength, IColumn col) throws IOException
     {
         Tuple pair = TupleFactory.getInstance().newTuple(2);
-        pair.set(0, new DataByteArray(name));
+        pair.set(0, new DataByteArray(name, nameOffset, nameLength));
         if (col instanceof Column)
         {
             // standard
-            pair.set(1, new DataByteArray(col.value()));
+            pair.set(1, new DataByteArray(col.value().array(), 
+                                          col.value().position()+col.value().arrayOffset(),
+                                          col.value().remaining()));
             return pair;
         }
 
         // super
         ArrayList<Tuple> subcols = new ArrayList<Tuple>();
         for (IColumn subcol : ((SuperColumn)col).getSubColumns())
-            subcols.add(columnToTuple(subcol.name(), subcol));
+            subcols.add(columnToTuple(subcol.name().array(), 
+                                      subcol.name().position()+subcol.name().arrayOffset(),
+                                      subcol.name().remaining(), subcol));
+        
         pair.set(1, new DefaultDataBag(subcols));
         return pair;
     }

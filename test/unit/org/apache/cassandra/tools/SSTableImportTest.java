@@ -38,6 +38,7 @@ import org.apache.cassandra.Util;
 
 import org.json.simple.parser.ParseException;
 import org.junit.Test;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SSTableImportTest extends SchemaLoader
 {   
@@ -51,9 +52,9 @@ public class SSTableImportTest extends SchemaLoader
 
         // Verify results
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
-        QueryFilter qf = QueryFilter.getNamesFilter(Util.dk("rowA"), new QueryPath("Standard1", null, null), ByteBuffer.wrap("colAA".getBytes()));
+        QueryFilter qf = QueryFilter.getNamesFilter(Util.dk("rowA"), new QueryPath("Standard1", null, null), ByteBufferUtil.bytes("colAA"));
         ColumnFamily cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
-        assert cf.getColumn(ByteBuffer.wrap("colAA".getBytes())).value().equals(ByteBuffer.wrap(hexToBytes("76616c4141")));
+        assert cf.getColumn(ByteBufferUtil.bytes("colAA")).value().equals(ByteBuffer.wrap(hexToBytes("76616c4141")));
     }
 
     @Test
@@ -65,9 +66,9 @@ public class SSTableImportTest extends SchemaLoader
         
         // Verify results
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
-        QueryFilter qf = QueryFilter.getNamesFilter(Util.dk("rowA"), new QueryPath("Super4", null, null), ByteBuffer.wrap("superA".getBytes()));
+        QueryFilter qf = QueryFilter.getNamesFilter(Util.dk("rowA"), new QueryPath("Super4", null, null), ByteBufferUtil.bytes("superA"));
         ColumnFamily cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
-        IColumn superCol = cf.getColumn(ByteBuffer.wrap("superA".getBytes()));
-        assert superCol.getSubColumn(ByteBuffer.wrap("colAA".getBytes())).value().equals(ByteBuffer.wrap(hexToBytes("76616c75654141")));
+        IColumn superCol = cf.getColumn(ByteBufferUtil.bytes("superA"));
+        assert superCol.getSubColumn(ByteBufferUtil.bytes("colAA")).value().equals(ByteBuffer.wrap(hexToBytes("76616c75654141")));
     }
 }

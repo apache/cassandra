@@ -49,7 +49,7 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
     {
         // find the delimiter position
         int splitPoint = -1;
-        for (int i = fromdisk.position()+fromdisk.arrayOffset(); i < fromdisk.limit(); i++)
+        for (int i = fromdisk.position()+fromdisk.arrayOffset(); i < fromdisk.limit()+fromdisk.arrayOffset(); i++)
         {
             if (fromdisk.array()[i] == DELIMITER_BYTE)
             {
@@ -61,7 +61,7 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
 
         // and decode the token and key
         String token = new String(fromdisk.array(), fromdisk.position()+fromdisk.arrayOffset(), splitPoint, UTF_8);
-        byte[] key = Arrays.copyOfRange(fromdisk.array(), splitPoint + 1, fromdisk.limit());
+        byte[] key = Arrays.copyOfRange(fromdisk.array(), splitPoint + 1, fromdisk.limit()+fromdisk.arrayOffset());
         return new DecoratedKey<BigIntegerToken>(new BigIntegerToken(token), ByteBuffer.wrap(key));
     }
 

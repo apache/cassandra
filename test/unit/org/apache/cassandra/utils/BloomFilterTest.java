@@ -55,9 +55,9 @@ public class BloomFilterTest
     @Test
     public void testOne()
     {
-        bf.add(ByteBuffer.wrap("a".getBytes()));
-        assert bf.isPresent(ByteBuffer.wrap("a".getBytes()));
-        assert !bf.isPresent(ByteBuffer.wrap("b".getBytes()));
+        bf.add(ByteBufferUtil.bytes("a"));
+        assert bf.isPresent(ByteBufferUtil.bytes("a"));
+        assert !bf.isPresent(ByteBufferUtil.bytes("b"));
     }
 
     @Test

@@ -40,6 +40,7 @@ import org.apache.thrift.transport.TTransportException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Example how to use an embedded cassandra service.
@@ -89,15 +90,15 @@ public class EmbeddedCassandraServiceTest
         Cassandra.Client client = getClient();
         client.set_keyspace("Keyspace1");
 
-        ByteBuffer key_user_id = ByteBuffer.wrap("1".getBytes());
+        ByteBuffer key_user_id = ByteBufferUtil.bytes("1");
         
         long timestamp = System.currentTimeMillis();
         ColumnPath cp = new ColumnPath("Standard1");
         ColumnParent par = new ColumnParent("Standard1");
-        cp.column = ByteBuffer.wrap("name".getBytes(Charsets.UTF_8));
+        cp.column = ByteBufferUtil.bytes("name");
 
         // insert
-        client.insert(key_user_id, par, new Column(ByteBuffer.wrap("name".getBytes(Charsets.UTF_8)),
+        client.insert(key_user_id, par, new Column(ByteBufferUtil.bytes("name"),
                 ByteBuffer.wrap( "Ran".getBytes(Charsets.UTF_8)), timestamp), ConsistencyLevel.ONE);
 
         // read

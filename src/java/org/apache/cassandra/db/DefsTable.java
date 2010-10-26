@@ -40,12 +40,13 @@ import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class DefsTable
 {
     // column name for the schema storing serialized keyspace definitions
     // NB: must be an invalid keyspace name
-    public static final ByteBuffer DEFINITION_SCHEMA_COLUMN_NAME = ByteBuffer.wrap("Avro/Schema".getBytes(UTF_8));
+    public static final ByteBuffer DEFINITION_SCHEMA_COLUMN_NAME = ByteBufferUtil.bytes("Avro/Schema");
 
     /** dumps current keyspace definitions to storage */
     public static synchronized void dumpToStorage(UUID version) throws IOException

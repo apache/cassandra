@@ -39,7 +39,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import com.google.common.collect.Multimap;
 
 /**
- * This class blocks for a quorum of responses _in the local datacenter only_ (CL.DCQUORUM).
+ * This class blocks for a quorum of responses _in the local datacenter only_ (CL.LOCAL_QUORUM).
  */
 public class DatacenterWriteResponseHandler extends WriteResponseHandler
 {
@@ -54,7 +54,7 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
     protected DatacenterWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
         super(writeEndpoints, hintedEndpoints, consistencyLevel, table);
-        assert consistencyLevel == ConsistencyLevel.DCQUORUM;
+        assert consistencyLevel == ConsistencyLevel.LOCAL_QUORUM;
     }
 
     public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)

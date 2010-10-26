@@ -51,15 +51,15 @@ public class SystemTable
     private static Logger logger = LoggerFactory.getLogger(SystemTable.class);
     public static final String STATUS_CF = "LocationInfo"; // keep the old CF string for backwards-compatibility
     public static final String INDEX_CF = "IndexInfo";
-    private static final ByteBuffer LOCATION_KEY = ByteBuffer.wrap("L".getBytes(UTF_8));
-    private static final ByteBuffer RING_KEY = ByteBuffer.wrap("Ring".getBytes(UTF_8));
-    private static final ByteBuffer BOOTSTRAP_KEY = ByteBuffer.wrap("Bootstrap".getBytes(UTF_8));
-    private static final ByteBuffer COOKIE_KEY = ByteBuffer.wrap("Cookies".getBytes(UTF_8));
-    private static final ByteBuffer BOOTSTRAP = ByteBuffer.wrap("B".getBytes(UTF_8));
-    private static final ByteBuffer TOKEN = ByteBuffer.wrap("Token".getBytes(UTF_8));
-    private static final ByteBuffer GENERATION = ByteBuffer.wrap("Generation".getBytes(UTF_8));
-    private static final ByteBuffer CLUSTERNAME = ByteBuffer.wrap("ClusterName".getBytes(UTF_8));
-    private static final ByteBuffer PARTITIONER = ByteBuffer.wrap("Partioner".getBytes(UTF_8));
+    private static final ByteBuffer LOCATION_KEY = ByteBufferUtil.bytes("L");
+    private static final ByteBuffer RING_KEY = ByteBufferUtil.bytes("Ring");
+    private static final ByteBuffer BOOTSTRAP_KEY = ByteBufferUtil.bytes("Bootstrap");
+    private static final ByteBuffer COOKIE_KEY = ByteBufferUtil.bytes("Cookies");
+    private static final ByteBuffer BOOTSTRAP = ByteBufferUtil.bytes("B");
+    private static final ByteBuffer TOKEN = ByteBufferUtil.bytes("Token");
+    private static final ByteBuffer GENERATION = ByteBufferUtil.bytes("Generation");
+    private static final ByteBuffer CLUSTERNAME = ByteBufferUtil.bytes("ClusterName");
+    private static final ByteBuffer PARTITIONER = ByteBufferUtil.bytes("Partioner");
 
     private static DecoratedKey decorate(ByteBuffer key)
     {
@@ -70,7 +70,7 @@ public class SystemTable
     public static void purgeIncompatibleHints() throws IOException
     {
         // 0.6->0.7
-        final ByteBuffer hintsPurged6to7 = ByteBuffer.wrap("Hints purged as part of upgrading from 0.6.x to 0.7".getBytes());
+        final ByteBuffer hintsPurged6to7 = ByteBufferUtil.bytes("Hints purged as part of upgrading from 0.6.x to 0.7");
         Table table = Table.open(Table.SYSTEM_TABLE);
         QueryFilter dotSeven = QueryFilter.getNamesFilter(decorate(COOKIE_KEY), new QueryPath(STATUS_CF), hintsPurged6to7);
         ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(dotSeven);
@@ -80,7 +80,7 @@ public class SystemTable
             logger.info("Upgrading to 0.7. Purging hints if there are any. Old hints will be snapshotted.");
             new Truncation(Table.SYSTEM_TABLE, HintedHandOffManager.HINTS_CF).apply();
             RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, COOKIE_KEY);
-            rm.add(new QueryPath(STATUS_CF, null, hintsPurged6to7), ByteBuffer.wrap("oh yes, it they were purged.".getBytes()), System.currentTimeMillis());
+            rm.add(new QueryPath(STATUS_CF, null, hintsPurged6to7), ByteBufferUtil.bytes("oh yes, it they were purged."), System.currentTimeMillis());
             rm.apply();
         }
     }

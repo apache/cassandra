@@ -180,7 +180,7 @@ public class HintedHandOffManager
             throw new RuntimeException("Corrupted hint name " + joined.toString());
         String[] parts = new String[2];
         parts[0] = new String(ArrayUtils.subarray(joined.array(), joined.position()+joined.arrayOffset(), index));
-        parts[1] = new String(ArrayUtils.subarray(joined.array(), index+1, joined.limit()));
+        parts[1] = new String(ArrayUtils.subarray(joined.array(), index+1, joined.limit()+joined.arrayOffset()));
         return parts;
 
     }

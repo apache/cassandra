@@ -142,19 +142,19 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
 
     /**
      * This method will generate the QRH object and returns. If the Consistency
-     * level is DCQUORUM then it will return a DCQRH with a map of local rep
-     * factor alone. If the consistency level is DCQUORUMSYNC then it will
+     * level is LOCAL_QUORUM then it will return a DCQRH with a map of local rep
+     * factor alone. If the consistency level is EACH_QUORUM then it will
      * return a DCQRH with a map of all the DC rep factor.
      */
     @Override
     public IWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistency_level)
     {
-        if (consistency_level == ConsistencyLevel.DCQUORUM)
+        if (consistency_level == ConsistencyLevel.LOCAL_QUORUM)
         {
             // block for in this context will be localnodes block.
             return DatacenterWriteResponseHandler.create(writeEndpoints, hintedEndpoints, consistency_level, table);
         }
-        else if (consistency_level == ConsistencyLevel.DCQUORUMSYNC)
+        else if (consistency_level == ConsistencyLevel.EACH_QUORUM)
         {
             return DatacenterSyncWriteResponseHandler.create(writeEndpoints, hintedEndpoints, consistency_level, table);
         }
@@ -163,12 +163,12 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
 
     /**
      * This method will generate the WRH object and returns. If the Consistency
-     * level is DCQUORUM/DCQUORUMSYNC then it will return a DCQRH.
+     * level is LOCAL_QUORUM/EACH_QUORUM then it will return a DCQRH.
      */
     @Override
     public QuorumResponseHandler getQuorumResponseHandler(IResponseResolver responseResolver, ConsistencyLevel consistencyLevel)
     {
-        if (consistencyLevel.equals(ConsistencyLevel.DCQUORUM) || consistencyLevel.equals(ConsistencyLevel.DCQUORUMSYNC))
+        if (consistencyLevel.equals(ConsistencyLevel.LOCAL_QUORUM) || consistencyLevel.equals(ConsistencyLevel.EACH_QUORUM))
         {
             return new DatacenterQuorumResponseHandler(responseResolver, consistencyLevel, table);
         }

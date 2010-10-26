@@ -64,7 +64,7 @@ public class GuidGenerator {
         ByteBuffer array = guidAsBytes();
         
         StringBuilder sb = new StringBuilder();
-        for (int j = array.position()+array.arrayOffset(); j < array.limit(); ++j) {
+        for (int j = array.position()+array.arrayOffset(); j < array.limit()+array.arrayOffset(); ++j) {
             int b = array.array()[j] & 0xFF;
             if (b < 0x10) sb.append('0');
             sb.append(Integer.toHexString(b));

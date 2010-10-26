@@ -44,6 +44,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static com.google.common.base.Charsets.UTF_8;
 
@@ -71,8 +72,8 @@ public abstract class Migration
     public static final String NAME_VALIDATOR_REGEX = "\\w+";
     public static final String MIGRATIONS_CF = "Migrations";
     public static final String SCHEMA_CF = "Schema";
-    public static final ByteBuffer MIGRATIONS_KEY = ByteBuffer.wrap("Migrations Key".getBytes(UTF_8));
-    public static final ByteBuffer LAST_MIGRATION_KEY = ByteBuffer.wrap("Last Migration".getBytes(UTF_8));
+    public static final ByteBuffer MIGRATIONS_KEY = ByteBufferUtil.bytes("Migrations Key");
+    public static final ByteBuffer LAST_MIGRATION_KEY = ByteBufferUtil.bytes("Last Migration");
     
     protected RowMutation rm;
     protected UUID newVersion;

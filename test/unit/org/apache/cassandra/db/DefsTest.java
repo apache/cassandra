@@ -18,29 +18,50 @@
 
 package org.apache.cassandra.db;
 
+import static org.junit.Assert.assertEquals;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
-
-import org.apache.cassandra.io.SerDeUtils;
-import org.apache.cassandra.locator.OldNetworkTopologyStrategy;
-import org.apache.cassandra.thrift.CfDef;
-import org.apache.cassandra.thrift.ColumnDef;
-import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.*;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.migration.*;
+import org.apache.cassandra.db.migration.AddColumnFamily;
+import org.apache.cassandra.db.migration.AddKeyspace;
+import org.apache.cassandra.db.migration.DropColumnFamily;
+import org.apache.cassandra.db.migration.DropKeyspace;
+import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.db.migration.RenameColumnFamily;
+import org.apache.cassandra.db.migration.RenameKeyspace;
+import org.apache.cassandra.db.migration.UpdateColumnFamily;
+import org.apache.cassandra.db.migration.UpdateKeyspace;
+import org.apache.cassandra.locator.OldNetworkTopologyStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.thrift.CfDef;
+import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
+import org.junit.Test;
+import org.apache.cassandra.utils.ByteBufferUtil;
+
 
 public class DefsTest extends CleanupHelper
 {   
@@ -172,16 +193,16 @@ public class DefsTest extends CleanupHelper
         // now read and write to it.
         DecoratedKey dk = Util.dk("key0");
         RowMutation rm = new RowMutation(ks, dk.key);
-        rm.add(new QueryPath(cf, null, ByteBuffer.wrap("col0".getBytes())), ByteBuffer.wrap("value0".getBytes()), 1L);
+        rm.add(new QueryPath(cf, null, ByteBufferUtil.bytes("col0")), ByteBufferUtil.bytes("value0"), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(ks).getColumnFamilyStore(cf);
         assert store != null;
         store.forceBlockingFlush();
         
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(cf), ByteBuffer.wrap("col0".getBytes())));
-        assert cfam.getColumn(ByteBuffer.wrap("col0".getBytes())) != null;
-        IColumn col = cfam.getColumn(ByteBuffer.wrap("col0".getBytes()));
-        assert ByteBuffer.wrap("value0".getBytes()).equals(col.value());
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(cf), ByteBufferUtil.bytes("col0")));
+        assert cfam.getColumn(ByteBufferUtil.bytes("col0")) != null;
+        IColumn col = cfam.getColumn(ByteBufferUtil.bytes("col0"));
+        assert ByteBufferUtil.bytes("value0").equals(col.value());
     }
 
     @Test
@@ -197,7 +218,7 @@ public class DefsTest extends CleanupHelper
         // write some data, force a flush, then verify that files exist on disk.
         RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
-            rm.add(new QueryPath(cfm.cfName, null, ByteBuffer.wrap(("col" + i).getBytes())), ByteBuffer.wrap("anyvalue".getBytes()), 1L);
+            rm.add(new QueryPath(cfm.cfName, null, ByteBuffer.wrap(("col" + i).getBytes())), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(cfm.tableName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
@@ -214,7 +235,7 @@ public class DefsTest extends CleanupHelper
         boolean success = true;
         try
         {
-            rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap("col0".getBytes())), ByteBuffer.wrap("value0".getBytes()), 1L);
+            rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("col0")), ByteBufferUtil.bytes("value0"), 1L);
             rm.apply();
         }
         catch (Throwable th)
@@ -243,7 +264,7 @@ public class DefsTest extends CleanupHelper
         // write some data, force a flush, then verify that files exist on disk.
         RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
-            rm.add(new QueryPath(oldCfm.cfName, null, ByteBuffer.wrap(("col" + i).getBytes())), ByteBuffer.wrap("anyvalue".getBytes()), 1L);
+            rm.add(new QueryPath(oldCfm.cfName, null, ByteBuffer.wrap(("col" + i).getBytes())), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(oldCfm.tableName).getColumnFamilyStore(oldCfm.cfName);
         assert store != null;
@@ -268,13 +289,13 @@ public class DefsTest extends CleanupHelper
         
         // do some writes
         rm = new RowMutation(ks.name, dk.key);
-        rm.add(new QueryPath(cfName, null, ByteBuffer.wrap("col5".getBytes())), ByteBuffer.wrap("updated".getBytes()), 2L);
+        rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes("col5")), ByteBufferUtil.bytes("updated"), 2L);
         rm.apply();
         store.forceBlockingFlush();
         
-        cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(cfName), ByteBuffer.wrap("col5".getBytes())));
+        cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(cfName), ByteBufferUtil.bytes("col5")));
         assert cfam.getColumnCount() == 1;
-        assert cfam.getColumn(ByteBuffer.wrap("col5".getBytes())).value().equals( ByteBuffer.wrap("updated".getBytes()));
+        assert cfam.getColumn(ByteBufferUtil.bytes("col5")).value().equals( ByteBufferUtil.bytes("updated"));
     }
     
     @Test
@@ -292,16 +313,16 @@ public class DefsTest extends CleanupHelper
 
         // test reads and writes.
         RowMutation rm = new RowMutation(newCf.tableName, dk.key);
-        rm.add(new QueryPath(newCf.cfName, null, ByteBuffer.wrap("col0".getBytes())), ByteBuffer.wrap("value0".getBytes()), 1L);
+        rm.add(new QueryPath(newCf.cfName, null, ByteBufferUtil.bytes("col0")), ByteBufferUtil.bytes("value0"), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(newCf.tableName).getColumnFamilyStore(newCf.cfName);
         assert store != null;
         store.forceBlockingFlush();
         
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(newCf.cfName), ByteBuffer.wrap("col0".getBytes())));
-        assert cfam.getColumn(ByteBuffer.wrap("col0".getBytes())) != null;
-        IColumn col = cfam.getColumn(ByteBuffer.wrap("col0".getBytes()));
-        assert ByteBuffer.wrap("value0".getBytes()).equals(col.value());
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(newCf.cfName), ByteBufferUtil.bytes("col0")));
+        assert cfam.getColumn(ByteBufferUtil.bytes("col0")) != null;
+        IColumn col = cfam.getColumn(ByteBufferUtil.bytes("col0"));
+        assert ByteBufferUtil.bytes("value0").equals(col.value());
     }
     
     @Test
@@ -317,7 +338,7 @@ public class DefsTest extends CleanupHelper
         // write some data, force a flush, then verify that files exist on disk.
         RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
-            rm.add(new QueryPath(cfm.cfName, null, ByteBuffer.wrap(("col" + i).getBytes())), ByteBuffer.wrap("anyvalue".getBytes()), 1L);
+            rm.add(new QueryPath(cfm.cfName, null, ByteBuffer.wrap(("col" + i).getBytes())), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(cfm.tableName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
@@ -333,7 +354,7 @@ public class DefsTest extends CleanupHelper
         boolean success = true;
         try
         {
-            rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap("col0".getBytes())), ByteBuffer.wrap("value0".getBytes()), 1L);
+            rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("col0")), ByteBufferUtil.bytes("value0"), 1L);
             rm.apply();
         }
         catch (Throwable th)
@@ -367,7 +388,7 @@ public class DefsTest extends CleanupHelper
         // write some data that we hope to read back later.
         RowMutation rm = new RowMutation(oldKs.name, dk.key);
         for (int i = 0; i < 10; i++)
-            rm.add(new QueryPath(cfName, null, ByteBuffer.wrap(("col" + i).getBytes())), ByteBuffer.wrap("value".getBytes()), 1L);
+            rm.add(new QueryPath(cfName, null, ByteBuffer.wrap(("col" + i).getBytes())), ByteBufferUtil.bytes("value"), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(oldKs.name).getColumnFamilyStore(cfName);
         assert store != null;
@@ -396,11 +417,11 @@ public class DefsTest extends CleanupHelper
         }
         
         // write on old should fail.
-        rm = new RowMutation(oldKs.name, ByteBuffer.wrap("any key will do".getBytes()));
+        rm = new RowMutation(oldKs.name, ByteBufferUtil.bytes("any key will do"));
         boolean success = true;
         try
         {
-            rm.add(new QueryPath(cfName, null, ByteBuffer.wrap("col0".getBytes())), ByteBuffer.wrap("value0".getBytes()), 1L);
+            rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes("col0")), ByteBufferUtil.bytes("value0"), 1L);
             rm.apply();
         }
         catch (Throwable th)
@@ -411,7 +432,7 @@ public class DefsTest extends CleanupHelper
         
         // write on new should work.
         rm = new RowMutation(newKsName, dk.key);
-        rm.add(new QueryPath(cfName, null, ByteBuffer.wrap("col0".getBytes())), ByteBuffer.wrap("newvalue".getBytes()), 2L);
+        rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes("col0")), ByteBufferUtil.bytes("newvalue"), 2L);
         rm.apply();
         store = Table.open(newKs.name).getColumnFamilyStore(cfName);
         assert store != null;
@@ -419,14 +440,17 @@ public class DefsTest extends CleanupHelper
         
         // read on new should work.
         SortedSet<ByteBuffer> cols = new TreeSet<ByteBuffer>(BytesType.instance);
-        cols.add(ByteBuffer.wrap("col0".getBytes()));
-        cols.add(ByteBuffer.wrap("col1".getBytes()));
+        cols.add(ByteBufferUtil.bytes("col0"));
+        cols.add(ByteBufferUtil.bytes("col1"));
         ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(cfName), cols));
         assert cfam.getColumnCount() == cols.size();
         // tests new write.
-        assert Arrays.equals(cfam.getColumn(ByteBuffer.wrap("col0".getBytes())).value().array(), "newvalue".getBytes());
+        
+        ByteBuffer val = cfam.getColumn(ByteBufferUtil.bytes("col0")).value();
+        assertEquals( new String(val.array(),val.position(),val.remaining()), "newvalue");
         // tests old write.
-        assert Arrays.equals(cfam.getColumn(ByteBuffer.wrap("col1".getBytes())).value().array(), "value".getBytes());
+         val = cfam.getColumn(ByteBufferUtil.bytes("col1")).value();
+        assertEquals( new String(val.array(),val.position(),val.remaining()), "value");
     }
 
     @Test
@@ -453,16 +477,16 @@ public class DefsTest extends CleanupHelper
         // now read and write to it.
         DecoratedKey dk = Util.dk("key0");
         RowMutation rm = new RowMutation(newKs.name, dk.key);
-        rm.add(new QueryPath(newCf.cfName, null, ByteBuffer.wrap("col0".getBytes())), ByteBuffer.wrap("value0".getBytes()), 1L);
+        rm.add(new QueryPath(newCf.cfName, null, ByteBufferUtil.bytes("col0")), ByteBufferUtil.bytes("value0"), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(newKs.name).getColumnFamilyStore(newCf.cfName);
         assert store != null;
         store.forceBlockingFlush();
 
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(newCf.cfName), ByteBuffer.wrap("col0".getBytes())));
-        assert cfam.getColumn(ByteBuffer.wrap("col0".getBytes())) != null;
-        IColumn col = cfam.getColumn(ByteBuffer.wrap("col0".getBytes()));
-        assert ByteBuffer.wrap("value0".getBytes()).equals(col.value());
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(newCf.cfName), ByteBufferUtil.bytes("col0")));
+        assert cfam.getColumn(ByteBufferUtil.bytes("col0")) != null;
+        IColumn col = cfam.getColumn(ByteBufferUtil.bytes("col0"));
+        assert ByteBufferUtil.bytes("value0").equals(col.value());
     }
     
     @Test

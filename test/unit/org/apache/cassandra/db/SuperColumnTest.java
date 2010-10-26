@@ -25,13 +25,15 @@ import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertNull;
 import static org.apache.cassandra.Util.getBytes;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.utils.ByteBufferUtil;
+
 
 public class SuperColumnTest
 {   
     @Test
     public void testMissingSubcolumn() {
-    	SuperColumn sc = new SuperColumn(ByteBuffer.wrap("sc1".getBytes()), LongType.instance);
-    	sc.addColumn(new Column(getBytes(1), ByteBuffer.wrap("value".getBytes()), 1));
+    	SuperColumn sc = new SuperColumn(ByteBufferUtil.bytes("sc1"), LongType.instance);
+    	sc.addColumn(new Column(getBytes(1), ByteBufferUtil.bytes("value"), 1));
     	assertNotNull(sc.getSubColumn(getBytes(1)));
     	assertNull(sc.getSubColumn(getBytes(2)));
     }

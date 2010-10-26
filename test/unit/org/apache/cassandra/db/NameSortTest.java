@@ -1,40 +1,35 @@
 /*
-* Licensed to the Apache Software Foundation (ASF) under one
-* or more contributor license agreements.  See the NOTICE file
-* distributed with this work for additional information
-* regarding copyright ownership.  The ASF licenses this file
-* to you under the Apache License, Version 2.0 (the
-* "License"); you may not use this file except in compliance
-* with the License.  You may obtain a copy of the License at
-*
-*    http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing,
-* software distributed under the License is distributed on an
-* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-* KIND, either express or implied.  See the License for the
-* specific language governing permissions and limitations
-* under the License.
-*/
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.apache.cassandra.db;
 
-import java.io.IOException;
-import java.util.concurrent.ExecutionException;
-import java.util.Collection;
-import java.util.Arrays;
-import java.nio.ByteBuffer;
+import static junit.framework.Assert.assertEquals;
+import static org.apache.cassandra.Util.addMutation;
 
-import org.apache.cassandra.Util;
-import org.junit.Test;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Collection;
+import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
-import static org.apache.cassandra.Util.addMutation;
-
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.utils.ByteBufferUtil;
-
-import static junit.framework.Assert.assertEquals;
+import org.junit.Test;
 
 public class NameSortTest extends CleanupHelper
 {
@@ -58,7 +53,6 @@ public class NameSortTest extends CleanupHelper
         // enough keys to force compaction concurrently w/ inserts
         testNameSort(100);
     }
-
 
     private void testNameSort(int N) throws IOException, ExecutionException, InterruptedException
     {
@@ -109,9 +103,10 @@ public class NameSortTest extends CleanupHelper
             Collection<IColumn> columns = cf.getSortedColumns();
             for (IColumn column : columns)
             {
-                int j = Integer.valueOf(new String(column.name().array()).split("-")[1]);
+                int j = Integer.valueOf(new String(column.name().array(),column.name().position(),column.name().remaining()).split("-")[1]);
                 byte[] bytes = j % 2 == 0 ? "a".getBytes() : "b".getBytes();
-                assert Arrays.equals(bytes, column.value().array());
+                assertEquals(new String(bytes), new String(column.value().array(), column.value().position(), column
+                        .value().remaining()));
             }
 
             cf = Util.getColumnFamily(table, key, "Super1");
@@ -120,14 +115,15 @@ public class NameSortTest extends CleanupHelper
             assert superColumns.size() == 8 : cf;
             for (IColumn superColumn : superColumns)
             {
-                int j = Integer.valueOf(new String(superColumn.name().array()).split("-")[1]);
+                int j = Integer.valueOf(new String(superColumn.name().array(),superColumn.name().position(),superColumn.name().remaining()).split("-")[1]);
                 Collection<IColumn> subColumns = superColumn.getSubColumns();
                 assert subColumns.size() == 4;
                 for (IColumn subColumn : subColumns)
                 {
-                    long k = subColumn.name().getLong(subColumn.name().position()+subColumn.name().arrayOffset());                   
+                    long k = subColumn.name().getLong(subColumn.name().position() + subColumn.name().arrayOffset());
                     byte[] bytes = (j + k) % 2 == 0 ? "a".getBytes() : "b".getBytes();
-                    assert Arrays.equals(bytes, subColumn.value().array());
+                    assertEquals(new String(bytes), new String(subColumn.value().array(), subColumn.value().position(),
+                            subColumn.value().remaining()));
                 }
             }
         }

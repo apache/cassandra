@@ -16,9 +16,11 @@
  * limitations under the License.
  */
 
+import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
@@ -43,29 +45,29 @@ public class WordCountSetup
 
         client.set_keyspace(WordCount.KEYSPACE);
 
-        Map<byte[], Map<String,List<Mutation>>> mutationMap;
+        Map<ByteBuffer, Map<String,List<Mutation>>> mutationMap;
         Column c;
 
         // text0: no rows
 
         // text1: 1 row, 1 word
-        c = new Column("text1".getBytes(), "word1".getBytes(), System.currentTimeMillis());
-        mutationMap = getMutationMap("key0".getBytes(), WordCount.COLUMN_FAMILY, c);
+        c = new Column(ByteBufferUtil.bytes("text1"), ByteBufferUtil.bytes("word1"), System.currentTimeMillis());
+        mutationMap = getMutationMap(ByteBufferUtil.bytes("key0"), WordCount.COLUMN_FAMILY, c);
         client.batch_mutate(mutationMap, ConsistencyLevel.ONE);
         logger.info("added text1");
 
         // text1: 1 row, 2 word
-        c = new Column("text2".getBytes(), "word1 word2".getBytes(), System.currentTimeMillis());
-        mutationMap = getMutationMap("key0".getBytes(), WordCount.COLUMN_FAMILY, c);
+        c = new Column(ByteBufferUtil.bytes("text2"), ByteBufferUtil.bytes("word1 word2"), System.currentTimeMillis());
+        mutationMap = getMutationMap(ByteBufferUtil.bytes("key0"), WordCount.COLUMN_FAMILY, c);
         client.batch_mutate(mutationMap, ConsistencyLevel.ONE);
         logger.info("added text2");
 
         // text3: 1000 rows, 1 word
-        mutationMap = new HashMap<byte[],Map<String,List<Mutation>>>();
+        mutationMap = new HashMap<ByteBuffer,Map<String,List<Mutation>>>();
         for (int i=0; i<1000; i++)
         {
-            c = new Column("text3".getBytes(), "word1".getBytes(), System.currentTimeMillis());
-            addToMutationMap(mutationMap, ("key" + i).getBytes(), WordCount.COLUMN_FAMILY, c);
+            c = new Column(ByteBufferUtil.bytes("text3"), ByteBufferUtil.bytes("word1"), System.currentTimeMillis());
+            addToMutationMap(mutationMap, ByteBufferUtil.bytes("key" + i), WordCount.COLUMN_FAMILY, c);
         }
         client.batch_mutate(mutationMap, ConsistencyLevel.ONE);
         logger.info("added text3");
@@ -73,14 +75,14 @@ public class WordCountSetup
         System.exit(0);
     }
 
-    private static Map<byte[],Map<String,List<Mutation>>> getMutationMap(byte[] key, String cf, Column c)
+    private static Map<ByteBuffer,Map<String,List<Mutation>>> getMutationMap(ByteBuffer key, String cf, Column c)
     {
-        Map<byte[],Map<String,List<Mutation>>> mutationMap = new HashMap<byte[],Map<String,List<Mutation>>>();
+        Map<ByteBuffer,Map<String,List<Mutation>>> mutationMap = new HashMap<ByteBuffer,Map<String,List<Mutation>>>();
         addToMutationMap(mutationMap, key, cf, c);
         return mutationMap;
     }
 
-    private static void addToMutationMap(Map<byte[],Map<String,List<Mutation>>> mutationMap, byte[] key, String cf, Column c)
+    private static void addToMutationMap(Map<ByteBuffer,Map<String,List<Mutation>>> mutationMap, ByteBuffer key, String cf, Column c)
     {
         Map<String,List<Mutation>> cfMutation = new HashMap<String,List<Mutation>>();
         List<Mutation> mList = new ArrayList<Mutation>();
