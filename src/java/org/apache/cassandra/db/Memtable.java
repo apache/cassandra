@@ -99,7 +99,20 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 
     boolean isThresholdViolated()
     {
-        return currentThroughput.get() >= this.THRESHOLD || currentOperations.get() >= this.THRESHOLD_COUNT;
+        if (currentThroughput.get() >= THRESHOLD)
+        {
+            logger.info("Memtable for CF {} has reached memtable_throughput_in_mb {}, enqueueing flush",
+                        cfs.getColumnFamilyName(), THRESHOLD);
+            return true;
+        }
+        if (currentOperations.get() >= THRESHOLD_COUNT)
+        {
+            logger.info("Memtable for CF {} has reached memtable_operations_in_millions {}, enqueueing flush",
+                        cfs.getColumnFamilyName(), THRESHOLD_COUNT);
+            return true;
+        }
+        // default case, threshold is not violated.
+        return false;
     }
 
     boolean isFrozen()
