@@ -670,6 +670,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             if (!isClientMode)
                 SystemTable.updateToken(endpoint, token);
         }
+        else if (endpoint.equals(currentNode))
+        {
+            // nothing to do
+        }
         else if (Gossiper.instance.compareEndpointStartup(endpoint, currentNode) > 0)
         {
             logger_.info(String.format("Nodes %s and %s have the same token %s.  %s is the new owner",
