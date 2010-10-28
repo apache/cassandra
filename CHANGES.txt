@@ -1,4 +1,4 @@
-0.7.0-rc1
+0.7.0-beta3
  * add strategy options to describe_keyspace output (CASSANDRA-1560)
  * log warning when using randomly generated token (CASSANDRA-1552)
  * re-organize JMX into .db, .net, .internal, .request (CASSANDRA-1217)
@@ -61,6 +61,7 @@
  * renamed CL.DCQUORUM to LOCAL_QUORUM and DCQUORUMSYNC to EACH_QUORUM
  * cli truncate support (CASSANDRA-1653)
  * update GC settings in cassandra.bat (CASSANDRA-1636)
+ * avoid logging when a node's ip/token is gossipped back to it (CASSANDRA-1666)
 
 
 0.7-beta2

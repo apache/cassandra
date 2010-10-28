@@ -175,9 +175,9 @@ public class HintedHandOffManager
     private static String[] getTableAndCFNames(ByteBuffer joined)
     {
         int index;
-        index = ArrayUtils.lastIndexOf(joined.array(), SEPARATOR.getBytes()[0],joined.position()+joined.arrayOffset());
-        if (index < 1)
-            throw new RuntimeException("Corrupted hint name " + joined.toString());
+        index = ArrayUtils.lastIndexOf(joined.array(), SEPARATOR.getBytes()[0],joined.limit()+joined.arrayOffset());
+        if (index == -1 || index < (joined.position() + joined.arrayOffset() + 1))
+            throw new RuntimeException("Corrupted hint name " + new String(joined.array(), joined.arrayOffset() + joined.position(), joined.remaining()));
         String[] parts = new String[2];
         parts[0] = new String(ArrayUtils.subarray(joined.array(), joined.position()+joined.arrayOffset(), index));
         parts[1] = new String(ArrayUtils.subarray(joined.array(), index+1, joined.limit()+joined.arrayOffset()));

@@ -682,7 +682,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public void forceFlushIfExpired()
     {
         if (memtable.isExpired())
+        {
+            logger.info("Memtable for {} has reached memtable_flush_after_mins {}, enqueueing flush",
+                        memtable.cfs.getColumnFamilyName(), memtable.cfs.getMemtableFlushAfterMins());
             forceFlush();
+        }
     }
 
     public Future<?> forceFlush()
