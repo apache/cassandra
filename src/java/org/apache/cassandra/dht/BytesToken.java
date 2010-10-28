@@ -37,18 +37,13 @@ public class BytesToken extends Token<byte[]>
     
     private static byte[] convertByteBuffer(ByteBuffer token)
     {
-        token = token.duplicate();
         if (token.position() == 0 && token.arrayOffset() == 0 && token.limit() == token.capacity())
-        {
             return token.array();
-        }
-        else
-        {
-            byte[] buf = new byte[token.remaining()];
-            token.get(buf);
 
-            return buf;
-        }
+        token = token.duplicate();
+        byte[] buf = new byte[token.remaining()];
+        token.get(buf);
+        return buf;
     }
     
     @Override
