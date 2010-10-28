@@ -489,9 +489,8 @@ public class FBUtilities
 
     public static String decodeToUTF8(ByteBuffer bytes) throws CharacterCodingException
     {
-        bytes.mark();
+        bytes = bytes.duplicate();
         String decoded  =  Charsets.UTF_8.newDecoder().decode(bytes).toString();
-        bytes.reset();
         return decoded;
     }
 
