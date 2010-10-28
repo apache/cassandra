@@ -1,3 +1,8 @@
+dev
+ * log threshold causing memtable flush (CASSANDRA-1675)
+ * log type of dropped messages (CASSANDRA-1677)
+
+
 0.7.0-beta3
  * add strategy options to describe_keyspace output (CASSANDRA-1560)
  * log warning when using randomly generated token (CASSANDRA-1552)
