@@ -28,10 +28,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.ServerSocketChannel;
 import java.security.MessageDigest;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -81,7 +78,12 @@ public class MessagingService
 
     private SocketThread socketThread;
     private SimpleCondition listenGate;
-    private static AtomicInteger droppedMessages = new AtomicInteger();
+    private static final Map<StorageService.Verb, AtomicInteger> droppedMessages = new EnumMap<StorageService.Verb, AtomicInteger>(StorageService.Verb.class);
+    static
+    {
+        for (StorageService.Verb verb : StorageService.Verb.values())
+            droppedMessages.put(verb, new AtomicInteger());
+    }
 
     public Object clone() throws CloneNotSupportedException
     {
@@ -490,16 +492,23 @@ public class MessagingService
         return buffer;
     }
 
-    public static int incrementDroppedMessages()
+    public static int incrementDroppedMessages(StorageService.Verb verb)
     {
-        return droppedMessages.incrementAndGet();
+        return droppedMessages.get(verb).incrementAndGet();
     }
                
     private static void logDroppedMessages()
     {
-        if (droppedMessages.get() > 0)
-            logger_.warn("Dropped " + droppedMessages + " messages in the last " + LOG_DROPPED_INTERVAL_IN_MS + "ms");
-        droppedMessages.set(0);
+        for (Map.Entry<StorageService.Verb, AtomicInteger> entry : droppedMessages.entrySet())
+        {
+            AtomicInteger dropped = entry.getValue();
+            if (dropped.get() > 0)
+            {
+                logger_.warn(String.format("Dropped %s %s messages in the last %sms",
+                                           dropped, entry.getKey(), LOG_DROPPED_INTERVAL_IN_MS));
+            }
+            dropped.set(0);
+        }
     }
 
     private class SocketThread extends Thread
