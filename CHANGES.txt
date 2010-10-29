@@ -5,6 +5,7 @@ dev
  * fix ByteBuffer bug in ExpiringColumn.updateDigest (CASSANDRA-1679)
  * fix IntegerType.getString (CASSANDRA-1681)
  * log tpstats when dropping messages (CASSANDRA-1660)
+ * make -Djava.net.preferIPv4Stack=true the default (CASSANDRA-628)
 
 
 0.7.0-beta3
