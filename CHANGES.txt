@@ -4,6 +4,7 @@ dev
  * fix hinted handoff replay (CASSANDRA-1656)
  * log type of dropped messages (CASSANDRA-1677)
  * initMetadata wasn't loading saved partitioner from disk (CASSANDRA-1638)
+ * log tpstats when dropping messages (CASSANDRA-1660)
 
 
 0.6.6

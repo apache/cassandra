@@ -132,23 +132,25 @@ public class GCInspector
                 logger.debug(st);
             if (gcw.getDuration() > MIN_DURATION_TPSTATS)
             {
-                try
-                {
-                    logStats();
-                }
-                catch (MalformedObjectNameException e)
-                {
-                    throw new RuntimeException(e);
-                }
+                logStats();
             }
         }
     }
 
-    private void logStats() throws MalformedObjectNameException
+    public void logStats()
     {
         // everything from o.a.c.concurrent
         logger.info(String.format("%-25s%10s%10s", "Pool Name", "Active", "Pending"));
-        for (ObjectName objectName : server.queryNames(new ObjectName("org.apache.cassandra.concurrent:type=*"), null))
+        ObjectName concurrent = null;
+        try
+        {
+            concurrent = new ObjectName("org.apache.cassandra.concurrent:type=*");
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException(e);
+        }
+        for (ObjectName objectName : server.queryNames(concurrent, null))
         {
             String poolName = objectName.getKeyProperty("type");
             IExecutorMBean threadPoolProxy = JMX.newMBeanProxy(server, objectName, IExecutorMBean.class);
