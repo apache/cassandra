@@ -22,30 +22,20 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.thrift.TBaseHelper;
 
 public class BytesToken extends Token<byte[]>
 {
-	public BytesToken(ByteBuffer token)
-	{
-		this(convertByteBuffer(token));
-	}
-	
+    public BytesToken(ByteBuffer token)
+    {
+        this(TBaseHelper.byteBufferToByteArray(token));
+    }
+
     public BytesToken(byte[] token)
     {
         super(token);
     }
-    
-    private static byte[] convertByteBuffer(ByteBuffer token)
-    {
-        if (token.position() == 0 && token.arrayOffset() == 0 && token.limit() == token.capacity())
-            return token.array();
 
-        token = token.duplicate();
-        byte[] buf = new byte[token.remaining()];
-        token.get(buf);
-        return buf;
-    }
-    
     @Override
     public String toString()
     {
@@ -77,5 +67,4 @@ public class BytesToken extends Token<byte[]>
            
         return Arrays.equals(token, other.token);
     }
-
 }
