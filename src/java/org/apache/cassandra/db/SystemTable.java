@@ -188,6 +188,7 @@ public class SystemTable
         columns.add(TOKEN);
         columns.add(GENERATION);
         columns.add(CLUSTERNAME);
+        columns.add(PARTITIONER);
         QueryFilter filter = new NamesQueryFilter(LOCATION_KEY, new QueryPath(STATUS_CF), columns);
         ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
         String partitioner = DatabaseDescriptor.getPartitioner().getClass().getName();
