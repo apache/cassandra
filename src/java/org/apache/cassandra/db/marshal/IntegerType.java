@@ -21,6 +21,8 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
+import org.apache.thrift.TBaseHelper;
+
 public final class IntegerType extends AbstractType
 {
     public static final IntegerType instance = new IntegerType();
@@ -118,6 +120,6 @@ public final class IntegerType extends AbstractType
         if (bytes.remaining() == 0)
             return "empty";
 
-        return new java.math.BigInteger(bytes.array()).toString(10);
+        return new java.math.BigInteger(TBaseHelper.byteBufferToByteArray(bytes)).toString(10);
     }
 }
