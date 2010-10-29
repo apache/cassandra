@@ -3,6 +3,7 @@ dev
  * log type of dropped messages (CASSANDRA-1677)
  * upgrade to SLF4J 1.6.1
  * fix ByteBuffer bug in ExpiringColumn.updateDigest (CASSANDRA-1679)
+ * fix IntegerType.getString (CASSANDRA-1681)
 
 
 0.7.0-beta3
