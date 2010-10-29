@@ -3,6 +3,7 @@ dev
  * update GC settings in cassandra.bat (CASSANDRA-1636)
  * fix hinted handoff replay (CASSANDRA-1656)
  * log type of dropped messages (CASSANDRA-1677)
+ * initMetadata wasn't loading saved partitioner from disk (CASSANDRA-1638)
 
 
 0.6.6
