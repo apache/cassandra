@@ -47,6 +47,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.io.SerializerType;
 import org.apache.cassandra.net.sink.SinkManager;
+import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.FileStreamTask;
 import org.apache.cassandra.streaming.StreamHeader;
@@ -77,7 +78,7 @@ public class MessagingService implements MessagingServiceMBean
     private static NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool> connectionManagers_ = new NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool>();
     
     private static Logger logger_ = LoggerFactory.getLogger(MessagingService.class);
-    private static int LOG_DROPPED_INTERVAL_IN_MS = 1000;
+    private static int LOG_DROPPED_INTERVAL_IN_MS = 5000;
 
     public static final MessagingService instance = new MessagingService();
 
@@ -516,16 +517,21 @@ public class MessagingService implements MessagingServiceMBean
                
     private static void logDroppedMessages()
     {
+        boolean logTpstats = false;
         for (Map.Entry<StorageService.Verb, AtomicInteger> entry : droppedMessages.entrySet())
         {
             AtomicInteger dropped = entry.getValue();
             if (dropped.get() > 0)
             {
+                logTpstats = true;
                 logger_.warn("Dropped {} {} messages in the last {}ms",
                              new Object[] {dropped, entry.getKey(), LOG_DROPPED_INTERVAL_IN_MS});
             }
             dropped.set(0);
         }
+
+        if (logTpstats)
+            GCInspector.instance.logStats();
     }
 
     private class SocketThread extends Thread
