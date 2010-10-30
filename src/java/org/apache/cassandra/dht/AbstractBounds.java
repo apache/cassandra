@@ -32,6 +32,7 @@ import org.apache.cassandra.utils.Pair;
 
 public abstract class AbstractBounds implements Serializable
 {
+    private static final long serialVersionUID = 1L;
     private static AbstractBoundsSerializer serializer = new AbstractBoundsSerializer();
 
     public static ICompactSerializer2<AbstractBounds> serializer()
