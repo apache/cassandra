@@ -6,6 +6,8 @@ dev
  * fix IntegerType.getString (CASSANDRA-1681)
  * log tpstats when dropping messages (CASSANDRA-1660)
  * make -Djava.net.preferIPv4Stack=true the default (CASSANDRA-628)
+ * add INTERNAL_RESPONSE verb to differentiate from responses related
+   to client requests (CASSANDRA-1685)
 
 
 0.7.0-beta3

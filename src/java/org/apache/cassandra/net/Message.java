@@ -26,6 +26,7 @@ import java.net.InetAddress;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class Message
 {
@@ -101,10 +102,16 @@ public class Message
     // TODO should take byte[] + length so we don't have to copy to a byte[] of exactly the right len
     public Message getReply(InetAddress from, byte[] args)
     {
-        Header header = new Header(getMessageId(), from, StorageService.Verb.READ_RESPONSE);
+        Header header = new Header(getMessageId(), from, StorageService.Verb.REQUEST_RESPONSE);
         return new Message(header, args);
     }
-    
+
+    public Message getInternalReply(byte[] body)
+    {
+        Header header = new Header(getMessageId(), FBUtilities.getLocalAddress(), StorageService.Verb.INTERNAL_RESPONSE);
+        return new Message(header, body);
+    }
+
     public String toString()
     {
         StringBuilder sbuf = new StringBuilder("");

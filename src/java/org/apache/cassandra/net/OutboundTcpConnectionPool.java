@@ -42,7 +42,9 @@ class OutboundTcpConnectionPool
     OutboundTcpConnection getConnection(Message msg)
     {
         Stage stage = msg.getMessageType();
-        return stage == Stage.RESPONSE || stage == Stage.GOSSIP ? ackCon : cmdCon;
+        return stage == Stage.REQUEST_RESPONSE || stage == Stage.INTERNAL_RESPONSE || stage == Stage.GOSSIP
+               ? ackCon
+               : cmdCon;
     }
 
     synchronized void reset()
