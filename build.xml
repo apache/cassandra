@@ -143,6 +143,26 @@
     </target>
 
     <!--
+       This generates the CQL grammar files from Cql.g
+    -->
+    <target name="check-gen-cql-grammar">
+      <uptodate property="cqlcurrent" 
+                srcfile="${build.src.java}/org/apache/cassandra/cql/Cql.g" 
+                targetfile="${build.src.gen-java}/org/apache/cassandra/cql/Cql.tokens"/>
+    </target>
+ 
+    <target name="gen-cql-grammar" depends="check-gen-cql-grammar" unless="cqlcurrent">
+      <echo>Building Grammar ${build.src.java}/org/apache/cassandra/cql/Cql.g  ...</echo>
+      <java classname="org.antlr.Tool"
+            classpath="${build.lib}/antlr-3.1.3.jar"
+            fork="true">
+         <arg value="${build.src.java}/org/apache/cassandra/cql/Cql.g" />
+         <arg value="-fo" />
+         <arg value="${build.src.gen-java}/org/apache/cassandra/cql/" />
+      </java> 
+    </target>
+
+    <!--
        Fetch Ivy and Cassandra's dependencies
 
        These targets are intentionally free of dependencies so that they
@@ -269,7 +289,8 @@
     <target name="build-subprojects" description="Compile Cassandra contrib projects"/>
     <target name="codecoverage" depends="cobertura-instrument,test,cobertura-report" description="Create code coverage report"/>
 
-    <target depends="init,avro-generate,gen-cli-grammar" name="build-project">
+    <target depends="init,avro-generate,gen-cli-grammar,gen-cql-grammar"
+            name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <javac debug="true" debuglevel="${debuglevel}" destdir="${build.classes}">
             <src path="${build.src.java}"/>
