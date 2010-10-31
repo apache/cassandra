@@ -21,6 +21,8 @@ package org.apache.cassandra.cql;
  */
 
 
+import java.nio.ByteBuffer;
+
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -69,14 +71,14 @@ public class Term
      * 
      * @return
      */
-    public byte[] getBytes()
+    public ByteBuffer getByteBuffer()
     {
         switch (type)
         {
             case STRING:
-                return text.getBytes();
+                return ByteBuffer.wrap(text.getBytes());
             case LONG:
-                return FBUtilities.toByteArray(Long.parseLong(text));
+                return FBUtilities.toByteBuffer(Long.parseLong(text));
         }
         
         // FIXME: handle scenario that should never happen

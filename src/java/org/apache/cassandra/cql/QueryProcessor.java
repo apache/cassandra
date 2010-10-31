@@ -134,15 +134,15 @@ public class QueryProcessor
                     
                     for (Term keyName : select.getKeyPredicates().getTerms())
                     {
-                        byte[] key = keyName.getBytes();  // FIXME: surely not good enough
+                        ByteBuffer key = keyName.getByteBuffer();  // FIXME: surely not good enough
                         validateKey(key);
                         
                         // ...of a list of column names
                         if (!select.getColumnPredicates().isRange())
                         {
-                            Collection<byte[]> columnNames = new ArrayList<byte[]>();
+                            Collection<ByteBuffer> columnNames = new ArrayList<ByteBuffer>();
                             for (Term column : select.getColumnPredicates().getTerms())
-                                columnNames.add(column.getBytes());
+                                columnNames.add(column.getByteBuffer());
                             
                             commands.add(new SliceByNamesReadCommand(keyspace, key, queryPath, columnNames));
                         }
@@ -152,8 +152,8 @@ public class QueryProcessor
                             commands.add(new SliceFromReadCommand(keyspace,
                                                                   key,
                                                                   queryPath,
-                                                                  select.getColumnPredicates().getStart().getBytes(),
-                                                                  select.getColumnPredicates().getFinish().getBytes(),
+                                                                  select.getColumnPredicates().getStart().getByteBuffer(),
+                                                                  select.getColumnPredicates().getFinish().getByteBuffer(),
                                                                   select.reversed(),
                                                                   select.getNumColumns()));
                         }
@@ -169,15 +169,15 @@ public class QueryProcessor
                             for (IColumn column : cf.getSortedColumns())
                             {
                                 Column avroColumn = new Column();
-                                avroColumn.name = ByteBuffer.wrap(column.name());
-                                avroColumn.value = ByteBuffer.wrap(column.value());
+                                avroColumn.name = column.name();
+                                avroColumn.value = column.value();
                                 avroColumns.add(avroColumn);
                             }
                         }
                         
                         // Create a new row, add the columns to it, and then add it to the list of rows
                         CqlRow avroRow = new CqlRow();
-                        avroRow.key = ByteBuffer.wrap(key);
+                        avroRow.key = key;
                         avroRow.columns = avroColumns;
                         avroRows.add(avroRow);
                     }
@@ -188,25 +188,25 @@ public class QueryProcessor
                     
                     List<org.apache.cassandra.db.Row> rows = null;
                     IPartitioner<?> p = StorageService.getPartitioner();
-                    AbstractBounds bounds = new Bounds(p.getToken(select.getKeyPredicates().getStart().getBytes()),
-                                                       p.getToken(select.getKeyPredicates().getFinish().getBytes()));
+                    AbstractBounds bounds = new Bounds(p.getToken(select.getKeyPredicates().getStart().getByteBuffer()),
+                                                       p.getToken(select.getKeyPredicates().getFinish().getByteBuffer()));
                     
                     // XXX: Our use of Thrift structs internally makes me Sad. :(
                     SlicePredicate thriftSlicePredicate = new SlicePredicate();
                     if (select.getColumnPredicates().isRange() || select.getColumnPredicates().getTerms().size() == 0)
                     {
                         SliceRange sliceRange = new SliceRange();
-                        sliceRange.start = select.getColumnPredicates().getStart().getBytes();
-                        sliceRange.finish = select.getColumnPredicates().getFinish().getBytes();
+                        sliceRange.start = select.getColumnPredicates().getStart().getByteBuffer();
+                        sliceRange.finish = select.getColumnPredicates().getFinish().getByteBuffer();
                         sliceRange.reversed = false;    // FIXME: hard-coded
                         sliceRange.count = select.getNumColumns();
                         thriftSlicePredicate.slice_range = sliceRange;
                     }
                     else
                     {
-                        List<byte[]> columnNames = new ArrayList<byte[]>();
+                        List<ByteBuffer> columnNames = new ArrayList<ByteBuffer>();
                         for (Term column : select.getColumnPredicates().getTerms())
-                            columnNames.add(column.getBytes());
+                            columnNames.add(column.getByteBuffer());
                         thriftSlicePredicate.column_names = columnNames;
                     }
 
@@ -236,14 +236,14 @@ public class QueryProcessor
                     for (org.apache.cassandra.db.Row row : rows)
                     {
                         CqlRow avroRow = new CqlRow();
-                        avroRow.key = ByteBuffer.wrap(row.key.key);
+                        avroRow.key = row.key.key;
                         avroRow.columns = new ArrayList<Column>();
                         
                         for (IColumn column : row.cf.getSortedColumns())
                         {
                             Column avroColumn = new Column();
-                            avroColumn.name = ByteBuffer.wrap(column.name());
-                            avroColumn.value = ByteBuffer.wrap(column.value());
+                            avroColumn.name = column.name();
+                            avroColumn.value = column.value();
                             avroRow.columns.add(avroColumn);
                         }
                         avroRows.add(avroRow);
@@ -261,12 +261,12 @@ public class QueryProcessor
                 
                 for (Row row : update.getRows())
                 {
-                    RowMutation rm = new RowMutation(keyspace, row.getKey().getBytes());
+                    RowMutation rm = new RowMutation(keyspace, row.getKey().getByteBuffer());
                     
                     for (org.apache.cassandra.cql.Column col : row.getColumns())
                     {
-                        rm.add(new QueryPath(update.getColumnFamily(), null, col.getName().getBytes()),
-                               col.getValue().getBytes(),
+                        rm.add(new QueryPath(update.getColumnFamily(), null, col.getName().getByteBuffer()),
+                               col.getValue().getByteBuffer(),
                                System.currentTimeMillis());
                         rowMutations.add(rm);
                     }
