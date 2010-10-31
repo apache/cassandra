@@ -944,33 +944,6 @@ public class CliClient extends CliUserHelp
         ColumnParent columnParent = new ColumnParent(columnFamily);
         List<KeySlice> keySlices = thriftClient.get_range_slices(columnParent, predicate, range, ConsistencyLevel.ONE);
         printSliceList(columnFamilyDef, keySlices);
-<<<<<<< HEAD
-    }
-
-    // TRUNCATE <columnFamily>
-    private void executeTruncate(String columnFamily)
-    {
-        if (!CliMain.isConnected() || !hasKeySpace())
-            return;
-
-        // getting CfDef, it will fail if there is no such column family in current keySpace. 
-        CfDef cfDef = getCfDef(columnFamily);
-
-        try
-        {
-            thriftClient.truncate(cfDef.getName());
-            sessionState.out.println(columnFamily + " truncated.");
-        }
-        catch (InvalidRequestException e)
-        {
-            throw new RuntimeException(e.getWhy());
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e.getMessage());
-        }
-=======
->>>>>>> merge from 0.7
     }
 
     // TRUNCATE <columnFamily>
