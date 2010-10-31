@@ -21,7 +21,7 @@ query returns [CQLStatement stmnt]
 
 // USE <KEYSPACE>;
 useStatement returns [String keyspace]
-    : K_USE IDENT { $keyspace = $IDENT.text; } ';'
+    : K_USE IDENT { $keyspace = $IDENT.text; } endStmnt
     ;
 
 /**
@@ -53,7 +53,7 @@ selectStatement returns [SelectStatement expr]
                       numColumns = count;
               }
           )*
-          order=(K_ASC | K_DESC { reversed = true; })? ';'
+          order=(K_ASC | K_DESC { reversed = true; })? endStmnt
       {
           return new SelectStatement($IDENT.text,
                                      cLevel,
@@ -79,7 +79,7 @@ updateStatement returns [UpdateStatement expr]
       K_UPDATE IDENT
           (K_USING K_CONSISTENCY '.' K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); })?
           K_WITH first=rowDef { $expr = new UpdateStatement($IDENT.text, first, cLevel); }
-          (K_AND next=rowDef { $expr.and(next); })* ';'
+          (K_AND next=rowDef { $expr.and(next); })* endStmnt
     ;
 
 // TODO: date/time, utf8
@@ -107,6 +107,10 @@ columnDef returns [Column column]
 rowDef returns [Row row]
     : K_ROW '(' key=term ',' first=columnDef { $row = new Row($key.item, first); }
           (',' next=columnDef { $row.and(next); })* ')'
+    ;
+    
+endStmnt
+    : (EOF | ';')
     ;
 
 // Case-insensitive keywords
