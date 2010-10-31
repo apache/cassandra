@@ -67,7 +67,7 @@ public class Term
     }
     
     /**
-     * Get the typed value, serialized to a byte[].
+     * Get the typed value, serialized to a ByteBuffer.
      * 
      * @return
      */

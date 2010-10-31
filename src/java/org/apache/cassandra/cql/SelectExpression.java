@@ -132,4 +132,9 @@ class Predicates
     {
         return isRange;
     }
+
+    boolean isInitialized()
+    {
+        return initialized;
+    }
 }
