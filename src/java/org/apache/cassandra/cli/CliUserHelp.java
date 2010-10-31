@@ -119,7 +119,7 @@ public class CliUserHelp {
                 state.out.println("Displays the API version number.");
                 break;
 
-            case CliParser.NODE_SHOW_TABLES:
+            case CliParser.NODE_SHOW_KEYSPACES:
                 state.out.println("show keyspaces\n");
                 state.out.println("Displays a list of the keyspaces available on the currently connected cluster.");
                 break;
