@@ -23,7 +23,6 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -33,8 +32,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang.StringUtils;
 
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ReadCommand;
@@ -166,7 +163,7 @@ class ConsistencyChecker implements Runnable
             ReadResponse.serializer().serialize(readResponse, out);
             byte[] bytes = new byte[out.getLength()];
             System.arraycopy(out.getData(), 0, bytes, 0, bytes.length);
-            responses_.add(new Message(FBUtilities.getLocalAddress(), StorageService.Verb.READ_RESPONSE, bytes));
+            responses_.add(new Message(FBUtilities.getLocalAddress(), StorageService.Verb.INTERNAL_RESPONSE, bytes));
         }
 
         // synchronized so the " == majority" is safe

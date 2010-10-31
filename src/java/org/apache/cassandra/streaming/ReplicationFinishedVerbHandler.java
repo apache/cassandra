@@ -20,6 +20,7 @@ package org.apache.cassandra.streaming;
  * 
  */
 
+import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,7 +37,7 @@ public class ReplicationFinishedVerbHandler implements IVerbHandler
     public void doVerb(Message msg)
     {
         StorageService.instance.confirmReplication(msg.getFrom());
-        Message response = msg.getReply(FBUtilities.getLocalAddress(), new byte[]{});
+        Message response = msg.getInternalReply(ArrayUtils.EMPTY_BYTE_ARRAY);
         if (logger.isDebugEnabled())
             logger.debug("Replying to " + msg.getMessageId() + "@" + msg.getFrom());
         MessagingService.instance.sendOneWay(response, msg.getFrom());

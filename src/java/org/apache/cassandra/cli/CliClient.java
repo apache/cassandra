@@ -156,7 +156,7 @@ public class CliClient extends CliUserHelp
                 case CliParser.NODE_SHOW_VERSION:
                     executeShowVersion();
                     break;
-                case CliParser.NODE_SHOW_TABLES:
+                case CliParser.NODE_SHOW_KEYSPACES:
                     executeShowKeySpaces();
                     break;
                 case CliParser.NODE_DESCRIBE_TABLE:

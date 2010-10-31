@@ -27,10 +27,11 @@ public enum Stage
     MUTATION,
     STREAM,
     GOSSIP,
-    RESPONSE,
+    REQUEST_RESPONSE,
     ANTIENTROPY,
     MIGRATION,
-    MISC;
+    MISC,
+    INTERNAL_RESPONSE;
 
     public String getJmxType()
     {
@@ -41,10 +42,11 @@ public enum Stage
             case MIGRATION:
             case MISC:
             case STREAM:
+            case INTERNAL_RESPONSE:
                 return "internal";
             case MUTATION:
             case READ:
-            case RESPONSE:
+            case REQUEST_RESPONSE:
                 return "request";
             default:
                 throw new AssertionError("Unknown stage " + this);

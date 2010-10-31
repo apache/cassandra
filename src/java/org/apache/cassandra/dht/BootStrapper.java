@@ -254,7 +254,7 @@ public class BootStrapper
         {
             StorageService ss = StorageService.instance;
             String tokenString = StorageService.getPartitioner().getTokenFactory().toString(ss.getBootstrapToken());
-            Message response = message.getReply(FBUtilities.getLocalAddress(), tokenString.getBytes(Charsets.UTF_8));
+            Message response = message.getInternalReply(tokenString.getBytes(Charsets.UTF_8));
             MessagingService.instance.sendOneWay(response, message.getFrom());
         }
     }

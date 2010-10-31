@@ -145,7 +145,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         BINARY,
         READ_REPAIR,
         READ,
-        READ_RESPONSE,
+        REQUEST_RESPONSE, // client-initiated reads and writes
         STREAM_INITIATE, // Deprecated
         STREAM_INITIATE_DONE, // Deprecated
         STREAM_REPLY,
@@ -164,6 +164,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         SCHEMA_CHECK,
         INDEX_SCAN,
         REPLICATION_FINISHED,
+        INTERNAL_RESPONSE, // responses to internal calls
         ;
         // remember to add new verbs at the end, since we serialize by ordinal
     }
@@ -175,7 +176,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         put(Verb.BINARY, Stage.MUTATION);
         put(Verb.READ_REPAIR, Stage.MUTATION);
         put(Verb.READ, Stage.READ);
-        put(Verb.READ_RESPONSE, Stage.RESPONSE);
+        put(Verb.REQUEST_RESPONSE, Stage.REQUEST_RESPONSE);
         put(Verb.STREAM_REPLY, Stage.MISC); // TODO does this really belong on misc? I've just copied old behavior here
         put(Verb.STREAM_REQUEST, Stage.STREAM);
         put(Verb.RANGE_SLICE, Stage.READ);
@@ -191,6 +192,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         put(Verb.SCHEMA_CHECK, Stage.MIGRATION);
         put(Verb.INDEX_SCAN, Stage.READ);
         put(Verb.REPLICATION_FINISHED, Stage.MISC);
+        put(Verb.INTERNAL_RESPONSE, Stage.INTERNAL_RESPONSE);
     }};
 
 
@@ -284,7 +286,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         MessagingService.instance.registerVerbHandlers(Verb.STREAM_REQUEST, new StreamRequestVerbHandler() );
         MessagingService.instance.registerVerbHandlers(Verb.STREAM_REPLY, new StreamReplyVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.REPLICATION_FINISHED, new ReplicationFinishedVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.READ_RESPONSE, new ResponseVerbHandler());
+        MessagingService.instance.registerVerbHandlers(Verb.REQUEST_RESPONSE, new ResponseVerbHandler());
+        MessagingService.instance.registerVerbHandlers(Verb.INTERNAL_RESPONSE, new ResponseVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.TREE_REQUEST, new TreeRequestVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.TREE_RESPONSE, new AntiEntropyService.TreeResponseVerbHandler());
 

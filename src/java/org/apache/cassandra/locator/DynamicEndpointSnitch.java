@@ -29,7 +29,6 @@ import java.lang.management.ManagementFactory;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.AbstractStatsDeque;
@@ -181,7 +180,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     {
         if (!registered)
         {
-       	    ILatencyPublisher handler = (ILatencyPublisher)MessagingService.instance.getVerbHandler(StorageService.Verb.READ_RESPONSE);
+       	    ILatencyPublisher handler = (ILatencyPublisher)MessagingService.instance.getVerbHandler(StorageService.Verb.REQUEST_RESPONSE);
             if (handler != null)
             {
                 handler.register(this);
