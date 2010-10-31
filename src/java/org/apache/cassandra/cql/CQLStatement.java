@@ -1,4 +1,3 @@
-package org.apache.cassandra.cql;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -19,7 +18,7 @@ package org.apache.cassandra.cql;
  * under the License.
  * 
  */
-
+package org.apache.cassandra.cql;
 
 public class CQLStatement
 {

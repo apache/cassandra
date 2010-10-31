@@ -207,6 +207,12 @@ class AvroTester(BaseTester):
 
         keyspace1['cf_defs'].append({
             'keyspace': 'Keyspace1',
+            'name': 'StandardLong1',
+            'comparator_type': 'LongType',
+        })
+
+        keyspace1['cf_defs'].append({
+            'keyspace': 'Keyspace1',
             'name': 'Super1',
             'column_type': 'Super',
             'comparator_type': 'BytesType',

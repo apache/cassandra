@@ -1,4 +1,3 @@
-package org.apache.cassandra.cql;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -19,11 +18,15 @@ package org.apache.cassandra.cql;
  * under the License.
  * 
  */
-
+package org.apache.cassandra.cql;
 
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Represents a row parsed from a CQL statement.
+ *
+ */
 public class Row
 {
     private final Term key;
@@ -35,6 +38,11 @@ public class Row
         columns.add(firstColumn);
     }
     
+    /**
+     * Add a new column definition to this row.
+     * 
+     * @param col the CQL column to add.
+     */
     public void and(Column col)
     {
         columns.add(col);

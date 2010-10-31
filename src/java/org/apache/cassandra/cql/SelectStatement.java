@@ -1,4 +1,3 @@
-package org.apache.cassandra.cql;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -19,15 +18,13 @@ package org.apache.cassandra.cql;
  * under the License.
  * 
  */
-
+package org.apache.cassandra.cql;
 
 import org.apache.cassandra.thrift.ConsistencyLevel;
 
 /**
  * Encapsulates a completely parsed SELECT query, including the target
  * column family, expression, result count, and ordering clause.
- * 
- * @author eevans
  *
  */
 public class SelectStatement

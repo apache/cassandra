@@ -17,18 +17,18 @@ def load_sample(dbconn):
             ROW("kc", COL("cc1", "vc1"), COL("col", "val")) AND
             ROW("kd", COL("cd1", "vd1"), COL("col", "val"));
     """)
-    #dbconn.execute("""
-    #  UPDATE
-    #      StandardLong1
-    #  WITH
-    #    ROW("aa", COL(1L, "1"), COL(2L, "2"), COL(3L, "3"), COL(4L, "4")) AND
-    #    ROW("ab", COL(5L, "5"), COL(6L, "6"), COL(7L, "8"), COL(9L, "9")) AND
-    #    ROW("ac", COL(9L, "9"), COL(8L, "8"), COL(7L, "7"), COL(6L, "6")) AND
-    #    ROW("ad", COL(5L, "5"), COL(4L, "4"), COL(3L, "3"), COL(2L, "2")) AND
-    #    ROW("ae", COL(1L, "1"), COL(2L, "2"), COL(3L, "3"), COL(4L, "4")) AND
-    #    ROW("af", COL(1L, "1"), COL(2L, "2"), COL(3L, "3"), COL(4L, "4")) AND
-    #    ROW("ag", COL(5L, "5"), COL(6L, "6"), COL(7L, "8"), COL(9L, "9")));
-    #""")
+    dbconn.execute("""
+      UPDATE
+          StandardLong1
+      WITH
+        ROW("aa", COL(1L, "1"), COL(2L, "2"), COL(3L, "3"), COL(4L, "4")) AND
+        ROW("ab", COL(5L, "5"), COL(6L, "6"), COL(7L, "8"), COL(9L, "9")) AND
+        ROW("ac", COL(9L, "9"), COL(8L, "8"), COL(7L, "7"), COL(6L, "6")) AND
+        ROW("ad", COL(5L, "5"), COL(4L, "4"), COL(3L, "3"), COL(2L, "2")) AND
+        ROW("ae", COL(1L, "1"), COL(2L, "2"), COL(3L, "3"), COL(4L, "4")) AND
+        ROW("af", COL(1L, "1"), COL(2L, "2"), COL(3L, "3"), COL(4L, "4")) AND
+        ROW("ag", COL(5L, "5"), COL(6L, "6"), COL(7L, "8"), COL(9L, "9"));
+    """)
 
 def init(keyspace="Keyspace1"):
     dbconn = Connection(keyspace, 'localhost', 9170)
@@ -81,9 +81,9 @@ class TestCql(AvroTester):
             assert result['key'] in ("ka", "kd", "kb")
             assert len(result['columns']) == 2
 
-    #def test_select_row_range(self):
-    #    "retrieve a range of rows with columns"
-    #    conn = init()
-    #    r = conn.execute("""
-    #        SELECT FROM Standard1Long WHERE KEY > "ad" AND KEY < "ag";
-    #    """)
+    def test_select_row_range(self):
+        "retrieve a range of rows with columns"
+        conn = init()
+        r = conn.execute("""
+            SELECT FROM StandardLong1 WHERE KEY > "ad" AND KEY < "ag";
+        """)

@@ -1,6 +1,6 @@
 
 from avro.ipc  import HTTPTransceiver, Requestor
-import avro.protocol, zlib
+import avro.protocol, zlib, socket
 from os.path   import exists, abspath, dirname, join
 
 def _load_protocol():
@@ -29,6 +29,8 @@ DEFAULT_COMPRESSION = 'GZIP'
 class Connection(object):
     def __init__(self, keyspace, host, port=9160):
         client = HTTPTransceiver(host, port)
+        # disabled nagle
+        client.conn.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.requestor = Requestor(_load_protocol(), client)
         if keyspace:
             self.execute('USE %s' % keyspace)

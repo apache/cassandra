@@ -1,4 +1,3 @@
-package org.apache.cassandra.cql;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -19,8 +18,12 @@ package org.apache.cassandra.cql;
  * under the License.
  * 
  */
+package org.apache.cassandra.cql;
 
-
+/**
+ * Represents a column definition parsed from CQL query statement.
+ *
+ */
 public class Column
 {
     private final Term name;

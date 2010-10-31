@@ -68,7 +68,7 @@ public class AvroValidation
     }
     
     // FIXME: could use method in ThriftValidation
-    static ColumnFamilyType validateColumnFamily(String keyspace, String columnFamily) throws InvalidRequestException
+    public static ColumnFamilyType validateColumnFamily(String keyspace, String columnFamily) throws InvalidRequestException
     {
         if (columnFamily.isEmpty())
             throw newInvalidRequestException("non-empty columnfamily is required");

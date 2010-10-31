@@ -54,7 +54,7 @@ h3. Limits
 bc. 
 SELECT ... <EXPRESSION> [ROWLIMIT N | COLLIMIT N] ...
 
-Limiting the number of row and/or column results can be achieved by including one or both of the optional @ROWLIMIT@ and @COLLIMIT@ clauses after a @SELECT@ expression.
+Limiting the number of row and/or column results can be achieved by including one or both of the optional @ROWLIMIT@ and @COLLIMIT@ clauses after a @SELECT@ expression. Both @ROWLIMIT@ and @COLLIMIT@ default to 10,000 when left unset.
 
 h3. Ordering
 

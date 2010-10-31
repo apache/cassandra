@@ -1,4 +1,3 @@
-package org.apache.cassandra.cql;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -19,13 +18,11 @@ package org.apache.cassandra.cql;
  * under the License.
  * 
  */
-
+package org.apache.cassandra.cql;
 
 /**
- * Relations encapsulate the relationship between an entity and a value. For
- * example, KEY > 'start' or COLUMN = 'somecolumn'.
- * 
- * @author eevans
+ * Relations encapsulate the relationship between an entity of some kind, and
+ * a value (term). For example, KEY > 'start' or COLUMN = 1000L.
  *
  */
 public class Relation
@@ -37,9 +34,9 @@ public class Relation
     /**
      * Creates a new relation.
      * 
-     * @param entity the kind of relation this is; what the value is compared to.
-     * @param type the type of relation; how how this entity relates to the value.
-     * @param value the value being compared to the entity.
+     * @param entity the kind of relation this is; what the term is being compared to.
+     * @param type the type that describes how this entity relates to the value.
+     * @param value the value being compared.
      */
     public Relation(String entity, String type, Term value)
     {

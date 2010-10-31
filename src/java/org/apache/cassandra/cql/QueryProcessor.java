@@ -59,6 +59,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.avro.AvroValidation.validateKey;
+import static org.apache.cassandra.avro.AvroValidation.validateColumnFamily;
 
 public class QueryProcessor
 {
@@ -185,10 +186,11 @@ public class QueryProcessor
     public static CqlResult process(String queryString, ClientState clientState)
     throws RecognitionException, UnavailableException, InvalidRequestException, TimedOutException
     {
-        logger.debug("CQL QUERY: {}", queryString);
+        logger.trace("CQL QUERY: {}", queryString);
         
         CqlParser parser = getParser(queryString);
         CQLStatement statement = parser.query();
+        parser.throwLastRecognitionError();
         String keyspace = clientState.getKeyspace();
         
         CqlResult avroResult = new CqlResult();
@@ -221,6 +223,7 @@ public class QueryProcessor
                         Column avroColumn = new Column();
                         avroColumn.name = column.name();
                         avroColumn.value = column.value();
+                        avroColumn.timestamp = column.timestamp();
                         avroColumns.add(avroColumn);
                     }
                     
@@ -236,12 +239,15 @@ public class QueryProcessor
                 
             case UPDATE:
                 UpdateStatement update = (UpdateStatement)statement.statement;
+                validateColumnFamily(keyspace, update.getColumnFamily());
+                
                 avroResult.type = CqlResultType.VOID;
                 
                 List<RowMutation> rowMutations = new ArrayList<RowMutation>();
                 
                 for (Row row : update.getRows())
                 {
+                    validateKey(row.getKey().getByteBuffer());
                     RowMutation rm = new RowMutation(keyspace, row.getKey().getByteBuffer());
                     
                     for (org.apache.cassandra.cql.Column col : row.getColumns())
@@ -249,8 +255,9 @@ public class QueryProcessor
                         rm.add(new QueryPath(update.getColumnFamily(), null, col.getName().getByteBuffer()),
                                col.getValue().getByteBuffer(),
                                System.currentTimeMillis());
-                        rowMutations.add(rm);
                     }
+                    
+                    rowMutations.add(rm);
                 }
                 
                 try

@@ -1,4 +1,3 @@
-package org.apache.cassandra.cql;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -19,17 +18,13 @@ package org.apache.cassandra.cql;
  * under the License.
  * 
  */
-
+package org.apache.cassandra.cql;
 
 import java.nio.ByteBuffer;
-
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
- * Represents a term processed from a CQL query statement.  Terms are things
- * like strings, numbers, UUIDs, etc.
- * 
- * @author eevans
+ * A term parsed from a CQL statement.
  *
  */
 public class Term
@@ -57,9 +52,9 @@ public class Term
     }
 
     /**
-     * Get the text that was parsed to create this term.
+     * Returns the text parsed to create this term.
      * 
-     * @return the string term as parsed from a CQL statement.
+     * @return the string term acquired from a CQL statement.
      */
     public String getText()
     {
@@ -67,9 +62,9 @@ public class Term
     }
     
     /**
-     * Get the typed value, serialized to a ByteBuffer.
+     * Returns the typed value, serialized to a ByteBuffer.
      * 
-     * @return
+     * @return a ByteBuffer of the value.
      */
     public ByteBuffer getByteBuffer()
     {
@@ -86,7 +81,7 @@ public class Term
     }
 
     /**
-     * Get the term's type.
+     * Obtain the term's type.
      * 
      * @return the type
      */

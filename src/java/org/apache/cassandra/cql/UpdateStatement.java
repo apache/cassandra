@@ -1,4 +1,3 @@
-package org.apache.cassandra.cql;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -19,19 +18,30 @@ package org.apache.cassandra.cql;
  * under the License.
  * 
  */
-
+package org.apache.cassandra.cql;
 
 import java.util.ArrayList;
 import java.util.List;
-
 import org.apache.cassandra.thrift.ConsistencyLevel;
 
+/**
+ * An <code>UPDATE</code> statement parsed from a CQL query statement.
+ *
+ */
 public class UpdateStatement
 {
     private String columnFamily;
     private List<Row> rows = new ArrayList<Row>();
     private ConsistencyLevel cLevel;
     
+    /**
+     * Creates a new UpdateStatement from a column family name, a row definition,
+     * and a consistency level.
+     * 
+     * @param columnFamily column family name
+     * @param first a row definition instance
+     * @param cLevel the thrift consistency level
+     */
     public UpdateStatement(String columnFamily, Row first, ConsistencyLevel cLevel)
     {
         this.columnFamily = columnFamily;
@@ -39,6 +49,11 @@ public class UpdateStatement
         and(first);
     }
     
+    /**
+     * Adds a new row definition to this <code>UPDATE</code>.
+     * 
+     * @param row the row definition to add.
+     */
     public void and(Row row)
     {
         rows.add(row);
@@ -57,5 +72,11 @@ public class UpdateStatement
     public String getColumnFamily()
     {
         return columnFamily;
+    }
+    
+    public String toString()
+    {
+        return "UpdateStatement(columnFamily=" + columnFamily + ", " +
+            "row=" + rows + ", " + "consistency=" + cLevel + ")";
     }
 }

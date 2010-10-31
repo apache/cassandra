@@ -6,7 +6,35 @@ options {
 
 @header {
     package org.apache.cassandra.cql;
+    import java.util.ArrayList;
     import org.apache.cassandra.thrift.ConsistencyLevel;
+    import org.apache.cassandra.avro.InvalidRequestException;
+}
+
+@members {
+    private List<String> recognitionErrors = new ArrayList<String>();
+    
+    public void displayRecognitionError(String[] tokenNames, RecognitionException e)
+    {
+        String hdr = getErrorHeader(e);
+        String msg = getErrorMessage(e, tokenNames);
+        recognitionErrors.add(hdr + " " + msg);
+    }
+    
+    public List<String> getRecognitionErrors()
+    {
+        return recognitionErrors;
+    }
+    
+    public void throwLastRecognitionError() throws InvalidRequestException
+    {
+        if (recognitionErrors.size() > 0)
+        {
+            InvalidRequestException invalidExcep = new InvalidRequestException();
+            invalidExcep.why = recognitionErrors.get((recognitionErrors.size()-1));
+            throw invalidExcep;
+        }
+    }
 }
 
 @lexer::header {
@@ -36,8 +64,8 @@ useStatement returns [String keyspace]
  */
 selectStatement returns [SelectStatement expr]
     : { 
-          int numRecords = Integer.MAX_VALUE;
-          int numColumns = Integer.MAX_VALUE;
+          int numRecords = 10000;
+          int numColumns = 10000;
           boolean reversed = false;
           ConsistencyLevel cLevel = ConsistencyLevel.ONE;
       }
