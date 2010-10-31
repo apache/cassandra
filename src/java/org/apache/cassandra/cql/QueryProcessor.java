@@ -54,6 +54,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ConsistencyLevel;
@@ -105,13 +106,14 @@ public class QueryProcessor
         return columnFamilyKeyMap;
     }
 
-    public static CqlResult process(String queryString, String keyspace)
+    public static CqlResult process(String queryString, ClientState clientState)
     throws RecognitionException, UnavailableException, InvalidRequestException, TimedOutException
     {
         logger.debug("CQL QUERY: {}", queryString);
         
         CqlParser parser = getParser(queryString);
         CQLStatement statement = parser.query();
+        String keyspace = clientState.getKeyspace();
         
         CqlResult avroResult = new CqlResult();
         
@@ -283,6 +285,12 @@ public class QueryProcessor
                     throw new TimedOutException();
                 }
                     
+                return avroResult;
+                
+            case USE:
+                clientState.setKeyspace((String)statement.statement);
+                avroResult.type = CqlResultType.VOID;
+                
                 return avroResult;
         }
         

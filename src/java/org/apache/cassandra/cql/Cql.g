@@ -16,6 +16,12 @@ options {
 query returns [CQLStatement stmnt]
     : selectStatement { $stmnt = new CQLStatement(StatementType.SELECT, $selectStatement.expr); }
     | updateStatement { $stmnt = new CQLStatement(StatementType.UPDATE, $updateStatement.expr); }
+    | useStatement    { $stmnt = new CQLStatement(StatementType.USE, $useStatement.keyspace); }
+    ;
+
+// USE <KEYSPACE>;
+useStatement returns [String keyspace]
+    : K_USE IDENT { $keyspace = $IDENT.text; } ';'
     ;
 
 /**
@@ -127,6 +133,7 @@ K_LEVEL:       ( Z E R O
                | D C Q U O R U M S Y N C
                )
                ;
+K_USE:         U S E;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

@@ -23,5 +23,5 @@ package org.apache.cassandra.cql;
 
 public enum StatementType
 {
-    SELECT, UPDATE;
+    SELECT, UPDATE, USE;
 }

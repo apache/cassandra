@@ -4,6 +4,15 @@ h2. Table of Contents
 
 {toc}
 
+h2. USE
+
+__Synopsis:__
+
+bc. 
+USE <KEYSPACE>;
+
+A @USE@ statement consists of the @USE@ keyword, followed by a valid keyspace name.  Its purpose is to assign the per-connection, current working keyspace.  All subsequent keyspace-specific actions will be performed in the context of the supplied value.
+
 h2. SELECT
 
 __Synopsis:__

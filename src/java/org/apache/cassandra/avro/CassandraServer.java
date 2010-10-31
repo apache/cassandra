@@ -1208,7 +1208,7 @@ public class CassandraServer implements Cassandra {
         
         try
         {
-            return QueryProcessor.process(queryString, state().getKeyspace());
+            return QueryProcessor.process(queryString, state());
         }
         catch (RecognitionException e)
         {
