@@ -21,6 +21,7 @@ package org.apache.cassandra.avro;
  */
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -34,7 +35,10 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
+import java.util.zip.DataFormatException;
+import java.util.zip.Inflater;
 
+import org.antlr.runtime.RecognitionException;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericArray;
 import org.apache.avro.generic.GenericData;
@@ -59,6 +63,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.cql.QueryProcessor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
@@ -1160,5 +1165,48 @@ public class CassandraServer implements Cassandra {
             case LT: return org.apache.cassandra.thrift.IndexOperator.LT;
         }
         return null;
+    }
+
+    @Override
+    public CqlResult execute_cql_query(ByteBuffer query, Compression compression)
+    throws UnavailableException, InvalidRequestException, TimedOutException
+    {
+        String queryString = null;
+        
+        // Decompress the query string.
+        try
+        {
+            switch (compression)
+            {
+                case GZIP:
+                    Inflater decompressor = new Inflater();
+                    decompressor.setInput(query.array(), 0, query.array().length);
+                    
+                    byte[] decompressedBytes = new byte[100];
+                    int length = decompressor.inflate(decompressedBytes);
+                    decompressor.end();
+                    
+                    queryString = new String(decompressedBytes, 0, length, "UTF-8");
+            }
+        }
+        catch (DataFormatException e)
+        {
+            throw newInvalidRequestException("Error deflating query string.");
+        }
+        catch (UnsupportedEncodingException e)
+        {
+            throw newInvalidRequestException("Unknown query string encoding.");
+        }
+        
+        try
+        {
+            return QueryProcessor.process(queryString, state().getKeyspace());
+        }
+        catch (RecognitionException e)
+        {
+            InvalidRequestException badQuery = newInvalidRequestException("Invalid or malformed CQL query string");
+            badQuery.initCause(e);
+            throw badQuery;
+        }
     }
 }

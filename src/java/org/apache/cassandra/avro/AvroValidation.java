@@ -48,7 +48,7 @@ import static org.apache.cassandra.avro.AvroRecordFactory.newColumnPath;
  */
 public class AvroValidation
 {    
-    static void validateKey(ByteBuffer key) throws InvalidRequestException
+    public static void validateKey(ByteBuffer key) throws InvalidRequestException
     {
         if (key == null || key.remaining() == 0)
             throw newInvalidRequestException("Key may not be empty");
