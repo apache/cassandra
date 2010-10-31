@@ -973,6 +973,30 @@ public class CliClient extends CliUserHelp
 >>>>>>> merge from 0.7
     }
 
+    // TRUNCATE <columnFamily>
+    private void executeTruncate(String columnFamily)
+    {
+        if (!CliMain.isConnected() || !hasKeySpace())
+            return;
+
+        // getting CfDef, it will fail if there is no such column family in current keySpace. 
+        CfDef cfDef = getCfDef(columnFamily);
+
+        try
+        {
+            thriftClient.truncate(cfDef.getName());
+            sessionState.out.println(columnFamily + " truncated.");
+        }
+        catch (InvalidRequestException e)
+        {
+            throw new RuntimeException(e.getWhy());
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e.getMessage());
+        }
+    }
+
     // SHOW API VERSION
     private void executeShowVersion() throws TException
     {
