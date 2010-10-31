@@ -1,0 +1,120 @@
+h1. Cassandra Query Language (CQL) v0.99.0
+
+h2. Table of Contents
+
+{toc}
+
+h2. SELECT
+
+__Synopsis:__
+
+bc. 
+SELECT [FROM] <COLUMN FAMILY> [USING <CONSISTENCY>]
+        WHERE <EXRESSION> [ROWLIMIT N] [COLLIMIT N] [ASC | DESC];
+
+A @SELECT@ is used to read one or more records from a Cassandra column family. It returns a result-set of rows, where each row consists of a key and a collection of columns corresponding to the query.
+
+h3. Column Family
+
+bc. 
+SELECT [FROM] <COLUMN FAMILY> ...
+
+Statements begin with the @SELECT@ keyword followed by a Cassandra column family name. The keyword @FROM@ can be used as a delimiter to improve readability, but is not required.
+
+h3. Consistency Level
+
+bc. 
+SELECT ... [USING <CONSISTENCY>] ...
+
+Following the column family identifier is an optional "consistency level specification":#consistency.
+
+h3. Expressions
+
+bc. 
+SELECT ... <EXPRESSION>
+SELECT ... [[KEY | COL] [> | >= | = | < | <=] TERM] [[AND ...] ...]
+
+The expression portion of a CQL @SELECT@ statement consists of one or more relations delimited by the @AND@ keyword.  Relations are defined as one of either the @KEY@ or @COLUMN@ keywords, a relational operator (@>@, @>=@, @=@, @<@, @<=@), and a "term":#terms.
+
+_NOTE: The keyword @COLUMN@ can be abbreviated as @COL@._
+
+_NOTE: Key and column ranges are always inclusive so the semantics of @>=@ and @>@, and @<=@ and @<@ are identical.  This is subject to change._
+
+h3. Limits
+
+bc. 
+SELECT ... <EXPRESSION> [ROWLIMIT N | COLLIMIT N] ...
+
+Limiting the number of row and/or column results can be achieved by including one or both of the optional @ROWLIMIT@ and @COLLIMIT@ clauses after a @SELECT@ expression.
+
+h3. Ordering
+
+bc. 
+SELECT ... [[ASC | ASCENDING] | [DESC | DESCENDING]]
+
+By default, results are returned in the order determined by the column family comparator, _this is always considered ascending order_.  Reversing this sort order is possible by supplying the @DESCENDING@ clause in @SELECT@ statements.
+
+The @ASCENDING@ keyword is also included, both for completeness sake, and to improve statement readability if desired.  It has no effect otherwise.
+
+_NOTE: The keywords @ASC@ and @DESC@ are valid abbreviations for @ASCENDING@ and @DESCENDING@ respectively._
+
+h2. UPDATE
+
+_Synopsis:_
+
+bc. 
+UPDATE <COLUMN FAMILY> [USING CONSISTENCY.<CL>] WITH
+        ROW(<KEY>, COL(<NAME>, <VALUE>), ...);
+        
+An @UPDATE@ is used to write one or more records to a Cassandra column family. No results are returned.
+
+h3. Column Family
+
+bc. 
+UPDATE <COLUMN FAMILY> ...
+
+Statements begin with the @UPDATE@ keyword followed by a Cassandra column family name.
+
+h3. Consistency Level
+
+bc. 
+SELECT ... [USING <CONSISTENCY>] ...
+
+Following the column family identifier is an optional "consistency level specification":#consistency.
+
+h3. Rows and Columns
+
+bc. 
+... WITH ROW(<KEY>, COL(<NAME>, <VALUE>), ...)[, ROW(<KEY>, ...)];
+
+Rows are constructed by creating a parenthesized expression using the @ROW@ keyword.  Within the parenthesis, row specifications contain a key "term":#terms, followed by a comma, and one or more comma delimited column specifications. Columns are in turn a parenthesized expression using the @COLUMN@ keyword, with two comma delimited "term":#terms arguments, the column name and value respectively.  More than one row can be specified by separating them with commas.
+
+_NOTE: While there are no isolation guarantees,  @UPDATE@ queries are atomic._
+
+h2. Common Idioms
+
+h3(#consistency). Specifying Consistency
+
+bc. 
+... USING <CONSISTENCY> ...
+
+Consistency level specifications are made up the keyword @USING@, followed by a consistency level identifier. Valid consistency levels are as follows:
+
+* @CONSISTENCY.ZERO@
+* @CONSISTENCY.ONE@ (default)
+* @CONSISTENCY.QUORUM@
+* @CONSISTENCY.ALL@
+* @CONSISTENCY.DCQUORUM@
+* @CONSISTENCY.DCQUORUMSYNC@
+
+h3(#terms). Term specification
+
+Where possible, the type of terms are inferred; the following term types are supported:
+
+h4. String Literals
+
+String literals are any value enclosed in double-quotes, (`"`).  String literals are treated as raw bytes; no interpolation is performed.
+
+h4. Integers / longs
+
+Integers are any term consisting soley of unquoted numericals, longs are any otherwise valid integer term followed by an upper case "L", (e.g. 100L).  It is an error to specify an integer term that will not fit in 4 bytes unsigned, or a long that will not fit in 8 bytes unsigned.
