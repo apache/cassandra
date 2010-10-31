@@ -944,6 +944,7 @@ public class CliClient extends CliUserHelp
         ColumnParent columnParent = new ColumnParent(columnFamily);
         List<KeySlice> keySlices = thriftClient.get_range_slices(columnParent, predicate, range, ConsistencyLevel.ONE);
         printSliceList(columnFamilyDef, keySlices);
+<<<<<<< HEAD
     }
 
     // TRUNCATE <columnFamily>
@@ -968,6 +969,8 @@ public class CliClient extends CliUserHelp
         {
             throw new RuntimeException(e.getMessage());
         }
+=======
+>>>>>>> merge from 0.7
     }
 
     // SHOW API VERSION

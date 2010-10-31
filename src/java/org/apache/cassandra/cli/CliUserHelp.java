@@ -331,8 +331,12 @@ public class CliUserHelp {
             state.out.println("del <cf>['<key>']['<super>']['<col>']                         Delete sub column.");
             state.out.println("count <cf>['<key>']                                     Count columns in record.");
             state.out.println("count <cf>['<key>']['<super>']                  Count columns in a super column.");
+<<<<<<< HEAD
             state.out.println("truncate <column_family>                       Truncate specified column family.");            
             state.out.println("list <cf>                                    List all rows in the column family.");
+=======
+            state.out.println("list <cf>                                  List all rows in the column family.");
+>>>>>>> merge from 0.7
             state.out.println("list <cf>[<startKey>:]");
             state.out.println("                       List rows in the column family beginning with <startKey>.");
             state.out.println("list <cf>[<startKey>:<endKey>]");
