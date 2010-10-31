@@ -1,3 +1,23 @@
+/*
+ * 
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ * 
+ */
 
 package org.apache.cassandra.cql;
 
@@ -25,20 +45,29 @@ import org.apache.cassandra.avro.UnavailableException;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.RangeSliceCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.SliceByNamesReadCommand;
 import org.apache.cassandra.db.SliceFromReadCommand;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.thrift.SlicePredicate;
+import org.apache.cassandra.thrift.SliceRange;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.avro.AvroValidation.validateKey;
 
 public class QueryProcessor
 {
-
+    private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
+    
     public static Map<DecoratedKey<?>, ColumnFamily> readColumnFamily(List<ReadCommand> commands, ConsistencyLevel cLevel)
     throws UnavailableException, InvalidRequestException, TimedOutException
     {
@@ -79,6 +108,8 @@ public class QueryProcessor
     public static CqlResult process(String queryString, String keyspace)
     throws RecognitionException, UnavailableException, InvalidRequestException, TimedOutException
     {
+        logger.debug("CQL QUERY: {}", queryString);
+        
         CqlParser parser = getParser(queryString);
         CQLStatement statement = parser.query();
         
@@ -109,7 +140,7 @@ public class QueryProcessor
                         {
                             Collection<byte[]> columnNames = new ArrayList<byte[]>();
                             for (Term column : select.getColumnPredicates().getTerms())
-                                columnNames.add(column.getBytes());    // FIXME: surely not good enough
+                                columnNames.add(column.getBytes());
                             
                             commands.add(new SliceByNamesReadCommand(keyspace, key, queryPath, columnNames));
                         }
@@ -151,7 +182,70 @@ public class QueryProcessor
                 }
                 else    // It is a range query (range of keys).
                 {
+                    // FIXME: ranges can be open-ended, but a start must exist.  Assert so here.
                     
+                    List<org.apache.cassandra.db.Row> rows = null;
+                    IPartitioner<?> p = StorageService.getPartitioner();
+                    AbstractBounds bounds = new Bounds(p.getToken(select.getKeyPredicates().getStart().getBytes()),
+                                                       p.getToken(select.getKeyPredicates().getFinish().getBytes()));
+                    
+                    // XXX: Our use of Thrift structs internally makes me Sad. :(
+                    SlicePredicate thriftSlicePredicate = new SlicePredicate();
+                    if (select.getColumnPredicates().isRange() || select.getColumnPredicates().getTerms().size() == 0)
+                    {
+                        SliceRange sliceRange = new SliceRange();
+                        sliceRange.start = select.getColumnPredicates().getStart().getBytes();
+                        sliceRange.finish = select.getColumnPredicates().getFinish().getBytes();
+                        sliceRange.reversed = false;    // FIXME: hard-coded
+                        sliceRange.count = select.getNumColumns();
+                        thriftSlicePredicate.slice_range = sliceRange;
+                    }
+                    else
+                    {
+                        List<byte[]> columnNames = new ArrayList<byte[]>();
+                        for (Term column : select.getColumnPredicates().getTerms())
+                            columnNames.add(column.getBytes());
+                        thriftSlicePredicate.column_names = columnNames;
+                    }
+
+                    try
+                    {
+                        rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace,
+                                                                                select.getColumnFamily(),
+                                                                                null,
+                                                                                thriftSlicePredicate,
+                                                                                bounds,
+                                                                                select.getNumRecords()),
+                                                          select.getConsistencyLevel());
+                    }
+                    catch (IOException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                    catch (org.apache.cassandra.thrift.UnavailableException e)
+                    {
+                        throw new UnavailableException();
+                    }
+                    catch (TimeoutException e)
+                    {
+                        throw new TimedOutException();
+                    }
+                    
+                    for (org.apache.cassandra.db.Row row : rows)
+                    {
+                        CqlRow avroRow = new CqlRow();
+                        avroRow.key = ByteBuffer.wrap(row.key.key);
+                        avroRow.columns = new ArrayList<Column>();
+                        
+                        for (IColumn column : row.cf.getSortedColumns())
+                        {
+                            Column avroColumn = new Column();
+                            avroColumn.name = ByteBuffer.wrap(column.name());
+                            avroColumn.value = ByteBuffer.wrap(column.value());
+                            avroRow.columns.add(avroColumn);
+                        }
+                        avroRows.add(avroRow);
+                    }
                 }
                 
                 avroResult.rows = avroRows;
@@ -202,21 +296,4 @@ public class QueryProcessor
         TokenStream tokenStream = new CommonTokenStream(lexer);
         return new CqlParser(tokenStream);
     }
-
-    public static void main(String[] args) throws RecognitionException
-    {
-        CqlParser parser = getParser("SElecT FRoM Standard1 where KEY > \"foo\" and key < \"fnord\" and COLUMN=\"bar\";");
-        CQLStatement statement = parser.query();
-        
-        switch (statement.type)
-        {
-            case SELECT:
-                SelectStatement st = (SelectStatement)statement.statement;
-                System.out.println(st.getColumnFamily() + " " + st.getKeyPredicates().getStart().getText() + 
-                        " " + st.getColumnPredicates().getTerms() + " " + st.getKeyPredicates().isRange());
-            case UPDATE:
-                return;
-        }
-    }
-
 }

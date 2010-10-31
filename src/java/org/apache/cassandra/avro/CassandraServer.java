@@ -20,6 +20,7 @@ package org.apache.cassandra.avro;
  * 
  */
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
@@ -1182,11 +1183,18 @@ public class CassandraServer implements Cassandra {
                     Inflater decompressor = new Inflater();
                     decompressor.setInput(query.array(), 0, query.array().length);
                     
-                    byte[] decompressedBytes = new byte[100];
-                    int length = decompressor.inflate(decompressedBytes);
+                    ByteArrayOutputStream byteArray = new ByteArrayOutputStream();
+                    byte[] buffer = new byte[1024];
+                    
+                    while (!decompressor.finished())
+                    {
+                        int size = decompressor.inflate(buffer);
+                        byteArray.write(buffer, 0, size);
+                    }
+                    
                     decompressor.end();
                     
-                    queryString = new String(decompressedBytes, 0, length, "UTF-8");
+                    queryString = new String(byteArray.toByteArray(), 0, byteArray.size(), "UTF-8");
             }
         }
         catch (DataFormatException e)

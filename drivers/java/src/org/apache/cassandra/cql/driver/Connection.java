@@ -69,17 +69,25 @@ public class Connection
     
     private ByteBuffer compressQuery(String queryStr, Compression compression)
     {
+        byte[] data = queryStr.getBytes();
         Deflater compressor = new Deflater();
-        compressor.setInput(queryStr.getBytes());
+        compressor.setInput(data);
         compressor.finish();
-        byte[] compressedQuery = new byte[100];
-        int compressedSize = compressor.deflate(compressedQuery);
+        
+        ByteArrayOutputStream byteArray = new ByteArrayOutputStream();
+        byte[] buffer = new byte[1024];
+        
+        while (!compressor.finished())
+        {
+            int size = compressor.deflate(buffer);
+            byteArray.write(buffer, 0, size);
+        }
         
         logger.trace("Compressed query statement {} bytes in length to {} bytes",
-                     queryStr.length(),
-                     compressedSize);
+                     data.length,
+                     byteArray.size());
         
-        return ByteBuffer.wrap(compressedQuery);
+        return ByteBuffer.wrap(byteArray.toByteArray());
     }
     
     public CqlResult execute(String queryStr)
@@ -116,7 +124,11 @@ public class Connection
             case ROWS:
                 for (CqlRow row : result.rows)
                 {
-                    System.out.println("Date: " + new String(row.columns.get(0).value.array()));
+                    System.out.println("KEY: " + new String(row.key.array()));
+                    for (org.apache.cassandra.avro.Column col : row.columns)
+                    {
+                        System.out.println("  COL: " + new String(col.name.array()) + ":" + new String(col.value.array()));
+                    }
                 }
         }
     }
