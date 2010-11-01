@@ -5,6 +5,7 @@ dev
  * log type of dropped messages (CASSANDRA-1677)
  * initMetadata wasn't loading saved partitioner from disk (CASSANDRA-1638)
  * log tpstats when dropping messages (CASSANDRA-1660)
+ * Avoid dropping messages off the client request path (CASSANDRA-1676)
 
 
 0.6.6
