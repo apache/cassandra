@@ -39,11 +39,22 @@ public class MessageDeliveryTask implements Runnable
     public void run()
     { 
         StorageService.Verb verb = message_.getVerb();
-
-        if (System.currentTimeMillis() >  constructionTime_ + DatabaseDescriptor.getRpcTimeout())
+        switch (verb)
         {
-            MessagingService.incrementDroppedMessages(verb);
-            return;
+            case BINARY:
+            case MUTATION:
+            case READ:
+            case RANGE_SLICE:
+            case READ_REPAIR:
+            case REQUEST_RESPONSE:
+                if (System.currentTimeMillis() > constructionTime_ + DatabaseDescriptor.getRpcTimeout())
+                {
+                    MessagingService.incrementDroppedMessages(verb);
+                    return;
+                }
+                break;
+            default:
+                break;
         }
 
         IVerbHandler verbHandler = MessagingService.instance.getVerbHandler(verb);
