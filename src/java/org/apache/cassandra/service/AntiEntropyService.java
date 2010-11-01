@@ -778,13 +778,19 @@ public class AntiEntropyService
         @Override
         public void run()
         {
+            Set<InetAddress> endpoints = AntiEntropyService.getNeighbors(tablename);
+            if (endpoints.isEmpty())
+            {
+                logger.info("No neighbors to repair with: " + getName() + " completed.");
+                return;
+            }
+
             // begin a repair session
             Callback callback = new Callback();
             AntiEntropyService.this.sessions.put(getName(), callback);
             try
             {
                 // request that all relevant endpoints generate trees
-                Set<InetAddress> endpoints = AntiEntropyService.getNeighbors(tablename);
                 for (String cfname : cfnames)
                 {
                     // send requests to remote nodes and record them
