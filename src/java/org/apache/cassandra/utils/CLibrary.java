@@ -18,6 +18,9 @@
  */
 package org.apache.cassandra.utils;
 
+import java.io.File;
+import java.io.IOException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,10 +31,10 @@ public final class CLibrary
 {
     private static Logger logger = LoggerFactory.getLogger(CLibrary.class);
 
-    public static final int MCL_CURRENT = 1;
-    public static final int MCL_FUTURE = 2;
+    private static final int MCL_CURRENT = 1;
+    private static final int MCL_FUTURE = 2;
     
-    public static final int ENOMEM = 12;
+    private static final int ENOMEM = 12;
 
     static
     {
@@ -49,12 +52,12 @@ public final class CLibrary
         }
     }
 
-    public static native int mlockall(int flags) throws LastErrorException;
-    public static native int munlockall() throws LastErrorException;
+    private static native int mlockall(int flags) throws LastErrorException;
+    private static native int munlockall() throws LastErrorException;
 
-    public static native int link(String from, String to) throws LastErrorException;
+    private static native int link(String from, String to) throws LastErrorException;
 
-    public static int errno(RuntimeException e)
+    private static int errno(RuntimeException e)
     {
         assert e instanceof LastErrorException;
         try
@@ -69,4 +72,95 @@ public final class CLibrary
     }
 
     private CLibrary() {}
+
+    public static void tryMlockall()
+    {
+        try
+        {
+            int result = mlockall(MCL_CURRENT);
+            assert result == 0; // mlockall should always be zero on success
+        }
+        catch (UnsatisfiedLinkError e)
+        {
+            // this will have already been logged by CLibrary, no need to repeat it
+        }
+        catch (RuntimeException e)
+        {
+            if (!(e instanceof LastErrorException))
+                throw e;
+            if (errno(e) == ENOMEM && System.getProperty("os.name").toLowerCase().contains("linux"))
+            {
+                logger.warn("Unable to lock JVM memory (ENOMEM)."
+                             + " This can result in part of the JVM being swapped out, especially with mmapped I/O enabled."
+                             + " Increase RLIMIT_MEMLOCK or run Cassandra as root.");
+            }
+            else if (!System.getProperty("os.name").toLowerCase().contains("mac"))
+            {
+                // OS X allows mlockall to be called, but always returns an error
+                logger.warn("Unknown mlockall error " + errno(e));
+            }
+        }
+    }
+
+    /**
+     * Create a hard link for a given file.
+     *
+     * @param sourceFile      The name of the source file.
+     * @param destinationFile The name of the destination file.
+     *
+     * @throws java.io.IOException if an error has occurred while creating the link.
+     */
+    public static void createHardLink(File sourceFile, File destinationFile) throws IOException
+    {
+        try
+        {
+            int result = link(sourceFile.getAbsolutePath(), destinationFile.getAbsolutePath());
+            assert result == 0; // success is always zero
+        }
+        catch (UnsatisfiedLinkError e)
+        {
+            createHardLinkWithExec(sourceFile, destinationFile);
+        }
+        catch (RuntimeException e)
+        {
+            if (!(e instanceof LastErrorException))
+                throw e;
+            // there are 17 different error codes listed on the man page.  punt until/unless we find which
+            // ones actually turn up in practice.
+            throw new IOException(String.format("Unable to create hard link from %s to %s (errno %d)",
+                                                sourceFile, destinationFile, errno(e)));
+        }
+    }
+
+    private static void createHardLinkWithExec(File sourceFile, File destinationFile) throws IOException
+    {
+        String osname = System.getProperty("os.name");
+        ProcessBuilder pb;
+        if (osname.startsWith("Windows"))
+        {
+            float osversion = Float.parseFloat(System.getProperty("os.version"));
+            if (osversion >= 6.0f)
+            {
+                pb = new ProcessBuilder("cmd", "/c", "mklink", "/H", destinationFile.getAbsolutePath(), sourceFile.getAbsolutePath());
+            }
+            else
+            {
+                pb = new ProcessBuilder("fsutil", "hardlink", "create", destinationFile.getAbsolutePath(), sourceFile.getAbsolutePath());
+            }
+        }
+        else
+        {
+            pb = new ProcessBuilder("ln", sourceFile.getAbsolutePath(), destinationFile.getAbsolutePath());
+            pb.redirectErrorStream(true);
+        }
+        Process p = pb.start();
+        try
+        {
+            p.waitFor();
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
 }

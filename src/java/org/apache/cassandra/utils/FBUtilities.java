@@ -638,35 +638,6 @@ public class FBUtilities
         }
     }
 
-    public static void tryMlockall()
-    {
-        try
-        {
-            int result = CLibrary.mlockall(CLibrary.MCL_CURRENT);
-            assert result == 0; // mlockall should always be zero on success
-        }
-        catch (UnsatisfiedLinkError e)
-        {
-            // this will have already been logged by CLibrary, no need to repeat it
-        }
-        catch (RuntimeException e)
-        {
-            if (!(e instanceof LastErrorException))
-                throw e;
-            if (CLibrary.errno(e) == CLibrary.ENOMEM && System.getProperty("os.name").toLowerCase().contains("linux"))
-            {
-                logger_.warn("Unable to lock JVM memory (ENOMEM)."
-                             + " This can result in part of the JVM being swapped out, especially with mmapped I/O enabled."
-                             + " Increase RLIMIT_MEMLOCK or run Cassandra as root.");
-            }
-            else if (!System.getProperty("os.name").toLowerCase().contains("mac"))
-            {
-                // OS X allows mlockall to be called, but always returns an error
-                logger_.warn("Unknown mlockall error " + CLibrary.errno(e));
-            }
-        }
-    }
-
     public static <T extends Comparable> SortedSet<T> singleton(T column)
     {
         return new TreeSet<T>(Arrays.asList(column));

@@ -39,6 +39,7 @@ import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Mx4jTool;
 import org.mortbay.thread.ThreadPool;
@@ -70,7 +71,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
     protected void setup() throws IOException
     {
         logger.info("Heap size: {}/{}", Runtime.getRuntime().totalMemory(), Runtime.getRuntime().maxMemory());
-    	FBUtilities.tryMlockall();
+    	CLibrary.tryMlockall();
 
         listenPort = DatabaseDescriptor.getRpcPort();
         listenAddr = DatabaseDescriptor.getRpcAddress();
