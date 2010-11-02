@@ -10,6 +10,11 @@ dev
    to client requests (CASSANDRA-1685)
  * log tpstats when dropping messages (CASSANDRA-1660)
  * include unreachable nodes in describeSchemaVersions (CASSANDRA-1678)
+ * Avoid dropping messages off the client request path (CASSANDRA-1676)
+ * fix jna errno reporting (CASSANDRA-1694)
+ * add friendlier error for UnknownHostException on startup (CASSANDRA-1697)
+ * include jna dependency in RPM package (CASSANDRA-1690)
+ * add --skip-keys option to stress.py (CASSANDRA-1696)
 
 
 0.7.0-beta3

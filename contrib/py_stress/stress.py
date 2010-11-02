@@ -61,6 +61,8 @@ except ImportError:
 parser = OptionParser()
 parser.add_option('-n', '--num-keys', type="int", dest="numkeys",
                   help="Number of keys", default=1000**2)
+parser.add_option('-N', '--skip-keys', type="float", dest="skipkeys",
+                  help="Fraction of keys to skip initially", default=0)
 parser.add_option('-t', '--threads', type="int", dest="threads",
                   help="Number of threads/procs to use", default=50)
 parser.add_option('-c', '--columns', type="int", dest="columns",
@@ -189,7 +191,8 @@ class Operation(Thread):
     def __init__(self, i, opcounts, keycounts, latencies):
         Thread.__init__(self)
         # generator of the keys to be used
-        self.range = xrange(keys_per_thread * i, keys_per_thread * (i + 1))
+        self.range = xrange(int(keys_per_thread * (i + options.skipkeys)), 
+                            keys_per_thread * (i + 1))
         # we can't use a local counter, since that won't be visible to the parent
         # under multiprocessing.  instead, the parent passes a "opcounts" array
         # and an index that is our assigned counter.

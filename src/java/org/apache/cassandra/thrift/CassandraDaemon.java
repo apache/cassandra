@@ -52,7 +52,7 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
 
     protected void setup() throws IOException
     {
-        super.setup();                
+        super.setup();
 
         // now we start listening for clients
         final CassandraServer cassandraServer = new CassandraServer();

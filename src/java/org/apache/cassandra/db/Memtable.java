@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
@@ -99,20 +100,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 
     boolean isThresholdViolated()
     {
-        if (currentThroughput.get() >= THRESHOLD)
-        {
-            logger.info("Memtable for CF {} has reached memtable_throughput_in_mb {}, enqueueing flush",
-                        cfs.getColumnFamilyName(), THRESHOLD);
-            return true;
-        }
-        if (currentOperations.get() >= THRESHOLD_COUNT)
-        {
-            logger.info("Memtable for CF {} has reached memtable_operations_in_millions {}, enqueueing flush",
-                        cfs.getColumnFamilyName(), THRESHOLD_COUNT);
-            return true;
-        }
-        // default case, threshold is not violated.
-        return false;
+        return currentThroughput.get() >= this.THRESHOLD || currentOperations.get() >= this.THRESHOLD_COUNT;
     }
 
     boolean isFrozen()
@@ -171,7 +159,8 @@ public class Memtable implements Comparable<Memtable>, IFlushable
             writer.append(entry.getKey(), entry.getValue());
 
         SSTableReader ssTable = writer.closeAndOpenReader();
-        logger.info("Completed flushing " + ssTable.getFilename());
+        logger.info(String.format("Completed flushing %s (%d bytes)",
+                                  ssTable.getFilename(), new File(ssTable.getFilename()).length()));
         return ssTable;
     }
 

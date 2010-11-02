@@ -18,17 +18,16 @@
 
 package org.apache.cassandra.io.util;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
 import java.text.DecimalFormat;
-import java.util.*;
+import java.util.Comparator;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.sun.jna.Native;
-import org.apache.cassandra.utils.CLibrary;
-
-import com.sun.jna.Native;
+import com.sun.jna.LastErrorException;
 import org.apache.cassandra.utils.CLibrary;
 
 
@@ -165,29 +164,6 @@ public class FileUtils
     }
     
     /**
-     * calculate the total space used by a file or directory
-     * 
-     * @param path the path
-     * @return total space used.
-     */
-    public static long getUsedDiskSpaceForPath(String path)
-    {
-        File file = new File(path);
-        
-        if (file.isFile()) 
-        {
-            return file.length();
-        }
-        
-        long diskSpace = 0;
-        for (File childFile: file.listFiles())
-        {
-            diskSpace += getUsedDiskSpaceForPath(childFile.getPath());
-        }
-        return diskSpace;
-    }
-
-    /**
      * Deletes all files and subdirectories under "dir".
      * @param dir Directory to be deleted
      * @throws IOException if any part of the tree cannot be deleted
@@ -205,69 +181,5 @@ public class FileUtils
 
         // The directory is now empty so now it can be smoked
         deleteWithConfirm(dir);
-    }
-
-    /**
-     * Create a hard link for a given file.
-     * 
-     * @param sourceFile      The name of the source file.
-     * @param destinationFile The name of the destination file.
-     * 
-     * @throws IOException if an error has occurred while creating the link.
-     */
-    public static void createHardLink(File sourceFile, File destinationFile) throws IOException
-    {
-        int errno = Integer.MIN_VALUE;
-        try
-        {
-            int result = CLibrary.link(sourceFile.getAbsolutePath(), destinationFile.getAbsolutePath());
-            if (result != 0)
-                errno = Native.getLastError();
-        }
-        catch (UnsatisfiedLinkError e)
-        {
-            createHardLinkWithExec(sourceFile, destinationFile);
-            return;
-        }
-
-        if (errno != Integer.MIN_VALUE)
-        {
-            // there are 17 different error codes listed on the man page.  punt until/unless we find which
-            // ones actually turn up in practice.
-            throw new IOException(String.format("Unable to create hard link from %s to %s (errno %d)", 
-                                                sourceFile, destinationFile, errno));
-        }
-    }
-
-    private static void createHardLinkWithExec(File sourceFile, File destinationFile) throws IOException
-    {
-        String osname = System.getProperty("os.name");
-        ProcessBuilder pb;
-        if (osname.startsWith("Windows"))
-        {
-            float osversion = Float.parseFloat(System.getProperty("os.version"));
-            if (osversion >= 6.0f)
-            {
-                pb = new ProcessBuilder("cmd", "/c", "mklink", "/H", destinationFile.getAbsolutePath(), sourceFile.getAbsolutePath());
-            }
-            else
-            {
-                pb = new ProcessBuilder("fsutil", "hardlink", "create", destinationFile.getAbsolutePath(), sourceFile.getAbsolutePath());
-            }
-        }
-        else
-        {
-            pb = new ProcessBuilder("ln", sourceFile.getAbsolutePath(), destinationFile.getAbsolutePath());
-            pb.redirectErrorStream(true);
-        }
-        Process p = pb.start();
-        try
-        {
-            p.waitFor();
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
     }
 }

@@ -41,6 +41,7 @@ import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.sun.jna.LastErrorException;
 import com.sun.jna.Native;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -634,37 +635,6 @@ public class FBUtilities
             if (e.getCause() instanceof ConfigurationException)
                 throw (ConfigurationException)e.getCause();
             throw new ConfigurationException(String.format("Error instantiating %s class '%s'.", readable, classname), e);
-        }
-    }
-
-    public static void tryMlockall()
-    {
-        int errno = Integer.MIN_VALUE;
-        try
-        {
-            int result = CLibrary.mlockall(CLibrary.MCL_CURRENT);
-            if (result != 0)
-                errno = Native.getLastError();
-        }
-        catch (UnsatisfiedLinkError e)
-        {
-            // this will have already been logged by CLibrary, no need to repeat it
-            return;
-        }
-
-        if (errno != Integer.MIN_VALUE)
-        {
-            if (errno == CLibrary.ENOMEM && System.getProperty("os.name").toLowerCase().contains("linux"))
-            {
-                logger_.warn("Unable to lock JVM memory (ENOMEM)."
-                             + " This can result in part of the JVM being swapped out, especially with mmapped I/O enabled."
-                             + " Increase RLIMIT_MEMLOCK or run Cassandra as root.");
-            }
-            else if (!System.getProperty("os.name").toLowerCase().contains("mac"))
-            {
-                // OS X allows mlockall to be called, but always returns an error
-                logger_.warn("Unknown mlockall error " + errno);
-            }
         }
     }
 

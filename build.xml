@@ -251,7 +251,7 @@
     -->
     <target name="gen-thrift-java" depends="rat-init" description="Generate Thrift Java artifacts">
       <echo>Generating Thrift Java code from ${basedir}/interface/cassandra.thrift ....</echo>
-      <exec executable="thrift" dir="${basedir}/interface">
+      <exec executable="thrift" dir="${basedir}/interface" failonerror="true">
         <arg line="--gen java:hashcode" />
         <arg line="-o ${interface.thrift.dir}" />
         <arg line="cassandra.thrift" />
@@ -266,7 +266,7 @@
     </target>
     <target name="gen-thrift-py" description="Generate Thrift Python artifacts">
       <echo>Generating Thrift Python code from ${basedir}/interface/cassandra.thrift ....</echo>
-      <exec executable="thrift" dir="${basedir}/interface">
+      <exec executable="thrift" dir="${basedir}/interface" failonerror="true">
         <arg line="--gen py" />
         <arg line="-o ${interface.thrift.dir}" />
         <arg line="cassandra.thrift" />
