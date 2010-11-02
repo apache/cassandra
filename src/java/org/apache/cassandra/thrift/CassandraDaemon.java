@@ -64,7 +64,7 @@ public class CassandraDaemon
 
     private void setup() throws IOException, TTransportException
     {
-        FBUtilities.tryMlockall();
+        CLibrary.tryMlockall();
         
         // log4j
         String file = System.getProperty("storage-config") + File.separator + "log4j.properties";

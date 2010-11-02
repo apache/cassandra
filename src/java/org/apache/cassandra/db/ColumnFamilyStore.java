@@ -1202,15 +1202,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             // hard links
             File targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
-            FileUtils.createHardLink(sourceFile, targetLink);
+            CLibrary.createHardLink(sourceFile, targetLink);
 
             sourceFile = new File(ssTable.indexFilename());
             targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
-            FileUtils.createHardLink(sourceFile, targetLink);
+            CLibrary.createHardLink(sourceFile, targetLink);
 
             sourceFile = new File(ssTable.filterFilename());
             targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
-            FileUtils.createHardLink(sourceFile, targetLink);
+            CLibrary.createHardLink(sourceFile, targetLink);
 
             if (logger_.isDebugEnabled())
                 logger_.debug("Snapshot for " + table_ + " table data file " + sourceFile.getAbsolutePath() +
