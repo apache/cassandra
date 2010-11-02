@@ -562,10 +562,16 @@ public class DatabaseDescriptor
             {
                 throw new ConfigurationException("A minimum of one seed is required.");
             }
-            for( int i = 0; i < seedsxml.length; ++i )
+            for (String seedString : seedsxml)
             {
-                seeds.add(InetAddress.getByName(seedsxml[i]));
+                seeds.add(InetAddress.getByName(seedString));
             }
+        }
+        catch (UnknownHostException e)
+        {
+            logger.error("Fatal error: " + e.getMessage());
+            System.err.println("Unable to start with unknown hosts configured.  Use IP addresses instead of hostnames.");
+            System.exit(2);
         }
         catch (ConfigurationException e)
         {
