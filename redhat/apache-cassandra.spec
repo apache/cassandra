@@ -19,6 +19,7 @@ BuildRequires: ant
 BuildRequires: ant-nodeps
 
 Requires:      java >= 1.6.0
+Requires:      jna  >= 3.2.7
 Requires:      jpackage-utils
 Requires(pre): user(cassandra)
 Requires(pre): group(cassandra)
