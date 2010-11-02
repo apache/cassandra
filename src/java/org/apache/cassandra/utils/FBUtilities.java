@@ -565,21 +565,19 @@ public class FBUtilities
         }
         catch (RuntimeException e)
         {
-            if (e instanceof LastErrorException)
+            if (!(e instanceof LastErrorException))
+                throw e;
+            if (CLibrary.errno(e) == CLibrary.ENOMEM && System.getProperty("os.name").toLowerCase().contains("linux"))
             {
-                if (CLibrary.errno(e) == CLibrary.ENOMEM && System.getProperty("os.name").toLowerCase().contains("linux"))
-                {
-                    logger_.warn("Unable to lock JVM memory (ENOMEM)."
-                                 + " This can result in part of the JVM being swapped out, especially with mmapped I/O enabled."
-                                 + " Increase RLIMIT_MEMLOCK or run Cassandra as root.");
-                }
-                else if (!System.getProperty("os.name").toLowerCase().contains("mac"))
-                {
-                    // OS X allows mlockall to be called, but always returns an error
-                    logger_.warn("Unknown mlockall error " + CLibrary.errno(e));
-                }
+                logger_.warn("Unable to lock JVM memory (ENOMEM)."
+                             + " This can result in part of the JVM being swapped out, especially with mmapped I/O enabled."
+                             + " Increase RLIMIT_MEMLOCK or run Cassandra as root.");
             }
-            throw e;
+            else if (!System.getProperty("os.name").toLowerCase().contains("mac"))
+            {
+                // OS X allows mlockall to be called, but always returns an error
+                logger_.warn("Unknown mlockall error " + CLibrary.errno(e));
+            }
         }
     }
 }
