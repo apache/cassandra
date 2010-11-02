@@ -37,6 +37,7 @@ import org.apache.log4j.Logger;
 
 import org.apache.commons.collections.iterators.CollatingIterator;
 
+import com.sun.jna.LastErrorException;
 import com.sun.jna.Native;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
@@ -553,22 +554,18 @@ public class FBUtilities
 
     public static void tryMlockall()
     {
-        int errno = Integer.MIN_VALUE;
         try
         {
             int result = CLibrary.mlockall(CLibrary.MCL_CURRENT);
-            if (result != 0)
-                errno = Native.getLastError();
+            assert result == 0; // mlockall should always be zero on success
         }
         catch (UnsatisfiedLinkError e)
         {
             // this will have already been logged by CLibrary, no need to repeat it
-            return;
         }
-
-        if (errno != Integer.MIN_VALUE)
+        catch (LastErrorException e)
         {
-            if (errno == CLibrary.ENOMEM && System.getProperty("os.name").toLowerCase().contains("linux"))
+            if (CLibrary.errno(e) == CLibrary.ENOMEM && System.getProperty("os.name").toLowerCase().contains("linux"))
             {
                 logger_.warn("Unable to lock JVM memory (ENOMEM)."
                              + " This can result in part of the JVM being swapped out, especially with mmapped I/O enabled."
@@ -577,7 +574,7 @@ public class FBUtilities
             else if (!System.getProperty("os.name").toLowerCase().contains("mac"))
             {
                 // OS X allows mlockall to be called, but always returns an error
-                logger_.warn("Unknown mlockall error " + errno);
+                logger_.warn("Unknown mlockall error " + CLibrary.errno(e));
             }
         }
     }
