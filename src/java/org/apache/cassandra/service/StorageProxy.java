@@ -27,6 +27,7 @@ import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 import static com.google.common.base.Charsets.UTF_8;
 import org.apache.commons.lang.ArrayUtils;
@@ -65,6 +66,7 @@ public class StorageProxy implements StorageProxyMBean
     private static final LatencyTracker rangeStats = new LatencyTracker();
     private static final LatencyTracker writeStats = new LatencyTracker();
     private static boolean hintedHandoffEnabled = DatabaseDescriptor.hintedHandoffEnabled();
+    private static final String UNREACHABLE = "UNREACHABLE";
 
     private StorageProxy() {}
     static
@@ -491,8 +493,6 @@ public class StorageProxy implements StorageProxyMBean
      */
     public static Map<String, List<String>> describeSchemaVersions()
     {
-        final Map<String, List<String>> results = new HashMap<String, List<String>>();
-        
         final String myVersion = DatabaseDescriptor.getDefsVersion().toString();
         final Map<InetAddress, UUID> versions = new ConcurrentHashMap<InetAddress, UUID>();
         final Set<InetAddress> liveHosts = Gossiper.instance.getLiveMembers();
@@ -523,30 +523,32 @@ public class StorageProxy implements StorageProxyMBean
         
         logger.debug("My version is " + myVersion);
         
-        // first, indicate any hosts that did not respond.
-        final Set<InetAddress> ackedHosts = versions.keySet();
-        if (ackedHosts.size() < liveHosts.size())
+        // maps versions to hosts that are on that version.
+        Map<String, List<String>> results = new HashMap<String, List<String>>();
+        Iterable<InetAddress> allHosts = Iterables.concat(Gossiper.instance.getLiveMembers(), Gossiper.instance.getUnreachableMembers());
+        for (InetAddress host : allHosts)
         {
-            Set<InetAddress> missingHosts = new HashSet<InetAddress>(liveHosts);
-            missingHosts.removeAll(ackedHosts);
-            assert missingHosts.size() > 0;
-            List<String> missingHostNames = new ArrayList<String>(missingHosts.size());
-            for (InetAddress host : missingHosts)
-                missingHostNames.add(host.getHostAddress());
-            results.put(DatabaseDescriptor.INITIAL_VERSION.toString(), missingHostNames);
-            logger.debug("Hosts not in agreement. Didn't get a response from everybody: " + StringUtils.join(missingHostNames, ","));
+            UUID version = versions.get(host);
+            String stringVersion = version == null ? UNREACHABLE : version.toString();
+            List<String> hosts = results.get(stringVersion);
+            if (hosts == null)
+            {
+                hosts = new ArrayList<String>();
+                results.put(stringVersion, hosts);
+            }
+            hosts.add(host.getHostAddress());
+        }
+        if (results.get(UNREACHABLE) != null)
+            logger.debug("Hosts not in agreement. Didn't get a response from everybody: " + StringUtils.join(results.get(UNREACHABLE), ","));
+        // check for version disagreement. log the hosts that don't agree.
+        for (Map.Entry<String, List<String>> entry : results.entrySet())
+        {
+            if (entry.getKey().equals(UNREACHABLE) || entry.getKey().equals(myVersion))
+                continue;
+            for (String host : entry.getValue())
+                logger.debug("%s disagrees (%s)", host, entry.getKey());
         }
         
-        // check for version disagreement. log the hosts that don't agree.
-        for (InetAddress host : ackedHosts)
-        {
-            String uuid = versions.get(host).toString();
-            if (!results.containsKey(uuid))
-                results.put(uuid, new ArrayList<String>());
-            results.get(uuid).add(host.getHostAddress());
-            if (!uuid.equals(myVersion))
-                logger.debug("%s disagrees (%s)", host.getHostAddress(), uuid);
-        }
         if (results.size() == 1)
             logger.debug("Schemas are in agreement.");
         
