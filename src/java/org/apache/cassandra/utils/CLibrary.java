@@ -54,11 +54,12 @@ public final class CLibrary
 
     public static native int link(String from, String to) throws LastErrorException;
 
-    public static int errno(LastErrorException e)
+    public static int errno(RuntimeException e)
     {
+        assert e instanceof LastErrorException;
         try
         {
-            return e.getErrorCode();
+            return ((LastErrorException) e).getErrorCode();
         }
         catch (NoSuchMethodError x)
         {

@@ -11,6 +11,7 @@ dev
  * log tpstats when dropping messages (CASSANDRA-1660)
  * Avoid dropping messages off the client request path (CASSANDRA-1676)
  * fix jna errno reporting (CASSANDRA-1694)
+ * add friendlier error for UnknownHostException on startup (CASSANDRA-1697)
 
 
 0.7.0-beta3

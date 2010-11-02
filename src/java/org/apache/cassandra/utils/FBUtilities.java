@@ -649,8 +649,10 @@ public class FBUtilities
         {
             // this will have already been logged by CLibrary, no need to repeat it
         }
-        catch (LastErrorException e)
+        catch (RuntimeException e)
         {
+            if (!(e instanceof LastErrorException))
+                throw e;
             if (CLibrary.errno(e) == CLibrary.ENOMEM && System.getProperty("os.name").toLowerCase().contains("linux"))
             {
                 logger_.warn("Unable to lock JVM memory (ENOMEM)."

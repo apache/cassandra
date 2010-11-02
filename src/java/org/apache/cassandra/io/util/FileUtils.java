@@ -202,8 +202,10 @@ public class FileUtils
         {
             createHardLinkWithExec(sourceFile, destinationFile);
         }
-        catch (LastErrorException e)
+        catch (RuntimeException e)
         {
+            if (!(e instanceof LastErrorException))
+                throw e;
             // there are 17 different error codes listed on the man page.  punt until/unless we find which
             // ones actually turn up in practice.
             throw new IOException(String.format("Unable to create hard link from %s to %s (errno %d)",

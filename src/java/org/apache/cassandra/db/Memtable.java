@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
@@ -158,7 +159,8 @@ public class Memtable implements Comparable<Memtable>, IFlushable
             writer.append(entry.getKey(), entry.getValue());
 
         SSTableReader ssTable = writer.closeAndOpenReader();
-        logger.info("Completed flushing " + ssTable.getFilename());
+        logger.info(String.format("Completed flushing %s (%d bytes)",
+                                  ssTable.getFilename(), new File(ssTable.getFilename()).length()));
         return ssTable;
     }
 
