@@ -9,6 +9,8 @@ dev
  * add INTERNAL_RESPONSE verb to differentiate from responses related
    to client requests (CASSANDRA-1685)
  * log tpstats when dropping messages (CASSANDRA-1660)
+ * Avoid dropping messages off the client request path (CASSANDRA-1676)
+ * fix jna errno reporting (CASSANDRA-1694)
 
 
 0.7.0-beta3
