@@ -21,6 +21,7 @@ package org.apache.cassandra.utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.sun.jna.LastErrorException;
 import com.sun.jna.Native;
 
 public final class CLibrary
@@ -48,10 +49,24 @@ public final class CLibrary
         }
     }
 
-    public static native int mlockall(int flags);
-    public static native int munlockall();
+    public static native int mlockall(int flags) throws LastErrorException;
+    public static native int munlockall() throws LastErrorException;
 
-    public static native int link(String from, String to);
+    public static native int link(String from, String to) throws LastErrorException;
+
+    public static int errno(RuntimeException e)
+    {
+        assert e instanceof LastErrorException;
+        try
+        {
+            return ((LastErrorException) e).getErrorCode();
+        }
+        catch (NoSuchMethodError x)
+        {
+            logger.warn("Obsolete version of JNA present; unable to read errno. Upgrade to JNA 3.2.7 or later");
+            return 0;
+        }
+    }
 
     private CLibrary() {}
 }

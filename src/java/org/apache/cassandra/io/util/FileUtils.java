@@ -23,6 +23,7 @@ import java.text.DecimalFormat;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 
+import com.sun.jna.LastErrorException;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 
 import org.apache.log4j.Logger;
@@ -202,25 +203,25 @@ public class FileUtils
      */
     public static void createHardLink(File sourceFile, File destinationFile) throws IOException
     {
-        int errno = Integer.MIN_VALUE;
         try
         {
             int result = CLibrary.link(sourceFile.getAbsolutePath(), destinationFile.getAbsolutePath());
-            if (result != 0)
-                errno = Native.getLastError();
+            assert result == 0; // success is always zero
         }
         catch (UnsatisfiedLinkError e)
         {
             createHardLinkWithExec(sourceFile, destinationFile);
-            return;
         }
-
-        if (errno != Integer.MIN_VALUE)
+        catch (RuntimeException e)
         {
-            // there are 17 different error codes listed on the man page.  punt until/unless we find which
-            // ones actually turn up in practice.
-            throw new IOException(String.format("Unable to create hard link from %s to %s (errno %d)", 
-                                                sourceFile, destinationFile, errno));
+            if (e instanceof LastErrorException)
+            {
+                // there are 17 different error codes listed on the man page.  punt until/unless we find which
+                // ones actually turn up in practice.
+                throw new IOException(String.format("Unable to create hard link from %s to %s (errno %d)",
+                                                    sourceFile, destinationFile, CLibrary.errno(e)));
+            }
+            throw e;
         }
     }
 
