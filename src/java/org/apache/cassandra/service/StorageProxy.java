@@ -583,7 +583,8 @@ public class StorageProxy implements StorageProxyMBean
                 // no more splits
                 break;
             Pair<AbstractBounds,AbstractBounds> splits = remainder.split(token);
-            ranges.add(splits.left);
+            if (splits.left != null)
+                ranges.add(splits.left);
             remainder = splits.right;
         }
         if (remainder != null)

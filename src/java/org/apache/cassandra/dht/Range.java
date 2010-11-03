@@ -195,6 +195,8 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
 
     public AbstractBounds createFrom(Token token)
     {
+        if (token.equals(left))
+            return null;
         return new Range(left, token);
     }
 

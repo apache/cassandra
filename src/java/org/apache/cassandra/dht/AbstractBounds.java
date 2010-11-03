@@ -62,14 +62,15 @@ public abstract class AbstractBounds implements Serializable
      * Given token T and AbstractBounds ?L,R], returns Pair(?L,T], ?T,R])
      * (where ? means that the same type of Bounds is returned -- Range or Bounds -- as the original.)
      * The original AbstractBounds must contain the token T.
-     * If R==T, null is returned as the right element of the Pair.
+     * If the split would cause one of the left or right side to be empty, it will be null in the result pair.
      */
-
     public Pair<AbstractBounds,AbstractBounds> split(Token token)
     {
         assert contains(token);
-        Range remainder = token.equals(right) ? null : new Range(token, right);
-        return new Pair<AbstractBounds,AbstractBounds>(createFrom(token), remainder);
+        AbstractBounds lb = createFrom(token);
+        // we contain this token, so only one of the left or right can be empty
+        AbstractBounds rb = lb != null && token.equals(right) ? null : new Range(token, right);
+        return new Pair<AbstractBounds,AbstractBounds>(lb, rb);
     }
 
     @Override
@@ -83,7 +84,7 @@ public abstract class AbstractBounds implements Serializable
 
     public abstract boolean contains(Token start);
 
-    /** @return A clone of this AbstractBounds with a new right Token. */
+    /** @return A clone of this AbstractBounds with a new right Token, or null if an identical range would be created. */
     public abstract AbstractBounds createFrom(Token right);
 
     public abstract List<AbstractBounds> unwrap();
