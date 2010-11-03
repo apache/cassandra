@@ -26,11 +26,16 @@ import java.io.IOException;
 import java.io.DataInput;
 import java.util.Collection;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.io.ICompactSerializer2;
 
 public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
 {
+    private static final Logger logger = LoggerFactory.getLogger(ColumnFamilySerializer.class);
+
     /*
      * Serialized ColumnFamily format:
      *

@@ -21,20 +21,27 @@ package org.apache.cassandra.db;
  */
 
 
-import java.io.*;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.utils.FBUtilities;
 
-import java.nio.ByteBuffer;
-
 public class ColumnSerializer implements ICompactSerializer2<IColumn>
 {
+    private static final Logger logger = LoggerFactory.getLogger(ColumnSerializer.class);
+
     public final static int DELETION_MASK = 0x01;
     public final static int EXPIRATION_MASK = 0x02;
 
     public void serialize(IColumn column, DataOutput dos)
     {
+        assert column.name().remaining() > 0;
         FBUtilities.writeShortByteArray(column.name(), dos);
         try
         {

@@ -416,18 +416,18 @@ public class Gossiper implements IFailureDetectionEventListener
                     evictFromMembership(endpoint);
                 }
             }
-
-            if (!justRemovedEndpoints_.isEmpty())
+        }
+        
+        if (!justRemovedEndpoints_.isEmpty())
+        {
+            Hashtable<InetAddress, Long> copy = new Hashtable<InetAddress, Long>(justRemovedEndpoints_);
+            for (Map.Entry<InetAddress, Long> entry : copy.entrySet())
             {
-                Hashtable<InetAddress, Long> copy = new Hashtable<InetAddress, Long>(justRemovedEndpoints_);
-                for (Map.Entry<InetAddress, Long> entry : copy.entrySet())
+                if ((now - entry.getValue()) > StorageService.RING_DELAY)
                 {
-                    if ((now - entry.getValue()) > StorageService.RING_DELAY)
-                    {
-                        if (logger_.isDebugEnabled())
-                            logger_.debug(StorageService.RING_DELAY + " elapsed, " + entry.getKey() + " gossip quarantine over");
-                        justRemovedEndpoints_.remove(entry.getKey());
-                    }
+                    if (logger_.isDebugEnabled())
+                        logger_.debug(StorageService.RING_DELAY + " elapsed, " + entry.getKey() + " gossip quarantine over");
+                    justRemovedEndpoints_.remove(entry.getKey());
                 }
             }
         }
