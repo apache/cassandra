@@ -14,6 +14,7 @@ dev
  * add friendlier error for UnknownHostException on startup (CASSANDRA-1697)
  * include jna dependency in RPM package (CASSANDRA-1690)
  * add --skip-keys option to stress.py (CASSANDRA-1696)
+ * improve cli handling of non-string column names (CASSANDRA-1701)
 
 
 0.7.0-beta3
