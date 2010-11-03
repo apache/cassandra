@@ -272,16 +272,21 @@ public class CompactionManager implements CompactionManagerMBean
             writer = new SSTableWriter(newFilename, expectedBloomFilterSize, cfs.metadata, cfs.partitioner);
             while (nni.hasNext())
             {
-                AbstractCompactedRow row = nni.next();
+                writer.mark();
                 try
                 {
+                    AbstractCompactedRow row = nni.next();
                     writer.append(row);
                 }
-                catch (IOException ex)
+                catch (Exception e)
                 {
-                    writer.abort();
-                    // rethrow the exception so that caller knows compaction failed.
-                    throw ex;
+                    logger.error("non-fatal error during compaction", e);
+                    writer.reset();
+                }
+                catch (IOError e)
+                {
+                    logger.error("non-fatal error during compaction", e);
+                    writer.reset();
                 }
                 totalkeysWritten++;
             }

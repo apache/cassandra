@@ -15,6 +15,7 @@ dev
  * include jna dependency in RPM package (CASSANDRA-1690)
  * add --skip-keys option to stress.py (CASSANDRA-1696)
  * improve cli handling of non-string column names (CASSANDRA-1701)
+ * enable skipping bad rows on LazilyCompacted path (CASSANDRA-1702)
 
 
 0.7.0-beta3

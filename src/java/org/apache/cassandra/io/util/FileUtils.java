@@ -19,16 +19,15 @@
 package org.apache.cassandra.io.util;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.text.DecimalFormat;
 import java.util.Comparator;
 import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.sun.jna.LastErrorException;
-import org.apache.cassandra.utils.CLibrary;
 
 
 public class FileUtils
@@ -63,6 +62,20 @@ public class FileUtils
             logger_.debug((String.format("Renaming %s to %s", from.getPath(), to.getPath())));
         if (!from.renameTo(to))
             throw new IOException(String.format("Failed to rename %s to %s", from.getPath(), to.getPath()));
+    }
+
+    public static void truncate(String path, long size) throws IOException
+    {
+        RandomAccessFile file;
+        try
+        {
+            file = new RandomAccessFile(path, "rw");
+        }
+        catch (FileNotFoundException e)
+        {
+            throw new RuntimeException(e);
+        }
+        file.getChannel().truncate(size);
     }
 
     public static class FileComparator implements Comparator<File>

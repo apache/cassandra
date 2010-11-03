@@ -38,6 +38,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.AbstractCompactedRow;
 import org.apache.cassandra.io.ICompactionInfo;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
+import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SegmentedFile;
 import org.apache.cassandra.service.StorageService;
@@ -55,6 +56,7 @@ public class SSTableWriter extends SSTable
     private SegmentedFile.Builder dbuilder;
     private final BufferedRandomAccessFile dataFile;
     private DecoratedKey lastWrittenKey;
+    private FileMark dataMark;
 
     public SSTableWriter(String filename, long keyCount) throws IOException
     {
@@ -99,6 +101,25 @@ public class SSTableWriter extends SSTable
         }
     }
 
+    public void mark()
+    {
+        dataMark = dataFile.mark();
+        iwriter.mark();
+    }
+
+    public void reset()
+    {
+        try
+        {
+            dataFile.reset(dataMark);
+            iwriter.reset();
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+    }
+
     private long beforeAppend(DecoratedKey decoratedKey) throws IOException
     {
         if (decoratedKey == null)
@@ -121,8 +142,8 @@ public class SSTableWriter extends SSTable
 
         if (logger.isTraceEnabled())
             logger.trace("wrote " + decoratedKey + " at " + dataPosition);
-        dbuilder.addPotentialBoundary(dataPosition);
         iwriter.afterAppend(decoratedKey, dataPosition);
+        dbuilder.addPotentialBoundary(dataPosition);
     }
 
     public void append(AbstractCompactedRow row) throws IOException
@@ -176,7 +197,9 @@ public class SSTableWriter extends SSTable
         iwriter.close();
 
         // main data
+        long position = dataFile.getFilePointer();
         dataFile.close(); // calls force
+        FileUtils.truncate(dataFile.getPath(), position);
 
         // write sstable statistics
         writeStatistics(descriptor, estimatedRowSize, estimatedColumnCount);
@@ -358,7 +381,8 @@ public class SSTableWriter extends SSTable
         public final SegmentedFile.Builder builder;
         public final IndexSummary summary;
         public final BloomFilter bf;
-        
+        private FileMark mark;
+
         IndexWriter(Descriptor desc, IPartitioner part, long keyCount) throws IOException
         {
             this.desc = desc;
@@ -396,11 +420,25 @@ public class SSTableWriter extends SSTable
             stream.close();
 
             // index
-            indexFile.getChannel().force(true);
-            indexFile.close();
+            long position = indexFile.getFilePointer();
+            indexFile.close(); // calls force
+            FileUtils.truncate(indexFile.getPath(), position);
 
             // finalize in-memory index state
             summary.complete();
+        }
+
+        public void mark()
+        {
+            mark = indexFile.mark();
+        }
+
+        public void reset() throws IOException
+        {
+            // we can't un-set the bloom filter addition, but extra keys in there are harmless.
+            // we can't reset dbuilder either, but that is the last thing called in afterappend so
+            // we assume that if that worked then we won't be trying to reset.
+            indexFile.reset(mark);
         }
     }
 }

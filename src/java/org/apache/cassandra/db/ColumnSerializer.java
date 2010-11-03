@@ -64,6 +64,9 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
     public Column deserialize(DataInput dis) throws IOException
     {
         ByteBuffer name = FBUtilities.readShortByteArray(dis);
+        if (name.remaining() <= 0)
+            throw new CorruptColumnException("invalid column name length " + name.remaining());
+
         int b = dis.readUnsignedByte();
         if ((b & EXPIRATION_MASK) != 0)
         {
@@ -95,6 +98,14 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
             } else {
                 return new Column(name, value, ts);
             }
+        }
+    }
+
+    private static class CorruptColumnException extends IOException
+    {
+        public CorruptColumnException(String s)
+        {
+            super(s);
         }
     }
 }
