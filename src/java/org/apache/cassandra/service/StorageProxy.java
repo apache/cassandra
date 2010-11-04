@@ -686,6 +686,11 @@ public class StorageProxy implements StorageProxyMBean
                 throw new RuntimeException(e);
             }
             rows.addAll(theseRows);
+            if (logger.isDebugEnabled())
+            {
+                for (Row row : theseRows)
+                    logger.debug("read " + row);
+            }
             if (rows.size() >= index_clause.count)
                 return rows.subList(0, index_clause.count);
         }
