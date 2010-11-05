@@ -1130,12 +1130,6 @@ public class CliClient extends CliUserHelp
                 }
                 
                 sessionState.out.printf("      Columns sorted by: %s%s\n", cf_def.comparator_type, cf_def.column_type.equals("Super") ? "/" + cf_def.subcomparator_type : "");
-
-                if (cf_def.subcomparator_type != null)
-                {
-                    sessionState.out.println("      Subcolumns sorted by: " + cf_def.comparator_type);
-                }
-
                 sessionState.out.printf("      Row cache size / save period: %s/%s\n", cf_def.row_cache_size, cf_def.row_cache_save_period_in_seconds);
                 sessionState.out.printf("      Key cache size / save period: %s/%s\n", cf_def.key_cache_size, cf_def.key_cache_save_period_in_seconds);
                 sessionState.out.printf("      Memtable thresholds: %s/%s/%s\n",
