@@ -1148,6 +1148,18 @@ public class CliClient extends CliUserHelp
                     for (ColumnDef columnDef : cf_def.getColumn_metadata())
                     {
                         String columnName = columnNameValidator.getString(columnDef.name);
+                        if (columnNameValidator instanceof BytesType)
+                        {
+                            try
+                            {
+                                String columnString = UTF8Type.instance.getString(columnDef.name);
+                                columnName = columnString + " (" + columnName + ")";
+                            }
+                            catch (MarshalException e)
+                            {
+                                // guess it wasn't a utf8 column name after all
+                            }
+                        }
 
                         sessionState.out.println(leftSpace + "  Column Name: " + columnName);
                         sessionState.out.println(columnLeftSpace + "Validation Class: " + columnDef.getValidation_class());
