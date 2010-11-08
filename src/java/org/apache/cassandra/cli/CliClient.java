@@ -1136,6 +1136,7 @@ public class CliClient extends CliUserHelp
                                 cf_def.memtable_operations_in_millions, cf_def.memtable_throughput_in_mb, cf_def.memtable_flush_after_mins);
                 sessionState.out.printf("      GC grace seconds: %s\n", cf_def.gc_grace_seconds);
                 sessionState.out.printf("      Compaction min/max thresholds: %s/%s\n", cf_def.min_compaction_threshold, cf_def.max_compaction_threshold);
+                sessionState.out.printf("      Read repair chance: %s\n", cf_def.read_repair_chance);
 
                 if (cf_def.getColumn_metadataSize() != 0)
                 {

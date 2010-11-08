@@ -17,6 +17,7 @@ dev
  * improve cli handling of non-string column names (CASSANDRA-1701)
  * enable skipping bad rows on LazilyCompacted path (CASSANDRA-1702)
  * r/m extra subcomparator line in cli keyspaces output (CASSANDRA-1712)
+ * add read repair chance to cli "show keyspaces"
 
 
 0.7.0-beta3
