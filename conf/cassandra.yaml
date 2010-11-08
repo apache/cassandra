@@ -216,7 +216,9 @@ dynamic_snitch_reset_interval_in_ms: 600000
 # 'pinning' of replicas to hosts in order to increase cache capacity.
 # The badness threshold will control how much worse the pinned host has to be
 # before the dynamic snitch will prefer other replicas over it.  This is
-# expressed as a double which represents a percentage.
+# expressed as a double which represents a percentage.  Thus, a value of
+# 0.2 means Cassandra would continue to prefer the static snitch values
+# until the pinned host was 20% worse than the fastest.
 dynamic_snitch_badness_threshold: 0.0
 
 # request_scheduler -- Set this to a class that implements
