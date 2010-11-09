@@ -413,6 +413,7 @@ public class Table
                         // but for indexed data we need to make sure that we're not creating index entries
                         // for obsolete writes.
                         oldIndexedColumns = readCurrentIndexedColumns(key, cfs, mutatedIndexedColumns);
+                        logger.debug("Pre-mutation index row is {}", oldIndexedColumns);
                         ignoreObsoleteMutations(cf, mutatedIndexedColumns, oldIndexedColumns);
                     }
 
