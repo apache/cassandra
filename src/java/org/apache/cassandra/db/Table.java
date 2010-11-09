@@ -507,7 +507,6 @@ public class Table
             {
                 cfi.addColumn(new Column(key, FBUtilities.EMPTY_BYTE_BUFFER, column.timestamp()));
             }
-            System.out.println(cfi.toString());
             if (logger.isDebugEnabled())
                 logger.debug("applying index row {}:{}", valueKey, cfi);
             Memtable fullMemtable = cfs.getIndexedColumnFamilyStore(columnName).apply(valueKey, cfi);
