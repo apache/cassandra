@@ -368,6 +368,8 @@ public class Table
     public void apply(RowMutation mutation, Object serializedMutation, boolean writeCommitLog) throws IOException
     {
         List<Memtable> memtablesToFlush = Collections.emptyList();
+        if (logger.isDebugEnabled())
+            logger.debug("applying mutation of {}", FBUtilities.bytesToHex(mutation.key()));
 
         // write the mutation to the commitlog and memtables
         flusherLock.readLock().lock();
@@ -394,6 +396,8 @@ public class Table
                         if (mutatedIndexedColumns == null)
                             mutatedIndexedColumns = new TreeSet<ByteBuffer>();
                         mutatedIndexedColumns.add(column);
+                        if (logger.isDebugEnabled())
+                            logger.debug("mutating indexed column " + cf.getComparator().getString(column));
                     }
                 }
 
@@ -458,6 +462,8 @@ public class Table
             IColumn resolvedColumn = resolved == null ? null : resolved.getColumn(oldColumn.name());
             if (resolvedColumn != null && resolvedColumn.equals(oldColumn))
             {
+                if (logger.isDebugEnabled())
+                    logger.debug("ignoring obsolete mutation of " + cf.getComparator().getString(oldColumn.name()));
                 cf.remove(oldColumn.name());
                 mutatedIndexedColumns.remove(oldColumn.name());
                 oldIndexedColumns.remove(oldColumn.name());
@@ -501,6 +507,9 @@ public class Table
             {
                 cfi.addColumn(new Column(key, FBUtilities.EMPTY_BYTE_BUFFER, column.timestamp()));
             }
+            System.out.println(cfi.toString());
+            if (logger.isDebugEnabled())
+                logger.debug("applying index row {}:{}", valueKey, cfi);
             Memtable fullMemtable = cfs.getIndexedColumnFamilyStore(columnName).apply(valueKey, cfi);
             if (fullMemtable != null)
                 fullMemtables = addFullMemtable(fullMemtables, fullMemtable);
@@ -520,6 +529,8 @@ public class Table
                 ColumnFamily cfi = cfs.newIndexedColumnFamily(columnName);
                 cfi.addTombstone(key, localDeletionTime, column.timestamp());
                 Memtable fullMemtable = cfs.getIndexedColumnFamilyStore(columnName).apply(valueKey, cfi);
+                if (logger.isDebugEnabled())
+                    logger.debug("applying index tombstones {}:{}", valueKey, cfi);
                 if (fullMemtable != null)
                     fullMemtables = addFullMemtable(fullMemtables, fullMemtable);
             }

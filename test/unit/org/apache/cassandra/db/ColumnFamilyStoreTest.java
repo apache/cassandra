@@ -238,7 +238,8 @@ public class ColumnFamilyStoreTest extends CleanupHelper
 
         // verify that it's not being indexed under the deletion column value either
         IColumn deletion = rm.getColumnFamilies().iterator().next().iterator().next();
-        IndexExpression expr0 = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, deletion.value());
+        ByteBuffer deletionLong = FBUtilities.toByteBuffer((long) FBUtilities.byteBufferToInt(deletion.value()));
+        IndexExpression expr0 = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, deletionLong);
         IndexClause clause0 = new IndexClause(Arrays.asList(expr0), FBUtilities.EMPTY_BYTE_BUFFER, 100);
         rows = cfs.scan(clause0, range, filter);
         assert rows.isEmpty();

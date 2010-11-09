@@ -18,7 +18,7 @@
 package org.apache.cassandra.cli;
 
 import com.google.common.base.Charsets;
-import org.antlr.runtime.tree.CommonTree;
+
 import org.antlr.runtime.tree.Tree;
 import org.apache.cassandra.auth.SimpleAuthenticator;
 import org.apache.cassandra.config.ConfigurationException;
@@ -27,6 +27,7 @@ import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
+import org.apache.thrift.TBaseHelper;
 import org.apache.thrift.TException;
 
 import java.math.BigInteger;
@@ -226,7 +227,7 @@ public class CliClient extends CliUserHelp
        
        if (columnSpecCnt != 0)
        {
-           byte[] superColumn = CliCompiler.getColumn(columnFamilySpec, 0).getBytes(Charsets.UTF_8);
+           byte[] superColumn = columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), columnFamily);
            colParent = new ColumnParent(columnFamily).setSuper_column(superColumn);
        }
 
@@ -251,7 +252,8 @@ public class CliClient extends CliUserHelp
 
         byte[] superColumnName = null;
         byte[] columnName = null;
-        boolean isSuper = getCfDef(columnFamily).column_type.equals("Super");
+        CfDef cfDef = getCfDef(columnFamily);
+        boolean isSuper = cfDef.column_type.equals("Super");
      
         if ((columnSpecCnt < 0) || (columnSpecCnt > 2))
         {
@@ -263,15 +265,15 @@ public class CliClient extends CliUserHelp
         {
             // table.cf['key']['column']
             if (isSuper)
-                superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes(Charsets.UTF_8);
+                superColumnName = columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
             else
-                columnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes(Charsets.UTF_8);
+                columnName = columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
         }
         else if (columnSpecCnt == 2)
         {
             // table.cf['key']['column']['column']
-            superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes(Charsets.UTF_8);
-            columnName = CliCompiler.getColumn(columnFamilySpec, 1).getBytes(Charsets.UTF_8);
+            superColumnName = columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
+            columnName = subColumnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 1), cfDef);
         }
 
         ColumnPath path = new ColumnPath(columnFamily);
@@ -367,11 +369,11 @@ public class CliClient extends CliUserHelp
         String key = CliCompiler.getKey(columnFamilySpec);
         String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
-        CfDef columnFamilyDef = getCfDef(columnFamily);
-        boolean isSuper = columnFamilyDef.comparator_type.equals("Super");
+        CfDef cfDef = getCfDef(columnFamily);
+        boolean isSuper = cfDef.comparator_type.equals("Super");
         
         byte[] superColumnName = null;
-        String columnName;
+        ByteBuffer columnName;
 
         // table.cf['key'] -- row slice
         if (columnSpecCnt == 0)
@@ -384,20 +386,20 @@ public class CliClient extends CliUserHelp
         {
             if (isSuper)
             {
-                superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes(Charsets.UTF_8);
+                superColumnName = columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
                 doSlice(keySpace, key, columnFamily, superColumnName);
                 return;
             }
             else 
             {
-                 columnName = CliCompiler.getColumn(columnFamilySpec, 0);
+                 columnName = columnNameAsBytes(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
             }
         }
         // table.cf['key']['column']['column'] -- get of a sub-column
         else if (columnSpecCnt == 2)
         {
-            superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes(Charsets.UTF_8);
-            columnName = CliCompiler.getColumn(columnFamilySpec, 1);
+            superColumnName = columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
+            columnName = subColumnNameAsBytes(CliCompiler.getColumn(columnFamilySpec, 1), cfDef);
         }
         // The parser groks an arbitrary number of these so it is possible to get here.
         else
@@ -406,14 +408,22 @@ public class CliClient extends CliUserHelp
             return;
         }
 
-        ByteBuffer columnNameInBytes = columnNameAsBytes(columnName, columnFamily);
-        AbstractType validator = getValidatorForValue(columnFamilyDef, columnNameInBytes.array());
+        AbstractType validator = getValidatorForValue(cfDef, TBaseHelper.byteBufferToByteArray(columnName));
         
         // Perform a get()
         ColumnPath path = new ColumnPath(columnFamily);
         if(superColumnName != null) path.setSuper_column(superColumnName);
-        path.setColumn(columnNameInBytes);
-        Column column = thriftClient.get(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)), path, ConsistencyLevel.ONE).column;
+        path.setColumn(columnName);
+        Column column;
+        try
+        {
+            column = thriftClient.get(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)), path, ConsistencyLevel.ONE).column;
+        }
+        catch (NotFoundException e)
+        {
+            sessionState.out.println("Value was not found");
+            return;
+        }
 
         byte[] columnValue = column.getValue();       
         String valueAsString;
@@ -433,7 +443,7 @@ public class CliClient extends CliUserHelp
             // setting value for output
             valueAsString = valueValidator.getString(ByteBuffer.wrap(columnValue));
             // updating column value validator class
-            updateColumnMetaData(columnFamilyDef, columnNameInBytes, valueValidator.getClass().getName());
+            updateColumnMetaData(cfDef, columnName, valueValidator.getClass().getName());
         }
         else
         {
@@ -556,7 +566,7 @@ public class CliClient extends CliUserHelp
         Tree valueTree = statement.getChild(1);
         
         byte[] superColumnName = null;
-        String columnName;
+        ByteBuffer columnName;
 
         // table.cf['key']
         if (columnSpecCnt == 0)
@@ -568,7 +578,7 @@ public class CliClient extends CliUserHelp
         else if (columnSpecCnt == 1)
         {
             // get the column name
-            columnName = CliCompiler.getColumn(columnFamilySpec, 0);
+            columnName = columnNameAsBytes(CliCompiler.getColumn(columnFamilySpec, 0), columnFamily);
         }
         // table.cf['key']['super_column']['column'] = 'value'
         else
@@ -576,21 +586,20 @@ public class CliClient extends CliUserHelp
             assert (columnSpecCnt == 2) : "serious parsing error (this is a bug).";
             
             // get the super column and column names
-            superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes(Charsets.UTF_8);
-            columnName = CliCompiler.getColumn(columnFamilySpec, 1);
+            superColumnName = columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), columnFamily);
+            columnName = subColumnNameAsBytes(CliCompiler.getColumn(columnFamilySpec, 1), columnFamily);
         }
 
 
-        ByteBuffer columnNameInBytes = columnNameAsBytes(columnName, columnFamily);
         ByteBuffer columnValueInBytes;
 
         switch (valueTree.getType())
         {
         case CliParser.FUNCTION_CALL:
-            columnValueInBytes = convertValueByFunction(valueTree, getCfDef(columnFamily), columnNameInBytes, true);
+            columnValueInBytes = convertValueByFunction(valueTree, getCfDef(columnFamily), columnName, true);
             break;
         default:
-            columnValueInBytes = columnValueAsBytes(columnNameInBytes, columnFamily, value);
+            columnValueInBytes = columnValueAsBytes(columnName, columnFamily, value);
         }
 
         ColumnParent parent = new ColumnParent(columnFamily);
@@ -599,7 +608,7 @@ public class CliClient extends CliUserHelp
         
         // do the insert
         thriftClient.insert(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)), parent,
-                             new Column(columnNameInBytes, columnValueInBytes, FBUtilities.timestampMicros()), ConsistencyLevel.ONE);
+                             new Column(columnName, columnValueInBytes, FBUtilities.timestampMicros()), ConsistencyLevel.ONE);
         
         sessionState.out.println("Value inserted.");
     }
@@ -810,7 +819,7 @@ public class CliClient extends CliUserHelp
                 Tree arrayOfMetaAttributes = statement.getChild(i + 1);
                 if (!arrayOfMetaAttributes.getText().equals("ARRAY"))
                     throw new RuntimeException("'column_metadata' format - [{ k:v, k:v, ..}, { ... }, ...]");
-                cfDef.setColumn_metadata(getCFColumnMetaFromTree(arrayOfMetaAttributes));
+                cfDef.setColumn_metadata(getCFColumnMetaFromTree(cfDef, arrayOfMetaAttributes));
                 break;
             case MEMTABLE_OPERATIONS:
                 cfDef.setMemtable_operations_in_millions(Double.parseDouble(mValue));
@@ -1121,18 +1130,13 @@ public class CliClient extends CliUserHelp
                 }
                 
                 sessionState.out.printf("      Columns sorted by: %s%s\n", cf_def.comparator_type, cf_def.column_type.equals("Super") ? "/" + cf_def.subcomparator_type : "");
-
-                if (cf_def.subcomparator_type != null)
-                {
-                    sessionState.out.println("      Subcolumns sorted by: " + cf_def.comparator_type);
-                }
-
                 sessionState.out.printf("      Row cache size / save period: %s/%s\n", cf_def.row_cache_size, cf_def.row_cache_save_period_in_seconds);
                 sessionState.out.printf("      Key cache size / save period: %s/%s\n", cf_def.key_cache_size, cf_def.key_cache_save_period_in_seconds);
                 sessionState.out.printf("      Memtable thresholds: %s/%s/%s\n",
                                 cf_def.memtable_operations_in_millions, cf_def.memtable_throughput_in_mb, cf_def.memtable_flush_after_mins);
                 sessionState.out.printf("      GC grace seconds: %s\n", cf_def.gc_grace_seconds);
                 sessionState.out.printf("      Compaction min/max thresholds: %s/%s\n", cf_def.min_compaction_threshold, cf_def.max_compaction_threshold);
+                sessionState.out.printf("      Read repair chance: %s\n", cf_def.read_repair_chance);
 
                 if (cf_def.getColumn_metadataSize() != 0)
                 {
@@ -1145,6 +1149,18 @@ public class CliClient extends CliUserHelp
                     for (ColumnDef columnDef : cf_def.getColumn_metadata())
                     {
                         String columnName = columnNameValidator.getString(columnDef.name);
+                        if (columnNameValidator instanceof BytesType)
+                        {
+                            try
+                            {
+                                String columnString = UTF8Type.instance.getString(columnDef.name);
+                                columnName = columnString + " (" + columnName + ")";
+                            }
+                            catch (MarshalException e)
+                            {
+                                // guess it wasn't a utf8 column name after all
+                            }
+                        }
 
                         sessionState.out.println(leftSpace + "  Column Name: " + columnName);
                         sessionState.out.println(columnLeftSpace + "Validation Class: " + columnDef.getValidation_class());
@@ -1244,12 +1260,13 @@ public class CliClient extends CliUserHelp
     
     /**
      * Used to parse meta tree and compile meta attributes into List<ColumnDef>
+     * @param cfDef 
      * @param meta (Tree representing Array of the hashes with metadata attributes)
      * @return List<ColumnDef> List of the ColumnDef's
      * 
      * meta is in following format - ^(ARRAY ^(HASH ^(PAIR .. ..) ^(PAIR .. ..)) ^(HASH ...))
      */
-    private List<ColumnDef> getCFColumnMetaFromTree(Tree meta)
+    private List<ColumnDef> getCFColumnMetaFromTree(CfDef cfDef, Tree meta)
     {
         // this list will be returned
         List<ColumnDef> columnDefinitions = new ArrayList<ColumnDef>();
@@ -1273,7 +1290,10 @@ public class CliClient extends CliUserHelp
 
                 if (metaKey.equals("column_name"))
                 {
-                    columnDefinition.setName(metaVal.getBytes(Charsets.UTF_8));
+                    if (cfDef.column_type.equals("Super"))
+                        columnDefinition.setName(subColumnNameAsByteArray(metaVal, cfDef));
+                    else
+                        columnDefinition.setName(columnNameAsByteArray(metaVal, cfDef));
                 }
                 else if (metaKey.equals("validation_class"))
                 {
@@ -1391,17 +1411,91 @@ public class CliClient extends CliUserHelp
      * Converts column name into byte[] according to comparator type
      * @param column - column name from parser
      * @param columnFamily - column family name from parser
-     * @return ByteBuffer - array of bytes in which column name was converted according to comparator type
-     * @throws NoSuchFieldException - raised from getFormatTypeForColumn call
-     * @throws InstantiationException - raised from getFormatTypeForColumn call
-     * @throws IllegalAccessException - raised from getFormatTypeForColumn call
+     * @return ByteBuffer - bytes into which column name was converted according to comparator type
      */
-    private ByteBuffer columnNameAsBytes(String column, String columnFamily) throws NoSuchFieldException, InstantiationException, IllegalAccessException
+    private ByteBuffer columnNameAsBytes(String column, String columnFamily) 
     {
-        CfDef columnFamilyDef   = getCfDef(columnFamily);
-        String comparatorClass  = columnFamilyDef.comparator_type;
-
+        CfDef columnFamilyDef = getCfDef(columnFamily);
+        return columnNameAsBytes(column, columnFamilyDef);
+    }
+    /**
+     * Converts column name into byte[] according to comparator type
+     * @param column - column name from parser
+     * @param columnFamilyDef - column family from parser
+     * @return ByteBuffer bytes - into which column name was converted according to comparator type
+     */
+    private ByteBuffer columnNameAsBytes(String column, CfDef columnFamilyDef) 
+    {
+        String comparatorClass = columnFamilyDef.comparator_type;
         return getBytesAccordingToType(column, getFormatTypeForColumn(comparatorClass));   
+    }
+
+    /**
+     * Converts column name into byte[] according to comparator type
+     * @param column - column name from parser
+     * @param columnFamily - column family name from parser
+     * @return bytes[] - into which column name was converted according to comparator type
+     */
+    private byte[] columnNameAsByteArray(String column, String columnFamily)
+    {
+        return TBaseHelper.byteBufferToByteArray(columnNameAsBytes(column, columnFamily));
+    }
+
+    /**
+     * Converts column name into byte[] according to comparator type
+     * @param column - column name from parser
+     * @param columnFamilyDef - column family from parser
+     * @return bytes[] - into which column name was converted according to comparator type
+     */
+    private byte[] columnNameAsByteArray(String column, CfDef cfDef)
+    {
+        return TBaseHelper.byteBufferToByteArray(columnNameAsBytes(column, cfDef));
+    }
+
+    /**
+     * Converts sub-column name into ByteBuffer according to comparator type
+     * @param superColumn - sub-column name from parser
+     * @param columnFamily - column family name from parser
+     * @return ByteBuffer bytes - into which column name was converted according to comparator type
+     */
+    private ByteBuffer subColumnNameAsBytes(String superColumn, String columnFamily)
+    {
+        CfDef columnFamilyDef = getCfDef(columnFamily);
+        return subColumnNameAsBytes(superColumn, columnFamilyDef);
+    }
+
+    /**
+     * Converts column name into ByteBuffer according to comparator type
+     * @param superColumn - sub-column name from parser
+     * @param columnFamilyDef - column family from parser
+     * @return ByteBuffer bytes - into which column name was converted according to comparator type
+     */
+    private ByteBuffer subColumnNameAsBytes(String superColumn, CfDef columnFamilyDef) 
+    {
+        String comparatorClass = columnFamilyDef.subcomparator_type;
+        return getBytesAccordingToType(superColumn, getFormatTypeForColumn(comparatorClass));   
+    }
+
+    /**
+     * Converts column name into byte[] according to comparator type
+     * @param superColumn - sub-column name from parser
+     * @param columnFamily - column family name from parser
+     * @return bytes[] - into which column name was converted according to comparator type
+     */
+    private byte[] subColumnNameAsByteArray(String superColumn, String columnFamily)
+    {
+        return TBaseHelper.byteBufferToByteArray(subColumnNameAsBytes(superColumn, columnFamily));
+    }
+
+    /**
+     * Converts sub-column name into byte[] according to comparator type
+     * @param superColumn - sub-column name from parser
+     * @param cfDef - column family from parser
+     * @return bytes[] - into which column name was converted according to comparator type
+     */
+    private byte[] subColumnNameAsByteArray(String superColumn, CfDef cfDef)
+    {
+        return TBaseHelper.byteBufferToByteArray(subColumnNameAsBytes(superColumn, cfDef));
     }
 
     /**
@@ -1657,7 +1751,7 @@ public class CliClient extends CliUserHelp
         sessionState.out.printf("\n%d Row%s Returned.\n", slices.size(), (slices.size() > 1 ? "s" : ""));
     }
 
-    // returns super column name in human-readable format
+    // returnsub-columnmn name in human-readable format
     private String formatSuperColumnName(String keyspace, String columnFamily, SuperColumn column)
             throws NotFoundException, TException, IllegalAccessException, InstantiationException, NoSuchFieldException
     {

@@ -815,12 +815,10 @@ public class CassandraServer implements Cassandra.Iface
     public String system_update_keyspace(KsDef ks_def) throws InvalidRequestException, TException
     {
         state().hasKeyspaceListAccess(Permission.WRITE);
-        
+
+        ThriftValidation.validateTable(ks_def.name);
         if (ks_def.getCf_defs() != null && ks_def.getCf_defs().size() > 0)
             throw new InvalidRequestException("Keyspace update must not contain any column family definitions.");
-        
-        if (DatabaseDescriptor.getTableDefinition(ks_def.name) == null)
-            throw new InvalidRequestException("Keyspace does not exist.");
         
         try
         {
@@ -935,11 +933,8 @@ public class CassandraServer implements Cassandra.Iface
 
     public void set_keyspace(String keyspace) throws InvalidRequestException, TException
     {
-        if (DatabaseDescriptor.getTableDefinition(keyspace) == null)
-        {
-            throw new InvalidRequestException("Keyspace does not exist");
-        }
-        
+        ThriftValidation.validateTable(keyspace);
+
         state().setKeyspace(keyspace);
     }
 

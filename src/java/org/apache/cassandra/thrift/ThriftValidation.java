@@ -59,11 +59,11 @@ public class ThriftValidation
         }
     }
 
-    private static void validateTable(String tablename) throws KeyspaceNotDefinedException
+    public static void validateTable(String tablename) throws KeyspaceNotDefinedException
     {
         if (!DatabaseDescriptor.getTables().contains(tablename))
         {
-            throw new KeyspaceNotDefinedException("Keyspace " + tablename + " does not exist in this schema.");
+            throw new KeyspaceNotDefinedException("Keyspace " + tablename + " does not exist");
         }
     }
 

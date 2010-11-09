@@ -1260,6 +1260,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // TODO: allow merge join instead of just one index + loop
         IndexExpression primary = highestSelectivityPredicate(clause);
         ColumnFamilyStore indexCFS = getIndexedColumnFamilyStore(primary.column_name);
+        if (logger.isDebugEnabled())
+            logger.debug("Primary scan clause is " + getComparator().getString(primary.column_name));
         assert indexCFS != null;
         DecoratedKey indexKey = indexCFS.partitioner.decorateKey(primary.value);
 
@@ -1275,6 +1277,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 // otherwise, create an extraFilter to fetch by name the columns referenced by the additional expressions.
                 if (getMaxRowSize() < DatabaseDescriptor.getColumnIndexSize())
                 {
+                    logger.debug("Expanding slice filter to entire row to cover additional expressions");
                     firstFilter = new SliceQueryFilter(FBUtilities.EMPTY_BYTE_BUFFER,
                                                        FBUtilities.EMPTY_BYTE_BUFFER,
                                                        ((SliceQueryFilter) dataFilter).reversed,
@@ -1282,6 +1285,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
                 else
                 {
+                    logger.debug("adding extraFilter to cover additional expressions");
                     SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(getComparator());
                     for (IndexExpression expr : clause.expressions)
                     {
@@ -1294,6 +1298,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             else
             {
+                logger.debug("adding columns to firstFilter to cover additional expressions");
                 // just add in columns that are not part of the resultset
                 assert dataFilter instanceof NamesQueryFilter;
                 SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(getComparator());
@@ -1324,6 +1329,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
              * so, we need to loop after starting with start_key, until we get to keys in the given `range`.
              * But, if the calling StorageProxy is doing a good job estimating data from each range, the range
              * should be pretty close to `start_key`. */
+            if (logger.isDebugEnabled())
+                logger.debug(String.format("Scanning index row %s:%s starting with %s",
+                                           indexCFS.columnFamily, indexKey, indexCFS.getComparator().getString(startKey)));
             QueryFilter indexFilter = QueryFilter.getSliceFilter(indexKey,
                                                                  new QueryPath(indexCFS.getColumnFamilyName()),
                                                                  startKey,
@@ -1331,6 +1339,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                                  false,
                                                                  clause.count);
             ColumnFamily indexRow = indexCFS.getColumnFamily(indexFilter);
+            logger.debug("fetched {}", indexRow);
             if (indexRow == null)
                 break;
 
@@ -1350,6 +1359,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                 // get the row columns requested, and additional columns for the expressions if necessary
                 ColumnFamily data = getColumnFamily(new QueryFilter(dk, path, firstFilter));
+                logger.debug("fetched data row {}", data);
                 if (extraFilter != null)
                 {
                     // we might have gotten the expression columns in with the main data slice, but
@@ -1367,6 +1377,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                 if (satisfies(data, clause, primary))
                 {
+                    logger.debug("row {} satisfies all clauses", data);
                     // cut the resultset back to what was requested, if necessary
                     if (firstFilter != dataFilter)
                     {

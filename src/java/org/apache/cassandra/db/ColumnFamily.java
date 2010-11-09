@@ -355,7 +355,7 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
     {
         StringBuilder sb = new StringBuilder("ColumnFamily(");
         CFMetaData cfm = metadata();
-        sb.append(cfm == null ? "-deleted-" : cfm.cfName);
+        sb.append(cfm == null ? "<anonymous>" : cfm.cfName);
 
         if (isMarkedForDelete())
             sb.append(" -deleted at " + getMarkedForDeleteAt() + "-");

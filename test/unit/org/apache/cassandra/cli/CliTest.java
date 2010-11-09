@@ -54,7 +54,30 @@ public class CliTest extends CleanupHelper
         "list CF3[:]",
         "list CF3[h:]",
         "list CF3 limit 10",
-        "list CF3[h:g] limit 10",
+        "list CF3[h:] limit 10",
+        "create column family CF4 with comparator=IntegerType and column_metadata=[{column_name:9999, validation_class:LongType}]",
+        "set CF4['hello'][9999] = 1234",
+        "get CF4['hello'][9999]",
+        "get CF4['hello'][9999] as Long",
+        "get CF4['hello'][9999] as Bytes",
+        "set CF4['hello'][9999] = Long(1234)",
+        "get CF4['hello'][9999]",
+        "get CF4['hello'][9999] as Long",
+        "del CF4['hello'][9999]",
+        "get CF4['hello'][9999]",
+        "create column family SCF1 with column_type=Super and comparator=IntegerType and subcomparator=LongType and column_metadata=[{column_name:9999, validation_class:LongType}]",
+        "set SCF1['hello'][1][9999] = 1234",
+        "get SCF1['hello'][1][9999]",
+        "get SCF1['hello'][1][9999] as Long",
+        "get SCF1['hello'][1][9999] as Bytes",
+        "set SCF1['hello'][1][9999] = Long(1234)",
+        "get SCF1['hello'][1][9999]",
+        "get SCF1['hello'][1][9999] as Long",
+        "del SCF1['hello'][1][9999]",
+        "get SCF1['hello'][1][9999]",
+        "set SCF1['hello'][1][9999] = Long(1234)",
+        "del SCF1['hello'][9999]",
+        "get SCF1['hello'][1][9999]",
         "truncate CF1",
         "update keyspace TestKeySpace with placement_strategy='org.apache.cassandra.locator.LocalStrategy'",
         "update keyspace TestKeySpace with replication_factor=1 and strategy_options=[{DC1:3, DC2:4, DC5:1}]"
@@ -83,9 +106,12 @@ public class CliTest extends CleanupHelper
 
         for (String statement : statements)
         {
+            errStream.reset();
+            // System.out.println("Executing statement: " + statement);
             CliMain.processStatement(statement);
             String result = outStream.toString();
-
+            // System.out.println("Result:\n" + result);
+            assertEquals("", errStream.toString());
             if (statement.startsWith("drop ") || statement.startsWith("create ") || statement.startsWith("update "))
             {
                 assertTrue(result.matches("(.{8})-(.{4})-(.{4})-(.{4})-(.{12})\n"));
@@ -102,7 +128,7 @@ public class CliTest extends CleanupHelper
                 }
                 else
                 {
-                    assertTrue(result.startsWith("=> (column="));
+                    assertTrue(result.startsWith("=> (column=") || result.startsWith("Value was not found"));
                 }
             }
             else if (statement.startsWith("truncate "))
