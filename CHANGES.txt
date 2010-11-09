@@ -1,4 +1,9 @@
 0.6.7
+ * Update windows .bat files to work outside of main Cassandra
+   directory (CASSANDRA-1713)
+
+
+0.6.7
  * quorum read optimization (CASSANDRA-1622)
  * update GC settings in cassandra.bat (CASSANDRA-1636)
  * fix hinted handoff replay (CASSANDRA-1656)
