@@ -1822,4 +1822,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         this.memops = ops;
     }
+
+    public long estimateKeys()
+    {
+        return ssTables.estimatedKeys();
+    }
 }
