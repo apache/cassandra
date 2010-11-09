@@ -369,7 +369,7 @@ public class Table
     {
         List<Memtable> memtablesToFlush = Collections.emptyList();
         if (logger.isDebugEnabled())
-            logger.debug("applying mutation of {}", FBUtilities.bytesToHex(mutation.key()));
+            logger.debug("applying mutation of row {}", FBUtilities.bytesToHex(mutation.key()));
 
         // write the mutation to the commitlog and memtables
         flusherLock.readLock().lock();
@@ -397,7 +397,9 @@ public class Table
                             mutatedIndexedColumns = new TreeSet<ByteBuffer>();
                         mutatedIndexedColumns.add(column);
                         if (logger.isDebugEnabled())
-                            logger.debug("mutating indexed column " + cf.getComparator().getString(column));
+                            logger.debug(String.format("mutating indexed column %s value %s",
+                                                       cf.getComparator().getString(column),
+                                                       cfs.metadata.column_metadata.get(column).validator.getString(cf.getColumn(column).value())));
                     }
                 }
 
