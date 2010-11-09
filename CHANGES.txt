@@ -1,4 +1,9 @@
-dev
+0.6.7
+ * Update windows .bat files to work outside of main Cassandra
+   directory (CASSANDRA-1713)
+
+
+0.6.7
  * log threshold causing memtable flush (CASSANDRA-1675)
  * log type of dropped messages (CASSANDRA-1677)
  * upgrade to SLF4J 1.6.1
