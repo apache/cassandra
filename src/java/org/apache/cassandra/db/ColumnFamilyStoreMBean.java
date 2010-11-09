@@ -210,4 +210,6 @@ public interface ColumnFamilyStoreMBean
 
     public double getMemtableOperationsInMillions();
     public void setMemtableOperationsInMillions(double ops);
+
+    public long estimateKeys();
 }
