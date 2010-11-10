@@ -68,18 +68,18 @@ public class CassandraStorage extends LoadFunc
             // load the next pair
             if (!reader.nextKeyValue())
                 return null;
-            byte[] key = (byte[])reader.getCurrentKey();
-            SortedMap<byte[],IColumn> cf = (SortedMap<byte[],IColumn>)reader.getCurrentValue();
+
+            ByteBuffer key = (ByteBuffer)reader.getCurrentKey();
+            SortedMap<ByteBuffer,IColumn> cf = (SortedMap<ByteBuffer,IColumn>)reader.getCurrentValue();
             assert key != null && cf != null;
             
             // and wrap it in a tuple
-		    Tuple tuple = TupleFactory.getInstance().newTuple(2);
+	    Tuple tuple = TupleFactory.getInstance().newTuple(2);
             ArrayList<Tuple> columns = new ArrayList<Tuple>();
-            tuple.set(0, new DataByteArray(key));
-            for (Map.Entry<byte[], IColumn> entry : cf.entrySet())
+            tuple.set(0, new DataByteArray(key.array(), key.position()+key.arrayOffset(), key.limit()+key.arrayOffset()));
+            for (Map.Entry<ByteBuffer, IColumn> entry : cf.entrySet())
             {                    
-                byte[] name = entry.getKey();
-                columns.add(columnToTuple(name, 0, name.length, entry.getValue()));
+                columns.add(columnToTuple(entry.getKey(), entry.getValue()));
             }
          
             tuple.set(1, new DefaultDataBag(columns));
@@ -91,25 +91,23 @@ public class CassandraStorage extends LoadFunc
         }
     }
 
-    private Tuple columnToTuple(byte[] name, int nameOffset, int nameLength, IColumn col) throws IOException
+    private Tuple columnToTuple(ByteBuffer name, IColumn col) throws IOException
     {
         Tuple pair = TupleFactory.getInstance().newTuple(2);
-        pair.set(0, new DataByteArray(name, nameOffset, nameLength));
+        pair.set(0, new DataByteArray(name.array(), name.position()+name.arrayOffset(), name.limit()+name.arrayOffset()));
         if (col instanceof Column)
         {
             // standard
             pair.set(1, new DataByteArray(col.value().array(), 
                                           col.value().position()+col.value().arrayOffset(),
-                                          col.value().remaining()));
+                                          col.value().limit()+col.value().arrayOffset()));
             return pair;
         }
 
         // super
         ArrayList<Tuple> subcols = new ArrayList<Tuple>();
         for (IColumn subcol : ((SuperColumn)col).getSubColumns())
-            subcols.add(columnToTuple(subcol.name().array(), 
-                                      subcol.name().position()+subcol.name().arrayOffset(),
-                                      subcol.name().remaining(), subcol));
+            subcols.add(columnToTuple(subcol.name(), subcol));
         
         pair.set(1, new DefaultDataBag(subcols));
         return pair;
