@@ -397,9 +397,14 @@ public class Table
                             mutatedIndexedColumns = new TreeSet<ByteBuffer>();
                         mutatedIndexedColumns.add(column);
                         if (logger.isDebugEnabled())
+                        {
+                            // can't actually use validator to print value here, because we overload value
+                            // for deletion timestamp as well (which may not be a well-formed value for the column type)
+                            ByteBuffer value = cf.getColumn(column) == null ? null : cf.getColumn(column).value(); // may be null on row-level deletion
                             logger.debug(String.format("mutating indexed column %s value %s",
                                                        cf.getComparator().getString(column),
-                                                       cfs.metadata.column_metadata.get(column).validator.getString(cf.getColumn(column).value())));
+                                                       value == null ? "null" : FBUtilities.bytesToHex(value)));
+                        }
                     }
                 }
 
