@@ -1364,4 +1364,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             return 0d;
         return falseCount.doubleValue() / (trueCount.doubleValue() + falseCount.doubleValue());
     }
+
+    public long estimateKeys()
+    {
+        return ssTables_.estimatedKeys();
+    }
 }

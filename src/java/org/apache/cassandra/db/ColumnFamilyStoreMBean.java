@@ -165,4 +165,6 @@ public interface ColumnFamilyStoreMBean
     public double getBloomFilterFalseRatio();
 
     public double getRecentBloomFilterFalseRatio();
+
+    public long estimateKeys();
 }
