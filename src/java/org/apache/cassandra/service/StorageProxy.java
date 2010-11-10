@@ -562,8 +562,8 @@ public class StorageProxy implements StorageProxyMBean
      */
     static List<AbstractBounds> getRestrictedRanges(final AbstractBounds queryRange)
     {
-        // special case for bounds containing exactly 1 token
-        if (queryRange instanceof Bounds && queryRange.left.equals(queryRange.right))
+        // special case for bounds containing exactly 1 (non-minimum) token
+        if (queryRange instanceof Bounds && queryRange.left.equals(queryRange.right) && !queryRange.left.equals(StorageService.getPartitioner().getMinimumToken()))
         {
             if (logger.isDebugEnabled())
                 logger.debug("restricted single token match for query " + queryRange);

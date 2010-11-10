@@ -107,5 +107,7 @@ public class StorageProxyTest extends CleanupHelper
     {
         // equal tokens are special cased as non-wrapping for bounds
         testGRR(bounds("0", "0"), bounds("0", "0"));
+        // completely empty bounds match everything
+        testGRR(bounds("", ""), bounds("", "1"), range("1", "6"), range("6", ""));
     }
 }

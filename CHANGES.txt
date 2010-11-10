@@ -1,9 +1,6 @@
-0.6.7
+dev
  * Update windows .bat files to work outside of main Cassandra
    directory (CASSANDRA-1713)
-
-
-0.6.7
  * log threshold causing memtable flush (CASSANDRA-1675)
  * log type of dropped messages (CASSANDRA-1677)
  * upgrade to SLF4J 1.6.1
@@ -24,6 +21,7 @@
  * r/m extra subcomparator line in cli keyspaces output (CASSANDRA-1712)
  * add read repair chance to cli "show keyspaces"
  * upgrade to ConcurrentLinkedHashMap 1.1 (CASSANDRA-975)
+ * fix index scan routing (CASSANDRA-1722)
 
 
 0.7.0-beta3
