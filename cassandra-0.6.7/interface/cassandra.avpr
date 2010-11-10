@@ -1,0 +1,100 @@
+{
+  "namespace":  "org.apache.cassandra.avro",
+  "protocol":   "Cassandra",
+
+  "types": [
+      {"name": "ColumnPath", "type": "record",
+          "fields": [
+            {"name": "column_family", "type": "string"},
+            {"name": "super_column", "type": ["bytes", "null"]},
+            {"name": "column", "type": ["bytes", "null"]}
+        ]
+      },
+      {"name": "Column", "type": "record",
+          "fields": [
+            {"name": "name", "type": "bytes"},
+            {"name": "value", "type": "bytes"},
+            {"name": "timestamp", "type": "long"}
+        ]
+      },
+      {"name": "SuperColumn", "type": "record",
+          "fields": [
+            {"name": "name", "type": "bytes"},
+            {"name": "columns", "type": {"type": "array", "items": "Column"}}
+        ]
+      },
+      {"name": "ColumnOrSuperColumn", "type": "record",
+          "fields": [
+            {"name": "column", "type": ["Column", "null"]},
+            {"name": "super_column", "type": ["SuperColumn", "null"]}
+        ]
+      },
+      {"name": "ConsistencyLevel", "type": "enum",
+          "symbols": [
+            "ZERO", "ONE", "QUORUM", "DCQUORUM", "DCQUORUMSYNC", "ALL"
+          ]
+      },
+      {"name": "InvalidRequestException", "type": "error",
+          "fields": [
+            {"name": "why", "type": ["string", "null"]}
+          ]
+      },
+      {"name": "NotFoundException", "type": "error",
+          "fields": [
+            {"name": "why", "type": ["string", "null"]}
+          ]
+      },
+      {"name": "UnavailableException", "type": "error",
+          "fields": [
+            {"name": "why", "type": ["string", "null"]}
+          ]
+      },
+      {"name": "TimedOutException", "type": "error",
+          "fields": [
+            {"name": "why", "type": ["string", "null"]}
+          ]
+      }
+  ],
+
+  "messages": {
+    "get": {
+        "request": [
+            {"name": "keyspace", "type": "string"},
+            {"name": "key", "type": "string"},
+            {"name": "column_path", "type": "ColumnPath"},
+            {"name": "consistency_level", "type": "ConsistencyLevel"}
+        ],
+        "response": "ColumnOrSuperColumn",
+        "errors": ["InvalidRequestException", "NotFoundException",
+            "UnavailableException", "TimedOutException"]
+    },
+    "insert": {
+        "request": [
+            {"name": "keyspace", "type": "string"},
+            {"name": "key", "type": "string"},
+            {"name": "column_path", "type": "ColumnPath"},
+            {"name": "value", "type": "bytes"},
+            {"name": "timestamp", "type": "long"},
+            {"name": "consistency_level", "type": "ConsistencyLevel"}
+        ],
+        "response": "null",
+        "errors": ["InvalidRequestException", "UnavailableException",
+            "TimedOutException"]
+    },
+    "batch_insert": {
+        "request": [
+            {"name": "keyspace", "type": "string"},
+            {"name": "key", "type": "string"},
+            {"name": "cfmap", "type": {"type": "map", "values": {"type": "array", "items": "ColumnOrSuperColumn"}}},
+            {"name": "consistency_level", "type": "ConsistencyLevel"}
+        ],
+        "response": "null",
+        "errors": ["InvalidRequestException", "UnavailableException",
+            "TimedOutException"]
+    },
+    "get_api_version": {
+        "request": [],
+        "response": "string"
+    }
+  }
+}
