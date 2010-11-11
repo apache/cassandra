@@ -334,8 +334,6 @@ public class CliUserHelp {
             state.out.println("            Update a column family with the specified attribute(s) and value(s).");
             state.out.println("drop keyspace <keyspace>                                      Delete a keyspace.");
             state.out.println("drop column family <cf>                                  Delete a column family.");
-            state.out.println("rename keyspace <keyspace> <keyspace_new_name>                Rename a keyspace.");
-            state.out.println("rename column family <cf> <new_name>                     Rename a column family.");
             state.out.println("get <cf>['<key>']                                        Get a slice of columns.");
             state.out.println("get <cf>['<key>']['<super>']                         Get a slice of sub columns.");
             state.out.println("get <cf> where <column> = <value> [and <column> > <value> and ...] [limit int]. ");
