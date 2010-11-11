@@ -45,7 +45,20 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ExpiringMap;
 import org.apache.cassandra.utils.FBUtilities;
 
-
+/**
+ * ConsistencyChecker does the following:
+ *
+ * [ConsistencyChecker.run]
+ * (1) sends DIGEST read requests to each other replica of the given row.
+ *
+ * [DigestResponseHandler]
+ * (2) If any of the digests to not match the local one, it sends a second round of requests
+ * to each replica, this time for the full data
+ *
+ * [DataRepairHandler]
+ * (3) processes full-read responses and invokes resolve.  The actual sending of messages
+ * repairing out-of-date or missing data is handled by ReadResponseResolver.
+ */
 class ConsistencyChecker implements Runnable
 {
 	private static Logger logger_ = Logger.getLogger(ConsistencyChecker.class);
@@ -62,6 +75,7 @@ class ConsistencyChecker implements Runnable
         row_ = row;
         replicas_ = endpoints;
         readCommand_ = readCommand;
+        assert replicas_.contains(FBUtilities.getLocalAddress());
     }
 
     public void run()
@@ -96,8 +110,9 @@ class ConsistencyChecker implements Runnable
     class DigestResponseHandler implements IAsyncCallback
 	{
         private boolean repairInvoked;
+        private final byte[] localDigest = ColumnFamily.digest(row_.cf);
 
-		public synchronized void response(Message response)
+        public synchronized void response(Message response)
 		{
             if (repairInvoked)
                 return;
@@ -109,19 +124,15 @@ class ConsistencyChecker implements Runnable
                 ReadResponse result = ReadResponse.serializer().deserialize(new DataInputStream(bufIn));
                 byte[] digest = result.digest();
 
-                if (!Arrays.equals(ColumnFamily.digest(row_.cf), digest))
+                if (!Arrays.equals(localDigest, digest))
                 {
                     ReadResponseResolver readResponseResolver = new ReadResponseResolver(table_, replicas_.size());
-                    IAsyncCallback responseHandler;
-                    if (replicas_.contains(FBUtilities.getLocalAddress()))
-                        responseHandler = new DataRepairHandler(row_, replicas_.size(), readResponseResolver);
-                    else
-                        responseHandler = new DataRepairHandler(replicas_.size(), readResponseResolver);
+                    IAsyncCallback responseHandler = new DataRepairHandler(row_, replicas_.size(), readResponseResolver);
 
                     ReadCommand readCommand = constructReadMessage(false);
                     Message message = readCommand.makeReadMessage();
                     if (logger_.isDebugEnabled())
-                      logger_.debug("Performing read repair for " + readCommand_.key + " to " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");
+                        logger_.debug("Digest mismatch; re-reading " + readCommand_.key + " from " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");                         
                     MessagingService.instance.addCallback(responseHandler, message.getMessageId());
                     for (InetAddress endpoint : replicas_)
                     {
@@ -145,15 +156,10 @@ class ConsistencyChecker implements Runnable
 		private final ReadResponseResolver readResponseResolver_;
 		private final int majority_;
 		
-		DataRepairHandler(int responseCount, ReadResponseResolver readResponseResolver)
-		{
-			readResponseResolver_ = readResponseResolver;
-			majority_ = (responseCount / 2) + 1;  
-		}
-
         public DataRepairHandler(Row localRow, int responseCount, ReadResponseResolver readResponseResolver) throws IOException
         {
-            this(responseCount, readResponseResolver);
+            readResponseResolver_ = readResponseResolver;
+            majority_ = (responseCount / 2) + 1;
             // wrap localRow in a response Message so it doesn't need to be special-cased in the resolver
             ReadResponse readResponse = new ReadResponse(localRow);
             Message fakeMessage = new Message(FBUtilities.getLocalAddress(), StageManager.RESPONSE_STAGE, StorageService.Verb.READ_RESPONSE, ArrayUtils.EMPTY_BYTE_ARRAY);

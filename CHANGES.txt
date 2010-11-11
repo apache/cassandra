@@ -2,6 +2,7 @@ dev
  * Update windows .bat files to work outside of main Cassandra
    directory (CASSANDRA-1713)
  * fix read repair regression from 0.6.7 (CASSANDRA-1727)
+ * more-efficient read repair (CASSANDRA-1719)
 
 
 0.6.7
