@@ -84,7 +84,17 @@ public class CliTest extends CleanupHelper
         "assume CF1 comparator as utf8",
         "assume CF1 sub_comparator as integer",
         "assume CF1 validator as lexicaluuid",
-        "assume CF1 keys as timeuuid"
+        "assume CF1 keys as timeuuid",
+        "create column family CF7",
+        "set CF7[1][timeuuid()] = utf8(test1)",
+        "set CF7[2][lexicaluuid()] = utf8('hello world!')",
+        "set CF7[3][lexicaluuid(550e8400-e29b-41d4-a716-446655440000)] = utf8(test2)",
+        "set CF7[key2][timeuuid()] = utf8(test3)",
+        "assume CF7 comparator as lexicaluuid",
+        "assume CF7 keys as utf8",
+        "list CF7",
+        "get CF7[3]",
+        "get CF7[3][lexicaluuid(550e8400-e29b-41d4-a716-446655440000)]"
     };
     
     @Test

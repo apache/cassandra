@@ -227,15 +227,19 @@ public class CliUserHelp {
                 state.out.println("get <cf>['<key>']");
                 state.out.println("get <cf>['<key>']['<col>'] (as <type>)*");
                 state.out.println("get <cf>['<key>']['<super>']");
+                state.out.println("get <cf>['<key>'][<function>]");
+                state.out.println("get <cf>['<key>'][<function>(<super>)][<function>(<col>)]");
                 state.out.println("get <cf> where <column> = <value> [and <column> > <value> and ...] [limit <integer>]");
                 state.out.println("Default LIMIT is 100. Available operations: =, >, >=, <, <=\n");
                 state.out.println("get <cf>['<key>']['<super>']['<col>'] (as <type>)*");
                 state.out.print("Note: `as <type>` is optional, it dynamically converts column value to the specified type");
                 state.out.println(", column value validator will be set to <type>.");
+                state.out.println("Available functions: " + CliClient.Function.getFunctionNames());
                 state.out.println("Available types: IntegerType, LongType, UTF8Type, ASCIIType, TimeUUIDType, LexicalUUIDType.\n");
                 state.out.println("examples:");
                 state.out.println("get bar[testkey]");
                 state.out.println("get bar[testkey][test_column] as IntegerType");
+                state.out.println("get bar[testkey][utf8(hello)]");
                 break;
 
             case CliParser.NODE_THRIFT_SET:
@@ -243,11 +247,13 @@ public class CliUserHelp {
                 state.out.println("set <cf>['<key>']['<super>']['<col>'] = <value>");
                 state.out.println("set <cf>['<key>']['<col>'] = <function>(<argument>)");
                 state.out.println("set <cf>['<key>']['<super>']['<col>'] = <function>(<argument>)");
+                state.out.println("set <cf>[<key>][<function>(<col>)] = <value> || <function>");
                 state.out.println("Available functions: " + CliClient.Function.getFunctionNames() + "\n");
                 state.out.println("examples:");
                 state.out.println("set bar['testkey']['my super']['test col']='this is a test'");
                 state.out.println("set baz['testkey']['test col']='this is also a test'");
                 state.out.println("set diz[testkey][testcol] = utf8('this is utf8 string.')");
+                state.out.println("set bar[testkey][timeuuid()] = utf('hello world')");
                 break;
 
             case CliParser.NODE_THRIFT_DEL:

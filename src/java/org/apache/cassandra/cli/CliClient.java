@@ -29,6 +29,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.thrift.TBaseHelper;
 import org.apache.thrift.TException;
+import org.safehaus.uuid.UUIDGenerator;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -300,7 +301,7 @@ public class CliClient extends CliUserHelp
         ColumnParent parent = new ColumnParent(columnFamily);
         if(superColumnName != null)
             parent.setSuper_column(superColumnName);
-                
+
         SliceRange range = new SliceRange(FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER, true, 1000000);
         List<ColumnOrSuperColumn> columns = thriftClient.get_slice(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)),parent,
                                                                     new SlicePredicate().setColumn_names(null).setSlice_range(range), ConsistencyLevel.ONE);
@@ -370,7 +371,7 @@ public class CliClient extends CliUserHelp
             return;
 
         Tree columnFamilySpec = statement.getChild(0);
-        
+
         String key = CliCompiler.getKey(columnFamilySpec);
         String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
@@ -389,22 +390,20 @@ public class CliClient extends CliUserHelp
         // table.cf['key']['column'] -- slice of a super, or get of a standard
         else if (columnSpecCnt == 1)
         {
+            columnName = getColumnName(columnFamily, columnFamilySpec.getChild(2));
+
             if (isSuper)
             {
-                superColumnName = columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
+                superColumnName = columnName.array();
                 doSlice(keySpace, key, columnFamily, superColumnName);
                 return;
-            }
-            else 
-            {
-                 columnName = columnNameAsBytes(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
             }
         }
         // table.cf['key']['column']['column'] -- get of a sub-column
         else if (columnSpecCnt == 2)
         {
-            superColumnName = columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
-            columnName = subColumnNameAsBytes(CliCompiler.getColumn(columnFamilySpec, 1), cfDef);
+            superColumnName = getColumnName(columnFamily, columnFamilySpec.getChild(2)).array();
+            columnName = getSubColumnName(columnFamily, columnFamilySpec.getChild(3));
         }
         // The parser groks an arbitrary number of these so it is possible to get here.
         else
@@ -563,7 +562,6 @@ public class CliClient extends CliUserHelp
         
         // ^(NODE_COLUMN_ACCESS <cf> <key> <column>)
         Tree columnFamilySpec = statement.getChild(0);
-        
         String key = CliCompiler.getKey(columnFamilySpec);
         String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
@@ -583,18 +581,16 @@ public class CliClient extends CliUserHelp
         else if (columnSpecCnt == 1)
         {
             // get the column name
-            columnName = columnNameAsBytes(CliCompiler.getColumn(columnFamilySpec, 0), columnFamily);
+            columnName = getColumnName(columnFamily, columnFamilySpec.getChild(2));
         }
         // table.cf['key']['super_column']['column'] = 'value'
         else
         {
             assert (columnSpecCnt == 2) : "serious parsing error (this is a bug).";
-            
-            // get the super column and column names
-            superColumnName = columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), columnFamily);
-            columnName = subColumnNameAsBytes(CliCompiler.getColumn(columnFamilySpec, 1), columnFamily);
-        }
 
+            superColumnName = getColumnName(columnFamily, columnFamilySpec.getChild(2)).array();
+            columnName = getSubColumnName(columnFamily, columnFamilySpec.getChild(3));
+        }
 
         ByteBuffer columnValueInBytes;
 
@@ -610,17 +606,18 @@ public class CliClient extends CliUserHelp
         ColumnParent parent = new ColumnParent(columnFamily);
         if(superColumnName != null)
             parent.setSuper_column(superColumnName);
-        
+
         // do the insert
         AbstractType keyComparator = this.cfKeysComparators.get(columnFamily);
         ByteBuffer keyBytes = keyComparator == null
                             ? ByteBuffer.wrap(key.getBytes(Charsets.UTF_8))
                             : getBytesAccordingToType(key, keyComparator);
+
         thriftClient.insert(keyBytes, parent, new Column(columnName, columnValueInBytes, FBUtilities.timestampMicros()), ConsistencyLevel.ONE);
         
         sessionState.out.println("Value inserted.");
     }
-    
+
     private void executeShowClusterName() throws TException
     {
         if (!CliMain.isConnected())
@@ -1440,7 +1437,12 @@ public class CliClient extends CliUserHelp
         }
         else if (comparator instanceof LexicalUUIDType || comparator instanceof TimeUUIDType)
         {
-            UUID uuid = UUID.fromString(object);
+            // generate new time based UUID if object is empty
+            // this means that we have timeuuid() call
+            if (comparator instanceof TimeUUIDType && object.isEmpty())
+                return ByteBuffer.wrap(UUIDGenerator.getInstance().generateTimeBasedUUID().asByteArray());
+
+            UUID uuid = (object.isEmpty()) ? UUID.randomUUID() : UUID.fromString(object);
 
             if (comparator instanceof TimeUUIDType && uuid.version() != 1)
                 throw new IllegalArgumentException("TimeUUID supports only version 1 UUIDs");    
@@ -1680,23 +1682,12 @@ public class CliClient extends CliUserHelp
     private ByteBuffer convertValueByFunction(Tree functionCall, CfDef columnFamily, ByteBuffer columnName, boolean withUpdate)
     {
         String functionName = functionCall.getChild(0).getText();
-        String functionArg  = CliUtils.unescapeSQLString(functionCall.getChild(1).getText());
-        Function function;
+        Tree argumentTree = functionCall.getChild(1);
+        String functionArg  = (argumentTree == null) ? "" : CliUtils.unescapeSQLString(argumentTree.getText());
+        AbstractType validator = getTypeByFunction(functionName);
 
         try
         {
-            function = Function.valueOf(functionName.toUpperCase());
-        }
-        catch (IllegalArgumentException e)
-        {
-            StringBuilder errorMessage = new StringBuilder("Function '" + functionName + "' not found. ");
-            errorMessage.append("Available functions: ");
-            throw new RuntimeException(errorMessage.append(Function.getFunctionNames()).toString());  
-        }
-
-        try
-        {
-            AbstractType validator = function.getValidator();
             ByteBuffer value = getBytesAccordingToType(functionArg, validator);
 
             // performing ColumnDef local validator update
@@ -1711,6 +1702,29 @@ public class CliClient extends CliUserHelp
         {
             throw new RuntimeException(e.getMessage());
         }
+    }
+
+    /**
+     * Get AbstractType by function name
+     * @param functionName - name of the function e.g. utf8, integer, long etc.
+     * @return AbstractType type corresponding to the function name
+     */
+    public static AbstractType getTypeByFunction(String functionName)
+    {
+        Function function;
+
+        try
+        {
+            function = Function.valueOf(functionName.toUpperCase());
+        }
+        catch (IllegalArgumentException e)
+        {
+            StringBuilder errorMessage = new StringBuilder("Function '" + functionName + "' not found. ");
+            errorMessage.append("Available functions: ");
+            throw new RuntimeException(errorMessage.append(Function.getFunctionNames()).toString());
+        }
+
+        return function.getValidator();
     }
 
     /**
@@ -1838,4 +1852,19 @@ public class CliClient extends CliUserHelp
     {
         return getFormatTypeForColumn(getCfDef(keyspace, columnFamily).comparator_type).getString(ByteBuffer.wrap(column.getName()));
     }
+
+    private ByteBuffer getColumnName(String columnFamily, Tree columnTree)
+    {
+        return (columnTree.getType() == CliParser.FUNCTION_CALL)
+                    ? convertValueByFunction(columnTree, null, null)
+                    : columnNameAsBytes(CliUtils.unescapeSQLString(columnTree.getText()), columnFamily);
+    }
+
+    private ByteBuffer getSubColumnName(String columnFamily, Tree columnTree)
+    {
+        return (columnTree.getType() == CliParser.FUNCTION_CALL)
+                    ? convertValueByFunction(columnTree, null, null)
+                    : subColumnNameAsBytes(CliUtils.unescapeSQLString(columnTree.getText()), columnFamily);
+    }
+
 }

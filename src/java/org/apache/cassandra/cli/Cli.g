@@ -439,7 +439,7 @@ columnFamily
 	;
 
 rowKey	
-    :   (Identifier | StringLiteral)
+    :  (Identifier | StringLiteral | IntegerLiteral)
 	;
 
 value	
@@ -447,8 +447,8 @@ value
 	;
 
 functionCall 
-    : functionName=Identifier '(' functionArgument ')'
-        -> ^(FUNCTION_CALL $functionName functionArgument)
+    : functionName=Identifier '(' functionArgument? ')'
+        -> ^(FUNCTION_CALL $functionName functionArgument?)
     ;
 
 functionArgument 
@@ -464,7 +464,7 @@ endKey
 	;
 
 columnOrSuperColumn
-	: (Identifier | IntegerLiteral | StringLiteral)
+	: (Identifier | IntegerLiteral | StringLiteral | functionCall)
 	;
 
 host	
