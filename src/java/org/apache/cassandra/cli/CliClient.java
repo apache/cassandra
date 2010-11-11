@@ -892,7 +892,7 @@ public class CliClient extends CliUserHelp
     private void executeList(Tree statement)
         throws TException, InvalidRequestException, NotFoundException, IllegalAccessException, InstantiationException, NoSuchFieldException, UnavailableException, TimedOutException
     {
-        if (!CliMain.isConnected())
+        if (!CliMain.isConnected() || !hasKeySpace())
             return;
         
         // extract column family
