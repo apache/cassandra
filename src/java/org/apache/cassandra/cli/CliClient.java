@@ -294,7 +294,7 @@ public class CliClient extends CliUserHelp
         sessionState.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "column"));
     }
 
-    private void doSlice(String keyspace, String key, String columnFamily, byte[] superColumnName)
+    private void doSlice(String keyspace, ByteBuffer key, String columnFamily, byte[] superColumnName)
             throws InvalidRequestException, UnavailableException, TimedOutException, TException, IllegalAccessException, NotFoundException, InstantiationException, NoSuchFieldException
     {
         
@@ -303,8 +303,7 @@ public class CliClient extends CliUserHelp
             parent.setSuper_column(superColumnName);
 
         SliceRange range = new SliceRange(FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER, true, 1000000);
-        List<ColumnOrSuperColumn> columns = thriftClient.get_slice(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)),parent,
-                                                                    new SlicePredicate().setColumn_names(null).setSlice_range(range), ConsistencyLevel.ONE);
+        List<ColumnOrSuperColumn> columns = thriftClient.get_slice(key, parent, new SlicePredicate().setColumn_names(null).setSlice_range(range), ConsistencyLevel.ONE);
 
         AbstractType validator;
         CfDef cfDef = getCfDef(columnFamily);
@@ -371,9 +370,8 @@ public class CliClient extends CliUserHelp
             return;
 
         Tree columnFamilySpec = statement.getChild(0);
-
-        String key = CliCompiler.getKey(columnFamilySpec);
         String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
+        ByteBuffer key = getKeyAsBytes(columnFamily, columnFamilySpec.getChild(1));
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
         CfDef cfDef = getCfDef(columnFamily);
         boolean isSuper = cfDef.comparator_type.equals("Super");
@@ -421,7 +419,7 @@ public class CliClient extends CliUserHelp
         Column column;
         try
         {
-            column = thriftClient.get(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)), path, ConsistencyLevel.ONE).column;
+            column = thriftClient.get(key, path, ConsistencyLevel.ONE).column;
         }
         catch (NotFoundException e)
         {
@@ -562,7 +560,8 @@ public class CliClient extends CliUserHelp
         
         // ^(NODE_COLUMN_ACCESS <cf> <key> <column>)
         Tree columnFamilySpec = statement.getChild(0);
-        String key = CliCompiler.getKey(columnFamilySpec);
+        Tree keyTree = columnFamilySpec.getChild(1); // could be a function or regular text
+
         String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
         String value = CliUtils.unescapeSQLString(statement.getChild(1).getText());
@@ -608,12 +607,8 @@ public class CliClient extends CliUserHelp
             parent.setSuper_column(superColumnName);
 
         // do the insert
-        AbstractType keyComparator = this.cfKeysComparators.get(columnFamily);
-        ByteBuffer keyBytes = keyComparator == null
-                            ? ByteBuffer.wrap(key.getBytes(Charsets.UTF_8))
-                            : getBytesAccordingToType(key, keyComparator);
-
-        thriftClient.insert(keyBytes, parent, new Column(columnName, columnValueInBytes, FBUtilities.timestampMicros()), ConsistencyLevel.ONE);
+        thriftClient.insert(getKeyAsBytes(columnFamily, keyTree), parent, new Column(columnName, columnValueInBytes,
+                FBUtilities.timestampMicros()), ConsistencyLevel.ONE);
         
         sessionState.out.println("Value inserted.");
     }
@@ -1865,6 +1860,20 @@ public class CliClient extends CliUserHelp
         return (columnTree.getType() == CliParser.FUNCTION_CALL)
                     ? convertValueByFunction(columnTree, null, null)
                     : subColumnNameAsBytes(CliUtils.unescapeSQLString(columnTree.getText()), columnFamily);
+    }
+
+    public ByteBuffer getKeyAsBytes(String columnFamily, Tree keyTree)
+    {
+        if (keyTree.getType() == CliParser.FUNCTION_CALL)
+            return convertValueByFunction(keyTree, null, null);
+
+        String key = CliUtils.unescapeSQLString(keyTree.getText());
+
+        AbstractType keyComparator = this.cfKeysComparators.get(columnFamily);
+        return keyComparator == null
+                ? ByteBuffer.wrap(key.getBytes(Charsets.UTF_8))
+                : getBytesAccordingToType(key, keyComparator);
+
     }
 
 }

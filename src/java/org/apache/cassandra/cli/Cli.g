@@ -439,7 +439,7 @@ columnFamily
 	;
 
 rowKey	
-    :  (Identifier | StringLiteral | IntegerLiteral)
+    :  (Identifier | StringLiteral | IntegerLiteral | functionCall)
 	;
 
 value	
