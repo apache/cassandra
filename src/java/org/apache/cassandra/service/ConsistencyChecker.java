@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import org.apache.log4j.Logger;
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.cache.ICacheExpungeHook;
@@ -110,7 +111,7 @@ class ConsistencyChecker implements Runnable
 
                 if (!Arrays.equals(ColumnFamily.digest(row_.cf), digest))
                 {
-                    IResponseResolver<Row> readResponseResolver = new ReadResponseResolver(table_, replicas_.size());
+                    ReadResponseResolver readResponseResolver = new ReadResponseResolver(table_, replicas_.size());
                     IAsyncCallback responseHandler;
                     if (replicas_.contains(FBUtilities.getLocalAddress()))
                         responseHandler = new DataRepairHandler(row_, replicas_.size(), readResponseResolver);
@@ -141,33 +142,32 @@ class ConsistencyChecker implements Runnable
 	static class DataRepairHandler implements IAsyncCallback, ICacheExpungeHook<String, String>
 	{
 		private final Collection<Message> responses_ = new LinkedBlockingQueue<Message>();
-		private final IResponseResolver<Row> readResponseResolver_;
+		private final ReadResponseResolver readResponseResolver_;
 		private final int majority_;
 		
-		DataRepairHandler(int responseCount, IResponseResolver<Row> readResponseResolver)
+		DataRepairHandler(int responseCount, ReadResponseResolver readResponseResolver)
 		{
 			readResponseResolver_ = readResponseResolver;
 			majority_ = (responseCount / 2) + 1;  
 		}
 
-        public DataRepairHandler(Row localRow, int responseCount, IResponseResolver<Row> readResponseResolver) throws IOException
+        public DataRepairHandler(Row localRow, int responseCount, ReadResponseResolver readResponseResolver) throws IOException
         {
             this(responseCount, readResponseResolver);
             // wrap localRow in a response Message so it doesn't need to be special-cased in the resolver
             ReadResponse readResponse = new ReadResponse(localRow);
-            DataOutputBuffer out = new DataOutputBuffer();
-            ReadResponse.serializer().serialize(readResponse, out);
-            byte[] bytes = new byte[out.getLength()];
-            System.arraycopy(out.getData(), 0, bytes, 0, bytes.length);
-            responses_.add(new Message(FBUtilities.getLocalAddress(), StageManager.RESPONSE_STAGE, StorageService.Verb.READ_RESPONSE, bytes));
+            Message fakeMessage = new Message(FBUtilities.getLocalAddress(), StageManager.RESPONSE_STAGE, StorageService.Verb.READ_RESPONSE, ArrayUtils.EMPTY_BYTE_ARRAY);
+            responses_.add(fakeMessage);
+            readResponseResolver_.injectPreProcessed(fakeMessage, readResponse);
         }
 
         // synchronized so the " == majority" is safe
 		public synchronized void response(Message message)
 		{
 			if (logger_.isDebugEnabled())
-			  logger_.debug("Received responses in DataRepairHandler : " + message.toString());
+			  logger_.debug("Received response in DataRepairHandler : " + message.toString());
 			responses_.add(message);
+            readResponseResolver_.preprocess(message);
             if (responses_.size() == majority_)
             {
                 String messageId = message.getMessageId();

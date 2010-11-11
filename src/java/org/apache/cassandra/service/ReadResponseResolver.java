@@ -201,6 +201,12 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         }
     }
 
+    /** hack so ConsistencyChecker doesn't have to serialize/deserialize an extra real Message */
+    public void injectPreProcessed(Message message, ReadResponse result)
+    {
+        results.put(message, result);
+    }
+
     public boolean isDataPresent(Collection<Message> responses)
 	{
         int digests = 0;
