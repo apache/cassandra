@@ -18,7 +18,6 @@
 if "%OS%" == "Windows_NT" setlocal
 
 if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%~dp0..
-if NOT DEFINED CASSANDRA_CONF set CASSANDRA_CONF=%CASSANDRA_HOME%\conf
 if NOT DEFINED CASSANDRA_MAIN set CASSANDRA_MAIN=org.apache.cassandra.thrift.CassandraDaemon
 if NOT DEFINED JAVA_HOME goto err
 

@@ -24,11 +24,13 @@ package org.apache.cassandra.cache;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap;
+import com.googlecode.concurrentlinkedhashmap.Weighers;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 
 public class InstrumentedCache<K, V>
 {
-    private int capacity;
+    public static final int DEFAULT_CONCURENCY_LEVEL = 64;
+
     private final ConcurrentLinkedHashMap<K, V> map;
     private final AtomicLong requests = new AtomicLong(0);
     private final AtomicLong hits = new AtomicLong(0);
@@ -38,8 +40,17 @@ public class InstrumentedCache<K, V>
 
     public InstrumentedCache(int capacity)
     {
-        this.capacity = capacity;
-        map = ConcurrentLinkedHashMap.create(ConcurrentLinkedHashMap.EvictionPolicy.SECOND_CHANCE, capacity);
+        this(capacity, DEFAULT_CONCURENCY_LEVEL);
+    }
+
+    public InstrumentedCache(int capacity, int concurency)
+    {
+        map = new ConcurrentLinkedHashMap.Builder<K, V>()
+                .weigher(Weighers.<V>singleton())
+                .initialCapacity(capacity)
+                .maximumWeightedCapacity(capacity)
+                .concurrencyLevel(concurency)
+                .build();
     }
 
     public void put(K key, V value)
@@ -68,7 +79,7 @@ public class InstrumentedCache<K, V>
 
     public int getCapacity()
     {
-        return capacity;
+        return map.capacity();
     }
 
     public boolean isCapacitySetManually()
@@ -79,7 +90,6 @@ public class InstrumentedCache<K, V>
     public void updateCapacity(int capacity)
     {
         map.setCapacity(capacity);
-        this.capacity = capacity;
     }
 
     public void setCapacity(int capacity)

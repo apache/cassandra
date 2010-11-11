@@ -70,15 +70,15 @@ public class WordCount extends Configured implements Tool
         System.exit(0);
     }
 
-    public static class TokenizerMapper extends Mapper<byte[], SortedMap<byte[], IColumn>, Text, IntWritable>
+    public static class TokenizerMapper extends Mapper<ByteBuffer, SortedMap<ByteBuffer, IColumn>, Text, IntWritable>
     {
         private final static IntWritable one = new IntWritable(1);
         private Text word = new Text();
-        private String columnName;
+        private ByteBuffer columnName;
 
-        public void map(byte[] key, SortedMap<byte[], IColumn> columns, Context context) throws IOException, InterruptedException
+        public void map(ByteBuffer key, SortedMap<ByteBuffer, IColumn> columns, Context context) throws IOException, InterruptedException
         {
-            IColumn column = columns.get(columnName.getBytes());
+            IColumn column = columns.get(columnName);
             if (column == null)
                 return;
             String value = ByteBufferUtil.string(column.value());
@@ -95,7 +95,7 @@ public class WordCount extends Configured implements Tool
         protected void setup(org.apache.hadoop.mapreduce.Mapper.Context context)
             throws IOException, InterruptedException
         {
-            this.columnName = context.getConfiguration().get(CONF_COLUMN_NAME);
+            this.columnName = ByteBuffer.wrap(context.getConfiguration().get(CONF_COLUMN_NAME).getBytes());
         }
         
     }

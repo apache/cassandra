@@ -369,7 +369,7 @@ public class Table
     {
         List<Memtable> memtablesToFlush = Collections.emptyList();
         if (logger.isDebugEnabled())
-            logger.debug("applying mutation of {}", FBUtilities.bytesToHex(mutation.key()));
+            logger.debug("applying mutation of row {}", FBUtilities.bytesToHex(mutation.key()));
 
         // write the mutation to the commitlog and memtables
         flusherLock.readLock().lock();
@@ -397,7 +397,14 @@ public class Table
                             mutatedIndexedColumns = new TreeSet<ByteBuffer>();
                         mutatedIndexedColumns.add(column);
                         if (logger.isDebugEnabled())
-                            logger.debug("mutating indexed column " + cf.getComparator().getString(column));
+                        {
+                            // can't actually use validator to print value here, because we overload value
+                            // for deletion timestamp as well (which may not be a well-formed value for the column type)
+                            ByteBuffer value = cf.getColumn(column) == null ? null : cf.getColumn(column).value(); // may be null on row-level deletion
+                            logger.debug(String.format("mutating indexed column %s value %s",
+                                                       cf.getComparator().getString(column),
+                                                       value == null ? "null" : FBUtilities.bytesToHex(value)));
+                        }
                     }
                 }
 
@@ -411,6 +418,7 @@ public class Table
                         // but for indexed data we need to make sure that we're not creating index entries
                         // for obsolete writes.
                         oldIndexedColumns = readCurrentIndexedColumns(key, cfs, mutatedIndexedColumns);
+                        logger.debug("Pre-mutation index row is {}", oldIndexedColumns);
                         ignoreObsoleteMutations(cf, mutatedIndexedColumns, oldIndexedColumns);
                     }
 
