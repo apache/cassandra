@@ -80,7 +80,11 @@ public class CliTest extends CleanupHelper
         "get SCF1['hello'][1][9999]",
         "truncate CF1",
         "update keyspace TestKeySpace with placement_strategy='org.apache.cassandra.locator.LocalStrategy'",
-        "update keyspace TestKeySpace with replication_factor=1 and strategy_options=[{DC1:3, DC2:4, DC5:1}]"
+        "update keyspace TestKeySpace with replication_factor=1 and strategy_options=[{DC1:3, DC2:4, DC5:1}]",
+        "assume CF1 comparator as utf8",
+        "assume CF1 sub_comparator as integer",
+        "assume CF1 validator as lexicaluuid",
+        "assume CF1 keys as timeuuid"
     };
     
     @Test
@@ -134,6 +138,10 @@ public class CliTest extends CleanupHelper
             else if (statement.startsWith("truncate "))
             {
                 assertTrue(result.contains(" truncated."));
+            }
+            else if (statement.startsWith("assume "))
+            {
+                assertTrue(result.contains("successfully."));
             }
 
             outStream.reset(); // reset stream so we have only output from next statement all the time

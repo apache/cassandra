@@ -56,6 +56,7 @@ tokens {
     NODE_UPDATE_COLUMN_FAMILY;
     NODE_LIST;
     NODE_TRUNCATE;
+    NODE_ASSUME;
 
     // Internal Nodes.
     NODE_COLUMN_ACCESS;
@@ -151,6 +152,7 @@ statement
     | showStatement
     | listStatement
     | truncateStatement
+    | assumeStatement
     | -> ^(NODE_NO_OP)
     ;
 
@@ -204,6 +206,8 @@ helpStatement
         -> ^(NODE_HELP NODE_LIST)
     | HELP TRUNCATE
         -> ^(NODE_HELP NODE_TRUNCATE)
+    | HELP ASSUME
+        -> ^(NODE_HELP NODE_ASSUME)
     | HELP 
         -> ^(NODE_HELP)
     | '?'    
@@ -264,6 +268,11 @@ listStatement
 truncateStatement
     : TRUNCATE columnFamily
         -> ^(NODE_TRUNCATE columnFamily)
+    ;
+
+assumeStatement
+    : ASSUME columnFamily assumptionElement=Identifier 'AS' defaultType=Identifier
+        -> ^(NODE_ASSUME columnFamily $assumptionElement $defaultType)
     ;
 
 showClusterName
@@ -515,6 +524,7 @@ UPDATE:     'UPDATE';
 LIST:       'LIST';
 LIMIT:      'LIMIT';
 TRUNCATE:   'TRUNCATE';
+ASSUME:     'ASSUME';
 
 IP_ADDRESS 
     : IntegerLiteral '.' IntegerLiteral '.' IntegerLiteral '.' IntegerLiteral

@@ -287,7 +287,18 @@ public class CliUserHelp {
                 state.out.println("example:");
                 state.out.println("truncate Category");
                 break;
-            
+
+            case CliParser.NODE_ASSUME:
+                state.out.println("assume <column_family> comparator as <type>");
+                state.out.println("assume <column_family> sub_comparator as <type>");
+                state.out.println("assume <column_family> validator as <type>");
+                state.out.println("assume <column_family> keys as <type>\n");
+                state.out.println("Assume one of the attributes (comparator, sub_comparator, validator or keys)");
+                state.out.println("of the given column family to match specified type. Available types: " + CliClient.Function.getFunctionNames());
+                state.out.println("example:");
+                state.out.println("assume Users comparator as lexicaluuid");
+                break;
+
             default:
                 state.out.println("?");
                 break;
@@ -331,7 +342,9 @@ public class CliUserHelp {
             state.out.println("del <cf>['<key>']['<super>']['<col>']                         Delete sub column.");
             state.out.println("count <cf>['<key>']                                     Count columns in record.");
             state.out.println("count <cf>['<key>']['<super>']                  Count columns in a super column.");
-            state.out.println("truncate <column_family>                       Truncate specified column family.");            
+            state.out.println("truncate <column_family>                       Truncate specified column family.");
+            state.out.println("assume <column_family> <attribute> as <type>");
+            state.out.println("Assume one of the attributes of the given column family to match specified type.");
             state.out.println("list <cf>                                    List all rows in the column family.");
             state.out.println("list <cf>[<startKey>:]");
             state.out.println("                       List rows in the column family beginning with <startKey>.");
