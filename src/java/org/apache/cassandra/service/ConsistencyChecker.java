@@ -30,8 +30,12 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ReadCommand;
@@ -42,12 +46,22 @@ import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
-
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-
+/**
+ * ConsistencyChecker does the following:
+ *
+ * [ConsistencyChecker.run]
+ * (1) sends DIGEST read requests to each other replica of the given row.
+ *
+ * [DigestResponseHandler]
+ * (2) If any of the digests to not match the local one, it sends a second round of requests
+ * to each replica, this time for the full data
+ *
+ * [DataRepairHandler]
+ * (3) processes full-read responses and invokes resolve.  The actual sending of messages
+ * repairing out-of-date or missing data is handled by ReadResponseResolver.
+ */
 class ConsistencyChecker implements Runnable
 {
     private static Logger logger_ = LoggerFactory.getLogger(ConsistencyChecker.class);
@@ -65,6 +79,7 @@ class ConsistencyChecker implements Runnable
         row_ = row;
         replicas_ = endpoints;
         readCommand_ = readCommand;
+        assert replicas_.contains(FBUtilities.getLocalAddress());
     }
 
     public void run()
@@ -99,8 +114,9 @@ class ConsistencyChecker implements Runnable
     class DigestResponseHandler implements IAsyncCallback
 	{
         private boolean repairInvoked;
+        private final ByteBuffer localDigest = ColumnFamily.digest(row_.cf);
 
-		public synchronized void response(Message response)
+        public synchronized void response(Message response)
 		{
             if (repairInvoked)
                 return;
@@ -112,19 +128,15 @@ class ConsistencyChecker implements Runnable
                 ReadResponse result = ReadResponse.serializer().deserialize(new DataInputStream(bufIn));
                 ByteBuffer digest = result.digest();
 
-                if (!ColumnFamily.digest(row_.cf).equals(digest))
+                if (!localDigest.equals(digest))
                 {
-                    IResponseResolver<Row> readResponseResolver = new ReadResponseResolver(table_);
-                    IAsyncCallback responseHandler;
-                    if (replicas_.contains(FBUtilities.getLocalAddress()))
-                        responseHandler = new DataRepairHandler(row_, replicas_.size(), readResponseResolver);
-                    else
-                        responseHandler = new DataRepairHandler(replicas_.size(), readResponseResolver);
+                    ReadResponseResolver readResponseResolver = new ReadResponseResolver(table_);
+                    IAsyncCallback responseHandler = new DataRepairHandler(row_, replicas_.size(), readResponseResolver);
 
                     ReadCommand readCommand = constructReadMessage(false);
                     Message message = readCommand.makeReadMessage();
                     if (logger_.isDebugEnabled())
-                      logger_.debug("Performing read repair for " + readCommand_.key + " to " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");
+                        logger_.debug("Digest mismatch; re-reading " + readCommand_.key + " from " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");                         
                     MessagingService.instance.addCallback(responseHandler, message.getMessageId());
                     for (InetAddress endpoint : replicas_)
                     {
@@ -145,33 +157,27 @@ class ConsistencyChecker implements Runnable
 	static class DataRepairHandler implements IAsyncCallback
 	{
 		private final Collection<Message> responses_ = new LinkedBlockingQueue<Message>();
-		private final IResponseResolver<Row> readResponseResolver_;
+		private final ReadResponseResolver readResponseResolver_;
 		private final int majority_;
 		
-		DataRepairHandler(int responseCount, IResponseResolver<Row> readResponseResolver)
-		{
-			readResponseResolver_ = readResponseResolver;
-			majority_ = (responseCount / 2) + 1;  
-		}
-
-        public DataRepairHandler(Row localRow, int responseCount, IResponseResolver<Row> readResponseResolver) throws IOException
+        public DataRepairHandler(Row localRow, int responseCount, ReadResponseResolver readResponseResolver) throws IOException
         {
-            this(responseCount, readResponseResolver);
+            readResponseResolver_ = readResponseResolver;
+            majority_ = (responseCount / 2) + 1;
             // wrap localRow in a response Message so it doesn't need to be special-cased in the resolver
             ReadResponse readResponse = new ReadResponse(localRow);
-            DataOutputBuffer out = new DataOutputBuffer();
-            ReadResponse.serializer().serialize(readResponse, out);
-            byte[] bytes = new byte[out.getLength()];
-            System.arraycopy(out.getData(), 0, bytes, 0, bytes.length);
-            responses_.add(new Message(FBUtilities.getLocalAddress(), StorageService.Verb.INTERNAL_RESPONSE, bytes));
+            Message fakeMessage = new Message(FBUtilities.getLocalAddress(), StorageService.Verb.INTERNAL_RESPONSE, ArrayUtils.EMPTY_BYTE_ARRAY);
+            responses_.add(fakeMessage);
+            readResponseResolver_.injectPreProcessed(fakeMessage, readResponse);
         }
 
         // synchronized so the " == majority" is safe
 		public synchronized void response(Message message)
 		{
 			if (logger_.isDebugEnabled())
-			  logger_.debug("Received responses in DataRepairHandler : " + message.toString());
+			  logger_.debug("Received response in DataRepairHandler : " + message.toString());
 			responses_.add(message);
+            readResponseResolver_.preprocess(message);
             if (responses_.size() == majority_)
             {
                 Runnable runnable = new WrappedRunnable()

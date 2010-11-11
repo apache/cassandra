@@ -2,6 +2,9 @@ dev
  * Update windows .bat files to work outside of main Cassandra
    directory (CASSANDRA-1713)
  * log threshold causing memtable flush (CASSANDRA-1675)
+ * fix read repair regression from 0.6.7 (CASSANDRA-1727)
+ * more-efficient read repair (CASSANDRA-1719)
+ * fix hinted handoff replay (CASSANDRA-1656)
  * log type of dropped messages (CASSANDRA-1677)
  * upgrade to SLF4J 1.6.1
  * fix ByteBuffer bug in ExpiringColumn.updateDigest (CASSANDRA-1679)
