@@ -4,8 +4,9 @@ import sys
 
 sys.path.append(join(abspath(dirname(__file__)), '../../drivers/py'))
 
-from cql import Connection
+from cql import Connection, CQLException
 from . import AvroTester
+from avro_utils import assert_raises
 
 def load_sample(dbconn):
     dbconn.execute("""
@@ -47,15 +48,59 @@ class TestCql(AvroTester):
     def test_select_columns(self):
         "retrieve multiple columns"
         conn = init()
-        r = conn.execute("""
-            SELECT "cd1", "col" FROM Standard1 WHERE KEY = "kd"
-        """)
+        r = conn.execute('SELECT "cd1", "col" FROM Standard1 WHERE KEY = "kd"')
         assert "cd1" in [i['name'] for i in r[0]['columns']]
         assert "col" in [i['name'] for i in r[0]['columns']]
 
     def test_select_row_range(self):
         "retrieve a range of rows with columns"
         conn = init()
+        r = conn.execute('SELECT 4L FROM StandardLong1 WHERE KEY > "ad" AND KEY < "ag";')
+        assert len(r) == 3
+        assert r[0]['key'] == "ad"
+        assert r[1]['key'] == "ae"
+        assert r[2]['key'] == "af"
+        assert len(r[0]['columns']) == 1
+        assert len(r[1]['columns']) == 1
+        assert len(r[2]['columns']) == 1
+
+    def test_select_row_range_with_limit(self):
+        "retrieve a limited range of rows with columns"
+        conn = init()
         r = conn.execute("""
-            SELECT "col1" FROM StandardLong1 WHERE KEY > "ad" AND KEY < "ag";
+            SELECT 1L,5L,9L FROM StandardLong1 WHERE KEY > "aa" AND KEY < "ag" LIMIT 3
         """)
+        assert len(r) == 3
+
+    def test_select_columns_slice(self):
+        "range of columns (slice) by row"
+        conn = init()
+        r = conn.execute('SELECT 1L..3L FROM StandardLong1 WHERE KEY = "aa";')
+        assert len(r) == 1
+        assert r[0]['columns'][0]['value'] == "1"
+        assert r[0]['columns'][1]['value'] == "2"
+        assert r[0]['columns'][2]['value'] == "3"
+
+    def test_select_columns_slice_with_limit(self):
+        "range of columns (slice) by row with limit"
+        conn = init()
+        r = conn.execute('SELECT FIRST 1 1L..3L FROM StandardLong1 WHERE KEY = "aa";')
+        assert len(r) == 1
+        assert len(r[0]['columns']) == 1
+        assert r[0]['columns'][0]['value'] == "1"
+
+    def test_select_columns_slice_reversed(self):
+        "range of columns (slice) by row reversed"
+        conn = init()
+        r = conn.execute('SELECT FIRST 2 REVERSED 3L..1L FROM StandardLong1 WHERE KEY = "aa";')
+        assert len(r) == 1, "%d != 1" % len(r)
+        assert len(r[0]['columns']) == 2
+        assert r[0]['columns'][0]['value'] == "3"
+        assert r[0]['columns'][1]['value'] == "2"
+
+    def test_error_on_multiple_key_by(self):
+        "ensure multiple key-bys in where clause excepts"
+        conn = init()
+        query = 'SELECT "col" FROM Standard1 WHERE KEY = "ka" AND KEY = "kb";'
+        assert_raises(CQLException, conn.execute, query)
+
