@@ -30,6 +30,16 @@ def load_sample(dbconn):
         ROW("af", COL(1L, "1"), COL(2L, "2"), COL(3L, "3"), COL(4L, "4")) AND
         ROW("ag", COL(5L, "5"), COL(6L, "6"), COL(7L, "8"), COL(9L, "9"));
     """)
+    dbconn.execute("""
+        UPDATE
+            Indexed1
+        WITH
+            ROW("asmith",   COL("birthdate", 100L), COL("unindexed", 250L)) AND
+            ROW("dozer",    COL("birthdate", 100L), COL("unindexed", 200L)) AND
+            ROW("morpheus", COL("birthdate", 175L), COL("unindexed", 200L)) AND
+            ROW("neo",      COL("birthdate", 150L), COL("unindexed", 250L)) AND
+            ROW("trinity",  COL("birthdate", 125L), COL("unindexed", 200L));
+    """)
 
 def init(keyspace="Keyspace1"):
     dbconn = Connection(keyspace, 'localhost', 9170)
@@ -104,3 +114,30 @@ class TestCql(AvroTester):
         query = 'SELECT "col" FROM Standard1 WHERE KEY = "ka" AND KEY = "kb";'
         assert_raises(CQLException, conn.execute, query)
 
+    def test_index_scan_equality(self):
+        "indexed scan where column equals value"
+        conn = init()
+        r = conn.execute('SELECT "birthdate" FROM Indexed1 WHERE "birthdate" = 100L')
+        assert len(r) == 2
+        assert r[0]['key'] == "asmith"
+        assert r[1]['key'] == "dozer"
+        assert len(r[0]['columns']) == 1
+        assert len(r[1]['columns']) == 1
+
+    def test_index_scan_greater_than(self):
+        "indexed scan where a column is greater than a value"
+        conn = init()
+        r = conn.execute("""
+            SELECT "birthdate" FROM Indexed1 WHERE "birthdate" = 100L AND "unindexed" > 200L
+        """)
+        assert len(r) == 1
+        assert r[0]['key'] == "asmith"
+
+    def test_index_scan_with_start_key(self):
+        "indexed scan with a starting key"
+        conn = init()
+        r = conn.execute("""
+            SELECT "birthdate" FROM Indexed1 WHERE "birthdate" = 100L AND KEY > "asmithZ"
+        """)
+        assert len(r) == 1
+        assert r[0]['key'] == "dozer"

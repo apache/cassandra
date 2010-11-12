@@ -27,8 +27,8 @@ package org.apache.cassandra.cql;
  */
 public class Relation
 {
-    public EntityType entityType = EntityType.COLUMN;
-    public Term entity;
+    private EntityType entityType = EntityType.COLUMN;
+    private Term entity;
     private RelationType relationType;
     private Term value;
     
@@ -64,9 +64,19 @@ public class Relation
         return relationType;
     }
     
+    public Term getEntity()
+    {
+        return entity;
+    }
+    
     public Term getValue()
     {
         return value;
+    }
+    
+    public String toString()
+    {
+        return String.format("Relation(%s, %s,nnn %s)", entity, relationType, value);
     }
 }
 

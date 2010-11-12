@@ -90,6 +90,11 @@ public class Term
         return type;
     }
     
+    public String toString()
+    {
+        return String.format("Term(%s, type=%s)", getText(), type);
+    }
+    
 }
 
 enum TermType
