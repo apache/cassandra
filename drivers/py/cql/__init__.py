@@ -1,5 +1,5 @@
 
-from avro.ipc  import HTTPTransceiver, Requestor
+from avro.ipc  import HTTPTransceiver, Requestor, AvroRemoteException
 import avro.protocol, zlib, socket
 from os.path   import exists, abspath, dirname, join
 
@@ -43,7 +43,11 @@ class Connection(object):
     
         compressed_query = Connection.compress_query(query, compress)
         request_params = dict(query=compressed_query, compression=compress)
-        response = self.requestor.request('execute_cql_query', request_params)
+
+        try:
+            response = self.requestor.request('execute_cql_query', request_params)
+        except AvroRemoteException, are:
+            raise CQLException(are)
 
         if response['type'] == 'ROWS':
             return response['rows']
@@ -56,6 +60,17 @@ class Connection(object):
 
 
 class InvalidCompressionScheme(Exception): pass
+
+class CQLException(Exception):
+    def __init__(self, arg):
+        if isinstance(arg, AvroRemoteException):
+            if arg.args and isinstance(arg.args[0], dict) and arg.args[0].has_key('why'):
+                message = arg.args[0]['why']
+            else:
+                message = str(arg)
+            Exception.__init__(self, message)
+        else:
+            Exception.__init__(self, arg)
 
 if __name__ == '__main__':
     dbconn = Connection('localhost', 9160)
