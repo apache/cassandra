@@ -40,7 +40,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.avro.ErrorFactory.newInvalidRequestException;
+import static org.apache.cassandra.avro.AvroErrorFactory.newInvalidRequestException;
 import static org.apache.cassandra.avro.AvroRecordFactory.newColumnPath;
 
 /**

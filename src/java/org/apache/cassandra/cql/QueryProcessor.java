@@ -60,6 +60,7 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.avro.AvroValidation.validateKey;
 import static org.apache.cassandra.avro.AvroValidation.validateColumnFamily;
+import static org.apache.cassandra.avro.AvroErrorFactory.newInvalidRequestException;
 
 public class QueryProcessor
 {
@@ -118,9 +119,7 @@ public class QueryProcessor
         }
         catch (org.apache.cassandra.thrift.InvalidRequestException e)
         {
-            InvalidRequestException error = new InvalidRequestException();
-            error.initCause(e);
-            throw error;
+            throw newInvalidRequestException(e);
         }
         
         return rows;
@@ -208,11 +207,7 @@ public class QueryProcessor
                 {
                     // Multiple keys (aka "multiget") is not allowed( any longer).
                     if (select.getKeys().size() > 1)
-                    {
-                        InvalidRequestException invalidRequest = new InvalidRequestException();
-                        invalidRequest.why = "SELECTs can contain only one by-key clause (i.e. KEY = TERM)";
-                        throw invalidRequest;
-                    }
+                        throw newInvalidRequestException("SELECTs can contain only one by-key clause (i.e. KEY = TERM)");
                     
                     rows = getSlice(keyspace, select);
                 }
@@ -220,12 +215,8 @@ public class QueryProcessor
                 {
                     // Combining key ranges and column index queries is not currently allowed
                     if (select.getColumnRelations().size() > 0)
-                    {
-                        InvalidRequestException invalidRequest = new InvalidRequestException();
-                        invalidRequest.why = "You cannot combine key ranges and by-column clauses " +
-                        		"(i.e. \"name\" = \"value\") in a SELECT statement";
-                        throw invalidRequest;
-                    }
+                        throw newInvalidRequestException("You cannot combine key ranges and by-column clauses " +
+                                "(i.e. \"name\" = \"value\") in a SELECT statement");
                     
                     rows = multiRangeSlice(keyspace, select);
                 }

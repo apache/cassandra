@@ -23,7 +23,6 @@ package org.apache.cassandra.avro;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Map;
 
 import org.apache.avro.generic.GenericArray;
 import org.apache.avro.util.Utf8;
@@ -111,93 +110,4 @@ public class AvroRecordFactory
         return slice;
     }
 
-}
-
-class ErrorFactory
-{
-    static InvalidRequestException newInvalidRequestException(Utf8 why)
-    {
-        InvalidRequestException exception = new InvalidRequestException();
-        exception.why = why;
-        return exception;
-    }
-    
-    static InvalidRequestException newInvalidRequestException(String why)
-    {
-        return newInvalidRequestException(new Utf8(why));
-    }
-
-    static InvalidRequestException newInvalidRequestException(Throwable e)
-    {
-        InvalidRequestException exception = newInvalidRequestException(e.getMessage());
-        exception.initCause(e);
-        return exception;
-    }
-    
-    static NotFoundException newNotFoundException(Utf8 why)
-    {
-        NotFoundException exception = new NotFoundException();
-        exception.why = why;
-        return exception;
-    }
-    
-    static NotFoundException newNotFoundException(String why)
-    {
-        return newNotFoundException(new Utf8(why));
-    }
-    
-    static NotFoundException newNotFoundException()
-    {
-        return newNotFoundException(new Utf8());
-    }
-    
-    static TimedOutException newTimedOutException(Utf8 why)
-    {
-        TimedOutException exception = new TimedOutException();
-        exception.why = why;
-        return exception;
-    }
-    
-    static TimedOutException newTimedOutException(String why)
-    {
-        return newTimedOutException(new Utf8(why));
-    }
-
-    static TimedOutException newTimedOutException()
-    {
-        return newTimedOutException(new Utf8());
-    }
-    
-    static UnavailableException newUnavailableException(Utf8 why)
-    {
-        UnavailableException exception = new UnavailableException();
-        exception.why = why;
-        return exception;
-    }
-    
-    static UnavailableException newUnavailableException(String why)
-    {
-        return newUnavailableException(new Utf8(why));
-    }
-
-    static UnavailableException newUnavailableException(Throwable t) 
-    {
-        UnavailableException exception = newUnavailableException(t.getMessage());
-        exception.initCause(t);
-        return exception;
-    }
-    
-    static UnavailableException newUnavailableException()
-    {
-        return newUnavailableException(new Utf8());
-    }
-    
-    public static TokenRange newTokenRange(String startRange, String endRange, List<? extends CharSequence> endpoints)
-    {
-        TokenRange tRange = new TokenRange();
-        tRange.start_token = startRange;
-        tRange.end_token = endRange;
-        tRange.endpoints = (List<CharSequence>) endpoints;
-        return tRange;
-    }
 }

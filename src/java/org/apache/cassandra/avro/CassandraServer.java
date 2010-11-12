@@ -80,7 +80,7 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.avro.AvroRecordFactory.*;
-import static org.apache.cassandra.avro.ErrorFactory.*;
+import static org.apache.cassandra.avro.AvroErrorFactory.*;
 
 public class CassandraServer implements Cassandra {
     private static Logger logger = LoggerFactory.getLogger(CassandraServer.class);
