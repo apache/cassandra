@@ -1,4 +1,4 @@
-h1. Cassandra Query Language (CQL) v0.99.0
+h1. Cassandra Query Language (CQL) v0.99.1
 
 h2. Table of Contents
 
@@ -18,54 +18,55 @@ h2. SELECT
 __Synopsis:__
 
 bc. 
-SELECT [FROM] <COLUMN FAMILY> [USING <CONSISTENCY>]
-        WHERE <EXRESSION> [ROWLIMIT N] [COLLIMIT N] [ASC | DESC];
+SELECT [FIRST N] [REVERSED] <SELECT EXPR> FROM <COLUMN FAMILY> [USING <CONSISTENCY>]
+        [WHERE <CLAUSE>] [LIMIT N];
 
 A @SELECT@ is used to read one or more records from a Cassandra column family. It returns a result-set of rows, where each row consists of a key and a collection of columns corresponding to the query.
+
+h3. Specifying Columns
+
+bc. 
+SELECT [FIRST N] [REVERSED] name1, name2, name3 FROM ...
+SELECT [FIRST N] [REVERSED] name1..nameN FROM ...
+
+The SELECT expression determines which columns will appear in the results and takes the form of either a comma separated list of names, or a range. The range notation consists of a start and end column name separated by two periods (@..@). The set of columns returned for a range is start and end inclusive.
+
+The @FIRST@ option accepts an integer argument and can be used to apply a limit to the number of columns returned per row.  When this limit is left unset it defaults to 10,000 columns.
+
+The @REVERSED@ option causes the sort order of the results to be reversed.
+
+It is worth noting that unlike the projection in a SQL SELECT, there is no guarantee that the results will contain all of the columns specified. This is because Cassandra is schema-less and there are no guarantees that a given column exists.
 
 h3. Column Family
 
 bc. 
-SELECT [FROM] <COLUMN FAMILY> ...
+SELECT ... FROM <COLUMN FAMILY> ...
 
-Statements begin with the @SELECT@ keyword followed by a Cassandra column family name. The keyword @FROM@ can be used as a delimiter to improve readability, but is not required.
+The @FROM@ clause is used to specify the Cassandra column family applicable to a @SELECT@ query.
 
 h3. Consistency Level
 
 bc. 
 SELECT ... [USING <CONSISTENCY>] ...
 
-Following the column family identifier is an optional "consistency level specification":#consistency.
+Following the column family clause is an optional "consistency level specification":#consistency.
 
-h3. Expressions
+h3. Filtering rows
 
 bc. 
-SELECT ... <EXPRESSION>
-SELECT ... [[KEY | COL] [> | >= | = | < | <=] TERM] [[AND ...] ...]
+SELECT ... WHERE KEY = keyname AND name1 = value1
+SELECT ... WHERE KEY >= startkey and KEY =< endkey AND name1 = value1
 
-The expression portion of a CQL @SELECT@ statement consists of one or more relations delimited by the @AND@ keyword.  Relations are defined as one of either the @KEY@ or @COLUMN@ keywords, a relational operator (@>@, @>=@, @=@, @<@, @<=@), and a "term":#terms.
+The WHERE clause provides for filtering the rows that appear in results.  The clause can filter on a key name, or range of keys, and in the case of indexed columns, on column values.  Key filters are specified using the @KEY@ keyword, a relational operator, (one of @=@, @>@, @>=@, @<@, and @<=@), and a term value.  When terms appear on both sides of a relational operator it is assumed the filter applies to an indexed column. With column index filters, the term on the left of the operator is the name, the term on the right is the value to filter __on__.
 
-_NOTE: The keyword @COLUMN@ can be abbreviated as @COL@._
-
-_NOTE: Key and column ranges are always inclusive so the semantics of @>=@ and @>@, and @<=@ and @<@ are identical.  This is subject to change._
+__Note: The greater-than and less-than operators (@>@ and @<@) result in key ranges that are inclusive of the terms. There is no supported notion of "strictly" greater-than or less-than; these operators are merely supported as aliases to @>=@ and @<=@.__  
 
 h3. Limits
 
 bc. 
-SELECT ... <EXPRESSION> [ROWLIMIT N | COLLIMIT N] ...
+SELECT ... WHERE <CLAUSE> [LIMIT N] ...
 
-Limiting the number of row and/or column results can be achieved by including one or both of the optional @ROWLIMIT@ and @COLLIMIT@ clauses after a @SELECT@ expression. Both @ROWLIMIT@ and @COLLIMIT@ default to 10,000 when left unset.
-
-h3. Ordering
-
-bc. 
-SELECT ... [[ASC | ASCENDING] | [DESC | DESCENDING]]
-
-By default, results are returned in the order determined by the column family comparator, _this is always considered ascending order_.  Reversing this sort order is possible by supplying the @DESCENDING@ clause in @SELECT@ statements.
-
-The @ASCENDING@ keyword is also included, both for completeness sake, and to improve statement readability if desired.  It has no effect otherwise.
-
-_NOTE: The keywords @ASC@ and @DESC@ are valid abbreviations for @ASCENDING@ and @DESCENDING@ respectively._
+Limiting the number of rows returned can be achieved by adding the @LIMIT@ option to a @SELECT@ expression. @LIMIT@ defaults to 10,000 when left unset.
 
 h2. UPDATE
 
