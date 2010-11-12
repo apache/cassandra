@@ -43,7 +43,7 @@ public class SelectStatement
         this.expression = expression;
         this.columnFamily = columnFamily;
         this.cLevel = cLevel;
-        this.clause = clause;
+        this.clause = (clause != null) ? clause : new WhereClause();
         this.numRecords = numRecords;
     }
     

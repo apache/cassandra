@@ -141,3 +141,13 @@ class TestCql(AvroTester):
         """)
         assert len(r) == 1
         assert r[0]['key'] == "dozer"
+
+    def test_no_where_clause(self):
+        "empty where clause (range query w/o start key)"
+        conn = init()
+        r = conn.execute('SELECT "col" FROM Standard1 LIMIT 3')
+        assert len(r) == 3
+        assert r[0]['key'] == "ka"
+        assert r[1]['key'] == "kb"
+        assert r[2]['key'] == "kc"
+

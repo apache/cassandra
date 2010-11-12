@@ -136,11 +136,10 @@ public class QueryProcessor
     {
         List<org.apache.cassandra.db.Row> rows = null;
         
-        // FIXME: ranges can be open-ended, but a start must exist.  Assert so here.
-        
+        ByteBuffer startKey = (select.getKeyStart() != null) ? select.getKeyStart().getByteBuffer() : (new Term()).getByteBuffer();
+        ByteBuffer finishKey = (select.getKeyFinish() != null) ? select.getKeyFinish().getByteBuffer() : (new Term()).getByteBuffer();
         IPartitioner<?> p = StorageService.getPartitioner();
-        AbstractBounds bounds = new Bounds(p.getToken(select.getKeyStart().getByteBuffer()),
-                                           p.getToken(select.getKeyFinish().getByteBuffer()));
+        AbstractBounds bounds = new Bounds(p.getToken(startKey), p.getToken(finishKey));
         
         // XXX: Our use of Thrift structs internally makes me Sad. :(
         SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select);
