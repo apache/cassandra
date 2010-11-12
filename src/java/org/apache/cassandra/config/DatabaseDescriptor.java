@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
 import java.net.URL;
+import java.net.URI;
 import java.net.UnknownHostException;
 import java.util.*;
 import javax.xml.parsers.ParserConfigurationException;
@@ -123,7 +124,7 @@ public class DatabaseDescriptor
     private static int gcGraceInSeconds = 10 * 24 * 3600; // 10 days
 
     // the path qualified config file (storage-conf.xml) name
-    private static String configFileName;
+    private static URI configFileURI;
     /* initial token in the ring */
     private static String initialToken = null;
 
@@ -167,27 +168,45 @@ public class DatabaseDescriptor
     /**
      * Try the storage-config system property, and then inspect the classpath.
      */
-    static String getStorageConfigPath()
+    static URI getStorageConfigURI()
     {
-        String scp = System.getProperty("storage-config") + File.separator + STORAGE_CONF_FILE;
-        if (new File(scp).exists())
-            return scp;
-        // try the classpath
-        ClassLoader loader = DatabaseDescriptor.class.getClassLoader();
-        URL scpurl = loader.getResource(STORAGE_CONF_FILE);
-        if (scpurl != null)
-            return scpurl.getFile();
-        throw new RuntimeException("Cannot locate " + STORAGE_CONF_FILE + " via storage-config system property or classpath lookup.");
+	String confdir = System.getProperty("storage-config");
+	if (confdir != null) {
+	    String scp = confdir + File.separator + STORAGE_CONF_FILE;
+	    File scpf = new File(scp);
+	    if (scpf.exists()) {
+		return scpf.toURI();
+	    }
+	}
+
+	// try the classpath
+	ClassLoader loader = DatabaseDescriptor.class.getClassLoader();
+	URL scpurl = loader.getResource(STORAGE_CONF_FILE);
+	if (scpurl != null) {
+	    String s = scpurl.toString();
+	    URI u;
+	    try {
+		u = new URI(s);
+	    }
+	    catch (java.net.URISyntaxException e)
+	    {
+		throw new RuntimeException(e);
+	    }
+	    return u;
+	}
+
+	throw new RuntimeException("Cannot locate " + STORAGE_CONF_FILE + " via storage-config system property or classpath lookup.");
     }
 
     static
     {
         try
         {
-            configFileName = getStorageConfigPath();
-            if (logger.isDebugEnabled())
-                logger.debug("Loading settings from " + configFileName);
-            XMLUtils xmlUtils = new XMLUtils(configFileName);
+	    configFileURI = getStorageConfigURI();
+
+	    if (logger.isDebugEnabled())
+                logger.debug("Loading settings from " + configFileURI);
+            XMLUtils xmlUtils = new XMLUtils(configFileURI);
 
             /* Cluster Name */
             clusterName = xmlUtils.getNodeValue("/Storage/ClusterName");
@@ -590,7 +609,7 @@ public class DatabaseDescriptor
         XMLUtils xmlUtils = null;
         try
         {
-            xmlUtils = new XMLUtils(configFileName);
+            xmlUtils = new XMLUtils(configFileURI);
         }
         catch (ParserConfigurationException e)
         {
@@ -958,7 +977,7 @@ public class DatabaseDescriptor
     }
 
     public static String getConfigFileName() {
-        return configFileName;
+        return configFileURI.toString();
     }
 
     public static String getJobJarLocation()

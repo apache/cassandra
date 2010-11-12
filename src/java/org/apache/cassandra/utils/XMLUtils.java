@@ -27,6 +27,7 @@ import javax.xml.xpath.XPathExpression;
 import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
 import java.io.*;
+import java.net.URI;
 import org.w3c.dom.*;
 import org.xml.sax.*;
 
@@ -42,6 +43,17 @@ public class XMLUtils
         File xmlFile = new File(xmlSrc);
         document_ = db.parse(xmlFile);
         
+        XPathFactory xpathFactory = XPathFactory.newInstance();
+        xpath_ = xpathFactory.newXPath();
+    }
+
+    public XMLUtils(URI xmlURI) throws FileNotFoundException, ParserConfigurationException, SAXException, IOException
+    {
+        DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+        DocumentBuilder db = dbf.newDocumentBuilder();
+	InputStream stream = xmlURI.toURL().openStream();
+        document_ = db.parse(stream);
+
         XPathFactory xpathFactory = XPathFactory.newInstance();
         xpath_ = xpathFactory.newXPath();
     }
