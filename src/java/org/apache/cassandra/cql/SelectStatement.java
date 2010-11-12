@@ -32,15 +32,17 @@ import org.apache.cassandra.thrift.ConsistencyLevel;
 public class SelectStatement
 {
     private final SelectExpression expression;
+    private final boolean isCountOper;
     private final String columnFamily;
     private final ConsistencyLevel cLevel;
     private final WhereClause clause;
     private final int numRecords;
     
-    public SelectStatement(SelectExpression expression, String columnFamily, ConsistencyLevel cLevel,
-            WhereClause clause, int numRecords)
+    public SelectStatement(SelectExpression expression, boolean isCountOper, String columnFamily,
+            ConsistencyLevel cLevel, WhereClause clause, int numRecords)
     {
         this.expression = expression;
+        this.isCountOper = isCountOper;
         this.columnFamily = columnFamily;
         this.cLevel = cLevel;
         this.clause = (clause != null) ? clause : new WhereClause();
@@ -115,5 +117,10 @@ public class SelectStatement
     public int getColumnsLimit()
     {
         return expression.getColumnsLimit();
+    }
+    
+    public boolean isCountOperation()
+    {
+        return isCountOper;
     }
 }

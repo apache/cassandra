@@ -235,6 +235,9 @@ public class QueryProcessor
     /* Test for SELECT-specific taboos */
     private static void validateSelect(String keyspace, SelectStatement select) throws InvalidRequestException
     {
+        if (select.isCountOperation() && (select.isKeyRange() || select.getKeys().size() < 1))
+            throw newInvalidRequestException("Counts can only be performed for a single record (Hint: KEY=term)");
+        
         // Finish key w/o start key (KEY < foo)
         if (!select.isKeyRange() && (select.getKeyFinish() != null))
             throw newInvalidRequestException("Key range clauses must include a start key (i.e. KEY > term)");
@@ -282,14 +285,23 @@ public class QueryProcessor
                 validateColumnFamily(keyspace, select.getColumnFamily());
                 validateSelect(keyspace, select);
                 
-                List<CqlRow> avroRows = new ArrayList<CqlRow>();
-                avroResult.type = CqlResultType.ROWS;
                 List<org.apache.cassandra.db.Row> rows = null;
                 
                 // By-key
                 if (!select.isKeyRange() && (select.getKeys().size() > 0))
                 {
                     rows = getSlice(keyspace, select);
+                    
+                    // Only return the column count, (of the at-most 1 row).
+                    if (select.isCountOperation())
+                    {
+                        avroResult.type = CqlResultType.INT;
+                        if (rows.size() > 0)
+                            avroResult.num = rows.get(0).cf != null ? rows.get(0).cf.getSortedColumns().size() : 0;
+                        else
+                            avroResult.num = 0;
+                        return avroResult;
+                    }
                 }
                 else
                 {
@@ -304,6 +316,9 @@ public class QueryProcessor
                         rows = getIndexedSlices(keyspace, select);
                     }
                 }
+                
+                List<CqlRow> avroRows = new ArrayList<CqlRow>();
+                avroResult.type = CqlResultType.ROWS;
                 
                 // Create the result set
                 for (org.apache.cassandra.db.Row row : rows)

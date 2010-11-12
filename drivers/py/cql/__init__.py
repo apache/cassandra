@@ -51,6 +51,9 @@ class Connection(object):
 
         if response['type'] == 'ROWS':
             return response['rows']
+        if response['type'] == 'INT':
+            return response['num']
+
         return None
 
     @classmethod

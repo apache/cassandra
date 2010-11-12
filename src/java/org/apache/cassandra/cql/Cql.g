@@ -65,15 +65,22 @@ useStatement returns [String keyspace]
 selectStatement returns [SelectStatement expr]
     : { 
           int numRecords = 10000;
+          SelectExpression expression = null;
+          boolean isCountOp = false;
           ConsistencyLevel cLevel = ConsistencyLevel.ONE;
       }
-      K_SELECT selectExpression K_FROM columnFamily=IDENT
+      K_SELECT
+          ( s1=selectExpression                 { expression = s1; }
+          | K_COUNT '(' s2=selectExpression ')' { expression = s2; isCountOp = true; }
+          )
+          K_FROM columnFamily=IDENT
           ( K_USING K_CONSISTENCY '.' K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); } )?
           ( K_WHERE whereClause )?
           ( K_LIMIT rows=INTEGER { numRecords = Integer.parseInt($rows.text); } )?
           endStmnt
       {
-          return new SelectStatement($selectExpression.expr,
+          return new SelectStatement(expression,
+                                     isCountOp,
                                      $columnFamily.text,
                                      cLevel,
                                      $whereClause.clause,
@@ -169,6 +176,7 @@ K_LEVEL:       ( O N E
 K_USE:         U S E;
 K_FIRST:       F I R S T;
 K_REVERSED:    R E V E R S E D;
+K_COUNT:       C O U N T;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

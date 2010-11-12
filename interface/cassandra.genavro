@@ -381,7 +381,7 @@ protocol Cassandra {
     }
 
     enum CqlResultType {
-        ROWS, VOID
+        ROWS, VOID, INT
     }
 
     record CqlRow {
@@ -392,6 +392,7 @@ protocol Cassandra {
     record CqlResult {
         CqlResultType type;
         union { array<CqlRow>, null } rows;
+        union { int, null } num;
     }
 
     /**

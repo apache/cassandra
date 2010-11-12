@@ -151,3 +151,9 @@ class TestCql(AvroTester):
         assert r[1]['key'] == "kb"
         assert r[2]['key'] == "kc"
 
+    def test_column_count(self):
+        "getting a result count instead of results"
+        conn = init()
+        r = conn.execute('SELECT COUNT(1L..4L) FROM StandardLong1 WHERE KEY = "aa";')
+        assert r == 4
+
