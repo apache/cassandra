@@ -79,6 +79,7 @@ public final class CLibrary
         {
             int result = mlockall(MCL_CURRENT);
             assert result == 0; // mlockall should always be zero on success
+            logger.info("JNA mlockall successful");
         }
         catch (UnsatisfiedLinkError e)
         {
