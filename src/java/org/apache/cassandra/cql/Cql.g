@@ -65,30 +65,19 @@ useStatement returns [String keyspace]
 selectStatement returns [SelectStatement expr]
     : { 
           int numRecords = 10000;
-          int numColumns = 10000;
-          boolean reversed = false;
           ConsistencyLevel cLevel = ConsistencyLevel.ONE;
       }
-      K_SELECT K_FROM? IDENT
-          (K_USING K_CONSISTENCY '.' K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); })?
-          K_WHERE selectExpression
-          (limit=(K_ROWLIMIT | K_COLLIMIT) value=INTEGER
-              { 
-                  int count = Integer.parseInt($value.text);
-                  if ($limit.type == K_ROWLIMIT)
-                      numRecords = count;
-                  else
-                      numColumns = count;
-              }
-          )*
-          order=(K_ASC | K_DESC { reversed = true; })? endStmnt
+      K_SELECT selectExpression K_FROM columnFamily=IDENT
+          ( K_USING K_CONSISTENCY '.' K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); } )?
+          ( K_WHERE whereClause )?
+          ( K_LIMIT rows=INTEGER { numRecords = Integer.parseInt($rows.text); } )?
+          endStmnt
       {
-          return new SelectStatement($IDENT.text,
+          return new SelectStatement($selectExpression.expr,
+                                     $columnFamily.text,
                                      cLevel,
-                                     $selectExpression.expr,
-                                     numRecords,
-                                     numColumns,
-                                     reversed);
+                                     $whereClause.clause,
+                                     numRecords);
       }
     ;
 
@@ -116,16 +105,32 @@ term returns [Term item]
       { $item = new Term($t.text, $t.type); }
     ;
 
-// Note: slices are inclusive so >= and >, and < and <= all have the same semantics.  
+// Note: ranges are inclusive so >= and >, and < and <= all have the same semantics.  
 relation returns [Relation rel]
-    : kind=(K_KEY | K_COLUMN) type=('=' | '<' | '<=' | '>=' | '>') t=term
-      { return new Relation($kind.text, $type.text, $t.item); }
+    : { Term entity = new Term("KEY", STRING_LITERAL); }
+      (K_KEY | name=term { entity = $name.item; } ) type=('=' | '<' | '<=' | '>=' | '>') t=term
+      { return new Relation(entity, $type.text, $t.item); }
     ;
 
 // relation [[AND relation] ...]
+whereClause returns [WhereClause clause]
+    : first=relation { $clause = new WhereClause(first); } 
+          (K_AND next=relation { $clause.and(next); })*
+    ;
+
+// [FIRST n] [REVERSED] name1[[[,name2],nameN],...]
+// [FIRST n] [REVERSED] name1..nameN
 selectExpression returns [SelectExpression expr]
-    : first=relation { $expr = new SelectExpression(first); } 
-          (K_AND next=relation { $expr.and(next); })*
+    : {
+          int count = 10000;
+          boolean reversed = false;
+      }
+      ( K_FIRST cols=INTEGER { count = Integer.parseInt($cols.text); } )?
+      ( K_REVERSED { reversed = true; } )?
+      ( first=term { $expr = new SelectExpression(first, count, reversed); }
+            (',' next=term { $expr.and(next); })*
+      | start=term '..' finish=term { $expr = new SelectExpression(start, finish, count, reversed); }
+      )
     ;
 
 columnDef returns [Column column]
@@ -151,14 +156,10 @@ K_COLUMN:      C O L (U M N)?;
 K_UPDATE:      U P D A T E;
 K_WITH:        W I T H;
 K_ROW:         R O W;
-K_ROWLIMIT:    R O W L I M I T;
-K_COLLIMIT:    C O L L I M I T;
-K_ASC:         A S C (E N D I N G)?;
-K_DESC:        D E S C (E N D I N G)?;
+K_LIMIT:       L I M I T;
 K_USING:       U S I N G;
 K_CONSISTENCY: C O N S I S T E N C Y;
-K_LEVEL:       ( Z E R O
-               | O N E 
+K_LEVEL:       ( O N E 
                | Q U O R U M 
                | A L L 
                | D C Q U O R U M 
@@ -166,6 +167,8 @@ K_LEVEL:       ( Z E R O
                )
                ;
 K_USE:         U S E;
+K_FIRST:       F I R S T;
+K_REVERSED:    R E V E R S E D;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

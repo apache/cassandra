@@ -20,6 +20,8 @@
  */
 package org.apache.cassandra.cql;
 
+import java.util.List;
+
 import org.apache.cassandra.thrift.ConsistencyLevel;
 
 /**
@@ -29,32 +31,65 @@ import org.apache.cassandra.thrift.ConsistencyLevel;
  */
 public class SelectStatement
 {
+    private final SelectExpression expression;
     private final String columnFamily;
     private final ConsistencyLevel cLevel;
-    private final SelectExpression expression;
+    private final WhereClause clause;
     private final int numRecords;
-    private final int numColumns;
-    private final boolean reverse;
     
-    public SelectStatement(String columnFamily, ConsistencyLevel cLevel, SelectExpression expression,
-            int numRecords, int numColumns, boolean reverse)
+    public SelectStatement(SelectExpression expression, String columnFamily, ConsistencyLevel cLevel,
+            WhereClause clause, int numRecords)
     {
+        this.expression = expression;
         this.columnFamily = columnFamily;
         this.cLevel = cLevel;
-        this.expression = expression;
+        this.clause = clause;
         this.numRecords = numRecords;
-        this.numColumns = numColumns;
-        this.reverse = reverse;
     }
     
-    public Predicates getKeyPredicates()
+    public boolean isKeyRange()
     {
-        return expression.getKeyPredicates();
+        return clause.isKeyRange();
     }
     
-    public Predicates getColumnPredicates()
+    public List<Term> getKeys()
     {
-        return expression.getColumnPredicates();
+        return clause.getKeys();
+    }
+    
+    public Term getKeyStart()
+    {
+        return clause.getStartKey();
+    }
+    
+    public Term getKeyFinish()
+    {
+        return clause.getFinishKey();
+    }
+    
+    public List<Relation> getColumnRelations()
+    {
+        return clause.getColumnRelations();
+    }
+    
+    public boolean isColumnRange()
+    {
+        return expression.isColumnRange();
+    }
+    
+    public List<Term> getColumnNames()
+    {
+        return expression.getColumns();
+    }
+    
+    public Term getColumnStart()
+    {
+        return expression.getStart();
+    }
+    
+    public Term getColumnFinish()
+    {
+        return expression.getFinish();
     }
     
     public String getColumnFamily()
@@ -62,9 +97,9 @@ public class SelectStatement
         return columnFamily;
     }
     
-    public boolean reversed()
+    public boolean isColumnsReversed()
     {
-        return reverse;
+        return expression.isColumnsReversed();
     }
     
     public ConsistencyLevel getConsistencyLevel()
@@ -77,8 +112,8 @@ public class SelectStatement
         return numRecords;
     }
 
-    public int getNumColumns()
+    public int getColumnsLimit()
     {
-        return numColumns;
+        return expression.getColumnsLimit();
     }
 }

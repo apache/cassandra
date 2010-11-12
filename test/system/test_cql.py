@@ -39,7 +39,7 @@ class TestCql(AvroTester):
     def test_select_simple(self):
         "retrieve a column"
         conn = init()
-        r = conn.execute('SELECT FROM Standard1 WHERE KEY="ka" AND COL="ca1"')
+        r = conn.execute('SELECT "ca1" FROM Standard1 WHERE KEY="ka"')
         assert r[0]['key'] == 'ka'
         assert r[0]['columns'][0]['name'] == 'ca1'
         assert r[0]['columns'][0]['value'] == 'va1'
@@ -48,42 +48,14 @@ class TestCql(AvroTester):
         "retrieve multiple columns"
         conn = init()
         r = conn.execute("""
-            SELECT FROM Standard1 WHERE KEY = "kd" AND COLUMN = "cd1"
-                    AND COLUMN = "col"
+            SELECT "cd1", "col" FROM Standard1 WHERE KEY = "kd"
         """)
         assert "cd1" in [i['name'] for i in r[0]['columns']]
         assert "col" in [i['name'] for i in r[0]['columns']]
-
-    def test_select_rows_columns(self):
-        "fetch multiple rows and columns"
-        conn = init()
-        r = conn.execute("""
-            SELECT FROM
-                Standard1
-            WHERE
-                KEY = "ka" AND KEY = "kd" AND COLUMN = "col";
-        """)
-        for result in r:
-            assert result['key'] in ("ka", "kd")
-            assert result['columns'][0]['name'] == "col"
-            assert result['columns'][0]['value'] == "val"
-
-    def test_select_rows(self):
-        "fetch multiple rows, all columns"
-        conn = init()
-        r = conn.execute("""
-            SELECT FROM
-                Standard1
-            WHERE
-                KEY = "ka" AND KEY = "kd" AND KEY = "kb"
-        """)
-        for result in r:
-            assert result['key'] in ("ka", "kd", "kb")
-            assert len(result['columns']) == 2
 
     def test_select_row_range(self):
         "retrieve a range of rows with columns"
         conn = init()
         r = conn.execute("""
-            SELECT FROM StandardLong1 WHERE KEY > "ad" AND KEY < "ag";
+            SELECT "col1" FROM StandardLong1 WHERE KEY > "ad" AND KEY < "ag";
         """)

@@ -1,4 +1,3 @@
-package org.apache.cassandra.cql;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -19,122 +18,111 @@ package org.apache.cassandra.cql;
  * under the License.
  * 
  */
-
+package org.apache.cassandra.cql;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * SelectExpressions encapsulate all of the predicates of a SELECT query.
+ * Select expressions are analogous to the projection in a SQL query. They
+ * determine which columns will appear in the result set.  SelectExpression
+ * instances encapsulate a parsed expression from a <code>SELECT</code>
+ * statement.
  * 
- * @author eevans
- *
+ * See: doc/cql/CQL.html#SpecifyingColumns
  */
 public class SelectExpression
 {
-    private Predicates keys = new Predicates();
-    private Predicates columns = new Predicates();
+    public static final int MAX_COLUMNS_DEFAULT = 10000;
     
-    public SelectExpression(Relation firstRelation)
+    private int numColumns = MAX_COLUMNS_DEFAULT;
+    private boolean reverseColumns = false;
+    private Term start, finish;
+    private List<Term> columns;
+    
+    /**
+     * Create a new SelectExpression for a range (slice) of columns.
+     * 
+     * @param start the starting column name
+     * @param finish the finishing column name
+     * @param count the number of columns to limit the results to
+     * @param reverse true to reverse column order
+     */
+    public SelectExpression(Term start, Term finish, int count, boolean reverse)
     {
-        and(firstRelation);
+        this.start = start;
+        this.finish = finish;
+        numColumns = count;
+        reverseColumns = reverse;
     }
     
-    public void and(Relation relation)
+    /**
+     * Create a new SelectExpression for a list of columns.
+     * 
+     * @param first the first (possibly only) column name to select on.
+     * @param count the number of columns to limit the results on
+     * @param reverse true to reverse column order
+     */
+    public SelectExpression(Term first, int count, boolean reverse)
     {
-        if (relation.isKey())
-        {
-            if (relation.type.equals(RelationType.EQ))
-                keys.addTerm(relation.value);
-            else if ((relation.type.equals(RelationType.GT) || relation.type.equals(RelationType.GTE)))
-                keys.setStart(relation.value);
-            else if ((relation.type.equals(RelationType.LT) || relation.type.equals(RelationType.LTE)))
-                keys.setFinish(relation.value);
-        }
-        else    // It's a column
-        {
-            if (relation.type.equals(RelationType.EQ))
-                columns.addTerm(relation.value);
-            else if ((relation.type.equals(RelationType.GT) || relation.type.equals(RelationType.GTE)))
-                columns.setStart(relation.value);
-            else if ((relation.type.equals(RelationType.LT) || relation.type.equals(RelationType.LTE)))
-                columns.setFinish(relation.value);
-        }
+        columns = new ArrayList<Term>();
+        columns.add(first);
+        numColumns = count;
+        reverseColumns = reverse;
     }
     
-    public Predicates getKeyPredicates()
+    /**
+     * Add an additional column name to a SelectExpression.
+     * 
+     * @param addTerm
+     */
+    public void and(Term addTerm)
     {
-        return keys;
+        assert !isColumnRange();    // Not possible when invoked by parser
+        columns.add(addTerm);
     }
     
-    public Predicates getColumnPredicates()
+    public boolean isColumnRange()
+    {
+        return (start != null);
+    }
+    
+    public boolean isColumnList()
+    {
+        return !isColumnRange();
+    }
+    public int getColumnsLimit()
+    {
+        return numColumns;
+    }
+
+    public boolean isColumnsReversed()
+    {
+        return reverseColumns;
+    }
+    
+    public void setColumnsReversed(boolean reversed)
+    {
+        reverseColumns = reversed;
+    }
+    
+    public void setColumnsLimit(int limit)
+    {
+        numColumns = limit;
+    }
+
+    public Term getStart()
+    {
+        return start;
+    }
+
+    public Term getFinish()
+    {
+        return finish;
+    }
+
+    public List<Term> getColumns()
     {
         return columns;
-    }
-}
-
-class Predicates
-{
-    private boolean initialized = false;
-    private List<Term> names = new ArrayList<Term>();
-    private Term start, finish;
-    private boolean isRange = false;
-    
-    Term getStart()
-    {
-        return start == null ? new Term() : start;
-    }
-    
-    void setStart(Term start)
-    {
-        // FIXME: propagate a proper exception
-        if (initialized && (!isRange()))
-            throw new RuntimeException("You cannot combine discreet names and range operators.");
-        
-        initialized = true;
-        isRange = true;
-        this.start = start;
-    }
-    
-    Term getFinish()
-    {
-        return finish == null ? new Term() : finish;
-    }
-    
-    void setFinish(Term finish)
-    {
-        // FIXME: propagate a proper exception
-        if (initialized && (!isRange()))
-            throw new RuntimeException("You cannot combine discreet names and range operators.");
-        
-        initialized = true;
-        isRange = true;
-        this.finish = finish;
-    }
-    
-    List<Term> getTerms()
-    {
-        return names;
-    }
-    
-    void addTerm(Term name)
-    {
-        // FIXME: propagate a proper exception
-        if (initialized && (isRange()))
-            throw new RuntimeException("You cannot combine discreet names and range operators.");
-        
-        initialized = true;
-        isRange = false;
-        names.add(name);
-    }
-    
-    boolean isRange()
-    {
-        return isRange;
-    }
-
-    boolean isInitialized()
-    {
-        return initialized;
     }
 }

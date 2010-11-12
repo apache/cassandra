@@ -65,38 +65,37 @@ public class QueryProcessor
 {
     private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
     
-    private static List<org.apache.cassandra.db.Row> multiSlice(String keyspace, SelectStatement select)
+    private static List<org.apache.cassandra.db.Row> getSlice(String keyspace, SelectStatement select)
     throws InvalidRequestException, TimedOutException, UnavailableException
     {
         List<org.apache.cassandra.db.Row> rows = null;
         QueryPath queryPath = new QueryPath(select.getColumnFamily());
         List<ReadCommand> commands = new ArrayList<ReadCommand>();
         
-        for (Term keyName : select.getKeyPredicates().getTerms())
+        assert select.getKeys().size() == 1;
+        
+        ByteBuffer key = select.getKeys().get(0).getByteBuffer();
+        validateKey(key);
+        
+        // ...of a list of column names
+        if (!select.isColumnRange())
         {
-            ByteBuffer key = keyName.getByteBuffer();
-            validateKey(key);
+            Collection<ByteBuffer> columnNames = new ArrayList<ByteBuffer>();
+            for (Term column : select.getColumnNames())
+                columnNames.add(column.getByteBuffer());
             
-            // ...of a list of column names
-            if ((!select.getColumnPredicates().isRange()) && select.getColumnPredicates().isInitialized())
-            {
-                Collection<ByteBuffer> columnNames = new ArrayList<ByteBuffer>();
-                for (Term column : select.getColumnPredicates().getTerms())
-                    columnNames.add(column.getByteBuffer());
-                
-                commands.add(new SliceByNamesReadCommand(keyspace, key, queryPath, columnNames));
-            }
-            // ...a range (slice) of column names
-            else
-            {
-                commands.add(new SliceFromReadCommand(keyspace,
-                                                      key,
-                                                      queryPath,
-                                                      select.getColumnPredicates().getStart().getByteBuffer(),
-                                                      select.getColumnPredicates().getFinish().getByteBuffer(),
-                                                      select.reversed(),
-                                                      select.getNumColumns()));
-            }
+            commands.add(new SliceByNamesReadCommand(keyspace, key, queryPath, columnNames));
+        }
+        // ...a range (slice) of column names
+        else
+        {
+            commands.add(new SliceFromReadCommand(keyspace,
+                                                  key,
+                                                  queryPath,
+                                                  select.getColumnStart().getByteBuffer(),
+                                                  select.getColumnFinish().getByteBuffer(),
+                                                  select.isColumnsReversed(),
+                                                  select.getColumnsLimit()));
         }
 
         try
@@ -135,24 +134,25 @@ public class QueryProcessor
         // FIXME: ranges can be open-ended, but a start must exist.  Assert so here.
         
         IPartitioner<?> p = StorageService.getPartitioner();
-        AbstractBounds bounds = new Bounds(p.getToken(select.getKeyPredicates().getStart().getByteBuffer()),
-                                           p.getToken(select.getKeyPredicates().getFinish().getByteBuffer()));
+        AbstractBounds bounds = new Bounds(p.getToken(select.getKeyStart().getByteBuffer()),
+                                           p.getToken(select.getKeyFinish().getByteBuffer()));
+        
         
         // XXX: Our use of Thrift structs internally makes me Sad. :(
         SlicePredicate thriftSlicePredicate = new SlicePredicate();
-        if (select.getColumnPredicates().isRange() || select.getColumnPredicates().getTerms().size() == 0)
+        if (select.isColumnRange() || select.getColumnNames().size() == 0)
         {
             SliceRange sliceRange = new SliceRange();
-            sliceRange.start = select.getColumnPredicates().getStart().getByteBuffer();
-            sliceRange.finish = select.getColumnPredicates().getFinish().getByteBuffer();
+            sliceRange.start = select.getColumnStart().getByteBuffer();
+            sliceRange.finish = select.getColumnFinish().getByteBuffer();
             sliceRange.reversed = false;    // FIXME: hard-coded
-            sliceRange.count = select.getNumColumns();
+            sliceRange.count = select.getColumnsLimit();
             thriftSlicePredicate.slice_range = sliceRange;
         }
         else
         {
             List<ByteBuffer> columnNames = new ArrayList<ByteBuffer>();
-            for (Term column : select.getColumnPredicates().getTerms())
+            for (Term column : select.getColumnNames())
                 columnNames.add(column.getByteBuffer());
             thriftSlicePredicate.column_names = columnNames;
         }
@@ -204,10 +204,31 @@ public class QueryProcessor
                 avroResult.type = CqlResultType.ROWS;
                 List<org.apache.cassandra.db.Row> rows = null;
                 
-                if (!select.getKeyPredicates().isRange())
-                    rows = multiSlice(keyspace, select);
+                if (!select.isKeyRange() && (select.getKeys().size() > 0))
+                {
+                    // Multiple keys (aka "multiget") is not allowed( any longer).
+                    if (select.getKeys().size() > 1)
+                    {
+                        InvalidRequestException invalidRequest = new InvalidRequestException();
+                        invalidRequest.why = "SELECTs can contain only one by-key clause (i.e. KEY = TERM)";
+                        throw invalidRequest;
+                    }
+                    
+                    rows = getSlice(keyspace, select);
+                }
                 else
+                {
+                    // Combining key ranges and column index queries is not currently allowed
+                    if (select.getColumnRelations().size() > 0)
+                    {
+                        InvalidRequestException invalidRequest = new InvalidRequestException();
+                        invalidRequest.why = "You cannot combine key ranges and by-column clauses " +
+                        		"(i.e. \"name\" = \"value\") in a SELECT statement";
+                        throw invalidRequest;
+                    }
+                    
                     rows = multiRangeSlice(keyspace, select);
+                }
                 
                 // Create the result set
                 for (org.apache.cassandra.db.Row row : rows)

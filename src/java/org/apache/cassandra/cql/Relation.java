@@ -22,14 +22,15 @@ package org.apache.cassandra.cql;
 
 /**
  * Relations encapsulate the relationship between an entity of some kind, and
- * a value (term). For example, KEY > 'start' or COLUMN = 1000L.
+ * a value (term). For example, KEY > "start" or "colname1" = "somevalue".
  *
  */
 public class Relation
 {
-    public Entity entity = Entity.COLUMN;
-    public RelationType type;
-    public Term value;
+    public EntityType entityType = EntityType.COLUMN;
+    public Term entity;
+    private RelationType relationType;
+    private Term value;
     
     /**
      * Creates a new relation.
@@ -38,27 +39,38 @@ public class Relation
      * @param type the type that describes how this entity relates to the value.
      * @param value the value being compared.
      */
-    public Relation(String entity, String type, Term value)
+    public Relation(Term entity, String type, Term value)
     {
-        if (entity.toUpperCase().equals("KEY"))
-            this.entity = Entity.KEY;
+        if (entity.getText().toUpperCase().equals("KEY"))
+            this.entityType = EntityType.KEY;
         
-        this.type = RelationType.forString(type);
+        this.entity = entity;
+        this.relationType = RelationType.forString(type);
         this.value = value;
     }
     
     public boolean isKey()
     {
-        return entity.equals(Entity.KEY);
+        return entityType.equals(EntityType.KEY);
     }
     
     public boolean isColumn()
     {
-        return entity.equals(Entity.COLUMN);
+        return entityType.equals(EntityType.COLUMN);
+    }
+    
+    public RelationType operator()
+    {
+        return relationType;
+    }
+    
+    public Term getValue()
+    {
+        return value;
     }
 }
 
-enum Entity
+enum EntityType
 {
     KEY, COLUMN;
 }
