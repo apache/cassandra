@@ -302,7 +302,7 @@ public class CliClient extends CliUserHelp
         if(superColumnName != null)
             parent.setSuper_column(superColumnName);
 
-        SliceRange range = new SliceRange(FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER, true, 1000000);
+        SliceRange range = new SliceRange(FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER, false, 1000000);
         List<ColumnOrSuperColumn> columns = thriftClient.get_slice(key, parent, new SlicePredicate().setColumn_names(null).setSlice_range(range), ConsistencyLevel.ONE);
 
         AbstractType validator;
@@ -454,7 +454,7 @@ public class CliClient extends CliUserHelp
 
         // print results
         sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d)\n",
-                        formatColumnName(keySpace, columnFamily, column), valueAsString, column.timestamp);
+                                formatColumnName(keySpace, columnFamily, column), valueAsString, column.timestamp);
     }
 
     /**
