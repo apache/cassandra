@@ -943,7 +943,7 @@ public class CliClient extends CliUserHelp
         SlicePredicate predicate = new SlicePredicate();
         SliceRange sliceRange = new SliceRange();
         sliceRange.setStart(new byte[0]).setFinish(new byte[0]);
-        sliceRange.setCount(limitCount);
+        sliceRange.setCount(Integer.MAX_VALUE);
         predicate.setSlice_range(sliceRange);
 
         // set the key range
