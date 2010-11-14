@@ -283,12 +283,12 @@ public class CliClient extends CliUserHelp
         }
 
         ColumnPath path = new ColumnPath(columnFamily);
-        if(superColumnName != null)
+        if (superColumnName != null)
             path.setSuper_column(superColumnName);
-        
-        if(columnName != null)
+
+        if (columnName != null)
             path.setColumn(columnName);
-        
+
         thriftClient.remove(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)), path,
                              FBUtilities.timestampMicros(), ConsistencyLevel.ONE);
         sessionState.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "column"));
@@ -563,10 +563,11 @@ public class CliClient extends CliUserHelp
         Tree keyTree = columnFamilySpec.getChild(1); // could be a function or regular text
 
         String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
+        CfDef cfDef = getCfDef(columnFamily);
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
         String value = CliUtils.unescapeSQLString(statement.getChild(1).getText());
         Tree valueTree = statement.getChild(1);
-        
+
         byte[] superColumnName = null;
         ByteBuffer columnName;
 
@@ -580,6 +581,11 @@ public class CliClient extends CliUserHelp
         else if (columnSpecCnt == 1)
         {
             // get the column name
+            if (cfDef.column_type.equals("Super"))
+            {
+                sessionState.out.println("Column family " + columnFamily + " may only contain SuperColumns");
+                return;
+            }
             columnName = getColumnName(columnFamily, columnFamilySpec.getChild(2));
         }
         // table.cf['key']['super_column']['column'] = 'value'
@@ -596,7 +602,7 @@ public class CliClient extends CliUserHelp
         switch (valueTree.getType())
         {
         case CliParser.FUNCTION_CALL:
-            columnValueInBytes = convertValueByFunction(valueTree, getCfDef(columnFamily), columnName, true);
+            columnValueInBytes = convertValueByFunction(valueTree, cfDef, columnName, true);
             break;
         default:
             columnValueInBytes = columnValueAsBytes(columnName, columnFamily, value);
@@ -948,7 +954,9 @@ public class CliClient extends CliUserHelp
 
         // set the key range
         KeyRange range = new KeyRange(limitCount);
-        range.setStart_key(startKey.getBytes()).setEnd_key(endKey.getBytes());
+        AbstractType keyComparator = this.cfKeysComparators.get(columnFamily);
+        range.setStart_key(getBytesAccordingToType(startKey, keyComparator))
+             .setEnd_key(getBytesAccordingToType(endKey, keyComparator));
 
         ColumnParent columnParent = new ColumnParent(columnFamily);
         List<KeySlice> keySlices = thriftClient.get_range_slices(columnParent, predicate, range, ConsistencyLevel.ONE);
@@ -1870,10 +1878,6 @@ public class CliClient extends CliUserHelp
         String key = CliUtils.unescapeSQLString(keyTree.getText());
 
         AbstractType keyComparator = this.cfKeysComparators.get(columnFamily);
-        return keyComparator == null
-                ? ByteBuffer.wrap(key.getBytes(Charsets.UTF_8))
-                : getBytesAccordingToType(key, keyComparator);
-
+        return getBytesAccordingToType(key, keyComparator);
     }
-
 }
