@@ -1,3 +1,8 @@
+0.6.9
+ * add clustertool, config-converter, sstablekeys, and schematool 
+   Windows .bat files (CASSANDRA-1723)
+
+
 0.6.8
  * Update windows .bat files to work outside of main Cassandra
    directory (CASSANDRA-1713)
