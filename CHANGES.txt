@@ -1,6 +1,7 @@
 0.6.9
  * add clustertool, config-converter, sstablekeys, and schematool 
    Windows .bat files (CASSANDRA-1723)
+ * reject range queries received during bootstrap (CASSANDRA-1739)
 
 
 0.6.8
