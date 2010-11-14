@@ -31,7 +31,6 @@ import java.util.concurrent.Future;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.commons.collections.PredicateUtils;
 import org.apache.commons.collections.iterators.CollatingIterator;
 import org.apache.commons.collections.iterators.FilterIterator;
@@ -272,22 +271,8 @@ public class CompactionManager implements CompactionManagerMBean
             writer = new SSTableWriter(newFilename, expectedBloomFilterSize, cfs.metadata, cfs.partitioner);
             while (nni.hasNext())
             {
-                writer.mark();
-                try
-                {
-                    AbstractCompactedRow row = nni.next();
-                    writer.append(row);
-                }
-                catch (Exception e)
-                {
-                    logger.error("non-fatal error during compaction", e);
-                    writer.reset();
-                }
-                catch (IOError e)
-                {
-                    logger.error("non-fatal error during compaction", e);
-                    writer.reset();
-                }
+                AbstractCompactedRow row = nni.next();
+                writer.append(row);
                 totalkeysWritten++;
             }
         }
