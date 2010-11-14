@@ -1,4 +1,8 @@
 dev
+0.6.9
+ * add clustertool, config-converter, sstablekeys, and schematool 
+   Windows .bat files (CASSANDRA-1723)
+ * reject range queries received during bootstrap (CASSANDRA-1739)
  * Update windows .bat files to work outside of main Cassandra
    directory (CASSANDRA-1713)
  * log threshold causing memtable flush (CASSANDRA-1675)
@@ -21,7 +25,6 @@ dev
  * add --skip-keys option to stress.py (CASSANDRA-1696)
  * improve cli handling of non-string keys and column names 
    (CASSANDRA-1701, -1693)
- * enable skipping bad rows on LazilyCompacted path (CASSANDRA-1702)
  * r/m extra subcomparator line in cli keyspaces output (CASSANDRA-1712)
  * add read repair chance to cli "show keyspaces"
  * upgrade to ConcurrentLinkedHashMap 1.1 (CASSANDRA-975)
