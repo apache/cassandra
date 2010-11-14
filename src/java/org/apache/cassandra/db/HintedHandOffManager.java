@@ -63,9 +63,9 @@ import org.slf4j.LoggerFactory;
  * deliverHints is also exposed to JMX so it can be run manually if FD ever misses
  * its cue somehow.
  *
- * HHM never deletes the row from Application tables; there is no way to distinguish that
- * from hinted tombstones!  instead, rely on cleanup compactions to remove data
- * that doesn't belong on this node.  (Cleanup compactions may be started manually
+ * HHM never deletes the row from Application tables; usually (but not for CL.ANY!)
+ * the row belongs on this node, as well.  instead, we rely on cleanup compactions
+ * to remove data that doesn't belong.  (Cleanup compactions may be started manually
  * -- on a per node basis -- with "nodeprobe cleanup.")
  *
  * TODO this avoids our hint rows from growing excessively large by offloading the

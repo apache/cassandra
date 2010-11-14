@@ -61,7 +61,7 @@ public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
     @Override
     public int hashCode()
     {
-        return token.hashCode() + (key == null ? 0 : key.hashCode());
+        return token.hashCode();
     }
 
     @Override
@@ -75,40 +75,12 @@ public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
             return false;
 
         DecoratedKey other = (DecoratedKey) obj;
-
-        if (token.equals(other.token))
-        {
-            if (key == null && other.key == null)
-                return true;
-
-            if (key == null || other.key == null)
-                return false;
-
-            return key.equals(other.key);
-        }
-
-        return false;
+        return token.equals(other.token);
     }
 
     public int compareTo(DecoratedKey other)
     {
-        int cmp = token.compareTo(other.token);
-
-        if (cmp == 0)
-        {
-            if (key == null && other.key == null)
-                return 0;
-
-            if (key == null)
-                return 1;
-
-            if (other.key == null)
-                return -1;
-
-            return key.compareTo(other.key);
-        }
-
-        return cmp;
+        return token.compareTo(other.token);
     }
 
     public boolean isEmpty()

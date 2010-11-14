@@ -1450,6 +1450,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         List<InetAddress> endpoints = getNaturalEndpoints(table, key);
         DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), endpoints);
+        if (logger_.isDebugEnabled())
+            logger_.debug("Sorted endpoints are " + StringUtils.join(endpoints, ","));
         for (InetAddress endpoint : endpoints)
         {
             if (FailureDetector.instance.isAlive(endpoint))
