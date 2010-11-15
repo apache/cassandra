@@ -728,6 +728,18 @@ class TestMutations(ThriftTester):
         assert _big_slice('key1', ColumnParent('Super1', 'sc1')) == []
 
 
+    def test_super_cf_remove_and_range_slice(self):
+        _set_keyspace('Keyspace1')
+
+        client.insert('key3', ColumnParent('Super1', 'sc1'), Column(_i64(1), 'v1', 0), ConsistencyLevel.ONE)
+        client.remove('key3', ColumnPath('Super1', 'sc1'), 5, ConsistencyLevel.ONE)
+
+        rows = {}
+        for row in get_range_slice(client, ColumnParent('Super1'), SlicePredicate(slice_range=SliceRange('', '', False, 1000)), '', '', 1000, ConsistencyLevel.ONE):
+            scs = [cosc.super_column for cosc in row.columns]
+            rows[row.key] = scs
+        assert rows == {'key3': []}, rows
+
     def test_super_cf_remove_column(self):
         _set_keyspace('Keyspace1')
         _insert_simple()

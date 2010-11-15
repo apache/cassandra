@@ -1,5 +1,4 @@
 dev
-0.6.9
  * add clustertool, config-converter, sstablekeys, and schematool 
    Windows .bat files (CASSANDRA-1723)
  * reject range queries received during bootstrap (CASSANDRA-1739)
@@ -29,6 +28,7 @@ dev
  * add read repair chance to cli "show keyspaces"
  * upgrade to ConcurrentLinkedHashMap 1.1 (CASSANDRA-975)
  * fix index scan routing (CASSANDRA-1722)
+ * fix tombstoning of supercolumns in range queries (CASSANDRA-1734)
 
 
 0.7.0-beta3
