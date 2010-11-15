@@ -272,7 +272,7 @@ index_interval: 128
 # unusual circumstances you will have one Keyspace per application.
 #
 # Keyspace required parameters:
-# - name: name of the keyspace; "system" and "definitions" are 
+# - name: name of the keyspace; "system" is
 #   reserved for Cassandra Internals.
 # - replica_placement_strategy: the class that determines how replicas
 #   are distributed among nodes. Contains both the class as well as
