@@ -904,8 +904,8 @@ public class CliClient extends CliUserHelp
         // extract column family
         String columnFamily = statement.getChild(0).getText();
 
-        String startKey = "";
-        String endKey = "";
+        String rawStartKey = "";
+        String rawEndKey = "";
         int limitCount = Integer.MAX_VALUE; // will reset to default later if it's not specified
 
         // optional arguments: key range and limit
@@ -916,9 +916,9 @@ public class CliClient extends CliUserHelp
             {
                 if (child.getChildCount() > 0)
                 {
-                    startKey = CliUtils.unescapeSQLString(child.getChild(0).getText());
+                    rawStartKey = CliUtils.unescapeSQLString(child.getChild(0).getText());
                     if (child.getChildCount() > 1)
-                        endKey = CliUtils.unescapeSQLString(child.getChild(1).getText());
+                        rawEndKey = CliUtils.unescapeSQLString(child.getChild(1).getText());
                 }
             }
             else
@@ -955,8 +955,9 @@ public class CliClient extends CliUserHelp
         // set the key range
         KeyRange range = new KeyRange(limitCount);
         AbstractType keyComparator = this.cfKeysComparators.get(columnFamily);
-        range.setStart_key(getBytesAccordingToType(startKey, keyComparator))
-             .setEnd_key(getBytesAccordingToType(endKey, keyComparator));
+        ByteBuffer startKey = rawStartKey.isEmpty() ? FBUtilities.EMPTY_BYTE_BUFFER : getBytesAccordingToType(rawStartKey, keyComparator);
+        ByteBuffer endKey = rawEndKey.isEmpty() ? FBUtilities.EMPTY_BYTE_BUFFER : getBytesAccordingToType(rawEndKey, keyComparator);
+        range.setStart_key(startKey).setEnd_key(endKey);
 
         ColumnParent columnParent = new ColumnParent(columnFamily);
         List<KeySlice> keySlices = thriftClient.get_range_slices(columnParent, predicate, range, ConsistencyLevel.ONE);
@@ -1424,6 +1425,12 @@ public class CliClient extends CliUserHelp
      */
     private ByteBuffer getBytesAccordingToType(String object, AbstractType comparator)
     {
+        // TODO there is tension here between using this function to generate default values,
+        // and using it to parse input.  For instance, normally we want to convert empty string
+        // to empty byte array for any type -- all types special case empty byte[] to mean
+        // "minimum value" -- but we also want timeuuid() to create a valid uuid for us.
+        // For now, this function takes the create-valid-values approach, and we leave
+        // other use cases to special case "" -> byte[0] before calling this.
         if (comparator instanceof LongType)
         {
             long longType;
