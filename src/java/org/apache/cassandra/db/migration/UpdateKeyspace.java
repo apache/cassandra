@@ -4,6 +4,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -58,6 +59,7 @@ public class UpdateKeyspace extends Migration
     {
         DatabaseDescriptor.clearTableDefinition(oldKsm, newVersion);
         DatabaseDescriptor.setTableDefinition(newKsm, newVersion);
+        Table.open(newKsm.name).replicationStrategy.clearEndpointCache();
         logger.info("Keyspace updated. Please perform any manual operations.");
     }
 

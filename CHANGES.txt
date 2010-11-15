@@ -29,6 +29,7 @@ dev
  * upgrade to ConcurrentLinkedHashMap 1.1 (CASSANDRA-975)
  * fix index scan routing (CASSANDRA-1722)
  * fix tombstoning of supercolumns in range queries (CASSANDRA-1734)
+ * clear endpoint cache after updating keyspace metadata (CASSANDRA-1741)
 
 
 0.7.0-beta3
