@@ -1212,12 +1212,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Iterables.addAll(sstables, ssTables);
 
         RowIterator iterator = RowIteratorFactory.getIterator(memtables, sstables, startWith, stopAt, filter, getComparator(), this);
+        int gcBefore = (int)(System.currentTimeMillis() / 1000) - metadata.gcGraceSeconds;
 
         try
         {
             // pull rows out of the iterator
             boolean first = true; 
-            while(iterator.hasNext())
+            while (iterator.hasNext())
             {
                 Row current = iterator.next();
                 DecoratedKey key = current.key;
@@ -1228,7 +1229,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 // skip first one
                 if(range instanceof Bounds || !first || !key.equals(startWith))
                 {
-                    rows.add(current);
+                    // TODO this is necessary because when we collate supercolumns together, we don't check
+                    // their subcolumns for relevance, so we need to do a second prune post facto here.
+                    rows.add(current.cf != null && current.cf.isSuper()
+                             ? new Row(current.key, removeDeleted(current.cf, gcBefore))
+                             : current);
                     if (logger.isDebugEnabled())
                         logger.debug("scanned " + key);
                 }

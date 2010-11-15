@@ -77,30 +77,6 @@ public class SSTableWriter extends SSTable
         components.add(Component.STATS);
     }
     
-    /** something bad happened and the files associated with this writer need to be deleted. */
-    public void abort()
-    {
-        try
-        {
-            dataFile.close();
-            FileUtils.deleteWithConfirm(dataFile.getPath());
-        }
-        catch (IOException ex) 
-        {
-            logger.error(String.format("Caught exception while deleting aborted sstable (%s). %s", dataFile.getPath(), ex.getMessage()));
-        }
-        
-        try
-        {
-            iwriter.close();
-            FileUtils.deleteWithConfirm(descriptor.filenameFor(SSTable.COMPONENT_INDEX));
-        }
-        catch (IOException ex)
-        {
-            logger.error(String.format("Caught exception while deleting aborted sstable (%s). %s", descriptor.filenameFor(SSTable.COMPONENT_INDEX), ex.getMessage()));
-        }
-    }
-
     public void mark()
     {
         dataMark = dataFile.mark();
