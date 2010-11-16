@@ -2,6 +2,7 @@
  * add clustertool, config-converter, sstablekeys, and schematool 
    Windows .bat files (CASSANDRA-1723)
  * reject range queries received during bootstrap (CASSANDRA-1739)
+ * fix wrapping-range queries on non-minimum token (CASSANDRA-1700)
 
 
 0.6.8
