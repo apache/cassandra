@@ -179,7 +179,7 @@ public abstract class Migration
         if (cf == null || cf.getColumnNames().size() == 0)
             return null;
         else
-            return UUIDGen.makeType1UUID(cf.getColumn(LAST_MIGRATION_KEY).value());
+            return UUIDGen.getUUID(cf.getColumn(LAST_MIGRATION_KEY).value());
     }
     
     /** keep in mind that applyLive might happen on another machine */
@@ -277,8 +277,8 @@ public abstract class Migration
         }
         
         // super inflate
-        migration.lastVersion = UUIDGen.makeType1UUID(ByteBuffer.wrap(mi.old_version.bytes()));
-        migration.newVersion = UUIDGen.makeType1UUID(ByteBuffer.wrap(mi.new_version.bytes()));
+        migration.lastVersion = UUIDGen.getUUID(ByteBuffer.wrap(mi.old_version.bytes()));
+        migration.newVersion = UUIDGen.getUUID(ByteBuffer.wrap(mi.new_version.bytes()));
         try
         {
             migration.rm = RowMutation.serializer().deserialize(SerDeUtils.createDataInputStream(mi.row_mutation));

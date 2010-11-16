@@ -28,14 +28,8 @@ public class SchemaTool
     public static void main(String[] args)
     throws NumberFormatException, IOException, InterruptedException, ConfigurationException
     {
-        if (args.length < 3)
+        if (args.length < 3 || args.length > 3)
             usage();
-        if (args.length != 3 && "import".equals(args[2]))
-            usage();
-        if (args.length != 4 && "export".equals(args[2]))
-            usage();
-        
-        System.out.println("# Note: This tool is deprecated and will be removed in future releases.");
         
         String host = args[0];
         int port = 0;

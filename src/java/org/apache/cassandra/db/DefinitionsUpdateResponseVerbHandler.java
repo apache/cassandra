@@ -31,7 +31,6 @@ import org.apache.cassandra.utils.WrappedRunnable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOError;
 import java.io.IOException;
 import java.util.Collection;
@@ -51,7 +50,7 @@ public class DefinitionsUpdateResponseVerbHandler implements IVerbHandler
             Collection<Column> cols = MigrationManager.makeColumns(message);
             for (Column col : cols)
             {
-                final UUID version = UUIDGen.makeType1UUID(col.name());
+                final UUID version = UUIDGen.getUUID(col.name());
                 if (version.timestamp() > DatabaseDescriptor.getDefsVersion().timestamp())
                 {
                     final Migration m = Migration.deserialize(col.value());

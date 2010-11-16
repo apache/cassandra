@@ -21,21 +21,15 @@ package org.apache.cassandra.db.marshal;
  */
 
 
-import java.util.UUID;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.UUIDGen;
 
 public class LexicalUUIDType extends AbstractType
 {
     public static final LexicalUUIDType instance = new LexicalUUIDType();
 
     LexicalUUIDType() {} // singleton
-
-    static UUID getUUID(ByteBuffer bytes)
-    {
-        return new UUID(bytes.getLong(bytes.position()+bytes.arrayOffset()), bytes.getLong(bytes.position()+bytes.arrayOffset()));
-    }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
@@ -48,7 +42,7 @@ public class LexicalUUIDType extends AbstractType
             return 1;
         }
 
-        return getUUID(o1).compareTo(getUUID(o2));
+        return UUIDGen.getUUID(o1).compareTo(UUIDGen.getUUID(o2));
     }
 
     public String getString(ByteBuffer bytes)
@@ -61,6 +55,6 @@ public class LexicalUUIDType extends AbstractType
         {
             throw new MarshalException("UUIDs must be exactly 16 bytes");
         }
-        return getUUID(bytes).toString();
+        return UUIDGen.getUUID(bytes).toString();
     }
 }

@@ -1907,7 +1907,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             {
                 // blow up if there is a schema saved.
                 if (DatabaseDescriptor.getDefsVersion().timestamp() > 0 || Migration.getLastMigrationId() != null)
-                    throw new ConfigurationException("Cannot load from XML on top of pre-existing schemas.");
+                    throw new ConfigurationException("Cannot import schema when one already exists");
              
                 Migration migration = null;
                 for (KSMetaData table : tables)
@@ -1982,6 +1982,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 RawColumnFamily rcf = new RawColumnFamily();
                 rcf.name = cfm.cfName;
                 rcf.compare_with = cfm.comparator.getClass().getName();
+                rcf.default_validation_class = cfm.defaultValidator.getClass().getName();
                 rcf.compare_subcolumns_with = cfm.subcolumnComparator == null ? null : cfm.subcolumnComparator.getClass().getName();
                 rcf.column_type = cfm.cfType;
                 rcf.comment = cfm.comment;

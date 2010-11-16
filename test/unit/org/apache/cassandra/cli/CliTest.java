@@ -125,7 +125,7 @@ public class CliTest extends CleanupHelper
             CliMain.processStatement(statement);
             String result = outStream.toString();
             // System.out.println("Result:\n" + result);
-            assertEquals("", errStream.toString());
+            assertEquals(errStream.toString() + " processing " + statement, "", errStream.toString());
             if (statement.startsWith("drop ") || statement.startsWith("create ") || statement.startsWith("update "))
             {
                 assertTrue(result.matches("(.{8})-(.{4})-(.{4})-(.{4})-(.{12})\n"));
