@@ -74,4 +74,9 @@ public class EstimatedHistogram
 
         return rv;
     }
+
+    public static long[] getBucketOffsets()
+    {
+        return bucketOffsets;
+    }
 }

@@ -3,6 +3,7 @@
    Windows .bat files (CASSANDRA-1723)
  * reject range queries received during bootstrap (CASSANDRA-1739)
  * fix wrapping-range queries on non-minimum token (CASSANDRA-1700)
+ * add nodetool cfhistogram (CASSANDRA-1698)
 
 
 0.6.8

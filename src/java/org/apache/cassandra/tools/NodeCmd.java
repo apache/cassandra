@@ -21,29 +21,21 @@ package org.apache.cassandra.tools;
  */
 
 
-import java.io.IOException;
-import java.io.PrintStream;
-import java.lang.management.MemoryUsage;
-import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.Map.Entry;
-import java.util.concurrent.ExecutionException;
-
 import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
 import org.apache.cassandra.concurrent.IExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.dht.Range;
-
+import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.commons.cli.*;
-import org.apache.commons.lang.StringUtils;
+
+import java.io.IOException;
+import java.io.PrintStream;
+import java.lang.management.MemoryUsage;
+import java.net.InetAddress;
+import java.util.*;
+import java.util.Map.Entry;
+import java.util.concurrent.ExecutionException;
 
 public class NodeCmd {
     private static final String HOST_OPT_LONG = "host";
@@ -80,7 +72,7 @@ public class NodeCmd {
                 "tpstats, flush, drain, repair, decommission, move, loadbalance, removetoken, " +
                 "setcachecapacity <keyspace> <cfname> <keycachecapacity> <rowcachecapacity>, " +
                 "getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold])" +
-                "streams [host]");
+                "streams [host], cfhistograms <keyspace> <column_family>");
         String usage = String.format("java %s --host <arg> <command>%n", NodeCmd.class.getName());
         hf.printHelp(usage, "", options, header);
     }
@@ -366,6 +358,23 @@ public class NodeCmd {
             outs.println("----------------");
         }
     }
+
+    private void printCfHistograms(String keySpace, String columnFamily, PrintStream output)
+    {
+        ColumnFamilyStoreMBean store = this.probe.getColumnFamilyStoreMBean(keySpace, columnFamily);
+
+        long[] offsets = EstimatedHistogram.getBucketOffsets();
+
+        long[] rrlh = store.getRecentReadLatencyHistogramMicros();
+        long[] rwlh = store.getRecentWriteLatencyHistogramMicros();
+
+        output.println(String.format("%s/%s read/write latency histogram:", keySpace, columnFamily));
+        output.println(String.format("%-10s%18s%18s", "Bucket", "Read", "Write"));
+        for (int i = 0; i < offsets.length; i++)
+        {
+            output.println(String.format("%-10d%18d%18d", offsets[i], rrlh[i], rwlh[i]));
+        }
+    }
     
     public static void main(String[] args) throws IOException, InterruptedException, ParseException
     {
@@ -571,6 +580,16 @@ public class NodeCmd {
         {
             String otherHost = arguments.length > 1 ? arguments[1] : null;
             nodeCmd.printStreamInfo(otherHost == null ? null : InetAddress.getByName(otherHost), System.out);
+        }
+        else if (cmdName.equals("cfhistograms"))
+        {
+            if (arguments.length < 3)
+            {
+                System.err.println("Usage of cfhistograms: <keyspace> <column_family>.");
+                System.exit(1);
+            }
+
+            nodeCmd.printCfHistograms(arguments[1], arguments[2], System.out);
         }
         else
         {

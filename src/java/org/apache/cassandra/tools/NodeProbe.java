@@ -292,6 +292,26 @@ public class NodeProbe
         }
     }
 
+    /**
+     * Get MBean representing ColumnFamilyStore
+     * @param keySpace name of the keyspace
+     * @param cfName name of the column family
+     * @return ColumnFamilyStoreMBean
+     */
+    public ColumnFamilyStoreMBean getColumnFamilyStoreMBean(String keySpace, String cfName)
+    {
+        String path = String.format("org.apache.cassandra.db:type=ColumnFamilyStores,keyspace=%s,columnfamily=%s", keySpace, cfName);
+
+        try
+        {
+            return JMX.newMBeanProxy(mbeanServerConn, new ObjectName(path), ColumnFamilyStoreMBean.class);
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     public String getToken()
     {
         return ssProxy.getToken();
