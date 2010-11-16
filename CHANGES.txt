@@ -30,6 +30,7 @@ dev
  * fix index scan routing (CASSANDRA-1722)
  * fix tombstoning of supercolumns in range queries (CASSANDRA-1734)
  * clear endpoint cache after updating keyspace metadata (CASSANDRA-1741)
+ * fix wrapping-range queries on non-minimum token (CASSANDRA-1700)
 
 
 0.7.0-beta3
