@@ -24,7 +24,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -159,7 +158,7 @@ public class DefsTest extends CleanupHelper
         int i = 0;
         for (IColumn col : serializedMigrations)
         {
-            UUID version = UUIDGen.makeType1UUID(col.name());
+            UUID version = UUIDGen.getUUID(col.name());
             reconstituded[i] = Migration.deserialize(col.value());
             assert version.equals(reconstituded[i].getVersion());
             i++;

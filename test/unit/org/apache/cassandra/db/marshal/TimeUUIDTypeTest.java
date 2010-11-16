@@ -25,9 +25,7 @@ import java.util.Random;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
-import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.db.marshal.TimeUUIDType;
-
+import org.apache.cassandra.utils.UUIDGen;
 import org.safehaus.uuid.UUID;
 import org.safehaus.uuid.UUIDGenerator;
 
@@ -85,8 +83,8 @@ public class TimeUUIDTypeTest
         Arrays.sort(uuids, timeUUIDType);
         for (int i = 1; i < uuids.length; i++)
         {
-            long i0 = LexicalUUIDType.getUUID(uuids[i - 1]).timestamp();
-            long i1 = LexicalUUIDType.getUUID(uuids[i]).timestamp();
+            long i0 = UUIDGen.getUUID(uuids[i - 1]).timestamp();
+            long i1 = UUIDGen.getUUID(uuids[i]).timestamp();
             assert i0 <= i1;
         }
     }

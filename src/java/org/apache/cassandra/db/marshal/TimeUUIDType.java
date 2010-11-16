@@ -24,7 +24,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.UUIDGen;
 
 public class TimeUUIDType extends AbstractType
 {
@@ -80,7 +80,7 @@ public class TimeUUIDType extends AbstractType
         {
             throw new MarshalException("UUIDs must be exactly 16 bytes");
         }
-        UUID uuid = LexicalUUIDType.getUUID(bytes);
+        UUID uuid = UUIDGen.getUUID(bytes);
         if (uuid.version() != 1)
         {
             throw new MarshalException("TimeUUID only makes sense with version 1 UUIDs");
