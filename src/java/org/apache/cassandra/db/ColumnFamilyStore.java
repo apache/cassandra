@@ -1640,13 +1640,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 // putting markCompacted on the commitlogUpdater thread ensures it will run
                 // after any compactions that were in progress when truncate was called, are finished
-                List<SSTableReader> truncatedSSTables = new ArrayList<SSTableReader>();
-                for (SSTableReader sstable : ssTables.getSSTables())
+                for (ColumnFamilyStore cfs : Iterables.concat(indexedColumns.values(), Arrays.asList(ColumnFamilyStore.this)))
                 {
-                    if (!sstable.newSince(truncatedAt))
-                        truncatedSSTables.add(sstable);
+                    List<SSTableReader> truncatedSSTables = new ArrayList<SSTableReader>();
+                    for (SSTableReader sstable : cfs.getSSTables())
+                    {
+                        if (!sstable.newSince(truncatedAt))
+                            truncatedSSTables.add(sstable);
+                    }
+                    cfs.markCompacted(truncatedSSTables);
                 }
-                markCompacted(truncatedSSTables);
 
                 // Invalidate row cache
                 invalidateRowCache();
