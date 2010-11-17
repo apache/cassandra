@@ -6,7 +6,8 @@ options {
 
 @header {
     package org.apache.cassandra.cql;
-    import java.util.ArrayList;
+    import java.util.Map;
+    import java.util.HashMap;
     import org.apache.cassandra.thrift.ConsistencyLevel;
     import org.apache.cassandra.avro.InvalidRequestException;
 }
@@ -93,17 +94,24 @@ selectStatement returns [SelectStatement expr]
  *     <CF>
  * USING
  *     CONSISTENCY.ONE
- * WITH
- *     ROW("key1", COL("col1", "val1"), ...) AND
- *     ROW("key2", COL("col1", "val1"), ...) AND
- *     ROW("key3", COLUMN("col1", "val1"), ...)
+ * SET
+ *     name1 = value1,
+ *     name2 = value2
+ * WHERE
+ *     KEY = keyname;
  */
 updateStatement returns [UpdateStatement expr]
-    : { ConsistencyLevel cLevel = ConsistencyLevel.ONE; }
-      K_UPDATE IDENT
+    : {
+          ConsistencyLevel cLevel = ConsistencyLevel.ONE;
+          Map<Term, Term> columns = new HashMap<Term, Term>();
+      }
+      K_UPDATE columnFamily=IDENT
           (K_USING K_CONSISTENCY '.' K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); })?
-          K_WITH first=rowDef { $expr = new UpdateStatement($IDENT.text, first, cLevel); }
-          (K_AND next=rowDef { $expr.and(next); })* endStmnt
+          K_SET c1=term '=' v1=term { columns.put(c1, v1); } (',' cN=term '=' vN=term { columns.put(cN, vN); })*
+          K_WHERE K_KEY '=' key=term endStmnt
+      {
+          return new UpdateStatement($columnFamily.text, cLevel, columns, key);
+      }
     ;
 
 // TODO: date/time, utf8
@@ -139,15 +147,6 @@ selectExpression returns [SelectExpression expr]
       | start=term '..' finish=term { $expr = new SelectExpression(start, finish, count, reversed); }
       )
     ;
-
-columnDef returns [Column column]
-    : K_COLUMN '(' n=term ',' v=term ')' { $column = new Column($n.item, $v.item); }
-    ;
-
-rowDef returns [Row row]
-    : K_ROW '(' key=term ',' first=columnDef { $row = new Row($key.item, first); }
-          (',' next=columnDef { $row.and(next); })* ')'
-    ;
     
 endStmnt
     : (EOF | ';')
@@ -177,6 +176,7 @@ K_USE:         U S E;
 K_FIRST:       F I R S T;
 K_REVERSED:    R E V E R S E D;
 K_COUNT:       C O U N T;
+K_SET:         S E T;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

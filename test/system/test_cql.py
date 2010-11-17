@@ -10,35 +10,66 @@ from avro_utils import assert_raises
 
 def load_sample(dbconn):
     dbconn.execute("""
-        UPDATE
-            Standard1
-        WITH
-            ROW("ka", COL("ca1", "va1"), COL("col", "val")) AND
-            ROW("kb", COL("cb1", "vb1"), COL("col", "val")) AND
-            ROW("kc", COL("cc1", "vc1"), COL("col", "val")) AND
-            ROW("kd", COL("cd1", "vd1"), COL("col", "val"));
+        UPDATE Standard1 SET "ca1" = "va1", "col" = "val" WHERE KEY = "ka"
     """)
     dbconn.execute("""
-      UPDATE
-          StandardLong1
-      WITH
-        ROW("aa", COL(1L, "1"), COL(2L, "2"), COL(3L, "3"), COL(4L, "4")) AND
-        ROW("ab", COL(5L, "5"), COL(6L, "6"), COL(7L, "8"), COL(9L, "9")) AND
-        ROW("ac", COL(9L, "9"), COL(8L, "8"), COL(7L, "7"), COL(6L, "6")) AND
-        ROW("ad", COL(5L, "5"), COL(4L, "4"), COL(3L, "3"), COL(2L, "2")) AND
-        ROW("ae", COL(1L, "1"), COL(2L, "2"), COL(3L, "3"), COL(4L, "4")) AND
-        ROW("af", COL(1L, "1"), COL(2L, "2"), COL(3L, "3"), COL(4L, "4")) AND
-        ROW("ag", COL(5L, "5"), COL(6L, "6"), COL(7L, "8"), COL(9L, "9"));
+        UPDATE Standard1 SET "cb1" = "vb1", "col" = "val" WHERE KEY = "kb"
     """)
     dbconn.execute("""
-        UPDATE
-            Indexed1
-        WITH
-            ROW("asmith",   COL("birthdate", 100L), COL("unindexed", 250L)) AND
-            ROW("dozer",    COL("birthdate", 100L), COL("unindexed", 200L)) AND
-            ROW("morpheus", COL("birthdate", 175L), COL("unindexed", 200L)) AND
-            ROW("neo",      COL("birthdate", 150L), COL("unindexed", 250L)) AND
-            ROW("trinity",  COL("birthdate", 125L), COL("unindexed", 200L));
+        UPDATE Standard1 SET "cc1" = "vc1", "col" = "val" WHERE KEY = "kc"
+    """)
+    dbconn.execute("""
+        UPDATE Standard1 SET "cd1" = "vd1", "col" = "val" WHERE KEY = "kd"
+    """)
+
+    dbconn.execute("""
+        UPDATE StandardLong1 SET 1L = "1", 2L = "2", 3L = "3", 4L = "4"
+                WHERE KEY = "aa";
+    """)
+    dbconn.execute("""
+        UPDATE StandardLong1 SET 5L = "5", 6L = "6", 7L = "8", 9L = "9"
+                WHERE KEY = "ab";
+    """)
+    dbconn.execute("""
+        UPDATE StandardLong1 SET 9L = "9", 8L = "8", 7L = "7", 6L = "6"
+                WHERE KEY = "ac";
+    """)
+    dbconn.execute("""
+        UPDATE StandardLong1 SET 5L = "5", 4L = "4", 3L = "3", 2L = "2"
+                WHERE KEY = "ad";
+    """)
+    dbconn.execute("""
+        UPDATE StandardLong1 SET 1L = "1", 2L = "2", 3L = "3", 4L = "4"
+                WHERE KEY = "ae";
+    """)
+    dbconn.execute("""
+        UPDATE StandardLong1 SET 1L = "1", 2L = "2", 3L = "3", 4L = "4"
+                WHERE KEY = "af";
+    """)
+    dbconn.execute("""
+        UPDATE StandardLong1 SET 5L = "5", 6L = "6", 7L = "8", 9L = "9"
+                WHERE KEY = "ag";
+    """)
+
+    dbconn.execute("""
+        UPDATE Indexed1 SET "birthdate" = 100L, "unindexed" = 250L
+                WHERE KEY = "asmith";
+    """)
+    dbconn.execute("""
+        UPDATE Indexed1 SET "birthdate" = 100L, "unindexed" = 200L
+                WHERE KEY = "dozer";
+    """)
+    dbconn.execute("""
+        UPDATE Indexed1 SET "birthdate" = 175L, "unindexed" = 200L
+                WHERE KEY = "morpheus";
+    """)
+    dbconn.execute("""
+        UPDATE Indexed1 SET "birthdate" = 150L, "unindexed" = 250L
+                WHERE KEY = "neo";
+    """)
+    dbconn.execute("""
+        UPDATE Indexed1 SET "birthdate" = 125L, "unindexed" = 200L
+                WHERE KEY = "trinity";
     """)
 
 def init(keyspace="Keyspace1"):

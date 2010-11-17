@@ -20,8 +20,8 @@
  */
 package org.apache.cassandra.cql;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Map;
+
 import org.apache.cassandra.thrift.ConsistencyLevel;
 
 /**
@@ -31,37 +31,25 @@ import org.apache.cassandra.thrift.ConsistencyLevel;
 public class UpdateStatement
 {
     private String columnFamily;
-    private List<Row> rows = new ArrayList<Row>();
     private ConsistencyLevel cLevel;
+    private Map<Term, Term> columns;
+    private Term key;
     
     /**
-     * Creates a new UpdateStatement from a column family name, a row definition,
-     * and a consistency level.
+     * Creates a new UpdateStatement from a column family name, columns map, consistency
+     * level, and key term.
      * 
      * @param columnFamily column family name
-     * @param first a row definition instance
      * @param cLevel the thrift consistency level
+     * @param columns a map of column name/values pairs
+     * @param key the key name
      */
-    public UpdateStatement(String columnFamily, Row first, ConsistencyLevel cLevel)
+    public UpdateStatement(String columnFamily, ConsistencyLevel cLevel, Map<Term, Term> columns, Term key)
     {
         this.columnFamily = columnFamily;
         this.cLevel = cLevel;
-        and(first);
-    }
-    
-    /**
-     * Adds a new row definition to this <code>UPDATE</code>.
-     * 
-     * @param row the row definition to add.
-     */
-    public void and(Row row)
-    {
-        rows.add(row);
-    }
-
-    public List<Row> getRows()
-    {
-        return rows;
+        this.columns = columns;
+        this.key = key;
     }
 
     public ConsistencyLevel getConsistencyLevel()
@@ -74,9 +62,22 @@ public class UpdateStatement
         return columnFamily;
     }
     
+    public Term getKey()
+    {
+        return key;
+    }
+    
+    public Map<Term, Term> getColumns()
+    {
+        return columns;
+    }
+    
     public String toString()
     {
-        return "UpdateStatement(columnFamily=" + columnFamily + ", " +
-            "row=" + rows + ", " + "consistency=" + cLevel + ")";
+        return String.format("UpdateStatement(columnFamily=%s, key=%s, columns=%s, consistency=%s)",
+                             columnFamily,
+                             key,
+                             columns,
+                             cLevel);
     }
 }

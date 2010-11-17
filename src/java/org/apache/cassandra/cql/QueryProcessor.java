@@ -24,9 +24,11 @@ package org.apache.cassandra.cql;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
 
@@ -56,6 +58,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
@@ -208,6 +211,43 @@ public class QueryProcessor
         return rows;
     }
     
+    private static void batchUpdate(String keyspace, List<UpdateStatement> updateStatements)
+    throws InvalidRequestException, UnavailableException, TimedOutException
+    {
+        ConsistencyLevel consistency = updateStatements.get(0).getConsistencyLevel();
+        List<RowMutation> rowMutations = new ArrayList<RowMutation>();
+
+        for (UpdateStatement update : updateStatements)
+        {
+            ByteBuffer key = update.getKey().getByteBuffer();
+            validateKey(key);
+            validateColumnFamily(keyspace, update.getColumnFamily());
+            
+            RowMutation rm = new RowMutation(keyspace, key);
+            for (Map.Entry<Term, Term> column : update.getColumns().entrySet())
+            {
+                rm.add(new QueryPath(update.getColumnFamily(), null, column.getKey().getByteBuffer()),
+                       column.getValue().getByteBuffer(),
+                       System.currentTimeMillis());
+            }
+            
+            rowMutations.add(rm);
+        }
+        
+        try
+        {
+            StorageProxy.mutate(rowMutations, consistency);
+        }
+        catch (org.apache.cassandra.thrift.UnavailableException e)
+        {
+            throw new UnavailableException();
+        }
+        catch (TimeoutException e)
+        {
+            throw new TimedOutException();
+        }
+    }
+    
     private static SlicePredicate slicePredicateFromSelect(SelectStatement select)
     {
         SlicePredicate thriftSlicePredicate = new SlicePredicate();
@@ -352,40 +392,8 @@ public class QueryProcessor
                 
             case UPDATE:
                 UpdateStatement update = (UpdateStatement)statement.statement;
-                validateColumnFamily(keyspace, update.getColumnFamily());
-                
+                batchUpdate(keyspace, Collections.singletonList(update));
                 avroResult.type = CqlResultType.VOID;
-                
-                List<RowMutation> rowMutations = new ArrayList<RowMutation>();
-                
-                for (Row row : update.getRows())
-                {
-                    validateKey(row.getKey().getByteBuffer());
-                    RowMutation rm = new RowMutation(keyspace, row.getKey().getByteBuffer());
-                    
-                    for (org.apache.cassandra.cql.Column col : row.getColumns())
-                    {
-                        rm.add(new QueryPath(update.getColumnFamily(), null, col.getName().getByteBuffer()),
-                               col.getValue().getByteBuffer(),
-                               System.currentTimeMillis());
-                    }
-                    
-                    rowMutations.add(rm);
-                }
-                
-                try
-                {
-                    StorageProxy.mutate(rowMutations, update.getConsistencyLevel());
-                }
-                catch (org.apache.cassandra.thrift.UnavailableException e)
-                {
-                    throw new UnavailableException();
-                }
-                catch (TimeoutException e)
-                {
-                    throw new TimedOutException();
-                }
-                    
                 return avroResult;
                 
             case USE:
