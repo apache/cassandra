@@ -314,7 +314,7 @@ public class CompactionManager implements CompactionManagerMBean
         cfs.replaceCompactedSSTables(sstables, Arrays.asList(ssTable));
         submitMinorIfNeeded(cfs);
 
-        String format = "Compacted to %s.  %d/%d bytes for %d keys.  Time: %dms.";
+        String format = "Compacted to %s.  %d/%d bytes for %d keys.  Time: %dms";
         long dTime = System.currentTimeMillis() - startTime;
         logger.info(String.format(format, writer.getFilename(), SSTable.getTotalBytes(sstables), ssTable.length(), totalkeysWritten, dTime));
         return sstables.size();
