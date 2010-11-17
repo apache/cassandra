@@ -420,7 +420,7 @@ public class AntiEntropyService
         public final InetAddress remote;
         public final MerkleTree ltree;
         public final MerkleTree rtree;
-        public final List<MerkleTree.TreeRange> differences;
+        public final List<Range> differences;
 
         public Differencer(CFPair cf, InetAddress local, InetAddress remote, MerkleTree ltree, MerkleTree rtree)
         {
@@ -429,7 +429,7 @@ public class AntiEntropyService
             this.remote = remote;
             this.ltree = ltree;
             this.rtree = rtree;
-            differences = new ArrayList<MerkleTree.TreeRange>();
+            differences = new ArrayList<Range>();
         }
 
         /**
@@ -449,24 +449,15 @@ public class AntiEntropyService
             Set<Range> interesting = new HashSet(ss.getRangesForEndPoint(cf.left, local));
             interesting.retainAll(ss.getRangesForEndPoint(cf.left, remote));
 
-            // compare trees, and filter out uninteresting differences
+            // compare trees, and collect interesting differences
             for (MerkleTree.TreeRange diff : MerkleTree.difference(ltree, rtree))
-            {
                 for (Range localrange: interesting)
-                {
-                    if (diff.intersects(localrange))
-                    {
-                        differences.add(diff);
-                        break; // the inner loop
-                    }
-                }
-            }
+                    differences.addAll(diff.intersectionWith(localrange));
             
             // choose a repair method based on the significance of the difference
-            float difference = differenceFraction();
             try
             {
-                if (difference == 0.0)
+                if (differences.isEmpty())
                 {
                     logger.debug("Endpoints " + local + " and " + remote + " are consistent for " + cf);
                     return;
@@ -480,18 +471,6 @@ public class AntiEntropyService
             }
         }
         
-        /**
-         * @return the fraction of the keyspace that is different, as represented by our
-         * list of different ranges. A range at depth 0 == 1.0, at depth 1 == 0.5, etc.
-         */
-        float differenceFraction()
-        {
-            double fraction = 0.0;
-            for (MerkleTree.TreeRange diff : differences)
-                fraction += 1.0 / Math.pow(2, diff.depth);
-            return (float)fraction;
-        }
-
         /**
          * Sends our list of differences to the remote endpoint using the
          * Streaming API.
