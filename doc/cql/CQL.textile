@@ -73,10 +73,10 @@ h2. UPDATE
 _Synopsis:_
 
 bc. 
-UPDATE <COLUMN FAMILY> [USING CONSISTENCY.<CL>] WITH
-        ROW(<KEY>, COL(<NAME>, <VALUE>), ...);
+UPDATE <COLUMN FAMILY> [USING CONSISTENCY.<CL>]
+        SET name1 = value1, name2 = value2 WHERE KEY = keyname;
         
-An @UPDATE@ is used to write one or more records to a Cassandra column family. No results are returned.
+An @UPDATE@ is used to write one or more columns to a record in a Cassandra column family. No results are returned.
 
 h3. Column Family
 
@@ -88,18 +88,29 @@ Statements begin with the @UPDATE@ keyword followed by a Cassandra column family
 h3. Consistency Level
 
 bc. 
-SELECT ... [USING <CONSISTENCY>] ...
+UPDATE ... [USING <CONSISTENCY>] ...
 
 Following the column family identifier is an optional "consistency level specification":#consistency.
 
-h3. Rows and Columns
+h3. Specifying Columns and Row
 
 bc. 
-... WITH ROW(<KEY>, COL(<NAME>, <VALUE>), ...)[, ROW(<KEY>, ...)];
+UPDATE ... SET name1 = value1, name2 = value2 WHERE KEY = keyname;
 
-Rows are constructed by creating a parenthesized expression using the @ROW@ keyword.  Within the parenthesis, row specifications contain a key "term":#terms, followed by a comma, and one or more comma delimited column specifications. Columns are in turn a parenthesized expression using the @COLUMN@ keyword, with two comma delimited "term":#terms arguments, the column name and value respectively.  More than one row can be specified by separating them with commas.
+Rows are created or updated by supplying column names and values in term assignment format. Multiple columns can be set by separating the name/value pairs using commas.  Each update statement requires exactly one key to be specified using a WHERE clause and the @KEY@ keyword.
 
-_NOTE: While there are no isolation guarantees,  @UPDATE@ queries are atomic._
+Additionally, it is also possible to send multiple UPDATES to a node at once using a batch syntax:
+
+bc. 
+BEGIN BATCH [USING <CONSISTENCY>]
+UPDATE CF1 SET name1 = value1, name2 = value2 WHERE KEY = keyname1;
+UPDATE CF1 SET name3 = value3 WHERE KEY = keyname2;
+UPDATE CF2 SET name4 = value4, name5 = value5 WHERE KEY = keyname3;
+APPLY BATCH
+
+When batching UPDATEs, a single consistency level is used for the entire batch, it appears after the @BEGIN BATCH@ statement, and uses the standard "consistency level specification":#consistency. Batch UPDATEs default to @CONSISTENCY.ONE@ when left unspecified.
+
+_NOTE: While there are no isolation guarantees,  @UPDATE@ queries are atomic within a give record._
 
 h2. Common Idioms
 
