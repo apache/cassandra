@@ -82,7 +82,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
         aes = AntiEntropyService.instance;
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
         tmd.clearUnsafe();
-        tmd.updateNormalToken(StorageService.getPartitioner().getRandomToken(), LOCAL);
+        StorageService.instance.setToken(StorageService.getPartitioner().getRandomToken());
         tmd.updateNormalToken(StorageService.getPartitioner().getMinimumToken(), REMOTE);
         assert tmd.isMember(REMOTE);
         
@@ -210,19 +210,23 @@ public class AntiEntropyServiceTest extends CleanupHelper
         validator.complete();
         MerkleTree rtree = validator.tree;
 
-        // change a range in one of the trees
-        Token min = StorageService.instance.getPartitioner().getMinimumToken();
-        ltree.invalidate(min);
-        MerkleTree.TreeRange changed = ltree.invalids(new Range(min, min)).next();
+        // change a range we own in one of the trees
+        Token ltoken = StorageService.instance.getLocalToken();
+        ltree.invalidate(ltoken);
+        MerkleTree.TreeRange changed = ltree.invalids(StorageService.instance.getLocalPrimaryRange()).next();
         changed.hash("non-empty hash!".getBytes());
+        // the changed range has two halves, split on our local token: both will be repaired
+        // (since this keyspace has RF > N, so every node is responsible for the entire ring)
+        Set<Range> interesting = new HashSet<Range>();
+        interesting.add(new Range(changed.left, ltoken));
+        interesting.add(new Range(ltoken, changed.right));
 
         // difference the trees
         Differencer diff = new Differencer(request, ltree, rtree);
         diff.run();
         
         // ensure that the changed range was recorded
-        assertEquals("Wrong number of differing ranges", 1, diff.differences.size());
-        assertEquals("Wrong differing range", changed, diff.differences.get(0));
+        assertEquals("Wrong differing ranges", interesting, new HashSet<Range>(diff.differences));
     }
 
     Set<InetAddress> addTokens(int max) throws Throwable
