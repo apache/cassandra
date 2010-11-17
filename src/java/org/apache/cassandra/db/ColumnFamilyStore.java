@@ -1435,7 +1435,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // check column data vs expression
             IColumn column = data.getColumn(expression.column_name);
             if (column == null)
-                continue;
+                return false;
             int v = data.getComparator().compare(column.value(), expression.value);
             if (!satisfies(v, expression.op))
                 return false;
