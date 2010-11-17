@@ -23,53 +23,25 @@ def load_sample(dbconn):
     """)
 
     dbconn.execute("""
-        UPDATE StandardLong1 SET 1L = "1", 2L = "2", 3L = "3", 4L = "4"
-                WHERE KEY = "aa";
-    """)
-    dbconn.execute("""
-        UPDATE StandardLong1 SET 5L = "5", 6L = "6", 7L = "8", 9L = "9"
-                WHERE KEY = "ab";
-    """)
-    dbconn.execute("""
-        UPDATE StandardLong1 SET 9L = "9", 8L = "8", 7L = "7", 6L = "6"
-                WHERE KEY = "ac";
-    """)
-    dbconn.execute("""
-        UPDATE StandardLong1 SET 5L = "5", 4L = "4", 3L = "3", 2L = "2"
-                WHERE KEY = "ad";
-    """)
-    dbconn.execute("""
-        UPDATE StandardLong1 SET 1L = "1", 2L = "2", 3L = "3", 4L = "4"
-                WHERE KEY = "ae";
-    """)
-    dbconn.execute("""
-        UPDATE StandardLong1 SET 1L = "1", 2L = "2", 3L = "3", 4L = "4"
-                WHERE KEY = "af";
-    """)
-    dbconn.execute("""
-        UPDATE StandardLong1 SET 5L = "5", 6L = "6", 7L = "8", 9L = "9"
-                WHERE KEY = "ag";
+    BEGIN BATCH USING CONSISTENCY.ONE
+     UPDATE StandardLong1 SET 1L="1", 2L="2", 3L="3", 4L="4" WHERE KEY="aa";
+     UPDATE StandardLong1 SET 5L="5", 6L="6", 7L="8", 9L="9" WHERE KEY="ab";
+     UPDATE StandardLong1 SET 9L="9", 8L="8", 7L="7", 6L="6" WHERE KEY="ac";
+     UPDATE StandardLong1 SET 5L="5", 4L="4", 3L="3", 2L="2" WHERE KEY="ad";
+     UPDATE StandardLong1 SET 1L="1", 2L="2", 3L="3", 4L="4" WHERE KEY="ae";
+     UPDATE StandardLong1 SET 1L="1", 2L="2", 3L="3", 4L="4" WHERE KEY="af";
+     UPDATE StandardLong1 SET 5L="5", 6L="6", 7L="8", 9L="9" WHERE KEY="ag";
+    APPLY BATCH
     """)
 
     dbconn.execute("""
-        UPDATE Indexed1 SET "birthdate" = 100L, "unindexed" = 250L
-                WHERE KEY = "asmith";
-    """)
-    dbconn.execute("""
-        UPDATE Indexed1 SET "birthdate" = 100L, "unindexed" = 200L
-                WHERE KEY = "dozer";
-    """)
-    dbconn.execute("""
-        UPDATE Indexed1 SET "birthdate" = 175L, "unindexed" = 200L
-                WHERE KEY = "morpheus";
-    """)
-    dbconn.execute("""
-        UPDATE Indexed1 SET "birthdate" = 150L, "unindexed" = 250L
-                WHERE KEY = "neo";
-    """)
-    dbconn.execute("""
-        UPDATE Indexed1 SET "birthdate" = 125L, "unindexed" = 200L
-                WHERE KEY = "trinity";
+    BEGIN BATCH
+    UPDATE Indexed1 SET "birthdate"=100L, "unindexed"=250L WHERE KEY="asmith";
+    UPDATE Indexed1 SET "birthdate"=100L, "unindexed"=200L WHERE KEY="dozer";
+    UPDATE Indexed1 SET "birthdate"=175L, "unindexed"=200L WHERE KEY="morpheus";
+    UPDATE Indexed1 SET "birthdate"=150L, "unindexed"=250L WHERE KEY="neo";
+    UPDATE Indexed1 SET "birthdate"=125L, "unindexed"=200L WHERE KEY="trinity";
+    APPLY BATCH
     """)
 
 def init(keyspace="Keyspace1"):

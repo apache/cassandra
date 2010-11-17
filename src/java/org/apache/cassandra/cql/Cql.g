@@ -45,6 +45,7 @@ options {
 query returns [CQLStatement stmnt]
     : selectStatement { $stmnt = new CQLStatement(StatementType.SELECT, $selectStatement.expr); }
     | updateStatement { $stmnt = new CQLStatement(StatementType.UPDATE, $updateStatement.expr); }
+    | batchUpdateStatement { $stmnt = new CQLStatement(StatementType.BATCH_UPDATE, $batchUpdateStatement.expr); }
     | useStatement    { $stmnt = new CQLStatement(StatementType.USE, $useStatement.keyspace); }
     ;
 
@@ -90,6 +91,26 @@ selectStatement returns [SelectStatement expr]
     ;
 
 /**
+ * BEGIN BATCH [USING CONSISTENCY.<LVL>]
+ * UPDATE <CF> SET name1 = value1 WHERE KEY = keyname1;
+ * UPDATE <CF> SET name2 = value2 WHERE KEY = keyname2;
+ * UPDATE <CF> SET name3 = value3 WHERE KEY = keyname3;
+ * APPLY BATCH
+ */
+batchUpdateStatement returns [BatchUpdateStatement expr]
+    : {
+          ConsistencyLevel cLevel = ConsistencyLevel.ONE;
+          List<UpdateStatement> updates = new ArrayList<UpdateStatement>();
+      }
+      K_BEGIN K_BATCH ( K_USING K_CONSISTENCY '.' K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); } )?
+          u1=updateStatement { updates.add(u1); } ( uN=updateStatement { updates.add(uN); } )*
+      K_APPLY K_BATCH EOF
+      {
+          return new BatchUpdateStatement(updates, cLevel);
+      }
+    ;
+
+/**
  * UPDATE
  *     <CF>
  * USING
@@ -102,7 +123,7 @@ selectStatement returns [SelectStatement expr]
  */
 updateStatement returns [UpdateStatement expr]
     : {
-          ConsistencyLevel cLevel = ConsistencyLevel.ONE;
+          ConsistencyLevel cLevel = null;
           Map<Term, Term> columns = new HashMap<Term, Term>();
       }
       K_UPDATE columnFamily=IDENT
@@ -177,6 +198,9 @@ K_FIRST:       F I R S T;
 K_REVERSED:    R E V E R S E D;
 K_COUNT:       C O U N T;
 K_SET:         S E T;
+K_BEGIN:       B E G I N;
+K_APPLY:       A P P L Y;
+K_BATCH:       B A T C H;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

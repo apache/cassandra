@@ -30,8 +30,9 @@ import org.apache.cassandra.thrift.ConsistencyLevel;
  */
 public class UpdateStatement
 {
+    public static final ConsistencyLevel defaultConsistency = ConsistencyLevel.ONE;
     private String columnFamily;
-    private ConsistencyLevel cLevel;
+    private ConsistencyLevel cLevel = null;
     private Map<Term, Term> columns;
     private Term key;
     
@@ -52,9 +53,38 @@ public class UpdateStatement
         this.key = key;
     }
 
+    /**
+     * Creates a new UpdateStatement from a column family name, columns map,
+     * and key term.
+     * 
+     * @param columnFamily column family name
+     * @param columns a map of column name/values pairs
+     * @param key the key name
+     */
+    public UpdateStatement(String columnFamily, Map<Term, Term> columns, Term key)
+    {
+        this(columnFamily, null, columns, key);
+    }
+
+    /**
+     * Returns the consistency level of this <code>UPDATE</code> statement, either
+     * one parsed from the CQL statement, or the default level otherwise.
+     * 
+     * @return the consistency level as a Thrift enum.
+     */
     public ConsistencyLevel getConsistencyLevel()
     {
-        return cLevel;
+        return (cLevel != null) ? cLevel : defaultConsistency;
+    }
+    
+    /**
+     * True if an explicit consistency level was parsed from the statement.
+     * 
+     * @return true if a consistency was parsed, false otherwise.
+     */
+    public boolean isSetConsistencyLevel()
+    {
+        return (cLevel != null);
     }
 
     public String getColumnFamily()

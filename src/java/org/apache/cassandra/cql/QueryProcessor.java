@@ -24,7 +24,6 @@ package org.apache.cassandra.cql;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -211,10 +210,9 @@ public class QueryProcessor
         return rows;
     }
     
-    private static void batchUpdate(String keyspace, List<UpdateStatement> updateStatements)
+    private static void batchUpdate(String keyspace, List<UpdateStatement> updateStatements, ConsistencyLevel consistency)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        ConsistencyLevel consistency = updateStatements.get(0).getConsistencyLevel();
         List<RowMutation> rowMutations = new ArrayList<RowMutation>();
 
         for (UpdateStatement update : updateStatements)
@@ -392,7 +390,19 @@ public class QueryProcessor
                 
             case UPDATE:
                 UpdateStatement update = (UpdateStatement)statement.statement;
-                batchUpdate(keyspace, Collections.singletonList(update));
+                batchUpdate(keyspace, Collections.singletonList(update), update.getConsistencyLevel());
+                avroResult.type = CqlResultType.VOID;
+                return avroResult;
+                
+            case BATCH_UPDATE:
+                BatchUpdateStatement batch = (BatchUpdateStatement)statement.statement;
+                
+                for (UpdateStatement up : batch.getUpdates())
+                    if (up.isSetConsistencyLevel())
+                        throw newInvalidRequestException(
+                                "Consistency level must be set on the BATCH, not individual UPDATE statements");
+                
+                batchUpdate(keyspace, batch.getUpdates(), batch.getConsistencyLevel());
                 avroResult.type = CqlResultType.VOID;
                 return avroResult;
                 
