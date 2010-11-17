@@ -1832,4 +1832,34 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         return ssTables.estimatedKeys();
     }
+
+    public long[] getEstimatedRowSizeHistogram()
+    {
+        long[] histogram = new long[90];
+
+        for (SSTableReader sstable : ssTables)
+        {
+            long[] rowSize = sstable.getEstimatedRowSize().get(false);
+
+            for (int i = 0; i < histogram.length; i++)
+                histogram[i] += rowSize[i];
+        }
+
+        return histogram;
+    }
+
+    public long[] getEstimatedColumnCountHistogram()
+    {
+        long[] histogram = new long[90];
+
+        for (SSTableReader sstable : ssTables)
+        {
+            long[] columnSize = sstable.getEstimatedColumnCount().get(false);
+
+            for (int i = 0; i < histogram.length; i++)
+                histogram[i] += columnSize[i];
+        }
+
+        return histogram;
+    }
 }

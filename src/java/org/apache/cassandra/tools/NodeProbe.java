@@ -452,17 +452,21 @@ public class NodeProbe
         }
     }
     
-    private ColumnFamilyStoreMBean getCfsProxy(String ks, String cf) {
+    public ColumnFamilyStoreMBean getCfsProxy(String ks, String cf)
+    {
         ColumnFamilyStoreMBean cfsProxy = null;
-        try {
+        try
+        {
             cfsProxy = JMX.newMBeanProxy(mbeanServerConn,
                     new ObjectName("org.apache.cassandra.db:type=ColumnFamilies,keyspace="+ks+",columnfamily="+cf), 
                     ColumnFamilyStoreMBean.class);
         }
-        catch (MalformedObjectNameException mone) {
+        catch (MalformedObjectNameException mone)
+        {
             System.err.println("ColumnFamilyStore for " + ks + "/" + cf + " not found.");
             System.exit(1);
         }
+
         return cfsProxy;
     }
 }

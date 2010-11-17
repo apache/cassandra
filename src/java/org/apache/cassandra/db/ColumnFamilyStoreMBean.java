@@ -212,4 +212,7 @@ public interface ColumnFamilyStoreMBean
     public void setMemtableOperationsInMillions(double ops);
 
     public long estimateKeys();
+
+    public long[] getEstimatedRowSizeHistogram();
+    public long[] getEstimatedColumnCountHistogram();
 }
