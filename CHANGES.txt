@@ -39,6 +39,7 @@ dev
  * fix wrapping-range queries on non-minimum token (CASSANDRA-1700)
  * truncate includes secondary indexes (CASSANDRA-1747)
  * retain reference to PendingFile sstables (CASSANDRA-1749)
+ * pluggable seed provider (CASSANDRA-1669)
 
 
 0.7.0-beta3
