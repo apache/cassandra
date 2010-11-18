@@ -31,6 +31,7 @@ import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -45,6 +46,9 @@ public class PendingFile
         return serializer_;
     }
 
+    // NB: this reference prevents garbage collection of the sstable on the source node
+    private final SSTable sstable;
+
     public final Descriptor desc;
     public final String component;
     public final List<Pair<Long,Long>> sections;
@@ -53,11 +57,12 @@ public class PendingFile
 
     public PendingFile(Descriptor desc, PendingFile pf)
     {
-        this(desc, pf.component, pf.sections);
+        this(null, desc, pf.component, pf.sections);
     }
 
-    public PendingFile(Descriptor desc, String component, List<Pair<Long,Long>> sections)
+    public PendingFile(SSTable sstable, Descriptor desc, String component, List<Pair<Long,Long>> sections)
     {
+        this.sstable = sstable;
         this.desc = desc;
         this.component = component;
         this.sections = sections;
@@ -124,7 +129,7 @@ public class PendingFile
             List<Pair<Long,Long>> sections = new ArrayList<Pair<Long,Long>>(count);
             for (int i = 0; i < count; i++)
                 sections.add(new Pair<Long,Long>(Long.valueOf(dis.readLong()), Long.valueOf(dis.readLong())));
-            return new PendingFile(desc, component, sections);
+            return new PendingFile(null, desc, component, sections);
         }
     }
 }

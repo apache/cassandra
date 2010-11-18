@@ -1435,7 +1435,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // check column data vs expression
             IColumn column = data.getColumn(expression.column_name);
             if (column == null)
-                continue;
+                return false;
             int v = data.getComparator().compare(column.value(), expression.value);
             if (!satisfies(v, expression.op))
                 return false;
@@ -1640,13 +1640,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 // putting markCompacted on the commitlogUpdater thread ensures it will run
                 // after any compactions that were in progress when truncate was called, are finished
-                List<SSTableReader> truncatedSSTables = new ArrayList<SSTableReader>();
-                for (SSTableReader sstable : ssTables.getSSTables())
+                for (ColumnFamilyStore cfs : Iterables.concat(indexedColumns.values(), Arrays.asList(ColumnFamilyStore.this)))
                 {
-                    if (!sstable.newSince(truncatedAt))
-                        truncatedSSTables.add(sstable);
+                    List<SSTableReader> truncatedSSTables = new ArrayList<SSTableReader>();
+                    for (SSTableReader sstable : cfs.getSSTables())
+                    {
+                        if (!sstable.newSince(truncatedAt))
+                            truncatedSSTables.add(sstable);
+                    }
+                    cfs.markCompacted(truncatedSSTables);
                 }
-                markCompacted(truncatedSSTables);
 
                 // Invalidate row cache
                 invalidateRowCache();
@@ -1831,5 +1834,35 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public long estimateKeys()
     {
         return ssTables.estimatedKeys();
+    }
+
+    public long[] getEstimatedRowSizeHistogram()
+    {
+        long[] histogram = new long[90];
+
+        for (SSTableReader sstable : ssTables)
+        {
+            long[] rowSize = sstable.getEstimatedRowSize().get(false);
+
+            for (int i = 0; i < histogram.length; i++)
+                histogram[i] += rowSize[i];
+        }
+
+        return histogram;
+    }
+
+    public long[] getEstimatedColumnCountHistogram()
+    {
+        long[] histogram = new long[90];
+
+        for (SSTableReader sstable : ssTables)
+        {
+            long[] columnSize = sstable.getEstimatedColumnCount().get(false);
+
+            for (int i = 0; i < histogram.length; i++)
+                histogram[i] += columnSize[i];
+        }
+
+        return histogram;
     }
 }

@@ -29,6 +29,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
@@ -72,7 +73,7 @@ public class NodeCmd {
                 "clearsnapshot, tpstats, flush, drain, repair, decommission, move, loadbalance, removetoken [status|force]|[token], " +
                 "setcachecapacity [keyspace] [cfname] [keycachecapacity] [rowcachecapacity], " +
                 "getcompactionthreshold [keyspace] [cfname], setcompactionthreshold [cfname] [minthreshold] [maxthreshold], " +
-                "netstats [host]");
+                "netstats [host], cfhistograms <keyspace> <column_family>");
         String usage = String.format("java %s --host <arg> <command>%n", NodeCmd.class.getName());
         hf.printHelp(usage, "", options, header);
     }
@@ -354,6 +355,36 @@ public class NodeCmd {
         outs.println("RemovalStatus: " + probe.getRemovalStatus());
     }
 
+    private void printCfHistograms(String keySpace, String columnFamily, PrintStream output)
+    {
+        ColumnFamilyStoreMBean store = this.probe.getCfsProxy(keySpace, columnFamily);
+
+        // default is 90 offsets
+        long[] offsets = new EstimatedHistogram(90).getBucketOffsets();
+
+        long[] rrlh = store.getRecentReadLatencyHistogramMicros();
+        long[] rwlh = store.getRecentWriteLatencyHistogramMicros();
+        long[] sprh = store.getRecentSSTablesPerReadHistogram();
+        long[] ersh = store.getEstimatedRowSizeHistogram();
+        long[] ecch = store.getEstimatedColumnCountHistogram();
+
+        output.println(String.format("%s/%s histograms", keySpace, columnFamily));
+
+        output.println(String.format("%-10s%10s%18s%18s%18s%18s",
+                                     "Offset", "SSTables", "Write Latency", "Read Latency", "Row Size", "Column Count"));
+
+        for (int i = 0; i < offsets.length; i++)
+        {
+            output.println(String.format("%-10d%10s%18s%18s%18s%18s",
+                                         offsets[i],
+                                         (i < sprh.length ? sprh[i] : ""),
+                                         (i < rrlh.length ? rrlh[i] : ""),
+                                         (i < rwlh.length ? rwlh[i] : ""),
+                                         (i < ersh.length ? ersh[i] : ""),
+                                         (i < ecch.length ? ecch[i] : "")));
+        }
+    }
+
     public static void main(String[] args) throws IOException, InterruptedException, ParseException
     {
         CommandLineParser parser = new PosixParser();
@@ -609,6 +640,16 @@ public class NodeCmd {
             // optional host
             String otherHost = arguments.length > 1 ? arguments[1] : null;
             nodeCmd.printNetworkStats(otherHost == null ? null : InetAddress.getByName(otherHost), System.out);
+        }
+        else if (cmdName.equals("cfhistograms"))
+        {
+            if (arguments.length < 3)
+            {
+                System.err.println("Usage of cfhistograms: <keyspace> <column_family>.");
+                System.exit(1);
+            }
+
+            nodeCmd.printCfHistograms(arguments[1], arguments[2], System.out);
         }
         else if (cmdName.equals("version"))
         {

@@ -433,14 +433,14 @@ public class AntiEntropyService
         public final TreeRequest request;
         public final MerkleTree ltree;
         public final MerkleTree rtree;
-        public final List<MerkleTree.TreeRange> differences;
+        public final List<Range> differences;
 
         public Differencer(TreeRequest request, MerkleTree ltree, MerkleTree rtree)
         {
             this.request = request;
             this.ltree = ltree;
             this.rtree = rtree;
-            differences = new ArrayList<MerkleTree.TreeRange>();
+            differences = new ArrayList<Range>();
         }
 
         /**
@@ -461,31 +461,22 @@ public class AntiEntropyService
             Set<Range> interesting = new HashSet(ss.getRangesForEndpoint(request.cf.left, local));
             interesting.retainAll(ss.getRangesForEndpoint(request.cf.left, request.endpoint));
 
-            // compare trees, and filter out uninteresting differences
+            // compare trees, and collect interesting differences
             for (MerkleTree.TreeRange diff : MerkleTree.difference(ltree, rtree))
-            {
                 for (Range localrange: interesting)
-                {
-                    if (diff.intersects(localrange))
-                    {
-                        differences.add(diff);
-                        break; // the inner loop
-                    }
-                }
-            }
+                    differences.addAll(diff.intersectionWith(localrange));
             
             // choose a repair method based on the significance of the difference
-            float difference = differenceFraction();
-            String format = "Endpoints " + local + " and " + request.endpoint + " are %s for " + request.cf;
-            if (difference == 0.0)
+            String format = "Endpoints " + local + " and " + request.endpoint + " %s for " + request.cf;
+            if (differences.isEmpty())
             {
-                logger.info(String.format(format, "consistent"));
+                logger.info(String.format(format, "are consistent"));
                 AntiEntropyService.instance.completedRequest(request);
                 return;
             }
 
             // non-0 difference: perform streaming repair
-            logger.info(String.format(format, (difference * 100) + "% out of sync"));
+            logger.info(String.format(format, "have " + differences.size() + " range(s) out of sync"));
             try
             {
                 performStreamingRepair();
@@ -496,18 +487,6 @@ public class AntiEntropyService
             }
         }
         
-        /**
-         * @return the fraction of the keyspace that is different, as represented by our
-         * list of different ranges. A range at depth 0 == 1.0, at depth 1 == 0.5, etc.
-         */
-        float differenceFraction()
-        {
-            double fraction = 0.0;
-            for (MerkleTree.TreeRange diff : differences)
-                fraction += 1.0 / Math.pow(2, diff.depth);
-            return (float)fraction;
-        }
-
         /**
          * Starts sending/receiving our list of differences to/from the remote endpoint: creates a callback
          * that will be called out of band once the streams complete.

@@ -2,6 +2,11 @@ dev
  * add clustertool, config-converter, sstablekeys, and schematool 
    Windows .bat files (CASSANDRA-1723)
  * reject range queries received during bootstrap (CASSANDRA-1739)
+ * fix wrapping-range queries on non-minimum token (CASSANDRA-1700)
+ * add nodetool cfhistogram (CASSANDRA-1698)
+ * limit repaired ranges to what the nodes have in common (CASSANDRA-1674)
+ * index scan treats missing columns as not matching secondary
+   expressions (CASSANDRA-1745)
  * Update windows .bat files to work outside of main Cassandra
    directory (CASSANDRA-1713)
  * log threshold causing memtable flush (CASSANDRA-1675)
@@ -32,6 +37,8 @@ dev
  * fix tombstoning of supercolumns in range queries (CASSANDRA-1734)
  * clear endpoint cache after updating keyspace metadata (CASSANDRA-1741)
  * fix wrapping-range queries on non-minimum token (CASSANDRA-1700)
+ * truncate includes secondary indexes (CASSANDRA-1747)
+ * retain reference to PendingFile sstables (CASSANDRA-1749)
 
 
 0.7.0-beta3
