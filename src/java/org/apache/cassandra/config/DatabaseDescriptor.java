@@ -61,7 +61,7 @@ public class    DatabaseDescriptor
     private static IEndpointSnitch snitch;
     private static InetAddress listenAddress; // leave null so we can fall through to getLocalHost
     private static InetAddress rpcAddress;
-    private static Set<InetAddress> seeds = new HashSet<InetAddress>();
+    private static SeedProvider seedProvider;
     /* Current index into the above list of directories */
     private static int currentIndex = 0;
     private static int consistencyThreads = 4; // not configurable
@@ -364,14 +364,14 @@ public class    DatabaseDescriptor
             tables.put(Table.SYSTEM_TABLE, systemMeta);
             
             /* Load the seeds for node contact points */
-            if (conf.seeds == null || conf.seeds.length <= 0)
+            if (conf.seed_provider == null)
             {
-                throw new ConfigurationException("seeds missing; a minimum of one seed is required.");
+                throw new ConfigurationException("seeds configuration is missing; a minimum of one seed is required.");
             }
-            for (String seedString : conf.seeds)
-            {
-                seeds.add(InetAddress.getByName(seedString));
-            }
+            Class seedProviderClass = Class.forName(conf.seed_provider.class_name);
+            seedProvider = (SeedProvider)seedProviderClass.getConstructor(Map.class).newInstance(conf.seed_provider.parameters);
+            if (seedProvider.getSeeds().size() == 0)
+                throw new ConfigurationException("The seed provider lists no seeds.");
         }
         catch (UnknownHostException e)
         {
@@ -885,7 +885,7 @@ public class    DatabaseDescriptor
     
     public static Set<InetAddress> getSeeds()
     {
-        return seeds;
+        return Collections.unmodifiableSet(new HashSet(seedProvider.getSeeds()));
     }
 
     /*

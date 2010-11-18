@@ -36,7 +36,6 @@ public class Config
     public Boolean hinted_handoff_enabled = true;
     
     public SeedProviderDef seed_provider;
-    public String[] seeds;
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
     
     /* Address where to run the job tracker */
