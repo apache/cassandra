@@ -47,7 +47,6 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.scheduler.NoScheduler;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.yaml.snakeyaml.Loader;
@@ -129,6 +128,8 @@ public class    DatabaseDescriptor
             ksDesc.putListPropertyType("column_families", RawColumnFamily.class);
             TypeDescription cfDesc = new TypeDescription(RawColumnFamily.class);
             cfDesc.putListPropertyType("column_metadata", RawColumnDefinition.class);
+            TypeDescription seedDesc = new TypeDescription(SeedProviderDef.class);
+            seedDesc.putMapPropertyType("parameters", String.class, String.class);
             constructor.addTypeDescription(desc);
             constructor.addTypeDescription(ksDesc);
             constructor.addTypeDescription(cfDesc);
@@ -380,13 +381,13 @@ public class    DatabaseDescriptor
         }
         catch (ConfigurationException e)
         {
-            logger.error("Fatal error: " + e.getMessage());
+            logger.error("Fatal error: " + e.getMessage(), e);
             System.err.println("Bad configuration; unable to start server");
             System.exit(1);
         }
         catch (YAMLException e)
         {
-            logger.error("Fatal error: " + e.getMessage());
+            logger.error("Fatal error: " + e.getMessage(), e);
             System.err.println("Bad configuration; unable to start server");
             System.exit(1);
         }
