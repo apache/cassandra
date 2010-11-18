@@ -37,6 +37,7 @@ dev
  * clear endpoint cache after updating keyspace metadata (CASSANDRA-1741)
  * fix wrapping-range queries on non-minimum token (CASSANDRA-1700)
  * truncate includes secondary indexes (CASSANDRA-1747)
+ * retain reference to PendingFile sstables (CASSANDRA-1749)
 
 
 0.7.0-beta3
