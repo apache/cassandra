@@ -4,7 +4,9 @@
  * reject range queries received during bootstrap (CASSANDRA-1739)
  * fix wrapping-range queries on non-minimum token (CASSANDRA-1700)
  * add nodetool cfhistogram (CASSANDRA-1698)
- * limit repaired ranges to what the nodes have in common (CASSAHDRA-1674)
+ * limit repaired ranges to what the nodes have in common (CASSANDRA-1674)
+ * Fix misuse of DataOutputBuffer.getData in AntiEntropyService
+   (CASSANDRA-1729)
 
 
 0.6.8

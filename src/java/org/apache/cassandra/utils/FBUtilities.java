@@ -233,22 +233,22 @@ public class FBUtilities
         return hash.abs();        
     }
 
-    public static byte[] hash(String type, byte[]... data)
+    public static byte[] hash(String type, byte[] data)
     {
-    	byte[] result = null;
-    	try
+        return createDigest(type).digest(data);
+    }
+
+    public static MessageDigest createDigest(String type)
+    {
+        try
         {
-            MessageDigest messageDigest = MessageDigest.getInstance(type);
-            for(byte[] block : data)
-                messageDigest.update(block);
-            result = messageDigest.digest();
-    	}
-    	catch (Exception e)
+            return MessageDigest.getInstance(type);
+        }
+        catch (Exception e)
         {
             throw new RuntimeException(e);
-    	}
-    	return result;
-	}
+        }
+    }
 
     // The given byte array is compressed onto the specified stream.
     // The method does not close the stream. The caller will have to do it.
