@@ -82,16 +82,24 @@ public class DropColumnFamily extends Migration
     @Override
     public void applyModels() throws IOException
     {
-        // reinitialize the table.
-        KSMetaData existing = DatabaseDescriptor.getTableDefinition(tableName);
-        CFMetaData cfm = existing.cfMetaData().get(cfName);
-        KSMetaData ksm = makeNewKeyspaceDefinition(existing);
-        CFMetaData.purge(cfm);
-        DatabaseDescriptor.setTableDefinition(ksm, newVersion);
-        
-        if (!clientMode)
+        acquireLocks();
+        try
         {
-            Table.open(ksm.name).dropCf(cfm.cfId);
+            // reinitialize the table.
+            KSMetaData existing = DatabaseDescriptor.getTableDefinition(tableName);
+            CFMetaData cfm = existing.cfMetaData().get(cfName);
+            KSMetaData ksm = makeNewKeyspaceDefinition(existing);
+            CFMetaData.purge(cfm);
+            DatabaseDescriptor.setTableDefinition(ksm, newVersion);
+            
+            if (!clientMode)
+            {
+                Table.open(ksm.name).dropCf(cfm.cfId);
+            }
+        }
+        finally
+        {
+            releaseLocks();
         }
     }
     

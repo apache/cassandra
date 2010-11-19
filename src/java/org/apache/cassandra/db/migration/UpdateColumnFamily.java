@@ -12,6 +12,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.utils.FBUtilities;
@@ -78,29 +79,37 @@ public class UpdateColumnFamily extends Migration
 
     void applyModels() throws IOException
     {
-        logger.debug("Updating " + oldCfm + " to " + newCfm);
-        KSMetaData newKsm = makeNewKeyspaceDefinition(DatabaseDescriptor.getTableDefinition(newCfm.tableName));
-        DatabaseDescriptor.setTableDefinition(newKsm, newVersion);
-        
-        if (!clientMode)
+        acquireLocks();
+        try
         {
-            Table table = Table.open(oldCfm.tableName);
-            ColumnFamilyStore oldCfs = table.getColumnFamilyStore(oldCfm.cfName);
-            table.reloadCf(newCfm.cfId);
-
-            // clean up obsolete index data files
-            for (Map.Entry<ByteBuffer, ColumnDefinition> entry : oldCfm.column_metadata.entrySet())
+            logger.debug("Updating " + oldCfm + " to " + newCfm);
+            KSMetaData newKsm = makeNewKeyspaceDefinition(DatabaseDescriptor.getTableDefinition(newCfm.tableName));
+            DatabaseDescriptor.setTableDefinition(newKsm, newVersion);
+            
+            if (!clientMode)
             {
-                ByteBuffer column = entry.getKey();
-                ColumnDefinition def = entry.getValue();
-                if (def.index_type != null
-                    && (!newCfm.column_metadata.containsKey(column) || newCfm.column_metadata.get(column).index_type == null))
+                Table table = Table.open(oldCfm.tableName);
+                ColumnFamilyStore oldCfs = table.getColumnFamilyStore(oldCfm.cfName);
+                table.reloadCf(newCfm.cfId);
+    
+                // clean up obsolete index data files
+                for (Map.Entry<ByteBuffer, ColumnDefinition> entry : oldCfm.column_metadata.entrySet())
                 {
-                    ColumnFamilyStore indexCfs = oldCfs.getIndexedColumnFamilyStore(column);
-                    SystemTable.setIndexRemoved(table.name, indexCfs.columnFamily);
-                    indexCfs.removeAllSSTables();
+                    ByteBuffer column = entry.getKey();
+                    ColumnDefinition def = entry.getValue();
+                    if (def.index_type != null
+                        && (!newCfm.column_metadata.containsKey(column) || newCfm.column_metadata.get(column).index_type == null))
+                    {
+                        ColumnFamilyStore indexCfs = oldCfs.getIndexedColumnFamilyStore(column);
+                        SystemTable.setIndexRemoved(table.name, indexCfs.columnFamily);
+                        indexCfs.removeAllSSTables();
+                    }
                 }
             }
+        }
+        finally
+        {
+            releaseLocks();
         }
     }
 

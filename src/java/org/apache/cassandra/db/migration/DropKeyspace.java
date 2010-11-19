@@ -60,29 +60,37 @@ public class DropKeyspace extends Migration
     @Override
     public void applyModels() throws IOException
     {
-        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(name);
-        // remove the table from the static instances.
-        Table table = Table.clear(ksm.name);
-        if (table == null)
-            throw new IOException("Table is not active. " + ksm.name);
-        
-        // remove all cfs from the table instance.
-        for (CFMetaData cfm : ksm.cfMetaData().values())
+        acquireLocks();
+        try
         {
-            CFMetaData.purge(cfm);
+            KSMetaData ksm = DatabaseDescriptor.getTableDefinition(name);
+            // remove the table from the static instances.
+            Table table = Table.clear(ksm.name);
+            if (table == null)
+                throw new IOException("Table is not active. " + ksm.name);
+            
+            // remove all cfs from the table instance.
+            for (CFMetaData cfm : ksm.cfMetaData().values())
+            {
+                CFMetaData.purge(cfm);
+                if (!clientMode)
+                {
+                    table.dropCf(cfm.cfId);
+                }
+            }
+                            
+            // reset defs.
+            DatabaseDescriptor.clearTableDefinition(ksm, newVersion);
+            
             if (!clientMode)
             {
-                table.dropCf(cfm.cfId);
+                // clear up any local hinted data for this keyspace.
+                HintedHandOffManager.renameHints(name, null);
             }
         }
-                        
-        // reset defs.
-        DatabaseDescriptor.clearTableDefinition(ksm, newVersion);
-        
-        if (!clientMode)
+        finally
         {
-            // clear up any local hinted data for this keyspace.
-            HintedHandOffManager.renameHints(name, null);
+            releaseLocks();
         }
     }
     

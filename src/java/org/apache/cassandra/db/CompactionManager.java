@@ -31,6 +31,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.Lock;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -80,14 +81,9 @@ public class CompactionManager implements CompactionManagerMBean
     private CompactionExecutor executor = new CompactionExecutor();
     private Map<ColumnFamilyStore, Integer> estimatedCompactions = new NonBlockingHashMap<ColumnFamilyStore, Integer>();
     
-    public void lockCompactions()
+    public Lock getCompactionLock()
     {
-        compactionLock.lock();
-    }
-    
-    public void unlockCompactions()
-    {
-        compactionLock.unlock();
+        return compactionLock;
     }
 
     /**
