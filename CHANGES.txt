@@ -43,6 +43,7 @@ dev
  * fix for bootstrap when no non-system tables are defined (CASSANDRA-1732)
  * handle replica unavailability in index scan (CASSANDRA-1755)
  * fix service initialization order deadlock (CASSANDRA-1756)
+ * multi-line cli commands (CASSANDRA-1742)
 
 
 0.7.0-beta3

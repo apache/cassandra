@@ -79,55 +79,55 @@ public class CliUserHelp {
             switch(helpType)
             {
             case CliParser.NODE_HELP:
-                state.out.println("help <command>\n");
+                state.out.println("help <command>;\n");
                 state.out.println("Display the general help page with a list of available commands.");
                 break;
             case CliParser.NODE_CONNECT:
-                state.out.println("connect <hostname>/<port>\n");
+                state.out.println("connect <hostname>/<port>;\n");
                 state.out.println("Connect to the specified host on the specified port.\n");
                 state.out.println("example:");
-                state.out.println("connect localhost/9160");
+                state.out.println("connect localhost/9160;");
                 break;
 
             case CliParser.NODE_USE_TABLE:
-                state.out.println("use <keyspace>");
-                state.out.println("use <keyspace> <username> '<password>'\n");
+                state.out.println("use <keyspace>;");
+                state.out.println("use <keyspace> <username> '<password>';\n");
                 state.out.println("Switch to the specified keyspace. The optional username and password fields");
                 state.out.println("are needed when performing authentication.\n");
                 break;
 
             case CliParser.NODE_DESCRIBE_TABLE:
-                state.out.println("describe keyspace <keyspace>\n");
+                state.out.println("describe keyspace <keyspace>;\n");
                 state.out.println("Show additional information about the specified keyspace.\n");
                 state.out.println("example:");
-                state.out.println("describe keyspace system");
+                state.out.println("describe keyspace system;");
                 break;
 
             case CliParser.NODE_EXIT:
-                state.out.println("exit");
-                state.out.println("quit\n");
+                state.out.println("exit;");
+                state.out.println("quit;\n");
                 state.out.println("Exit this utility.");
                 break;
 
             case CliParser.NODE_SHOW_CLUSTER_NAME:
-                state.out.println("show cluster name\n");
+                state.out.println("show cluster name;\n");
                 state.out.println("Displays the name of the currently connected cluster.");
                 break;
 
             case CliParser.NODE_SHOW_VERSION:
-                state.out.println("show api version\n");
+                state.out.println("show api version;\n");
                 state.out.println("Displays the API version number.");
                 break;
 
             case CliParser.NODE_SHOW_KEYSPACES:
-                state.out.println("show keyspaces\n");
+                state.out.println("show keyspaces;\n");
                 state.out.println("Displays a list of the keyspaces available on the currently connected cluster.");
                 break;
 
             case CliParser.NODE_ADD_KEYSPACE:
-                state.out.println("create keyspace <keyspace>");
-                state.out.println("create keyspace <keyspace> with <att1>=<value1>");
-                state.out.println("create keyspace <keyspace> with <att1>=<value1> and <att2>=<value2> ...\n");
+                state.out.println("create keyspace <keyspace>;");
+                state.out.println("create keyspace <keyspace> with <att1>=<value1>;");
+                state.out.println("create keyspace <keyspace> with <att1>=<value1> and <att2>=<value2> ...;\n");
                 state.out.println("Create a new keyspace with the specified values for the given set of attributes.\n");
                 state.out.println("valid attributes are:");
                 state.out.println("    replication_factor: to how many nodes should entries to this keyspace be");
@@ -141,13 +141,13 @@ public class CliUserHelp {
                 state.out.println("example:");
                 state.out.println("create keyspace foo with replication_factor = 3 and ");
                 state.out.println("        placement_strategy = 'org.apache.cassandra.locator.SimpleStrategy'");
-                state.out.println("        and strategy_options=[{DC1:2, DC2:2}]");
+                state.out.println("        and strategy_options=[{DC1:2, DC2:2}];");
                 break;
 
             case CliParser.NODE_UPDATE_KEYSPACE:
-                state.out.println("update keyspace <keyspace>");
-                state.out.println("update keyspace <keyspace> with <att1>=<value1>");
-                state.out.println("update keyspace <keyspace> with <att1>=<value1> and <att2>=<value2> ...\n");
+                state.out.println("update keyspace <keyspace>;");
+                state.out.println("update keyspace <keyspace> with <att1>=<value1>;");
+                state.out.println("update keyspace <keyspace> with <att1>=<value1> and <att2>=<value2> ...;\n");
                 state.out.println("Update a keyspace with the specified values for the given set of attributes.\n");
                 state.out.println("valid attributes are:");
                 state.out.println("    replication_factor: to how many nodes should entries to this keyspace be");
@@ -161,13 +161,13 @@ public class CliUserHelp {
                 state.out.println("example:");
                 state.out.println("update keyspace foo with replication_factor = 2 and ");
                 state.out.println("        placement_strategy = 'org.apache.cassandra.locator.LocalStrategy'");
-                state.out.println("        and strategy_options=[{DC1:1, DC2:4, DC3:2}]");
+                state.out.println("        and strategy_options=[{DC1:1, DC2:4, DC3:2}];");
                 break;
 
             case CliParser.NODE_ADD_COLUMN_FAMILY:
-                state.out.println("create column family Bar");
-                state.out.println("create column family Bar with <att1>=<value1>");
-                state.out.println("create column family Bar with <att1>=<value1> and <att2>=<value2>...\n");
+                state.out.println("create column family Bar;");
+                state.out.println("create column family Bar with <att1>=<value1>;");
+                state.out.println("create column family Bar with <att1>=<value1> and <att2>=<value2>...;\n");
                 state.out.println("Create a new column family with the specified values for the given set of");
                 state.out.println("attributes. Note that you must be using a keyspace.\n");
                 state.out.println("valid attributes are:");
@@ -179,17 +179,17 @@ public class CliUserHelp {
                 state.out.println("                          index_type (integer), index_name.");
                 state.out.println("example:\n");
                 state.out.println("create column family Bar with column_type = 'Super' and comparator = 'AsciiType'");
-                state.out.println("      and rows_cached = 10000");
-                state.out.println("create column family Baz with comparator = 'LongType' and rows_cached = 10000");
+                state.out.println("      and rows_cached = 10000;");
+                state.out.println("create column family Baz with comparator = 'LongType' and rows_cached = 10000;");
                 state.out.print("create column family Foo with comparator=LongType and column_metadata=");
                 state.out.print("[{ column_name:Test, validation_class:IntegerType, index_type:0, index_name:IdxName");
-                state.out.println("}, { column_name:'other name', validation_class:LongType }]");
+                state.out.println("}, { column_name:'other name', validation_class:LongType }];");
                 break;
 
             case CliParser.NODE_UPDATE_COLUMN_FAMILY:
-                state.out.println("update column family Bar");
-                state.out.println("update column family Bar with <att1>=<value1>");
-                state.out.println("update column family Bar with <att1>=<value1> and <att2>=<value2>...\n");
+                state.out.println("update column family Bar;");
+                state.out.println("update column family Bar with <att1>=<value1>;");
+                state.out.println("update column family Bar with <att1>=<value1> and <att2>=<value2>...;\n");
                 state.out.println("Update a column family with the specified values for the given set of");
                 state.out.println("attributes. Note that you must be using a keyspace.\n");
                 state.out.println("valid attributes are:");
@@ -206,103 +206,103 @@ public class CliUserHelp {
                 state.out.println("example:\n");
                 state.out.print("update column family Foo with column_metadata=");
                 state.out.print("[{ column_name:Test, validation_class:IntegerType, index_type:0, index_name:IdxName");
-                state.out.println("}] and rows_cached=100 and comment='this is helpful comment.'");
+                state.out.println("}] and rows_cached=100 and comment='this is helpful comment.';");
                 break;
 
             case CliParser.NODE_DEL_KEYSPACE:
-                state.out.println("drop keyspace <keyspace>\n");
+                state.out.println("drop keyspace <keyspace>;\n");
                 state.out.println("Drops the specified keyspace.\n");
                 state.out.println("example:");
-                state.out.println("drop keyspace foo");
+                state.out.println("drop keyspace foo;");
                 break;
 
             case CliParser.NODE_DEL_COLUMN_FAMILY:
-                state.out.println("drop column family <name>\n");
+                state.out.println("drop column family <name>;\n");
                 state.out.println("Drops the specified column family.\n");
                 state.out.println("example:");
-                state.out.println("drop column family foo");
+                state.out.println("drop column family foo;");
                 break;
 
             case CliParser.NODE_THRIFT_GET :
-                state.out.println("get <cf>['<key>']");
-                state.out.println("get <cf>['<key>']['<col>'] (as <type>)*");
-                state.out.println("get <cf>['<key>']['<super>']");
-                state.out.println("get <cf>['<key>'][<function>]");
-                state.out.println("get <cf>['<key>'][<function>(<super>)][<function>(<col>)]");
-                state.out.println("get <cf> where <column> = <value> [and <column> > <value> and ...] [limit <integer>]");
+                state.out.println("get <cf>['<key>'];");
+                state.out.println("get <cf>['<key>']['<col>'] (as <type>)*;");
+                state.out.println("get <cf>['<key>']['<super>'];");
+                state.out.println("get <cf>['<key>'][<function>];");
+                state.out.println("get <cf>['<key>'][<function>(<super>)][<function>(<col>)];");
+                state.out.println("get <cf> where <column> = <value> [and <column> > <value> and ...] [limit <integer>];");
                 state.out.println("Default LIMIT is 100. Available operations: =, >, >=, <, <=\n");
-                state.out.println("get <cf>['<key>']['<super>']['<col>'] (as <type>)*");
+                state.out.println("get <cf>['<key>']['<super>']['<col>'] (as <type>)*;");
                 state.out.print("Note: `as <type>` is optional, it dynamically converts column value to the specified type");
                 state.out.println(", column value validator will be set to <type>.");
                 state.out.println("Available functions: " + CliClient.Function.getFunctionNames());
                 state.out.println("Available types: IntegerType, LongType, UTF8Type, ASCIIType, TimeUUIDType, LexicalUUIDType.\n");
                 state.out.println("examples:");
-                state.out.println("get bar[testkey]");
-                state.out.println("get bar[testkey][test_column] as IntegerType");
-                state.out.println("get bar[testkey][utf8(hello)]");
+                state.out.println("get bar[testkey];");
+                state.out.println("get bar[testkey][test_column] as IntegerType;");
+                state.out.println("get bar[testkey][utf8(hello)];");
                 break;
 
             case CliParser.NODE_THRIFT_SET:
-                state.out.println("set <cf>['<key>']['<col>'] = <value>");
-                state.out.println("set <cf>['<key>']['<super>']['<col>'] = <value>");
-                state.out.println("set <cf>['<key>']['<col>'] = <function>(<argument>)");
-                state.out.println("set <cf>['<key>']['<super>']['<col>'] = <function>(<argument>)");
-                state.out.println("set <cf>[<key>][<function>(<col>)] = <value> || <function>");
+                state.out.println("set <cf>['<key>']['<col>'] = <value>;");
+                state.out.println("set <cf>['<key>']['<super>']['<col>'] = <value>;");
+                state.out.println("set <cf>['<key>']['<col>'] = <function>(<argument>);");
+                state.out.println("set <cf>['<key>']['<super>']['<col>'] = <function>(<argument>);");
+                state.out.println("set <cf>[<key>][<function>(<col>)] = <value> || <function>;");
                 state.out.println("Available functions: " + CliClient.Function.getFunctionNames() + "\n");
                 state.out.println("examples:");
-                state.out.println("set bar['testkey']['my super']['test col']='this is a test'");
-                state.out.println("set baz['testkey']['test col']='this is also a test'");
-                state.out.println("set diz[testkey][testcol] = utf8('this is utf8 string.')");
-                state.out.println("set bar[testkey][timeuuid()] = utf('hello world')");
+                state.out.println("set bar['testkey']['my super']['test col']='this is a test';");
+                state.out.println("set baz['testkey']['test col']='this is also a test';");
+                state.out.println("set diz[testkey][testcol] = utf8('this is utf8 string.');");
+                state.out.println("set bar[testkey][timeuuid()] = utf('hello world');");
                 break;
 
             case CliParser.NODE_THRIFT_DEL:
-                state.out.println("del <cf>['<key>'] ");
-                state.out.println("del <cf>['<key>']['<col>'] ");
-                state.out.println("del <cf>['<key>']['<super>']['<col>']\n");
+                state.out.println("del <cf>['<key>'];");
+                state.out.println("del <cf>['<key>']['<col>'];");
+                state.out.println("del <cf>['<key>']['<super>']['<col>'];\n");
                 state.out.println("Deletes a record, a column, or a subcolumn.\n");
                 state.out.println("example:");
-                state.out.println("del bar['testkey']['my super']['test col']");
-                state.out.println("del baz['testkey']['test col']");
-                state.out.println("del baz['testkey']");
+                state.out.println("del bar['testkey']['my super']['test col'];");
+                state.out.println("del baz['testkey']['test col'];");
+                state.out.println("del baz['testkey'];");
                 break;
 
             case CliParser.NODE_THRIFT_COUNT:
-                state.out.println("count <cf>['<key>']");
-                state.out.println("count <cf>['<key>']['<super>']\n");
+                state.out.println("count <cf>['<key>'];");
+                state.out.println("count <cf>['<key>']['<super>'];\n");
                 state.out.println("Count the number of columns in the specified key or subcolumns in the specified");
                 state.out.println("super column.\n");
                 state.out.println("example:");
-                state.out.println("count bar['testkey']['my super']");
-                state.out.println("count baz['testkey']");
+                state.out.println("count bar['testkey']['my super'];");
+                state.out.println("count baz['testkey'];");
                 break;
 
             case CliParser.NODE_LIST:
-                state.out.println("list <cf>");
-                state.out.println("list <cf>[<startKey>:]");
-                state.out.println("list <cf>[<startKey>:<endKey>]");
-                state.out.println("list ... limit N");
+                state.out.println("list <cf>;");
+                state.out.println("list <cf>[<startKey>:];");
+                state.out.println("list <cf>[<startKey>:<endKey>];");
+                state.out.println("list ... limit N;");
                 state.out.println("List a range of rows in the column or supercolumn family.\n");
                 state.out.println("example:");
-                state.out.println("list Users[j:] limit 40");
+                state.out.println("list Users[j:] limit 40;");
                 break;
 
             case CliParser.NODE_TRUNCATE:
-                state.out.println("truncate <column_family>");
+                state.out.println("truncate <column_family>;");
                 state.out.println("Truncate specified column family.\n");
                 state.out.println("example:");
-                state.out.println("truncate Category");
+                state.out.println("truncate Category;");
                 break;
 
             case CliParser.NODE_ASSUME:
-                state.out.println("assume <column_family> comparator as <type>");
-                state.out.println("assume <column_family> sub_comparator as <type>");
-                state.out.println("assume <column_family> validator as <type>");
-                state.out.println("assume <column_family> keys as <type>\n");
+                state.out.println("assume <column_family> comparator as <type>;");
+                state.out.println("assume <column_family> sub_comparator as <type>;");
+                state.out.println("assume <column_family> validator as <type>;");
+                state.out.println("assume <column_family> keys as <type>;\n");
                 state.out.println("Assume one of the attributes (comparator, sub_comparator, validator or keys)");
                 state.out.println("of the given column family to match specified type. Available types: " + CliClient.Function.getFunctionNames());
                 state.out.println("example:");
-                state.out.println("assume Users comparator as lexicaluuid");
+                state.out.println("assume Users comparator as lexicaluuid;");
                 break;
 
             default:
@@ -314,47 +314,47 @@ public class CliUserHelp {
         {
             state.out.println("List of all CLI commands:");
             state.out.println("?                                                          Display this message.");
-            state.out.println("help                                                          Display this help.");
-            state.out.println("help <command>                          Display detailed, command-specific help.");
-            state.out.println("connect <hostname>/<port>                             Connect to thrift service.");
-            state.out.println("use <keyspace> [<username> 'password']                     Switch to a keyspace.");
-            state.out.println("describe keyspace <keyspacename>                              Describe keyspace.");
-            state.out.println("exit                                                                   Exit CLI.");
-            state.out.println("quit                                                                   Exit CLI.");
-            state.out.println("show cluster name                                          Display cluster name.");
-            state.out.println("show keyspaces                                           Show list of keyspaces.");
-            state.out.println("show api version                                        Show server API version.");
-            state.out.println("create keyspace <keyspace> [with <att1>=<value1> [and <att2>=<value2> ...]]");
+            state.out.println("help;                                                          Display this help.");
+            state.out.println("help <command>;                          Display detailed, command-specific help.");
+            state.out.println("connect <hostname>/<port>;                             Connect to thrift service.");
+            state.out.println("use <keyspace> [<username> 'password'];                     Switch to a keyspace.");
+            state.out.println("describe keyspace <keyspacename>;                              Describe keyspace.");
+            state.out.println("exit;                                                                   Exit CLI.");
+            state.out.println("quit;                                                                   Exit CLI.");
+            state.out.println("show cluster name;                                          Display cluster name.");
+            state.out.println("show keyspaces;                                           Show list of keyspaces.");
+            state.out.println("show api version;                                        Show server API version.");
+            state.out.println("create keyspace <keyspace> [with <att1>=<value1> [and <att2>=<value2> ...]];");
             state.out.println("                Add a new keyspace with the specified attribute(s) and value(s).");
-            state.out.println("update keyspace <keyspace> [with <att1>=<value1> [and <att2>=<value2> ...]]");
+            state.out.println("update keyspace <keyspace> [with <att1>=<value1> [and <att2>=<value2> ...]];");
             state.out.println("                 Update a keyspace with the specified attribute(s) and value(s).");
-            state.out.println("create column family <cf> [with <att1>=<value1> [and <att2>=<value2> ...]]");
+            state.out.println("create column family <cf> [with <att1>=<value1> [and <att2>=<value2> ...]];");
             state.out.println("        Create a new column family with the specified attribute(s) and value(s).");
-            state.out.println("update column family <cf> [with <att1>=<value1> [and <att2>=<value2> ...]]");
+            state.out.println("update column family <cf> [with <att1>=<value1> [and <att2>=<value2> ...]];");
             state.out.println("            Update a column family with the specified attribute(s) and value(s).");
-            state.out.println("drop keyspace <keyspace>                                      Delete a keyspace.");
-            state.out.println("drop column family <cf>                                  Delete a column family.");
-            state.out.println("get <cf>['<key>']                                        Get a slice of columns.");
-            state.out.println("get <cf>['<key>']['<super>']                         Get a slice of sub columns.");
-            state.out.println("get <cf> where <column> = <value> [and <column> > <value> and ...] [limit int]. ");
-            state.out.println("get <cf>['<key>']['<col>'] (as <type>)*                      Get a column value.");
-            state.out.println("get <cf>['<key>']['<super>']['<col>'] (as <type>)*       Get a sub column value.");
-            state.out.println("set <cf>['<key>']['<col>'] = <value>                               Set a column.");
-            state.out.println("set <cf>['<key>']['<super>']['<col>'] = <value>                Set a sub column.");
-            state.out.println("del <cf>['<key>']                                                 Delete record.");
-            state.out.println("del <cf>['<key>']['<col>']                                        Delete column.");
-            state.out.println("del <cf>['<key>']['<super>']['<col>']                         Delete sub column.");
-            state.out.println("count <cf>['<key>']                                     Count columns in record.");
-            state.out.println("count <cf>['<key>']['<super>']                  Count columns in a super column.");
-            state.out.println("truncate <column_family>                       Truncate specified column family.");
-            state.out.println("assume <column_family> <attribute> as <type>");
-            state.out.println("Assume one of the attributes of the given column family to match specified type.");
-            state.out.println("list <cf>                                    List all rows in the column family.");
-            state.out.println("list <cf>[<startKey>:]");
-            state.out.println("                       List rows in the column family beginning with <startKey>.");
-            state.out.println("list <cf>[<startKey>:<endKey>]");
-            state.out.println("        List rows in the column family in the range from <startKey> to <endKey>.");
-            state.out.println("list ... limit N                                    Limit the list results to N.");
+            state.out.println("drop keyspace <keyspace>;                                      Delete a keyspace.");
+            state.out.println("drop column family <cf>;                                  Delete a column family.");
+            state.out.println("get <cf>['<key>'];                                        Get a slice of columns.");
+            state.out.println("get <cf>['<key>']['<super>'];                         Get a slice of sub columns.");
+            state.out.println("get <cf> where <column> = <value> [and <column> > <value> and ...] [limit int];  ");
+            state.out.println("get <cf>['<key>']['<col>'] (as <type>)*;                      Get a column value.");
+            state.out.println("get <cf>['<key>']['<super>']['<col>'] (as <type>)*;       Get a sub column value.");
+            state.out.println("set <cf>['<key>']['<col>'] = <value>;                               Set a column.");
+            state.out.println("set <cf>['<key>']['<super>']['<col>'] = <value>;                Set a sub column.");
+            state.out.println("del <cf>['<key>'];                                                 Delete record.");
+            state.out.println("del <cf>['<key>']['<col>'];                                        Delete column.");
+            state.out.println("del <cf>['<key>']['<super>']['<col>'];                         Delete sub column.");
+            state.out.println("count <cf>['<key>'];                                     Count columns in record.");
+            state.out.println("count <cf>['<key>']['<super>'];                  Count columns in a super column.");
+            state.out.println("truncate <column_family>;                       Truncate specified column family.");
+            state.out.println("assume <column_family> <attribute> as <type>;");
+            state.out.println(" Assume one of the attributes of the given column family to match specified type.");
+            state.out.println("list <cf>;                                    List all rows in the column family.");
+            state.out.println("list <cf>[<startKey>:];");
+            state.out.println("                        List rows in the column family beginning with <startKey>.");
+            state.out.println("list <cf>[<startKey>:<endKey>];");
+            state.out.println("         List rows in the column family in the range from <startKey> to <endKey>.");
+            state.out.println("list ... limit N;                                    Limit the list results to N.");
         }
     }
 

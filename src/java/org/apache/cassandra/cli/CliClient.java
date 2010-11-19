@@ -226,7 +226,7 @@ public class CliClient extends CliUserHelp
         Tree columnFamilySpec = statement.getChild(0);
 
         String key = CliCompiler.getKey(columnFamilySpec);
-        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
+        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec, keyspacesMap.get(keySpace).cf_defs);
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
        
         ColumnParent colParent = new ColumnParent(columnFamily).setSuper_column((ByteBuffer) null);
@@ -253,7 +253,7 @@ public class CliClient extends CliUserHelp
         Tree columnFamilySpec = statement.getChild(0);
 
         String key = CliCompiler.getKey(columnFamilySpec);
-        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
+        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec, keyspacesMap.get(keySpace).cf_defs);
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
 
         byte[] superColumnName = null;
@@ -370,7 +370,7 @@ public class CliClient extends CliUserHelp
             return;
 
         Tree columnFamilySpec = statement.getChild(0);
-        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
+        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec, keyspacesMap.get(keySpace).cf_defs);
         ByteBuffer key = getKeyAsBytes(columnFamily, columnFamilySpec.getChild(1));
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
         CfDef cfDef = getCfDef(columnFamily);
@@ -562,7 +562,7 @@ public class CliClient extends CliUserHelp
         Tree columnFamilySpec = statement.getChild(0);
         Tree keyTree = columnFamilySpec.getChild(1); // could be a function or regular text
 
-        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
+        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec, keyspacesMap.get(keySpace).cf_defs);
         CfDef cfDef = getCfDef(columnFamily);
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
         String value = CliUtils.unescapeSQLString(statement.getChild(1).getText());
@@ -693,10 +693,10 @@ public class CliClient extends CliUserHelp
         if (!CliMain.isConnected())
             return;
 
-        String keyspaceName = statement.getChild(0).getText();
-        
         try
         {
+            String keyspaceName = CliCompiler.getKeySpace(statement, thriftClient.describe_keyspaces());
+
             KsDef currentKsDef = getKSMetaData(keyspaceName);
             KsDef updatedKsDef = updateKsDefAttributes(statement, currentKsDef);
 
@@ -722,8 +722,9 @@ public class CliClient extends CliUserHelp
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
 
+        String cfName = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
         // first child is a column family name
-        CfDef cfDef = getCfDef(statement.getChild(0).getText());
+        CfDef cfDef = getCfDef(cfName);
 
         try
         {
@@ -874,7 +875,7 @@ public class CliClient extends CliUserHelp
         if (!CliMain.isConnected())
             return;
 
-        String keyspaceName = statement.getChild(0).getText();
+        String keyspaceName = CliCompiler.getKeySpace(statement, thriftClient.describe_keyspaces());
         sessionState.out.println(thriftClient.system_drop_keyspace(keyspaceName));
     }
 
@@ -891,8 +892,8 @@ public class CliClient extends CliUserHelp
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
 
-        String columnName = statement.getChild(0).getText();
-        sessionState.out.println(thriftClient.system_drop_column_family(columnName));
+        String cfName = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
+        sessionState.out.println(thriftClient.system_drop_column_family(cfName));
     }
 
     private void executeList(Tree statement)
@@ -902,7 +903,7 @@ public class CliClient extends CliUserHelp
             return;
         
         // extract column family
-        String columnFamily = statement.getChild(0).getText();
+        String columnFamily = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
 
         String rawStartKey = "";
         String rawEndKey = "";
@@ -971,7 +972,7 @@ public class CliClient extends CliUserHelp
             return;
 
         // getting CfDef, it will fail if there is no such column family in current keySpace. 
-        CfDef cfDef = getCfDef(columnFamily);
+        CfDef cfDef = getCfDef(CliCompiler.getColumnFamily(columnFamily, keyspacesMap.get(keySpace).cf_defs));
 
         try
         {
@@ -998,7 +999,8 @@ public class CliClient extends CliUserHelp
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
 
-        CfDef columnFamily = getCfDef(statement.getChild(0).getText());
+        String cfName = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
+        CfDef columnFamily = getCfDef(cfName);
 
         // VALIDATOR | COMPARATOR | KEYS | SUB_COMPARATOR
         String assumptionElement = statement.getChild(1).getText().toUpperCase();
@@ -1059,8 +1061,12 @@ public class CliClient extends CliUserHelp
     {
         if (!CliMain.isConnected())
             return;
-        
-        for (KsDef keySpace : thriftClient.describe_keyspaces()) {
+
+        List<KsDef> keySpaces = thriftClient.describe_keyspaces();
+
+        Collections.sort(keySpaces, new KsDefNamesComparator());
+        for (KsDef keySpace : keySpaces)
+        {
             describeKeySpace(keySpace.name, keySpace);
         }
     }
@@ -1111,7 +1117,7 @@ public class CliClient extends CliUserHelp
         int childCount = statement.getChildCount();
         String keySpaceName, username = null, password = null;
 
-        // Get table name
+        // Get keyspace name
         keySpaceName = statement.getChild(0).getText();
         
         if (childCount == 3) {
@@ -1129,10 +1135,11 @@ public class CliClient extends CliUserHelp
         {
         	AuthenticationRequest authRequest;
         	Map<String, String> credentials = new HashMap<String, String>();
-        	
-        	
-        	thriftClient.set_keyspace(keySpaceName);
-   
+
+            keySpaceName = CliCompiler.getKeySpace(keySpaceName, thriftClient.describe_keyspaces());
+
+            thriftClient.set_keyspace(keySpaceName);
+
         	if (username != null && password != null) 
         	{
         	    /* remove quotes */
@@ -1186,6 +1193,7 @@ public class CliClient extends CliUserHelp
             sessionState.out.println("  Replication Factor: " + ks_def.replication_factor);
             sessionState.out.println("  Column Families:");
 
+            Collections.sort(ks_def.cf_defs, new CfDefNamesComparator());
             for (CfDef cf_def : ks_def.cf_defs)
             {
                 sessionState.out.printf("    ColumnFamily: %s%s\n", cf_def.name, cf_def.column_type.equals("Super") ? " (Super)" : "");
@@ -1254,13 +1262,13 @@ public class CliClient extends CliUserHelp
         }
     }
     // DESCRIBE KEYSPACE <keyspace_name> 
-    private void executeDescribeKeySpace(Tree statement) throws TException
+    private void executeDescribeKeySpace(Tree statement) throws TException, InvalidRequestException
     {
         if (!CliMain.isConnected())
             return;
 
         // Get keySpace name
-        String keySpaceName = statement.getChild(0).getText();
+        String keySpaceName = CliCompiler.getKeySpace(statement, thriftClient.describe_keyspaces());
 
         if( keySpaceName == null ) {
             sessionState.out.println("Keyspace argument required");
@@ -1795,7 +1803,7 @@ public class CliClient extends CliUserHelp
      * @throws NoSuchFieldException - column not found
      */
     private void printSliceList(CfDef columnFamilyDef, List<KeySlice> slices)
-    throws NotFoundException, TException, IllegalAccessException, InstantiationException, NoSuchFieldException
+            throws NotFoundException, TException, IllegalAccessException, InstantiationException, NoSuchFieldException
     {
         AbstractType validator;
         String columnFamilyName = columnFamilyDef.getName();
@@ -1886,5 +1894,21 @@ public class CliClient extends CliUserHelp
 
         AbstractType keyComparator = this.cfKeysComparators.get(columnFamily);
         return getBytesAccordingToType(key, keyComparator);
+    }
+
+    private class KsDefNamesComparator implements Comparator<KsDef>
+    {
+        public int compare(KsDef a, KsDef b)
+        {
+            return a.name.compareTo(b.name);
+        }
+    }
+
+    private class CfDefNamesComparator implements Comparator<CfDef>
+    {
+        public int compare(CfDef a, CfDef b)
+        {
+            return a.name.compareTo(b.name);
+        }
     }
 }
