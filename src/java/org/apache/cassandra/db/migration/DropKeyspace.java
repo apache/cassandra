@@ -34,16 +34,14 @@ import java.io.IOException;
 public class DropKeyspace extends Migration
 {
     private String name;
-    private boolean blockOnFileDeletion;
     
     /** Required no-arg constructor */
     protected DropKeyspace() { /* pass */ }
     
-    public DropKeyspace(String name, boolean blockOnFileDeletion) throws ConfigurationException, IOException
+    public DropKeyspace(String name) throws ConfigurationException, IOException
     {
         super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress()), DatabaseDescriptor.getDefsVersion());
         this.name = name;
-        this.blockOnFileDeletion = blockOnFileDeletion;
         KSMetaData ksm = DatabaseDescriptor.getTableDefinition(name);
         if (ksm == null)
             throw new ConfigurationException("Keyspace does not exist.");
@@ -98,7 +96,6 @@ public class DropKeyspace extends Migration
     {
         org.apache.cassandra.db.migration.avro.DropKeyspace dks = new org.apache.cassandra.db.migration.avro.DropKeyspace();
         dks.ksname = new org.apache.avro.util.Utf8(name);
-        dks.block_on_deletion = blockOnFileDeletion;
         mi.migration = dks;
     }
 
@@ -106,6 +103,5 @@ public class DropKeyspace extends Migration
     {
         org.apache.cassandra.db.migration.avro.DropKeyspace dks = (org.apache.cassandra.db.migration.avro.DropKeyspace)mi.migration;
         name = dks.ksname.toString();
-        blockOnFileDeletion = dks.block_on_deletion;
     }
 }

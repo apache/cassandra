@@ -884,7 +884,7 @@ public class CassandraServer implements Cassandra {
         
         try
         {
-            applyMigrationOnStage(new DropColumnFamily(state().getKeyspace(), column_family.toString(), true));
+            applyMigrationOnStage(new DropColumnFamily(state().getKeyspace(), column_family.toString()));
             return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)
@@ -904,7 +904,7 @@ public class CassandraServer implements Cassandra {
         
         try
         {
-            applyMigrationOnStage(new DropKeyspace(keyspace.toString(), true));
+            applyMigrationOnStage(new DropKeyspace(keyspace.toString()));
             return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)

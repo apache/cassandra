@@ -729,7 +729,7 @@ public class CassandraServer implements Cassandra.Iface
         
         try
         {
-            applyMigrationOnStage(new DropColumnFamily(state().getKeyspace(), column_family, true));
+            applyMigrationOnStage(new DropColumnFamily(state().getKeyspace(), column_family));
             return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)
@@ -795,7 +795,7 @@ public class CassandraServer implements Cassandra.Iface
         
         try
         {
-            applyMigrationOnStage(new DropKeyspace(keyspace, true));
+            applyMigrationOnStage(new DropKeyspace(keyspace));
             return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)

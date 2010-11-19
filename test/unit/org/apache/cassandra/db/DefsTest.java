@@ -144,7 +144,7 @@ public class DefsTest extends CleanupHelper
         assert DatabaseDescriptor.getDefsVersion().equals(ver2);
         
         // drop it.
-        Migration m3 = new DropColumnFamily("Keyspace1", "MigrationCf_2", true);
+        Migration m3 = new DropColumnFamily("Keyspace1", "MigrationCf_2");
         m3.apply();
         UUID ver3 = m3.getVersion();
         assert DatabaseDescriptor.getDefsVersion().equals(ver3);
@@ -225,7 +225,7 @@ public class DefsTest extends CleanupHelper
         store.getFlushPath();
         assert DefsTable.getFiles(cfm.tableName, cfm.cfName).size() > 0;
         
-        new DropColumnFamily(ks.name, cfm.cfName, true).apply();
+        new DropColumnFamily(ks.name, cfm.cfName).apply();
         
         assert !DatabaseDescriptor.getTableDefinition(ks.name).cfMetaData().containsKey(cfm.cfName);
         
@@ -344,7 +344,7 @@ public class DefsTest extends CleanupHelper
         store.forceBlockingFlush();
         assert DefsTable.getFiles(cfm.tableName, cfm.cfName).size() > 0;
         
-        new DropKeyspace(ks.name, true).apply();
+        new DropKeyspace(ks.name).apply();
         
         assert DatabaseDescriptor.getTableDefinition(ks.name) == null;
         

@@ -38,17 +38,15 @@ public class DropColumnFamily extends Migration
 {
     private String tableName;
     private String cfName;
-    private boolean blockOnFileDeletion;
     
     /** Required no-arg constructor */
     protected DropColumnFamily() { /* pass */ }
     
-    public DropColumnFamily(String tableName, String cfName, boolean blockOnFileDeletion) throws ConfigurationException, IOException
+    public DropColumnFamily(String tableName, String cfName) throws ConfigurationException, IOException
     {
         super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress()), DatabaseDescriptor.getDefsVersion());
         this.tableName = tableName;
         this.cfName = cfName;
-        this.blockOnFileDeletion = blockOnFileDeletion;
         
         KSMetaData ksm = DatabaseDescriptor.getTableDefinition(tableName);
         if (ksm == null)
@@ -108,7 +106,6 @@ public class DropColumnFamily extends Migration
         org.apache.cassandra.db.migration.avro.DropColumnFamily dcf = new org.apache.cassandra.db.migration.avro.DropColumnFamily();
         dcf.ksname = new org.apache.avro.util.Utf8(tableName);
         dcf.cfname = new org.apache.avro.util.Utf8(cfName);
-        dcf.block_on_deletion = blockOnFileDeletion;
         mi.migration = dcf;
     }
 
@@ -117,6 +114,5 @@ public class DropColumnFamily extends Migration
         org.apache.cassandra.db.migration.avro.DropColumnFamily dcf = (org.apache.cassandra.db.migration.avro.DropColumnFamily)mi.migration;
         tableName = dcf.ksname.toString();
         cfName = dcf.cfname.toString();
-        blockOnFileDeletion = dcf.block_on_deletion;
     }
 }
