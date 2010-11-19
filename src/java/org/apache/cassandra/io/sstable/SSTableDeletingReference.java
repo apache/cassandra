@@ -90,9 +90,9 @@ public class SSTableDeletingReference extends PhantomReference<SSTableReader>
                     return;
                 }
             }
-            // let the remainder be cleaned up by conditionalDelete
+            // let the remainder be cleaned up by delete
             components.remove(Component.DATA);
-            SSTable.conditionalDelete(desc, components);
+            SSTable.delete(desc, components);
             tracker.spaceReclaimed(size);
         }
     }

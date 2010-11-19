@@ -44,6 +44,7 @@ dev
  * handle replica unavailability in index scan (CASSANDRA-1755)
  * fix service initialization order deadlock (CASSANDRA-1756)
  * multi-line cli commands (CASSANDRA-1742)
+ * fix race between snapshot and compaction (CASSANDRA-1736)
 
 
 0.7.0-beta3

@@ -25,6 +25,7 @@ import java.io.FileOutputStream;
 import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -65,16 +66,15 @@ public class SSTableWriter extends SSTable
 
     public SSTableWriter(String filename, long keyCount, CFMetaData metadata, IPartitioner partitioner) throws IOException
     {
-        super(Descriptor.fromFilename(filename), new HashSet<Component>(), metadata, partitioner, SSTable.defaultRowHistogram(), SSTable.defaultColumnHistogram());
+        super(Descriptor.fromFilename(filename),
+              new HashSet<Component>(Arrays.asList(Component.DATA, Component.FILTER, Component.PRIMARY_INDEX, Component.STATS)),
+              metadata,
+              partitioner,
+              SSTable.defaultRowHistogram(),
+              SSTable.defaultColumnHistogram());
         iwriter = new IndexWriter(descriptor, partitioner, keyCount);
         dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
         dataFile = new BufferedRandomAccessFile(getFilename(), "rw", DatabaseDescriptor.getInMemoryCompactionLimit());
-
-        // the set of required components
-        components.add(Component.DATA);
-        components.add(Component.FILTER);
-        components.add(Component.PRIMARY_INDEX);
-        components.add(Component.STATS);
     }
     
     public void mark()
