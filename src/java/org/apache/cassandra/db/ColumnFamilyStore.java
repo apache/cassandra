@@ -103,6 +103,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public final String columnFamily;
     public final IPartitioner partitioner;
     private final String mbeanName;
+    private boolean invalid = false;
 
     private volatile int memtableSwitchCount = 0;
 
@@ -112,7 +113,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /* active memtable associated with this ColumnFamilyStore. */
     private Memtable memtable;
 
-    private final SortedMap<ByteBuffer, ColumnFamilyStore> indexedColumns;
+    private final ConcurrentSkipListMap<ByteBuffer, ColumnFamilyStore> indexedColumns;
 
     // TODO binarymemtable ops are not threadsafe (do they need to be?)
     private AtomicReference<BinaryMemtable> binaryMemtable;
@@ -130,11 +131,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public final CFMetaData metadata;
 
     /* These are locally held copies to be changed from the config during runtime */
-    private int minCompactionThreshold;
-    private int maxCompactionThreshold;
-    private int memtime;
-    private int memsize;
-    private double memops;
+    private volatile DefaultInteger minCompactionThreshold;
+    private volatile DefaultInteger maxCompactionThreshold;
+    private volatile DefaultInteger memtime;
+    private volatile DefaultInteger memsize;
+    private volatile DefaultDouble memops;
 
     private final Runnable rowCacheSaverTask = new WrappedRunnable()
     {
@@ -151,6 +152,46 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             ssTables.saveKeyCache();
         }
     };
+    
+    public void reload()
+    {
+        // metadata object has been mutated directly. make all the members jibe with new settings.
+        
+        // only update these runtime-modifiable settings if they have not been modified.
+        if (!minCompactionThreshold.isModified())
+            minCompactionThreshold = new DefaultInteger(metadata.getMinCompactionThreshold());
+        if (!maxCompactionThreshold.isModified())
+            maxCompactionThreshold = new DefaultInteger(metadata.getMaxCompactionThreshold());
+        if (!memtime.isModified())
+            memtime = new DefaultInteger(metadata.getMemtableFlushAfterMins());
+        if (!memsize.isModified())
+            memsize = new DefaultInteger(metadata.getMemtableThroughputInMb());
+        if (!memops.isModified())
+            memops = new DefaultDouble(metadata.getMemtableOperationsInMillions());
+        
+        ssTables.updateCacheSizes();
+        
+        // figure out what needs to be added and dropped.
+        // future: if/when we have modifiable settings for secondary indexes, they'll need to be handled here.
+        for (ByteBuffer indexName : indexedColumns.keySet())
+        {
+            if (!metadata.getColumn_metadata().containsKey(indexName))
+            {
+                ColumnFamilyStore indexCfs = indexedColumns.remove(indexName);
+                if (indexCfs == null)
+                {
+                    logger.debug("index {} already removed; ignoring", FBUtilities.bytesToHex(indexName));
+                    continue;
+                }
+                SystemTable.setIndexRemoved(metadata.tableName, metadata.cfName);
+                indexCfs.removeAllSSTables();
+            }
+        }
+
+        for (ColumnDefinition cdef : metadata.getColumn_metadata().values())
+            if (!indexedColumns.containsKey(cdef.name) && cdef.getIndexType() != null)
+                addIndex(cdef);
+    }
 
     private ColumnFamilyStore(Table table, String columnFamilyName, IPartitioner partitioner, int generation, CFMetaData metadata)
     {
@@ -158,11 +199,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         this.table = table;
         columnFamily = columnFamilyName; 
         this.metadata = metadata;
-        this.minCompactionThreshold = metadata.minCompactionThreshold;
-        this.maxCompactionThreshold = metadata.maxCompactionThreshold;
-        this.memtime = metadata.memtableFlushAfterMins;
-        this.memsize = metadata.memtableThroughputInMb;
-        this.memops = metadata.memtableOperationsInMillions;
+        this.minCompactionThreshold = new DefaultInteger(metadata.getMinCompactionThreshold());
+        this.maxCompactionThreshold = new DefaultInteger(metadata.getMaxCompactionThreshold());
+        this.memtime = new DefaultInteger(metadata.getMemtableFlushAfterMins());
+        this.memsize = new DefaultInteger(metadata.getMemtableThroughputInMb());
+        this.memops = new DefaultDouble(metadata.getMemtableOperationsInMillions());
         this.partitioner = partitioner;
         fileIndexGenerator.set(generation);
         memtable = new Memtable(this);
@@ -199,9 +240,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         // create the private ColumnFamilyStores for the secondary column indexes
         indexedColumns = new ConcurrentSkipListMap<ByteBuffer, ColumnFamilyStore>(getComparator());
-        for (ColumnDefinition info : metadata.column_metadata.values())
+        for (ColumnDefinition info : metadata.getColumn_metadata().values())
         {
-            if (info.index_type != null)
+            if (info.getIndexType() != null)
                 addIndex(info);
         }
 
@@ -254,7 +295,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void addIndex(final ColumnDefinition info)
     {
-        assert info.index_type != null;
+        assert info.getIndexType() != null;
+
+        // create the index CFS
         IPartitioner rowPartitioner = StorageService.getPartitioner();
         AbstractType columnComparator = (rowPartitioner instanceof OrderPreservingPartitioner || rowPartitioner instanceof ByteOrderedPartitioner)
                                         ? BytesType.instance
@@ -262,30 +305,44 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         final CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(table.name, columnFamily, info, columnComparator);
         ColumnFamilyStore indexedCfs = ColumnFamilyStore.createColumnFamilyStore(table,
                                                                                  indexedCfMetadata.cfName,
-                                                                                 new LocalPartitioner(metadata.column_metadata.get(info.name).validator),
+                                                                                 new LocalPartitioner(metadata.getColumn_metadata().get(info.name).validator),
                                                                                  indexedCfMetadata);
-        // record that the column is supposed to be indexed, before we start building it
-        // (so we don't omit indexing writes that happen during build process)
-        indexedColumns.put(info.name, indexedCfs);
-        if (!SystemTable.isIndexBuilt(table.name, indexedCfMetadata.cfName))
+
+        // link in indexedColumns.  this means that writes will add new data to the index immediately,
+        // so we don't have to lock everything while we do the build.  it's up to the operator to wait
+        // until the index is actually built before using in queries.
+        if (indexedColumns.putIfAbsent(info.name, indexedCfs) != null)
+            return;
+
+        // if we're just linking in the index to indexedColumns on an already-built index post-restart, we're done
+        if (SystemTable.isIndexBuilt(table.name, indexedCfMetadata.cfName))
+            return;
+
+        // build it asynchronously; addIndex gets called by CFS open and schema update, neither of which
+        // we want to block for a long period.  (actual build is serialized on CompactionManager.)
+        Runnable runnable = new Runnable()
         {
-            logger.info("Creating index {}.{}", table, indexedCfMetadata.cfName);
-            try
+            public void run()
             {
-                forceBlockingFlush();
+                logger.info("Creating index {}.{}", table, indexedCfMetadata.cfName);
+                try
+                {
+                    forceBlockingFlush();
+                }
+                catch (ExecutionException e)
+                {
+                    throw new RuntimeException(e);
+                }
+                catch (InterruptedException e)
+                {
+                    throw new AssertionError(e);
+                }
+                buildSecondaryIndexes(getSSTables(), FBUtilities.singleton(info.name));
+                logger.info("Index {} complete", indexedCfMetadata.cfName);
+                SystemTable.setIndexBuilt(table.name, indexedCfMetadata.cfName);
             }
-            catch (ExecutionException e)
-            {
-                throw new RuntimeException(e);
-            }
-            catch (InterruptedException e)
-            {
-                throw new AssertionError(e);
-            }
-            buildSecondaryIndexes(getSSTables(), FBUtilities.singleton(info.name));
-            logger.info("Index {} complete", indexedCfMetadata.cfName);
-            SystemTable.setIndexBuilt(table.name, indexedCfMetadata.cfName);
-        }
+        };
+        new Thread(runnable, "Create index " + indexedCfMetadata.cfName).start();
     }
 
     public void buildSecondaryIndexes(Collection<SSTableReader> sstables, SortedSet<ByteBuffer> columns)
@@ -309,12 +366,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    // called when dropping or renaming a CF. Performs mbean housekeeping.
+    // called when dropping or renaming a CF. Performs mbean housekeeping and invalidates CFS to other operations.
     void unregisterMBean()
     {
         try
         {
-            
+            invalid = true;   
             MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
             ObjectName nameObj = new ObjectName(mbeanName);
             if (mbs.isRegistered(nameObj))
@@ -446,8 +503,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public void initRowCache()
     {
         String msgSuffix = String.format(" row cache for %s of %s", columnFamily, table.name);
-        int rowCacheSavePeriodInSeconds = DatabaseDescriptor.getTableMetaData(table.name).get(columnFamily).rowCacheSavePeriodInSeconds;
-        int keyCacheSavePeriodInSeconds = DatabaseDescriptor.getTableMetaData(table.name).get(columnFamily).keyCacheSavePeriodInSeconds;
+        int rowCacheSavePeriodInSeconds = DatabaseDescriptor.getTableMetaData(table.name).get(columnFamily).getRowCacheSavePeriodInSeconds();
+        int keyCacheSavePeriodInSeconds = DatabaseDescriptor.getTableMetaData(table.name).get(columnFamily).getKeyCacheSavePeriodInSeconds();
 
         long start = System.currentTimeMillis();
         logger.info(String.format("loading%s", msgSuffix));
@@ -535,7 +592,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public String getFlushPath()
     {
-        long guessedSize = 2 * memsize * 1024*1024; // 2* adds room for keys, column indexes
+        long guessedSize = 2 * memsize.value() * 1024*1024; // 2* adds room for keys, column indexes
         String location = DatabaseDescriptor.getDataFileLocationForTable(table.name, guessedSize);
         if (location == null)
             throw new RuntimeException("Insufficient disk space to flush");
@@ -855,6 +912,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         ssTables.replace(sstables, replacements);
     }
+    
+    public boolean isInvalid()
+    {
+        return invalid;
+    }
 
     public void removeAllSSTables()
     {
@@ -1006,7 +1068,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public int gcBefore()
     {
-        return (int) (System.currentTimeMillis() / 1000) - metadata.gcGraceSeconds;
+        return (int) (System.currentTimeMillis() / 1000) - metadata.getGcGraceSeconds();
     }
 
     private ColumnFamily cacheRow(DecoratedKey key)
@@ -1212,7 +1274,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Iterables.addAll(sstables, ssTables);
 
         RowIterator iterator = RowIteratorFactory.getIterator(memtables, sstables, startWith, stopAt, filter, getComparator(), this);
-        int gcBefore = (int)(System.currentTimeMillis() / 1000) - metadata.gcGraceSeconds;
+        int gcBefore = (int)(System.currentTimeMillis() / 1000) - metadata.getGcGraceSeconds();
 
         try
         {
@@ -1765,70 +1827,70 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public int getMinimumCompactionThreshold()
     {
-        return minCompactionThreshold;
+        return minCompactionThreshold.value();
     }
     
     public void setMinimumCompactionThreshold(int minCompactionThreshold)
     {
-        if ((minCompactionThreshold > this.maxCompactionThreshold) && this.maxCompactionThreshold != 0) {
+        if ((minCompactionThreshold > this.maxCompactionThreshold.value()) && this.maxCompactionThreshold.value() != 0) {
             throw new RuntimeException("The min_compaction_threshold cannot be larger than the max.");
         }
-        this.minCompactionThreshold = minCompactionThreshold;
+        this.minCompactionThreshold.set(minCompactionThreshold);
     }
 
     public int getMaximumCompactionThreshold()
     {
-        return maxCompactionThreshold;
+        return maxCompactionThreshold.value();
     }
 
     public void setMaximumCompactionThreshold(int maxCompactionThreshold)
     {
-        if (maxCompactionThreshold < this.minCompactionThreshold) {
+        if (maxCompactionThreshold < this.minCompactionThreshold.value()) {
             throw new RuntimeException("The max_compaction_threshold cannot be smaller than the min.");
         }
-        this.maxCompactionThreshold = maxCompactionThreshold;
+        this.maxCompactionThreshold.set(maxCompactionThreshold);
     }
 
     public void disableAutoCompaction()
     {
-        this.minCompactionThreshold = 0;
-        this.maxCompactionThreshold = 0;
+        minCompactionThreshold.set(0);
+        maxCompactionThreshold.set(0);
     }
 
     public int getMemtableFlushAfterMins()
     {
-        return memtime;
+        return memtime.value();
     }
     public void setMemtableFlushAfterMins(int time)
     {
         if (time <= 0) {
             throw new RuntimeException("MemtableFlushAfterMins must be greater than 0.");
         }
-        this.memtime = time;
+        this.memtime.set(time);
     }
 
     public int getMemtableThroughputInMB()
     {
-        return memsize;
+        return memsize.value();
     }
     public void setMemtableThroughputInMB(int size)
     {
         if (size <= 0) {
             throw new RuntimeException("MemtableThroughputInMB must be greater than 0.");
         }
-        this.memsize = size;
+        this.memsize.set(size);
     }
 
     public double getMemtableOperationsInMillions()
     {
-        return memops;
+        return memops.value();
     }
     public void setMemtableOperationsInMillions(double ops)
     {
         if (ops <= 0) {
             throw new RuntimeException("MemtableOperationsInMillions must be greater than 0.0.");
         }
-        this.memops = ops;
+        this.memops.set(ops);
     }
 
     public long estimateKeys()

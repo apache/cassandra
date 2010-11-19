@@ -34,6 +34,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -120,6 +121,11 @@ public class Table
             }
         }
         return tableInstance;
+    }
+    
+    public static Lock getFlushLock()
+    {
+        return flusherLock.writeLock();
     }
 
     public static Table clear(String table) throws IOException

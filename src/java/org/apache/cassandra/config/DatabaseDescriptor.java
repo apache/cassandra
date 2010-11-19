@@ -644,12 +644,12 @@ public class    DatabaseDescriptor
         return conf.thrift_framed_transport_size_in_mb * 1024 * 1024;
     }
 
-    public static AbstractType getComparator(String compareWith) throws ConfigurationException
+    public static AbstractType getComparator(CharSequence compareWith) throws ConfigurationException
     {
         if (compareWith == null)
             compareWith = "BytesType";
 
-        return FBUtilities.getComparator(compareWith);
+        return FBUtilities.getComparator(compareWith.toString());
     }
 
     /**
@@ -944,7 +944,7 @@ public class    DatabaseDescriptor
     public static int getKeysCachedFor(String tableName, String columnFamilyName, long expectedKeys)
     {
         CFMetaData cfm = getCFMetaData(tableName, columnFamilyName);
-        double v = (cfm == null) ? CFMetaData.DEFAULT_KEY_CACHE_SIZE : cfm.keyCacheSize;
+        double v = (cfm == null) ? CFMetaData.DEFAULT_KEY_CACHE_SIZE : cfm.getKeyCacheSize();
         return (int)Math.min(FBUtilities.absoluteFromFraction(v, expectedKeys), Integer.MAX_VALUE);
     }
 
@@ -954,7 +954,7 @@ public class    DatabaseDescriptor
     public static int getRowsCachedFor(String tableName, String columnFamilyName, long expectedRows)
     {
         CFMetaData cfm = getCFMetaData(tableName, columnFamilyName);
-        double v = (cfm == null) ? CFMetaData.DEFAULT_ROW_CACHE_SIZE : cfm.rowCacheSize;
+        double v = (cfm == null) ? CFMetaData.DEFAULT_ROW_CACHE_SIZE : cfm.getRowCacheSize();
         return (int)Math.min(FBUtilities.absoluteFromFraction(v, expectedRows), Integer.MAX_VALUE);
     }
 
@@ -967,7 +967,8 @@ public class    DatabaseDescriptor
     // process of mutating an individual keyspace, rather than setting manually here.
     public static void setTableDefinition(KSMetaData ksm, UUID newVersion)
     {
-        tables.put(ksm.name, ksm);
+        if (ksm != null)
+            tables.put(ksm.name, ksm);
         DatabaseDescriptor.defsVersion = newVersion;
     }
     

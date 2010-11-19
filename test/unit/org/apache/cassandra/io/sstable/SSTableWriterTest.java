@@ -81,6 +81,7 @@ public class SSTableWriterTest extends CleanupHelper {
         FileUtils.deleteWithConfirm(orig.descriptor.filenameFor(Component.FILTER));
 
         SSTableReader sstr = CompactionManager.instance.submitSSTableBuild(orig.descriptor).get();
+        assert sstr != null;
         ColumnFamilyStore cfs = Table.open("Keyspace1").getColumnFamilyStore("Indexed1");
         cfs.addSSTable(sstr);
         cfs.buildSecondaryIndexes(cfs.getSSTables(), cfs.getIndexedColumns());

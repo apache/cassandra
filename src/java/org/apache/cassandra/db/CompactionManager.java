@@ -28,6 +28,10 @@ import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.Lock;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -57,6 +61,8 @@ public class CompactionManager implements CompactionManagerMBean
     public static final String MBEAN_OBJECT_NAME = "org.apache.cassandra.db:type=CompactionManager";
     private static final Logger logger = LoggerFactory.getLogger(CompactionManager.class);
     public static final CompactionManager instance;
+    private final ReentrantLock compactionLock = new ReentrantLock();
+    // todo: should provide a way to unlock in mbean?
 
     static
     {
@@ -74,6 +80,11 @@ public class CompactionManager implements CompactionManagerMBean
 
     private CompactionExecutor executor = new CompactionExecutor();
     private Map<ColumnFamilyStore, Integer> estimatedCompactions = new NonBlockingHashMap<ColumnFamilyStore, Integer>();
+    
+    public Lock getCompactionLock()
+    {
+        return compactionLock;
+    }
 
     /**
      * Call this whenever a compaction might be needed on the given columnfamily.
@@ -86,27 +97,37 @@ public class CompactionManager implements CompactionManagerMBean
         {
             public Integer call() throws IOException
             {
-                Integer minThreshold = cfs.getMinimumCompactionThreshold();
-                Integer maxThreshold = cfs.getMaximumCompactionThreshold();
-
-                if (minThreshold == 0 || maxThreshold == 0)
+                compactionLock.lock();
+                try
                 {
-                    logger.debug("Compaction is currently disabled.");
-                    return 0;
-                }
-                logger.debug("Checking to see if compaction of " + cfs.columnFamily + " would be useful");
-                Set<List<SSTableReader>> buckets = getBuckets(convertSSTablesToPairs(cfs.getSSTables()), 50L * 1024L * 1024L);
-                updateEstimateFor(cfs, buckets);
-                
-                for (List<SSTableReader> sstables : buckets)
-                {
-                    if (sstables.size() >= minThreshold)
+                    if (cfs.isInvalid())
+                        return 0;
+                    Integer minThreshold = cfs.getMinimumCompactionThreshold();
+                    Integer maxThreshold = cfs.getMaximumCompactionThreshold();
+    
+                    if (minThreshold == 0 || maxThreshold == 0)
                     {
-                        // if we have too many to compact all at once, compact older ones first -- this avoids
-                        // re-compacting files we just created.
-                        Collections.sort(sstables);
-                        return doCompaction(cfs, sstables.subList(0, Math.min(sstables.size(), maxThreshold)), (int) (System.currentTimeMillis() / 1000) - cfs.metadata.gcGraceSeconds);
+                        logger.debug("Compaction is currently disabled.");
+                        return 0;
                     }
+                    logger.debug("Checking to see if compaction of " + cfs.columnFamily + " would be useful");
+                    Set<List<SSTableReader>> buckets = getBuckets(convertSSTablesToPairs(cfs.getSSTables()), 50L * 1024L * 1024L);
+                    updateEstimateFor(cfs, buckets);
+                    
+                    for (List<SSTableReader> sstables : buckets)
+                    {
+                        if (sstables.size() >= minThreshold)
+                        {
+                            // if we have too many to compact all at once, compact older ones first -- this avoids
+                            // re-compacting files we just created.
+                            Collections.sort(sstables);
+                            return doCompaction(cfs, sstables.subList(0, Math.min(sstables.size(), maxThreshold)), (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds());
+                        }
+                    }
+                }
+                finally 
+                {
+                    compactionLock.unlock();
                 }
                 return 0;
             }
@@ -143,8 +164,17 @@ public class CompactionManager implements CompactionManagerMBean
         {
             public Object call() throws IOException
             {
-                doCleanupCompaction(cfStore);
-                return this;
+                compactionLock.lock();
+                try 
+                {
+                    if (!cfStore.isInvalid())
+                        doCleanupCompaction(cfStore);
+                    return this;
+                }
+                finally 
+                {
+                    compactionLock.unlock();
+                }
             }
         };
         executor.submit(runnable).get();
@@ -152,7 +182,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public void performMajor(final ColumnFamilyStore cfStore) throws InterruptedException, ExecutionException
     {
-        submitMajor(cfStore, 0, (int) (System.currentTimeMillis() / 1000) - cfStore.metadata.gcGraceSeconds).get();
+        submitMajor(cfStore, 0, (int) (System.currentTimeMillis() / 1000) - cfStore.metadata.getGcGraceSeconds()).get();
     }
 
     public Future<Object> submitMajor(final ColumnFamilyStore cfStore, final long skip, final int gcBefore)
@@ -161,25 +191,35 @@ public class CompactionManager implements CompactionManagerMBean
         {
             public Object call() throws IOException
             {
-                Collection<SSTableReader> sstables;
-                if (skip > 0)
+                compactionLock.lock();
+                try
                 {
-                    sstables = new ArrayList<SSTableReader>();
-                    for (SSTableReader sstable : cfStore.getSSTables())
+                    if (cfStore.isInvalid())
+                        return this;
+                    Collection<SSTableReader> sstables;
+                    if (skip > 0)
                     {
-                        if (sstable.length() < skip * 1024L * 1024L * 1024L)
+                        sstables = new ArrayList<SSTableReader>();
+                        for (SSTableReader sstable : cfStore.getSSTables())
                         {
-                            sstables.add(sstable);
+                            if (sstable.length() < skip * 1024L * 1024L * 1024L)
+                            {
+                                sstables.add(sstable);
+                            }
                         }
                     }
+                    else
+                    {
+                        sstables = cfStore.getSSTables();
+                    }
+    
+                    doCompaction(cfStore, sstables, gcBefore);
+                    return this;
                 }
-                else
+                finally 
                 {
-                    sstables = cfStore.getSSTables();
+                    compactionLock.unlock();
                 }
-
-                doCompaction(cfStore, sstables, gcBefore);
-                return this;
             }
         };
         return executor.submit(callable);
@@ -191,8 +231,17 @@ public class CompactionManager implements CompactionManagerMBean
         {
             public Object call() throws IOException
             {
-                doValidationCompaction(cfStore, validator);
-                return this;
+                compactionLock.lock();
+                try
+                {
+                    if (!cfStore.isInvalid())
+                        doValidationCompaction(cfStore, validator);
+                    return this;
+                }
+                finally
+                {
+                    compactionLock.unlock();
+                }
             }
         };
         return executor.submit(callable);
@@ -338,7 +387,7 @@ public class CompactionManager implements CompactionManagerMBean
           logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
         SSTableWriter writer = null;
-        CompactionIterator ci = new AntiCompactionIterator(cfs, sstables, ranges, (int) (System.currentTimeMillis() / 1000) - cfs.metadata.gcGraceSeconds, cfs.isCompleteSSTables(sstables));
+        CompactionIterator ci = new AntiCompactionIterator(cfs, sstables, ranges, (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds(), cfs.isCompleteSSTables(sstables));
         Iterator<AbstractCompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
         executor.beginCompaction(cfs, ci);
 
@@ -488,30 +537,6 @@ public class CompactionManager implements CompactionManagerMBean
         }
         return tablePairs;
     }
-
-    public Future submitDrop(final ColumnFamilyStore... stores)
-    {
-        Callable callable = new Callable()
-        {
-            public Object call() throws IOException
-            {
-                for (ColumnFamilyStore cfs : stores)
-                {
-                    Table.flusherLock.writeLock().lock();
-                    try
-                    {
-                        cfs.table.dropCf(cfs.metadata.cfId);
-                    }
-                    finally
-                    {
-                        Table.flusherLock.writeLock().unlock();
-                    }
-                }
-                return null;
-            }
-        };
-        return executor.submit(callable);
-    }
     
     public Future submitIndexBuild(final ColumnFamilyStore cfs, final Table.IndexBuilder builder)
     {
@@ -519,22 +544,49 @@ public class CompactionManager implements CompactionManagerMBean
         {
             public void run()
             {
-                executor.beginCompaction(cfs, builder);
-                builder.build();
+                compactionLock.lock();
+                try
+                {
+                    if (cfs.isInvalid())
+                        return;
+                    executor.beginCompaction(cfs, builder);
+                    builder.build();
+                }
+                finally
+                {
+                    compactionLock.unlock();
+                }
             }
         };
-        return executor.submit(runnable);
+        
+        // don't submit to the executor if the compaction lock is held by the current thread. Instead return a simple
+        // future that will be immediately immediately get()ed and executed. Happens during a migration, which locks
+        // the compaction thread and then reinitializes a ColumnFamilyStore. Under normal circumstances, CFS spawns
+        // index jobs to the compaction manager (this) and blocks on them.
+        if (compactionLock.isHeldByCurrentThread())
+            return new SimpleFuture(runnable);
+        else
+            return executor.submit(runnable);
     }
-
+    
     public Future<SSTableReader> submitSSTableBuild(Descriptor desc)
     {
+        // invalid descriptions due to missing or dropped CFS are handled by SSTW and StreamInSession.
         final SSTableWriter.Builder builder = SSTableWriter.createBuilder(desc);
         Callable<SSTableReader> callable = new Callable<SSTableReader>()
         {
             public SSTableReader call() throws IOException
             {
-                executor.beginCompaction(builder.cfs, builder);
-                return builder.build();
+                compactionLock.lock();
+                try
+                {
+                    executor.beginCompaction(builder.cfs, builder);
+                    return builder.build();
+                }
+                finally
+                {
+                    compactionLock.unlock();
+                }
             }
         };
         return executor.submit(callable);
@@ -544,7 +596,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         public ValidationCompactionIterator(ColumnFamilyStore cfs) throws IOException
         {
-            super(cfs, cfs.getSSTables(), (int) (System.currentTimeMillis() / 1000) - cfs.metadata.gcGraceSeconds, true);
+            super(cfs, cfs.getSSTables(), (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds(), true);
         }
 
         @Override
@@ -704,5 +756,47 @@ public class CompactionManager implements CompactionManagerMBean
     public long getCompletedTasks()
     {
         return executor.getCompletedTaskCount();
+    }
+    
+    private class SimpleFuture implements Future
+    {
+        private Runnable runnable;
+        
+        private SimpleFuture(Runnable r) 
+        {
+            runnable = r;
+        }
+        
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning)
+        {
+            throw new IllegalStateException("May not call SimpleFuture.cancel()");
+        }
+
+        @Override
+        public boolean isCancelled()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean isDone()
+        {
+            return runnable == null;
+        }
+
+        @Override
+        public Object get() throws InterruptedException, ExecutionException
+        {
+            runnable.run();
+            runnable = null;
+            return runnable;
+        }
+
+        @Override
+        public Object get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException
+        {
+            throw new IllegalStateException("May not call SimpleFuture.get(long, TimeUnit)");
+        }
     }
 }

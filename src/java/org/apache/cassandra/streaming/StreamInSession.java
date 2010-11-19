@@ -136,6 +136,8 @@ public class StreamInSession
                 try
                 {
                     SSTableReader sstable = future.get();
+                    if (sstable == null)
+                        continue;
                     cfs.addSSTable(sstable);
                     sstables.add(sstable);
                 }

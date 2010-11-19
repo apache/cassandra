@@ -14,6 +14,7 @@ import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -38,84 +39,58 @@ import org.apache.cassandra.utils.UUIDGen;
 /** todo: doesn't work with secondary indices yet. See CASSANDRA-1415. */
 public class UpdateColumnFamily extends Migration
 {
-    private CFMetaData oldCfm;
-    private CFMetaData newCfm;
+    private CFMetaData metadata;
     
     protected UpdateColumnFamily() { }
     
     /** assumes validation has already happened. That is, replacing oldCfm with newCfm is neither illegal or totally whackass. */
-    public UpdateColumnFamily(CFMetaData oldCfm, CFMetaData newCfm) throws ConfigurationException, IOException
+    public UpdateColumnFamily(org.apache.cassandra.avro.CfDef cf_def) throws ConfigurationException, IOException
     {
         super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress()), DatabaseDescriptor.getDefsVersion());
         
-        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(newCfm.tableName);
+        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(cf_def.keyspace.toString());
         if (ksm == null)
             throw new ConfigurationException("Keyspace does not already exist.");
         
-        this.oldCfm = oldCfm;
-        this.newCfm = newCfm;
+        CFMetaData oldCfm = DatabaseDescriptor.getCFMetaData(CFMetaData.getId(cf_def.keyspace.toString(), cf_def.name.toString()));
+        oldCfm.apply(cf_def); 
+        this.metadata = oldCfm;
         
         // clone ksm but include the new cf def.
-        KSMetaData newKsm = makeNewKeyspaceDefinition(ksm);
-        rm = Migration.makeDefinitionMutation(newKsm, null, newVersion);
-    }
-    
-    private KSMetaData makeNewKeyspaceDefinition(KSMetaData ksm)
-    {
-        List<CFMetaData> newCfs = new ArrayList<CFMetaData>(ksm.cfMetaData().values());
-        newCfs.remove(oldCfm);
-        newCfs.add(newCfm);
-        return new KSMetaData(ksm.name, ksm.strategyClass, ksm.strategyOptions, ksm.replicationFactor, newCfs.toArray(new CFMetaData[newCfs.size()]));
+        rm = Migration.makeDefinitionMutation(ksm, null, newVersion);
     }
     
     public void beforeApplyModels()
     {
         if (clientMode)
             return;
-        ColumnFamilyStore cfs = Table.open(oldCfm.tableName).getColumnFamilyStore(oldCfm.cfName);
+        ColumnFamilyStore cfs = Table.open(metadata.tableName).getColumnFamilyStore(metadata.cfName);
         cfs.snapshot(Table.getTimestampedSnapshotName(null));
     }
 
     void applyModels() throws IOException
     {
-        logger.debug("Updating " + oldCfm + " to " + newCfm);
-        KSMetaData newKsm = makeNewKeyspaceDefinition(DatabaseDescriptor.getTableDefinition(newCfm.tableName));
-        DatabaseDescriptor.setTableDefinition(newKsm, newVersion);
-        
+        logger.debug("Updating " + metadata + " to " + metadata);
+        DatabaseDescriptor.setTableDefinition(null, newVersion);
+
         if (!clientMode)
         {
-            Table table = Table.open(oldCfm.tableName);
-            ColumnFamilyStore oldCfs = table.getColumnFamilyStore(oldCfm.cfName);
-            table.reloadCf(newCfm.cfId);
-
-            // clean up obsolete index data files
-            for (Map.Entry<ByteBuffer, ColumnDefinition> entry : oldCfm.column_metadata.entrySet())
-            {
-                ByteBuffer column = entry.getKey();
-                ColumnDefinition def = entry.getValue();
-                if (def.index_type != null
-                    && (!newCfm.column_metadata.containsKey(column) || newCfm.column_metadata.get(column).index_type == null))
-                {
-                    ColumnFamilyStore indexCfs = oldCfs.getIndexedColumnFamilyStore(column);
-                    SystemTable.setIndexRemoved(table.name, indexCfs.columnFamily);
-                    indexCfs.removeAllSSTables();
-                }
-            }
+            Table table = Table.open(metadata.tableName);
+            ColumnFamilyStore oldCfs = table.getColumnFamilyStore(metadata.cfName);
+            oldCfs.reload();
         }
     }
 
     public void subdeflate(org.apache.cassandra.db.migration.avro.Migration mi)
     {
         org.apache.cassandra.db.migration.avro.UpdateColumnFamily update = new org.apache.cassandra.db.migration.avro.UpdateColumnFamily();
-        update.newCf = newCfm.deflate();
-        update.oldCf = oldCfm.deflate();
+        update.metadata = metadata.deflate();
         mi.migration = update;
     }
 
     public void subinflate(org.apache.cassandra.db.migration.avro.Migration mi)
     {
         org.apache.cassandra.db.migration.avro.UpdateColumnFamily update = (org.apache.cassandra.db.migration.avro.UpdateColumnFamily)mi.migration;
-        newCfm = CFMetaData.inflate(update.newCf);
-        oldCfm = CFMetaData.inflate(update.oldCf);
+        metadata = CFMetaData.inflate(update.metadata);
     }
 }

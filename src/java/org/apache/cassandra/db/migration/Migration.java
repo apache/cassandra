@@ -91,6 +91,19 @@ public abstract class Migration
         this.lastVersion = lastVersion;
         clientMode = StorageService.instance.isClientMode();
     }
+    
+    // block compactions and flushing.
+    protected final void acquireLocks()
+    {
+        CompactionManager.instance.getCompactionLock().lock();
+        Table.getFlushLock().lock();
+    }
+    
+    protected final void releaseLocks()
+    {
+        Table.getFlushLock().unlock();
+        CompactionManager.instance.getCompactionLock().unlock();
+    }
 
     /** override this to perform logic before writing the migration or applying it.  defaults to nothing. */
     public void beforeApplyModels() {}

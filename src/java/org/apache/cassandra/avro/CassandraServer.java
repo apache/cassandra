@@ -694,8 +694,8 @@ public class CassandraServer implements Cassandra {
         
         try
         {
-            CFMetaData newCfm = oldCfm.apply(cf_def);
-            UpdateColumnFamily update = new UpdateColumnFamily(oldCfm, newCfm);
+            oldCfm.apply(cf_def);
+            UpdateColumnFamily update = new UpdateColumnFamily(cf_def);
             applyMigrationOnStage(update);
             return DatabaseDescriptor.getDefsVersion().toString();
         }
@@ -878,7 +878,7 @@ public class CassandraServer implements Cassandra {
         
         try
         {
-            applyMigrationOnStage(new DropColumnFamily(state().getKeyspace(), column_family.toString(), true));
+            applyMigrationOnStage(new DropColumnFamily(state().getKeyspace(), column_family.toString()));
             return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)
@@ -898,7 +898,7 @@ public class CassandraServer implements Cassandra {
         
         try
         {
-            applyMigrationOnStage(new DropKeyspace(keyspace.toString(), true));
+            applyMigrationOnStage(new DropKeyspace(keyspace.toString()));
             return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)

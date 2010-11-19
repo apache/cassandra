@@ -107,7 +107,7 @@ public class RowIteratorFactory
         // reduce rows from all sources into a single row
         ReducingIterator<IColumnIterator, Row> reduced = new ReducingIterator<IColumnIterator, Row>(collated)
         {
-            private final int gcBefore = (int) (System.currentTimeMillis() / 1000) - cfs.metadata.gcGraceSeconds;
+            private final int gcBefore = (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds();
             private final List<IColumnIterator> colIters = new ArrayList<IColumnIterator>();
             private DecoratedKey key;
 

@@ -42,13 +42,11 @@ protocol InterNode {
     record DropColumnFamily {
         string ksname;
         string cfname;
-        boolean block_on_deletion;
     }
 
     @namespace("org.apache.cassandra.db.migration.avro")
     record DropKeyspace {
         string ksname;
-        boolean block_on_deletion;
     }
 
     @namespace("org.apache.cassandra.db.migration.avro")
@@ -73,8 +71,7 @@ protocol InterNode {
     
     @namespace("org.apache.cassandra.db.migration.avro")
     record UpdateColumnFamily {
-        org.apache.cassandra.avro.CfDef oldCf;
-        org.apache.cassandra.avro.CfDef newCf;
+        org.apache.cassandra.avro.CfDef metadata;
     }
 
     @namespace("org.apache.cassandra.db.migration.avro")

@@ -42,6 +42,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnFamilyNotDefinedException;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ExpiringColumn;
@@ -728,7 +729,7 @@ public class CassandraServer implements Cassandra.Iface
         
         try
         {
-            applyMigrationOnStage(new DropColumnFamily(state().getKeyspace(), column_family, true));
+            applyMigrationOnStage(new DropColumnFamily(state().getKeyspace(), column_family));
             return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)
@@ -794,7 +795,7 @@ public class CassandraServer implements Cassandra.Iface
         
         try
         {
-            applyMigrationOnStage(new DropKeyspace(keyspace, true));
+            applyMigrationOnStage(new DropKeyspace(keyspace));
             return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)
@@ -857,8 +858,9 @@ public class CassandraServer implements Cassandra.Iface
         
         try
         {
-            CFMetaData newCfm = oldCfm.apply(cf_def);
-            UpdateColumnFamily update = new UpdateColumnFamily(oldCfm, newCfm);
+            // ideally, apply() would happen on the stage with the
+            CFMetaData.applyImplicitDefaults(cf_def);
+            UpdateColumnFamily update = new UpdateColumnFamily(CFMetaData.convertToAvro(cf_def));
             applyMigrationOnStage(update);
             return DatabaseDescriptor.getDefsVersion().toString();
         }
@@ -876,6 +878,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
+    // @see CFMetaData.applyImplicitDefaults().
     private CFMetaData convertToCFMetaData(CfDef cf_def) throws InvalidRequestException, ConfigurationException
     {
         ColumnFamilyType cfType = ColumnFamilyType.create(cf_def.column_type);
@@ -884,6 +887,7 @@ public class CassandraServer implements Cassandra.Iface
           throw new InvalidRequestException("Invalid column type " + cf_def.column_type);
         }
 
+        CFMetaData.applyImplicitDefaults(cf_def);
         CFMetaData.validateMinMaxCompactionThresholds(cf_def);
         CFMetaData.validateMemtableSettings(cf_def);
 

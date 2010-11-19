@@ -598,7 +598,7 @@ public class StorageProxy implements StorageProxyMBean
     private static boolean randomlyReadRepair(ReadCommand command)
     {
         CFMetaData cfmd = DatabaseDescriptor.getTableMetaData(command.table).get(command.getColumnFamilyName());
-        return cfmd.readRepairChance > random.nextDouble();
+        return cfmd.getReadRepairChance() > random.nextDouble();
     }
 
     public long getReadOperations()

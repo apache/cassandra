@@ -41,7 +41,6 @@ import org.apache.cassandra.thrift.ColumnOrSuperColumn;
 import org.apache.cassandra.thrift.Deletion;
 import org.apache.cassandra.thrift.Mutation;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 
 public class RowMutation
@@ -105,7 +104,7 @@ public class RowMutation
         {
             ByteBuffer combined = HintedHandOffManager.makeCombinedName(rm.getTable(), cf.metadata().cfName);
             QueryPath path = new QueryPath(HintedHandOffManager.HINTS_CF, rm.key(), combined);
-            add(path, FBUtilities.EMPTY_BYTE_BUFFER, System.currentTimeMillis(), cf.metadata().gcGraceSeconds);
+            add(path, FBUtilities.EMPTY_BYTE_BUFFER, System.currentTimeMillis(), cf.metadata().getGcGraceSeconds());
         }
     }
 

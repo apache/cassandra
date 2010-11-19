@@ -464,7 +464,7 @@ public class CommitLog
             }
 
             header.turnOff(id);
-            if (header.isSafeToDelete())
+            if (header.isSafeToDelete() && iter.hasNext())
             {
                 logger.info("Discarding obsolete commit log:" + segment);
                 segment.close();
