@@ -647,7 +647,7 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     public static List<Row> scan(String keyspace, String column_family, IndexClause index_clause, SlicePredicate column_predicate, ConsistencyLevel consistency_level)
-    throws IOException, TimeoutException
+    throws IOException, TimeoutException, UnavailableException
     {
         IPartitioner p = StorageService.getPartitioner();
 
@@ -666,7 +666,11 @@ public class StorageProxy implements StorageProxyMBean
             RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(keyspace, liveEndpoints);
             AbstractReplicationStrategy rs = Table.open(keyspace).replicationStrategy;
             QuorumResponseHandler<List<Row>> handler = rs.getQuorumResponseHandler(resolver, consistency_level);
-            // TODO bail early if live endpoints can't satisfy requested consistency level
+            
+            // bail early if live endpoints can't satisfy requested consistency level
+            if(handler.blockfor > liveEndpoints.size())
+                throw new UnavailableException();
+            
             IndexScanCommand command = new IndexScanCommand(keyspace, column_family, index_clause, column_predicate, range);
             Message message = command.getMessage();
             for (InetAddress endpoint : liveEndpoints)
