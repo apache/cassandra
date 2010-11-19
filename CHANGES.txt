@@ -8,6 +8,9 @@ dev
  * limit repaired ranges to what the nodes have in common (CASSANDRA-1674)
  * index scan treats missing columns as not matching secondary
    expressions (CASSANDRA-1745)
+ * Fix misuse of DataOutputBuffer.getData in AntiEntropyService
+   (CASSANDRA-1729)
+ * detect and warn when obsolete version of JNA is present (CASSANDRA-1770)
  * Update windows .bat files to work outside of main Cassandra
    directory (CASSANDRA-1713)
  * log threshold causing memtable flush (CASSANDRA-1675)
