@@ -77,7 +77,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
-            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.db:type=DynamicEndpointSnitch"));
+            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.db:type=DynamicEndpointSnitch,instance="+hashCode()));
         }
         catch (Exception e)
         {
@@ -178,6 +178,8 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
 
     private void updateScores() // this is expensive
     {
+        if (!StorageService.instance.isInitialized()) 
+            return;
         if (!registered)
         {
        	    ILatencyPublisher handler = (ILatencyPublisher)MessagingService.instance.getVerbHandler(StorageService.Verb.REQUEST_RESPONSE);

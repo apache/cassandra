@@ -21,6 +21,7 @@ disk_access_mode: mmap
 seeds:
     - 127.0.0.2
 endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
+dynamic_snitch: true
 request_scheduler: org.apache.cassandra.scheduler.RoundRobinScheduler
 request_scheduler_id: keyspace
 keyspaces:

@@ -41,6 +41,7 @@ dev
  * fix sstableimport regression (CASSANDRA-1753)
  * fix for bootstrap when no non-system tables are defined (CASSANDRA-1732)
  * handle replica unavailability in index scan (CASSANDRA-1755)
+ * fix service initialization order deadlock (CASSANDRA-1756)
 
 
 0.7.0-beta3

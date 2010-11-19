@@ -196,11 +196,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     }};
 
 
+    public static final RetryingScheduledThreadPoolExecutor scheduledTasks = new RetryingScheduledThreadPoolExecutor("ScheduledTasks");
+
     private static IPartitioner partitioner_ = DatabaseDescriptor.getPartitioner();
     public static VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner_);
-
-    public static RetryingScheduledThreadPoolExecutor scheduledTasks = new RetryingScheduledThreadPoolExecutor("ScheduledTasks");
-
+    
     public static final StorageService instance = new StorageService();
 
     public static IPartitioner getPartitioner() {
@@ -308,6 +308,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.stop();
         MessagingService.shutdown();
         StageManager.shutdownNow();
+    }
+    
+    public boolean isInitialized() 
+    { 
+        return initialized; 
     }
 
     public synchronized void initClient() throws IOException
