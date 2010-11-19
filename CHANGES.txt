@@ -39,6 +39,7 @@ dev
  * truncate includes secondary indexes (CASSANDRA-1747)
  * retain reference to PendingFile sstables (CASSANDRA-1749)
  * fix sstableimport regression (CASSANDRA-1753)
+ * fix for bootstrap when no non-system tables are defined (CASSANDRA-1732)
 
 
 0.7.0-beta3

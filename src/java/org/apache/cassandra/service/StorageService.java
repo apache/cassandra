@@ -417,7 +417,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             {
                 isBootstrapMode = false;
                 SystemTable.setBootstrapped(true);
-                tokenMetadata_.updateNormalToken(token, FBUtilities.getLocalAddress());
+                setToken(token);
                 Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.normal(token));
                 setMode("Normal", false);
             }
