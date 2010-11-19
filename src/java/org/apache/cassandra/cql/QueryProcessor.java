@@ -173,7 +173,7 @@ public class QueryProcessor
     }
     
     private static List<org.apache.cassandra.db.Row> getIndexedSlices(String keyspace, SelectStatement select)
-    throws TimedOutException
+    throws TimedOutException, UnavailableException
     {
         // XXX: Our use of Thrift structs internally (still) makes me Sad. :~(
         SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select);
@@ -197,6 +197,14 @@ public class QueryProcessor
                                      thriftIndexClause,
                                      thriftSlicePredicate,
                                      select.getConsistencyLevel());
+        }
+        catch (org.apache.cassandra.thrift.UnavailableException ex) 
+        {
+            UnavailableException avroEx = new UnavailableException();
+            avroEx.why = ex.getMessage();
+            if (avroEx.why == null || avroEx.why.length() == 0)
+                avroEx.why = "StorageProxy.scan() failed because of insufficent responses.";
+            throw avroEx;
         }
         catch (IOException e)
         {
