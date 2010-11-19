@@ -121,7 +121,7 @@ public class CompactionManager implements CompactionManagerMBean
                             // if we have too many to compact all at once, compact older ones first -- this avoids
                             // re-compacting files we just created.
                             Collections.sort(sstables);
-                            return doCompaction(cfs, sstables.subList(0, Math.min(sstables.size(), maxThreshold)), (int) (System.currentTimeMillis() / 1000) - cfs.metadata.gcGraceSeconds);
+                            return doCompaction(cfs, sstables.subList(0, Math.min(sstables.size(), maxThreshold)), (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds());
                         }
                     }
                 }
@@ -182,7 +182,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public void performMajor(final ColumnFamilyStore cfStore) throws InterruptedException, ExecutionException
     {
-        submitMajor(cfStore, 0, (int) (System.currentTimeMillis() / 1000) - cfStore.metadata.gcGraceSeconds).get();
+        submitMajor(cfStore, 0, (int) (System.currentTimeMillis() / 1000) - cfStore.metadata.getGcGraceSeconds()).get();
     }
 
     public Future<Object> submitMajor(final ColumnFamilyStore cfStore, final long skip, final int gcBefore)
@@ -387,7 +387,7 @@ public class CompactionManager implements CompactionManagerMBean
           logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
         SSTableWriter writer = null;
-        CompactionIterator ci = new AntiCompactionIterator(cfs, sstables, ranges, (int) (System.currentTimeMillis() / 1000) - cfs.metadata.gcGraceSeconds, cfs.isCompleteSSTables(sstables));
+        CompactionIterator ci = new AntiCompactionIterator(cfs, sstables, ranges, (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds(), cfs.isCompleteSSTables(sstables));
         Iterator<AbstractCompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
         executor.beginCompaction(cfs, ci);
 
@@ -596,7 +596,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         public ValidationCompactionIterator(ColumnFamilyStore cfs) throws IOException
         {
-            super(cfs, cfs.getSSTables(), (int) (System.currentTimeMillis() / 1000) - cfs.metadata.gcGraceSeconds, true);
+            super(cfs, cfs.getSSTables(), (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds(), true);
         }
 
         @Override

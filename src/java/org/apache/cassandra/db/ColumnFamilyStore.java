@@ -161,15 +161,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         
         // only update these runtime-modifiable settings if they have not been modified.
         if (!minCompactionThreshold.isModified())
-            minCompactionThreshold = new DefaultInteger(metadata.minCompactionThreshold);
+            minCompactionThreshold = new DefaultInteger(metadata.getMinCompactionThreshold());
         if (!maxCompactionThreshold.isModified())
-            maxCompactionThreshold = new DefaultInteger(metadata.maxCompactionThreshold);
+            maxCompactionThreshold = new DefaultInteger(metadata.getMaxCompactionThreshold());
         if (!memtime.isModified())
-            memtime = new DefaultInteger(metadata.memtableFlushAfterMins);
+            memtime = new DefaultInteger(metadata.getMemtableFlushAfterMins());
         if (!memsize.isModified())
-            memsize = new DefaultInteger(metadata.memtableThroughputInMb);
+            memsize = new DefaultInteger(metadata.getMemtableThroughputInMb());
         if (!memops.isModified())
-            memops = new DefaultDouble(metadata.memtableOperationsInMillions);
+            memops = new DefaultDouble(metadata.getMemtableOperationsInMillions());
         
         // reset the memtable with new settings.
         try
@@ -190,7 +190,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // drop indexes no longer needed
         Set<ByteBuffer> indexesToDrop = new HashSet<ByteBuffer>();
         for (ByteBuffer indexName : indexedColumns.keySet())
-               if (!metadata.column_metadata.containsKey(indexName))
+               if (!metadata.getColumn_metadata().containsKey(indexName))
                    indexesToDrop.add(indexName);
         for (ByteBuffer indexName : indexesToDrop)
         {
@@ -204,7 +204,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // so don't bother with them.
         
         // add indexes that are new
-        for (Map.Entry<ByteBuffer, ColumnDefinition> entry : metadata.column_metadata.entrySet())
+        for (Map.Entry<ByteBuffer, ColumnDefinition> entry : metadata.getColumn_metadata().entrySet())
             if (!indexedColumns.containsKey(entry.getKey()) && entry.getValue().index_type != null)
                 addIndex(entry.getValue());
     }
@@ -215,11 +215,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         this.table = table;
         columnFamily = columnFamilyName; 
         this.metadata = metadata;
-        this.minCompactionThreshold = new DefaultInteger(metadata.minCompactionThreshold);
-        this.maxCompactionThreshold = new DefaultInteger(metadata.maxCompactionThreshold);
-        this.memtime = new DefaultInteger(metadata.memtableFlushAfterMins);
-        this.memsize = new DefaultInteger(metadata.memtableThroughputInMb);
-        this.memops = new DefaultDouble(metadata.memtableOperationsInMillions);
+        this.minCompactionThreshold = new DefaultInteger(metadata.getMinCompactionThreshold());
+        this.maxCompactionThreshold = new DefaultInteger(metadata.getMaxCompactionThreshold());
+        this.memtime = new DefaultInteger(metadata.getMemtableFlushAfterMins());
+        this.memsize = new DefaultInteger(metadata.getMemtableThroughputInMb());
+        this.memops = new DefaultDouble(metadata.getMemtableOperationsInMillions());
         this.partitioner = partitioner;
         fileIndexGenerator.set(generation);
         memtable = new Memtable(this);
@@ -256,7 +256,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         // create the private ColumnFamilyStores for the secondary column indexes
         indexedColumns = new ConcurrentSkipListMap<ByteBuffer, ColumnFamilyStore>(getComparator());
-        for (ColumnDefinition info : metadata.column_metadata.values())
+        for (ColumnDefinition info : metadata.getColumn_metadata().values())
         {
             if (info.index_type != null)
                 addIndex(info);
@@ -319,7 +319,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         final CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(table.name, columnFamily, info, columnComparator);
         ColumnFamilyStore indexedCfs = ColumnFamilyStore.createColumnFamilyStore(table,
                                                                                  indexedCfMetadata.cfName,
-                                                                                 new LocalPartitioner(metadata.column_metadata.get(info.name).validator),
+                                                                                 new LocalPartitioner(metadata.getColumn_metadata().get(info.name).validator),
                                                                                  indexedCfMetadata);
         // record that the column is supposed to be indexed, before we start building it
         // (so we don't omit indexing writes that happen during build process)
@@ -503,8 +503,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public void initRowCache()
     {
         String msgSuffix = String.format(" row cache for %s of %s", columnFamily, table.name);
-        int rowCacheSavePeriodInSeconds = DatabaseDescriptor.getTableMetaData(table.name).get(columnFamily).rowCacheSavePeriodInSeconds;
-        int keyCacheSavePeriodInSeconds = DatabaseDescriptor.getTableMetaData(table.name).get(columnFamily).keyCacheSavePeriodInSeconds;
+        int rowCacheSavePeriodInSeconds = DatabaseDescriptor.getTableMetaData(table.name).get(columnFamily).getRowCacheSavePeriodInSeconds();
+        int keyCacheSavePeriodInSeconds = DatabaseDescriptor.getTableMetaData(table.name).get(columnFamily).getKeyCacheSavePeriodInSeconds();
 
         long start = System.currentTimeMillis();
         logger.info(String.format("loading%s", msgSuffix));
@@ -1068,7 +1068,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public int gcBefore()
     {
-        return (int) (System.currentTimeMillis() / 1000) - metadata.gcGraceSeconds;
+        return (int) (System.currentTimeMillis() / 1000) - metadata.getGcGraceSeconds();
     }
 
     private ColumnFamily cacheRow(DecoratedKey key)
@@ -1274,7 +1274,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Iterables.addAll(sstables, ssTables);
 
         RowIterator iterator = RowIteratorFactory.getIterator(memtables, sstables, startWith, stopAt, filter, getComparator(), this);
-        int gcBefore = (int)(System.currentTimeMillis() / 1000) - metadata.gcGraceSeconds;
+        int gcBefore = (int)(System.currentTimeMillis() / 1000) - metadata.getGcGraceSeconds();
 
         try
         {

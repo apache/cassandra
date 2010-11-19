@@ -552,12 +552,12 @@ public class DefsTest extends CleanupHelper
         cf_def.setKeyspace(cf.tableName);
         cf_def.setName(cf.cfName);
         cf_def.setColumn_type(cf.cfType.name());
-        cf_def.setComment(cf.comment);
+        cf_def.setComment(cf.getComment());
         cf_def.setComparator_type(cf.comparator.getClass().getName());
         cf_def.setSubcomparator_type(null);
-        cf_def.setGc_grace_seconds(cf.gcGraceSeconds);
-        cf_def.setKey_cache_size(cf.keyCacheSize);
-        cf_def.setRead_repair_chance(cf.readRepairChance);
+        cf_def.setGc_grace_seconds(cf.getGcGraceSeconds());
+        cf_def.setKey_cache_size(cf.getKeyCacheSize());
+        cf_def.setRead_repair_chance(cf.getReadRepairChance());
         cf_def.setRow_cache_size(43.3);
         cf_def.setColumn_metadata(new ArrayList<ColumnDef>());
         cf_def.setDefault_validation_class("BytesType");
@@ -608,12 +608,12 @@ public class DefsTest extends CleanupHelper
         // can't test changing the reconciler because there is only one impl.
         
         // check the cumulative affect.
-        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).comment.equals(cf_def.comment);
-        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).rowCacheSize == cf_def.row_cache_size;
-        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).keyCacheSize == cf_def.key_cache_size;
-        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).readRepairChance == cf_def.read_repair_chance;
-        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).gcGraceSeconds == cf_def.gc_grace_seconds;
-        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).defaultValidator == UTF8Type.instance;
+        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).getComment().equals(cf_def.comment);
+        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).getRowCacheSize() == cf_def.row_cache_size;
+        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).getKeyCacheSize() == cf_def.key_cache_size;
+        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).getReadRepairChance() == cf_def.read_repair_chance;
+        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).getGcGraceSeconds() == cf_def.gc_grace_seconds;
+        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).getDefaultValidator() == UTF8Type.instance;
         
         // make sure some invalid operations fail.
         int oldId = cf_def.id;

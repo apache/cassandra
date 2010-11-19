@@ -312,7 +312,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.apply();
 
         ColumnFamilyStore cfs = table.getColumnFamilyStore("Indexed2");
-        ColumnDefinition old = cfs.metadata.column_metadata.get(ByteBufferUtil.bytes("birthdate"));
+        ColumnDefinition old = cfs.metadata.getColumn_metadata().get(ByteBufferUtil.bytes("birthdate"));
         ColumnDefinition cd = new ColumnDefinition(old.name, old.validator.getClass().getName(), IndexType.KEYS, "birthdate_index");
         cfs.addIndex(cd);
         while (!SystemTable.isIndexBuilt("Keyspace1", cfs.getIndexedColumnFamilyStore(ByteBufferUtil.bytes("birthdate")).columnFamily))

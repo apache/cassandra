@@ -945,7 +945,7 @@ public class    DatabaseDescriptor
     public static int getKeysCachedFor(String tableName, String columnFamilyName, long expectedKeys)
     {
         CFMetaData cfm = getCFMetaData(tableName, columnFamilyName);
-        double v = (cfm == null) ? CFMetaData.DEFAULT_KEY_CACHE_SIZE : cfm.keyCacheSize;
+        double v = (cfm == null) ? CFMetaData.DEFAULT_KEY_CACHE_SIZE : cfm.getKeyCacheSize();
         return (int)Math.min(FBUtilities.absoluteFromFraction(v, expectedKeys), Integer.MAX_VALUE);
     }
 
@@ -955,7 +955,7 @@ public class    DatabaseDescriptor
     public static int getRowsCachedFor(String tableName, String columnFamilyName, long expectedRows)
     {
         CFMetaData cfm = getCFMetaData(tableName, columnFamilyName);
-        double v = (cfm == null) ? CFMetaData.DEFAULT_ROW_CACHE_SIZE : cfm.rowCacheSize;
+        double v = (cfm == null) ? CFMetaData.DEFAULT_ROW_CACHE_SIZE : cfm.getRowCacheSize();
         return (int)Math.min(FBUtilities.absoluteFromFraction(v, expectedRows), Integer.MAX_VALUE);
     }
 

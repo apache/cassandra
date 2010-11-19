@@ -1982,17 +1982,17 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 RawColumnFamily rcf = new RawColumnFamily();
                 rcf.name = cfm.cfName;
                 rcf.compare_with = cfm.comparator.getClass().getName();
-                rcf.default_validation_class = cfm.defaultValidator.getClass().getName();
+                rcf.default_validation_class = cfm.getDefaultValidator().getClass().getName();
                 rcf.compare_subcolumns_with = cfm.subcolumnComparator == null ? null : cfm.subcolumnComparator.getClass().getName();
                 rcf.column_type = cfm.cfType;
-                rcf.comment = cfm.comment;
-                rcf.keys_cached = cfm.keyCacheSize;
-                rcf.read_repair_chance = cfm.readRepairChance;
-                rcf.gc_grace_seconds = cfm.gcGraceSeconds;
-                rcf.rows_cached = cfm.rowCacheSize;
-                rcf.column_metadata = new RawColumnDefinition[cfm.column_metadata.size()];
+                rcf.comment = cfm.getComment();
+                rcf.keys_cached = cfm.getKeyCacheSize();
+                rcf.read_repair_chance = cfm.getReadRepairChance();
+                rcf.gc_grace_seconds = cfm.getGcGraceSeconds();
+                rcf.rows_cached = cfm.getRowCacheSize();
+                rcf.column_metadata = new RawColumnDefinition[cfm.getColumn_metadata().size()];
                 int j = 0;
-                for (ColumnDefinition cd : cfm.column_metadata.values())
+                for (ColumnDefinition cd : cfm.getColumn_metadata().values())
                 {
                     RawColumnDefinition rcd = new RawColumnDefinition();
                     rcd.index_name = cd.index_name;

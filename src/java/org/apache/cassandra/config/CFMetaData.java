@@ -147,22 +147,22 @@ public final class CFMetaData
     public final AbstractType subcolumnComparator;    // like comparator, for supercolumns
 
     //OPTIONAL
-    public final String comment;                      // default none, for humans only
-    public final double rowCacheSize;                 // default 0
-    public final double keyCacheSize;                 // default 0.01
-    public final double readRepairChance;             // default 1.0 (always), chance [0.0,1.0] of read repair
-    public final int gcGraceSeconds;                  // default 864000 (ten days)
-    public final AbstractType defaultValidator;       // default none, use comparator types
-    public final Integer minCompactionThreshold;      // default 4
-    public final Integer maxCompactionThreshold;      // default 32
-    public final int rowCacheSavePeriodInSeconds;     // default 0 (off)
-    public final int keyCacheSavePeriodInSeconds;     // default 3600 (1 hour)
-    public final int memtableFlushAfterMins;          // default 60 
-    public final int memtableThroughputInMb;          // default based on heap size
-    public final double memtableOperationsInMillions; // default based on throughput
+    private String comment;                           // default none, for humans only
+    private double rowCacheSize;                      // default 0
+    private double keyCacheSize;                      // default 0.01
+    private double readRepairChance;                  // default 1.0 (always), chance [0.0,1.0] of read repair
+    private int gcGraceSeconds;                       // default 864000 (ten days)
+    private AbstractType defaultValidator;            // default none, use comparator types
+    private Integer minCompactionThreshold;           // default 4
+    private Integer maxCompactionThreshold;           // default 32
+    private int rowCacheSavePeriodInSeconds;          // default 0 (off)
+    private int keyCacheSavePeriodInSeconds;          // default 3600 (1 hour)
+    private int memtableFlushAfterMins;               // default 60 
+    private int memtableThroughputInMb;               // default based on heap size
+    private double memtableOperationsInMillions;      // default based on throughput
     // NOTE: if you find yourself adding members to this class, make sure you keep the convert methods in lockstep.
 
-    public final Map<ByteBuffer, ColumnDefinition> column_metadata;
+    private final Map<ByteBuffer, ColumnDefinition> column_metadata;
 
     private CFMetaData(String tableName,
                        String cfName,
@@ -436,7 +436,77 @@ public final class CFMetaData
                               cf.id,
                               column_metadata);
     }
+    
+    public String getComment()
+    {
+        return comment;
+    }
+    
+    public double getRowCacheSize()
+    {
+        return rowCacheSize;
+    }
+    
+    public double getKeyCacheSize()
+    {
+        return keyCacheSize;
+    }
+    
+    public double getReadRepairChance()
+    {
+        return readRepairChance;
+    }
+    
+    public int getGcGraceSeconds()
+    {
+        return gcGraceSeconds;
+    }
 
+    public AbstractType getDefaultValidator()
+    {
+        return defaultValidator;
+    }
+
+    public Integer getMinCompactionThreshold()
+    {
+        return minCompactionThreshold;
+    }
+
+    public Integer getMaxCompactionThreshold()
+    {
+        return maxCompactionThreshold;
+    }
+
+    public int getRowCacheSavePeriodInSeconds()
+    {
+        return rowCacheSavePeriodInSeconds;
+    }
+
+    public int getKeyCacheSavePeriodInSeconds()
+    {
+        return keyCacheSavePeriodInSeconds;
+    }
+
+    public int getMemtableFlushAfterMins()
+    {
+        return memtableFlushAfterMins;
+    }
+
+    public int getMemtableThroughputInMb()
+    {
+        return memtableThroughputInMb;
+    }
+
+    public double getMemtableOperationsInMillions()
+    {
+        return memtableOperationsInMillions;
+    }
+
+    public Map<ByteBuffer, ColumnDefinition> getColumn_metadata()
+    {
+        return Collections.unmodifiableMap(column_metadata);
+    }
+    
     public boolean equals(Object obj) 
     {
         if (obj == this)
