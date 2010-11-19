@@ -259,6 +259,8 @@ public class SSTableWriter extends SSTable
 
         public SSTableReader build() throws IOException
         {
+            if (cfs.isInvalid())
+                return null;
             File ifile = new File(desc.filenameFor(SSTable.COMPONENT_INDEX));
             File ffile = new File(desc.filenameFor(SSTable.COMPONENT_FILTER));
             assert !ifile.exists();

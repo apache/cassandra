@@ -103,6 +103,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public final String columnFamily;
     public final IPartitioner partitioner;
     private final String mbeanName;
+    private boolean invalid = false;
 
     private volatile int memtableSwitchCount = 0;
 
@@ -309,12 +310,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    // called when dropping or renaming a CF. Performs mbean housekeeping.
+    // called when dropping or renaming a CF. Performs mbean housekeeping and invalidates CFS to other operations.
     void unregisterMBean()
     {
         try
         {
-            
+            invalid = true;   
             MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
             ObjectName nameObj = new ObjectName(mbeanName);
             if (mbs.isRegistered(nameObj))
@@ -854,6 +855,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     void replaceCompactedSSTables(Collection<SSTableReader> sstables, Iterable<SSTableReader> replacements)
     {
         ssTables.replace(sstables, replacements);
+    }
+    
+    public boolean isInvalid()
+    {
+        return invalid;
     }
 
     public void removeAllSSTables()

@@ -100,6 +100,8 @@ public class CompactionManager implements CompactionManagerMBean
                 compactionLock.lock();
                 try
                 {
+                    if (cfs.isInvalid())
+                        return 0;
                     Integer minThreshold = cfs.getMinimumCompactionThreshold();
                     Integer maxThreshold = cfs.getMaximumCompactionThreshold();
     
@@ -165,7 +167,8 @@ public class CompactionManager implements CompactionManagerMBean
                 compactionLock.lock();
                 try 
                 {
-                    doCleanupCompaction(cfStore);
+                    if (!cfStore.isInvalid())
+                        doCleanupCompaction(cfStore);
                     return this;
                 }
                 finally 
@@ -191,6 +194,8 @@ public class CompactionManager implements CompactionManagerMBean
                 compactionLock.lock();
                 try
                 {
+                    if (cfStore.isInvalid())
+                        return this;
                     Collection<SSTableReader> sstables;
                     if (skip > 0)
                     {
@@ -229,7 +234,8 @@ public class CompactionManager implements CompactionManagerMBean
                 compactionLock.lock();
                 try
                 {
-                    doValidationCompaction(cfStore, validator);
+                    if (!cfStore.isInvalid())
+                        doValidationCompaction(cfStore, validator);
                     return this;
                 }
                 finally
@@ -541,6 +547,8 @@ public class CompactionManager implements CompactionManagerMBean
                 compactionLock.lock();
                 try
                 {
+                    if (cfs.isInvalid())
+                        return;
                     executor.beginCompaction(cfs, builder);
                     builder.build();
                 }
@@ -563,6 +571,7 @@ public class CompactionManager implements CompactionManagerMBean
     
     public Future<SSTableReader> submitSSTableBuild(Descriptor desc)
     {
+        // invalid descriptions due to missing or dropped CFS are handled by SSTW and StreamInSession.
         final SSTableWriter.Builder builder = SSTableWriter.createBuilder(desc);
         Callable<SSTableReader> callable = new Callable<SSTableReader>()
         {
