@@ -548,46 +548,36 @@ public class DefsTest extends CleanupHelper
         assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName) != null;
         
         // updating certain fields should fail.
-        CfDef cf_def = new CfDef();
-        cf_def.setId(cf.cfId);
-        cf_def.setKeyspace(cf.tableName);
-        cf_def.setName(cf.cfName);
-        cf_def.setColumn_type(cf.cfType.name());
-        cf_def.setComment(cf.getComment());
-        cf_def.setComparator_type(cf.comparator.getClass().getName());
-        cf_def.setSubcomparator_type(null);
-        cf_def.setGc_grace_seconds(cf.getGcGraceSeconds());
-        cf_def.setKey_cache_size(cf.getKeyCacheSize());
-        cf_def.setRead_repair_chance(cf.getReadRepairChance());
-        cf_def.setRow_cache_size(43.3);
-        cf_def.setColumn_metadata(new ArrayList<ColumnDef>());
-        cf_def.setDefault_validation_class("BytesType");
-        cf_def.setMin_compaction_threshold(5);
-        cf_def.setMax_compaction_threshold(31);
+        org.apache.cassandra.avro.CfDef cf_def = CFMetaData.convertToAvro(cf);
+        cf_def.row_cache_size = 43.3;
+        cf_def.column_metadata = new ArrayList<org.apache.cassandra.avro.ColumnDef>();
+        cf_def.default_validation_class ="BytesType";
+        cf_def.min_compaction_threshold = 5;
+        cf_def.max_compaction_threshold = 31;
         
         // test valid operations.
-        cf_def.setComment("Modified comment");
+        cf_def.comment = "Modified comment";
         new UpdateColumnFamily(cf_def).apply(); // doesn't get set back here.
         
-        cf_def.setRow_cache_size(2d);
+        cf_def.row_cache_size = 2d;
         new UpdateColumnFamily(cf_def).apply();
         
-        cf_def.setKey_cache_size(3d);
+        cf_def.key_cache_size = 3d;
         new UpdateColumnFamily(cf_def).apply();
         
-        cf_def.setRead_repair_chance(0.23);
+        cf_def.read_repair_chance = 0.23;
         new UpdateColumnFamily(cf_def).apply();
         
-        cf_def.setGc_grace_seconds(12);
+        cf_def.gc_grace_seconds = 12;
         new UpdateColumnFamily(cf_def).apply();
         
-        cf_def.setDefault_validation_class("UTF8Type");
+        cf_def.default_validation_class = "UTF8Type";
         new UpdateColumnFamily(cf_def).apply();
 
-        cf_def.setMin_compaction_threshold(3);
+        cf_def.min_compaction_threshold = 3;
         new UpdateColumnFamily(cf_def).apply();
 
-        cf_def.setMax_compaction_threshold(33);
+        cf_def.max_compaction_threshold = 33;
         new UpdateColumnFamily(cf_def).apply();
 
         // can't test changing the reconciler because there is only one impl.
@@ -605,82 +595,82 @@ public class DefsTest extends CleanupHelper
         int oldId = cf_def.id;
         try
         {
-            cf_def.setId(cf_def.getId() + 1);
+            cf_def.id++;
             cf.apply(cf_def);
             throw new AssertionError("Should have blown up when you used a different id.");
         }
         catch (ConfigurationException expected) 
         {
-            cf_def.setId(oldId);    
+            cf_def.id = oldId;    
         }
         
-        String oldStr = cf_def.getName();
+        CharSequence oldStr = cf_def.name;
         try
         {
-            cf_def.setName(cf_def.getName() + "_renamed");
+            cf_def.name = cf_def.name + "_renamed";
             cf.apply(cf_def);
             throw new AssertionError("Should have blown up when you used a different name.");
         }
         catch (ConfigurationException expected)
         {
-            cf_def.setName(oldStr);
+            cf_def.name = oldStr;
         }
         
-        oldStr = cf_def.getKeyspace();
+        oldStr = cf_def.keyspace;
         try
         {
-            cf_def.setKeyspace(oldStr + "_renamed");
+            cf_def.keyspace = oldStr + "_renamed";
             cf.apply(cf_def);
             throw new AssertionError("Should have blown up when you used a different keyspace.");
         }
         catch (ConfigurationException expected)
         {
-            cf_def.setKeyspace(oldStr);
+            cf_def.keyspace = oldStr;
         }
         
         try
         {
-            cf_def.setColumn_type(ColumnFamilyType.Super.name());
+            cf_def.column_type = ColumnFamilyType.Super.name();
             cf.apply(cf_def);
             throw new AssertionError("Should have blwon up when you used a different cf type.");
         }
         catch (ConfigurationException expected)
         {
-            cf_def.setColumn_type(ColumnFamilyType.Standard.name());
+            cf_def.column_type = ColumnFamilyType.Standard.name();
         }
         
-        oldStr = cf_def.getComparator_type();
+        oldStr = cf_def.comparator_type;
         try 
         {
-            cf_def.setComparator_type(BytesType.class.getSimpleName());
+            cf_def.comparator_type = BytesType.class.getSimpleName();
             cf.apply(cf_def);
             throw new AssertionError("Should have blown up when you used a different comparator.");
         }
         catch (ConfigurationException expected)
         {
-            cf_def.setComparator_type(UTF8Type.class.getSimpleName());
+            cf_def.comparator_type = UTF8Type.class.getSimpleName();
         }
 
         try
         {
-            cf_def.setMin_compaction_threshold(34);
+            cf_def.min_compaction_threshold = 34;
             cf.apply(cf_def);
             throw new AssertionError("Should have blown up when min > max.");
         }
         catch (ConfigurationException expected)
         {
-            cf_def.setMin_compaction_threshold(3);
+            cf_def.min_compaction_threshold = 3;
         }
 
         try
         {
-            cf_def.setMax_compaction_threshold(2);
+            cf_def.max_compaction_threshold = 2;
             cf.apply(cf_def);
             throw new AssertionError("Should have blown up when max > min.");
         }
         catch (ConfigurationException expected)
         {
-            cf_def.setMax_compaction_threshold(33);
+            cf_def.max_compaction_threshold = 33;
         }
     }
 
@@ -706,5 +696,4 @@ public class DefsTest extends CleanupHelper
                               CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS,
                               Collections.<ByteBuffer, ColumnDefinition>emptyMap());
     }
-
 }

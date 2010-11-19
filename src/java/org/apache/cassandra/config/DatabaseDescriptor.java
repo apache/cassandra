@@ -645,12 +645,12 @@ public class    DatabaseDescriptor
         return conf.thrift_framed_transport_size_in_mb * 1024 * 1024;
     }
 
-    public static AbstractType getComparator(String compareWith) throws ConfigurationException
+    public static AbstractType getComparator(CharSequence compareWith) throws ConfigurationException
     {
         if (compareWith == null)
             compareWith = "BytesType";
 
-        return FBUtilities.getComparator(compareWith);
+        return FBUtilities.getComparator(compareWith.toString());
     }
 
     /**
