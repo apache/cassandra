@@ -2058,4 +2058,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         logger_.debug("cache saves completed");
     }
 
+    public Map<Token, Float> getOwnership()
+    {
+        List<Token> sortedTokens = new ArrayList<Token>(getTokenToEndpointMap().keySet());
+        Collections.sort(sortedTokens);
+        return partitioner_.describeOwnership(sortedTokens);
+    }
+
 }

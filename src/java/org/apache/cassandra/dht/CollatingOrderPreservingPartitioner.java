@@ -21,7 +21,10 @@ package org.apache.cassandra.dht;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.text.Collator;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -45,4 +48,6 @@ public class CollatingOrderPreservingPartitioner extends AbstractByteOrderedPart
         }
         return new BytesToken(ByteBuffer.wrap(collator.getCollationKey(skey).toByteArray()));
     }
+
+    public Map<Token, Float> describeOwnership(List<Token> sortedTokens){ throw new UnsupportedOperationException(); }
 }

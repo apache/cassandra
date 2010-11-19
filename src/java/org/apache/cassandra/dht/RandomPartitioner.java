@@ -20,9 +20,10 @@ package org.apache.cassandra.dht;
 
 import static com.google.common.base.Charsets.UTF_8;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
+import java.util.*;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.FBUtilities;
@@ -126,5 +127,37 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
         if (key.remaining() == 0)
             return MINIMUM;
         return new BigIntegerToken(FBUtilities.md5hash(key));
+    }
+
+    public Map<Token, Float> describeOwnership(List<Token> sortedTokens)
+    {
+        Map<Token, Float> ownerships = new HashMap<Token, Float>();
+        Iterator i = sortedTokens.iterator();
+
+        // 0-case
+        if (!i.hasNext()) { throw new RuntimeException("No nodes present in the cluster. How did you call this?"); }
+        // 1-case
+        if (sortedTokens.size() == 1) {
+            ownerships.put((Token)i.next(), new Float(1.0));
+        }
+        // n-case
+        else {
+            // NOTE: All divisions must take place in BigDecimals, and all modulo operators must take place in BigIntegers.
+            final BigInteger ri = new BigInteger("2").pow(127);                             //  (used for addition later)
+            final BigDecimal r  = new BigDecimal(ri);                                       // The entire range, 2**127
+            Token start = (Token)i.next(); BigInteger ti = ((BigIntegerToken)start).token;  // The first token and its value
+            Token t; BigInteger tim1 = ti;                                                  // The last token and its value (after loop)
+            while (i.hasNext()) {
+                t = (Token)i.next(); ti = ((BigIntegerToken)t).token;                       // The next token and its value
+                float x = new BigDecimal(ti.subtract(tim1)).divide(r).floatValue();         // %age = T(i) - T(i-1) / R
+                ownerships.put(t, x);                                                       // save (T(i) -> %age)
+                tim1 = ti;                                                                  // -> advance loop
+            }
+            // The start token's range extends backward to the last token, which is why both were saved
+            //  above. The simple calculation for this is: T(start) - T(end) + r % r / r.
+            //  (In the 1-case, this produces 0% instead of 100%.)
+            ownerships.put(start, new BigDecimal(((BigIntegerToken)start).token.subtract(ti).add(ri).mod(ri)).divide(r).floatValue());
+        }
+        return ownerships;
     }
 }

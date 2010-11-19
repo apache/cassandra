@@ -20,6 +20,7 @@
 package org.apache.cassandra.dht;
 
 import java.nio.ByteBuffer;
+import java.util.*;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -73,5 +74,10 @@ public class LocalPartitioner implements IPartitioner<LocalToken>
     public boolean preservesOrder()
     {
         return true;
+    }
+
+    public Map<Token, Float> describeOwnership(List<Token> sortedTokens)
+    {
+        return Collections.singletonMap((Token)getMinimumToken(), new Float(1.0));
     }
 }

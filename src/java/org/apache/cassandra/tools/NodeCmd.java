@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.management.MemoryUsage;
 import java.net.InetAddress;
+import java.text.DecimalFormat;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
@@ -34,6 +35,7 @@ import org.apache.commons.cli.*;
 
 import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
 import org.apache.cassandra.concurrent.IExecutorMBean;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.MessagingServiceMBean;
@@ -95,23 +97,33 @@ public class NodeCmd {
         Collection<String> leavingNodes = probe.getLeavingNodes();
         Map<String, String> loadMap = probe.getLoadMap();
 
-        outs.printf("%-16s%-7s%-8s%-16s%-44s\n", "Address", "Status", "State", "Load", "Token");
+        outs.printf("%-16s%-7s%-8s%-16s%-8s%-44s\n", "Address", "Status", "State", "Load", "Owns", "Token");
         // show pre-wrap token twice so you can always read a node's range as
         // (previous line token, current line token]
         if (sortedTokens.size() > 1)
-            outs.printf("%-14s%-11s%-14s%-43s\n", "", "", "", sortedTokens.get(sortedTokens.size() - 1));
+            outs.printf("%-16s%-7s%-8s%-16s%-8s%-44s\n", "", "", "", "", "", sortedTokens.get(sortedTokens.size() - 1));
+
+        // Calculate per-token ownership of the ring
+        Map<Token, Float> ownerships = probe.getOwnership();
 
         for (Token token : sortedTokens)
         {
             String primaryEndpoint = tokenToEndpoint.get(token);
             String status = liveNodes.contains(primaryEndpoint)
                             ? "Up"
-                            : deadNodes.contains(primaryEndpoint) ? "Down" : "?";
+                            : deadNodes.contains(primaryEndpoint)
+                              ? "Down"
+                              : "?";
             String state = joiningNodes.contains(primaryEndpoint)
                            ? "Joining"
-                           : leavingNodes.contains(primaryEndpoint) ? "Leaving" : "Normal";
-            String load = loadMap.containsKey(primaryEndpoint) ? loadMap.get(primaryEndpoint) : "?";
-            outs.printf("%-16s%-7s%-8s%-16s%-44s\n", primaryEndpoint, status, state, load, token);
+                           : leavingNodes.contains(primaryEndpoint)
+                             ? "Leaving"
+                             : "Normal";
+            String load = loadMap.containsKey(primaryEndpoint)
+                          ? loadMap.get(primaryEndpoint)
+                          : "?";
+            String owns = new DecimalFormat("##0.00%").format(ownerships.get(token));
+            outs.printf("%-16s%-7s%-8s%-16s%-8s%-44s\n", primaryEndpoint, status, state, load, owns, token);
         }
     }
 
