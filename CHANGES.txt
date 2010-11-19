@@ -1,4 +1,5 @@
 dev
+ * fix compaction and flush races with schema updates (CASSANDRA-1715)
  * add clustertool, config-converter, sstablekeys, and schematool 
    Windows .bat files (CASSANDRA-1723)
  * reject range queries received during bootstrap (CASSANDRA-1739)
