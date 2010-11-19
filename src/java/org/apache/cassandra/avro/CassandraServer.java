@@ -700,8 +700,8 @@ public class CassandraServer implements Cassandra {
         
         try
         {
-            CFMetaData newCfm = oldCfm.apply(cf_def);
-            UpdateColumnFamily update = new UpdateColumnFamily(oldCfm, newCfm);
+            oldCfm.apply(cf_def);
+            UpdateColumnFamily update = new UpdateColumnFamily(CFMetaData.convertToThrift(cf_def));
             applyMigrationOnStage(update);
             return DatabaseDescriptor.getDefsVersion().toString();
         }

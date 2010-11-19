@@ -968,7 +968,8 @@ public class    DatabaseDescriptor
     // process of mutating an individual keyspace, rather than setting manually here.
     public static void setTableDefinition(KSMetaData ksm, UUID newVersion)
     {
-        tables.put(ksm.name, ksm);
+        if (ksm != null)
+            tables.put(ksm.name, ksm);
         DatabaseDescriptor.defsVersion = newVersion;
     }
     

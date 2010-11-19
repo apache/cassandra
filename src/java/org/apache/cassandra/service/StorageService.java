@@ -1995,8 +1995,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 for (ColumnDefinition cd : cfm.getColumn_metadata().values())
                 {
                     RawColumnDefinition rcd = new RawColumnDefinition();
-                    rcd.index_name = cd.index_name;
-                    rcd.index_type = cd.index_type;
+                    rcd.index_name = cd.getIndexName();
+                    rcd.index_type = cd.getIndexType();
                     rcd.name = ByteBufferUtil.string(cd.name, Charsets.UTF_8);
                     rcd.validator_class = cd.validator.getClass().getName();
                     rcf.column_metadata[j++] = rcd;

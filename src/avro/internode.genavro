@@ -73,8 +73,7 @@ protocol InterNode {
     
     @namespace("org.apache.cassandra.db.migration.avro")
     record UpdateColumnFamily {
-        org.apache.cassandra.avro.CfDef oldCf;
-        org.apache.cassandra.avro.CfDef newCf;
+        org.apache.cassandra.avro.CfDef metadata;
     }
 
     @namespace("org.apache.cassandra.db.migration.avro")

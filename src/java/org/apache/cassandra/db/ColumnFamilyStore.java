@@ -185,13 +185,23 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             throw new IOError(ex.getCause());
         }
         
-        // todo: update cache sizes, etc. see SSTableTracker
+        ssTables.updateCacheSizes();
         
-        // drop indexes no longer needed
+        // figure out what needs to be added and dropped.
         Set<ByteBuffer> indexesToDrop = new HashSet<ByteBuffer>();
+        Set<ColumnDefinition> indexesToAdd = new HashSet<ColumnDefinition>();
+        
+        for (ColumnDefinition cdef : metadata.getColumn_metadata().values())
+        {
+            if (!indexedColumns.containsKey(cdef.name))
+                indexesToAdd.add(cdef);
+        }
         for (ByteBuffer indexName : indexedColumns.keySet())
-               if (!metadata.getColumn_metadata().containsKey(indexName))
-                   indexesToDrop.add(indexName);
+        {
+            if (!metadata.getColumn_metadata().containsKey(indexName))
+                indexesToDrop.add(indexName);
+        }
+        // drop indexes no longer needed.
         for (ByteBuffer indexName : indexesToDrop)
         {
             ColumnFamilyStore indexCfs = indexedColumns.remove(indexName);
@@ -199,14 +209,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             SystemTable.setIndexRemoved(metadata.tableName, metadata.cfName);
             indexCfs.removeAllSSTables();
         }
-        
-        // there isn't a valid way to update existing indexes at this point (nothing you can change),
-        // so don't bother with them.
-        
-        // add indexes that are new
-        for (Map.Entry<ByteBuffer, ColumnDefinition> entry : metadata.getColumn_metadata().entrySet())
-            if (!indexedColumns.containsKey(entry.getKey()) && entry.getValue().index_type != null)
-                addIndex(entry.getValue());
+        // add new indexes.
+        for (ColumnDefinition info : indexesToAdd)
+            if (info.getIndexType() != null)
+                addIndex(info);
     }
 
     private ColumnFamilyStore(Table table, String columnFamilyName, IPartitioner partitioner, int generation, CFMetaData metadata)
@@ -258,7 +264,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         indexedColumns = new ConcurrentSkipListMap<ByteBuffer, ColumnFamilyStore>(getComparator());
         for (ColumnDefinition info : metadata.getColumn_metadata().values())
         {
-            if (info.index_type != null)
+            if (info.getIndexType() != null)
                 addIndex(info);
         }
 
@@ -311,7 +317,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void addIndex(final ColumnDefinition info)
     {
-        assert info.index_type != null;
+        assert info.getIndexType() != null;
         IPartitioner rowPartitioner = StorageService.getPartitioner();
         AbstractType columnComparator = (rowPartitioner instanceof OrderPreservingPartitioner || rowPartitioner instanceof ByteOrderedPartitioner)
                                         ? BytesType.instance

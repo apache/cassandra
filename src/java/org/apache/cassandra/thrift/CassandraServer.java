@@ -857,8 +857,8 @@ public class CassandraServer implements Cassandra.Iface
         
         try
         {
-            CFMetaData newCfm = oldCfm.apply(cf_def);
-            UpdateColumnFamily update = new UpdateColumnFamily(oldCfm, newCfm);
+            // ideally, apply() would happen on the stage with the
+            UpdateColumnFamily update = new UpdateColumnFamily(cf_def);
             applyMigrationOnStage(update);
             return DatabaseDescriptor.getDefsVersion().toString();
         }

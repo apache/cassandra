@@ -36,8 +36,8 @@ import org.apache.cassandra.utils.FBUtilities;
 public class ColumnDefinition {
     public final ByteBuffer name;
     public final AbstractType validator;
-    public final IndexType index_type;
-    public final String index_name;
+    private IndexType index_type;
+    private String index_name;
 
     public ColumnDefinition(ByteBuffer name, String validation_class, IndexType index_type, String index_name) throws ConfigurationException
     {
@@ -151,5 +151,26 @@ public class ColumnDefinition {
                ", index_type=" + index_type +
                ", index_name='" + index_name + '\'' +
                '}';
+    }
+
+    public String getIndexName()
+    {
+        return index_name;
+    }
+    
+    public void setIndexName(String s)
+    {
+        index_name = s;
+    }
+
+
+    public IndexType getIndexType()
+    {
+        return index_type;
+    }
+
+    public void setIndexType(IndexType index_type)
+    {
+        this.index_type = index_type;
     }
 }

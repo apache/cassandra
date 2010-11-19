@@ -545,6 +545,7 @@ public class DefsTest extends CleanupHelper
         
         assert DatabaseDescriptor.getTableDefinition(cf.tableName) != null;
         assert DatabaseDescriptor.getTableDefinition(cf.tableName) == ksm;
+        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName) != null;
         
         // updating certain fields should fail.
         CfDef cf_def = new CfDef();
@@ -566,44 +567,28 @@ public class DefsTest extends CleanupHelper
         
         // test valid operations.
         cf_def.setComment("Modified comment");
-        CFMetaData updateCfm = cf.apply(cf_def);
-        new UpdateColumnFamily(cf, updateCfm).apply();
-        cf = updateCfm;
+        new UpdateColumnFamily(cf_def).apply(); // doesn't get set back here.
         
         cf_def.setRow_cache_size(2d);
-        updateCfm = cf.apply(cf_def);
-        new UpdateColumnFamily(cf, updateCfm).apply();
-        cf = updateCfm;
+        new UpdateColumnFamily(cf_def).apply();
         
         cf_def.setKey_cache_size(3d);
-        updateCfm = cf.apply(cf_def);
-        new UpdateColumnFamily(cf, updateCfm).apply();
-        cf = updateCfm;
+        new UpdateColumnFamily(cf_def).apply();
         
         cf_def.setRead_repair_chance(0.23);
-        updateCfm = cf.apply(cf_def);
-        new UpdateColumnFamily(cf, updateCfm).apply();
-        cf = updateCfm;
+        new UpdateColumnFamily(cf_def).apply();
         
         cf_def.setGc_grace_seconds(12);
-        updateCfm = cf.apply(cf_def);
-        new UpdateColumnFamily(cf, updateCfm).apply();
-        cf = updateCfm;
+        new UpdateColumnFamily(cf_def).apply();
         
         cf_def.setDefault_validation_class("UTF8Type");
-        updateCfm = cf.apply(cf_def);
-        new UpdateColumnFamily(cf, updateCfm).apply();
-        cf = updateCfm;
+        new UpdateColumnFamily(cf_def).apply();
 
         cf_def.setMin_compaction_threshold(3);
-        updateCfm = cf.apply(cf_def);
-        new UpdateColumnFamily(cf, updateCfm).apply();
-        cf = updateCfm;
+        new UpdateColumnFamily(cf_def).apply();
 
         cf_def.setMax_compaction_threshold(33);
-        updateCfm = cf.apply(cf_def);
-        new UpdateColumnFamily(cf, updateCfm).apply();
-        cf = updateCfm;
+        new UpdateColumnFamily(cf_def).apply();
 
         // can't test changing the reconciler because there is only one impl.
         
@@ -615,12 +600,13 @@ public class DefsTest extends CleanupHelper
         assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).getGcGraceSeconds() == cf_def.gc_grace_seconds;
         assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).getDefaultValidator() == UTF8Type.instance;
         
+        // todo: we probably don't need to reset old values in the catches anymore.
         // make sure some invalid operations fail.
         int oldId = cf_def.id;
         try
         {
             cf_def.setId(cf_def.getId() + 1);
-            updateCfm = cf.apply(cf_def);
+            cf.apply(cf_def);
             throw new AssertionError("Should have blown up when you used a different id.");
         }
         catch (ConfigurationException expected) 
@@ -632,7 +618,7 @@ public class DefsTest extends CleanupHelper
         try
         {
             cf_def.setName(cf_def.getName() + "_renamed");
-            updateCfm = cf.apply(cf_def);
+            cf.apply(cf_def);
             throw new AssertionError("Should have blown up when you used a different name.");
         }
         catch (ConfigurationException expected)
@@ -644,7 +630,7 @@ public class DefsTest extends CleanupHelper
         try
         {
             cf_def.setKeyspace(oldStr + "_renamed");
-            updateCfm = cf.apply(cf_def);
+            cf.apply(cf_def);
             throw new AssertionError("Should have blown up when you used a different keyspace.");
         }
         catch (ConfigurationException expected)
@@ -655,7 +641,7 @@ public class DefsTest extends CleanupHelper
         try
         {
             cf_def.setColumn_type(ColumnFamilyType.Super.name());
-            updateCfm = cf.apply(cf_def);
+            cf.apply(cf_def);
             throw new AssertionError("Should have blwon up when you used a different cf type.");
         }
         catch (ConfigurationException expected)
@@ -667,7 +653,7 @@ public class DefsTest extends CleanupHelper
         try 
         {
             cf_def.setComparator_type(BytesType.class.getSimpleName());
-            updateCfm = cf.apply(cf_def);
+            cf.apply(cf_def);
             throw new AssertionError("Should have blown up when you used a different comparator.");
         }
         catch (ConfigurationException expected)
@@ -678,7 +664,7 @@ public class DefsTest extends CleanupHelper
         try
         {
             cf_def.setMin_compaction_threshold(34);
-            updateCfm = cf.apply(cf_def);
+            cf.apply(cf_def);
             throw new AssertionError("Should have blown up when min > max.");
         }
         catch (ConfigurationException expected)
@@ -689,7 +675,7 @@ public class DefsTest extends CleanupHelper
         try
         {
             cf_def.setMax_compaction_threshold(2);
-            updateCfm = cf.apply(cf_def);
+            cf.apply(cf_def);
             throw new AssertionError("Should have blown up when max > min.");
         }
         catch (ConfigurationException expected)
