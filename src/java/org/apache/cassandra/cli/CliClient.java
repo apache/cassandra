@@ -1190,7 +1190,11 @@ public class CliClient extends CliUserHelp
         {
             KsDef ks_def;
             ks_def = metadata == null ? thriftClient.describe_keyspace(keySpaceName) : metadata;
-            sessionState.out.println("  Replication Factor: " + ks_def.replication_factor);
+            sessionState.out.println("  Replication Strategy: " + ks_def.strategy_class);
+            if (ks_def.strategy_class.endsWith(".NetworkTopologyStrategy"))
+                sessionState.out.println("    Options: " + FBUtilities.toString(ks_def.strategy_options));
+            else
+                sessionState.out.println("    Replication Factor: " + ks_def.replication_factor);
             sessionState.out.println("  Column Families:");
 
             Collections.sort(ks_def.cf_defs, new CfDefNamesComparator());
