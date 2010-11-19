@@ -5,18 +5,15 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
-import java.io.IOError;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -88,30 +85,13 @@ public class DropColumnFamily extends Migration
         // reinitialize the table.
         KSMetaData existing = DatabaseDescriptor.getTableDefinition(tableName);
         CFMetaData cfm = existing.cfMetaData().get(cfName);
-        ColumnFamilyStore cfs = Table.open(cfm.tableName).getColumnFamilyStore(cfName);
         KSMetaData ksm = makeNewKeyspaceDefinition(existing);
         CFMetaData.purge(cfm);
         DatabaseDescriptor.setTableDefinition(ksm, newVersion);
         
         if (!clientMode)
         {
-            try
-            {
-                CompactionManager.instance.submitDrop(cfs).get();
-            }
-            catch (InterruptedException ex)
-            {
-                throw new IOException(ex);
-            }
-            catch (ExecutionException ex)
-            {
-                // if the compaction manager catches IOException, it wraps it in an IOError and rethrows, which should
-                // get caught be the executor and rethrown as an ExecutionException.
-                if (ex.getCause() instanceof IOException)
-                    throw (IOException)ex.getCause();
-                else
-                    throw new IOException(ex);
-            }
+            Table.open(ksm.name).dropCf(cfm.cfId);
         }
     }
     

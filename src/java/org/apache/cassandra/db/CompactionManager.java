@@ -488,30 +488,6 @@ public class CompactionManager implements CompactionManagerMBean
         }
         return tablePairs;
     }
-
-    public Future submitDrop(final ColumnFamilyStore... stores)
-    {
-        Callable callable = new Callable()
-        {
-            public Object call() throws IOException
-            {
-                for (ColumnFamilyStore cfs : stores)
-                {
-                    Table.flusherLock.writeLock().lock();
-                    try
-                    {
-                        cfs.table.dropCf(cfs.metadata.cfId);
-                    }
-                    finally
-                    {
-                        Table.flusherLock.writeLock().unlock();
-                    }
-                }
-                return null;
-            }
-        };
-        return executor.submit(callable);
-    }
     
     public Future submitIndexBuild(final ColumnFamilyStore cfs, final Table.IndexBuilder builder)
     {
