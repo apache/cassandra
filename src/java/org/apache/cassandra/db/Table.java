@@ -448,7 +448,7 @@ public class Table
         // flush memtables that got filled up outside the readlock (maybeSwitchMemtable acquires writeLock).
         // usually mTF will be empty and this will be a no-op.
         for (Memtable memtable : memtablesToFlush)
-            memtable.cfs.maybeSwitchMemtable(memtable, writeCommitLog);
+            memtable.cfs.maybeSwitchMemtable(memtable, writeCommitLog, null);
     }
 
     private static List<Memtable> addFullMemtable(List<Memtable> memtablesToFlush, Memtable fullMemtable)
@@ -594,7 +594,7 @@ public class Table
 
                 // during index build, we do flush index memtables separately from master; otherwise we could OOM
                 for (Memtable memtable : memtablesToFlush)
-                    memtable.cfs.maybeSwitchMemtable(memtable, false);
+                    memtable.cfs.maybeSwitchMemtable(memtable, false, null);
             }
 
             try

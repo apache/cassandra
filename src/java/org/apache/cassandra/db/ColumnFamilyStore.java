@@ -171,48 +171,40 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (!memops.isModified())
             memops = new DefaultDouble(metadata.getMemtableOperationsInMillions());
         
-        // reset the memtable with new settings.
-        try
-        {
-            forceBlockingFlush();
-        }
-        catch (InterruptedException ex)
-        {
-            throw new RuntimeException(ex);
-        }
-        catch (ExecutionException ex)
-        {
-            throw new IOError(ex.getCause());
-        }
-        
         ssTables.updateCacheSizes();
         
         // figure out what needs to be added and dropped.
-        Set<ByteBuffer> indexesToDrop = new HashSet<ByteBuffer>();
-        Set<ColumnDefinition> indexesToAdd = new HashSet<ColumnDefinition>();
+        final Set<ByteBuffer> indexesToDrop = new HashSet<ByteBuffer>();
+        final Set<ColumnDefinition> indexesToAdd = new HashSet<ColumnDefinition>();
         
         for (ColumnDefinition cdef : metadata.getColumn_metadata().values())
-        {
             if (!indexedColumns.containsKey(cdef.name))
                 indexesToAdd.add(cdef);
-        }
         for (ByteBuffer indexName : indexedColumns.keySet())
-        {
             if (!metadata.getColumn_metadata().containsKey(indexName))
                 indexesToDrop.add(indexName);
-        }
-        // drop indexes no longer needed.
-        for (ByteBuffer indexName : indexesToDrop)
+        // future: if/when we have modifiable settings for secondary indexes, they'll need to be handled here.
+        
+        final Runnable indexMaintenance = new Runnable() 
         {
-            ColumnFamilyStore indexCfs = indexedColumns.remove(indexName);
-            assert indexCfs != null;
-            SystemTable.setIndexRemoved(metadata.tableName, metadata.cfName);
-            indexCfs.removeAllSSTables();
-        }
-        // add new indexes.
-        for (ColumnDefinition info : indexesToAdd)
-            if (info.getIndexType() != null)
-                addIndex(info);
+            public void run() 
+            {
+                // drop indexes no longer needed.
+                for (ByteBuffer indexName : indexesToDrop)
+                {
+                    ColumnFamilyStore indexCfs = indexedColumns.remove(indexName);
+                    assert indexCfs != null;
+                    SystemTable.setIndexRemoved(metadata.tableName, metadata.cfName);
+                    indexCfs.removeAllSSTables();
+                }
+                // add new indexes.
+                for (ColumnDefinition info : indexesToAdd)
+                    if (info.getIndexType() != null)
+                        addIndex(info);        
+            }
+        };
+        // reset the memtable with new settings.
+        maybeSwitchMemtable(memtable, true, indexMaintenance);
     }
 
     private ColumnFamilyStore(Table table, String columnFamilyName, IPartitioner partitioner, int generation, CFMetaData metadata)
@@ -616,7 +608,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /** flush the given memtable and swap in a new one for its CFS, if it hasn't been frozen already.  threadsafe. */
-    Future<?> maybeSwitchMemtable(Memtable oldMemtable, final boolean writeCommitLog)
+    Future<?> maybeSwitchMemtable(Memtable oldMemtable, final boolean writeCommitLog, final Runnable postFlush)
     {
         /*
          * If we can get the writelock, that means no new updates can come in and
@@ -671,6 +663,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                         // the log header with "you can discard anything written before the context" is not valid
                         CommitLog.instance.discardCompletedSegments(metadata.cfId, ctx);
                     }
+                    if (postFlush != null)
+                        postFlush.run();
                 }
             });
         }
@@ -702,7 +696,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (memtable.isClean())
             return null;
 
-        return maybeSwitchMemtable(memtable, true);
+        return maybeSwitchMemtable(memtable, true, null);
     }
 
     public void forceBlockingFlush() throws ExecutionException, InterruptedException

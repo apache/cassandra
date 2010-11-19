@@ -1329,12 +1329,16 @@ class TestMutations(ThriftTester):
         modified_cf = CfDef('Keyspace1', 'ToBeIndexed', column_metadata=[modified_cd])
         modified_cf.id = cfid
         client.system_update_column_family(modified_cf)
+        
         ks1 = client.describe_keyspace('Keyspace1')
         server_cf = [x for x in ks1.cf_defs if x.name=='ToBeIndexed'][0]
         assert server_cf
         assert server_cf.column_metadata[0].index_type == modified_cd.index_type
         assert server_cf.column_metadata[0].index_name == modified_cd.index_name
-
+        
+        # sleep a bit to give time for the index to build.
+        time.sleep(0.1)
+        
         # simple query on one index expression
         cp = ColumnParent('ToBeIndexed')
         sp = SlicePredicate(slice_range=SliceRange('', ''))
