@@ -26,6 +26,7 @@ import org.apache.cassandra.concurrent.IExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.commons.cli.*;
 
@@ -33,6 +34,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.management.MemoryUsage;
 import java.net.InetAddress;
+import java.text.DecimalFormat;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
@@ -90,18 +92,20 @@ public class NodeCmd {
         Set<String> liveNodes = probe.getLiveNodes();
         Set<String> deadNodes = probe.getUnreachableNodes();
         Map<String, String> loadMap = probe.getLoadMap();
+        Map<Token, Float> ownerships = probe.getOwnership();
 
         // Print range-to-endpoint mapping
         int counter = 0;
         outs.print(String.format("%-14s", "Address"));
         outs.print(String.format("%-11s", "Status"));
         outs.print(String.format("%-14s", "Load"));
+        outs.print(String.format("%-8s", "Owns"));
         outs.print(String.format("%-43s", "Range"));
         outs.println("Ring");
         // emphasize that we're showing the right part of each range
         if (ranges.size() > 1)
         {
-            outs.println(String.format("%-14s%-11s%-14s%-43s", "", "", "", ranges.get(0).left));
+            outs.println(String.format("%-14s%-11s%-14s%-8s%-43s", "", "", "", "", ranges.get(0).left));
         }
         // normal range & node info
         for (Range range : ranges) {
@@ -119,6 +123,9 @@ public class NodeCmd {
 
             String load = loadMap.containsKey(primaryEndpoint) ? loadMap.get(primaryEndpoint) : "?";
             outs.print(String.format("%-14s", load));
+
+            DecimalFormat df = new DecimalFormat("##0.00%");
+            outs.print(String.format("%-8s", df.format(ownerships.get(range.right))));
 
             outs.print(String.format("%-43s", range.right));
 

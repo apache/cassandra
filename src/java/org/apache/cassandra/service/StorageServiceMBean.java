@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 
 
 public interface StorageServiceMBean
@@ -184,4 +185,10 @@ public interface StorageServiceMBean
 
     /** save row and key caches */
     public void saveCaches() throws ExecutionException, InterruptedException;
+
+    /**
+     * given a list of tokens (representing the nodes in the cluster), returns
+     *   a mapping from "token -> %age of cluster owned by that token"
+     */
+    public Map<Token, Float> getOwnership();
 }

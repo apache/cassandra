@@ -24,6 +24,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
 import java.lang.management.RuntimeMXBean;
+import java.lang.reflect.Constructor;
 import java.net.InetAddress;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -46,6 +47,7 @@ import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.db.CompactionManagerMBean;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamingService;
 import org.apache.cassandra.streaming.StreamingServiceMBean;
@@ -248,6 +250,11 @@ public class NodeProbe
     public Map<String, String> getLoadMap()
     {
         return ssProxy.getLoadMap();
+    }
+
+    public Map<Token, Float> getOwnership()
+    {
+        return ssProxy.getOwnership();
     }
 
     public Iterator<Map.Entry<String, ColumnFamilyStoreMBean>> getColumnFamilyStoreMBeanProxies()

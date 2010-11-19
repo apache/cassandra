@@ -1645,4 +1645,14 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         tokenMetadata_ = tmd;
         return old;
     }
+
+    public Map<Token, Float> getOwnership()
+    {
+        List<Range> ranges = new ArrayList<Range>(getRangeToEndPointMap(null).keySet());
+        List<Token> sortedTokens = new ArrayList<Token>();
+        for(Range r : ranges) { sortedTokens.add(r.left); }
+        Collections.sort(sortedTokens);
+
+        return partitioner_.describeOwnership(sortedTokens);
+    }
 }

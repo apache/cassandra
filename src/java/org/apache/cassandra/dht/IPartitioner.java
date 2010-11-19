@@ -18,7 +18,8 @@
 
 package org.apache.cassandra.dht;
 
-import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 
 import org.apache.cassandra.db.DecoratedKey;
 
@@ -80,4 +81,13 @@ public interface IPartitioner<T extends Token>
      * it generates.
      */
     public boolean preservesOrder();
+
+    /**
+     * Calculate the deltas between tokens in the ring in order to compare
+     *  relative sizes.
+     *
+     * @param sortedTokens a sorted List of Tokens
+     * @return the mapping from 'token' to 'percentage of the ring owned by that token'.
+     */
+    public Map<Token, Float> describeOwnership(List<Token> sortedTokens);
 }

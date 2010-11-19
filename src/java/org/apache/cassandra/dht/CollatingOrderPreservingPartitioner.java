@@ -20,10 +20,7 @@ package org.apache.cassandra.dht;
 
 import java.math.BigInteger;
 import java.text.Collator;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Locale;
-import java.util.Random;
+import java.util.*;
 
 import org.apache.commons.lang.ArrayUtils;
 
@@ -152,4 +149,6 @@ public class CollatingOrderPreservingPartitioner implements IPartitioner<BytesTo
             return MINIMUM;
         return new BytesToken(collator.getCollationKey(key).toByteArray());
     }
+
+    public Map<Token, Float> describeOwnership(List<Token> sortedTokens){ throw new UnsupportedOperationException(); }
 }
