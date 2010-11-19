@@ -26,6 +26,7 @@ import java.util.Arrays;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.DeletedColumn;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -55,6 +56,7 @@ public class SSTableImportTest extends SchemaLoader
         QueryFilter qf = QueryFilter.getNamesFilter(Util.dk("rowA"), new QueryPath("Standard1", null, null), ByteBufferUtil.bytes("colAA"));
         ColumnFamily cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
         assert cf.getColumn(ByteBufferUtil.bytes("colAA")).value().equals(ByteBuffer.wrap(hexToBytes("76616c4141")));
+        assert !(cf.getColumn(ByteBufferUtil.bytes("colAA")) instanceof DeletedColumn);
     }
 
     @Test

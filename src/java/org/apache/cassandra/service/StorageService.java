@@ -196,11 +196,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     }};
 
 
+    public static final RetryingScheduledThreadPoolExecutor scheduledTasks = new RetryingScheduledThreadPoolExecutor("ScheduledTasks");
+
     private static IPartitioner partitioner_ = DatabaseDescriptor.getPartitioner();
     public static VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner_);
-
-    public static RetryingScheduledThreadPoolExecutor scheduledTasks = new RetryingScheduledThreadPoolExecutor("ScheduledTasks");
-
+    
     public static final StorageService instance = new StorageService();
 
     public static IPartitioner getPartitioner() {
@@ -246,11 +246,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public void finishBootstrapping()
     {
         isBootstrapMode = false;
-        SystemTable.setBootstrapped(true);
-        setToken(getLocalToken());
-        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.normal(getLocalToken()));
         logger_.info("Bootstrap/move completed! Now serving reads.");
-        setMode("Normal", false);
     }
 
     /** This method updates the local token on disk  */
@@ -312,6 +308,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.stop();
         MessagingService.shutdown();
         StageManager.shutdownNow();
+    }
+    
+    public boolean isInitialized() 
+    { 
+        return initialized; 
     }
 
     public synchronized void initClient() throws IOException
@@ -393,6 +394,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 && !SystemTable.isBootstrapped())
             logger_.info("This node will not auto bootstrap because it is configured to be a seed node.");
 
+        Token token;
         if (DatabaseDescriptor.isAutoBootstrap()
             && !(DatabaseDescriptor.getSeeds().contains(FBUtilities.getLocalAddress()) || SystemTable.isBootstrapped()))
         {
@@ -406,25 +408,18 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 throw new UnsupportedOperationException(s);
             }
             setMode("Joining: getting bootstrap token", true);
-            Token token = BootStrapper.getBootstrapToken(tokenMetadata_, StorageLoadBalancer.instance.getLoadInfo());
+            token = BootStrapper.getBootstrapToken(tokenMetadata_, StorageLoadBalancer.instance.getLoadInfo());
             // don't bootstrap if there are no tables defined.
             if (DatabaseDescriptor.getNonSystemTables().size() > 0)
             {
                 bootstrap(token);
                 assert !isBootstrapMode; // bootstrap will block until finished
             }
-            else
-            {
-                isBootstrapMode = false;
-                SystemTable.setBootstrapped(true);
-                tokenMetadata_.updateNormalToken(token, FBUtilities.getLocalAddress());
-                Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.normal(token));
-                setMode("Normal", false);
-            }
+            // else nothing to do, go directly to participating in ring
         }
         else
         {
-            Token token = SystemTable.getSavedToken();
+            token = SystemTable.getSavedToken();
             if (token == null)
             {
                 String initialToken = DatabaseDescriptor.getInitialToken();
@@ -438,18 +433,18 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     token = partitioner_.getTokenFactory().fromString(initialToken);
                     logger_.info("Saved token not found. Using " + token + " from configuration");
                 }
-                SystemTable.updateToken(token);
             }
             else
             {
                 logger_.info("Using saved token " + token);
             }
-            SystemTable.setBootstrapped(true);
-            tokenMetadata_.updateNormalToken(token, FBUtilities.getLocalAddress());
-            Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.normal(token));
-            setMode("Normal", false);
         } 
-        
+
+        SystemTable.setBootstrapped(true); // first startup is only chance to bootstrap
+        setToken(token);
+        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.normal(getLocalToken()));
+        setMode("Normal", false);
+
         assert tokenMetadata_.sortedTokens().size() > 0;
     }
 

@@ -19,10 +19,11 @@
 
 package org.apache.cassandra.locator;
 
+import java.io.IOException;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 
+import org.apache.cassandra.service.StorageService;
 import org.junit.Test;
 
 import org.apache.cassandra.utils.FBUtilities;
@@ -30,8 +31,10 @@ import org.apache.cassandra.utils.FBUtilities;
 public class DynamicEndpointSnitchTest
 {
     @Test
-    public void testSnitch() throws UnknownHostException, InterruptedException
+    public void testSnitch() throws InterruptedException, IOException
     {
+        // do this because SS needs to be initialized before DES can work properly.
+        StorageService.instance.initClient();
         int sleeptime = 150;
         DynamicEndpointSnitch dsnitch = new DynamicEndpointSnitch(new SimpleSnitch());
         InetAddress self = FBUtilities.getLocalAddress();

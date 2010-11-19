@@ -95,9 +95,9 @@ public class SSTableImport
             JsonColumn col = new JsonColumn(c);
             QueryPath path = new QueryPath(cfm.cfName, null, ByteBuffer.wrap(hexToBytes(col.name)));
             if (col.isDeleted) {
-                cfamily.addColumn(path, ByteBuffer.wrap(hexToBytes(col.value)), col.timestamp);
-            } else {
                 cfamily.addTombstone(path, ByteBuffer.wrap(hexToBytes(col.value)), col.timestamp);
+            } else {
+                cfamily.addColumn(path, ByteBuffer.wrap(hexToBytes(col.value)), col.timestamp);
             }
         }
     }
@@ -125,9 +125,9 @@ public class SSTableImport
                 JsonColumn col = new JsonColumn(c);
                 QueryPath path = new QueryPath(cfm.cfName, superName, ByteBuffer.wrap(hexToBytes(col.name)));
                 if (col.isDeleted) {
-                    cfamily.addColumn(path, ByteBuffer.wrap(hexToBytes(col.value)), col.timestamp);
-                } else {
                     cfamily.addTombstone(path, ByteBuffer.wrap(hexToBytes(col.value)), col.timestamp);
+                } else {
+                    cfamily.addColumn(path, ByteBuffer.wrap(hexToBytes(col.value)), col.timestamp);
                 }
             }
             

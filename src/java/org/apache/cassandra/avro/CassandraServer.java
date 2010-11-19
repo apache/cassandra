@@ -1106,6 +1106,10 @@ public class CassandraServer implements Cassandra {
         {
             throw new TimedOutException();
         }
+        catch (org.apache.cassandra.thrift.UnavailableException e)
+        {
+            throw newUnavailableException();
+        }
         return avronateKeySlices(rows, column_parent, column_predicate);
     }
 
