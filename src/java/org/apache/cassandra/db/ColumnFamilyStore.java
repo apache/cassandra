@@ -131,11 +131,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public final CFMetaData metadata;
 
     /* These are locally held copies to be changed from the config during runtime */
-    private DefaultInteger minCompactionThreshold;
-    private DefaultInteger maxCompactionThreshold;
-    private DefaultInteger memtime;
-    private DefaultInteger memsize;
-    private DefaultDouble memops;
+    private volatile DefaultInteger minCompactionThreshold;
+    private volatile DefaultInteger maxCompactionThreshold;
+    private volatile DefaultInteger memtime;
+    private volatile DefaultInteger memsize;
+    private volatile DefaultDouble memops;
 
     private final Runnable rowCacheSaverTask = new WrappedRunnable()
     {
@@ -155,8 +155,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     
     public void reload()
     {
-        assert Table.flusherLock.writeLock().isHeldByCurrentThread();
-        
         // metadata object has been mutated directly. make all the members jibe with new settings.
         
         // only update these runtime-modifiable settings if they have not been modified.

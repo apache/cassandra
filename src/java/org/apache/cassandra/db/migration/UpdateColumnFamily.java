@@ -70,24 +70,14 @@ public class UpdateColumnFamily extends Migration
 
     void applyModels() throws IOException
     {
-        acquireLocks();
-        try
+        logger.debug("Updating " + metadata + " to " + metadata);
+        DatabaseDescriptor.setTableDefinition(null, newVersion);
+
+        if (!clientMode)
         {
-            logger.debug("Updating " + metadata + " to " + metadata);
-            
-            DatabaseDescriptor.setTableDefinition(null, newVersion);
-            
-            if (!clientMode)
-            {
-                Table table = Table.open(metadata.tableName);
-                
-                ColumnFamilyStore oldCfs = table.getColumnFamilyStore(metadata.cfName);
-                oldCfs.reload();
-            }
-        }
-        finally
-        {
-            releaseLocks();
+            Table table = Table.open(metadata.tableName);
+            ColumnFamilyStore oldCfs = table.getColumnFamilyStore(metadata.cfName);
+            oldCfs.reload();
         }
     }
 
