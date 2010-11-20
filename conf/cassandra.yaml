@@ -1,9 +1,9 @@
 # Cassandra storage config YAML 
 
-#NOTE !!!!!!!! NOTE 
-# See http://wiki.apache.org/cassandra/StorageConfiguration for
-# full explanations of configuration directives
-#NOTE !!!!!!!! NOTE 
+# NOTE:
+#   See http://wiki.apache.org/cassandra/StorageConfiguration for
+#   full explanations of configuration directives
+# /NOTE
 
 # The name of the cluster. This is mainly used to prevent machines in
 # one logical cluster from joining another.
@@ -73,7 +73,7 @@ commitlog_sync: periodic
 # milliseconds.
 commitlog_sync_period_in_ms: 10000
 
-# Addresses of hosts that are deemed contact points. 
+# Addresses of hosts that are deemed contact points.
 # Cassandra nodes use this list of hosts to find each other and learn
 # the topology of the ring.  You must change this if you are running
 # multiple nodes!
@@ -266,10 +266,16 @@ request_scheduler: org.apache.cassandra.scheduler.NoScheduler
 #  the index is at the cost of space.
 index_interval: 128
 
-# A ColumnFamily is the Cassandra concept closest to a relational table. 
-#
-# Keyspaces are separate groups of ColumnFamilies.  Except in very
-# unusual circumstances you will have one Keyspace per application.
+# Keyspaces have ColumnFamilies.        (Usually 1 KS per application.)
+# ColumnFamilies have Rows.             (Usually a dozen CFs per KS.)
+# Rows contain Columns.                 (Many per CF.)
+# Columns contain name:value:timestamp. (Many per Row.)
+# --
+# A KS is most similar to a schema, and a CF is most similar to a relational table.
+#  A Row is similar to a record, and a Column is a unit of datum.
+# --
+# Likewise, Keyspaces, ColumnFamilies, and Columns may carry additional
+# metadata that change their behavior. They are as follows:
 #
 # Keyspace required parameters:
 # - name: name of the keyspace; "system" is
@@ -305,10 +311,10 @@ index_interval: 128
 #   different rack in in the first.  Additional datacenters are not
 #   guaranteed to get a replica.  Additional replicas after three are placed
 #   in ring order after the third without regard to rack or datacenter.
-#
 # - replication_factor: Number of replicas of each row
-# - column_families: column families associated with this keyspace
-#
+# Keyspace optional paramaters:
+# - strategy_options: Additional information for the replication strategy.
+# - column_families:
 #     ColumnFamily required parameters:
 #     - name: name of the ColumnFamily.  Must not contain the character "-".
 #     - compare_with: tells Cassandra how to sort the columns for slicing
@@ -340,6 +346,8 @@ index_interval: 128
 #        days). See http://wiki.apache.org/cassandra/DistributedDeletes
 #     - default_validation_class: specifies a validator class to use for
 #        validating all the column values in the CF.
+#     NOTE:
+#     min_ must be less than max_compaction_threshold!
 #     - min_compaction_threshold: the minimum number of SSTables needed
 #        to start a minor compaction.  increasing this will cause minor
 #        compactions to start less frequently and be more intensive. setting
@@ -348,6 +356,7 @@ index_interval: 128
 #        before a minor compaction is forced.  decreasing this will cause
 #        minor compactions to start more frequently and be less intensive.
 #        setting this to 0 disables minor compactions.  defaults to 32.
+#     /NOTE
 #     - row_cache_save_period_in_seconds: number of seconds between saving
 #        row caches.  The row caches can be saved periodically and if one
 #        exists on startup it will be loaded.
@@ -362,10 +371,25 @@ index_interval: 128
 #     - memtable_operations_in_millions: Number of operations in millions
 #        before the memtable is flushed. If undefined, throughput / 64 * 0.3
 #        will be used.
-#
-# NOTE: this keyspace definition is for demonstration purposes only.
-#       Cassandra will not load these definitions during startup. See
-#       http://wiki.apache.org/cassandra/FAQ#no_keyspaces for an explanation.
+#     - column_metadata:
+#         Column required parameters:
+#         - name: binds a validator (and optionally an indexer) to columns 
+#            with this name in any row of the enclosing column family.
+#         - validator: like cf.compare_with, an AbstractType that checks
+#            that the value of the column is well-defined.
+#         Column optional parameters:
+#         NOTE:
+#         index_name cannot be set if index_type is not also set!
+#         - index_name: User-friendly name for the index.
+#         - index_type: The type of index to be created. Currently only
+#            KEYS is supported.
+#         /NOTE
+# 
+# NOTE:
+#   this keyspace definition is for demonstration purposes only.
+#   Cassandra will not load these definitions during startup. See
+#   http://wiki.apache.org/cassandra/FAQ#no_keyspaces for an explanation.
+# /NOTE
 keyspaces:
     - name: Keyspace1
       replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
@@ -414,4 +438,5 @@ keyspaces:
           column_metadata:
             - name: birthdate
               validator_class: LongType
+              index_name: birthdate_idx
               index_type: KEYS
