@@ -101,19 +101,17 @@ public class ColumnDefinition {
         }
     }
 
-    public static ColumnDefinition fromColumnDef(ColumnDef thriftColumnDef) throws ConfigurationException
+    public static ColumnDefinition fromColumnDef(ColumnDef cd) throws ConfigurationException
     {
-        validateIndexType(thriftColumnDef);
-        return new ColumnDefinition(thriftColumnDef.name, thriftColumnDef.validation_class, thriftColumnDef.index_type, thriftColumnDef.index_name);
+        return new ColumnDefinition(cd.name, cd.validation_class, cd.index_type, cd.index_name);
     }
     
-    public static ColumnDefinition fromColumnDef(org.apache.cassandra.avro.ColumnDef avroColumnDef) throws ConfigurationException
+    public static ColumnDefinition fromColumnDef(org.apache.cassandra.avro.ColumnDef cd) throws ConfigurationException
     {
-        validateIndexType(avroColumnDef);
-        return new ColumnDefinition(avroColumnDef.name,
-                avroColumnDef.validation_class.toString(),
-                IndexType.valueOf(avroColumnDef.index_type == null ? org.apache.cassandra.avro.CassandraServer.D_COLDEF_INDEXTYPE : avroColumnDef.index_type.name()),
-                avroColumnDef.index_name == null ? org.apache.cassandra.avro.CassandraServer.D_COLDEF_INDEXNAME : avroColumnDef.index_name.toString());
+        return new ColumnDefinition(cd.name,
+                cd.validation_class.toString(),
+                IndexType.valueOf(cd.index_type == null ? org.apache.cassandra.avro.CassandraServer.D_COLDEF_INDEXTYPE : cd.index_type.name()),
+                cd.index_name == null ? org.apache.cassandra.avro.CassandraServer.D_COLDEF_INDEXNAME : cd.index_name.toString());
     }
 
     public static Map<ByteBuffer, ColumnDefinition> fromColumnDef(List<ColumnDef> thriftDefs) throws ConfigurationException
@@ -124,7 +122,6 @@ public class ColumnDefinition {
         Map<ByteBuffer, ColumnDefinition> cds = new TreeMap<ByteBuffer, ColumnDefinition>();
         for (ColumnDef thriftColumnDef : thriftDefs)
         {
-            validateIndexType(thriftColumnDef);
             cds.put(thriftColumnDef.name, fromColumnDef(thriftColumnDef));
         }
 
@@ -139,28 +136,10 @@ public class ColumnDefinition {
         Map<ByteBuffer, ColumnDefinition> cds = new TreeMap<ByteBuffer, ColumnDefinition>();
         for (org.apache.cassandra.avro.ColumnDef avroColumnDef : avroDefs)
         {
-            validateIndexType(avroColumnDef);
             cds.put(avroColumnDef.name, fromColumnDef(avroColumnDef));
         }
 
         return Collections.unmodifiableMap(cds);
-    }
-
-    public static void validateIndexType(org.apache.cassandra.thrift.ColumnDef thriftColumnDef) throws ConfigurationException
-    {
-        if ((thriftColumnDef.index_name != null) && (thriftColumnDef.index_type == null))
-        {
-            throw new ConfigurationException("index_name cannot be set if index_type is not also set");
-        }
-    }
-
-    public static void validateIndexType(org.apache.cassandra.avro.ColumnDef avroColumnDef) throws ConfigurationException
-    {
-        if ((avroColumnDef.index_name != null) && (avroColumnDef.index_type == null))
-        {
-            throw new ConfigurationException("index_name cannot be set if index_type is not also set");
-        }
-
     }
 
     @Override
