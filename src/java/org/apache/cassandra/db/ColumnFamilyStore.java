@@ -462,7 +462,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             Set<Component> components = sstableFiles.getValue();
 
             if (components.contains(Component.COMPACTED_MARKER) || desc.temporary)
+            {
                 SSTable.delete(desc, components);
+                continue;
+            }
 
             File dataFile = new File(desc.filenameFor(Component.DATA));
             if (components.contains(Component.DATA) && dataFile.length() > 0)
