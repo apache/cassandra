@@ -1,4 +1,4 @@
-dev
+0.7.0-rc1
  * fix compaction and flush races with schema updates (CASSANDRA-1715)
  * add clustertool, config-converter, sstablekeys, and schematool 
    Windows .bat files (CASSANDRA-1723)
