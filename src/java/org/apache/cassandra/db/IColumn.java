@@ -45,4 +45,11 @@ public interface IColumn
     public void updateDigest(MessageDigest digest);
     public int getLocalDeletionTime(); // for tombstone GC, so int is sufficient granularity
     public String getString(AbstractType comparator);
+
+    /**
+     * For a simple column, live == !isMarkedForDelete.
+     * For a supercolumn, live means it has at least one subcolumn whose timestamp is greater than the
+     * supercolumn deleted-at time.
+     */
+    boolean isLive();
 }

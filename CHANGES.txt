@@ -1,3 +1,8 @@
+dev
+ * fix live-column-count of slice ranges including tombstoned supercolumn 
+   with live subcolumn (CASSANDRA-1591)
+
+
 0.7.0-rc1
  * fix compaction and flush races with schema updates (CASSANDRA-1715)
  * add clustertool, config-converter, sstablekeys, and schematool 
@@ -11,6 +16,9 @@
  * Fix misuse of DataOutputBuffer.getData in AntiEntropyService
    (CASSANDRA-1729)
  * detect and warn when obsolete version of JNA is present (CASSANDRA-1770)
+
+
+0.6.8
  * Update windows .bat files to work outside of main Cassandra
    directory (CASSANDRA-1713)
  * log threshold causing memtable flush (CASSANDRA-1675)

@@ -135,7 +135,7 @@ public class SliceQueryFilter implements IFilter
                 break;
  
             // only count live columns towards the `count` criteria
-            if (!column.isMarkedForDelete()
+            if (column.isLive() 
                 && (!container.isMarkedForDelete()
                     || column.mostRecentLiveChangeAt() > container.getMarkedForDeleteAt()))
             {
