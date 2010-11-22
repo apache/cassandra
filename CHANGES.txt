@@ -8,6 +8,8 @@
  * Fix misuse of DataOutputBuffer.getData in AntiEntropyService
    (CASSANDRA-1729)
  * detect and warn when obsolete version of JNA is present (CASSANDRA-1770)
+ * fix live-column-count of slice ranges including tombstoned supercolumn 
+   with live subcolumn (CASSANDRA-1591)
 
 
 0.6.8

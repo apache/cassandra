@@ -268,6 +268,11 @@ public class SuperColumn implements IColumn, IColumnContainer
         return sb.toString();
     }
 
+    public boolean isLive()
+    {
+        return mostRecentLiveChangeAt() > markedForDeleteAt.get();
+    }
+
     public int getLocalDeletionTime()
     {
         return localDeletionTime.get();

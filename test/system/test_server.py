@@ -850,7 +850,30 @@ class TestMutations(CassandraTester):
         result = client.get_range_slice("Keyspace2", cp, SlicePredicate(column_names=['sc1']), 'key2', 'key4', 5, ConsistencyLevel.ONE)
         assert len(result) == 3
         assert list(set(row.columns[0].super_column.name for row in result))[0] == 'sc1'
-        
+
+    def test_get_range_slice_after_deletion(self):
+        key = 'key1'
+        # three supercoluns, each with "col1" subcolumn
+        for i in range(1,4):
+            client.insert('Keyspace2', key, ColumnPath('Super3', 'sc%d' % i, 'col1'), 'val1', 0, ConsistencyLevel.ONE)
+
+        cp = ColumnParent('Super3')
+        predicate = SlicePredicate(slice_range=SliceRange('sc1', 'sc3', False, count=1))
+        k_range = KeyRange(start_key=key, end_key=key, count=1)
+
+        # validate count=1 restricts to 1 supercolumn
+        result = client.get_range_slices('Keyspace2', cp, predicate, k_range, ConsistencyLevel.ONE)
+        assert len(result[0].columns) == 1
+
+        # remove sc1; add back subcolumn to override tombstone
+        client.remove('Keyspace2', key, ColumnPath('Super3', 'sc1'), 1, ConsistencyLevel.ONE)
+        result = client.get_range_slices('Keyspace2', cp, predicate, k_range, ConsistencyLevel.ONE)
+        assert len(result[0].columns) == 1
+        client.insert('Keyspace2', key, ColumnPath('Super3', 'sc1', 'col1'), 'val1', 2, ConsistencyLevel.ONE)
+        result = client.get_range_slices('Keyspace2', cp, predicate, k_range, ConsistencyLevel.ONE)
+        assert len(result[0].columns) == 1, result[0].columns
+        assert result[0].columns[0].super_column.name == 'sc1'
+
     def test_get_range_slice(self):
         for key in ['key1', 'key2', 'key3', 'key4', 'key5']:
             for cname in ['col1', 'col2', 'col3', 'col4', 'col5']:
