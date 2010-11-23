@@ -558,7 +558,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Map<Range, List<InetAddress>> rangeToEndpointMap = new HashMap<Range, List<InetAddress>>();
         for (Range range : ranges)
         {
-            rangeToEndpointMap.put(range, Table.open(keyspace).replicationStrategy.getNaturalEndpoints(range.right));
+            rangeToEndpointMap.put(range, Table.open(keyspace).getReplicationStrategy().getNaturalEndpoints(range.right));
         }
         return rangeToEndpointMap;
     }
@@ -824,7 +824,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     private void calculatePendingRanges()
     {
         for (String table : DatabaseDescriptor.getNonSystemTables())
-            calculatePendingRanges(Table.open(table).replicationStrategy, table);
+            calculatePendingRanges(Table.open(table).getReplicationStrategy(), table);
     }
 
     // public & static for testing purposes
@@ -894,7 +894,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     private Multimap<InetAddress, Range> getNewSourceRanges(String table, Set<Range> ranges) 
     {
         InetAddress myAddress = FBUtilities.getLocalAddress();
-        Multimap<Range, InetAddress> rangeAddresses = Table.open(table).replicationStrategy.getRangeAddresses(tokenMetadata_);
+        Multimap<Range, InetAddress> rangeAddresses = Table.open(table).getReplicationStrategy().getRangeAddresses(tokenMetadata_);
         Multimap<InetAddress, Range> sourceRanges = HashMultimap.create();
         IFailureDetector failureDetector = FailureDetector.instance;
 
@@ -1017,7 +1017,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         // Find (for each range) all nodes that store replicas for these ranges as well
         for (Range range : ranges)
-            currentReplicaEndpoints.put(range, Table.open(table).replicationStrategy.calculateNaturalEndpoints(range.right, tokenMetadata_));
+            currentReplicaEndpoints.put(range, Table.open(table).getReplicationStrategy().calculateNaturalEndpoints(range.right, tokenMetadata_));
 
         TokenMetadata temp = tokenMetadata_.cloneAfterAllLeft();
 
@@ -1035,7 +1035,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // range.
         for (Range range : ranges)
         {
-            Collection<InetAddress> newReplicaEndpoints = Table.open(table).replicationStrategy.calculateNaturalEndpoints(range.right, temp);
+            Collection<InetAddress> newReplicaEndpoints = Table.open(table).getReplicationStrategy().calculateNaturalEndpoints(range.right, temp);
             newReplicaEndpoints.removeAll(currentReplicaEndpoints.get(range));
             if (logger_.isDebugEnabled())
                 if (newReplicaEndpoints.isEmpty())
@@ -1359,7 +1359,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     Collection<Range> getRangesForEndpoint(String table, InetAddress ep)
     {
-        return Table.open(table).replicationStrategy.getAddressRanges().get(ep);
+        return Table.open(table).getReplicationStrategy().getAddressRanges().get(ep);
     }
 
     /**
@@ -1409,7 +1409,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public List<InetAddress> getNaturalEndpoints(String table, Token token)
     {
-        return Table.open(table).replicationStrategy.getNaturalEndpoints(token);
+        return Table.open(table).getReplicationStrategy().getNaturalEndpoints(token);
     }
 
     /**
@@ -1427,7 +1427,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public List<InetAddress> getLiveNaturalEndpoints(String table, Token token)
     {
         List<InetAddress> liveEps = new ArrayList<InetAddress>();
-        List<InetAddress> endpoints = Table.open(table).replicationStrategy.getNaturalEndpoints(token);
+        List<InetAddress> endpoints = Table.open(table).getReplicationStrategy().getNaturalEndpoints(token);
 
         for (InetAddress endpoint : endpoints)
         {

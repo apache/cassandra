@@ -65,7 +65,7 @@ public class DatacenterQuorumResponseHandler<T> extends QuorumResponseHandler<T>
     @Override
     public int determineBlockFor(ConsistencyLevel consistency_level, String table)
 	{
-        NetworkTopologyStrategy stategy = (NetworkTopologyStrategy) Table.open(table).replicationStrategy;
+        NetworkTopologyStrategy stategy = (NetworkTopologyStrategy) Table.open(table).getReplicationStrategy();
 		return (stategy.getReplicationFactor(localdc) / 2) + 1;
 	}
 }

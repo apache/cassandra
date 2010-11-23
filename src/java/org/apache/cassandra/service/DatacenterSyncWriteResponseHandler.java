@@ -63,7 +63,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
         super(writeEndpoints, hintedEndpoints, consistencyLevel);
         assert consistencyLevel == ConsistencyLevel.LOCAL_QUORUM;
 
-        strategy = (NetworkTopologyStrategy) Table.open(table).replicationStrategy;
+        strategy = (NetworkTopologyStrategy) Table.open(table).getReplicationStrategy();
 
         for (String dc : strategy.getDatacenters())
         {

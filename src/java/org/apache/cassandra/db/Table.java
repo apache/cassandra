@@ -96,7 +96,7 @@ public class Table
     public final Map<Integer, ColumnFamilyStore> columnFamilyStores = new HashMap<Integer, ColumnFamilyStore>(); // TODO make private again
     private final Object[] indexLocks;
     private ScheduledFuture<?> flushTask;
-    public final AbstractReplicationStrategy replicationStrategy;
+    private volatile AbstractReplicationStrategy replicationStrategy;
 
     public static Table open(String table)
     {
@@ -244,11 +244,7 @@ public class Table
         KSMetaData ksm = DatabaseDescriptor.getKSMetaData(table);
         try
         {
-            replicationStrategy = AbstractReplicationStrategy.createReplicationStrategy(table,
-                                                                                        ksm.strategyClass,
-                                                                                        StorageService.instance.getTokenMetadata(),
-                                                                                        DatabaseDescriptor.getEndpointSnitch(),
-                                                                                        ksm.strategyOptions);
+            createReplicationStrategy(ksm);
         }
         catch (ConfigurationException e)
         {
@@ -302,7 +298,19 @@ public class Table
         };
         flushTask = StorageService.scheduledTasks.scheduleWithFixedDelay(runnable, minCheckMs, minCheckMs, TimeUnit.MILLISECONDS);
     }
-    
+
+    public void createReplicationStrategy(KSMetaData ksm) throws ConfigurationException
+    {
+        if (replicationStrategy != null)
+            StorageService.instance.getTokenMetadata().unregister(replicationStrategy);
+            
+        replicationStrategy = AbstractReplicationStrategy.createReplicationStrategy(ksm.name,
+                                                                                    ksm.strategyClass,
+                                                                                    StorageService.instance.getTokenMetadata(),
+                                                                                    DatabaseDescriptor.getEndpointSnitch(),
+                                                                                    ksm.strategyOptions);
+    }
+
     // best invoked on the compaction mananger.
     public void dropCf(Integer cfId) throws IOException
     {
@@ -555,6 +563,11 @@ public class Table
     public IndexBuilder createIndexBuilder(ColumnFamilyStore cfs, SortedSet<ByteBuffer> columns, ReducingKeyIterator iter)
     {
         return new IndexBuilder(cfs, columns, iter);
+    }
+
+    public AbstractReplicationStrategy getReplicationStrategy()
+    {
+        return replicationStrategy;
     }
 
     public class IndexBuilder implements ICompactionInfo

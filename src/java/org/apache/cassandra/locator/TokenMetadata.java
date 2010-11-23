@@ -540,6 +540,11 @@ public class TokenMetadata
         subscribers.add(subscriber);
     }
 
+    public void unregister(AbstractReplicationStrategy subscriber)
+    {
+        subscribers.remove(subscriber);
+    }
+
     /**
      * write endpoints may be different from read endpoints, because read endpoints only need care about the
      * "natural" nodes for a token, but write endpoints also need to account for nodes that are bootstrapping

@@ -8,6 +8,7 @@ dev
  * require index_type to be present when specifying index_name
    on ColumnDef (CASSANDRA-1759)
  * fix add/remove index bugs in CFMetadata (CASSANDRA-1768)
+ * rebuild Strategy during system_update_keyspace (CASSANDRA-1762)
 
 
 0.7.0-rc1
