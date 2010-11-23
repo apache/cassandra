@@ -181,8 +181,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         put(Verb.STREAM_REQUEST, Stage.STREAM);
         put(Verb.RANGE_SLICE, Stage.READ);
         put(Verb.BOOTSTRAP_TOKEN, Stage.MISC);
-        put(Verb.TREE_REQUEST, Stage.ANTIENTROPY);
-        put(Verb.TREE_RESPONSE, Stage.ANTIENTROPY);
+        put(Verb.TREE_REQUEST, Stage.ANTI_ENTROPY);
+        put(Verb.TREE_RESPONSE, Stage.ANTI_ENTROPY);
         put(Verb.GOSSIP_DIGEST_ACK, Stage.GOSSIP);
         put(Verb.GOSSIP_DIGEST_ACK2, Stage.GOSSIP);
         put(Verb.GOSSIP_DIGEST_SYN, Stage.GOSSIP);

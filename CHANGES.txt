@@ -1,6 +1,9 @@
 dev
  * fix live-column-count of slice ranges including tombstoned supercolumn 
    with live subcolumn (CASSANDRA-1591)
+ * rename o.a.c.internal.AntientropyStage -> AntiEntropyStage,
+   o.a.c.request.Request_responseStage -> RequestResponseStage,
+   o.a.c.internal.Internal_responseStage -> InternalResponseStage
 
 
 0.7.0-rc1
