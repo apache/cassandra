@@ -20,9 +20,6 @@ dev
  * Fix misuse of DataOutputBuffer.getData in AntiEntropyService
    (CASSANDRA-1729)
  * detect and warn when obsolete version of JNA is present (CASSANDRA-1770)
-
-
-0.6.8
  * Update windows .bat files to work outside of main Cassandra
    directory (CASSANDRA-1713)
  * log threshold causing memtable flush (CASSANDRA-1675)
