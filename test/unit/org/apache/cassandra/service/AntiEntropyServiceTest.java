@@ -19,7 +19,6 @@
 package org.apache.cassandra.service;
 
 import java.net.InetAddress;
-import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -47,7 +46,6 @@ import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 
-import static com.google.common.base.Charsets.UTF_8;
 import static org.apache.cassandra.service.AntiEntropyService.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -244,7 +242,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
 
     void flushAES() throws Exception
     {
-        final ThreadPoolExecutor stage = StageManager.getStage(Stage.ANTIENTROPY);
+        final ThreadPoolExecutor stage = StageManager.getStage(Stage.ANTI_ENTROPY);
         final Callable noop = new Callable<Object>()
         {
             public Boolean call()

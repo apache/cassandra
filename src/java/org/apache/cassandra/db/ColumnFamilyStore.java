@@ -461,9 +461,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             Descriptor desc = sstableFiles.getKey();
             Set<Component> components = sstableFiles.getValue();
 
-            if (SSTable.conditionalDelete(desc, components))
-                // was compacted or temporary: deleted.
+            if (components.contains(Component.COMPACTED_MARKER) || desc.temporary)
+            {
+                SSTable.delete(desc, components);
                 continue;
+            }
 
             File dataFile = new File(desc.filenameFor(Component.DATA));
             if (components.contains(Component.DATA) && dataFile.length() > 0)
@@ -1559,12 +1561,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 FileUtils.createDirectory(snapshotDirectoryPath);
 
                 // hard links
-                for (Component component : ssTable.components)
-                {
-                    File sourceFile = new File(ssTable.descriptor.filenameFor(component));
-                    File targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
-                    CLibrary.createHardLink(sourceFile, targetLink);
-                }
+                ssTable.createLinks(snapshotDirectoryPath);
                 if (logger.isDebugEnabled())
                     logger.debug("Snapshot for " + table + " keyspace data file " + ssTable.getFilename() +
                         " created in " + snapshotDirectoryPath);

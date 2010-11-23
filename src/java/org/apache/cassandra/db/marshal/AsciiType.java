@@ -38,4 +38,9 @@ public class AsciiType extends BytesType
     {
         return ByteBufferUtil.string(bytes, Charsets.US_ASCII);
     }
+
+    public ByteBuffer fromString(String source)
+    {
+        return ByteBuffer.wrap(source.getBytes(Charsets.US_ASCII));
+    }
 }

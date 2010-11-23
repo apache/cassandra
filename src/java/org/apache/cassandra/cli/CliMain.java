@@ -93,7 +93,9 @@ public class CliMain
         
         if (sessionState.keyspace != null)
         {
-            try {
+            try
+            {
+                sessionState.keyspace = CliCompiler.getKeySpace(sessionState.keyspace, thriftClient.describe_keyspaces());;
                 thriftClient.set_keyspace(sessionState.keyspace);
                 cliClient.setKeySpace(sessionState.keyspace);
                 updateCompletor(CliUtils.getCfNamesByKeySpace(cliClient.getKSMetaData(sessionState.keyspace)));
@@ -284,15 +286,7 @@ public class CliMain
                 return;
             }
 
-            BufferedReader reader = new BufferedReader(fileReader);
-
-            String statement;
-
-            while ((statement = reader.readLine()) != null)
-            {
-                processStatement(statement);
-            }
-
+            evaluateFileStatements(new BufferedReader(fileReader));
             return;
         }
 
@@ -322,10 +316,57 @@ public class CliMain
 
         printBanner();
 
-        String line;
-        while ((line = reader.readLine(getPrompt(cliClient))) != null)
+        String prompt;
+        String line = "";
+        String currentStatement = "";
+        boolean inCompoundStatement = false;
+
+        while (line != null)
         {
-            processStatement(line);
+            prompt = (inCompoundStatement) ? "\t" : getPrompt(cliClient);
+
+            line = reader.readLine(prompt).trim();
+
+            if (line.isEmpty())
+                continue;
+
+            currentStatement += line;
+
+            if (line.endsWith(";"))
+            {
+                processStatement(currentStatement);
+                currentStatement = "";
+                inCompoundStatement = false;
+            }
+            else
+            {
+                currentStatement += " "; // ready for new line
+                inCompoundStatement = true;
+            }
+        }
+    }
+
+    private static void evaluateFileStatements(BufferedReader reader) throws IOException
+    {
+        String line = "";
+        String currentStatement = "";
+
+        while ((line = reader.readLine()) != null)
+        {
+            if (line.isEmpty())
+                continue;
+
+            currentStatement += line;
+
+            if (line.endsWith(";"))
+            {
+                processStatement(currentStatement);
+                currentStatement = "";
+            }
+            else
+            {
+                currentStatement += " "; // ready for new line
+            }
         }
     }
 

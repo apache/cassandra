@@ -222,5 +222,10 @@ public class Column implements IColumn
         sb.append(timestamp());
         return sb.toString();
     }
+
+    public boolean isLive()
+    {
+        return !isMarkedForDelete();
+    }
 }
 

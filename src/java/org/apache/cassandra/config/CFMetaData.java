@@ -607,7 +607,7 @@ public final class CFMetaData
     public void apply(org.apache.cassandra.avro.CfDef cf_def) throws ConfigurationException
     {
         // validate
-        if (cf_def.id != cfId)
+        if (!cf_def.id.equals(cfId))
             throw new ConfigurationException("ids do not match.");
         if (!cf_def.keyspace.equals(tableName))
             throw new ConfigurationException("keyspaces do not match.");

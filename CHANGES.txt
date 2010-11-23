@@ -1,4 +1,14 @@
 dev
+ * fix live-column-count of slice ranges including tombstoned supercolumn 
+   with live subcolumn (CASSANDRA-1591)
+ * rename o.a.c.internal.AntientropyStage -> AntiEntropyStage,
+   o.a.c.request.Request_responseStage -> RequestResponseStage,
+   o.a.c.internal.Internal_responseStage -> InternalResponseStage
+ * add AbstractType.fromString (CASSANDRA-1767)
+ * fix add/remove index bugs in CFMetadata (CASSANDRA-1768)
+
+
+0.7.0-rc1
  * fix compaction and flush races with schema updates (CASSANDRA-1715)
  * add clustertool, config-converter, sstablekeys, and schematool 
    Windows .bat files (CASSANDRA-1723)
@@ -8,6 +18,9 @@ dev
  * limit repaired ranges to what the nodes have in common (CASSANDRA-1674)
  * index scan treats missing columns as not matching secondary
    expressions (CASSANDRA-1745)
+ * Fix misuse of DataOutputBuffer.getData in AntiEntropyService
+   (CASSANDRA-1729)
+ * detect and warn when obsolete version of JNA is present (CASSANDRA-1770)
  * Update windows .bat files to work outside of main Cassandra
    directory (CASSANDRA-1713)
  * log threshold causing memtable flush (CASSANDRA-1675)
@@ -44,6 +57,8 @@ dev
  * fix for bootstrap when no non-system tables are defined (CASSANDRA-1732)
  * handle replica unavailability in index scan (CASSANDRA-1755)
  * fix service initialization order deadlock (CASSANDRA-1756)
+ * multi-line cli commands (CASSANDRA-1742)
+ * fix race between snapshot and compaction (CASSANDRA-1736)
 
 
 0.7.0-beta3

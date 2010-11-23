@@ -29,10 +29,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.Multimap;
+import org.apache.commons.lang.StringUtils;
+
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * This Replication Strategy takes a property file that gives the intended
@@ -62,12 +65,11 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         if (configOptions != null)
         {
             for (Entry entry : configOptions.entrySet())
-            {
                 newDatacenters.put((String) entry.getKey(), Integer.parseInt((String) entry.getValue()));
-            }
         }
 
         datacenters = Collections.unmodifiableMap(newDatacenters);
+        logger.debug("Configured datacenter replicas are {}", FBUtilities.toString(datacenters));
     }
 
     public List<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata)
@@ -116,6 +118,9 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             if (dcEndpoints.size() < dcReplicas)
                 throw new IllegalStateException(String.format("datacenter (%s) has no more endpoints, (%s) replicas still needed",
                                                               dcName, dcReplicas - dcEndpoints.size()));
+            if (logger.isDebugEnabled())
+                logger.debug("{} endpoints in datacenter {} for token {} ",
+                             new Object[] { StringUtils.join(dcEndpoints, ","), dcName, searchToken});
             endpoints.addAll(dcEndpoints);
         }
 

@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.commons.lang.NotImplementedException;
 
 /** for sorting columns representing row keys in the row ordering as determined by a partitioner.
  * Not intended for user-defined CFs, and will in fact error out if used with such. */
@@ -39,6 +40,11 @@ public class LocalByPartionerType<T extends Token> extends AbstractType
     public String getString(ByteBuffer bytes)
     {
         return FBUtilities.bytesToHex(bytes);
+    }
+
+    public ByteBuffer fromString(String source)
+    {
+        throw new NotImplementedException();
     }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)

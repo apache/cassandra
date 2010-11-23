@@ -277,7 +277,7 @@ index_interval: 128
 # unusual circumstances you will have one Keyspace per application.
 #
 # Keyspace required parameters:
-# - name: name of the keyspace; "system" and "definitions" are 
+# - name: name of the keyspace; "system" is
 #   reserved for Cassandra Internals.
 # - replica_placement_strategy: the class that determines how replicas
 #   are distributed among nodes. Contains both the class as well as
@@ -368,101 +368,55 @@ index_interval: 128
 #        before the memtable is flushed. If undefined, throughput / 64 * 0.3
 #        will be used.
 #
+# NOTE: this keyspace definition is for demonstration purposes only.
+#       Cassandra will not load these definitions during startup. See
+#       http://wiki.apache.org/cassandra/FAQ#no_keyspaces for an explanation.
 keyspaces:
-- column_families:
-  - column_metadata:
-    - !!org.apache.cassandra.config.RawColumnDefinition
-      name: password
-      validator_class: org.apache.cassandra.db.marshal.UTF8Type
-    column_type: Standard
-    comment: ''
-    compare_with: org.apache.cassandra.db.marshal.UTF8Type
-    gc_grace_seconds: 864000
-    key_cache_save_period_in_seconds: 3600
-    keys_cached: 200000.0
-    max_compaction_threshold: 32
-    memtable_flush_after_mins: 60
-    min_compaction_threshold: 4
-    name: User
-    read_repair_chance: 1.0
-    row_cache_save_period_in_seconds: 0
-    rows_cached: 0.0
-  - column_type: Standard
-    comment: ''
-    compare_with: org.apache.cassandra.db.marshal.LongType
-    default_validation_class: org.apache.cassandra.db.marshal.LexicalUUIDType
-    gc_grace_seconds: 864000
-    key_cache_save_period_in_seconds: 3600
-    keys_cached: 200000.0
-    max_compaction_threshold: 32
-    memtable_flush_after_mins: 60
-    min_compaction_threshold: 4
-    name: Userline
-    read_repair_chance: 1.0
-    row_cache_save_period_in_seconds: 0
-    rows_cached: 0.0
-  - column_type: Standard
-    comment: ''
-    compare_with: org.apache.cassandra.db.marshal.UTF8Type
-    default_validation_class: org.apache.cassandra.db.marshal.UTF8Type
-    gc_grace_seconds: 864000
-    key_cache_save_period_in_seconds: 3600
-    keys_cached: 200000.0
-    max_compaction_threshold: 32
-    memtable_flush_after_mins: 60
-    min_compaction_threshold: 4
-    name: Followers
-    read_repair_chance: 1.0
-    row_cache_save_period_in_seconds: 0
-    rows_cached: 0.0
-  - column_metadata:
-    - !!org.apache.cassandra.config.RawColumnDefinition
-      name: body
-      validator_class: org.apache.cassandra.db.marshal.UTF8Type
-    - !!org.apache.cassandra.config.RawColumnDefinition
-      name: username
-      validator_class: org.apache.cassandra.db.marshal.UTF8Type
-    column_type: Standard
-    comment: ''
-    compare_with: org.apache.cassandra.db.marshal.UTF8Type
-    gc_grace_seconds: 864000
-    key_cache_save_period_in_seconds: 3600
-    keys_cached: 200000.0
-    max_compaction_threshold: 32
-    memtable_flush_after_mins: 60
-    min_compaction_threshold: 4
-    name: Tweet
-    read_repair_chance: 1.0
-    row_cache_save_period_in_seconds: 0
-    rows_cached: 0.0
-  - column_type: Standard
-    comment: ''
-    compare_with: org.apache.cassandra.db.marshal.UTF8Type
-    default_validation_class: org.apache.cassandra.db.marshal.UTF8Type
-    gc_grace_seconds: 864000
-    key_cache_save_period_in_seconds: 3600
-    keys_cached: 200000.0
-    max_compaction_threshold: 32
-    memtable_flush_after_mins: 60
-    min_compaction_threshold: 4
-    name: Friends
-    read_repair_chance: 1.0
-    row_cache_save_period_in_seconds: 0
-    rows_cached: 0.0
-  - column_type: Standard
-    comment: ''
-    compare_with: org.apache.cassandra.db.marshal.LongType
-    default_validation_class: org.apache.cassandra.db.marshal.LexicalUUIDType
-    gc_grace_seconds: 864000
-    key_cache_save_period_in_seconds: 3600
-    keys_cached: 200000.0
-    max_compaction_threshold: 32
-    memtable_flush_after_mins: 60
-    min_compaction_threshold: 4
-    name: Timeline
-    read_repair_chance: 1.0
-    row_cache_save_period_in_seconds: 0
-    rows_cached: 0.0
-  name: Twissjava
-  replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
-  replication_factor: 1
+    - name: Keyspace1
+      replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
+      replication_factor: 1
+      column_families:
+        - name: Standard1
+          compare_with: BytesType
+          keys_cached: 10000
+          rows_cached: 1000
+          row_cache_save_period_in_seconds: 0
+          key_cache_save_period_in_seconds: 3600
+          memtable_flush_after_mins: 59
+          memtable_throughput_in_mb: 255
+          memtable_operations_in_millions: 0.29
+
+        - name: Standard2
+          compare_with: UTF8Type
+          read_repair_chance: 0.1
+          keys_cached: 100
+          gc_grace_seconds: 0
+          min_compaction_threshold: 5
+          max_compaction_threshold: 31
+
+        - name: StandardByUUID1
+          compare_with: TimeUUIDType
+
+        - name: Super1
+          column_type: Super
+          compare_with: BytesType
+          compare_subcolumns_with: BytesType
+
+        - name: Super2
+          column_type: Super
+          compare_subcolumns_with: UTF8Type
+          rows_cached: 10000
+          keys_cached: 50
+          comment: 'A column family with supercolumns, whose column and subcolumn names are UTF8 strings'
+
+        - name: Super3
+          column_type: Super
+          compare_with: LongType
+          comment: 'A column family with supercolumns, whose column names are Longs (8 bytes)'
+
+        - name: Indexed1
+          default_validation_class: LongType
+          column_metadata:
+            - name: birthdate
+              validator_class: LongType
+              index_type: KEYS

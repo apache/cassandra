@@ -20,6 +20,10 @@ package org.apache.cassandra.cli;
 
 import org.antlr.runtime.*;
 import org.antlr.runtime.tree.*;
+import org.apache.cassandra.thrift.KsDef;
+import org.apache.cassandra.thrift.CfDef;
+
+import java.util.List;
 
 
 public class CliCompiler
@@ -88,9 +92,62 @@ public class CliCompiler
      * NODE_COLUMN_ACCESS related functions.
      */
 
-    public static String getColumnFamily(Tree astNode)
+    public static String getColumnFamily(Tree astNode, List<CfDef> cfDefs)
     {
-        return astNode.getChild(0).getText();
+        return getColumnFamily(astNode.getChild(0).getText(), cfDefs);
+    }
+
+    public static String getColumnFamily(String cfName, List<CfDef> cfDefs)
+    {
+        int matches = 0;
+        String lastMatchedName = "";
+
+        for (CfDef cfDef : cfDefs)
+        {
+            if (cfDef.name.equals(cfName))
+            {
+                return cfName;
+            }
+            else if (cfDef.name.toUpperCase().equals(cfName.toUpperCase()))
+            {
+                lastMatchedName = cfDef.name;
+                matches++;
+            }
+        }
+
+        if (matches > 1 || matches == 0)
+            throw new RuntimeException(cfName + " not found in current keyspace.");
+
+        return lastMatchedName;
+    }
+
+    public static String getKeySpace(Tree statement, List<KsDef> keyspaces)
+    {
+        return getKeySpace(statement.getChild(0).getText(), keyspaces);
+    }
+
+    public static String getKeySpace(String ksName, List<KsDef> keyspaces)
+    {
+        int matches = 0;
+        String lastMatchedName = "";
+
+        for (KsDef ksDef : keyspaces)
+        {
+            if (ksDef.name.equals(ksName))
+            {
+                return ksName;
+            }
+            else if (ksDef.name.toUpperCase().equals(ksName.toUpperCase()))
+            {
+                lastMatchedName = ksDef.name;
+                matches++;
+            }
+        }
+
+        if (matches > 1 || matches == 0)
+            throw new RuntimeException("Keyspace '" + ksName + "' not found.");
+
+        return lastMatchedName;
     }
 
     public static String getKey(Tree astNode)

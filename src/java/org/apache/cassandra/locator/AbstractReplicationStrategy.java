@@ -140,8 +140,6 @@ public abstract class AbstractReplicationStrategy
     {
         Multimap<InetAddress, InetAddress> map = HashMultimap.create(targets.size(), 1);
 
-        IEndpointSnitch endpointSnitch = DatabaseDescriptor.getEndpointSnitch();
-
         // first, add the live endpoints
         for (InetAddress ep : targets)
         {
@@ -168,7 +166,7 @@ public abstract class AbstractReplicationStrategy
 
             InetAddress destination = map.isEmpty()
                                     ? localAddress
-                                    : endpointSnitch.getSortedListByProximity(localAddress, map.keySet()).get(0);
+                                    : snitch.getSortedListByProximity(localAddress, map.keySet()).get(0);
             map.put(destination, ep);
         }
 

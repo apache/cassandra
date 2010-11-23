@@ -47,7 +47,7 @@ public class StageManager
         // the rest are all single-threaded
         stages.put(Stage.STREAM, new JMXEnabledThreadPoolExecutor(Stage.STREAM));
         stages.put(Stage.GOSSIP, new JMXEnabledThreadPoolExecutor(Stage.GOSSIP));
-        stages.put(Stage.ANTIENTROPY, new JMXEnabledThreadPoolExecutor(Stage.ANTIENTROPY));
+        stages.put(Stage.ANTI_ENTROPY, new JMXEnabledThreadPoolExecutor(Stage.ANTI_ENTROPY));
         stages.put(Stage.MIGRATION, new JMXEnabledThreadPoolExecutor(Stage.MIGRATION));
         stages.put(Stage.MISC, new JMXEnabledThreadPoolExecutor(Stage.MISC));
     }

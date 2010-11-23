@@ -1474,6 +1474,31 @@ class TestMutations(ThriftTester):
         except NotFoundException:
             assert True, 'column did not exist'
 
+    def test_get_range_slice_after_deletion(self):
+        _set_keyspace('Keyspace2')
+        key = 'key1'
+        # three supercoluns, each with "col1" subcolumn
+        for i in range(1,4):
+            client.insert(key, ColumnParent('Super3', 'sc%d' % i), Column('col1', 'val1', 0), ConsistencyLevel.ONE)
+
+        cp = ColumnParent('Super3')
+        predicate = SlicePredicate(slice_range=SliceRange('sc1', 'sc3', False, count=1))
+        k_range = KeyRange(start_key=key, end_key=key, count=1)
+
+        # validate count=1 restricts to 1 supercolumn
+        result = client.get_range_slices(cp, predicate, k_range, ConsistencyLevel.ONE)
+        assert len(result[0].columns) == 1
+
+        # remove sc1; add back subcolumn to override tombstone
+        client.remove(key, ColumnPath('Super3', 'sc1'), 1, ConsistencyLevel.ONE)
+        result = client.get_range_slices(cp, predicate, k_range, ConsistencyLevel.ONE)
+        assert len(result[0].columns) == 1
+        client.insert(key, ColumnParent('Super3', 'sc1'), Column('col1', 'val1', 2), ConsistencyLevel.ONE)
+        result = client.get_range_slices(cp, predicate, k_range, ConsistencyLevel.ONE)
+        assert len(result[0].columns) == 1, result[0].columns
+        assert result[0].columns[0].super_column.name == 'sc1'
+
+
 class TestTruncate(ThriftTester):
     def test_truncate(self):
         _set_keyspace('Keyspace1')

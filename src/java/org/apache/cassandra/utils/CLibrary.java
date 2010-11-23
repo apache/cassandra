@@ -50,6 +50,10 @@ public final class CLibrary
         {
             logger.info("Unable to link C library. Native methods will be disabled.");
         }
+        catch (NoSuchMethodError e)
+        {
+            logger.warn("Obsolete version of JNA present; unable to register C library. Upgrade to JNA 3.2.7 or later");
+        }
     }
 
     private static native int mlockall(int flags) throws LastErrorException;

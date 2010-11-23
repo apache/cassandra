@@ -21,11 +21,14 @@ package org.apache.cassandra.dht;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.util.Random;
+import java.util.*;
 
 import com.google.common.base.Charsets;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -156,5 +159,42 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
             throw new RuntimeException("The provided key was not UTF8 encoded.", e);
         }
         return new StringToken(skey);
+    }
+
+    public Map<Token, Float> describeOwnership(List<Token> sortedTokens)
+    {
+        // alltokens will contain the count and be returned, sorted_ranges is shorthand for token<->token math.
+        Map<Token, Float> alltokens = new HashMap<Token, Float>();
+        List<Range> sorted_ranges = new ArrayList<Range>();
+
+        // this initializes the counts to 0 and calcs the ranges in order.
+        Token last_t = sortedTokens.get(sortedTokens.size()-1);
+        for (Token node : sortedTokens)
+        {
+            alltokens.put(node, new Float(0.0));
+            sorted_ranges.add(new Range(last_t, node));
+            last_t = node;
+        }
+
+        for(String ks : DatabaseDescriptor.getTables())
+        {
+            for (CFMetaData cfmd : DatabaseDescriptor.getKSMetaData(ks).cfMetaData().values())
+            {
+                for (Range r : sorted_ranges)
+                {
+                    // Looping over every KS:CF:Range, get the splits size and add it to the count
+                    alltokens.put(r.right, alltokens.get(r.right) + StorageService.instance.getSplits(ks, cfmd.cfName, r, 1).size());
+                }
+            }
+        }
+
+        // Sum every count up and divide count/total for the fractional ownership.
+        Float total = new Float(0.0);
+        for (Float f : alltokens.values()) { total += f; }
+        for (Map.Entry<Token, Float> row : alltokens.entrySet()) {
+            alltokens.put(row.getKey(), row.getValue() / total);
+        }
+        
+        return alltokens;
     }
 }

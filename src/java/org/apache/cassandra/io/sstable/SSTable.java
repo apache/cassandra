@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOError;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -59,12 +60,10 @@ public abstract class SSTable
     public static final String COMPONENT_FILTER = Component.Type.FILTER.repr;
     public static final String COMPONENT_STATS = Component.Type.STATS.repr;
 
-    public static final String COMPONENT_COMPACTED = Component.Type.COMPACTED_MARKER.repr;
-
     public static final String TEMPFILE_MARKER = "tmp";
 
     public final Descriptor descriptor;
-    public final Set<Component> components;
+    protected final Set<Component> components;
     public final CFMetaData metadata;
     public final IPartitioner partitioner;
 
@@ -94,7 +93,10 @@ public abstract class SSTable
     protected SSTable(Descriptor descriptor, Set<Component> components, CFMetaData metadata, IPartitioner partitioner, EstimatedHistogram rowSizes, EstimatedHistogram columnCounts)
     {
         this.descriptor = descriptor;
-        this.components = components;
+        Set<Component> dataComponents = new HashSet<Component>(components);
+        for (Component component : components)
+            assert component.type != Component.Type.COMPACTED_MARKER;
+        this.components = Collections.unmodifiableSet(dataComponents);
         this.metadata = metadata;
         this.partitioner = partitioner;
         estimatedRowSize = rowSizes;
@@ -122,11 +124,8 @@ public abstract class SSTable
      *
      * @return true if the file was deleted
      */
-    public static boolean conditionalDelete(Descriptor desc, Set<Component> components)
+    public static boolean delete(Descriptor desc, Set<Component> components)
     {
-        if (!components.contains(Component.COMPACTED_MARKER) && !desc.temporary)
-            // not compacted or temporary
-            return false;
         try
         {
             // remove the DATA component first if it exists
@@ -139,8 +138,7 @@ public abstract class SSTable
                 FileUtils.deleteWithConfirm(desc.filenameFor(component));
             }
             // remove the COMPACTED_MARKER component last if it exists
-            if (components.contains(Component.COMPACTED_MARKER))
-                FileUtils.deleteWithConfirm(desc.filenameFor(Component.COMPACTED_MARKER));
+            FileUtils.delete(desc.filenameFor(Component.COMPACTED_MARKER));
         }
         catch (IOException e)
         {

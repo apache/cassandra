@@ -55,10 +55,8 @@ import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.SegmentedFile;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.BloomFilter;
-import org.apache.cassandra.utils.EstimatedHistogram;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -524,7 +522,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         {
             throw new IOError(e);
         }
-        components.add(Component.COMPACTED_MARKER);
         phantomReference.deleteOnCleanup();
     }
 
@@ -595,6 +592,16 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         if (d.hasIntRowSize)
             return in.readInt();
         return in.readLong();
+    }
+
+    public void createLinks(String snapshotDirectoryPath) throws IOException
+    {
+        for (Component component : components)
+        {
+            File sourceFile = new File(descriptor.filenameFor(component));
+            File targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
+            CLibrary.createHardLink(sourceFile, targetLink);
+        }
     }
 
     /**

@@ -28,7 +28,7 @@ public enum Stage
     STREAM,
     GOSSIP,
     REQUEST_RESPONSE,
-    ANTIENTROPY,
+    ANTI_ENTROPY,
     MIGRATION,
     MISC,
     INTERNAL_RESPONSE;
@@ -37,7 +37,7 @@ public enum Stage
     {
         switch (this)
         {
-            case ANTIENTROPY:
+            case ANTI_ENTROPY:
             case GOSSIP:
             case MIGRATION:
             case MISC:
@@ -55,6 +55,11 @@ public enum Stage
 
     public String getJmxName()
     {
-        return toString().substring(0, 1) + toString().substring(1).toLowerCase() + "Stage";
+        String name = "";
+        for (String word : toString().split("_"))
+        {
+            name += word.substring(0, 1) + word.substring(1).toLowerCase();
+        }
+        return name + "Stage";
     }
 }
