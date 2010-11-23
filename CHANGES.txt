@@ -5,6 +5,7 @@ dev
    o.a.c.request.Request_responseStage -> RequestResponseStage,
    o.a.c.internal.Internal_responseStage -> InternalResponseStage
  * add AbstractType.fromString (CASSANDRA-1767)
+ * fix add/remove index bugs in CFMetadata (CASSANDRA-1768)
 
 
 0.7.0-rc1

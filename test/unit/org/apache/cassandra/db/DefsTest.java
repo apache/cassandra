@@ -26,7 +26,9 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -56,6 +58,7 @@ import org.apache.cassandra.locator.OldNetworkTopologyStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
+import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.junit.Test;
@@ -71,6 +74,63 @@ public class DefsTest extends CleanupHelper
         assert CFMetaData.HintsCf.cfId == 1;    
         assert CFMetaData.MigrationsCf.cfId == 2;    
         assert CFMetaData.SchemaCf.cfId == 3;    
+    }
+    
+    @Test
+    public void testCFMetaDataApply() throws ConfigurationException
+    {
+        Map<ByteBuffer, ColumnDefinition> indexes = new HashMap<ByteBuffer, ColumnDefinition>();
+        for (int i = 0; i < 5; i++) 
+        {
+            ByteBuffer name = ByteBuffer.wrap(new byte[] { (byte)i });
+            indexes.put(name, new ColumnDefinition(name, null, IndexType.KEYS, Integer.toString(i)));
+        }
+        CFMetaData cfm = new CFMetaData("Keyspace1",
+                "TestApplyCFM_CF",
+                ColumnFamilyType.Standard,
+                BytesType.instance,
+                null,
+                "No comment",
+                1.0,
+                1.0,
+                0.5,
+                100000,
+                null,
+                500,
+                500,
+                500,
+                500,
+                500,
+                500,
+                500.0,
+                indexes);
+        
+        // we'll be adding this one later. make sure it's not already there.
+        assert cfm.getColumn_metadata().get(ByteBuffer.wrap(new byte[] { 5 })) == null;
+        org.apache.cassandra.avro.CfDef cfDef = CFMetaData.convertToAvro(cfm);
+        
+        // add one.
+        org.apache.cassandra.avro.ColumnDef addIndexDef = new org.apache.cassandra.avro.ColumnDef();
+        addIndexDef.index_name = "5";
+        addIndexDef.index_type = org.apache.cassandra.avro.IndexType.KEYS;
+        addIndexDef.name = ByteBuffer.wrap(new byte[] { 5 });
+        addIndexDef.validation_class = BytesType.class.getName();
+        cfDef.column_metadata.add(addIndexDef);
+        
+        // remove one.
+        org.apache.cassandra.avro.ColumnDef removeIndexDef = new org.apache.cassandra.avro.ColumnDef();
+        removeIndexDef.index_name = "0";
+        removeIndexDef.index_type = org.apache.cassandra.avro.IndexType.KEYS;
+        removeIndexDef.name = ByteBuffer.wrap(new byte[] { 0 });
+        removeIndexDef.validation_class = BytesType.class.getName();
+        assert cfDef.column_metadata.remove(removeIndexDef);
+        
+        cfm.apply(cfDef);
+        
+        for (int i = 1; i < indexes.size(); i++)
+            assert cfm.getColumn_metadata().get(ByteBuffer.wrap(new byte[] { 1 })) != null;
+        assert cfm.getColumn_metadata().get(ByteBuffer.wrap(new byte[] { 0 })) == null;
+        assert cfm.getColumn_metadata().get(ByteBuffer.wrap(new byte[] { 5 })) != null;
     }
     
     @Test
