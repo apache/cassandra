@@ -4,6 +4,7 @@ dev
  * rename o.a.c.internal.AntientropyStage -> AntiEntropyStage,
    o.a.c.request.Request_responseStage -> RequestResponseStage,
    o.a.c.internal.Internal_responseStage -> InternalResponseStage
+ * add AbstractType.fromString (CASSANDRA-1767)
 
 
 0.7.0-rc1

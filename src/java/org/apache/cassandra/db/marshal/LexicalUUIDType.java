@@ -22,6 +22,7 @@ package org.apache.cassandra.db.marshal;
 
 
 import java.nio.ByteBuffer;
+import java.util.UUID;
 
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -56,5 +57,10 @@ public class LexicalUUIDType extends AbstractType
             throw new MarshalException("UUIDs must be exactly 16 bytes");
         }
         return UUIDGen.getUUID(bytes).toString();
+    }
+
+    public ByteBuffer fromString(String source)
+    {
+        return ByteBuffer.wrap(UUIDGen.decompose(UUID.fromString(source)));
     }
 }

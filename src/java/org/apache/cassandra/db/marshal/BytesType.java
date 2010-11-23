@@ -46,4 +46,9 @@ public class BytesType extends AbstractType
     {
         return FBUtilities.bytesToHex(bytes);
     }
+
+    public ByteBuffer fromString(String source)
+    {
+        return ByteBuffer.wrap(source.getBytes());
+    }
 }

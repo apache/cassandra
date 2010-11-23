@@ -40,7 +40,14 @@ public abstract class AbstractType implements Comparator<ByteBuffer>
     /** get a string representation of the bytes suitable for log messages */
     public abstract String getString(ByteBuffer bytes);
 
-    /** validate that the byte array is a valid sequence for the type we are supposed to be comparing */
+    /** get a byte representation of the given string.
+     *  defaults to unsupportedoperation so people deploying custom Types can update at their leisure. */
+    public ByteBuffer fromString(String source)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    /* validate that the byte array is a valid sequence for the type we are supposed to be comparing */
     public void validate(ByteBuffer bytes)
     {
         getString(bytes);
@@ -66,7 +73,7 @@ public abstract class AbstractType implements Comparator<ByteBuffer>
         };
     }
 
-    /** convenience method */
+    /* convenience method */
     public String getString(Collection<ByteBuffer> names)
     {
         StringBuilder builder = new StringBuilder();
@@ -77,7 +84,7 @@ public abstract class AbstractType implements Comparator<ByteBuffer>
         return builder.toString();
     }
 
-    /** convenience method */
+    /* convenience method */
     public String getColumnsString(Collection<IColumn> columns)
     {
         StringBuilder builder = new StringBuilder();

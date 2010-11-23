@@ -19,6 +19,7 @@
 
 package org.apache.cassandra.db.marshal;
 
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 
 import org.apache.thrift.TBaseHelper;
@@ -121,5 +122,21 @@ public final class IntegerType extends AbstractType
             return "empty";
 
         return new java.math.BigInteger(TBaseHelper.byteBufferToByteArray(bytes)).toString(10);
+    }
+
+    public ByteBuffer fromString(String source)
+    {
+        BigInteger integerType;
+
+        try
+        {
+            integerType = new BigInteger(source);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("'" + source + "' could not be translated into an IntegerType.");
+        }
+
+        return ByteBuffer.wrap(integerType.toByteArray());
     }
 }

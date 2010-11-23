@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.util.UUID;
 
 import org.apache.cassandra.utils.UUIDGen;
+import org.safehaus.uuid.UUIDGenerator;
 
 public class TimeUUIDType extends AbstractType
 {
@@ -86,5 +87,15 @@ public class TimeUUIDType extends AbstractType
             throw new MarshalException("TimeUUID only makes sense with version 1 UUIDs");
         }
         return uuid.toString();
+    }
+
+    public ByteBuffer fromString(String source)
+    {
+        UUID uuid = UUID.fromString(source);
+
+        if (uuid.version() != 1)
+            throw new IllegalArgumentException("TimeUUID supports only version 1 UUIDs");
+
+        return ByteBuffer.wrap(UUIDGen.decompose(uuid));
     }
 }

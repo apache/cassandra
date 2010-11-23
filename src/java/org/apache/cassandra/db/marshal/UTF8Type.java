@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.Arrays;
 
+import com.google.common.base.Charsets;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class UTF8Type extends BytesType
@@ -42,5 +43,10 @@ public class UTF8Type extends BytesType
         {
             throw new MarshalException("invalid UTF8 bytes " + Arrays.toString(bytes.array()));
         }
+    }
+
+    public ByteBuffer fromString(String source)
+    {
+        return ByteBuffer.wrap(source.getBytes(Charsets.UTF_8));
     }
 }

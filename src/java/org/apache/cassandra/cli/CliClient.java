@@ -1437,63 +1437,10 @@ public class CliClient extends CliUserHelp
      */
     private ByteBuffer getBytesAccordingToType(String object, AbstractType comparator)
     {
-        // TODO there is tension here between using this function to generate default values,
-        // and using it to parse input.  For instance, normally we want to convert empty string
-        // to empty byte array for any type -- all types special case empty byte[] to mean
-        // "minimum value" -- but we also want timeuuid() to create a valid uuid for us.
-        // For now, this function takes the create-valid-values approach, and we leave
-        // other use cases to special case "" -> byte[0] before calling this.
-        if (comparator instanceof LongType)
-        {
-            long longType;
-            try
-            {
-                longType = Long.valueOf(object);
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException("'" + object + "' could not be translated into a LongType.");
-            }
+        if (comparator == null) // default comparator is BytesType
+            comparator = BytesType.instance;
 
-            return FBUtilities.toByteBuffer(longType);
-        }
-        else if (comparator instanceof LexicalUUIDType || comparator instanceof TimeUUIDType)
-        {
-            // generate new time based UUID if object is empty
-            // this means that we have timeuuid() call
-            if (comparator instanceof TimeUUIDType && object.isEmpty())
-                return ByteBuffer.wrap(UUIDGenerator.getInstance().generateTimeBasedUUID().asByteArray());
-
-            UUID uuid = (object.isEmpty()) ? UUID.randomUUID() : UUID.fromString(object);
-
-            if (comparator instanceof TimeUUIDType && uuid.version() != 1)
-                throw new IllegalArgumentException("TimeUUID supports only version 1 UUIDs");    
-
-            return ByteBuffer.wrap(UUIDGen.decompose(uuid));    
-        }
-        else if (comparator instanceof IntegerType)
-        {
-            BigInteger integerType;
-
-            try
-            {
-                integerType =  new BigInteger(object);
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException("'" + object + "' could not be translated into an IntegerType.");
-            }
-
-            return ByteBuffer.wrap(integerType.toByteArray());
-        }
-        else if (comparator instanceof AsciiType)
-        {
-            return ByteBuffer.wrap(object.getBytes(Charsets.US_ASCII));
-        }
-        else
-        {
-            return ByteBuffer.wrap(object.getBytes(Charsets.UTF_8));
-        }
+        return comparator.fromString(object);
     }
     
     /**
@@ -1592,7 +1539,7 @@ public class CliClient extends CliUserHelp
      * @param columnName - column name to which value belongs
      * @param columnFamilyName - column family name
      * @param columnValue - actual column value
-     * @return byte[] - value in byte array representation
+     * @return value in byte array representation
      */
     private ByteBuffer columnValueAsBytes(ByteBuffer columnName, String columnFamilyName, String columnValue)
     {
@@ -1602,7 +1549,7 @@ public class CliClient extends CliUserHelp
         {
             byte[] currentColumnName = columnDefinition.getName();
 
-            if (ByteBufferUtil.compare(currentColumnName,columnName)==0)
+            if (ByteBufferUtil.compare(currentColumnName, columnName) == 0)
             {
                 try
                 {
@@ -1710,7 +1657,32 @@ public class CliClient extends CliUserHelp
 
         try
         {
-            ByteBuffer value = getBytesAccordingToType(functionArg, validator);
+
+            ByteBuffer value;
+
+            if (functionArg.isEmpty())
+            {
+                if (validator instanceof TimeUUIDType)
+                {
+                    value = ByteBuffer.wrap(UUIDGenerator.getInstance().generateTimeBasedUUID().asByteArray());
+                }
+                else if (validator instanceof LexicalUUIDType)
+                {
+                    value = ByteBuffer.wrap(UUIDGen.decompose(UUID.randomUUID()));
+                }
+                else if (validator instanceof BytesType)
+                {
+                    value = ByteBuffer.wrap(new byte[0]);
+                }
+                else
+                {
+                    throw new RuntimeException(String.format("Argument for '%s' could not be empty.", functionName));
+                }
+            }
+            else
+            {
+                value = getBytesAccordingToType(functionArg, validator);
+            }
 
             // performing ColumnDef local validator update
             if (withUpdate)
