@@ -585,6 +585,20 @@ public class    DatabaseDescriptor
 
                 for (RawColumnDefinition rcd : cf.column_metadata)
                 {
+                    if (rcd.name == null)
+                    {
+                        throw new ConfigurationException("name is required for column definitions.");
+                    }
+                    if (rcd.validator_class == null)
+                    {
+                        throw new ConfigurationException("validator is required for column definitions");
+                    }
+                    
+                    if ((rcd.index_type == null) && (rcd.index_name != null))
+                    {
+                        throw new ConfigurationException("index_name cannot be set if index_type is not also set");
+                    }
+
                     ByteBuffer columnName = ByteBuffer.wrap(rcd.name.getBytes(Charsets.UTF_8));
                     metadata.put(columnName, new ColumnDefinition(columnName, rcd.validator_class, rcd.index_type, rcd.index_name));
                 }
