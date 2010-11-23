@@ -21,6 +21,7 @@ package org.apache.cassandra.config;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -215,7 +216,7 @@ public final class CFMetaData
                                             ? DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS
                                             : memtableOperationsInMillions;
         this.cfId = cfId;
-        this.column_metadata = Collections.unmodifiableMap(column_metadata);
+        this.column_metadata = new HashMap<ByteBuffer, ColumnDefinition>(column_metadata);
     }
     
     /** adds this cfm to the map. */
@@ -662,6 +663,8 @@ public final class CFMetaData
         // update the ones staying
         for (org.apache.cassandra.avro.ColumnDef def : cf_def.column_metadata)
         {
+            if (!column_metadata.containsKey(def.name))
+                continue;
             column_metadata.get(def.name).setIndexType(def.index_type == null ? null : org.apache.cassandra.thrift.IndexType.valueOf(def.index_type.name()));
             column_metadata.get(def.name).setIndexName(def.index_name == null ? null : def.index_name.toString());
         }
@@ -734,7 +737,7 @@ public final class CFMetaData
         def.key_cache_size = cfm.keyCacheSize;
         def.read_repair_chance = cfm.readRepairChance;
         def.gc_grace_seconds = cfm.gcGraceSeconds;
-        def.default_validation_class = cfm.defaultValidator.getClass().getName();
+        def.default_validation_class = cfm.defaultValidator == null ? null : cfm.defaultValidator.getClass().getName();
         def.min_compaction_threshold = cfm.minCompactionThreshold;
         def.max_compaction_threshold = cfm.maxCompactionThreshold;
         def.row_cache_save_period_in_seconds = cfm.rowCacheSavePeriodInSeconds;
