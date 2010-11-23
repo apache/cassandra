@@ -51,8 +51,8 @@ public class ExpiringColumn extends Column
     public ExpiringColumn(ByteBuffer name, ByteBuffer value, long timestamp, int timeToLive, int localExpirationTime)
     {
         super(name, value, timestamp);
-        assert timeToLive > 0;
-        assert localExpirationTime > 0;
+        assert timeToLive > 0 : timeToLive;
+        assert localExpirationTime > 0 : localExpirationTime;
         this.timeToLive = timeToLive;
         this.localExpirationTime = localExpirationTime;
     }
