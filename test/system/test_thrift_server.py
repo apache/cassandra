@@ -1304,6 +1304,49 @@ class TestMutations(ThriftTester):
         assert 'NewColumnFamily' not in [x.name for x in ks1.cf_defs]
         assert 'Standard1' in [x.name for x in ks1.cf_defs]
 
+    def test_dynamic_indexes_creation_deletion(self):
+        _set_keyspace('Keyspace1')
+        cfdef = CfDef('Keyspace1', 'BlankCF')
+        client.system_add_column_family(cfdef)
+
+        ks1 = client.describe_keyspace('Keyspace1')
+        cfid = [x.id for x in ks1.cf_defs if x.name=='BlankCF'][0]
+        modified_cd = ColumnDef('birthdate', 'BytesType', IndexType.KEYS, 'birthdate_index')
+        modified_cf = CfDef('Keyspace1', 'BlankCF', column_metadata=[modified_cd])
+        modified_cf.id = cfid
+        client.system_update_column_family(modified_cf)
+
+        # Add a second indexed CF ...
+        birthdate_coldef = ColumnDef('birthdate', 'BytesType', IndexType.KEYS, 'birthdate_index')
+        age_coldef = ColumnDef('age', 'BytesType', IndexType.KEYS, 'age_index')
+        cfdef = CfDef('Keyspace1', 'BlankCF2', column_metadata=[birthdate_coldef, age_coldef])
+        client.system_add_column_family(cfdef)
+ 
+        # ... and update it to have a third index
+        ks1 = client.describe_keyspace('Keyspace1')
+        cfdef = [x for x in ks1.cf_defs if x.name=='BlankCF2'][0]
+        name_coldef = ColumnDef('name', 'BytesType', IndexType.KEYS, 'name_index')
+        cfdef.column_metadata.append(name_coldef)
+        client.system_update_column_family(cfdef)
+       
+        # Now drop the indexes
+        ks1 = client.describe_keyspace('Keyspace1')
+        cfdef = [x for x in ks1.cf_defs if x.name=='BlankCF2'][0]
+        birthdate_coldef = ColumnDef('birthdate', 'BytesType', None, None)
+        age_coldef = ColumnDef('age', 'BytesType', None, None)
+        name_coldef = ColumnDef('name', 'BytesType', None, None)
+        cfdef.column_metadata = [birthdate_coldef, age_coldef, name_coldef]
+        client.system_update_column_family(cfdef)
+
+        ks1 = client.describe_keyspace('Keyspace1')
+        cfdef = [x for x in ks1.cf_defs if x.name=='BlankCF'][0]
+        birthdate_coldef = ColumnDef('birthdate', 'BytesType', None, None)
+        cfdef.column_metadata = [birthdate_coldef]
+        client.system_update_column_family(cfdef)
+        
+        client.system_drop_column_family('BlankCF')
+        client.system_drop_column_family('BlankCF2')
+
     def test_dynamic_indexes_with_system_update_cf(self):
         _set_keyspace('Keyspace1')
         cd = ColumnDef('birthdate', 'BytesType', None, None)

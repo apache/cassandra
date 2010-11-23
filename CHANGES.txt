@@ -5,6 +5,8 @@ dev
    o.a.c.request.Request_responseStage -> RequestResponseStage,
    o.a.c.internal.Internal_responseStage -> InternalResponseStage
  * add AbstractType.fromString (CASSANDRA-1767)
+ * require index_type to be present when specifying index_name
+   on ColumnDef (CASSANDRA-1759)
  * fix add/remove index bugs in CFMetadata (CASSANDRA-1768)
 
 
@@ -23,7 +25,6 @@ dev
  * detect and warn when obsolete version of JNA is present (CASSANDRA-1770)
  * Update windows .bat files to work outside of main Cassandra
    directory (CASSANDRA-1713)
- * log threshold causing memtable flush (CASSANDRA-1675)
  * fix read repair regression from 0.6.7 (CASSANDRA-1727)
  * more-efficient read repair (CASSANDRA-1719)
  * fix hinted handoff replay (CASSANDRA-1656)
