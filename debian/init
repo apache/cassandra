@@ -87,16 +87,21 @@ classpath()
 }
 
 #
-# Function that returns 0 if process is running, 1 if not
+# Function that returns 0 if process is running, or nonzero if not.
 #
+# The nonzero value is 3 if the process is simply not running, and 1 if the
+# process is not running but the pidfile exists (to match the exit codes for
+# the "status" command; see LSB core spec 3.1, section 20.2)
+#
+CMD_PATT="^`basename $JSVC`\.exec.*$NAME"
 is_running()
 {
     if [ -f $PIDFILE ]; then
-        if ps -p `cat $PIDFILE` &> /dev/null; then
-            return 0
-        fi
+        pid=`cat $PIDFILE`
+        grep -q "$CMD_PATT" "/proc/$pid/cmdline" 2>/dev/null && return 0
+        return 1
     fi
-    return 1
+    return 3
 }
 
 #
@@ -175,8 +180,18 @@ case "$1" in
 		;;
 	esac
 	;;
+  status)
+    is_running
+    stat=$?
+    case "$stat" in
+      0) log_success_msg "$DESC is running" ;;
+      1) log_failure_msg "could not access pidfile for $DESC" ;;
+      *) log_success_msg "$DESC is not running" ;;
+    esac
+    exit "$stat"
+    ;;
   *)
-	echo "Usage: $SCRIPTNAME {start|stop|restart|force-reload}" >&2
+	echo "Usage: $SCRIPTNAME {start|stop|restart|force-reload|status}" >&2
 	exit 3
 	;;
 esac
