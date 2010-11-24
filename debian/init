@@ -18,6 +18,7 @@ PIDFILE=/var/run/$NAME.pid
 SCRIPTNAME=/etc/init.d/$NAME
 CONFDIR=/etc/cassandra
 JSVC=/usr/bin/jsvc
+WAIT_FOR_START=10
 
 # The first existing directory is used for JAVA_HOME if needed.
 JVM_SEARCH_DIRS="/usr/lib/jvm/java-6-openjdk /usr/lib/jvm/java-6-sun"
@@ -93,12 +94,12 @@ classpath()
 # process is not running but the pidfile exists (to match the exit codes for
 # the "status" command; see LSB core spec 3.1, section 20.2)
 #
-CMD_PATT="^`basename $JSVC`\.exec.*$NAME"
+CMD_PATT="-user.cassandra.+CassandraDaemon"
 is_running()
 {
     if [ -f $PIDFILE ]; then
         pid=`cat $PIDFILE`
-        grep -q "$CMD_PATT" "/proc/$pid/cmdline" 2>/dev/null && return 0
+        grep -Eq "$CMD_PATT" "/proc/$pid/cmdline" 2>/dev/null && return 0
         return 1
     fi
     return 3
@@ -126,7 +127,12 @@ do_start()
         $JVM_OPTS \
         org.apache.cassandra.thrift.CassandraDaemon
 
-    if ! is_running; then return 2; fi
+    is_running && return 0
+    for tries in `seq $WAIT_FOR_START`; do
+        sleep 1
+        is_running && return 0
+    done
+    return 2
 }
 
 #
