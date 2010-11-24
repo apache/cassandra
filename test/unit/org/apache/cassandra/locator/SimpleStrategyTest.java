@@ -43,7 +43,7 @@ public class SimpleStrategyTest extends SchemaLoader
     @Test
     public void tryValidTable()
     {
-        assert Table.open("Keyspace1").replicationStrategy != null;
+        assert Table.open("Keyspace1").getReplicationStrategy() != null;
     }
 
     @Test

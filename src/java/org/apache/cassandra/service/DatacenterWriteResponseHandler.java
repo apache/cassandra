@@ -65,7 +65,7 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
     @Override
     protected int determineBlockFor(String table)
     {
-        NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) Table.open(table).replicationStrategy;
+        NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) Table.open(table).getReplicationStrategy();
         return (strategy.getReplicationFactor(localdc) / 2) + 1;
     }
 

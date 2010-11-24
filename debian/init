@@ -18,6 +18,7 @@ PIDFILE=/var/run/$NAME.pid
 SCRIPTNAME=/etc/init.d/$NAME
 CONFDIR=/etc/cassandra
 JSVC=/usr/bin/jsvc
+WAIT_FOR_START=10
 
 # The first existing directory is used for JAVA_HOME if needed.
 JVM_SEARCH_DIRS="/usr/lib/jvm/java-6-openjdk /usr/lib/jvm/java-6-sun"
@@ -87,16 +88,21 @@ classpath()
 }
 
 #
-# Function that returns 0 if process is running, 1 if not
+# Function that returns 0 if process is running, or nonzero if not.
 #
+# The nonzero value is 3 if the process is simply not running, and 1 if the
+# process is not running but the pidfile exists (to match the exit codes for
+# the "status" command; see LSB core spec 3.1, section 20.2)
+#
+CMD_PATT="-user.cassandra.+CassandraDaemon"
 is_running()
 {
     if [ -f $PIDFILE ]; then
-        if ps -p `cat $PIDFILE` &> /dev/null; then
-            return 0
-        fi
+        pid=`cat $PIDFILE`
+        grep -Eq "$CMD_PATT" "/proc/$pid/cmdline" 2>/dev/null && return 0
+        return 1
     fi
-    return 1
+    return 3
 }
 
 #
@@ -121,7 +127,12 @@ do_start()
         $JVM_OPTS \
         org.apache.cassandra.thrift.CassandraDaemon
 
-    if ! is_running; then return 2; fi
+    is_running && return 0
+    for tries in `seq $WAIT_FOR_START`; do
+        sleep 1
+        is_running && return 0
+    done
+    return 2
 }
 
 #
@@ -175,8 +186,18 @@ case "$1" in
 		;;
 	esac
 	;;
+  status)
+    is_running
+    stat=$?
+    case "$stat" in
+      0) log_success_msg "$DESC is running" ;;
+      1) log_failure_msg "could not access pidfile for $DESC" ;;
+      *) log_success_msg "$DESC is not running" ;;
+    esac
+    exit "$stat"
+    ;;
   *)
-	echo "Usage: $SCRIPTNAME {start|stop|restart|force-reload}" >&2
+	echo "Usage: $SCRIPTNAME {start|stop|restart|force-reload|status}" >&2
 	exit 3
 	;;
 esac

@@ -8,6 +8,9 @@ dev
  * require index_type to be present when specifying index_name
    on ColumnDef (CASSANDRA-1759)
  * fix add/remove index bugs in CFMetadata (CASSANDRA-1768)
+ * rebuild Strategy during system_update_keyspace (CASSANDRA-1762)
+ * cli updates prompt to ... in continuation lines (CASSANDRA-1770)
+ * improvements to Debian init script (CASSANDRA-1772)
 
 
 0.7.0-rc1

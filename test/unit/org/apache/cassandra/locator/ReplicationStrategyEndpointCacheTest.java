@@ -43,7 +43,7 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
         tmd = new TokenMetadata();
         searchToken = new BigIntegerToken(String.valueOf(15));
 
-        strategy = getStrategyWithNewTokenMetadata(Table.open("Keyspace3").replicationStrategy, tmd);
+        strategy = getStrategyWithNewTokenMetadata(Table.open("Keyspace3").getReplicationStrategy(), tmd);
 
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(10)), InetAddress.getByName("127.0.0.1"));
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(20)), InetAddress.getByName("127.0.0.2"));

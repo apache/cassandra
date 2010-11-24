@@ -183,7 +183,7 @@ public class CliMain
     private static void printBanner()
     {
         sessionState.out.println("Welcome to cassandra CLI.\n");
-        sessionState.out.println("Type 'help' or '?' for help. Type 'quit' or 'exit' to quit.");
+        sessionState.out.println("Type 'help;' or '?' for help. Type 'quit;' or 'exit;' to quit.");
     }
 
     /**
@@ -323,7 +323,7 @@ public class CliMain
 
         while (line != null)
         {
-            prompt = (inCompoundStatement) ? "\t" : getPrompt(cliClient);
+            prompt = (inCompoundStatement) ? "...\t" : getPrompt(cliClient);
 
             line = reader.readLine(prompt).trim();
 
@@ -332,7 +332,7 @@ public class CliMain
 
             currentStatement += line;
 
-            if (line.endsWith(";"))
+            if (line.endsWith(";") || line.equals("?"))
             {
                 processStatement(currentStatement);
                 currentStatement = "";

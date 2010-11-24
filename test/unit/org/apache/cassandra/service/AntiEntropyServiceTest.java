@@ -183,7 +183,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
 
         // generate rf*2 nodes, and ensure that only neighbors specified by the ARS are returned
         addTokens(2 * DatabaseDescriptor.getReplicationFactor(tablename));
-        AbstractReplicationStrategy ars = Table.open(tablename).replicationStrategy;
+        AbstractReplicationStrategy ars = Table.open(tablename).getReplicationStrategy();
         Set<InetAddress> expected = new HashSet<InetAddress>();
         for (Range replicaRange : ars.getAddressRanges().get(FBUtilities.getLocalAddress()))
         {

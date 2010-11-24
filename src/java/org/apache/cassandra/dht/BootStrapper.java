@@ -191,7 +191,7 @@ public class BootStrapper
     Multimap<Range, InetAddress> getRangesWithSources(String table)
     {
         assert tokenMetadata.sortedTokens().size() > 0;
-        final AbstractReplicationStrategy strat = Table.open(table).replicationStrategy;
+        final AbstractReplicationStrategy strat = Table.open(table).getReplicationStrategy();
         Collection<Range> myRanges = strat.getPendingAddressRanges(tokenMetadata, token, address);
 
         Multimap<Range, InetAddress> myRangeAddresses = ArrayListMultimap.create();

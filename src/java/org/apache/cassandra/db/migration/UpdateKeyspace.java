@@ -5,6 +5,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -59,7 +60,18 @@ public class UpdateKeyspace extends Migration
     {
         DatabaseDescriptor.clearTableDefinition(oldKsm, newVersion);
         DatabaseDescriptor.setTableDefinition(newKsm, newVersion);
-        Table.open(newKsm.name).replicationStrategy.clearEndpointCache();
+
+
+        Table table = Table.open(newKsm.name);
+        try
+        {
+            table.createReplicationStrategy(newKsm);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IOException(e);
+        }
+
         logger.info("Keyspace updated. Please perform any manual operations.");
     }
 
