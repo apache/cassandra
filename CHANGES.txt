@@ -10,6 +10,8 @@ dev
  * fix add/remove index bugs in CFMetadata (CASSANDRA-1768)
  * rebuild Strategy during system_update_keyspace (CASSANDRA-1762)
  * cli updates prompt to ... in continuation lines (CASSANDRA-1770)
+ * support multiple Mutations per key in hadoop ColumnFamilyOutputFormat
+   (CASSANDRA-1774)
  * improvements to Debian init script (CASSANDRA-1772)
 
 
