@@ -13,6 +13,7 @@ dev
  * support multiple Mutations per key in hadoop ColumnFamilyOutputFormat
    (CASSANDRA-1774)
  * improvements to Debian init script (CASSANDRA-1772)
+ * use local classloader to check for version.properties (CASSANDRA-1778)
 
 
 0.7.0-rc1
