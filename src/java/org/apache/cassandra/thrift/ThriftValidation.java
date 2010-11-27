@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Set;
 
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyType;
@@ -376,5 +377,40 @@ public class ThriftValidation
                 return;
         }
         throw new InvalidRequestException("No indexed columns present in index clause with operator EQ");
+    }
+
+    public static void validateCfDef(CfDef cf_def) throws InvalidRequestException
+    {
+        try
+        {
+            DatabaseDescriptor.getComparator(cf_def.comparator_type);
+            DatabaseDescriptor.getComparator(cf_def.subcomparator_type);
+            DatabaseDescriptor.getComparator(cf_def.default_validation_class);
+
+            if (cf_def.column_metadata == null)
+                return;
+
+            AbstractType comparator = cf_def.subcomparator_type == null
+                                    ? DatabaseDescriptor.getComparator(cf_def.comparator_type)
+                                    : DatabaseDescriptor.getComparator(cf_def.subcomparator_type);
+            for (ColumnDef c : cf_def.column_metadata)
+            {
+                DatabaseDescriptor.getComparator(c.validation_class);
+
+                try
+                {
+                    comparator.validate(c.name);
+                }
+                catch (MarshalException e)
+                {
+                    throw new InvalidRequestException(String.format("Column name %s is not valid for comparator %s",
+                                                                    FBUtilities.bytesToHex(c.name), cf_def.comparator_type));
+                }
+            }
+        }
+        catch (ConfigurationException e)
+        {
+            throw new InvalidRequestException(e.getMessage());
+        }
     }
 }

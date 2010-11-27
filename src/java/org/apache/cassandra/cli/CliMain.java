@@ -325,7 +325,12 @@ public class CliMain
         {
             prompt = (inCompoundStatement) ? "...\t" : getPrompt(cliClient);
 
-            line = reader.readLine(prompt).trim();
+            line = reader.readLine(prompt);
+
+            if (line == null)
+                return;
+
+            line = line.trim();
 
             if (line.isEmpty())
                 continue;

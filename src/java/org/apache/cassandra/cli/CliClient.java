@@ -1197,10 +1197,13 @@ public class CliClient extends CliUserHelp
                 sessionState.out.println("    Replication Factor: " + ks_def.replication_factor);
             sessionState.out.println("  Column Families:");
 
+            boolean isSuper;
+
             Collections.sort(ks_def.cf_defs, new CfDefNamesComparator());
             for (CfDef cf_def : ks_def.cf_defs)
             {
-                sessionState.out.printf("    ColumnFamily: %s%s\n", cf_def.name, cf_def.column_type.equals("Super") ? " (Super)" : "");
+                isSuper = cf_def.column_type.equals("Super");
+                sessionState.out.printf("    ColumnFamily: %s%s\n", cf_def.name, isSuper ? " (Super)" : "");
 
                 if (cf_def.comment != null && !cf_def.comment.isEmpty())
                 {
@@ -1221,7 +1224,8 @@ public class CliClient extends CliUserHelp
                     String leftSpace = "      ";
                     String columnLeftSpace = leftSpace + "    ";
 
-                    AbstractType columnNameValidator = getFormatTypeForColumn(cf_def.comparator_type);
+                    AbstractType columnNameValidator = getFormatTypeForColumn(isSuper ? cf_def.subcomparator_type
+                                                                                      : cf_def.comparator_type);
 
                     sessionState.out.println(leftSpace + "Column Metadata:");
                     for (ColumnDef columnDef : cf_def.getColumn_metadata())

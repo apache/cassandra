@@ -14,6 +14,8 @@ dev
    (CASSANDRA-1774)
  * improvements to Debian init script (CASSANDRA-1772)
  * use local classloader to check for version.properties (CASSANDRA-1778)
+ * Validate that column names in column_metadata are valid for the
+   defined comparator, and decode properly in cli (CASSANDRA-1773)
 
 
 0.7.0-rc1
