@@ -69,6 +69,7 @@ import org.slf4j.LoggerFactory;
 import static org.apache.cassandra.avro.AvroValidation.validateKey;
 import static org.apache.cassandra.avro.AvroValidation.validateColumnFamily;
 import static org.apache.cassandra.avro.AvroErrorFactory.newInvalidRequestException;
+import static org.apache.cassandra.avro.AvroErrorFactory.newUnavailableException;
 
 public class QueryProcessor
 {
@@ -418,6 +419,29 @@ public class QueryProcessor
                 clientState.setKeyspace((String)statement.statement);
                 avroResult.type = CqlResultType.VOID;
                 
+                return avroResult;
+            
+            case TRUNCATE:
+                String columnFamily = (String)statement.statement;
+                
+                try
+                {
+                    StorageProxy.truncateBlocking(keyspace, columnFamily);
+                }
+                catch (org.apache.cassandra.thrift.UnavailableException e)
+                {
+                    throw newUnavailableException(e);
+                }
+                catch (TimeoutException e)
+                {
+                    throw newUnavailableException(e);
+                }
+                catch (IOException e)
+                {
+                    throw newUnavailableException(e);
+                }
+                
+                avroResult.type = CqlResultType.VOID;
                 return avroResult;
         }
         

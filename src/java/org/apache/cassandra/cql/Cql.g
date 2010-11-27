@@ -43,10 +43,11 @@ options {
 }
 
 query returns [CQLStatement stmnt]
-    : selectStatement { $stmnt = new CQLStatement(StatementType.SELECT, $selectStatement.expr); }
-    | updateStatement { $stmnt = new CQLStatement(StatementType.UPDATE, $updateStatement.expr); }
+    : selectStatement   { $stmnt = new CQLStatement(StatementType.SELECT, $selectStatement.expr); }
+    | updateStatement   { $stmnt = new CQLStatement(StatementType.UPDATE, $updateStatement.expr); }
     | batchUpdateStatement { $stmnt = new CQLStatement(StatementType.BATCH_UPDATE, $batchUpdateStatement.expr); }
-    | useStatement    { $stmnt = new CQLStatement(StatementType.USE, $useStatement.keyspace); }
+    | useStatement      { $stmnt = new CQLStatement(StatementType.USE, $useStatement.keyspace); }
+    | truncateStatement { $stmnt = new CQLStatement(StatementType.TRUNCATE, $truncateStatement.cfam); }
     ;
 
 // USE <KEYSPACE>;
@@ -168,6 +169,11 @@ selectExpression returns [SelectExpression expr]
       | start=term '..' finish=term { $expr = new SelectExpression(start, finish, count, reversed); }
       )
     ;
+
+// TRUNCATE <CF>;
+truncateStatement returns [String cfam]
+    : K_TRUNCATE columnFamily=IDENT { $cfam = $columnFamily.text; } endStmnt
+    ;
     
 endStmnt
     : (EOF | ';')
@@ -201,6 +207,7 @@ K_SET:         S E T;
 K_BEGIN:       B E G I N;
 K_APPLY:       A P P L Y;
 K_BATCH:       B A T C H;
+K_TRUNCATE:    T R U N C A T E;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

@@ -160,3 +160,9 @@ class TestCql(AvroTester):
         r = conn.execute('SELECT COUNT(1L..4L) FROM StandardLong1 WHERE KEY = "aa";')
         assert r == 4
 
+    def test_truncate_columnfamily(self):
+        "truncating a column family"
+        conn = init()
+        conn.execute('TRUNCATE Standard1;')
+        r = conn.execute('SELECT "cd1" FROM Standard1 WHERE KEY = "kd"')
+        assert len(r) == 0
