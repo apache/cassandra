@@ -112,6 +112,15 @@ When batching UPDATEs, a single consistency level is used for the entire batch, 
 
 _NOTE: While there are no isolation guarantees,  @UPDATE@ queries are atomic within a give record._
 
+h2. TRUNCATE
+
+_Synopsis:_
+
+bc. 
+TRUNCATE <COLUMN FAMILY>
+
+Accepts a single argument for the column family name, and permanently removes all data from said column family.
+
 h2. Common Idioms
 
 h3(#consistency). Specifying Consistency
