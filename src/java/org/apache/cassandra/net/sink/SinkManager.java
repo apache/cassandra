@@ -28,7 +28,7 @@ public class SinkManager
 {
     private static List<IMessageSink> sinks = new ArrayList<IMessageSink>();
 
-    public static void addSink(IMessageSink ms)
+    public static void add(IMessageSink ms)
     {
         sinks.add(ms);
     }

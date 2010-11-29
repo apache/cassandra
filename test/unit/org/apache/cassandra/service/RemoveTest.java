@@ -111,7 +111,7 @@ public class RemoveTest extends CleanupHelper
 
         final String token = partitioner.getTokenFactory().toString(endpointTokens.get(5));
         ReplicationSink rSink = new ReplicationSink();
-        SinkManager.addSink(rSink);
+        SinkManager.add(rSink);
 
         // start removal in background and send replication confirmations
         final AtomicBoolean success = new AtomicBoolean(false);
@@ -159,8 +159,8 @@ public class RemoveTest extends CleanupHelper
 
         NotificationSink nSink = new NotificationSink();
         ReplicationSink rSink = new ReplicationSink();
-        SinkManager.addSink(nSink);
-        SinkManager.addSink(rSink);
+        SinkManager.add(nSink);
+        SinkManager.add(rSink);
 
         assertEquals(0, tmd.getLeavingEndpoints().size());
 
