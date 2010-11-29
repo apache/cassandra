@@ -241,7 +241,7 @@ public class CliClient extends CliUserHelp
         SlicePredicate predicate = new SlicePredicate().setColumn_names(null).setSlice_range(range);
 
         int count = thriftClient.get_count(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)), colParent, predicate, ConsistencyLevel.ONE);
-        sessionState.out.printf("%d columns\n", count);
+        sessionState.out.printf("%d columns%n", count);
     }
     
     private void executeDelete(Tree statement) 
@@ -319,7 +319,7 @@ public class CliClient extends CliUserHelp
                 for (Column col : superColumn.getColumns())
                 {
                     validator = getValidatorForValue(cfDef, col.getName());
-                    sessionState.out.printf("\n     (column=%s, value=%s, timestamp=%d)", formatSubcolumnName(keyspace, columnFamily, col),
+                    sessionState.out.printf("%n     (column=%s, value=%s, timestamp=%d)", formatSubcolumnName(keyspace, columnFamily, col),
                                     validator.getString(col.value), col.timestamp);
                 }
                 
@@ -329,7 +329,7 @@ public class CliClient extends CliUserHelp
             {
                 Column column = cosc.column;
                 validator = getValidatorForValue(cfDef, column.getName());
-                sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d)\n", formatColumnName(keyspace, columnFamily, column),
+                sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d)%n", formatColumnName(keyspace, columnFamily, column),
                                 validator.getString(column.value), column.timestamp);
             }
         }
@@ -453,7 +453,7 @@ public class CliClient extends CliUserHelp
         }
 
         // print results
-        sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d)\n",
+        sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d)%n",
                                 formatColumnName(keySpace, columnFamily, column), valueAsString, column.timestamp);
     }
 
@@ -1203,21 +1203,21 @@ public class CliClient extends CliUserHelp
             for (CfDef cf_def : ks_def.cf_defs)
             {
                 isSuper = cf_def.column_type.equals("Super");
-                sessionState.out.printf("    ColumnFamily: %s%s\n", cf_def.name, isSuper ? " (Super)" : "");
+                sessionState.out.printf("    ColumnFamily: %s%s%n", cf_def.name, isSuper ? " (Super)" : "");
 
                 if (cf_def.comment != null && !cf_def.comment.isEmpty())
                 {
-                    sessionState.out.printf("    \"%s\"\n", cf_def.comment);
+                    sessionState.out.printf("    \"%s\"%n", cf_def.comment);
                 }
                 
-                sessionState.out.printf("      Columns sorted by: %s%s\n", cf_def.comparator_type, cf_def.column_type.equals("Super") ? "/" + cf_def.subcomparator_type : "");
-                sessionState.out.printf("      Row cache size / save period: %s/%s\n", cf_def.row_cache_size, cf_def.row_cache_save_period_in_seconds);
-                sessionState.out.printf("      Key cache size / save period: %s/%s\n", cf_def.key_cache_size, cf_def.key_cache_save_period_in_seconds);
-                sessionState.out.printf("      Memtable thresholds: %s/%s/%s\n",
+                sessionState.out.printf("      Columns sorted by: %s%s%n", cf_def.comparator_type, cf_def.column_type.equals("Super") ? "/" + cf_def.subcomparator_type : "");
+                sessionState.out.printf("      Row cache size / save period: %s/%s%n", cf_def.row_cache_size, cf_def.row_cache_save_period_in_seconds);
+                sessionState.out.printf("      Key cache size / save period: %s/%s%n", cf_def.key_cache_size, cf_def.key_cache_save_period_in_seconds);
+                sessionState.out.printf("      Memtable thresholds: %s/%s/%s%n",
                                 cf_def.memtable_operations_in_millions, cf_def.memtable_throughput_in_mb, cf_def.memtable_flush_after_mins);
-                sessionState.out.printf("      GC grace seconds: %s\n", cf_def.gc_grace_seconds);
-                sessionState.out.printf("      Compaction min/max thresholds: %s/%s\n", cf_def.min_compaction_threshold, cf_def.max_compaction_threshold);
-                sessionState.out.printf("      Read repair chance: %s\n", cf_def.read_repair_chance);
+                sessionState.out.printf("      GC grace seconds: %s%n", cf_def.gc_grace_seconds);
+                sessionState.out.printf("      Compaction min/max thresholds: %s/%s%n", cf_def.min_compaction_threshold, cf_def.max_compaction_threshold);
+                sessionState.out.printf("      Read repair chance: %s%n", cf_def.read_repair_chance);
 
                 if (cf_def.getColumn_metadataSize() != 0)
                 {
@@ -1793,8 +1793,8 @@ public class CliClient extends CliUserHelp
         {
             String keyName = (keyComparator == null) ? ByteBufferUtil.string(ks.key, Charsets.UTF_8) : keyComparator.getString(ks.key);
 
-            sessionState.out.printf("-------------------\n");
-            sessionState.out.printf("RowKey: %s\n", keyName);
+            sessionState.out.printf("-------------------%n");
+            sessionState.out.printf("RowKey: %s%n", keyName);
             Iterator<ColumnOrSuperColumn> iterator = ks.getColumnsIterator();
 
             while (iterator.hasNext())
@@ -1806,7 +1806,7 @@ public class CliClient extends CliUserHelp
                     Column col = columnOrSuperColumn.column;
                     validator = getValidatorForValue(columnFamilyDef, col.getName());
 
-                    sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d)\n",
+                    sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d)%n",
                                     formatColumnName(keySpace, columnFamilyName, col), validator.getString(col.value), col.timestamp);
                 }
                 else if (columnOrSuperColumn.super_column != null)
@@ -1818,7 +1818,7 @@ public class CliClient extends CliUserHelp
                     {
                         validator = getValidatorForValue(columnFamilyDef, col.getName());
 
-                        sessionState.out.printf("\n     (column=%s, value=%s, timestamp=%d)",
+                        sessionState.out.printf("%n     (column=%s, value=%s, timestamp=%d)",
                                         formatSubcolumnName(keySpace, columnFamilyName, col), validator.getString(col.value), col.timestamp);
                     }
 
@@ -1827,7 +1827,7 @@ public class CliClient extends CliUserHelp
             }
         }
 
-        sessionState.out.printf("\n%d Row%s Returned.\n", slices.size(), (slices.size() > 1 ? "s" : ""));
+        sessionState.out.printf("%n%d Row%s Returned.%n", slices.size(), (slices.size() > 1 ? "s" : ""));
     }
 
     // returnsub-columnmn name in human-readable format

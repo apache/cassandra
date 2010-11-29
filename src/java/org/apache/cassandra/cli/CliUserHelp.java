@@ -172,7 +172,7 @@ public class CliUserHelp {
                 state.out.println("attributes. Note that you must be using a keyspace.\n");
                 state.out.println("valid attributes are:");
                 for (ColumnFamilyArgument argument : ColumnFamilyArgument.values())
-                    state.out.printf("    - %s: %s\n", argument.toString().toLowerCase(), argumentExplanations.get(argument));
+                    state.out.printf("    - %s: %s%n", argument.toString().toLowerCase(), argumentExplanations.get(argument));
                 state.out.println("    - column_metadata: Metadata which describes columns of column family.");
                 state.out.println("        Supported format is [{ k:v, k:v, ... }, { ... }, ...]");
                 state.out.println("        Valid attributes: column_name, validation_class (see comparator),");
@@ -197,7 +197,7 @@ public class CliUserHelp {
                 {
                     if (argument == ColumnFamilyArgument.COMPARATOR || argument == ColumnFamilyArgument.SUBCOMPARATOR)
                         continue;
-                    state.out.printf("    - %s: %s\n", argument.toString().toLowerCase(), argumentExplanations.get(argument));
+                    state.out.printf("    - %s: %s%n", argument.toString().toLowerCase(), argumentExplanations.get(argument));
                 }
                 state.out.println("    - column_metadata: Metadata which describes columns of column family.");
                 state.out.println("        Supported format is [{ k:v, k:v, ... }, { ... }, ...]");
