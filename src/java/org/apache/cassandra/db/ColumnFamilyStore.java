@@ -594,7 +594,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public String getFlushPath()
     {
-        long guessedSize = 2 * memsize.value() * 1024*1024; // 2* adds room for keys, column indexes
+        long guessedSize = 2L * memsize.value() * 1024*1024; // 2* adds room for keys, column indexes
         String location = DatabaseDescriptor.getDataFileLocationForTable(table.name, guessedSize);
         if (location == null)
             throw new RuntimeException("Insufficient disk space to flush");
