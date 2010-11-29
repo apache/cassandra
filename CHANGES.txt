@@ -17,6 +17,7 @@ dev
  * Validate that column names in column_metadata are valid for the
    defined comparator, and decode properly in cli (CASSANDRA-1773)
  * use cross-platform newlines in cli (CASSANDRA-1786)
+ * add ExpiringColumn support to sstable import/export (CASSANDRA-1754)
 
 
 0.7.0-rc1

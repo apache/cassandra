@@ -31,6 +31,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.ExpiringColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.*;
@@ -95,6 +96,12 @@ public class SSTableExport
             json.append(column.timestamp());
             json.append(", ");
             json.append(column.isMarkedForDelete());
+            if (column instanceof ExpiringColumn) {
+              json.append(", ");
+              json.append(((ExpiringColumn)column).getTimeToLive());
+              json.append(", ");
+              json.append(((ExpiringColumn)column).getLocalDeletionTime());
+            }
             json.append("]");
             if (iter.hasNext())
                 json.append(", ");
