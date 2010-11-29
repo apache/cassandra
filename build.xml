@@ -292,7 +292,7 @@
     <target depends="init,avro-generate,gen-cli-grammar,gen-cql-grammar"
             name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
-        <javac debug="true" debuglevel="${debuglevel}" destdir="${build.classes}">
+        <javac debug="true" debuglevel="${debuglevel}" destdir="${build.classes}" includeantruntime="false">
             <src path="${build.src.java}"/>
             <src path="${build.src.gen-java}"/>
             <src path="${interface.thrift.dir}/gen-java"/>
