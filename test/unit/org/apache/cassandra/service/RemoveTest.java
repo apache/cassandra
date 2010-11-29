@@ -83,7 +83,7 @@ public class RemoveTest extends CleanupHelper
     @After
     public void tearDown()
     {
-        SinkManager.clearSinks();
+        SinkManager.clear();
         MessagingService.shutdown();
         ss.setPartitionerUnsafe(oldPartitioner);
     }
@@ -111,7 +111,7 @@ public class RemoveTest extends CleanupHelper
 
         final String token = partitioner.getTokenFactory().toString(endpointTokens.get(5));
         ReplicationSink rSink = new ReplicationSink();
-        SinkManager.addMessageSink(rSink);
+        SinkManager.addSink(rSink);
 
         // start removal in background and send replication confirmations
         final AtomicBoolean success = new AtomicBoolean(false);
@@ -159,8 +159,8 @@ public class RemoveTest extends CleanupHelper
 
         NotificationSink nSink = new NotificationSink();
         ReplicationSink rSink = new ReplicationSink();
-        SinkManager.addMessageSink(nSink);
-        SinkManager.addMessageSink(rSink);
+        SinkManager.addSink(nSink);
+        SinkManager.addSink(rSink);
 
         assertEquals(0, tmd.getLeavingEndpoints().size());
 
