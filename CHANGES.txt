@@ -18,6 +18,8 @@ dev
    defined comparator, and decode properly in cli (CASSANDRA-1773)
  * use cross-platform newlines in cli (CASSANDRA-1786)
  * add ExpiringColumn support to sstable import/export (CASSANDRA-1754)
+ * add flush for each append to periodic commitlog mode; added
+   periodic_without_flush option to disable this (CASSANDRA-1780)
 
 
 0.7.0-rc1

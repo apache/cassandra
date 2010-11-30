@@ -105,7 +105,8 @@ public class Config
     
     public static enum CommitLogSync {
         periodic,
-        batch
+        batch,
+        periodic_without_flush
     }
     
     public static enum DiskAccessMode {
