@@ -183,7 +183,6 @@ public class SSTableWriter extends SSTable
         // remove the 'tmp' marker from all components
         final Descriptor newdesc = rename(descriptor, components);
 
-
         // finalize in-memory state for the reader
         SegmentedFile ifile = iwriter.builder.complete(newdesc.filenameFor(SSTable.COMPONENT_INDEX));
         SegmentedFile dfile = dbuilder.complete(newdesc.filenameFor(SSTable.COMPONENT_DATA));
