@@ -263,12 +263,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     protected Set<DecoratedKey> readSavedCache(File path)
     {
         Set<DecoratedKey> keys = new TreeSet<DecoratedKey>();
-        try
+        if (path.exists())
         {
-            long start = System.currentTimeMillis();
-
-            if (path.exists())
+            try
             {
+                long start = System.currentTimeMillis();
+
                 logger.info(String.format("reading saved cache %s", path));
                 ObjectInputStream in = new ObjectInputStream(new BufferedInputStream(new FileInputStream(path)));
                 while (in.available() > 0)
@@ -280,13 +280,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
                 in.close();
                 if (logger.isDebugEnabled())
-                    logger.debug(String.format("completed reading (%d ms; %d keys) saved cache from %s",
+                    logger.debug(String.format("completed reading (%d ms; %d keys) saved cache %s",
                                                System.currentTimeMillis() - start, keys.size(), path));
             }
-        }
-        catch (IOException ioe)
-        {
-            logger.warn(String.format("error reading saved cache at %s", path.getAbsolutePath()), ioe);
+            catch (IOException ioe)
+            {
+                logger.warn(String.format("error reading saved cache %s", path.getAbsolutePath()), ioe);
+            }
         }
         return keys;
     }
