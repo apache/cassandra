@@ -83,11 +83,7 @@ public class Descriptor
         return filenameFor(component.name());
     }
     
-    /**
-     * @param suffix A component suffix, such as 'Data.db'/'Index.db'/etc
-     * @return A filename for this descriptor with the given suffix.
-     */
-    public String filenameFor(String suffix)
+    private String baseFilename()
     {
         StringBuilder buff = new StringBuilder();
         buff.append(directory).append(File.separatorChar);
@@ -96,9 +92,17 @@ public class Descriptor
             buff.append(SSTable.TEMPFILE_MARKER).append("-");
         if (!LEGACY_VERSION.equals(version))
             buff.append(version).append("-");
-        buff.append(generation).append("-");
-        buff.append(suffix);
+        buff.append(generation);
         return buff.toString();
+    }
+
+    /**
+     * @param suffix A component suffix, such as 'Data.db'/'Index.db'/etc
+     * @return A filename for this descriptor with the given suffix.
+     */
+    public String filenameFor(String suffix)
+    {
+        return baseFilename() + "-" + suffix;
     }
 
     /**
@@ -177,7 +181,7 @@ public class Descriptor
     @Override
     public String toString()
     {
-        return this.filenameFor("<>");
+        return baseFilename();
     }
 
     @Override
