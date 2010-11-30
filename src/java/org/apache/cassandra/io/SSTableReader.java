@@ -122,7 +122,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         long start = System.currentTimeMillis();
         SSTableReader sstable = new SSTableReader(dataFileName, partitioner);
         sstable.setTrackedBy(tracker);
-        logger.info("Sampling index and loading saved keyCache for " + dataFileName + " (" + savedKeyCacheKeys.size() + " saved keys)");
+        logger.info("Opening " + dataFileName);
         sstable.loadIndexAndCache(savedKeyCacheKeys);
         sstable.loadBloomFilter();
 

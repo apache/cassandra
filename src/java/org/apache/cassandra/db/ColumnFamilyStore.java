@@ -177,7 +177,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         Collections.sort(sstableFiles, new FileUtils.FileComparator());
 
-        /* Load the index files and the Bloom Filters associated with them. */
+        // scan for sstables corresponding to this cf and load them
         ssTables_ = new SSTableTracker(table, columnFamilyName);
         Set<String> savedKeys = readSavedCache(DatabaseDescriptor.getSerializedKeyCachePath(table, columnFamilyName), false);
         List<SSTableReader> sstables = new ArrayList<SSTableReader>();
@@ -202,7 +202,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ssTables_.add(sstables);
     }
 
-    protected Set<String> readSavedCache(File path, boolean sort) throws IOException
+    protected Set<String> readSavedCache(File path, boolean sort)
     {
         Set<String> keys;
         if (sort)
@@ -215,25 +215,31 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             keys = new HashSet<String>();
         }
-        
-        long start = System.currentTimeMillis();
+
         if (path.exists())
         {
-            if (logger_.isDebugEnabled())
-                logger_.debug("reading saved cache from " + path);
-            ObjectInputStream in = new ObjectInputStream(new BufferedInputStream(new FileInputStream(path)));
-            Charset UTF8 = Charset.forName("UTF-8");
-            while (in.available() > 0)
+            try
             {
-                int size = in.readInt();
-                byte[] bytes = new byte[size];
-                in.readFully(bytes);
-                keys.add(new String(bytes, UTF8));
+                long start = System.currentTimeMillis();
+                logger_.info("reading saved cache " + path);
+                ObjectInputStream in = new ObjectInputStream(new BufferedInputStream(new FileInputStream(path)));
+                Charset UTF8 = Charset.forName("UTF-8");
+                while (in.available() > 0)
+                {
+                    int size = in.readInt();
+                    byte[] bytes = new byte[size];
+                    in.readFully(bytes);
+                    keys.add(new String(bytes, UTF8));
+                }
+                in.close();
+                if (logger_.isDebugEnabled())
+                    logger_.debug(String.format("completed reading (%d ms; %d keys) saved cache %s",
+                                                (System.currentTimeMillis() - start), keys.size(), path));
             }
-            in.close();
-            if (logger_.isDebugEnabled())
-                logger_.debug(String.format("completed reading (%d ms; %d keys) from saved cache at %s",
-                                            (System.currentTimeMillis() - start), keys.size(), path));
+            catch (IOException ioe)
+            {
+                logger_.warn("error reading saved cache " + path, ioe);
+            }
         }
 
         return keys;
@@ -246,19 +252,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         int rowCacheSavePeriodInSeconds = DatabaseDescriptor.getTableMetaData(table_).get(columnFamily_).rowCacheSavePeriodInSeconds;
         int keyCacheSavePeriodInSeconds = DatabaseDescriptor.getTableMetaData(table_).get(columnFamily_).keyCacheSavePeriodInSeconds;
 
+        long start = System.currentTimeMillis();
         try
         {
-            long start = System.currentTimeMillis();
-            logger_.info(String.format("loading%s", msgSuffix));
             for (String key : readSavedCache(DatabaseDescriptor.getSerializedRowCachePath(table_, columnFamily_), true))
                 cacheRow(key);
-            logger_.info(String.format("completed loading (%d ms; %d keys) %s",
-                                       System.currentTimeMillis()-start, ssTables_.getRowCache().getSize(), msgSuffix));
         }
         catch (IOException ioe)
         {
             logger_.warn("error loading " + msgSuffix, ioe);
         }
+        if (ssTables_.getRowCache().getSize() > 0)
+            logger_.info(String.format("completed loading (%d ms; %d keys) %s",
+                                       System.currentTimeMillis() - start,
+                                       ssTables_.getRowCache().getSize(),
+                                       msgSuffix));
 
         rowCacheWriteTask = new WrappedRunnable()
         {
