@@ -215,7 +215,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // scan for sstables corresponding to this cf and load them
         ssTables = new SSTableTracker(table.name, columnFamilyName);
         Set<DecoratedKey> savedKeys = readSavedCache(DatabaseDescriptor.getSerializedKeyCachePath(table.name, columnFamilyName));
-        logger.info("read " + savedKeys.size() + " from saved key cache");
         List<SSTableReader> sstables = new ArrayList<SSTableReader>();
         for (Map.Entry<Descriptor,Set<Component>> sstableFiles : files(table.name, columnFamilyName, false).entrySet())
         {
@@ -270,8 +269,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             if (path.exists())
             {
-                if (logger.isDebugEnabled())
-                    logger.debug(String.format("reading saved cache from %s", path));
+                logger.info(String.format("reading saved cache %s", path));
                 ObjectInputStream in = new ObjectInputStream(new BufferedInputStream(new FileInputStream(path)));
                 while (in.available() > 0)
                 {
@@ -282,7 +280,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
                 in.close();
                 if (logger.isDebugEnabled())
-                    logger.debug(String.format("completed reading (%d ms; %d keys) from saved cache at %s",
+                    logger.debug(String.format("completed reading (%d ms; %d keys) saved cache from %s",
                                                System.currentTimeMillis() - start, keys.size(), path));
             }
         }
@@ -504,18 +502,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     // must be called after all sstables are loaded since row cache merges all row versions
     public void initRowCache()
     {
-        String msgSuffix = String.format(" row cache for %s of %s", columnFamily, table.name);
         int rowCacheSavePeriodInSeconds = DatabaseDescriptor.getTableMetaData(table.name).get(columnFamily).getRowCacheSavePeriodInSeconds();
         int keyCacheSavePeriodInSeconds = DatabaseDescriptor.getTableMetaData(table.name).get(columnFamily).getKeyCacheSavePeriodInSeconds();
 
         long start = System.currentTimeMillis();
-        logger.info(String.format("loading%s", msgSuffix));
         // sort the results on read because there are few reads and many writes and reads only happen at startup
         Set<DecoratedKey> savedKeys = readSavedCache(DatabaseDescriptor.getSerializedRowCachePath(table.name, columnFamily));
         for (DecoratedKey key : savedKeys)
             cacheRow(key);
-        logger.info(String.format("completed loading (%d ms; %d keys) %s",
-                                  System.currentTimeMillis()-start, ssTables.getRowCache().getSize(), msgSuffix));
+        if (ssTables.getRowCache().getSize() > 0)
+            logger.info(String.format("completed loading (%d ms; %d keys) row cache for %s.%s",
+                                      System.currentTimeMillis()-start,
+                                      ssTables.getRowCache().getSize(),
+                                      table.name,
+                                      columnFamily));
         if (rowCacheSavePeriodInSeconds > 0)
         {
             cacheSavingExecutor.scheduleWithFixedDelay(rowCacheSaverTask,

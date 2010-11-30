@@ -82,7 +82,7 @@ public class Descriptor
     {
         return filenameFor(component.name());
     }
-
+    
     /**
      * @param suffix A component suffix, such as 'Data.db'/'Index.db'/etc
      * @return A filename for this descriptor with the given suffix.

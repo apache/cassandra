@@ -167,7 +167,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         assert partitioner != null;
 
         long start = System.currentTimeMillis();
-        logger.info("Sampling index for " + descriptor);
+        logger.info("Opening " + descriptor);
 
         EstimatedHistogram rowSizes;
         EstimatedHistogram columnCounts;
