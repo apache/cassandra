@@ -704,6 +704,7 @@ public class CassandraServer implements Cassandra.Iface
     public String system_add_column_family(CfDef cf_def) throws InvalidRequestException, TException
     {
         state().hasColumnFamilyListAccess(Permission.WRITE);
+        ThriftValidation.validateCfDef(cf_def);
         try
         {
             applyMigrationOnStage(new AddColumnFamily(convertToCFMetaData(cf_def)));

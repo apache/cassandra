@@ -305,7 +305,7 @@ public class MessagingService implements MessagingServiceMBean
         }
 
         // message sinks are a testing hook
-        Message processedMessage = SinkManager.processClientMessageSink(message, to);
+        Message processedMessage = SinkManager.processClientMessage(message, to);
         if (processedMessage == null)
         {
             return;
@@ -385,11 +385,13 @@ public class MessagingService implements MessagingServiceMBean
 
     public static void receive(Message message)
     {
-        message = SinkManager.processServerMessageSink(message, null);
+        message = SinkManager.processServerMessage(message);
+        if (message == null)
+            return;
 
         Runnable runnable = new MessageDeliveryTask(message);
         ExecutorService stage = StageManager.getStage(message.getMessageType());
-        assert stage != null;
+        assert stage != null : "No stage for message type " + message.getMessageType();
         stage.execute(runnable);
     }
 

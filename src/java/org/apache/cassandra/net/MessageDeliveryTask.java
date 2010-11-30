@@ -33,6 +33,7 @@ public class MessageDeliveryTask implements Runnable
 
     public MessageDeliveryTask(Message message)
     {
+        assert message != null;
         message_ = message;    
     }
     

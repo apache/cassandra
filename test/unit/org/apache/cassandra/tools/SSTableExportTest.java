@@ -28,6 +28,7 @@ import java.util.Arrays;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ExpiringColumn;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
@@ -90,13 +91,16 @@ public class SSTableExportTest extends SchemaLoader
     }
 
     @Test
-    public void testExportSimpleCf() throws IOException    {
+    public void testExportSimpleCf() throws IOException
+    {
         File tempSS = tempSSTableFile("Keyspace1", "Standard1");
         ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Standard1");
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
         
+        int nowInSec = (int)(System.currentTimeMillis() / 1000);
         // Add rowA
         cfamily.addColumn(new QueryPath("Standard1", null, ByteBufferUtil.bytes("colA")), ByteBufferUtil.bytes("valA"), 1);
+        cfamily.addColumn(null, new ExpiringColumn(ByteBufferUtil.bytes("colExp"), ByteBufferUtil.bytes("valExp"), 1, 42, nowInSec));
         writer.append(Util.dk("rowA"), cfamily);
         cfamily.clear();
         
@@ -121,6 +125,10 @@ public class SSTableExportTest extends SchemaLoader
         JSONArray rowA = (JSONArray)json.get(asHex("rowA"));
         JSONArray colA = (JSONArray)rowA.get(0);
         assert Arrays.equals(hexToBytes((String)colA.get(1)), "valA".getBytes());
+
+        JSONArray colExp = (JSONArray)rowA.get(1);
+        assert ((Long)colExp.get(4)) == 42;
+        assert ((Long)colExp.get(5)) == nowInSec;
         
         JSONArray rowB = (JSONArray)json.get(asHex("rowB"));
         JSONArray colB = (JSONArray)rowB.get(0);

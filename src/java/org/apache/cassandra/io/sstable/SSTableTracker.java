@@ -71,8 +71,8 @@ public class SSTableTracker implements Iterable<SSTableReader>
         public void saveCache(JMXInstrumentedCache<K, V> cache, File savedCachePath, Function<K, ByteBuffer> converter) throws IOException
         {
             long start = System.currentTimeMillis();
-            String msgSuffix = " " + savedCachePath.getName() + " for " + cfname + " of " + ksname;
-            logger.debug("saving" + msgSuffix);
+            String msgSuffix = savedCachePath.getName() + " for " + cfname + " of " + ksname;
+            logger.info("saving " + msgSuffix);
             int count = 0;
             File tmpFile = File.createTempFile(savedCachePath.getName(), null, savedCachePath.getParentFile());
             FileOutputStream fout = new FileOutputStream(tmpFile);
@@ -91,7 +91,7 @@ public class SSTableTracker implements Iterable<SSTableReader>
             if (!tmpFile.renameTo(savedCachePath))
                 throw new IOException("Unable to rename cache to " + savedCachePath);
             if (logger.isDebugEnabled())
-                logger.debug("saved " + count + " keys in " + (System.currentTimeMillis() - start) + " ms from" + msgSuffix);
+                logger.debug("saved " + count + " keys in " + (System.currentTimeMillis() - start) + " ms from " + msgSuffix);
         }
     }
 

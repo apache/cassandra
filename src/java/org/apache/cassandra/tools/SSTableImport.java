@@ -28,6 +28,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SuperColumn;
+import org.apache.cassandra.db.ExpiringColumn;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
@@ -68,15 +69,22 @@ public class SSTableImport
         private String value;
         private long timestamp;
         private boolean isDeleted;
+        private int ttl;
+        private int localExpirationTime;
         
         private JsonColumn(Object obj) throws ClassCastException
         {
             JSONArray colSpec = (JSONArray)obj;
-            assert colSpec.size() == 4;
+            assert colSpec.size() == 4 || colSpec.size() == 6;
             name = (String)colSpec.get(0);
             value = (String)colSpec.get(1);
             timestamp = (Long)colSpec.get(2);
             isDeleted = (Boolean)colSpec.get(3);
+            if (colSpec.size() == 6)
+            {
+                ttl = (int)(long)((Long)colSpec.get(4));
+                localExpirationTime = (int)(long)((Long)colSpec.get(5));
+            }
         }
     }
 
@@ -94,9 +102,16 @@ public class SSTableImport
         {
             JsonColumn col = new JsonColumn(c);
             QueryPath path = new QueryPath(cfm.cfName, null, ByteBuffer.wrap(hexToBytes(col.name)));
-            if (col.isDeleted) {
+            if (col.ttl > 0)
+            {
+                cfamily.addColumn(null, new ExpiringColumn(ByteBuffer.wrap(hexToBytes(col.name)), ByteBuffer.wrap(hexToBytes(col.value)), col.timestamp, col.ttl, col.localExpirationTime));
+            }
+            else if (col.isDeleted)
+            {
                 cfamily.addTombstone(path, ByteBuffer.wrap(hexToBytes(col.value)), col.timestamp);
-            } else {
+            }
+            else
+            {
                 cfamily.addColumn(path, ByteBuffer.wrap(hexToBytes(col.value)), col.timestamp);
             }
         }
@@ -124,9 +139,16 @@ public class SSTableImport
             {
                 JsonColumn col = new JsonColumn(c);
                 QueryPath path = new QueryPath(cfm.cfName, superName, ByteBuffer.wrap(hexToBytes(col.name)));
-                if (col.isDeleted) {
+                if (col.ttl > 0)
+                {
+                    cfamily.addColumn(superName, new ExpiringColumn(ByteBuffer.wrap(hexToBytes(col.name)), ByteBuffer.wrap(hexToBytes(col.value)), col.timestamp, col.ttl, col.localExpirationTime));
+                }
+                else if (col.isDeleted)
+                {
                     cfamily.addTombstone(path, ByteBuffer.wrap(hexToBytes(col.value)), col.timestamp);
-                } else {
+                }
+                else
+                {
                     cfamily.addColumn(path, ByteBuffer.wrap(hexToBytes(col.value)), col.timestamp);
                 }
             }

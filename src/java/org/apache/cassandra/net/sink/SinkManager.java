@@ -18,56 +18,50 @@
 
 package org.apache.cassandra.net.sink;
 
-import java.util.*;
-import java.io.IOException;
-
 import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.cassandra.net.Message;
 
 public class SinkManager
 {
-    private static LinkedList<IMessageSink> messageSinks_ = new LinkedList<IMessageSink>();
+    private static List<IMessageSink> sinks = new ArrayList<IMessageSink>();
 
-    public static boolean isInitialized()
+    public static void add(IMessageSink ms)
     {
-        return ( messageSinks_.size() > 0 );
+        sinks.add(ms);
     }
 
-    public static void addMessageSink(IMessageSink ms)
+    public static void clear()
     {
-        messageSinks_.addLast(ms);
-    }
-    
-    public static void clearSinks(){
-        messageSinks_.clear();
+        sinks.clear();
     }
 
-    public static Message processClientMessageSink(Message message, InetAddress to)
+    public static Message processClientMessage(Message message, InetAddress to)
     {
-        ListIterator<IMessageSink> li = messageSinks_.listIterator();
-        while ( li.hasNext() )
+        if (sinks.isEmpty())
+            return message;
+
+        for (IMessageSink ms : sinks)
         {
-            IMessageSink ms = li.next();
             message = ms.handleMessage(message, to);
-            if ( message == null )
-            {
+            if (message == null)
                 return null;
-            }
         }
         return message;
     }
 
-    public static Message processServerMessageSink(Message message, InetAddress to)
+    public static Message processServerMessage(Message message)
     {
-        ListIterator<IMessageSink> li = messageSinks_.listIterator(messageSinks_.size());
-        while ( li.hasPrevious() )
+        if (sinks.isEmpty())
+            return message;
+
+        for (IMessageSink ms : sinks)
         {
-            IMessageSink ms = li.previous();
-            message = ms.handleMessage(message, to);
-            if ( message == null )
-            {
+            message = ms.handleMessage(message, null);
+            if (message == null)
                 return null;
-            }
         }
         return message;
     }

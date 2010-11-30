@@ -296,6 +296,6 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 
     public boolean isExpired()
     {
-        return System.currentTimeMillis() > creationTime + cfs.getMemtableFlushAfterMins() * 60 * 1000;
+        return System.currentTimeMillis() > creationTime + cfs.getMemtableFlushAfterMins() * 60 * 1000L;
     }
 }

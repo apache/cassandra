@@ -319,8 +319,14 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
                 Map<ByteBuffer, Map<String, List<Mutation>>> batch = new HashMap<ByteBuffer, Map<String, List<Mutation>>>();
                 while (batch.size() < batchThreshold)
                 {
-                    Map<String, List<Mutation>> subBatch = Collections.singletonMap(columnFamily, Arrays.asList(mutation.right));
-                    batch.put(mutation.left, subBatch);
+                    Map<String, List<Mutation>> subBatch = batch.get(mutation.left);
+                    if (subBatch == null)
+                    {
+                        subBatch = Collections.singletonMap(columnFamily, (List<Mutation>) new ArrayList<Mutation>());
+                        batch.put(mutation.left, subBatch);
+                    }
+                    
+                    subBatch.get(columnFamily).add(mutation.right);
                     if ((mutation = queue.poll()) == null)
                         break;
                 }

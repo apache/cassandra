@@ -517,7 +517,7 @@ public class FBUtilities
     {
         try
         {
-            InputStream in = ClassLoader.getSystemClassLoader().getResourceAsStream("org/apache/cassandra/config/version.properties");
+            InputStream in = FBUtilities.class.getClassLoader().getResourceAsStream("org/apache/cassandra/config/version.properties");
             Properties props = new Properties();
             props.load(in);
             return props.getProperty("CassandraVersion");
@@ -573,13 +573,13 @@ public class FBUtilities
         }
         catch (NoSuchFieldException e)
         {
-            ConfigurationException ex = new ConfigurationException("Invalid comparator: must define a public static instance field.");
+            ConfigurationException ex = new ConfigurationException("Invalid comparator " + compareWith + " : must define a public static instance field.");
             ex.initCause(e);
             throw ex;
         }
         catch (IllegalAccessException e)
         {
-            ConfigurationException ex = new ConfigurationException("Invalid comparator: must define a public static instance field.");
+            ConfigurationException ex = new ConfigurationException("Invalid comparator " + compareWith + " : must define a public static instance field.");
             ex.initCause(e);
             throw ex;
         }
@@ -599,7 +599,7 @@ public class FBUtilities
         }
         catch (ClassNotFoundException e)
         {
-            throw new ConfigurationException(String.format("Unable to find %s class '%s': is the CLASSPATH set correctly?", readable, classname));
+            throw new ConfigurationException(String.format("Unable to find %s class '%s'", readable, classname));
         }
     }
 

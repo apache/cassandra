@@ -97,11 +97,11 @@ public class NodeCmd {
         Collection<String> leavingNodes = probe.getLeavingNodes();
         Map<String, String> loadMap = probe.getLoadMap();
 
-        outs.printf("%-16s%-7s%-8s%-16s%-8s%-44s\n", "Address", "Status", "State", "Load", "Owns", "Token");
+        outs.printf("%-16s%-7s%-8s%-16s%-8s%-44s%n", "Address", "Status", "State", "Load", "Owns", "Token");
         // show pre-wrap token twice so you can always read a node's range as
         // (previous line token, current line token]
         if (sortedTokens.size() > 1)
-            outs.printf("%-16s%-7s%-8s%-16s%-8s%-44s\n", "", "", "", "", "", sortedTokens.get(sortedTokens.size() - 1));
+            outs.printf("%-16s%-7s%-8s%-16s%-8s%-44s%n", "", "", "", "", "", sortedTokens.get(sortedTokens.size() - 1));
 
         // Calculate per-token ownership of the ring
         Map<Token, Float> ownerships = probe.getOwnership();
@@ -123,13 +123,13 @@ public class NodeCmd {
                           ? loadMap.get(primaryEndpoint)
                           : "?";
             String owns = new DecimalFormat("##0.00%").format(ownerships.get(token));
-            outs.printf("%-16s%-7s%-8s%-16s%-8s%-44s\n", primaryEndpoint, status, state, load, owns, token);
+            outs.printf("%-16s%-7s%-8s%-16s%-8s%-44s%n", primaryEndpoint, status, state, load, owns, token);
         }
     }
 
     public void printThreadPoolStats(PrintStream outs)
     {
-        outs.printf("%-25s%10s%10s%15s\n", "Pool Name", "Active", "Pending", "Completed");
+        outs.printf("%-25s%10s%10s%15s%n", "Pool Name", "Active", "Pending", "Completed");
 
         Iterator<Map.Entry<String, IExecutorMBean>> threads = probe.getThreadPoolMBeanProxies();
         while (threads.hasNext())
@@ -137,7 +137,7 @@ public class NodeCmd {
             Entry<String, IExecutorMBean> thread = threads.next();
             String poolName = thread.getKey();
             IExecutorMBean threadPoolProxy = thread.getValue();
-            outs.printf("%-25s%10s%10s%15s\n",
+            outs.printf("%-25s%10s%10s%15s%n",
                         poolName, threadPoolProxy.getActiveCount(), threadPoolProxy.getPendingTasks(), threadPoolProxy.getCompletedTasks());
         }
     }
@@ -150,18 +150,18 @@ public class NodeCmd {
     public void printInfo(PrintStream outs)
     {
         outs.println(probe.getToken());
-        outs.printf("%-17s: %s\n", "Load", probe.getLoadString());
-        outs.printf("%-17s: %s\n", "Generation No", probe.getCurrentGenerationNumber());
+        outs.printf("%-17s: %s%n", "Load", probe.getLoadString());
+        outs.printf("%-17s: %s%n", "Generation No", probe.getCurrentGenerationNumber());
         
         // Uptime
         long secondsUp = probe.getUptime() / 1000;
-        outs.printf("%-17s: %d\n", "Uptime (seconds)", secondsUp);
+        outs.printf("%-17s: %d%n", "Uptime (seconds)", secondsUp);
 
         // Memory usage
         MemoryUsage heapUsage = probe.getHeapMemoryUsage();
         double memUsed = (double)heapUsage.getUsed() / (1024 * 1024);
         double memMax = (double)heapUsage.getMax() / (1024 * 1024);
-        outs.printf("%-17s: %.2f / %.2f\n", "Heap Memory (MB)", memUsed, memMax);
+        outs.printf("%-17s: %.2f / %.2f%n", "Heap Memory (MB)", memUsed, memMax);
     }
 
     public void printReleaseVersion(PrintStream outs)
@@ -171,7 +171,7 @@ public class NodeCmd {
 
     public void printNetworkStats(final InetAddress addr, PrintStream outs)
     {
-        outs.printf("Mode: %s\n", probe.getOperationMode());
+        outs.printf("Mode: %s%n", probe.getOperationMode());
         Set<InetAddress> hosts = addr == null ? probe.getStreamDestinations() : new HashSet<InetAddress>(){{add(addr);}};
         if (hosts.size() == 0)
             outs.println("Not sending any streams.");
@@ -182,18 +182,18 @@ public class NodeCmd {
                 List<String> files = probe.getFilesDestinedFor(host);
                 if (files.size() > 0)
                 {
-                    outs.printf("Streaming to: %s\n", host);
+                    outs.printf("Streaming to: %s%n", host);
                     for (String file : files)
-                        outs.printf("   %s\n", file);
+                        outs.printf("   %s%n", file);
                 }
                 else
                 {
-                    outs.printf(" Nothing streaming to %s\n", host);
+                    outs.printf(" Nothing streaming to %s%n", host);
                 }
             }
             catch (IOException ex)
             {
-                outs.printf("   Error retrieving file data for %s\n", host);
+                outs.printf("   Error retrieving file data for %s%n", host);
             }
         }
 
@@ -207,18 +207,18 @@ public class NodeCmd {
                 List<String> files = probe.getIncomingFiles(host);
                 if (files.size() > 0)
                 {
-                    outs.printf("Streaming from: %s\n", host);
+                    outs.printf("Streaming from: %s%n", host);
                     for (String file : files)
-                        outs.printf("   %s\n", file);
+                        outs.printf("   %s%n", file);
                 }
                 else
                 {
-                    outs.printf(" Nothing streaming from %s\n", host);
+                    outs.printf(" Nothing streaming from %s%n", host);
                 }
             }
             catch (IOException ex)
             {
-                outs.printf("   Error retrieving file data for %s\n", host);
+                outs.printf("   Error retrieving file data for %s%n", host);
             }
         }
 
@@ -226,7 +226,7 @@ public class NodeCmd {
         outs.printf("%-25s", "Pool Name");
         outs.printf("%10s", "Active");
         outs.printf("%10s", "Pending");
-        outs.printf("%15s\n", "Completed");
+        outs.printf("%15s%n", "Completed");
 
         int pending;
         long completed;
@@ -237,7 +237,7 @@ public class NodeCmd {
         completed = 0;
         for (long n : ms.getCommandCompletedTasks().values())
             completed += n;
-        outs.printf("%-25s%10s%10s%15s\n", "Commands", "n/a", pending, completed);
+        outs.printf("%-25s%10s%10s%15s%n", "Commands", "n/a", pending, completed);
 
         pending = 0;
         for (int n : ms.getResponsePendingTasks().values())
@@ -245,7 +245,7 @@ public class NodeCmd {
         completed = 0;
         for (long n : ms.getResponseCompletedTasks().values())
             completed += n;
-        outs.printf("%-25s%10s%10s%15s\n", "Responses", "n/a", pending, completed);
+        outs.printf("%-25s%10s%10s%15s%n", "Responses", "n/a", pending, completed);
     }
     
     public void printColumnFamilyStats(PrintStream outs)
