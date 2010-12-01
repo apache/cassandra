@@ -10,8 +10,6 @@
  * detect and warn when obsolete version of JNA is present (CASSANDRA-1770)
  * fix live-column-count of slice ranges including tombstoned supercolumn 
    with live subcolumn (CASSANDRA-1591)
- * avoid opening readers on anticompacted to-be-streamed temporary
-   files (CASSANDRA-1752)
 
 
 0.6.8

@@ -112,16 +112,19 @@ public class StreamOut
      * Transfers a group of sstables from a single table to the target endpoint
      * and then marks them as ready for local deletion.
      */
-    public static void transferSSTables(InetAddress target, List<String> filenames, String table) throws IOException
+    public static void transferSSTables(InetAddress target, List<SSTableReader> sstables, String table) throws IOException
     {
-        PendingFile[] pendingFiles = new PendingFile[filenames.size()];
+        PendingFile[] pendingFiles = new PendingFile[SSTable.FILES_ON_DISK * sstables.size()];
         int i = 0;
-        for (String filename : filenames)
+        for (SSTableReader sstable : sstables)
         {
-            File file = new File(filename);
-            pendingFiles[i++] = new PendingFile(file.getAbsolutePath(), file.length(), table);
+            for (String filename : sstable.getAllFilenames())
+            {
+                File file = new File(filename);
+                pendingFiles[i++] = new PendingFile(file.getAbsolutePath(), file.length(), table);
+            }
         }
-        logger.info("Stream context metadata " + StringUtils.join(pendingFiles, ", " + " " + filenames.size() + " sstables."));
+        logger.info("Stream context metadata " + StringUtils.join(pendingFiles, ", " + " " + sstables.size() + " sstables."));
         StreamOutManager.get(target).addFilesToStream(pendingFiles);
         StreamInitiateMessage biMessage = new StreamInitiateMessage(pendingFiles);
         Message message = StreamInitiateMessage.makeStreamInitiateMessage(biMessage);

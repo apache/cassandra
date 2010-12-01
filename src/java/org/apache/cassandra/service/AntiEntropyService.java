@@ -485,12 +485,12 @@ public class AntiEntropyService
             try
             {
                 List<Range> ranges = new ArrayList<Range>(differences);
-                final List<String> filenames = CompactionManager.instance.submitAnticompaction(cfstore, ranges, remote).get();
+                final List<SSTableReader> sstables = CompactionManager.instance.submitAnticompaction(cfstore, ranges, remote).get();
                 Future f = StageManager.getStage(StageManager.STREAM_STAGE).submit(new WrappedRunnable() 
                 {
                     protected void runMayThrow() throws Exception
                     {
-                        StreamOut.transferSSTables(remote, filenames, cf.left);
+                        StreamOut.transferSSTables(remote, sstables, cf.left);
                         StreamOutManager.remove(remote);
                     }
                 });
