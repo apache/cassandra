@@ -113,6 +113,7 @@ public class OutboundTcpConnection extends Thread
         catch (IOException e)
         {
             logger.info("error writing to " + endpoint);
+            logger.debug("error was ", e);
             disconnect();
         }
     }
