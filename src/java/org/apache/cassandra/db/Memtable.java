@@ -257,7 +257,6 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         return new SimpleAbstractColumnIterator()
         {
             private Iterator<ByteBuffer> iter = filter.columns.iterator();
-            private ByteBuffer current;
 
             public ColumnFamily getColumnFamily()
             {
@@ -273,7 +272,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
             {
                 while (iter.hasNext())
                 {
-                    current = iter.next();
+                    ByteBuffer current = iter.next();
                     IColumn column = cf.getColumn(current);
                     if (column != null)
                         // clone supercolumns so caller can freely removeDeleted or otherwise mutate it
