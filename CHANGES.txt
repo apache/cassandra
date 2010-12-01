@@ -21,6 +21,7 @@ dev
  * add flush for each append to periodic commitlog mode; added
    periodic_without_flush option to disable this (CASSANDRA-1780)
  * close file handle used for post-flush truncate (CASSANDRA-1790)
+ * various code cleanup (CASSANDRA-1793, -1794, -1795)
 
 
 0.7.0-rc1
