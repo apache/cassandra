@@ -27,18 +27,19 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 
-import org.apache.cassandra.config.ConfigurationException;
 import org.junit.Test;
 
-import static org.junit.Assert.*;
-import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceAccessor;
 
-public class SimpleStrategyTest extends SchemaLoader
+import static org.junit.Assert.*;
+
+public class SimpleStrategyTest extends CleanupHelper
 {
     @Test
     public void tryValidTable()
