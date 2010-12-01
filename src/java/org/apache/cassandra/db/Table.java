@@ -282,9 +282,9 @@ public class Table
      * do a complete compaction since we can figure out based on the ranges
      * whether the files need to be split.
     */
-    public List<SSTableReader> forceAntiCompaction(Collection<Range> ranges, InetAddress target)
+    public List<String> forceAntiCompaction(Collection<Range> ranges, InetAddress target)
     {
-        List<SSTableReader> allResults = new ArrayList<SSTableReader>();
+        List<String> allResults = new ArrayList<String>();
         Set<String> columnFamilies = tableMetadata.getColumnFamilies();
         for ( String columnFamily : columnFamilies )
         {

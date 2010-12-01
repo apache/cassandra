@@ -133,11 +133,11 @@ public class CompactionManager implements CompactionManagerMBean
         return executor.submit(runnable);
     }
 
-    public Future<List<SSTableReader>> submitAnticompaction(final ColumnFamilyStore cfStore, final Collection<Range> ranges, final InetAddress target)
+    public Future<List<String>> submitAnticompaction(final ColumnFamilyStore cfStore, final Collection<Range> ranges, final InetAddress target)
     {
-        Callable<List<SSTableReader>> callable = new Callable<List<SSTableReader>>()
+        Callable<List<String>> callable = new Callable<List<String>>()
         {
-            public List<SSTableReader> call() throws IOException
+            public List<String> call() throws IOException
             {
                 return doAntiCompaction(cfStore, cfStore.getSSTables(), ranges, target);
             }
@@ -320,18 +320,7 @@ public class CompactionManager implements CompactionManagerMBean
         return sstables.size();
     }
 
-    /**
-     * This function is used to do the anti compaction process , it spits out the file which has keys that belong to a given range
-     * If the target is not specified it spits out the file as a compacted file with the unecessary ranges wiped out.
-     *
-     * @param cfs
-     * @param sstables
-     * @param ranges
-     * @param target
-     * @return
-     * @throws java.io.IOException
-     */
-    private List<SSTableReader> doAntiCompaction(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, Collection<Range> ranges, InetAddress target)
+    private SSTableWriter antiCompactionHelper(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, Collection<Range> ranges, InetAddress target)
             throws IOException
     {
         Table table = cfs.getTable();
@@ -348,10 +337,9 @@ public class CompactionManager implements CompactionManagerMBean
             // compacting for streaming: send to subdirectory
             compactionFileLocation = compactionFileLocation + File.separator + DatabaseDescriptor.STREAMING_SUBDIR;
         }
-        List<SSTableReader> results = new ArrayList<SSTableReader>();
 
+        long totalKeysWritten = 0;
         long startTime = System.currentTimeMillis();
-        long totalkeysWritten = 0;
 
         int expectedBloomFilterSize = Math.max(DatabaseDescriptor.getIndexInterval(), (int)(SSTableReader.getApproximateKeyCount(sstables) / 2));
         if (logger.isDebugEnabled())
@@ -364,11 +352,6 @@ public class CompactionManager implements CompactionManagerMBean
 
         try
         {
-            if (!nni.hasNext())
-            {
-                return results;
-            }
-
             while (nni.hasNext())
             {
                 CompactionIterator.CompactedRow row = nni.next();
@@ -379,22 +362,61 @@ public class CompactionManager implements CompactionManagerMBean
                     writer = new SSTableWriter(newFilename, expectedBloomFilterSize, StorageService.getPartitioner());
                 }
                 writer.append(row.key, row.buffer);
-                totalkeysWritten++;
+                totalKeysWritten++;
             }
         }
         finally
         {
             ci.close();
         }
+        if (writer != null) {
+            List<String> filenames = writer.getAllFilenames();
+            String format = "AntiCompacted to %s.  %d/%d bytes for %d keys.  Time: %dms.";
+            long dTime = System.currentTimeMillis() - startTime;
+            long length = new File(filenames.get(filenames.size() -1)).length(); // Data file is last in the list
+            logger.info(String.format(format, writer.getFilename(), SSTable.getTotalBytes(sstables), length, totalKeysWritten, dTime));
+        }
+        return writer;
+    }
 
+    /**
+     * This function is used to do the anti compaction process.  It spits out a file which has keys
+     * that belong to a given range. If the target is not specified it spits out the file as a compacted file with the
+     * unnecessary ranges wiped out.
+     *
+     * @param cfs
+     * @param sstables
+     * @param ranges
+     * @param target
+     * @return
+     * @throws java.io.IOException
+     */
+    private List<String> doAntiCompaction(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, Collection<Range> ranges, InetAddress target)
+            throws IOException
+    {
+        List<String> filenames = new ArrayList<String>(SSTable.FILES_ON_DISK);
+        SSTableWriter writer = antiCompactionHelper(cfs, sstables, ranges, target);
+        if (writer != null)
+        {
+            writer.close();
+            filenames = writer.getAllFilenames();
+        }
+        return filenames;
+    }
+
+    /**
+     * Like doAntiCompaction(), but returns an List of SSTableReaders instead of a list of filenames.
+     * @throws java.io.IOException
+     */
+    private List<SSTableReader> doAntiCompactionReturnReaders(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, Collection<Range> ranges, InetAddress target)
+            throws IOException
+    {
+        List<SSTableReader> results = new ArrayList<SSTableReader>(1);
+        SSTableWriter writer = antiCompactionHelper(cfs, sstables, ranges, target);
         if (writer != null)
         {
             results.add(writer.closeAndOpenReader());
-            String format = "AntiCompacted to %s.  %d/%d bytes for %d keys.  Time: %dms.";
-            long dTime = System.currentTimeMillis() - startTime;
-            logger.info(String.format(format, writer.getFilename(), SSTable.getTotalBytes(sstables), results.get(0).length(), totalkeysWritten, dTime));
         }
-
         return results;
     }
 
@@ -407,7 +429,7 @@ public class CompactionManager implements CompactionManagerMBean
     private void doCleanupCompaction(ColumnFamilyStore cfs) throws IOException
     {
         Collection<SSTableReader> originalSSTables = cfs.getSSTables();
-        List<SSTableReader> sstables = doAntiCompaction(cfs, originalSSTables, StorageService.instance.getLocalRanges(cfs.getTable().name), null);
+        List<SSTableReader> sstables = doAntiCompactionReturnReaders(cfs, originalSSTables, StorageService.instance.getLocalRanges(cfs.getTable().name), null);
         if (!sstables.isEmpty())
         {
             cfs.replaceCompactedSSTables(originalSSTables, sstables);

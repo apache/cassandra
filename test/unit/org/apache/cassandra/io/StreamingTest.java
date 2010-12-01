@@ -49,9 +49,10 @@ public class StreamingTest extends CleanupHelper
         SSTableReader sstable = SSTableUtils.writeSSTable(content);
         String tablename = sstable.getTableName();
         String cfname = sstable.getColumnFamilyName();
+        List<String> filenames = sstable.getAllFilenames();
 
         // transfer
-        StreamOut.transferSSTables(LOCAL, Arrays.asList(sstable), tablename);
+        StreamOut.transferSSTables(LOCAL, filenames, tablename);
 
         // confirm that the SSTable was transferred and registered
         ColumnFamilyStore cfstore = Table.open(tablename).getColumnFamilyStore(cfname);
