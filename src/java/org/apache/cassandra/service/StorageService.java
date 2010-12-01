@@ -557,28 +557,48 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
      * @param endPoint node
      * @param pieces STATE_NORMAL,token[,other_state,token]
      */
-    private void handleStateNormal(InetAddress endPoint, String[] pieces)
+    private void handleStateNormal(InetAddress endpoint, String[] pieces)
     {
         assert pieces.length >= 2;
-        Token token = getPartitioner().getTokenFactory().fromString(pieces[1]);        
+        Token token = getPartitioner().getTokenFactory().fromString(pieces[1]);
 
         if (logger_.isDebugEnabled())
-            logger_.debug("Node " + endPoint + " state normal, token " + token);
+            logger_.debug("Node " + endpoint + " state normal, token " + token);
 
-        if (tokenMetadata_.isMember(endPoint))
-            logger_.info("Node " + endPoint + " state jump to normal");
+        if (tokenMetadata_.isMember(endpoint))
+            logger_.info("Node " + endpoint + " state jump to normal");
 
         // we don't want to update if this node is responsible for the token and it has a later startup time than endpoint.
         InetAddress currentNode = tokenMetadata_.getEndPoint(token);
-        if (currentNode == null || Gossiper.instance.compareEndpointStartup(endPoint, currentNode) > 0)
-            tokenMetadata_.updateNormalToken(token, endPoint);
+        if (currentNode == null)
+        {
+            logger_.debug("New node " + endpoint + " at token " + token);
+            tokenMetadata_.updateNormalToken(token, endpoint);
+            if (!isClientMode)
+                SystemTable.updateToken(endpoint, token);
+        }
+        else if (endpoint.equals(currentNode))
+        {
+            // nothing to do
+        }
+        else if (Gossiper.instance.compareEndpointStartup(endpoint, currentNode) > 0)
+        {
+            logger_.info(String.format("Nodes %s and %s have the same token %s.  %s is the new owner",
+                                       endpoint, currentNode, token, endpoint));
+            tokenMetadata_.updateNormalToken(token, endpoint);
+            if (!isClientMode)
+                SystemTable.updateToken(endpoint, token);
+        }
         else
-            logger_.info("Will not change my token ownership to " + endPoint);
-        
+        {
+            logger_.info(String.format("Nodes %s and %s have the same token %s.  Ignoring %s",
+                                       endpoint, currentNode, token, endpoint));
+        }
+
         if (pieces.length > 2)
         {
             if (REMOVE_TOKEN.equals(pieces[2]))
-            { 
+            {
                 // remove token was called on a dead node.
                 Token tokenThatLeft = getPartitioner().getTokenFactory().fromString(pieces[3]);
                 InetAddress endpointThatLeft = tokenMetadata_.getEndPoint(tokenThatLeft);
@@ -598,10 +618,8 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
                 tokenMetadata_.removeBootstrapToken(tokenThatLeft);
             }
         }
-        
+
         calculatePendingRanges();
-        if (!isClientMode)
-            SystemTable.updateToken(endPoint, token);
     }
 
     /**
