@@ -420,7 +420,7 @@ public class Gossiper implements IFailureDetectionEventListener
         
         if (!justRemovedEndpoints_.isEmpty())
         {
-            Hashtable<InetAddress, Long> copy = new Hashtable<InetAddress, Long>(justRemovedEndpoints_);
+            Map<InetAddress, Long> copy = new HashMap<InetAddress, Long>(justRemovedEndpoints_);
             for (Map.Entry<InetAddress, Long> entry : copy.entrySet())
             {
                 if ((now - entry.getValue()) > StorageService.RING_DELAY)
