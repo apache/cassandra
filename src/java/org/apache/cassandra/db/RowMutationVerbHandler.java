@@ -18,24 +18,22 @@
 
 package org.apache.cassandra.db;
 
-import java.io.*;
-
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.IOException;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 
 import com.google.common.base.Charsets;
-
-import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Message;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.net.*;
+import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-
-import static com.google.common.base.Charsets.UTF_8;
 
 
 public class RowMutationVerbHandler implements IVerbHandler
@@ -69,6 +67,11 @@ public class RowMutationVerbHandler implements IVerbHandler
                     hintedMutation.apply();
                 }
             }
+        
+            // Check if there were any forwarding headers in this message
+            byte[] forwardBytes = message.getHeader(RowMutation.FORWARD_HEADER);
+            if (forwardBytes != null)
+                forwardToLocalNodes(message, forwardBytes);
 
             Table.open(rm.getTable()).apply(rm, bytes, true);
 
@@ -81,6 +84,35 @@ public class RowMutationVerbHandler implements IVerbHandler
         catch (IOException e)
         {
             logger_.error("Error in row mutation", e);
+        }
+    }  
+    
+    private void forwardToLocalNodes(Message message, byte[] forwardBytes) throws UnknownHostException
+    {
+        // remove fwds from message to avoid infinite loop
+        message.setHeader(RowMutation.FORWARD_HEADER, null);
+
+        int bytesPerInetAddress = FBUtilities.getLocalAddress().getAddress().length;
+        assert forwardBytes.length >= bytesPerInetAddress;
+        assert forwardBytes.length % bytesPerInetAddress == 0;
+
+        int offset = 0;
+        byte[] addressBytes = new byte[bytesPerInetAddress];
+
+        // Send a message to each of the addresses on our Forward List
+        while (offset < forwardBytes.length)
+        {
+            System.arraycopy(forwardBytes, offset, addressBytes, 0, bytesPerInetAddress);
+            InetAddress address = InetAddress.getByAddress(addressBytes);
+
+            if (logger_.isDebugEnabled())
+                logger_.debug("Forwarding message to " + address);
+
+            // Send the original message to the address specified by the FORWARD_HINT
+            // Let the response go back to the coordinator
+            MessagingService.instance.sendOneWay(message, message.getFrom());
+
+            offset += bytesPerInetAddress;
         }
     }
 }

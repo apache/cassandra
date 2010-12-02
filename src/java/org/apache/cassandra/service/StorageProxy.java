@@ -27,20 +27,23 @@ import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-import static com.google.common.base.Charsets.UTF_8;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.dht.*;
+import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
@@ -53,7 +56,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LatencyTracker;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.apache.cassandra.db.filter.QueryFilter;
+
+import static com.google.common.base.Charsets.UTF_8;
 
 public class StorageProxy implements StorageProxyMBean
 {
@@ -90,13 +94,14 @@ public class StorageProxy implements StorageProxyMBean
      * @param mutations the mutations to be applied across the replicas
      * @param consistency_level the consistency level for the operation
     */
-    public static void mutate(List<RowMutation> mutations, ConsistencyLevel consistency_level) throws UnavailableException, TimeoutException
+    public static void mutate(List<RowMutation> mutations, ConsistencyLevel consistencyLevel) throws UnavailableException, TimeoutException
     {
         long startTime = System.nanoTime();
-        ArrayList<IWriteResponseHandler> responseHandlers = new ArrayList<IWriteResponseHandler>();
+        List<IWriteResponseHandler> responseHandlers = new ArrayList<IWriteResponseHandler>();
 
         RowMutation mostRecentRowMutation = null;
         StorageService ss = StorageService.instance;
+        String localDataCenter = getDataCenter(FBUtilities.getLocalAddress());
         
         try
         {
@@ -110,58 +115,67 @@ public class StorageProxy implements StorageProxyMBean
                 Collection<InetAddress> writeEndpoints = ss.getTokenMetadata().getWriteEndpoints(StorageService.getPartitioner().getToken(rm.key()), table, naturalEndpoints);
                 Multimap<InetAddress, InetAddress> hintedEndpoints = rs.getHintedEndpoints(writeEndpoints);
                 
-                // send out the writes, as in mutate() above, but this time with a callback that tracks responses
-                final IWriteResponseHandler responseHandler = rs.getWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level);
+                final IWriteResponseHandler responseHandler = rs.getWriteResponseHandler(writeEndpoints, hintedEndpoints, consistencyLevel);
+                
+                // exit early if we can't fulfuill the CL at this time
                 responseHandler.assureSufficientLiveNodes();
-
+                
                 responseHandlers.add(responseHandler);
-                Message unhintedMessage = null;
-                for (Map.Entry<InetAddress, Collection<InetAddress>> entry : hintedEndpoints.asMap().entrySet())
+                
+                // Creates a Multimap that holds onto all the messages and addresses meant for a specific datacenter.
+                Multimap<String, Pair<Message, InetAddress>> dcMap = groupEndpointsByDataCenter(rm, hintedEndpoints, responseHandler);
+				
+				// Traverse all dataCenters where messages will be sent to.
+                for (Map.Entry<String, Collection<Pair<Message, InetAddress>>> entry : dcMap.asMap().entrySet())
                 {
-                    InetAddress destination = entry.getKey();
-                    Collection<InetAddress> targets = entry.getValue();
+                    String dataCenter = entry.getKey();
+                    
+                    // Grab a set of all the messages bound for this dataCenter and create an iterator over this set. 
+                    Collection<Pair<Message, InetAddress>> messagesForDataCenter = entry.getValue();
+                    Iterator<Pair<Message, InetAddress>> iter = messagesForDataCenter.iterator();
+                    assert iter.hasNext();
 
-                    if (targets.size() == 1 && targets.iterator().next().equals(destination))
+                    // First endpoint in list is the destination for this group
+                    Pair<Message, InetAddress> messageAndDestination = iter.next();
+
+                    Message primaryMessage = messageAndDestination.left;
+                    InetAddress target = messageAndDestination.right;
+
+                    // Add all the other destinations that are bound for the same dataCenter as a header in the primary message.
+                    while (iter.hasNext())
                     {
-                        // unhinted writes
-                        if (destination.equals(FBUtilities.getLocalAddress()))
+                        messageAndDestination = iter.next();
+                        assert messageAndDestination.left == primaryMessage;
+                       
+                        if (dataCenter.equals(localDataCenter))
                         {
-                            insertLocalMessage(rm, responseHandler);
+                            // direct write to local DC
+                            assert primaryMessage.getHeader(RowMutation.FORWARD_HEADER) == null;
+                            MessagingService.instance.sendOneWay(primaryMessage, target);
                         }
                         else
                         {
-                            // belongs on a different server.  send it there.
-                            if (unhintedMessage == null)
-                            {
-                                unhintedMessage = rm.makeRowMutationMessage();
-                                MessagingService.instance.addCallback(responseHandler, unhintedMessage.getMessageId());
-                            }
-                            if (logger.isDebugEnabled())
-                                logger.debug("insert writing key " + FBUtilities.bytesToHex(rm.key()) + " to " + unhintedMessage.getMessageId() + "@" + destination);
-                            MessagingService.instance.sendOneWay(unhintedMessage, destination);
+                            // group all nodes in this DC as forward headers on the primary message
+                            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                            DataOutputStream dos = new DataOutputStream(bos);
+
+                            // append to older addresses
+                            byte[] previousHints = primaryMessage.getHeader(RowMutation.FORWARD_HEADER);
+                            if (previousHints != null)
+                                dos.write(previousHints);
+
+                            dos.write(messageAndDestination.right.getAddress());
+                            primaryMessage.setHeader(RowMutation.FORWARD_HEADER, bos.toByteArray());
                         }
-                    }
-                    else
-                    {
-                        // hinted
-                        Message hintedMessage = rm.makeRowMutationMessage();
-                        for (InetAddress target : targets)
-                        {
-                            if (!target.equals(destination))
-                            {
-                                addHintHeader(hintedMessage, target);
-                                if (logger.isDebugEnabled())
-                                    logger.debug("insert writing key " + FBUtilities.bytesToHex(rm.key()) + " to " + hintedMessage.getMessageId() + "@" + destination + " for " + target);
-                            }
-                        }
-                        responseHandler.addHintCallback(hintedMessage, destination);
-                        MessagingService.instance.sendOneWay(hintedMessage, destination);
-                    }
+                    }                                
+                    
+                    MessagingService.instance.sendOneWay(primaryMessage, target);
                 }
             }
+                        
             // wait for writes.  throws timeoutexception if necessary
             for (IWriteResponseHandler responseHandler : responseHandlers)
-            {
+            {                  
                 responseHandler.get();
             }
         }
@@ -178,6 +192,66 @@ public class StorageProxy implements StorageProxyMBean
         }
 
     }
+    
+    private static Multimap<String, Pair<Message, InetAddress>> groupEndpointsByDataCenter(RowMutation rm, Multimap<InetAddress, InetAddress> endpoints,  final IWriteResponseHandler responseHandler) throws IOException
+    {
+     
+        Set<Map.Entry<InetAddress, Collection<InetAddress>>> endpointSet = endpoints.asMap().entrySet();
+        Multimap<String, Pair<Message, InetAddress>> dcMap = HashMultimap.create(endpointSet.size(), 10);
+        Message unhintedMessage = null;
+        
+        for (Map.Entry<InetAddress, Collection<InetAddress>> entry : endpointSet)
+        {
+            InetAddress destination = entry.getKey();
+            Collection<InetAddress> targets = entry.getValue();                   
+
+            String dataCenter = getDataCenter(destination);
+            
+            if (targets.size() == 1 && targets.iterator().next().equals(destination))
+            {
+                // unhinted writes
+                if (destination.equals(FBUtilities.getLocalAddress()))
+                {                          
+                    insertLocalMessage(rm, responseHandler);
+                }
+                else
+                {
+                    // belongs on a different server.
+                    if (unhintedMessage == null)
+                    {
+                        unhintedMessage = rm.makeRowMutationMessage(); 
+                        MessagingService.instance.addCallback(responseHandler, unhintedMessage.getMessageId());
+                    }
+                
+                    if (logger.isDebugEnabled())
+                        logger.debug("insert writing key " + FBUtilities.bytesToHex(rm.key()) + " to " + unhintedMessage.getMessageId() + "@" + destination);
+                
+                    dcMap.put(dataCenter, new Pair<Message,InetAddress>(unhintedMessage, destination));
+                }
+            }
+            else
+            {
+                // hinted
+                Message hintedMessage = rm.makeRowMutationMessage();
+                
+                for (InetAddress target : targets)
+                {
+                    if (!target.equals(destination))
+                    {
+                        addHintHeader(hintedMessage, target);
+                        if (logger.isDebugEnabled())
+                            logger.debug("insert writing key " + FBUtilities.bytesToHex(rm.key()) + " to " + hintedMessage.getMessageId() + "@" + destination + " for " + target);
+                    }
+                }
+                
+                responseHandler.addHintCallback(hintedMessage, destination);
+                dcMap.put(dataCenter, new Pair<Message,InetAddress>(hintedMessage, destination));
+            }
+        }
+        
+        return dcMap;
+    }
+
 
     private static void addHintHeader(Message message, InetAddress target) throws IOException
     {
@@ -192,6 +266,22 @@ public class StorageProxy implements StorageProxyMBean
         message.setHeader(RowMutation.HINT, bos.toByteArray());
     }
 
+    private static String getDataCenter(InetAddress addr)
+    {
+        String dataCenter = null;
+        try
+        {
+            dataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(addr);   
+        }
+        catch (UnsupportedOperationException e)
+        {
+            // SimpleSnitch throws this
+            dataCenter = "default";
+        }
+        
+        return dataCenter;
+    }
+    
     private static void insertLocalMessage(final RowMutation rm, final IWriteResponseHandler responseHandler)
     {
         if (logger.isDebugEnabled())
