@@ -27,7 +27,6 @@ import org.apache.commons.cli.*;
 public class CliOptions {
 
     private static Options options = null; // Info about command line options
-    private CommandLine cmd = null;        // Command Line arguments
 
     // Command line options
     private static final String HOST_OPTION = "host";
@@ -72,7 +71,78 @@ public class CliOptions {
         CommandLineParser parser = new PosixParser();
         try
         {
-            cmd = parser.parse(options, args);
+            CommandLine cmd = parser.parse(options, args);
+            
+            if (!cmd.hasOption(HOST_OPTION))
+            {
+                // host name not specified in command line.
+                // In this case, we don't implicitly connect at CLI startup. In this case,
+                // the user must use the "connect" CLI statement to connect.
+                //
+                css.hostName = null;
+                
+                // HelpFormatter formatter = new HelpFormatter();
+                // formatter.printHelp("java com.facebook.infrastructure.cli.CliMain ", options);
+                // System.exit(1);
+            }
+            else 
+            {
+                css.hostName = cmd.getOptionValue(HOST_OPTION);
+            }
+
+            // Look to see if frame has been specified
+            if (cmd.hasOption(UNFRAME_OPTION))
+            {
+                css.framed = false;
+            }
+
+            // Look to see if frame has been specified
+            if (cmd.hasOption(DEBUG_OPTION))
+            {
+                css.debug = true;
+            }
+
+            // Look for optional args.
+            if (cmd.hasOption(PORT_OPTION))
+            {
+                css.thriftPort = Integer.parseInt(cmd.getOptionValue(PORT_OPTION));
+            }
+            else
+            {
+                css.thriftPort = DEFAULT_THRIFT_PORT;
+            }
+         
+            // Look for authentication credentials (username and password)
+            if (cmd.hasOption(USERNAME_OPTION)) 
+            {
+            	css.username = cmd.getOptionValue(USERNAME_OPTION);
+            }
+            if (cmd.hasOption(PASSWORD_OPTION))
+            {
+            	css.password = cmd.getOptionValue(PASSWORD_OPTION);
+            }
+            
+            // Look for keyspace
+            if (cmd.hasOption(KEYSPACE_OPTION)) 
+            {
+            	css.keyspace = cmd.getOptionValue(KEYSPACE_OPTION);
+            }
+            
+            if (cmd.hasOption(BATCH_OPTION))
+            {
+                css.batch = true;
+            }
+
+            if (cmd.hasOption(FILE_OPTION))
+            {
+                css.filename = cmd.getOptionValue(FILE_OPTION);
+            }
+
+            if (cmd.hasOption(HELP_OPTION))
+            {
+                printUsage();
+                System.exit(1);
+            }
         }
         catch (ParseException e)
         {
@@ -80,77 +150,5 @@ public class CliOptions {
             System.err.println("\n" + e.getMessage());
             System.exit(1);
         }
-
-        if (!cmd.hasOption(HOST_OPTION))
-        {
-            // host name not specified in command line.
-            // In this case, we don't implicitly connect at CLI startup. In this case,
-            // the user must use the "connect" CLI statement to connect.
-            //
-            css.hostName = null;
-            
-            // HelpFormatter formatter = new HelpFormatter();
-            // formatter.printHelp("java com.facebook.infrastructure.cli.CliMain ", options);
-            // System.exit(1);
-        }
-        else 
-        {
-            css.hostName = cmd.getOptionValue(HOST_OPTION);
-        }
-
-        // Look to see if frame has been specified
-        if (cmd.hasOption(UNFRAME_OPTION))
-        {
-            css.framed = false;
-        }
-
-        // Look to see if frame has been specified
-        if (cmd.hasOption(DEBUG_OPTION))
-        {
-            css.debug = true;
-        }
-
-        // Look for optional args.
-        if (cmd.hasOption(PORT_OPTION))
-        {
-            css.thriftPort = Integer.parseInt(cmd.getOptionValue(PORT_OPTION));
-        }
-        else
-        {
-            css.thriftPort = DEFAULT_THRIFT_PORT;
-        }
-     
-        // Look for authentication credentials (username and password)
-        if (cmd.hasOption(USERNAME_OPTION)) 
-        {
-        	css.username = cmd.getOptionValue(USERNAME_OPTION);
-        }
-        if (cmd.hasOption(PASSWORD_OPTION))
-        {
-        	css.password = cmd.getOptionValue(PASSWORD_OPTION);
-        }
-        
-        // Look for keyspace
-        if (cmd.hasOption(KEYSPACE_OPTION)) 
-        {
-        	css.keyspace = cmd.getOptionValue(KEYSPACE_OPTION);
-        }
-        
-        if (cmd.hasOption(BATCH_OPTION))
-        {
-            css.batch = true;
-        }
-
-        if (cmd.hasOption(FILE_OPTION))
-        {
-            css.filename = cmd.getOptionValue(FILE_OPTION);
-        }
-
-        if (cmd.hasOption(HELP_OPTION))
-        {
-            printUsage();
-            System.exit(1);
-        }
-
     }
 }

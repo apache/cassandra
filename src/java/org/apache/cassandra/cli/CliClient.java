@@ -89,6 +89,7 @@ public class CliClient extends CliUserHelp
         PLACEMENT_STRATEGY,
         STRATEGY_OPTIONS
     }
+    private static final String DEFAULT_PLACEMENT_STRATEGY = "org.apache.cassandra.locator.SimpleStrategy";
 
     private Cassandra.Client thriftClient = null;
     private CliSessionState sessionState  = null;
@@ -97,7 +98,6 @@ public class CliClient extends CliUserHelp
     private Map<String, KsDef> keyspacesMap = new HashMap<String, KsDef>();
     private Map<String, AbstractType> cfKeysComparators;
     
-    private final String DEFAULT_PLACEMENT_STRATEGY = "org.apache.cassandra.locator.SimpleStrategy";
     
     public CliClient(CliSessionState cliSessionState, Cassandra.Client thriftClient)
     {

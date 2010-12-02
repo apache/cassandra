@@ -19,10 +19,8 @@
 package org.apache.cassandra.io.util;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.Arrays;
 
 /**
  * A <code>BufferedRandomAccessFile</code> is like a
@@ -168,7 +166,7 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     {
         if (syncNeeded_)
         {
-            flushBuffer();
+            flush();
             getChannel().force(true); // true, because file length counts as "metadata"
             syncNeeded_ = false;
         }
@@ -182,7 +180,7 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     }
     
     /* Flush any dirty bytes in the buffer to disk. */
-    private void flushBuffer() throws IOException
+    public void flush() throws IOException
     {   
         if (this.dirty_)
         {
@@ -229,7 +227,7 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
      */
     private void reBuffer() throws IOException
     {
-        this.flushBuffer();
+        this.flush();
         this.lo_ = this.curr_;
         this.maxHi_ = this.lo_ + (long) this.buff_.length;
         if (this.diskPos_ != this.lo_)

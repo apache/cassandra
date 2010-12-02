@@ -214,14 +214,12 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
 /** a threadsafe version of BoundedStatsDeque+ArrivalWindow with modification for arbitrary times **/
 class AdaptiveLatencyTracker extends AbstractStatsDeque
 {
-    private LinkedBlockingDeque latencies;
-    private final int size;                                   
+    private LinkedBlockingDeque<Double> latencies;                                  
     private static double SENTINEL_COMPARE = 0.0001; // arbitrary; as long as it is the same across hosts it doesn't matter
 
     AdaptiveLatencyTracker(int size)
     {
-        this.size = size;
-        latencies = new LinkedBlockingDeque(size);
+        latencies = new LinkedBlockingDeque<Double>(size);
     }
 
     public void add(double i)

@@ -142,7 +142,6 @@ public class SSTableScanner implements Iterator<IColumnIterator>, Closeable
 
     private class KeyScanningIterator implements Iterator<IColumnIterator>
     {
-        private long dataStart;
         private long finishedAt;
 
         public boolean hasNext()
@@ -171,7 +170,7 @@ public class SSTableScanner implements Iterator<IColumnIterator>, Closeable
                                                            sstable.descriptor,
                                                            FBUtilities.readShortByteArray(file));
                 long dataSize = SSTableReader.readRowSize(file, sstable.descriptor);
-                dataStart = file.getFilePointer();
+                long dataStart = file.getFilePointer();
                 finishedAt = dataStart + dataSize;
 
                 if (filter == null)

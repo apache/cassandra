@@ -42,8 +42,6 @@ public class ClusterCmd {
     private static Options options = null;
     private CommandLine cmd = null;
     private NodeProbe probe;
-    private String host;
-    private int port;
 
     static
     {
@@ -64,14 +62,15 @@ public class ClusterCmd {
     private ClusterCmd(String[] cmdArgs) throws ParseException, IOException, InterruptedException
     {
         parseArgs(cmdArgs);
-        this.host = cmd.getOptionValue(HOST_OPT_SHORT);
+        String host = cmd.getOptionValue(HOST_OPT_SHORT);
 
         String portNum = cmd.getOptionValue(PORT_OPT_SHORT);
+        int port;
         if (portNum != null)
         {
             try
             {
-                this.port = Integer.parseInt(portNum);
+                port = Integer.parseInt(portNum);
             }
             catch (NumberFormatException e)
             {
@@ -80,7 +79,7 @@ public class ClusterCmd {
         }
         else
         {
-            this.port = defaultPort;
+            port = defaultPort;
         }
 
         probe = new NodeProbe(host, port);
@@ -95,8 +94,6 @@ public class ClusterCmd {
      */
     public ClusterCmd(String host, int port) throws IOException, InterruptedException
     {
-        this.host = host;
-        this.port = port;
         probe = new NodeProbe(host, port);
     }
 
@@ -170,7 +167,7 @@ public class ClusterCmd {
         {
             try
             {
-                NodeProbe hostProbe = new NodeProbe(liveNode, port);
+                NodeProbe hostProbe = new NodeProbe(liveNode, probe.port);
                 hostProbe.takeSnapshot(snapshotName);
                 System.out.println(liveNode + " snapshot taken");
             }
@@ -190,7 +187,7 @@ public class ClusterCmd {
         {
             try
             {
-                NodeProbe hostProbe = new NodeProbe(liveNode, port);
+                NodeProbe hostProbe = new NodeProbe(liveNode, probe.port);
                 hostProbe.clearSnapshot();
                 System.out.println(liveNode + " snapshot cleared");
             }

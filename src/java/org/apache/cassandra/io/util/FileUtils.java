@@ -75,7 +75,14 @@ public class FileUtils
         {
             throw new RuntimeException(e);
         }
-        file.getChannel().truncate(size);
+        try
+        {
+            file.getChannel().truncate(size);
+        }
+        finally
+        {
+            file.close();
+        }
     }
 
     public static class FileComparator implements Comparator<File>

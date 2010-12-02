@@ -67,8 +67,8 @@ public class NodeProbe
     private static final String fmtUrl = "service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi";
     private static final String ssObjName = "org.apache.cassandra.db:type=StorageService";
     private static final int defaultPort = 8080;
-    private String host;
-    private int port;
+    final String host;
+    final int port;
 
     private JMXConnector jmxc;
     private MBeanServerConnection mbeanServerConn;

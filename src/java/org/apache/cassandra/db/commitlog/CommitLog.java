@@ -112,7 +112,11 @@ public class CommitLog
         // All we need to do is create a new one.
         segments.add(new CommitLogSegment());
 
-        if (DatabaseDescriptor.getCommitLogSync() == Config.CommitLogSync.periodic)
+        if (DatabaseDescriptor.getCommitLogSync() == Config.CommitLogSync.batch)
+        {
+            executor = new BatchCommitLogExecutorService();
+        }
+        else
         {
             executor = new PeriodicCommitLogExecutorService();
             final Callable syncer = new Callable()
@@ -146,10 +150,6 @@ public class CommitLog
                     }
                 }
             }, "PERIODIC-COMMIT-LOG-SYNCER").start();
-        }
-        else
-        {
-            executor = new BatchCommitLogExecutorService();
         }
     }
 
@@ -490,6 +490,7 @@ public class CommitLog
 
     // TODO this should be a Runnable since it doesn't actually return anything, but it's difficult to do that
     // without breaking the fragile CheaterFutureTask in BatchCLES.
+    final static boolean flushEachWrite = DatabaseDescriptor.getCommitLogSync() == Config.CommitLogSync.periodic;
     class LogRecordAdder implements Callable, Runnable
     {
         final RowMutation rowMutation;
@@ -511,6 +512,10 @@ public class CommitLog
                 {
                     sync();
                     segments.add(new CommitLogSegment());
+                }
+                else if (flushEachWrite)
+                {
+                    currentSegment().flush();
                 }
             }
             catch (IOException e)
