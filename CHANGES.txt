@@ -22,6 +22,7 @@ dev
    periodic_without_flush option to disable this (CASSANDRA-1780)
  * close file handle used for post-flush truncate (CASSANDRA-1790)
  * various code cleanup (CASSANDRA-1793, -1794, -1795)
+ * fix range queries against wrapped range (CASSANDRA-1781)
 
 
 0.7.0-rc1
@@ -37,6 +38,8 @@ dev
  * Fix misuse of DataOutputBuffer.getData in AntiEntropyService
    (CASSANDRA-1729)
  * detect and warn when obsolete version of JNA is present (CASSANDRA-1770)
+
+
  * Update windows .bat files to work outside of main Cassandra
    directory (CASSANDRA-1713)
  * fix read repair regression from 0.6.7 (CASSANDRA-1727)

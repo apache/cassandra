@@ -103,6 +103,15 @@ public class WordCountSetup
         cfDefList.add(new CfDef(WordCount.KEYSPACE, WordCount.OUTPUT_COLUMN_FAMILY));
 
         client.system_add_keyspace(new KsDef(WordCount.KEYSPACE, "org.apache.cassandra.locator.SimpleStrategy", 1, cfDefList));
+        int magnitude = client.describe_ring(WordCount.KEYSPACE).size();
+        try
+        {
+            Thread.sleep(1000 * magnitude);
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     private static Cassandra.Iface createConnection() throws TTransportException

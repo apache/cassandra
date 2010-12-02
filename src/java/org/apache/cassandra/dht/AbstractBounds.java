@@ -66,7 +66,7 @@ public abstract class AbstractBounds implements Serializable
      */
     public Pair<AbstractBounds,AbstractBounds> split(Token token)
     {
-        assert contains(token);
+        assert left.equals(token) || contains(token);
         AbstractBounds lb = createFrom(token);
         // we contain this token, so only one of the left or right can be empty
         AbstractBounds rb = lb != null && token.equals(right) ? null : new Range(token, right);

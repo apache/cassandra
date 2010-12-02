@@ -579,7 +579,7 @@ public class StorageProxy implements StorageProxyMBean
         while (ringIter.hasNext())
         {
             Token token = ringIter.next();
-            if (remainder == null || !remainder.contains(token))
+            if (remainder == null || !(remainder.left.equals(token) || remainder.contains(token)))
                 // no more splits
                 break;
             Pair<AbstractBounds,AbstractBounds> splits = remainder.split(token);
