@@ -23,6 +23,7 @@ dev
  * close file handle used for post-flush truncate (CASSANDRA-1790)
  * various code cleanup (CASSANDRA-1793, -1794, -1795)
  * fix range queries against wrapped range (CASSANDRA-1781)
+ * avoid double RowMutation serialization on write path (CASSANDRA-1800)
 
 
 0.7.0-rc1
