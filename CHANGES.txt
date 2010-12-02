@@ -23,6 +23,8 @@ dev
  * close file handle used for post-flush truncate (CASSANDRA-1790)
  * various code cleanup (CASSANDRA-1793, -1794, -1795)
  * fix range queries against wrapped range (CASSANDRA-1781)
+ * fix consistencylevel calculations for NetworkTopologyStrategy
+   (CASSANDRA-1804)
 
 
 0.7.0-rc1

@@ -815,11 +815,6 @@ public class    DatabaseDescriptor
         return conf.rpc_port;
     }
 
-    public static int getReplicationFactor(String table)
-    {
-        return tables.get(table).replicationFactor;
-    }
-
     public static long getRpcTimeout()
     {
         return conf.rpc_timeout_in_ms;

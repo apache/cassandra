@@ -30,11 +30,12 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import org.apache.cassandra.config.DatabaseDescriptor;
+
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.dht.BigIntegerToken;
 import org.apache.cassandra.dht.Token;
 
-public class OldNetworkTopologyStrategyTest
+public class OldNetworkTopologyStrategyTest extends SchemaLoader
 {
     private List<Token> endpointTokens;
     private List<Token> keyTokens;
@@ -71,7 +72,7 @@ public class OldNetworkTopologyStrategyTest
         expectedResults.put("25", buildResult("254.0.0.4", "254.0.0.1", "254.0.0.2"));
         expectedResults.put("35", buildResult("254.0.0.1", "254.0.0.2", "254.0.0.3"));
 
-        runTestForReplicatedTables(strategy);
+        testGetEndpoints(strategy, keyTokens.toArray(new Token[0]));
     }
 
     /**
@@ -96,7 +97,7 @@ public class OldNetworkTopologyStrategyTest
         expectedResults.put("25", buildResult("254.0.0.4", "254.1.0.3", "254.0.0.1"));
         expectedResults.put("35", buildResult("254.0.0.1", "254.1.0.3", "254.0.0.2"));
 
-        runTestForReplicatedTables(strategy);
+        testGetEndpoints(strategy, keyTokens.toArray(new Token[0]));
     }
 
     /**
@@ -122,16 +123,7 @@ public class OldNetworkTopologyStrategyTest
         expectedResults.put("25", buildResult("254.1.0.4", "254.0.0.1", "254.0.0.2"));
         expectedResults.put("35", buildResult("254.0.0.1", "254.0.1.3", "254.1.0.4"));
 
-        runTestForReplicatedTables(strategy);
-    }
-
-    private void runTestForReplicatedTables(AbstractReplicationStrategy strategy) throws UnknownHostException
-    {
-        for (String table : DatabaseDescriptor.getNonSystemTables())
-        {
-            if (DatabaseDescriptor.getReplicationFactor(table) == 3)
-                testGetEndpoints(strategy, keyTokens.toArray(new Token[0]), table);
-        }
+        testGetEndpoints(strategy, keyTokens.toArray(new Token[0]));
     }
 
     private ArrayList<InetAddress> buildResult(String... addresses) throws UnknownHostException
@@ -156,7 +148,7 @@ public class OldNetworkTopologyStrategyTest
         tmd.updateNormalToken(endpointToken, ep);
     }
 
-    private void testGetEndpoints(AbstractReplicationStrategy strategy, Token[] keyTokens, String table) throws UnknownHostException
+    private void testGetEndpoints(AbstractReplicationStrategy strategy, Token[] keyTokens) throws UnknownHostException
     {
         for (Token keyToken : keyTokens)
         {

@@ -33,6 +33,7 @@ import org.junit.Test;
 
 import com.google.common.collect.Multimap;
 
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.gms.IFailureDetector;
@@ -146,7 +147,7 @@ public class BootStrapperTest extends CleanupHelper
         final int[] clusterSizes = new int[] { 1, 3, 5, 10, 100};
         for (String table : DatabaseDescriptor.getNonSystemTables())
         {
-            int replicationFactor = DatabaseDescriptor.getReplicationFactor(table);
+            int replicationFactor = Table.open(table).getReplicationStrategy().getReplicationFactor();
             for (int clusterSize : clusterSizes)
                 if (clusterSize >= replicationFactor)
                     testSourceTargetComputation(table, clusterSize, replicationFactor);

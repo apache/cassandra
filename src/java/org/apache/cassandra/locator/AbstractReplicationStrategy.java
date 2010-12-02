@@ -125,10 +125,9 @@ public abstract class AbstractReplicationStrategy
         return WriteResponseHandler.create(writeEndpoints, hintedEndpoints, consistencyLevel, table);
     }
 
-    // instance method so test subclasses can override it
-    int getReplicationFactor()
+    public int getReplicationFactor()
     {
-       return DatabaseDescriptor.getReplicationFactor(table);
+        return DatabaseDescriptor.getTableDefinition(table).replicationFactor;
     }
 
     /**

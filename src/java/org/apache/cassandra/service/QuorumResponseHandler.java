@@ -25,6 +25,7 @@ import java.util.concurrent.TimeoutException;
 import java.io.IOException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -110,9 +111,9 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
             case ANY:
                 return 1;
             case QUORUM:
-                return (DatabaseDescriptor.getReplicationFactor(table) / 2) + 1;
+                return (Table.open(table).getReplicationStrategy().getReplicationFactor() / 2) + 1;
             case ALL:
-                return DatabaseDescriptor.getReplicationFactor(table);
+                return Table.open(table).getReplicationStrategy().getReplicationFactor();
             default:
                 throw new UnsupportedOperationException("invalid consistency level: " + table.toString());
         }

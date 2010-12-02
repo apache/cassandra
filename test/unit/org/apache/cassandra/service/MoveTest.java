@@ -92,7 +92,7 @@ public class MoveTest extends CleanupHelper
             strategy = getStrategy(table, tmd);
             for (Token token : keyTokens)
             {
-                int replicationFactor = DatabaseDescriptor.getReplicationFactor(table);
+                int replicationFactor = strategy.getReplicationFactor();
 
                 HashSet<InetAddress> actual = new HashSet<InetAddress>(tmd.getWriteEndpoints(token, table, strategy.calculateNaturalEndpoints(token, tmd)));
                 HashSet<InetAddress> expected = new HashSet<InetAddress>();
@@ -217,7 +217,7 @@ public class MoveTest extends CleanupHelper
             }
 
             // just to be sure that things still work according to the old tests, run them:
-            if (DatabaseDescriptor.getReplicationFactor(table) != 3)
+            if (strategy.getReplicationFactor() != 3)
                 continue;
             // tokens 5, 15 and 25 should go three nodes
             for (int i=0; i<3; ++i)
@@ -334,7 +334,7 @@ public class MoveTest extends CleanupHelper
                 assertTrue(expectedEndpoints.get(table).get(keyTokens.get(i)).containsAll(endpoints));
             }
 
-            if (DatabaseDescriptor.getReplicationFactor(table) != 3)
+            if (strategy.getReplicationFactor() != 3)
                 continue;
             // leave this stuff in to guarantee the old tests work the way they were supposed to.
             // tokens 5, 15 and 25 should go three nodes

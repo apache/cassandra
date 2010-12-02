@@ -1738,7 +1738,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         for (String table : DatabaseDescriptor.getNonSystemTables())
         {
             // if the replication factor is 1 the data is lost so we shouldn't wait for confirmation
-            if (DatabaseDescriptor.getReplicationFactor(table) == 1)
+            if (Table.open(table).getReplicationStrategy().getReplicationFactor() == 1)
                 continue;
 
             // get all ranges that change ownership (that is, a node needs
