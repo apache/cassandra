@@ -379,7 +379,7 @@ public class Table
      * Once this happens the data associated with the individual column families
      * is also written to the column family store's memtable.
     */
-    public void apply(RowMutation mutation, byte[] serializedMutation, boolean writeCommitLog) throws IOException
+    public void apply(RowMutation mutation, boolean writeCommitLog) throws IOException
     {
         List<Memtable> memtablesToFlush = Collections.emptyList();
         if (logger.isDebugEnabled())
@@ -390,7 +390,7 @@ public class Table
         try
         {
             if (writeCommitLog)
-                CommitLog.instance.add(mutation, serializedMutation);
+                CommitLog.instance.add(mutation);
         
             DecoratedKey key = StorageService.getPartitioner().decorateKey(mutation.key());
             for (ColumnFamily cf : mutation.getColumnFamilies())

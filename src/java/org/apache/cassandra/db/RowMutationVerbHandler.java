@@ -44,12 +44,9 @@ public class RowMutationVerbHandler implements IVerbHandler
 
     public void doVerb(Message message)
     {
-        byte[] bytes = message.getMessageBody();
-        ByteArrayInputStream buffer = new ByteArrayInputStream(bytes);
-
         try
         {
-            RowMutation rm = RowMutation.serializer().deserialize(new DataInputStream(buffer));
+            RowMutation rm = RowMutation.fromBytes(message.getMessageBody());
             if (logger_.isDebugEnabled())
               logger_.debug("Applying " + rm);
 
@@ -70,7 +67,7 @@ public class RowMutationVerbHandler implements IVerbHandler
                 }
             }
 
-            Table.open(rm.getTable()).apply(rm, bytes, true);
+            Table.open(rm.getTable()).apply(rm, true);
 
             WriteResponse response = new WriteResponse(rm.getTable(), rm.key(), true);
             Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);

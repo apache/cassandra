@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -45,7 +46,7 @@ import org.apache.commons.lang.StringUtils;
 
 public class RowMutation
 {
-    private static ICompactSerializer<RowMutation> serializer_;
+    private static RowMutationSerializer serializer_;
     public static final String HINT = "HINT";
 
     static
@@ -195,7 +196,7 @@ public class RowMutation
     */
     public void apply() throws IOException
     {
-        Table.open(table_).apply(this, getSerializedBuffer(), true);
+        Table.open(table_).apply(this, true);
     }
 
     /*
@@ -238,7 +239,7 @@ public class RowMutation
         return rm;
     }
     
-    private synchronized byte[] getSerializedBuffer() throws IOException
+    public synchronized byte[] getSerializedBuffer() throws IOException
     {
         if (preserializedBuffer == null)
         {
@@ -308,6 +309,13 @@ public class RowMutation
         {
             rm.delete(new QueryPath(cfName, del.super_column), del.timestamp);
         }
+    }
+    
+    static RowMutation fromBytes(byte[] raw) throws IOException
+    {
+        RowMutation rm = serializer_.deserialize(new DataInputStream(new ByteArrayInputStream(raw)));
+        rm.preserializedBuffer = raw;
+        return rm;
     }
 }
 

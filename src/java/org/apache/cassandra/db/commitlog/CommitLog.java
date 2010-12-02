@@ -325,7 +325,7 @@ public class CommitLog
                             }
                             if (!newRm.isEmpty())
                             {
-                                Table.open(newRm.getTable()).apply(newRm, null, false);
+                                Table.open(newRm.getTable()).apply(newRm, false);
                             }
                         }
                     };
@@ -392,9 +392,9 @@ public class CommitLog
      * of any problems. This way we can assume that the subsequent commit log
      * entry will override the garbage left over by the previous write.
     */
-    public void add(RowMutation rowMutation, byte[] serializedRow) throws IOException
+    public void add(RowMutation rowMutation) throws IOException
     {
-        executor.add(new LogRecordAdder(rowMutation, serializedRow));
+        executor.add(new LogRecordAdder(rowMutation));
     }
 
     /*
@@ -494,19 +494,17 @@ public class CommitLog
     class LogRecordAdder implements Callable, Runnable
     {
         final RowMutation rowMutation;
-        final byte[] serializedRow;
 
-        LogRecordAdder(RowMutation rm, byte[] serializedRow)
+        LogRecordAdder(RowMutation rm)
         {
             this.rowMutation = rm;
-            this.serializedRow = serializedRow;
         }
 
         public void run()
         {
             try
             {
-                currentSegment().write(rowMutation, serializedRow);
+                currentSegment().write(rowMutation);
                 // roll log if necessary
                 if (currentSegment().length() >= SEGMENT_SIZE)
                 {
