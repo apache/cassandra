@@ -11,6 +11,7 @@
  * fix live-column-count of slice ranges including tombstoned supercolumn 
    with live subcolumn (CASSANDRA-1591)
  * clean up log messages for gossip token notifications (CASSANDRA-1518)
+ * fix range queries against wrapped range (CASSANDRA-1781)
 
 
 0.6.8
