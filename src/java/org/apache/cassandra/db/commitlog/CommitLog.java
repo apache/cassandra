@@ -392,7 +392,7 @@ public class CommitLog
      * of any problems. This way we can assume that the subsequent commit log
      * entry will override the garbage left over by the previous write.
     */
-    public void add(RowMutation rowMutation, Object serializedRow) throws IOException
+    public void add(RowMutation rowMutation, byte[] serializedRow) throws IOException
     {
         executor.add(new LogRecordAdder(rowMutation, serializedRow));
     }
@@ -494,9 +494,9 @@ public class CommitLog
     class LogRecordAdder implements Callable, Runnable
     {
         final RowMutation rowMutation;
-        final Object serializedRow;
+        final byte[] serializedRow;
 
-        LogRecordAdder(RowMutation rm, Object serializedRow)
+        LogRecordAdder(RowMutation rm, byte[] serializedRow)
         {
             this.rowMutation = rm;
             this.serializedRow = serializedRow;

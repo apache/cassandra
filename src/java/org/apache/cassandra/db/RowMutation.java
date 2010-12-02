@@ -62,6 +62,8 @@ public class RowMutation
     private ByteBuffer key_;
     // map of column family id to mutations for that column family.
     protected Map<Integer, ColumnFamily> modifications_ = new HashMap<Integer, ColumnFamily>();
+    
+    private byte[] preserializedBuffer = null;
 
     public RowMutation(String table, ByteBuffer key)
     {
@@ -212,10 +214,7 @@ public class RowMutation
 
     public Message makeRowMutationMessage(StorageService.Verb verb) throws IOException
     {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(bos);
-        serializer().serialize(this, dos);
-        return new Message(FBUtilities.getLocalAddress(), verb, bos.toByteArray());
+        return new Message(FBUtilities.getLocalAddress(), verb, getSerializedBuffer());
     }
 
     public static RowMutation getRowMutationFromMutations(String keyspace, ByteBuffer key, Map<String, List<Mutation>> cfmap)
@@ -239,37 +238,17 @@ public class RowMutation
         return rm;
     }
     
-    public static RowMutation getRowMutation(String table, ByteBuffer key, Map<String, List<ColumnOrSuperColumn>> cfmap)
+    private synchronized byte[] getSerializedBuffer() throws IOException
     {
-        RowMutation rm = new RowMutation(table, key);
-        for (Map.Entry<String, List<ColumnOrSuperColumn>> entry : cfmap.entrySet())
+        if (preserializedBuffer == null)
         {
-            String cfName = entry.getKey();
-            for (ColumnOrSuperColumn cosc : entry.getValue())
-            {
-                if (cosc.column == null)
-                {
-                    assert cosc.super_column != null;
-                    for (org.apache.cassandra.thrift.Column column : cosc.super_column.columns)
-                    {
-                        rm.add(new QueryPath(cfName, cosc.super_column.name, column.name), column.value, column.timestamp, column.ttl);
-                    }
-                }
-                else
-                {
-                    assert cosc.super_column == null;
-                    rm.add(new QueryPath(cfName, null, cosc.column.name), cosc.column.value, cosc.column.timestamp, cosc.column.ttl);
-                }
-            }
+            ByteArrayOutputStream bout = new ByteArrayOutputStream();
+            DataOutputStream dout = new DataOutputStream(bout);
+            RowMutation.serializer().serialize(this, dout);
+            dout.close();
+            preserializedBuffer = bout.toByteArray();
         }
-        return rm;
-    }
-    
-    public DataOutputBuffer getSerializedBuffer() throws IOException
-    {
-        DataOutputBuffer buffer = new DataOutputBuffer();
-        RowMutation.serializer().serialize(this, buffer);
-        return buffer;
+        return preserializedBuffer;
     }
 
     public String toString()

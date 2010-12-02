@@ -75,7 +75,7 @@ public class CommitLogSegment
         return new BufferedRandomAccessFile(file, "rw", 128 * 1024);
     }
 
-    public CommitLogSegment.CommitLogContext write(RowMutation rowMutation, Object serializedRow) throws IOException
+    public CommitLogSegment.CommitLogContext write(RowMutation rowMutation, byte[] serializedRow) throws IOException
     {
         long currentPosition = -1L;
         try
@@ -106,23 +106,13 @@ public class CommitLogSegment
             }
 
             // write mutation, w/ checksum on the size and data
-            byte[] bytes;
             Checksum checksum = new CRC32();
-            if (serializedRow instanceof DataOutputBuffer)
-            {
-                bytes = ((DataOutputBuffer) serializedRow).getData();
-            }
-            else
-            {
-                assert serializedRow instanceof byte[];
-                bytes = (byte[]) serializedRow;
-            }
 
-            checksum.update(bytes.length);
-            logWriter.writeInt(bytes.length);
+            checksum.update(serializedRow.length);
+            logWriter.writeInt(serializedRow.length);
             logWriter.writeLong(checksum.getValue());
-            logWriter.write(bytes);
-            checksum.update(bytes, 0, bytes.length);
+            logWriter.write(serializedRow);
+            checksum.update(serializedRow, 0, serializedRow.length);
             logWriter.writeLong(checksum.getValue());
 
             return cLogCtx;
