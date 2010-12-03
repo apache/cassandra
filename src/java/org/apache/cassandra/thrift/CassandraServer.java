@@ -138,6 +138,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         catch (TimeoutException e) 
         {
+            logger.debug("... timed out");
         	throw new TimedOutException();
         }
         catch (IOException e)
@@ -442,11 +443,12 @@ public class CassandraServer implements Cassandra.Iface
 
             try
             {
-              StorageProxy.mutate(mutations, consistency_level);
+                StorageProxy.mutate(mutations, consistency_level);
             }
             catch (TimeoutException e)
             {
-              throw new TimedOutException();
+                logger.debug("... timed out");
+                throw new TimedOutException();
             }
         }
         finally
@@ -512,6 +514,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         catch (TimeoutException e)
         {
+            logger.debug("... timed out");
         	throw new TimedOutException();
         }
         catch (IOException e)
@@ -556,6 +559,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         catch (TimeoutException e)
         {
+            logger.debug("... timed out");
             throw new TimedOutException();
         }
         return thriftifyKeySlices(rows, column_parent, column_predicate);

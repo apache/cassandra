@@ -21,6 +21,7 @@ package org.apache.cassandra.service;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
+import java.util.concurrent.LinkedBlockingQueue;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +46,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
     private static final Logger logger_ = LoggerFactory.getLogger(RangeSliceResponseResolver.class);
     private final String table;
     private final List<InetAddress> sources;
+    protected final Collection<Message> responses = new LinkedBlockingQueue<Message>();;
 
     public RangeSliceResponseResolver(String table, List<InetAddress> sources)
     {
@@ -53,7 +55,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
         this.table = table;
     }
 
-    public List<Row> resolve(Collection<Message> responses) throws DigestMismatchException, IOException
+    public List<Row> resolve() throws DigestMismatchException, IOException
     {
         CollatingIterator collator = new CollatingIterator(new Comparator<Pair<Row,InetAddress>>()
         {
@@ -110,11 +112,12 @@ public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
 
     public void preprocess(Message message)
     {
+        responses.add(message);
     }
 
-    public boolean isDataPresent(Collection<Message> responses)
+    public boolean isDataPresent()
     {
-        return responses.size() >= sources.size();
+        return !responses.isEmpty();
     }
 
     private static class RowIterator extends AbstractIterator<Pair<Row,InetAddress>>
@@ -133,5 +136,15 @@ public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
         {
             return iter.hasNext() ? new Pair<Row, InetAddress>(iter.next(), source) : endOfData();
         }
+    }
+
+    public Iterable<Message> getMessages()
+    {
+        return responses;
+    }
+
+    public int getMessageCount()
+    {
+        return responses.size();
     }
 }

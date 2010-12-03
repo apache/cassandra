@@ -34,8 +34,10 @@ public interface IResponseResolver<T> {
 	 * repairs . Hence you need to derive a response resolver based on your
 	 * needs from this interface.
 	 */
-	public T resolve(Collection<Message> responses) throws DigestMismatchException, IOException;
-	public boolean isDataPresent(Collection<Message> responses);
+	public T resolve() throws DigestMismatchException, IOException;
+	public boolean isDataPresent();
 
     public void preprocess(Message message);
+    public Iterable<Message> getMessages();
+    public int getMessageCount();
 }

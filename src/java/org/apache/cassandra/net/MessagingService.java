@@ -29,9 +29,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.ServerSocketChannel;
 import java.security.MessageDigest;
-import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -226,7 +224,7 @@ public class MessagingService implements MessagingServiceMBean
      * @return an reference to an IAsyncResult which can be queried for the
      * response
      */
-    public String sendRR(Message message, InetAddress[] to, IAsyncCallback cb)
+    public String sendRR(Message message, Collection<InetAddress> to, IAsyncCallback cb)
     {
         String messageId = message.getMessageId();
         addCallback(cb, messageId);
@@ -273,18 +271,16 @@ public class MessagingService implements MessagingServiceMBean
      *           suggest that a timeout occured to the invoker of the send().
      * @return an reference to message id used to match with the result
      */
-    public String sendRR(Message[] messages, InetAddress[] to, IAsyncCallback cb)
+    public String sendRR(Message[] messages, List<InetAddress> to, IAsyncCallback cb)
     {
-        if ( messages.length != to.length )
-        {
+        if (messages.length != to.size())
             throw new IllegalArgumentException("Number of messages and the number of endpoints need to be same.");
-        }
         String groupId = GuidGenerator.guid();
         addCallback(cb, groupId);
         for ( int i = 0; i < messages.length; ++i )
         {
             messages[i].setMessageId(groupId);
-            sendOneWay(messages[i], to[i]);
+            sendOneWay(messages[i], to.get(i));
         }
         return groupId;
     } 

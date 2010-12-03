@@ -156,7 +156,6 @@ class ConsistencyChecker implements Runnable
 
 	static class DataRepairHandler implements IAsyncCallback
 	{
-		private final Collection<Message> responses_ = new LinkedBlockingQueue<Message>();
 		private final ReadResponseResolver readResponseResolver_;
 		private final int majority_;
 		
@@ -167,7 +166,6 @@ class ConsistencyChecker implements Runnable
             // wrap localRow in a response Message so it doesn't need to be special-cased in the resolver
             ReadResponse readResponse = new ReadResponse(localRow);
             Message fakeMessage = new Message(FBUtilities.getLocalAddress(), StorageService.Verb.INTERNAL_RESPONSE, ArrayUtils.EMPTY_BYTE_ARRAY);
-            responses_.add(fakeMessage);
             readResponseResolver_.injectPreProcessed(fakeMessage, readResponse);
         }
 
@@ -176,15 +174,14 @@ class ConsistencyChecker implements Runnable
 		{
 			if (logger_.isDebugEnabled())
 			  logger_.debug("Received response in DataRepairHandler : " + message.toString());
-			responses_.add(message);
             readResponseResolver_.preprocess(message);
-            if (responses_.size() == majority_)
+            if (readResponseResolver_.getMessageCount() == majority_)
             {
                 Runnable runnable = new WrappedRunnable()
                 {
                     public void runMayThrow() throws IOException, DigestMismatchException
                     {
-                        readResponseResolver_.resolve(responses_);
+                        readResponseResolver_.resolve();
                     }
                 };
                 // give remaining replicas until timeout to reply and get added to responses_

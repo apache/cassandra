@@ -18,11 +18,11 @@
 
 package org.apache.cassandra.service;
 
+import java.io.IOException;
+import java.net.InetAddress;
 import java.util.Collection;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.io.IOException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Table;
@@ -30,8 +30,8 @@ import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.SimpleCondition;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,19 +39,20 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
 {
     protected static final Logger logger = LoggerFactory.getLogger( QuorumResponseHandler.class );
     protected final SimpleCondition condition = new SimpleCondition();
-    protected final Collection<Message> responses = new LinkedBlockingQueue<Message>();;
-    protected IResponseResolver<T> responseResolver;
+    protected final IResponseResolver<T> resolver;
     private final long startTime;
-    protected int blockfor;
+    protected final int blockfor;
     
     /**
      * Constructor when response count has to be calculated and blocked for.
      */
-    public QuorumResponseHandler(IResponseResolver<T> responseResolver, ConsistencyLevel consistencyLevel, String table)
+    public QuorumResponseHandler(IResponseResolver<T> resolver, ConsistencyLevel consistencyLevel, String table)
     {
         this.blockfor = determineBlockFor(consistencyLevel, table);
-        this.responseResolver = responseResolver;
+        this.resolver = resolver;
         this.startTime = System.currentTimeMillis();
+
+        logger.debug("QuorumResponseHandler blocking for {} responses", blockfor);
     }
     
     public T get() throws TimeoutException, DigestMismatchException, IOException
@@ -72,35 +73,31 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
             if (!success)
             {
                 StringBuilder sb = new StringBuilder("");
-                for (Message message : responses)
+                for (Message message : resolver.getMessages())
                 {
                     sb.append(message.getFrom());
                 }
-                throw new TimeoutException("Operation timed out - received only " + responses.size() + " responses from " + sb.toString() + " .");
+                throw new TimeoutException("Operation timed out - received only " + resolver.getMessageCount() + " responses from " + sb.toString() + " .");
             }
         }
         finally
         {
-            for (Message response : responses)
+            for (Message response : resolver.getMessages())
             {
                 MessagingService.removeRegisteredCallback(response.getMessageId());
             }
         }
 
-        return responseResolver.resolve(responses);
+        return resolver.resolve();
     }
     
     public void response(Message message)
     {
-        responses.add(message);
-        responseResolver.preprocess(message);
-        if (responses.size() < blockfor) {
+        resolver.preprocess(message);
+        if (resolver.getMessageCount() < blockfor)
             return;
-        }
-        if (responseResolver.isDataPresent(responses))
-        {
+        if (resolver.isDataPresent())
             condition.signal();
-        }
     }
     
     public int determineBlockFor(ConsistencyLevel consistencyLevel, String table)
@@ -115,7 +112,13 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
             case ALL:
                 return Table.open(table).getReplicationStrategy().getReplicationFactor();
             default:
-                throw new UnsupportedOperationException("invalid consistency level: " + table.toString());
+                throw new UnsupportedOperationException("invalid consistency level: " + consistencyLevel);
         }
+    }
+
+    public void assureSufficientLiveNodes(Collection<InetAddress> endpoints) throws UnavailableException
+    {
+        if (endpoints.size() < blockfor)
+            throw new UnavailableException();
     }
 }

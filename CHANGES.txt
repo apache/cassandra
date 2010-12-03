@@ -27,6 +27,8 @@ dev
    (CASSANDRA-1804)
  * cli support index type enum names (CASSANDRA-1810)
  * improved validation of column_metadata (CASSANDRA-1813)
+ * reads at ConsistencyLevel > 1 throw UnavailableException
+   immediately if insufficient live nodes exist (CASSANDRA-1803)
 
 
 0.7.0-rc1

@@ -58,14 +58,14 @@ public class ReadResponseResolver implements IResponseResolver<Row>
       * repair request should be scheduled.
       *
       */
-	public Row resolve(Collection<Message> responses) throws DigestMismatchException, IOException
+	public Row resolve() throws DigestMismatchException, IOException
     {
         if (logger_.isDebugEnabled())
-            logger_.debug("resolving " + responses.size() + " responses");
+            logger_.debug("resolving " + results.size() + " responses");
 
         long startTime = System.currentTimeMillis();
-		List<ColumnFamily> versions = new ArrayList<ColumnFamily>(responses.size());
-		List<InetAddress> endpoints = new ArrayList<InetAddress>(responses.size());
+		List<ColumnFamily> versions = new ArrayList<ColumnFamily>();
+		List<InetAddress> endpoints = new ArrayList<InetAddress>();
 		DecoratedKey key = null;
 		ByteBuffer digest = FBUtilities.EMPTY_BYTE_BUFFER;
 		boolean isDigestQuery = false;
@@ -76,11 +76,10 @@ public class ReadResponseResolver implements IResponseResolver<Row>
          * query exists then we need to compare the digest with 
          * the digest of the data that is received.
         */
-		for (Message message : responses)
-		{
-            ReadResponse result = results.get(message);
-            if (result == null)
-                continue; // arrived after quorum already achieved
+        for (Map.Entry<Message, ReadResponse> entry : results.entrySet())
+        {
+            ReadResponse result = entry.getValue();
+            Message message = entry.getKey();
             if (result.isDigestQuery())
             {
                 digest = result.digest();
@@ -187,6 +186,8 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         try
         {
             ReadResponse result = ReadResponse.serializer().deserialize(new DataInputStream(bufIn));
+            if (logger_.isDebugEnabled())
+                logger_.debug("Preprocessed {} response", result.isDigestQuery() ? "digest" : "data");
             results.put(message, result);
         }
         catch (IOException e)
@@ -201,16 +202,23 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         results.put(message, result);
     }
 
-    public boolean isDataPresent(Collection<Message> responses)
+    public boolean isDataPresent()
 	{
-        for (Message message : responses)
+        for (ReadResponse result : results.values())
         {
-            ReadResponse result = results.get(message);
-            if (result == null)
-                continue; // arrived concurrently
             if (!result.isDigestQuery())
                 return true;
         }
         return false;
+    }
+
+    public Iterable<Message> getMessages()
+    {
+        return results.keySet();
+    }
+
+    public int getMessageCount()
+    {
+        return results.size();
     }
 }
