@@ -41,6 +41,7 @@ import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.io.SerDeUtils;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.commons.lang.builder.EqualsBuilder;
@@ -751,7 +752,7 @@ public final class CFMetaData
             org.apache.cassandra.avro.ColumnDef tcd = new org.apache.cassandra.avro.ColumnDef();
             tcd.index_name = cd.getIndexName();
             tcd.index_type = org.apache.cassandra.avro.IndexType.valueOf(cd.getIndexType().name());
-            tcd.name = cd.name;
+            tcd.name = ByteBufferUtil.clone(cd.name);
             tcd.validation_class = cd.validator.getClass().getName();
             column_meta.add(tcd);
         }
@@ -786,7 +787,7 @@ public final class CFMetaData
         for (org.apache.cassandra.thrift.ColumnDef cdef : def.getColumn_metadata())
         {
             org.apache.cassandra.avro.ColumnDef tdef = new org.apache.cassandra.avro.ColumnDef();
-            tdef.name = cdef.BufferForName();
+            tdef.name = ByteBufferUtil.clone(cdef.BufferForName());
             tdef.validation_class = cdef.getValidation_class();
             tdef.index_name = cdef.getIndex_name();
             tdef.index_type = cdef.getIndex_type() == null ? null : org.apache.cassandra.avro.IndexType.valueOf(cdef.getIndex_type().name());

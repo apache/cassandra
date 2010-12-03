@@ -210,6 +210,12 @@ public class Column implements IColumn
         return result;
     }
 
+    @Override
+    public IColumn deepCopy()
+    {
+        return new Column(ByteBufferUtil.clone(name), ByteBufferUtil.clone(value), timestamp);
+    }
+    
     public String getString(AbstractType comparator)
     {
         StringBuilder sb = new StringBuilder();

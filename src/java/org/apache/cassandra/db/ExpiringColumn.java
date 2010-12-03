@@ -24,6 +24,7 @@ import java.security.MessageDigest;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.log4j.Logger;
 
 /**
@@ -104,6 +105,12 @@ public class ExpiringColumn extends Column
         return localExpirationTime;
     }
 
+    @Override
+    public IColumn deepCopy()
+    {
+        return new ExpiringColumn(ByteBufferUtil.clone(name), ByteBufferUtil.clone(value), timestamp, timeToLive, localExpirationTime);
+    }
+    
     @Override
     public String getString(AbstractType comparator)
     {

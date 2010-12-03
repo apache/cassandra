@@ -31,6 +31,7 @@ import org.apache.avro.util.Utf8;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class ColumnDefinition {
@@ -103,7 +104,7 @@ public class ColumnDefinition {
 
     public static ColumnDefinition fromColumnDef(ColumnDef thriftColumnDef) throws ConfigurationException
     {
-        return new ColumnDefinition(thriftColumnDef.name, thriftColumnDef.validation_class, thriftColumnDef.index_type, thriftColumnDef.index_name);
+        return new ColumnDefinition(ByteBufferUtil.clone(thriftColumnDef.name), thriftColumnDef.validation_class, thriftColumnDef.index_type, thriftColumnDef.index_name);
     }
     
     public static ColumnDefinition fromColumnDef(org.apache.cassandra.avro.ColumnDef avroColumnDef) throws ConfigurationException
@@ -122,7 +123,7 @@ public class ColumnDefinition {
 
         Map<ByteBuffer, ColumnDefinition> cds = new TreeMap<ByteBuffer, ColumnDefinition>();
         for (ColumnDef thriftColumnDef : thriftDefs)
-            cds.put(thriftColumnDef.name, fromColumnDef(thriftColumnDef));
+            cds.put(ByteBufferUtil.clone(thriftColumnDef.name), fromColumnDef(thriftColumnDef));
 
         return Collections.unmodifiableMap(cds);
     }

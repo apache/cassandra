@@ -200,7 +200,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             public void runMayThrow() throws IOException
             {
-                rm.apply();
+                rm.deepCopy().apply();
                 responseHandler.response(null);
             }
         };
