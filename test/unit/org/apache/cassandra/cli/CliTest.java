@@ -36,7 +36,7 @@ public class CliTest extends CleanupHelper
     // please add new statements here so they could be auto-runned by this test.
     private String[] statements = {
         "use TestKeySpace;",
-        "create column family CF1 with comparator=UTF8Type and column_metadata=[{ column_name:world, validation_class:IntegerType, index_type:0, index_name:IdxName }, { column_name:world2, validation_class:LongType, index_type:0, index_name:LongIdxName}];",
+        "create column family CF1 with comparator=UTF8Type and column_metadata=[{ column_name:world, validation_class:IntegerType, index_type:0, index_name:IdxName }, { column_name:world2, validation_class:LongType, index_type:KEYS, index_name:LongIdxName}];",
         "set CF1[hello][world] = 123848374878933948398384;",
         "get CF1[hello][world];",
         "set CF1[hello][world2] = 15;",

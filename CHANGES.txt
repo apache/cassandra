@@ -25,6 +25,7 @@ dev
  * fix range queries against wrapped range (CASSANDRA-1781)
  * fix consistencylevel calculations for NetworkTopologyStrategy
    (CASSANDRA-1804)
+ * cli support index type enum names (CASSANDRA-1810)
 
 
 0.7.0-rc1
