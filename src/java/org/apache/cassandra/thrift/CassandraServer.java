@@ -260,8 +260,7 @@ public class CassandraServer implements Cassandra.Iface
     public List<ColumnOrSuperColumn> get_slice(ByteBuffer key, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        if (logger.isDebugEnabled())
-            logger.debug("get_slice");
+        logger.debug("get_slice");
         
         state().hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
         return multigetSliceInternal(state().getKeyspace(), Collections.singletonList(key), column_parent, predicate, consistency_level).get(key);
@@ -270,8 +269,7 @@ public class CassandraServer implements Cassandra.Iface
     public Map<ByteBuffer, List<ColumnOrSuperColumn>> multiget_slice(List<ByteBuffer> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        if (logger.isDebugEnabled())
-            logger.debug("multiget_slice");
+        logger.debug("multiget_slice");
 
         state().hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
 
@@ -309,8 +307,7 @@ public class CassandraServer implements Cassandra.Iface
     public ColumnOrSuperColumn get(ByteBuffer key, ColumnPath column_path, ConsistencyLevel consistency_level)
     throws InvalidRequestException, NotFoundException, UnavailableException, TimedOutException
     {
-        if (logger.isDebugEnabled())
-            logger.debug("get");
+        logger.debug("get");
         
         state().hasColumnFamilyAccess(column_path.column_family, Permission.READ);
         String keyspace = state().getKeyspace();
@@ -338,8 +335,7 @@ public class CassandraServer implements Cassandra.Iface
     public int get_count(ByteBuffer key, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        if (logger.isDebugEnabled())
-            logger.debug("get_count");
+        logger.debug("get_count");
 
         state().hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
 
@@ -349,8 +345,7 @@ public class CassandraServer implements Cassandra.Iface
     public Map<ByteBuffer, Integer> multiget_count(List<ByteBuffer> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        if (logger.isDebugEnabled())
-            logger.debug("multiget_count");
+        logger.debug("multiget_count");
 
         state().hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
         String keyspace = state().getKeyspace();
@@ -367,8 +362,7 @@ public class CassandraServer implements Cassandra.Iface
     public void insert(ByteBuffer key, ColumnParent column_parent, Column column, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        if (logger.isDebugEnabled())
-            logger.debug("insert");
+        logger.debug("insert");
 
         state().hasColumnFamilyAccess(column_parent.column_family, Permission.WRITE);
 
@@ -391,8 +385,7 @@ public class CassandraServer implements Cassandra.Iface
     public void batch_mutate(Map<ByteBuffer,Map<String,List<Mutation>>> mutation_map, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        if (logger.isDebugEnabled())
-            logger.debug("batch_mutate");
+        logger.debug("batch_mutate");
         
         List<String> cfamsSeen = new ArrayList<String>();
 
@@ -428,8 +421,7 @@ public class CassandraServer implements Cassandra.Iface
     public void remove(ByteBuffer key, ColumnPath column_path, long timestamp, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        if (logger.isDebugEnabled())
-            logger.debug("remove");
+        logger.debug("remove");
 
         state().hasColumnFamilyAccess(column_path.column_family, Permission.WRITE);
 
@@ -482,8 +474,7 @@ public class CassandraServer implements Cassandra.Iface
     public List<KeySlice> get_range_slices(ColumnParent column_parent, SlicePredicate predicate, KeyRange range, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TException, TimedOutException
     {
-        if (logger.isDebugEnabled())
-            logger.debug("range_slice");
+        logger.debug("range_slice");
 
         String keyspace = state().getKeyspace();
         state().hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
@@ -546,8 +537,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public List<KeySlice> get_indexed_slices(ColumnParent column_parent, IndexClause index_clause, SlicePredicate column_predicate, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
-        if (logger.isDebugEnabled())
-            logger.debug("scan");
+        logger.debug("scan");
 
         state().hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
         String keyspace = state().getKeyspace();
@@ -703,6 +693,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public String system_add_column_family(CfDef cf_def) throws InvalidRequestException, TException
     {
+        logger.debug("add_column_family");
         state().hasColumnFamilyListAccess(Permission.WRITE);
         ThriftValidation.validateCfDef(cf_def);
         try
@@ -726,6 +717,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public String system_drop_column_family(String column_family) throws InvalidRequestException, TException
     {
+        logger.debug("drop_column_family");
         state().hasColumnFamilyListAccess(Permission.WRITE);
         
         try
@@ -749,6 +741,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public String system_add_keyspace(KsDef ks_def) throws InvalidRequestException, TException
     {
+        logger.debug("add_keyspace");
         state().hasKeyspaceListAccess(Permission.WRITE);
         
         // generate a meaningful error if the user setup keyspace and/or column definition incorrectly
@@ -792,6 +785,7 @@ public class CassandraServer implements Cassandra.Iface
     
     public String system_drop_keyspace(String keyspace) throws InvalidRequestException, TException
     {
+        logger.debug("drop_keyspace");
         state().hasKeyspaceListAccess(Permission.WRITE);
         
         try
@@ -816,6 +810,7 @@ public class CassandraServer implements Cassandra.Iface
     /** update an existing keyspace, but do not allow column family modifications. */
     public String system_update_keyspace(KsDef ks_def) throws InvalidRequestException, TException
     {
+        logger.debug("update_keyspace");
         state().hasKeyspaceListAccess(Permission.WRITE);
 
         ThriftValidation.validateTable(ks_def.name);
@@ -848,6 +843,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public String system_update_column_family(CfDef cf_def) throws InvalidRequestException, TException
     {
+        logger.debug("update_column_family");
         state().hasColumnFamilyListAccess(Permission.WRITE);
         
         if (cf_def.keyspace == null || cf_def.name == null)
