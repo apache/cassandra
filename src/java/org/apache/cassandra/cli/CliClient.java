@@ -468,7 +468,7 @@ public class CliClient extends CliUserHelp
             return;
 
         IndexClause clause = new IndexClause();
-        String columnFamily = statement.getChild(0).getText();
+        String columnFamily = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
         // ^(CONDITIONS ^(CONDITION $column $value) ...)
         Tree conditions = statement.getChild(1);
         

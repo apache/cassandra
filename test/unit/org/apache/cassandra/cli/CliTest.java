@@ -41,6 +41,8 @@ public class CliTest extends CleanupHelper
         "get CF1[hello][world];",
         "set CF1[hello][world2] = 15;",
         "get CF1 where world2 = long(15);",
+        "get cF1 where world2 = long(15);",
+        "get Cf1 where world2 = long(15);",
         "set CF1['hello'][time_spent_uuid] = timeuuid(a8098c1a-f86e-11da-bd1a-00112444be1e);",
         "create column family CF2 with comparator=IntegerType;",
         "set CF2['key'][98349387493847748398334] = 'some text';",
