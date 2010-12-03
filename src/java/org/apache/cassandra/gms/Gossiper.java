@@ -145,8 +145,8 @@ public class Gossiper implements IFailureDetectionEventListener
     {
         // 3 days
         aVeryLongTime_ = 259200 * 1000;
-        // 1 hour
-        FatClientTimeout_ = 60 * 60 * 1000;
+        // half of RING_DELAY, to ensure justRemovedEndpoints has enough leeway to prevent re-gossip
+        FatClientTimeout_ = (long)(StorageService.RING_DELAY / 2);
         /* register with the Failure Detector for receiving Failure detector events */
         FailureDetector.instance.registerFailureDetectionEventListener(this);
     }
