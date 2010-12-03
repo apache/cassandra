@@ -26,6 +26,7 @@ dev
  * fix consistencylevel calculations for NetworkTopologyStrategy
    (CASSANDRA-1804)
  * cli support index type enum names (CASSANDRA-1810)
+ * improved validation of column_metadata (CASSANDRA-1813)
 
 
 0.7.0-rc1

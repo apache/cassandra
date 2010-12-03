@@ -383,14 +383,20 @@ public class ThriftValidation
     {
         try
         {
+            ColumnFamilyType cfType = ColumnFamilyType.create(cf_def.column_type);
+            if (cfType == null)
+                throw new InvalidRequestException("invalid column type " + cf_def.column_type);
+
             DatabaseDescriptor.getComparator(cf_def.comparator_type);
             DatabaseDescriptor.getComparator(cf_def.subcomparator_type);
             DatabaseDescriptor.getComparator(cf_def.default_validation_class);
+            if (cfType != ColumnFamilyType.Super && cf_def.subcomparator_type != null)
+                throw new InvalidRequestException("subcomparator_type is invalid for standard columns");
 
             if (cf_def.column_metadata == null)
                 return;
 
-            AbstractType comparator = cf_def.subcomparator_type == null
+            AbstractType comparator = cfType == ColumnFamilyType.Standard
                                     ? DatabaseDescriptor.getComparator(cf_def.comparator_type)
                                     : DatabaseDescriptor.getComparator(cf_def.subcomparator_type);
             for (ColumnDef c : cf_def.column_metadata)
@@ -406,6 +412,12 @@ public class ThriftValidation
                     throw new InvalidRequestException(String.format("Column name %s is not valid for comparator %s",
                                                                     FBUtilities.bytesToHex(c.name), cf_def.comparator_type));
                 }
+
+                if ((c.index_name != null) && (c.index_type == null))
+                    throw new ConfigurationException("index_name cannot be set without index_type");
+
+                if (cfType == ColumnFamilyType.Super && c.index_type != null)
+                    throw new InvalidRequestException("Secondary indexes are not supported on supercolumns");
             }
         }
         catch (ConfigurationException e)
