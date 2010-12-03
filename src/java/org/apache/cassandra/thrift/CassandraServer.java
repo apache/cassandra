@@ -758,6 +758,7 @@ public class CassandraServer implements Cassandra.Iface
             Collection<CFMetaData> cfDefs = new ArrayList<CFMetaData>(ks_def.cf_defs.size());
             for (CfDef cfDef : ks_def.cf_defs)
             {
+                ThriftValidation.validateCfDef(cfDef);
                 cfDefs.add(convertToCFMetaData(cfDef));
             }
 
