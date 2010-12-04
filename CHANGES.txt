@@ -31,7 +31,9 @@ dev
    immediately if insufficient live nodes exist (CASSANDRA-1803)
  * copy bytebuffers for local writes to avoid retaining the entire
    Thrift frame (CASSANDRA-1801)
+ * fix NPE adding index to column w/o prior metadata (CASSANDRA-1764)
  * reduce fat client timeout (CASSANDRA-1730)
+ * fix botched merge of CASSANDRA-1316
 
 
 0.7.0-rc1
