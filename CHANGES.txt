@@ -12,6 +12,7 @@
    with live subcolumn (CASSANDRA-1591)
  * clean up log messages for gossip token notifications (CASSANDRA-1518)
  * fix range queries against wrapped range (CASSANDRA-1781)
+ * add support for per-CF compaction (CASSANDRA-1812)
  * reduce fat client timeout (CASSANDRA-1730)
 
 

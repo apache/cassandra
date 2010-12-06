@@ -96,9 +96,9 @@ public interface StorageServiceMBean
     public void forceTableCompaction() throws IOException;
 
     /**
-     * Forces major compaction of a single keyspace
+     * Forces major compaction on a single cf of a single keyspace
      */
-    public void forceTableCompaction(String tableName) throws IOException;
+    public void forceTableCompaction(String ks, String... columnFamilies) throws IOException;
 
     /**
      * Trigger a cleanup of keys on all tables.
@@ -108,7 +108,7 @@ public interface StorageServiceMBean
     /**
      * Trigger a cleanup of keys on a single keyspace
      */
-    public void forceTableCleanup(String tableName) throws IOException;
+    public void forceTableCleanup(String tableName, String... columnFamilies) throws IOException;
 
     /**
      * Takes the snapshot for a given table.

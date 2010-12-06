@@ -701,7 +701,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return maxFile;
     }
 
-    void forceCleanup()
+    public void forceCleanup()
     {
         CompactionManager.instance.submitCleanup(ColumnFamilyStore.this);
     }

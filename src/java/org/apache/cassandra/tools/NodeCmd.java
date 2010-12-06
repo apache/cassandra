@@ -69,19 +69,33 @@ public class NodeCmd {
     private static void printUsage()
     {
         HelpFormatter hf = new HelpFormatter();
-        String header = String.format(
-                "%nAvailable commands: ring, info, cleanup, compact, cfstats, snapshot [snapshotname], clearsnapshot, " +
-                "tpstats, flush, drain, repair, decommission, move, loadbalance, removetoken, " +
-                "setcachecapacity <keyspace> <cfname> <keycachecapacity> <rowcachecapacity>, " +
-                "getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold])" +
-                "streams [host], cfhistograms <keyspace> <column_family>");
+        String header = String.format("%nAvailable commands:%n"
+                                      + "ring%n"
+                                      + "info%n"
+                                      + "cfstats%n"
+                                      + "snapshot [snapshotname]%n"
+                                      + "info%n"
+                                      + "cfstats%n"
+                                      + "tpstats%n"
+                                      + "flush%n"
+                                      + "drain%n"
+                                      + "decommission%n"
+                                      + "move <new token>%n"
+                                      + "loadbalance%n"
+                                      + "removetoken <token>%n"
+                                      + "repair|cleanup|compact [keyspace] [columfamilies]%n"
+                                      + "setcachecapacity <keyspace> <cfname> <keycachecapacity> <rowcachecapacity>%n"
+                                      + "getcompactionthreshold%n"
+                                      + "setcompactionthreshold [minthreshold] ([maxthreshold])%n"
+                                      + "streams [host]%n"
+                                      + "cfhistograms <keyspace> <column_family>%n");
         String usage = String.format("java %s --host <arg> <command>%n", NodeCmd.class.getName());
         hf.printHelp(usage, "", options, header);
     }
-    
+
     /**
      * Write a textual representation of the Cassandra ring.
-     * 
+     *
      * @param outs the stream to write to
      */
     public void printRing(PrintStream outs)
@@ -148,11 +162,11 @@ public class NodeCmd {
                     asciiRingArt = "|   |";
             }
             outs.println(asciiRingArt);
-            
+
             counter++;
         }
     }
-    
+
     public void printThreadPoolStats(PrintStream outs)
     {
         outs.print(String.format("%-25s", "Pool Name"));
@@ -160,9 +174,9 @@ public class NodeCmd {
         outs.print(String.format("%10s", "Pending"));
         outs.print(String.format("%15s", "Completed"));
         outs.println();
-        
+
         Iterator<Map.Entry<String, IExecutorMBean>> threads = probe.getThreadPoolMBeanProxies();
-        
+
         for (; threads.hasNext();)
         {
             Map.Entry<String, IExecutorMBean> thread = threads.next();
@@ -178,7 +192,7 @@ public class NodeCmd {
 
     /**
      * Write node information.
-     * 
+     *
      * @param outs the stream to write to
      */
     public void printInfo(PrintStream outs)
@@ -186,7 +200,7 @@ public class NodeCmd {
         outs.println(probe.getToken());
         outs.println(String.format("%-17s: %s", "Load", probe.getLoadString()));
         outs.println(String.format("%-17s: %s", "Generation No", probe.getCurrentGenerationNumber()));
-        
+
         // Uptime
         long secondsUp = probe.getUptime() / 1000;
         outs.println(String.format("%-17s: %d", "Uptime (seconds)", secondsUp));
@@ -251,7 +265,7 @@ public class NodeCmd {
             }
         }
     }
-    
+
     public void printColumnFamilyStats(PrintStream outs)
     {
         Map <String, List <ColumnFamilyStoreMBean>> cfstoreMap = new HashMap <String, List <ColumnFamilyStoreMBean>>();
@@ -454,12 +468,32 @@ public class NodeCmd {
             else
                 probe.forceTableCleanup();
         }
-        else if (cmdName.equals("compact"))
+        else if (cmdName.equals("compact") || cmdName.equals("cleanup"))
         {
-            if (arguments.length > 1)
-                probe.forceTableCompaction(arguments[1]);
+            if (arguments.length == 1)
+            {
+                if (cmdName.equals("compact"))
+                    probe.forceTableCompaction();
+                else
+                    probe.forceTableCleanup();
+            }
             else
-                probe.forceTableCompaction();
+            {
+                String[] columnFamilies = new String[cmd.getArgs().length - 2];
+                for (int i = 0; i < columnFamilies.length; i++)
+                {
+                    columnFamilies[i] = cmd.getArgs()[i + 2];
+                }
+
+                if (cmdName.equals("compact"))
+                {
+                    probe.forceTableCompaction(arguments[1],columnFamilies);
+                }
+                else
+                {
+                    probe.forceTableCleanup(arguments[1],columnFamilies);
+                }
+            }
         }
         else if (cmdName.equals("cfstats"))
         {

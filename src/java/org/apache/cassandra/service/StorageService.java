@@ -554,7 +554,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
      * Handle node move to normal state. That is, node is entering token ring and participating
      * in reads.
      *
-     * @param endPoint node
+     * @param endpoint node
      * @param pieces STATE_NORMAL,token[,other_state,token]
      */
     private void handleStateNormal(InetAddress endpoint, String[] pieces)
@@ -1034,11 +1034,12 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
             table.forceCleanup();
         }
     }
-
-    public void forceTableCleanup(String tableName) throws IOException
+    public void forceTableCleanup(String tableName, String... columnFamilies) throws IOException
     {
-        Table table = getValidTable(tableName);
-        table.forceCleanup();
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
+        {
+            cfStore.forceCleanup();
+        }
     }
     
     public void forceTableCompaction() throws IOException
@@ -1046,11 +1047,12 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         for (Table table : Table.all())
             table.forceCompaction();
     }
-
-    public void forceTableCompaction(String tableName) throws IOException
+    public void forceTableCompaction(String ks, String... columnFamilies) throws IOException
     {
-        Table table = getValidTable(tableName);
-        table.forceCompaction();
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(ks, columnFamilies))
+        {
+            cfStore.forceMajorCompaction();
+        }
     }
 
     /**
