@@ -13,15 +13,15 @@ contrib/word_count$ bin/word_count
 The output of the word count can now be configured. In the bin/word_count
 file, you can specify the OUTPUT_REDUCER. The two options are 'filesystem'
 and 'cassandra'. The filesystem option outputs to the /tmp/word_count*
-directories. The cassandra option outputs to the 'Standard2' column family.
+directories. The cassandra option outputs to the 'output_words' column family
+in the 'wordcount' keyspace.
 
-In order to view the results in Cassandra, one can use python/pycassa and
+In order to view the results in Cassandra, one can use bin/cassandra-cli and
 perform the following operations:
-$ python
->>> import pycassa
->>> con = pycassa.connect('Keyspace1')
->>> cf = pycassa.ColumnFamily(con, 'Standard2')
->>> list(cf.get_range())
+$ bin/cassandra-cli
+> connect localhost/9160
+> use wordcount;
+> list output_words;
 
 Read the code in src/ for more details.
 
