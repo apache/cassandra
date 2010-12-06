@@ -99,8 +99,14 @@ public class WordCountSetup
     private static void setupKeyspace(Cassandra.Iface client) throws TException, InvalidRequestException
     {
         List<CfDef> cfDefList = new ArrayList<CfDef>();
-        cfDefList.add(new CfDef(WordCount.KEYSPACE, WordCount.COLUMN_FAMILY));
-        cfDefList.add(new CfDef(WordCount.KEYSPACE, WordCount.OUTPUT_COLUMN_FAMILY));
+        CfDef input = new CfDef(WordCount.KEYSPACE, WordCount.COLUMN_FAMILY);
+       input.setComparator_type("AsciiType");
+       input.setDefault_validation_class("AsciiType");
+       cfDefList.add(input);
+        CfDef output = new CfDef(WordCount.KEYSPACE, WordCount.OUTPUT_COLUMN_FAMILY);
+       output.setComparator_type("AsciiType");
+       output.setDefault_validation_class("AsciiType");
+        cfDefList.add(output);
 
         client.system_add_keyspace(new KsDef(WordCount.KEYSPACE, "org.apache.cassandra.locator.SimpleStrategy", 1, cfDefList));
         int magnitude = client.describe_ring(WordCount.KEYSPACE).size();
