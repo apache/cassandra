@@ -54,11 +54,11 @@ public class WordCount extends Configured implements Tool
 {
     private static final Logger logger = LoggerFactory.getLogger(WordCount.class);
 
-    static final String KEYSPACE = "Keyspace1";
-    static final String COLUMN_FAMILY = "Standard1";
+    static final String KEYSPACE = "wordcount";
+    static final String COLUMN_FAMILY = "input_words";
 
     static final String OUTPUT_REDUCER_VAR = "output_reducer";
-    static final String OUTPUT_COLUMN_FAMILY = "Standard2";
+    static final String OUTPUT_COLUMN_FAMILY = "output_words";
     private static final String OUTPUT_PATH_PREFIX = "/tmp/word_count";
 
     private static final String CONF_COLUMN_NAME = "columnname";
