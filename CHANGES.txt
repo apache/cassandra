@@ -1,4 +1,4 @@
-dev
+0.7.0-rc2
  * fix live-column-count of slice ranges including tombstoned supercolumn 
    with live subcolumn (CASSANDRA-1591)
  * rename o.a.c.internal.AntientropyStage -> AntiEntropyStage,
