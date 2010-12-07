@@ -37,6 +37,7 @@ import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
 import org.apache.cassandra.concurrent.IExecutorMBean;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
+import org.apache.cassandra.db.CompactionManagerMBean;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.MessagingServiceMBean;
 
@@ -75,7 +76,7 @@ public class NodeCmd {
                 "clearsnapshot, tpstats, flush, drain, repair, decommission, move, loadbalance, removetoken [status|force]|[token], " +
                 "setcachecapacity [keyspace] [cfname] [keycachecapacity] [rowcachecapacity], " +
                 "getcompactionthreshold [keyspace] [cfname], setcompactionthreshold [cfname] [minthreshold] [maxthreshold], " +
-                "netstats [host], cfhistograms <keyspace> <column_family>");
+                "netstats [host], cfhistograms <keyspace> <column_family>, compactionstats");
         String usage = String.format("java %s --host <arg> <command>%n", NodeCmd.class.getName());
         hf.printHelp(usage, "", options, header);
     }
@@ -247,7 +248,17 @@ public class NodeCmd {
             completed += n;
         outs.printf("%-25s%10s%10s%15s%n", "Responses", "n/a", pending, completed);
     }
-    
+   
+    public void printCompactionStats(PrintStream outs)
+    {
+        CompactionManagerMBean cm = probe.getCompactionManagerProxy();
+        outs.println("compaction type: " + (cm.getCompactionType() == null ? "n/a" : cm.getCompactionType()));
+        outs.println("column family: " + (cm.getColumnFamilyInProgress() == null ? "n/a" : cm.getColumnFamilyInProgress()));
+        outs.println("bytes compacted: " + (cm.getBytesCompacted() == null ? "n/a" : cm.getBytesCompacted()));
+        outs.println("bytes total in progress: " + (cm.getBytesTotalInProgress() == null ? "n/a" : cm.getBytesTotalInProgress() ));
+        outs.println("pending tasks: " + cm.getPendingTasks());
+    }
+ 
     public void printColumnFamilyStats(PrintStream outs)
     {
         Map <String, List <ColumnFamilyStoreMBean>> cfstoreMap = new HashMap <String, List <ColumnFamilyStoreMBean>>();
@@ -492,6 +503,10 @@ public class NodeCmd {
                 ee.printStackTrace();
                 System.exit(3);
             }
+        }
+        else if (cmdName.equals("compactionstats"))
+        {
+            nodeCmd.printCompactionStats(System.out);
         }
         else if (cmdName.equals("cfstats"))
         {
