@@ -45,6 +45,8 @@ import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
 import org.apache.cassandra.concurrent.IExecutorMBean;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
+import org.apache.cassandra.db.CompactionManager;
+import org.apache.cassandra.db.CompactionManagerMBean;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.IEndpointSnitch;
@@ -72,6 +74,7 @@ public class NodeProbe
 
     private JMXConnector jmxc;
     private MBeanServerConnection mbeanServerConn;
+    private CompactionManagerMBean compactionProxy;
     private StorageServiceMBean ssProxy;
     private MemoryMXBean memProxy;
     private RuntimeMXBean runtimeProxy;
@@ -121,6 +124,8 @@ public class NodeProbe
             ssProxy = JMX.newMBeanProxy(mbeanServerConn, name, StorageServiceMBean.class);
             name = new ObjectName(StreamingService.MBEAN_OBJECT_NAME);
             streamProxy = JMX.newMBeanProxy(mbeanServerConn, name, StreamingServiceMBean.class);
+            name = new ObjectName(CompactionManager.MBEAN_OBJECT_NAME);
+            compactionProxy = JMX.newMBeanProxy(mbeanServerConn, name, CompactionManagerMBean.class);
         } catch (MalformedObjectNameException e)
         {
             throw new RuntimeException(
@@ -222,6 +227,11 @@ public class NodeProbe
         {
             throw new RuntimeException("Could not retrieve list of stat mbeans.", e);
         }
+    }
+
+    public CompactionManagerMBean getCompactionManagerProxy()
+    {
+      return compactionProxy;
     }
 
     public JMXInstrumentedCacheMBean getKeyCacheMBean(String tableName, String cfName)
