@@ -55,9 +55,10 @@ mkdir -p %{buildroot}/usr/sbin
 mkdir -p %{buildroot}/usr/bin
 cp -p conf/* %{buildroot}/etc/%{username}/default.conf
 cp -p conf/* %{buildroot}/usr/share/%{username}/default.conf
-cp -p contrib/redhat/%{username} %{buildroot}/etc/rc.d/init.d/
+cp -p redhat/%{username} %{buildroot}/etc/rc.d/init.d/
 cp -p lib/*.jar %{buildroot}/usr/share/%{username}/lib
-mv bin/cassandra.in.sh %{buildroot}/usr/share/%{username}
+mv redhat/cassandra.in.sh %{buildroot}/usr/share/%{username}
+rm bin/cassandra.in.sh
 mv bin/cassandra %{buildroot}/usr/sbin
 rm bin/*.bat 
 cp -p bin/* %{buildroot}/usr/bin
