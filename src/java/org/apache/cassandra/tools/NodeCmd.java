@@ -71,8 +71,6 @@ public class NodeCmd {
         HelpFormatter hf = new HelpFormatter();
         String header = String.format("%nAvailable commands:%n"
                                       + "ring%n"
-                                      + "info%n"
-                                      + "cfstats%n"
                                       + "snapshot [snapshotname]%n"
                                       + "info%n"
                                       + "cfstats%n"
