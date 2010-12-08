@@ -57,6 +57,8 @@
     <property name="ivy.version" value="2.1.0" />
     <property name="ivy.url"
               value="http://repo2.maven.org/maven2/org/apache/ivy/ivy" />
+    <property name="test.timeout" value="60000" />
+    <property name="test.long.timeout" value="300000" />
 
     <!-- http://cobertura.sourceforge.net/ -->
     <property name="cobertura.build.dir" value="${build.dir}/cobertura"/>
@@ -474,11 +476,13 @@
   </macrodef>
 
   <target name="test" depends="build-test" description="Execute unit tests">
-    <testmacro suitename="unit" inputdir="${test.unit.src}" timeout="60000" />
+    <testmacro suitename="unit" inputdir="${test.unit.src}"
+               timeout="${test.timeout}" />
   </target>
 
   <target name="long-test" depends="build-test" description="Execute functional tests">
-    <testmacro suitename="long" inputdir="${test.long.src}" timeout="300000" />
+    <testmacro suitename="long" inputdir="${test.long.src}"
+               timeout="${test.long.timeout}" />
   </target>
 
   <!-- instruments the classes to later create code coverage reports -->
