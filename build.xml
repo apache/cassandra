@@ -492,6 +492,10 @@
         <fileset dir="${cobertura.dir}">
             <include name="cobertura.jar" />
             <include name="lib/**/*.jar" />
+            <include name="log4j-1.2.jar" />
+            <include name="oro.jar" />
+            <include name="asm2.jar" />
+            <include name="asm2-tree.jar" />
         </fileset>
       </classpath>
     </taskdef>
