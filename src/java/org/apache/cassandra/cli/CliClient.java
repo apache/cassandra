@@ -468,7 +468,7 @@ public class CliClient extends CliUserHelp
             return;
 
         IndexClause clause = new IndexClause();
-        String columnFamily = statement.getChild(0).getText();
+        String columnFamily = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
         // ^(CONDITIONS ^(CONDITION $column $value) ...)
         Tree conditions = statement.getChild(1);
         
@@ -1414,20 +1414,28 @@ public class CliClient extends CliUserHelp
      */
     private IndexType getIndexTypeFromString(String indexTypeAsString)
     {
-        Integer indexTypeId;
         IndexType indexType;
 
-        try {
-            indexTypeId = new Integer(indexTypeAsString);
+        try
+        {
+            indexType = IndexType.findByValue(new Integer(indexTypeAsString));
         }
-        catch (NumberFormatException e) {
-            throw new RuntimeException("Could not convert " + indexTypeAsString + " into Integer.");
+        catch (NumberFormatException e)
+        {
+            try
+            {
+                // if this is not an integer lets try to get IndexType by name
+                indexType = IndexType.valueOf(indexTypeAsString);
+            }
+            catch (IllegalArgumentException ie)
+            {
+                throw new RuntimeException("IndexType '" + indexTypeAsString + "' is unsupported.");
+            }
         }
 
-        indexType = IndexType.findByValue(indexTypeId);
-
-        if (indexType == null) {
-            throw new RuntimeException(indexTypeAsString + " is unsupported.");
+        if (indexType == null)
+        {
+            throw new RuntimeException("IndexType '" + indexTypeAsString + "' is unsupported.");
         }
 
         return indexType;

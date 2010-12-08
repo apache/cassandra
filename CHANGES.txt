@@ -1,4 +1,13 @@
-dev
+0.8-dev
+ * avoid double RowMutation serialization on write path (CASSANDRA-1800)
+
+
+0.7-dev
+ * expose getNaturalEndpoints in StorageServiceMBean taking byte[]
+   key; RMI cannot serialize ByteBuffer (CASSANDRA-1833)
+
+
+0.7.0-rc2
  * fix live-column-count of slice ranges including tombstoned supercolumn 
    with live subcolumn (CASSANDRA-1591)
  * rename o.a.c.internal.AntientropyStage -> AntiEntropyStage,
@@ -23,7 +32,17 @@ dev
  * close file handle used for post-flush truncate (CASSANDRA-1790)
  * various code cleanup (CASSANDRA-1793, -1794, -1795)
  * fix range queries against wrapped range (CASSANDRA-1781)
- * avoid double RowMutation serialization on write path (CASSANDRA-1800)
+ * fix consistencylevel calculations for NetworkTopologyStrategy
+   (CASSANDRA-1804)
+ * cli support index type enum names (CASSANDRA-1810)
+ * improved validation of column_metadata (CASSANDRA-1813)
+ * reads at ConsistencyLevel > 1 throw UnavailableException
+   immediately if insufficient live nodes exist (CASSANDRA-1803)
+ * copy bytebuffers for local writes to avoid retaining the entire
+   Thrift frame (CASSANDRA-1801)
+ * fix NPE adding index to column w/o prior metadata (CASSANDRA-1764)
+ * reduce fat client timeout (CASSANDRA-1730)
+ * fix botched merge of CASSANDRA-1316
 
 
 0.7.0-rc1

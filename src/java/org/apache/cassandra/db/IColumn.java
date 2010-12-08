@@ -46,6 +46,9 @@ public interface IColumn
     public int getLocalDeletionTime(); // for tombstone GC, so int is sufficient granularity
     public String getString(AbstractType comparator);
 
+    /** clones the column, making copies of any underlying byte buffers */
+    IColumn deepCopy();
+
     /**
      * For a simple column, live == !isMarkedForDelete.
      * For a supercolumn, live means it has at least one subcolumn whose timestamp is greater than the

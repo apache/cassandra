@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
@@ -93,9 +94,9 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
         }
         // at most one node per range can bootstrap at a time, and these will be added to the write until
         // bootstrap finishes (at which point we no longer need to write to the old ones).
-        assert 1 <= blockFor && blockFor <= 2 * DatabaseDescriptor.getReplicationFactor(table)
+        assert 1 <= blockFor && blockFor <= 2 * Table.open(table).getReplicationStrategy().getReplicationFactor()
             : String.format("invalid response count %d for replication factor %d",
-                            blockFor, DatabaseDescriptor.getReplicationFactor(table));
+                            blockFor, Table.open(table).getReplicationStrategy().getReplicationFactor());
         return blockFor;
     }
 

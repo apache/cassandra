@@ -201,7 +201,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             public void runMayThrow() throws IOException
             {
-                rm.apply();
+                rm.deepCopy().apply();
                 responseHandler.response(null);
             }
         };
@@ -315,7 +315,7 @@ public class StorageProxy implements StorageProxyMBean
     private static List<Row> strongRead(List<ReadCommand> commands, ConsistencyLevel consistency_level) throws IOException, UnavailableException, TimeoutException
     {
         List<QuorumResponseHandler<Row>> quorumResponseHandlers = new ArrayList<QuorumResponseHandler<Row>>();
-        List<InetAddress[]> commandEndpoints = new ArrayList<InetAddress[]>();
+        List<List<InetAddress>> commandEndpoints = new ArrayList<List<InetAddress>>();
         List<Row> rows = new ArrayList<Row>();
 
         // send out read requests
@@ -328,25 +328,25 @@ public class StorageProxy implements StorageProxyMBean
             Message messageDigestOnly = readMessageDigestOnly.makeReadMessage();
 
             InetAddress dataPoint = StorageService.instance.findSuitableEndpoint(command.table, command.key);
-            List<InetAddress> endpointList = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
+            List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
 
-            InetAddress[] endpoints = new InetAddress[endpointList.size()];
-            Message messages[] = new Message[endpointList.size()];
+            AbstractReplicationStrategy rs = Table.open(command.table).getReplicationStrategy();
+            QuorumResponseHandler<Row> handler = rs.getQuorumResponseHandler(new ReadResponseResolver(command.table), consistency_level);
+            handler.assureSufficientLiveNodes(endpoints);
+
+            Message messages[] = new Message[endpoints.size()];
             // data-request message is sent to dataPoint, the node that will actually get
             // the data for us. The other replicas are only sent a digest query.
             int n = 0;
-            for (InetAddress endpoint : endpointList)
+            for (InetAddress endpoint : endpoints)
             {
                 Message m = endpoint.equals(dataPoint) ? message : messageDigestOnly;
-                endpoints[n] = endpoint;
                 messages[n++] = m;
                 if (logger.isDebugEnabled())
                     logger.debug("strongread reading " + (m == message ? "data" : "digest") + " for " + command + " from " + m.getMessageId() + "@" + endpoint);
             }
-            AbstractReplicationStrategy rs = Table.open(command.table).getReplicationStrategy();
-            QuorumResponseHandler<Row> quorumResponseHandler = rs.getQuorumResponseHandler(new ReadResponseResolver(command.table), consistency_level);
-            MessagingService.instance.sendRR(messages, endpoints, quorumResponseHandler);
-            quorumResponseHandlers.add(quorumResponseHandler);
+            MessagingService.instance.sendRR(messages, endpoints, handler);
+            quorumResponseHandlers.add(handler);
             commandEndpoints.add(endpoints);
         }
 
@@ -370,14 +370,14 @@ public class StorageProxy implements StorageProxyMBean
             catch (DigestMismatchException ex)
             {
                 AbstractReplicationStrategy rs = Table.open(command.table).getReplicationStrategy();
-                QuorumResponseHandler<Row> qrhRepair = rs.getQuorumResponseHandler(new ReadResponseResolver(command.table), ConsistencyLevel.QUORUM);
+                QuorumResponseHandler<Row> handler = rs.getQuorumResponseHandler(new ReadResponseResolver(command.table), consistency_level);
                 if (logger.isDebugEnabled())
                     logger.debug("Digest mismatch:", ex);
                 Message messageRepair = command.makeReadMessage();
-                MessagingService.instance.sendRR(messageRepair, commandEndpoints.get(i), qrhRepair);
+                MessagingService.instance.sendRR(messageRepair, commandEndpoints.get(i), handler);
                 if (repairResponseHandlers == null)
                     repairResponseHandlers = new ArrayList<QuorumResponseHandler<Row>>();
-                repairResponseHandlers.add(qrhRepair);
+                repairResponseHandlers.add(handler);
             }
         }
 
@@ -499,7 +499,7 @@ public class StorageProxy implements StorageProxyMBean
         final Message msg = new Message(FBUtilities.getLocalAddress(), StorageService.Verb.SCHEMA_CHECK, ArrayUtils.EMPTY_BYTE_ARRAY);
         final CountDownLatch latch = new CountDownLatch(liveHosts.size());
         // an empty message acts as a request to the SchemaCheckVerbHandler.
-        MessagingService.instance.sendRR(msg, liveHosts.toArray(new InetAddress[]{}), new IAsyncCallback() 
+        MessagingService.instance.sendRR(msg, liveHosts, new IAsyncCallback()
         {
             public void response(Message msg)
             {
@@ -774,7 +774,7 @@ public class StorageProxy implements StorageProxyMBean
         logger.debug("Starting to send truncate messages to hosts {}", allEndpoints);
         Truncation truncation = new Truncation(keyspace, cfname);
         Message message = truncation.makeTruncationMessage();
-        MessagingService.instance.sendRR(message, allEndpoints.toArray(new InetAddress[]{}), responseHandler);
+        MessagingService.instance.sendRR(message, allEndpoints, responseHandler);
 
         // Wait for all
         logger.debug("Sent all truncate messages, now waiting for {} responses", blockFor);

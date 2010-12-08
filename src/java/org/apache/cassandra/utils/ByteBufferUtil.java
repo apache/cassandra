@@ -60,8 +60,8 @@ import java.nio.charset.Charset;
  * }
  *
  */
-public class ByteBufferUtil {
-
+public class ByteBufferUtil
+{
     public static int compareUnsigned(ByteBuffer o1, ByteBuffer o2)
     {
         return FBUtilities.compareUnsigned(o1.array(), o2.array(), o1.arrayOffset()+o1.position(), o2.arrayOffset()+o2.position(), o1.limit()+o1.arrayOffset(), o2.limit()+o2.arrayOffset());
@@ -97,5 +97,15 @@ public class ByteBufferUtil {
         {
            throw new RuntimeException(e);
         } 
+    }
+    
+    public static ByteBuffer clone(ByteBuffer o)
+    {
+        ByteBuffer clone = ByteBuffer.allocate(o.remaining());
+        o.mark();
+        clone.put(o);
+        o.reset();
+        clone.flip();
+        return clone;
     }
 }

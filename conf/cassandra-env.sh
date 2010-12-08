@@ -78,7 +78,7 @@ if [ "`uname`" = "Linux" ] ; then
     JVM_OPTS="$JVM_OPTS -Xss128k"
 fi
 
-# GC tuning options.
+# GC tuning options
 JVM_OPTS="$JVM_OPTS -XX:+UseParNewGC" 
 JVM_OPTS="$JVM_OPTS -XX:+UseConcMarkSweepGC" 
 JVM_OPTS="$JVM_OPTS -XX:+CMSParallelRemarkEnabled" 
@@ -86,6 +86,14 @@ JVM_OPTS="$JVM_OPTS -XX:SurvivorRatio=8"
 JVM_OPTS="$JVM_OPTS -XX:MaxTenuringThreshold=1"
 JVM_OPTS="$JVM_OPTS -XX:CMSInitiatingOccupancyFraction=75"
 JVM_OPTS="$JVM_OPTS -XX:+UseCMSInitiatingOccupancyOnly"
+
+# GC logging options -- uncomment to enable
+# JVM_OPTS="$JVM_OPTS -XX:+PrintGCDetails"
+# JVM_OPTS="$JVM_OPTS -XX:+PrintGCTimeStamps"
+# JVM_OPTS="$JVM_OPTS -XX:+PrintClassHistogram"
+# JVM_OPTS="$JVM_OPTS -XX:+PrintTenuringDistribution"
+# JVM_OPTS="$JVM_OPTS -XX:+PrintGCApplicationStoppedTime"
+# JVM_OPTS="$JVM_OPTS -Xloggc:/var/log/cassandra/gc.log"
 
 # Prefer binding to IPv4 network intefaces (when net.ipv6.bindv6only=1). See 
 # http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6342561 (short version:

@@ -41,6 +41,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnOrSuperColumn;
 import org.apache.cassandra.thrift.Deletion;
 import org.apache.cassandra.thrift.Mutation;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.commons.lang.StringUtils;
 
@@ -315,6 +316,21 @@ public class RowMutation
     {
         RowMutation rm = serializer_.deserialize(new DataInputStream(new ByteArrayInputStream(raw)));
         rm.preserializedBuffer = raw;
+        return rm;
+    }
+
+    public RowMutation deepCopy()
+    {
+        RowMutation rm = new RowMutation(table_, ByteBufferUtil.clone(key_));
+
+        for (Map.Entry<Integer, ColumnFamily> e : modifications_.entrySet())
+        {
+            ColumnFamily cf = e.getValue().cloneMeShallow();
+            for (Map.Entry<ByteBuffer, IColumn> ce : e.getValue().getColumnsMap().entrySet())
+                cf.addColumn(ce.getValue().deepCopy());
+            rm.modifications_.put(e.getKey(), cf);
+        }
+
         return rm;
     }
 }

@@ -94,7 +94,7 @@ public class SimpleStrategyTest extends CleanupHelper
             for (int i = 0; i < keyTokens.length; i++)
             {
                 List<InetAddress> endpoints = strategy.getNaturalEndpoints(keyTokens[i]);
-                assertEquals(DatabaseDescriptor.getReplicationFactor(table), endpoints.size());
+                assertEquals(strategy.getReplicationFactor(), endpoints.size());
                 List<InetAddress> correctEndpoints = new ArrayList<InetAddress>();
                 for (int j = 0; j < endpoints.size(); j++)
                     correctEndpoints.add(hosts.get((i + j + 1) % hosts.size()));
@@ -140,7 +140,7 @@ public class SimpleStrategyTest extends CleanupHelper
 
             StorageService.calculatePendingRanges(strategy, table);
 
-            int replicationFactor = DatabaseDescriptor.getReplicationFactor(table);
+            int replicationFactor = strategy.getReplicationFactor();
 
             for (int i = 0; i < keyTokens.length; i++)
             {

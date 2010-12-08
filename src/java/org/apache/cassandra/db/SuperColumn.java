@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -31,6 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -285,6 +287,20 @@ public class SuperColumn implements IColumn, IColumnContainer
     {
         this.localDeletionTime.set(localDeleteTime);
         this.markedForDeleteAt.set(timestamp);
+    }
+    
+    public IColumn deepCopy()
+    {
+        SuperColumn sc = new SuperColumn(ByteBufferUtil.clone(name_), this.getComparator());
+        sc.localDeletionTime = localDeletionTime;
+        sc.markedForDeleteAt = markedForDeleteAt;
+        
+        for(Map.Entry<ByteBuffer, IColumn> c : columns_.entrySet())
+        {
+            sc.addColumn(c.getValue().deepCopy());
+        }
+        
+        return sc;
     }
 
     public IColumn reconcile(IColumn c)

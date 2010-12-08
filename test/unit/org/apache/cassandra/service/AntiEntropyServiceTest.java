@@ -171,7 +171,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
     public void testGetNeighborsPlusOne() throws Throwable
     {
         // generate rf+1 nodes, and ensure that all nodes are returned
-        Set<InetAddress> expected = addTokens(1 + DatabaseDescriptor.getReplicationFactor(tablename));
+        Set<InetAddress> expected = addTokens(1 + Table.open(tablename).getReplicationStrategy().getReplicationFactor());
         expected.remove(FBUtilities.getLocalAddress());
         assertEquals(expected, AntiEntropyService.getNeighbors(tablename));
     }
@@ -182,7 +182,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
 
         // generate rf*2 nodes, and ensure that only neighbors specified by the ARS are returned
-        addTokens(2 * DatabaseDescriptor.getReplicationFactor(tablename));
+        addTokens(2 * Table.open(tablename).getReplicationStrategy().getReplicationFactor());
         AbstractReplicationStrategy ars = Table.open(tablename).getReplicationStrategy();
         Set<InetAddress> expected = new HashSet<InetAddress>();
         for (Range replicaRange : ars.getAddressRanges().get(FBUtilities.getLocalAddress()))
