@@ -47,6 +47,12 @@ fi
 # JMX connections.
 JMX_PORT="8080"
 
+# To use mx4j, an HTML interface for JMX, add mx4j-tools.jar to the lib/ directory.
+# By default mx4j listens on 0.0.0.0:8081. Uncomment the following lines to control
+# its listen address and port.
+#MX4J_ADDRESS="-Dmx4jaddress=0.0.0.0"
+#MX4J_PORT="-Dmx4jport=8081"
+
 
 # Here we create the arguments that will get passed to the jvm when
 # starting cassandra.
@@ -112,3 +118,5 @@ JVM_OPTS="$JVM_OPTS -Djava.net.preferIPv4Stack=true"
 JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.port=$JMX_PORT" 
 JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.ssl=false" 
 JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.authenticate=false" 
+JVM_OPTS="$JVM_OPTS $MX4J_ADDRESS" 
+JVM_OPTS="$JVM_OPTS $MX4J_PORT" 
