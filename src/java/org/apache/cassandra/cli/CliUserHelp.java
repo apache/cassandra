@@ -181,8 +181,8 @@ public class CliUserHelp {
                 state.out.println("create column family Bar with column_type = 'Super' and comparator = 'AsciiType'");
                 state.out.println("      and rows_cached = 10000;");
                 state.out.println("create column family Baz with comparator = 'LongType' and rows_cached = 10000;");
-                state.out.print("create column family Foo with comparator=LongType and column_metadata=");
-                state.out.print("[{ column_name:Test, validation_class:IntegerType, index_type:0, index_name:IdxName");
+                state.out.print("create column family Foo with comparator=UTF8Type and column_metadata=");
+                state.out.print("[{ column_name:test, validation_class:IntegerType, index_type:0, index_name:TextIdx");
                 state.out.println("}, { column_name:'other name', validation_class:LongType }];");
                 break;
 
