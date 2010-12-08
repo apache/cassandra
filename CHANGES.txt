@@ -1,3 +1,7 @@
+dev
+ * expose getNaturalEndpoints in StorageServiceMBean taking byte[]
+   key; RMI cannot serialize ByteBuffer (CASSANDRA-1833)
+
 0.7.0-rc2
  * fix live-column-count of slice ranges including tombstoned supercolumn 
    with live subcolumn (CASSANDRA-1591)

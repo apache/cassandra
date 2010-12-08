@@ -1400,6 +1400,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return getNaturalEndpoints(table, partitioner_.getToken(key));
     }
 
+    public List<InetAddress> getNaturalEndpoints(String table, byte[] key)
+    {
+        return getNaturalEndpoints(table, ByteBuffer.wrap(key));
+    }
+
     /**
      * This method returns the N endpoints that are responsible for storing the
      * specified key i.e for replication.
