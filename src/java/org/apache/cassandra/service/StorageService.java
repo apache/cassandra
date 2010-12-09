@@ -246,6 +246,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public void finishBootstrapping()
     {
         isBootstrapMode = false;
+        setToken(getLocalToken());
         logger_.info("Bootstrap/move completed! Now serving reads.");
     }
 
@@ -256,6 +257,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger_.debug("Setting token to {}", token);
         SystemTable.updateToken(token);
         tokenMetadata_.updateNormalToken(token, FBUtilities.getLocalAddress());
+        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.normal(getLocalToken()));
+        setMode("Normal", false);
     }
 
     public StorageService()
@@ -395,6 +398,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger_.info("This node will not auto bootstrap because it is configured to be a seed node.");
 
         Token token;
+        boolean bootstrapped = false;
         if (DatabaseDescriptor.isAutoBootstrap()
             && !(DatabaseDescriptor.getSeeds().contains(FBUtilities.getLocalAddress()) || SystemTable.isBootstrapped()))
         {
@@ -414,6 +418,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             {
                 bootstrap(token);
                 assert !isBootstrapMode; // bootstrap will block until finished
+                bootstrapped = true;
+                SystemTable.setBootstrapped(true); // first startup is only chance to bootstrap
             }
             // else nothing to do, go directly to participating in ring
         }
@@ -440,10 +446,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             }
         } 
 
-        SystemTable.setBootstrapped(true); // first startup is only chance to bootstrap
-        setToken(token);
-        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.normal(getLocalToken()));
-        setMode("Normal", false);
+        if(!bootstrapped)
+            setToken(token);
 
         assert tokenMetadata_.sortedTokens().size() > 0;
     }
