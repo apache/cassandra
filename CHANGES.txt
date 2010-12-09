@@ -5,6 +5,7 @@
 0.7-dev
  * expose getNaturalEndpoints in StorageServiceMBean taking byte[]
    key; RMI cannot serialize ByteBuffer (CASSANDRA-1833)
+ * validation that generates less garbage (CASSANDRA-1814)
 
 
 0.7.0-rc2

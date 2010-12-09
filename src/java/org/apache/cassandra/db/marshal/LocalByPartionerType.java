@@ -51,4 +51,9 @@ public class LocalByPartionerType<T extends Token> extends AbstractType
     {
         return partitioner.decorateKey(o1).compareTo(partitioner.decorateKey(o2));
     }
+
+    public void validate(ByteBuffer bytes) throws MarshalException
+    {
+        throw new IllegalStateException("You shouldn't be validating this.");
+    }
 }

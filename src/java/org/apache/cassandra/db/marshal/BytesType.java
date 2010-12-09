@@ -51,4 +51,9 @@ public class BytesType extends AbstractType
     {
         return ByteBuffer.wrap(source.getBytes());
     }
+
+    public void validate(ByteBuffer bytes) throws MarshalException
+    {
+        // all bytes are legal.
+    }
 }

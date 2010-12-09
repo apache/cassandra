@@ -48,10 +48,7 @@ public abstract class AbstractType implements Comparator<ByteBuffer>
     }
 
     /* validate that the byte array is a valid sequence for the type we are supposed to be comparing */
-    public void validate(ByteBuffer bytes)
-    {
-        getString(bytes);
-    }
+    public abstract void validate(ByteBuffer bytes) throws MarshalException;
 
     public Comparator<ByteBuffer> getReverseComparator()
     {
