@@ -98,4 +98,18 @@ public class TimeUUIDType extends AbstractType
 
         return ByteBuffer.wrap(UUIDGen.decompose(uuid));
     }
+
+    public void validate(ByteBuffer bytes) throws MarshalException
+    {
+        if (bytes.remaining() != 16 && bytes.remaining() != 0)
+            throw new MarshalException(String.format("TimeUUID should be 16 or 0 bytes (%d)", bytes.remaining()));
+        ByteBuffer slice = bytes.slice();
+        // version is bits 4-7 of byte 6.
+        if (bytes.remaining() > 0)
+        {
+            slice.position(6);
+            if ((slice.get() & 0x0f) != 1)
+                throw new MarshalException("Invalid version for TimeUUID type.");
+        }
+    }
 }

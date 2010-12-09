@@ -139,4 +139,9 @@ public final class IntegerType extends AbstractType
 
         return ByteBuffer.wrap(integerType.toByteArray());
     }
+
+    public void validate(ByteBuffer bytes) throws MarshalException
+    {
+        // no invalid integers.
+    }
 }

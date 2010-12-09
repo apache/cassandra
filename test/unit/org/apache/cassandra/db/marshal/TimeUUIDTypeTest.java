@@ -40,6 +40,8 @@ public class TimeUUIDTypeTest
         UUID a = generator.generateTimeBasedUUID();
         UUID b = new UUID(a.asByteArray());
 
+        timeUUIDType.validate(ByteBuffer.wrap(a.asByteArray()));
+        timeUUIDType.validate(ByteBuffer.wrap(b.asByteArray()));
         assertEquals(0, timeUUIDType.compare(ByteBuffer.wrap(a.asByteArray()), ByteBuffer.wrap(b.asByteArray())));
     }
 
@@ -50,6 +52,10 @@ public class TimeUUIDTypeTest
         UUID b = generator.generateTimeBasedUUID();
         UUID c = generator.generateTimeBasedUUID();
 
+        timeUUIDType.validate(ByteBuffer.wrap(a.asByteArray()));
+        timeUUIDType.validate(ByteBuffer.wrap(b.asByteArray()));
+        timeUUIDType.validate(ByteBuffer.wrap(c.asByteArray()));
+        
         assert timeUUIDType.compare(ByteBuffer.wrap(a.asByteArray()), ByteBuffer.wrap(b.asByteArray())) < 0;
         assert timeUUIDType.compare(ByteBuffer.wrap(b.asByteArray()), ByteBuffer.wrap(c.asByteArray())) < 0;
         assert timeUUIDType.compare(ByteBuffer.wrap(a.asByteArray()), ByteBuffer.wrap(c.asByteArray())) < 0;
@@ -61,6 +67,10 @@ public class TimeUUIDTypeTest
         UUID a = generator.generateTimeBasedUUID();
         UUID b = generator.generateTimeBasedUUID();
         UUID c = generator.generateTimeBasedUUID();
+        
+        timeUUIDType.validate(ByteBuffer.wrap(a.asByteArray()));
+        timeUUIDType.validate(ByteBuffer.wrap(b.asByteArray()));
+        timeUUIDType.validate(ByteBuffer.wrap(c.asByteArray()));
 
         assert timeUUIDType.compare(ByteBuffer.wrap(c.asByteArray()), ByteBuffer.wrap(b.asByteArray())) > 0;
         assert timeUUIDType.compare(ByteBuffer.wrap(b.asByteArray()), ByteBuffer.wrap(a.asByteArray())) > 0;

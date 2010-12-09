@@ -63,4 +63,11 @@ public class LexicalUUIDType extends AbstractType
     {
         return ByteBuffer.wrap(UUIDGen.decompose(UUID.fromString(source)));
     }
+
+    public void validate(ByteBuffer bytes) throws MarshalException
+    {
+        if (bytes.remaining() != 16 && bytes.remaining() != 0)
+            throw new MarshalException(String.format("LexicalUUID should be 16 or 0 bytes (%d)", bytes.remaining()));
+        // not sure what the version should be for this.
+    }
 }
