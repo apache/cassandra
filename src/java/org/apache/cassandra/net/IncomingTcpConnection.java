@@ -60,8 +60,7 @@ public class IncomingTcpConnection extends Thread
         {
             try
             {
-                MessagingService.validateMagic(input.readInt());
-                int header = input.readInt();
+                int header = readHeader(input);
                 int type = MessagingService.getBits(header, 1, 2);
                 boolean isStream = MessagingService.getBits(header, 3, 1) == 1;
                 int version = MessagingService.getBits(header, 15, 8);
@@ -76,11 +75,7 @@ public class IncomingTcpConnection extends Thread
                 }
                 else
                 {
-                    int size = input.readInt();
-                    byte[] contentBytes = new byte[size];
-                    input.readFully(contentBytes);
-                    
-                    Message message = Message.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(contentBytes)));
+                    Message message = readMessage(input);
                     MessagingService.receive(message);
                 }
             }
@@ -99,6 +94,21 @@ public class IncomingTcpConnection extends Thread
         }
 
         close();
+    }
+
+    static int readHeader(DataInputStream in) throws IOException
+    {
+        MessagingService.validateMagic(in.readInt());
+        return in.readInt();
+    }
+
+    static Message readMessage(DataInputStream in) throws IOException
+    {
+        int size = in.readInt();
+        byte[] contentBytes = new byte[size];
+        in.readFully(contentBytes);
+
+        return Message.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(contentBytes)));
     }
 
     private void close()
