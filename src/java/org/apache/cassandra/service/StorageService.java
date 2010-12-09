@@ -398,7 +398,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger_.info("This node will not auto bootstrap because it is configured to be a seed node.");
 
         Token token;
-        boolean bootstrapped = false;
         if (DatabaseDescriptor.isAutoBootstrap()
             && !(DatabaseDescriptor.getSeeds().contains(FBUtilities.getLocalAddress()) || SystemTable.isBootstrapped()))
         {
@@ -418,8 +417,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             {
                 bootstrap(token);
                 assert !isBootstrapMode; // bootstrap will block until finished
-                bootstrapped = true;
-                SystemTable.setBootstrapped(true); // first startup is only chance to bootstrap
             }
             // else nothing to do, go directly to participating in ring
         }
@@ -446,8 +443,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             }
         } 
 
-        if(!bootstrapped)
-            setToken(token);
+        SystemTable.setBootstrapped(true); // first startup is only chance to bootstrap
+        setToken(token);
 
         assert tokenMetadata_.sortedTokens().size() > 0;
     }
@@ -580,7 +577,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * STATE_NORMAL,token 
      *   ready to serve reads and writes.
      * STATE_NORMAL,token,REMOVE_TOKEN,token
-     *   specialized normal state in which this node acts as a proxy to tell the cluster about a dead node whose 
+     *   specialized normal state in which this node acts as a proxy to tell the cluster about a dead node whose
      *   token is being removed. this value becomes the permanent state of this node (unless it coordinates another
      *   removetoken in the future).
      * STATE_LEAVING,token 
