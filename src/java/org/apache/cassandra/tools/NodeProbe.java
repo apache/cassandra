@@ -143,24 +143,14 @@ public class NodeProbe
         jmxc.close();
     }
 
-    public void forceTableCleanup() throws IOException, ExecutionException, InterruptedException
+    public void forceTableCleanup(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
-        ssProxy.forceTableCleanup();
+        ssProxy.forceTableCleanup(tableName, columnFamilies);
     }
 
-    public void forceTableCleanup(String tableName) throws IOException, ExecutionException, InterruptedException
+    public void forceTableCompaction(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
-        ssProxy.forceTableCleanup(tableName);
-    }
-
-    public void forceTableCompaction() throws IOException, ExecutionException, InterruptedException
-    {
-        ssProxy.forceTableCompaction();
-    }
-
-    public void forceTableCompaction(String tableName) throws IOException, ExecutionException, InterruptedException
-    {
-        ssProxy.forceTableCompaction(tableName);
+        ssProxy.forceTableCompaction(tableName, columnFamilies);
     }
 
     public void forceTableFlush(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
@@ -489,6 +479,11 @@ public class NodeProbe
 
         return cfsProxy;
     }
+
+    public List<String> getKeyspaces()
+    {
+        return ssProxy.getKeyspaces();
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>
@@ -553,5 +548,5 @@ class ThreadPoolProxyMBeanIterator implements Iterator<Map.Entry<String, IExecut
     public void remove()
     {
         throw new UnsupportedOperationException();
-    }   
+    }
 }
