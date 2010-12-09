@@ -22,14 +22,7 @@ import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
@@ -162,10 +155,28 @@ public class Table
     public void forceCleanup() throws IOException, ExecutionException, InterruptedException
     {
         if (name.equals(SYSTEM_TABLE))
-            throw new RuntimeException("Cleanup of the system table is neither necessary nor wise");
+            throw new UnsupportedOperationException("Cleanup of the system table is neither necessary nor wise");
 
-        for (ColumnFamilyStore cfStore : columnFamilyStores.values())
-            cfStore.forceCleanup();
+        // Sort the column families in order of SSTable size, so cleanup of smaller CFs
+        // can free up space for larger ones
+        List<ColumnFamilyStore> sortedColumnFamilies = new ArrayList<ColumnFamilyStore>(columnFamilyStores.values());
+        Collections.sort(sortedColumnFamilies, new Comparator<ColumnFamilyStore>()
+        {
+            // Compare first on size and, if equal, sort by name (arbitrary & deterministic).
+            public int compare(ColumnFamilyStore cf1, ColumnFamilyStore cf2)
+            {
+                long diff = (cf1.getTotalDiskSpaceUsed() - cf2.getTotalDiskSpaceUsed());
+                if (diff > 0)
+                    return 1;
+                if (diff < 0)
+                    return -1;
+                return cf1.columnFamily.compareTo(cf2.columnFamily);
+            }
+        });
+
+        // Cleanup in sorted order to free up space for the larger ones
+        for (ColumnFamilyStore cfs : sortedColumnFamilies)
+            cfs.forceCleanup();
     }
 
     /**
