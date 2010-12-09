@@ -42,7 +42,6 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyNotDefinedException;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ExpiringColumn;
@@ -60,8 +59,6 @@ import org.apache.cassandra.db.migration.AddKeyspace;
 import org.apache.cassandra.db.migration.DropColumnFamily;
 import org.apache.cassandra.db.migration.DropKeyspace;
 import org.apache.cassandra.db.migration.Migration;
-import org.apache.cassandra.db.migration.RenameColumnFamily;
-import org.apache.cassandra.db.migration.RenameKeyspace;
 import org.apache.cassandra.db.migration.UpdateColumnFamily;
 import org.apache.cassandra.db.migration.UpdateKeyspace;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -75,7 +72,6 @@ import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -767,7 +763,7 @@ public class CassandraServer implements Cassandra.Iface
             }
 
             KSMetaData ksm = new KSMetaData(ks_def.name,
-                                            FBUtilities.<AbstractReplicationStrategy>classForName(ks_def.strategy_class, "keyspace replication strategy"),
+                                            AbstractReplicationStrategy.getClass(ks_def.strategy_class),
                                             ks_def.strategy_options,
                                             ks_def.replication_factor,
                                             cfDefs.toArray(new CFMetaData[cfDefs.size()]));
@@ -826,7 +822,7 @@ public class CassandraServer implements Cassandra.Iface
         {
             KSMetaData ksm = new KSMetaData(
                     ks_def.name, 
-                    FBUtilities.<AbstractReplicationStrategy>classForName(ks_def.strategy_class, "keyspace replication strategy"),
+                    AbstractReplicationStrategy.getClass(ks_def.strategy_class),
                     ks_def.strategy_options,
                     ks_def.replication_factor);
             applyMigrationOnStage(new UpdateKeyspace(ksm));

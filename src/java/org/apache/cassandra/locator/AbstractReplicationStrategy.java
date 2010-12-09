@@ -261,7 +261,13 @@ public abstract class AbstractReplicationStrategy
                                                                         Map<String, String> strategyOptions)
             throws ConfigurationException
     {
-        Class<AbstractReplicationStrategy> c = FBUtilities.<AbstractReplicationStrategy>classForName(strategyClassName, "replication-strategy");
+        Class<AbstractReplicationStrategy> c = getClass(strategyClassName);
         return createReplicationStrategy(table, c, tokenMetadata, snitch, strategyOptions);
+    }
+
+    public static Class<AbstractReplicationStrategy> getClass(String cls) throws ConfigurationException
+    {
+        String className = cls.contains(".") ? cls : "org.apache.cassandra.locator." + cls;
+        return FBUtilities.classForName(className, "replication strategy");
     }
 }

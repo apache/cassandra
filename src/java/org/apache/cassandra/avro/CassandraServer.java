@@ -42,12 +42,10 @@ import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.avro.util.Utf8;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.migration.DropKeyspace;
-import org.apache.cassandra.db.migration.RenameKeyspace;
 import org.apache.cassandra.db.migration.UpdateColumnFamily;
 import org.apache.cassandra.db.migration.UpdateKeyspace;
 import org.apache.cassandra.dht.*;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.utils.FBUtilities;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,7 +64,6 @@ import org.apache.cassandra.db.migration.AddColumnFamily;
 import org.apache.cassandra.db.migration.AddKeyspace;
 import org.apache.cassandra.db.migration.DropColumnFamily;
 import org.apache.cassandra.db.migration.Migration;
-import org.apache.cassandra.db.migration.RenameColumnFamily;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.service.ClientState;
@@ -646,7 +643,7 @@ public class CassandraServer implements Cassandra {
 
             KSMetaData ksmeta = new KSMetaData(
                     ksDef.name.toString(),
-                    FBUtilities.<AbstractReplicationStrategy>classForName(ksDef.strategy_class.toString(), "keyspace replication strategy"),
+                    AbstractReplicationStrategy.getClass(ksDef.strategy_class.toString()),
                     strategyOptions,
                     ksDef.replication_factor,
                     cfDefs.toArray(new CFMetaData[cfDefs.size()]));
@@ -738,7 +735,7 @@ public class CassandraServer implements Cassandra {
             
             KSMetaData ksm = new KSMetaData(
                     ks_def.name.toString(), 
-                    (Class<? extends AbstractReplicationStrategy>) FBUtilities.<AbstractReplicationStrategy>classForName(ks_def.strategy_class.toString(), "keyspace replication strategy"),
+                    AbstractReplicationStrategy.getClass(ks_def.strategy_class.toString()),
                     strategyOptions,
                     ks_def.replication_factor);
             applyMigrationOnStage(new UpdateKeyspace(ksm));
