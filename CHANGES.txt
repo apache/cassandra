@@ -14,6 +14,8 @@
  * fix range queries against wrapped range (CASSANDRA-1781)
  * add support for per-CF compaction (CASSANDRA-1812)
  * reduce fat client timeout (CASSANDRA-1730)
+ * cleanup smallest CFs first to increase free temp space for larger ones
+   (CASSANDRA-1811)
 
 
 0.6.8
