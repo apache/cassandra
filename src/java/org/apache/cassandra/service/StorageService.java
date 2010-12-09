@@ -1175,23 +1175,32 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return Gossiper.instance.getCurrentGenerationNumber(FBUtilities.getLocalAddress());
     }
 
-    public void forceTableCleanup(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    public void forceTableCleanup() throws IOException, ExecutionException, InterruptedException
     {
-        if (tableName.equals("system"))
-            throw new RuntimeException("Cleanup of the system table is neither necessary nor wise");
-                    
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
+        List<String> tables = DatabaseDescriptor.getNonSystemTables();
+        for (String tName : tables)
         {
-            cfStore.forceCleanup();
+            Table table = Table.open(tName);
+            table.forceCleanup();
         }
     }
 
-    public void forceTableCompaction(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    public void forceTableCleanup(String tableName) throws IOException, ExecutionException, InterruptedException
     {
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
-        {
-            cfStore.forceMajorCompaction();
-        }
+        Table table = getValidTable(tableName);
+        table.forceCleanup();
+    }
+
+    public void forceTableCompaction() throws IOException, ExecutionException, InterruptedException
+    {
+        for (Table table : Table.all())
+            table.forceCompaction();
+    }
+
+    public void forceTableCompaction(String tableName) throws IOException, ExecutionException, InterruptedException
+    {
+        Table table = getValidTable(tableName);
+        table.forceCompaction();
     }
 
     /**
@@ -2063,12 +2072,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         List<Token> sortedTokens = new ArrayList<Token>(getTokenToEndpointMap().keySet());
         Collections.sort(sortedTokens);
         return partitioner_.describeOwnership(sortedTokens);
-    }
-
-    public List<String> getKeyspaces()
-    {
-        List<String> tableslist = new ArrayList<String>(DatabaseDescriptor.getTables());
-        return Collections.unmodifiableList(tableslist);
     }
 
 }

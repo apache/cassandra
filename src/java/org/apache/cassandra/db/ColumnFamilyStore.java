@@ -895,7 +895,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return maxFile;
     }
 
-    public void forceCleanup() throws ExecutionException, InterruptedException
+    void forceCleanup() throws ExecutionException, InterruptedException
     {
         CompactionManager.instance.performCleanup(ColumnFamilyStore.this);
     }

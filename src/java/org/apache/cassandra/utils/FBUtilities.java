@@ -342,9 +342,9 @@ public class FBUtilities
     public static String bytesToHex(ByteBuffer bytes)
     {
         StringBuilder sb = new StringBuilder();
-        for (int i = bytes.position(); i < bytes.limit(); i++)
+        for (int i=bytes.position()+bytes.arrayOffset(); i<bytes.limit()+bytes.arrayOffset(); i++)
         {
-            int bint = bytes.get(i) & 0xff;
+            int bint = bytes.array()[i] & 0xff;
             if (bint <= 0xF)
                 // toHexString does not 0 pad its results.
                 sb.append("0");

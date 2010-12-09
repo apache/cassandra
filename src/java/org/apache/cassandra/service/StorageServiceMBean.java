@@ -131,6 +131,26 @@ public interface StorageServiceMBean
     public List<InetAddress> getNaturalEndpoints(String table, byte[] key);
 
     /**
+     * Forces major compaction (all sstable files compacted)
+     */
+    public void forceTableCompaction() throws IOException, ExecutionException, InterruptedException;
+
+    /**
+     * Forces major compaction of a single keyspace
+     */
+    public void forceTableCompaction(String tableName) throws IOException, ExecutionException, InterruptedException;
+
+    /**
+     * Trigger a cleanup of keys on all tables.
+     */
+    public void forceTableCleanup() throws IOException, ExecutionException, InterruptedException;
+
+    /**
+     * Trigger a cleanup of keys on a single keyspace
+     */
+    public void forceTableCleanup(String tableName) throws IOException, ExecutionException, InterruptedException;
+
+    /**
      * Takes the snapshot for a given table.
      * 
      * @param tableName the name of the table.
@@ -149,16 +169,6 @@ public interface StorageServiceMBean
      * Remove all the existing snapshots.
      */
     public void clearSnapshot() throws IOException;
-
-    /**
-     * Forces major compaction of a single keyspace
-     */
-    public void forceTableCompaction(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
-
-    /**
-     * Trigger a cleanup of keys on a single keyspace
-     */
-    public void forceTableCleanup(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
 
     /**
      * Flush all memtables for the given column families, or all columnfamilies for the given table
@@ -260,6 +270,4 @@ public interface StorageServiceMBean
      *   a mapping from "token -> %age of cluster owned by that token"
      */
     public Map<Token, Float> getOwnership();
-
-    public List<String> getKeyspaces();
 }

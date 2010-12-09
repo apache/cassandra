@@ -310,13 +310,6 @@ public class MessagingService implements MessagingServiceMBean
         // get pooled connection (really, connection queue)
         OutboundTcpConnection connection = getConnection(to, message);
 
-        // write it
-        ByteBuffer buffer = serialize(message);
-        connection.write(buffer);
-    }
-
-    static ByteBuffer serialize(Message message)
-    {
         // pack message with header in a bytebuffer
         byte[] data;
         try
@@ -330,9 +323,12 @@ public class MessagingService implements MessagingServiceMBean
             throw new RuntimeException(e);
         }
         assert data.length > 0;
-        return packIt(data , false);
-    }
+        ByteBuffer buffer = packIt(data , false);
 
+        // write it
+        connection.write(buffer);
+    }
+    
     public IAsyncResult sendRR(Message message, InetAddress to)
     {
         IAsyncResult iar = new AsyncResult();
