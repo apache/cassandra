@@ -1,0 +1,85 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * Cassandra internal/internode communication protocol
+ */
+@namespace("org.apache.cassandra")
+
+protocol InterNode {
+    // import the public client API
+    import idl "../../interface/cassandra.genavro";
+
+    @namespace("org.apache.cassandra.utils.avro")
+    fixed UUID(16);
+
+    @namespace("org.apache.cassandra.db.migration.avro")
+    record AddColumnFamily {
+        org.apache.cassandra.avro.CfDef cf;
+    }
+
+    @namespace("org.apache.cassandra.db.migration.avro")
+    record AddKeyspace {
+        org.apache.cassandra.avro.KsDef ks;
+    }
+
+    @namespace("org.apache.cassandra.db.migration.avro")
+    record DropColumnFamily {
+        string ksname;
+        string cfname;
+    }
+
+    @namespace("org.apache.cassandra.db.migration.avro")
+    record DropKeyspace {
+        string ksname;
+    }
+
+    @namespace("org.apache.cassandra.db.migration.avro")
+    record RenameColumnFamily {
+        string ksname;
+        int cfid;
+        string old_cfname;
+        string new_cfname;
+    }
+
+    @namespace("org.apache.cassandra.db.migration.avro")
+    record RenameKeyspace {
+        string old_ksname;
+        string new_ksname;
+    }
+    
+    @namespace("org.apache.cassandra.db.migration.avro")
+    record UpdateKeyspace {
+        org.apache.cassandra.avro.KsDef oldKs;
+        org.apache.cassandra.avro.KsDef newKs;
+    }
+    
+    @namespace("org.apache.cassandra.db.migration.avro")
+    record UpdateColumnFamily {
+        org.apache.cassandra.avro.CfDef metadata;
+    }
+
+    @namespace("org.apache.cassandra.db.migration.avro")
+    record Migration {
+        org.apache.cassandra.utils.avro.UUID old_version;
+        org.apache.cassandra.utils.avro.UUID new_version;
+        bytes row_mutation;
+        string classname;
+        union { AddColumnFamily,DropColumnFamily,RenameColumnFamily,AddKeyspace,DropKeyspace,RenameKeyspace,UpdateKeyspace,UpdateColumnFamily } migration;
+    }
+}
