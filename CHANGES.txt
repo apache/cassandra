@@ -60,8 +60,6 @@ dev
  * reduce fat client timeout (CASSANDRA-1730)
  * cleanup smallest CFs first to increase free temp space for larger ones
    (CASSANDRA-1811)
-
-
  * Update windows .bat files to work outside of main Cassandra
    directory (CASSANDRA-1713)
  * fix read repair regression from 0.6.7 (CASSANDRA-1727)
