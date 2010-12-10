@@ -16,6 +16,8 @@
  * reduce fat client timeout (CASSANDRA-1730)
  * cleanup smallest CFs first to increase free temp space for larger ones
    (CASSANDRA-1811)
+ * correct ordering of drain operations so CL.recover is no longer necessary
+   (CASSANDRA-1408)
 
 
 0.6.8

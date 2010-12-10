@@ -71,27 +71,27 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * For BinaryMemtable that's about all that happens.  For live Memtables there are two other things
      * that switchMemtable does (which should be the only caller of submitFlush in this case).
      * First, it puts the Memtable into memtablesPendingFlush, where it stays until the flush is complete
-     * and it's been added as an SSTableReader to ssTables_.  Second, it adds an entry to commitLogUpdater
+     * and it's been added as an SSTableReader to ssTables_.  Second, it adds an entry to postFlushExecutor
      * that waits for the flush to complete, then calls onMemtableFlush.  This allows multiple flushes
      * to happen simultaneously on multicore systems, while still calling onMF in the correct order,
      * which is necessary for replay in case of a restart since CommitLog assumes that when onMF is
      * called, all data up to the given context has been persisted to SSTables.
      */
-    private static ExecutorService flushSorter_
+    private static final ExecutorService flushSorter
             = new JMXEnabledThreadPoolExecutor(1,
                                                Runtime.getRuntime().availableProcessors(),
                                                Integer.MAX_VALUE,
                                                TimeUnit.SECONDS,
                                                new LinkedBlockingQueue<Runnable>(Runtime.getRuntime().availableProcessors()),
                                                new NamedThreadFactory("FLUSH-SORTER-POOL"));
-    private static ExecutorService flushWriter_
+    private static final ExecutorService flushWriter
             = new JMXEnabledThreadPoolExecutor(1,
                                                DatabaseDescriptor.getAllDataFileLocations().length,
                                                Integer.MAX_VALUE,
                                                TimeUnit.SECONDS,
                                                new LinkedBlockingQueue<Runnable>(DatabaseDescriptor.getAllDataFileLocations().length),
                                                new NamedThreadFactory("FLUSH-WRITER-POOL"));
-    private static ExecutorService commitLogUpdater_ = new JMXEnabledThreadPoolExecutor("MEMTABLE-POST-FLUSHER");
+    public static final ExecutorService postFlushExecutor = new JMXEnabledThreadPoolExecutor("MEMTABLE-POST-FLUSHER");
 
     private static final int KEY_RANGE_FILE_BUFFER_SIZE = 256 * 1024;
 
@@ -480,7 +480,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             memtable_ = new Memtable(this);
             // a second executor that makes sure the onMemtableFlushes get called in the right order,
             // while keeping the wait-for-flush (future.get) out of anything latency-sensitive.
-            return commitLogUpdater_.submit(new WrappedRunnable()
+            return postFlushExecutor.submit(new WrappedRunnable()
             {
                 public void runMayThrow() throws InterruptedException, IOException
                 {
@@ -747,7 +747,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         logger_.info("Enqueuing flush of " + flushable);
         final Condition condition = new SimpleCondition();
-        flushable.flushAndSignal(condition, flushSorter_, flushWriter_);
+        flushable.flushAndSignal(condition, flushSorter, flushWriter);
         return condition;
     }
 
