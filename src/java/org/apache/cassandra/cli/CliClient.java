@@ -1544,6 +1544,13 @@ public class CliClient extends CliUserHelp
     private ByteBuffer subColumnNameAsBytes(String superColumn, CfDef columnFamilyDef) 
     {
         String comparatorClass = columnFamilyDef.subcomparator_type;
+
+        if (comparatorClass == null)
+        {
+            sessionState.out.println(String.format("Notice: defaulting to BytesType subcomparator for '%s'", columnFamilyDef.getName()));
+            comparatorClass = "BytesType";
+        }
+
         return getBytesAccordingToType(superColumn, getFormatTypeForColumn(comparatorClass));   
     }
 
