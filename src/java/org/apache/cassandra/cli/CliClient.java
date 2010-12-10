@@ -319,8 +319,9 @@ public class CliClient extends CliUserHelp
                 for (Column col : superColumn.getColumns())
                 {
                     validator = getValidatorForValue(cfDef, col.getName());
-                    sessionState.out.printf("%n     (column=%s, value=%s, timestamp=%d)", formatSubcolumnName(keyspace, columnFamily, col),
-                                    validator.getString(col.value), col.timestamp);
+                    sessionState.out.printf("%n     (column=%s, value=%s, timestamp=%d%s)", formatSubcolumnName(keyspace, columnFamily, col),
+                                                    validator.getString(col.value), col.timestamp,
+                                                    col.isSetTtl() ? String.format(", ttl=%d", col.getTtl()) : "");
                 }
                 
                 sessionState.out.println(")");
@@ -329,8 +330,9 @@ public class CliClient extends CliUserHelp
             {
                 Column column = cosc.column;
                 validator = getValidatorForValue(cfDef, column.getName());
-                sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d)%n", formatColumnName(keyspace, columnFamily, column),
-                                validator.getString(column.value), column.timestamp);
+                sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d%s)%n", formatColumnName(keyspace, columnFamily, column),
+                                                validator.getString(column.value), column.timestamp,
+                                                column.isSetTtl() ? String.format(", ttl=%d", column.getTtl()) : "");
             }
         }
         
@@ -453,8 +455,9 @@ public class CliClient extends CliUserHelp
         }
 
         // print results
-        sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d)%n",
-                                formatColumnName(keySpace, columnFamily, column), valueAsString, column.timestamp);
+        sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d%s)%n",
+                                formatColumnName(keySpace, columnFamily, column), valueAsString, column.timestamp,
+                                column.isSetTtl() ? String.format(", ttl=%d", column.getTtl()) : "");
     }
 
     /**
@@ -612,10 +615,30 @@ public class CliClient extends CliUserHelp
         if(superColumnName != null)
             parent.setSuper_column(superColumnName);
 
-        // do the insert
-        thriftClient.insert(getKeyAsBytes(columnFamily, keyTree), parent, new Column(columnName, columnValueInBytes,
-                FBUtilities.timestampMicros()), ConsistencyLevel.ONE);
+        Column columnToInsert = new Column(columnName, columnValueInBytes, FBUtilities.timestampMicros());
         
+        // children count = 3 mean that we have ttl in arguments
+        if (statement.getChildCount() == 3)
+        {
+            String ttl = statement.getChild(2).getText();
+
+            try
+            {
+                columnToInsert.setTtl(Integer.valueOf(ttl));
+            }
+            catch (NumberFormatException e)
+            {
+                sessionState.err.println(String.format("TTL '%s' is invalid, should be a positive integer.", ttl));
+                return;
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e.getMessage());
+            }
+        }
+
+        // do the insert
+        thriftClient.insert(getKeyAsBytes(columnFamily, keyTree), parent, columnToInsert, ConsistencyLevel.ONE);
         sessionState.out.println("Value inserted.");
     }
 
@@ -1814,8 +1837,9 @@ public class CliClient extends CliUserHelp
                     Column col = columnOrSuperColumn.column;
                     validator = getValidatorForValue(columnFamilyDef, col.getName());
 
-                    sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d)%n",
-                                    formatColumnName(keySpace, columnFamilyName, col), validator.getString(col.value), col.timestamp);
+                    sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d%s)%n",
+                                    formatColumnName(keySpace, columnFamilyName, col), validator.getString(col.value), col.timestamp,
+                                    col.isSetTtl() ? String.format(", ttl=%d", col.getTtl()) : "");
                 }
                 else if (columnOrSuperColumn.super_column != null)
                 {
@@ -1826,8 +1850,9 @@ public class CliClient extends CliUserHelp
                     {
                         validator = getValidatorForValue(columnFamilyDef, col.getName());
 
-                        sessionState.out.printf("%n     (column=%s, value=%s, timestamp=%d)",
-                                        formatSubcolumnName(keySpace, columnFamilyName, col), validator.getString(col.value), col.timestamp);
+                        sessionState.out.printf("%n     (column=%s, value=%s, timestamp=%d%s)",
+                                        formatSubcolumnName(keySpace, columnFamilyName, col), validator.getString(col.value), col.timestamp,
+                                        col.isSetTtl() ? String.format(", ttl=%d", col.getTtl()) : "");
                     }
 
                     sessionState.out.println(")");

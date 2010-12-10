@@ -4,6 +4,7 @@ dev
  * infer org.apache.cassandra.locator for replication strategy classes
    when not otherwise specified
  * validation that generates less garbage (CASSANDRA-1814)
+ * add TTL support to CLI (CASSANDRA-1838)
 
 
 0.7.0-rc2

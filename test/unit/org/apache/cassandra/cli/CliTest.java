@@ -99,6 +99,8 @@ public class CliTest extends CleanupHelper
         "get CF7[3][lexicaluuid(550e8400-e29b-41d4-a716-446655440000)];",
         "get sCf1['hello'][1][9999];",
         "set sCf1['hello'][1][9999] = 938;",
+        "set sCf1['hello'][1][9999] = 938 with ttl = 30;",
+        "set sCf1['hello'][1][9999] = 938 with ttl = 560;",
         "list sCf1;",
         "del SCF1['hello'][1][9999];",
         "assume sCf1 comparator as utf8;",
