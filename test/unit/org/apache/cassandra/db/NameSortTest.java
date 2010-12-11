@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import static junit.framework.Assert.assertEquals;
 import static org.apache.cassandra.Util.addMutation;
+import static org.apache.cassandra.Util.column;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -28,7 +29,10 @@ import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.utils.ByteBufferUtil;
+
 import org.junit.Test;
 
 public class NameSortTest extends CleanupHelper
@@ -69,7 +73,7 @@ public class NameSortTest extends CleanupHelper
                 ByteBuffer bytes = ByteBuffer.wrap(j % 2 == 0 ? "a".getBytes() : "b".getBytes());
                 rm = new RowMutation("Keyspace1", key);
                 rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap(("Column-" + j).getBytes())), bytes, j);
-                rm.apply();
+                rm.applyUnsafe();
             }
 
             // super
@@ -81,7 +85,7 @@ public class NameSortTest extends CleanupHelper
                     String value = (j + k) % 2 == 0 ? "a" : "b";
                     addMutation(rm, "Super1", "SuperColumn-" + j, k, value, k);
                 }
-                rm.apply();
+                rm.applyUnsafe();
             }
         }
 
@@ -103,10 +107,10 @@ public class NameSortTest extends CleanupHelper
             Collection<IColumn> columns = cf.getSortedColumns();
             for (IColumn column : columns)
             {
-                int j = Integer.valueOf(new String(column.name().array(),column.name().position(),column.name().remaining()).split("-")[1]);
+                String name = ByteBufferUtil.string(column.name());
+                int j = Integer.valueOf(name.substring(name.length() - 1));
                 byte[] bytes = j % 2 == 0 ? "a".getBytes() : "b".getBytes();
-                assertEquals(new String(bytes), new String(column.value().array(), column.value().position(), column
-                        .value().remaining()));
+                assertEquals(new String(bytes), ByteBufferUtil.string(column.value()));
             }
 
             cf = Util.getColumnFamily(table, key, "Super1");
@@ -115,15 +119,14 @@ public class NameSortTest extends CleanupHelper
             assert superColumns.size() == 8 : cf;
             for (IColumn superColumn : superColumns)
             {
-                int j = Integer.valueOf(new String(superColumn.name().array(),superColumn.name().position(),superColumn.name().remaining()).split("-")[1]);
+                int j = Integer.valueOf(ByteBufferUtil.string(superColumn.name()).split("-")[1]);
                 Collection<IColumn> subColumns = superColumn.getSubColumns();
                 assert subColumns.size() == 4;
                 for (IColumn subColumn : subColumns)
                 {
                     long k = subColumn.name().getLong(subColumn.name().position() + subColumn.name().arrayOffset());
                     byte[] bytes = (j + k) % 2 == 0 ? "a".getBytes() : "b".getBytes();
-                    assertEquals(new String(bytes), new String(subColumn.value().array(), subColumn.value().position(),
-                            subColumn.value().remaining()));
+                    assertEquals(new String(bytes), ByteBufferUtil.string(subColumn.value()));
                 }
             }
         }
