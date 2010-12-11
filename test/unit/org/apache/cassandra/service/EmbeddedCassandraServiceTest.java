@@ -65,14 +65,6 @@ public class EmbeddedCassandraServiceTest extends CleanupHelper
     public static void setup() throws TTransportException, IOException, InterruptedException, ConfigurationException
     {
 
-        // Manually load tables from the test configuration file.
-        for (KSMetaData table : DatabaseDescriptor.readTablesFromYaml())
-        {
-            for (CFMetaData cfm : table.cfMetaData().values())
-                CFMetaData.map(cfm);
-            DatabaseDescriptor.setTableDefinition(table, DatabaseDescriptor.getDefsVersion());
-        }
-
         cassandra = new EmbeddedCassandraService();
         cassandra.init();
 
