@@ -183,6 +183,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     logger.debug("index {} already removed; ignoring", FBUtilities.bytesToHex(indexName));
                     continue;
                 }
+                indexCfs.unregisterMBean();
                 SystemTable.setIndexRemoved(metadata.tableName, metadata.cfName);
                 indexCfs.removeAllSSTables();
             }
