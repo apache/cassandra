@@ -53,7 +53,7 @@ if [ "x$JAVA" = "x" ]; then
     exit 1
 fi
 
-OUTPUT_REDUCER=filesystem
+OUTPUT_REDUCER=cassandra
 
 #echo $CLASSPATH
 $JAVA -Xmx1G -ea -cp $CLASSPATH WordCount output_reducer=$OUTPUT_REDUCER
