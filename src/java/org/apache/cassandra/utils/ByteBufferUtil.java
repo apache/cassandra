@@ -101,11 +101,26 @@ public class ByteBufferUtil
     
     public static ByteBuffer clone(ByteBuffer o)
     {
+        assert o != null;
+        
+        if (o.remaining() == 0)
+            return FBUtilities.EMPTY_BYTE_BUFFER;
+          
         ByteBuffer clone = ByteBuffer.allocate(o.remaining());
-        o.mark();
-        clone.put(o);
-        o.reset();
-        clone.flip();
+
+        if (o.isDirect())
+        {
+            for (int i = o.position(); i < o.limit(); i++)
+            {
+                clone.put(o.get(i));
+            }
+            clone.flip();
+        }
+        else
+        {
+            System.arraycopy(o.array(), o.arrayOffset() + o.position(), clone.array(), 0, o.remaining());
+        }
+
         return clone;
     }
 }
