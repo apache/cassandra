@@ -135,7 +135,8 @@
       <echo>Building Grammar ${build.src.java}/org/apache/cassandra/cli/Cli.g  ....</echo>
       <java classname="org.antlr.Tool"
             classpath="${build.lib}/antlr-3.1.3.jar"
-            fork="true">
+            fork="true"
+            failonerror="true">
          <arg value="${build.src.java}/org/apache/cassandra/cli/Cli.g" />
          <arg value="-fo" />
          <arg value="${build.src.gen-java}/org/apache/cassandra/cli/" />
