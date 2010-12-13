@@ -378,6 +378,8 @@ public class QueryProcessor
                     
                     for (IColumn column : row.cf.getSortedColumns())
                     {
+                        if (column.isMarkedForDelete())
+                            continue;
                         Column avroColumn = new Column();
                         avroColumn.name = column.name();
                         avroColumn.value = column.value();
@@ -439,6 +441,40 @@ public class QueryProcessor
                 catch (IOException e)
                 {
                     throw newUnavailableException(e);
+                }
+                
+                avroResult.type = CqlResultType.VOID;
+                return avroResult;
+            
+            case DELETE:
+                DeleteStatement delete = (DeleteStatement)statement.statement;
+                
+                List<RowMutation> rowMutations = new ArrayList<RowMutation>();
+                for (Term key : delete.getKeys())
+                {
+                    RowMutation rm = new RowMutation(keyspace, key.getByteBuffer());
+                    if (delete.getColumns().size() < 1)     // No columns, delete the row
+                        rm.delete(new QueryPath(delete.getColumnFamily()), System.currentTimeMillis());
+                    else    // Delete specific columns
+                    {
+                        for (Term column : delete.getColumns())
+                            rm.delete(new QueryPath(delete.getColumnFamily(), null, column.getByteBuffer()),
+                                      System.currentTimeMillis());
+                    }
+                    rowMutations.add(rm);
+                }
+                
+                try
+                {
+                    StorageProxy.mutate(rowMutations, delete.getConsistencyLevel());
+                }
+                catch (org.apache.cassandra.thrift.UnavailableException e)
+                {
+                    throw newUnavailableException(e);
+                }
+                catch (TimeoutException e)
+                {
+                    throw new TimedOutException();
                 }
                 
                 avroResult.type = CqlResultType.VOID;

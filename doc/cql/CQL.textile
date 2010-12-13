@@ -112,6 +112,45 @@ When batching UPDATEs, a single consistency level is used for the entire batch, 
 
 _NOTE: While there are no isolation guarantees,  @UPDATE@ queries are atomic within a give record._
 
+h2. DELETE
+
+_Synopsis:_
+
+bc. 
+DELETE [COLUMNS] FROM <COLUMN FAMILY> [USING <CONSISTENCY>] WHERE KEY = keyname1
+DELETE [COLUMNS] FROM <COLUMN FAMILY> [USING <CONSISTENCY>] WHERE KEY IN (keyname1, keyname2);
+
+A @DELETE@ is used to perform the removal of one or more columns from one or more rows.
+
+h3. Specifying Columns
+
+bc. 
+DELETE [COLUMNS] ...
+
+Following the @DELETE@ keyword is an optional comma-delimited list of column name terms. When no column names are specified, the remove applies to the entire row(s) matched by the "@WHERE@ clause":#deleterows
+
+h3. Column Family
+
+bc. 
+DELETE ... FROM <COLUMN FAMILY> ...
+
+The column family name follows the list of column names.
+
+h3. Consistency Level
+
+bc. 
+UPDATE ... [USING <CONSISTENCY>] ...
+
+Following the column family identifier is an optional "consistency level specification":#consistency.
+
+h3(#deleterows). Specifying Rows
+
+bc. 
+UPDATE ... WHERE KEY = keyname1
+UPDATE ... WHERE KEY IN (keyname1, keyname2)
+
+The @WHERE@ clause is used to determine which row(s) a @DELETE@ applies to.  The first form allows the specification of a single keyname using the @KEY@ keyword and the @=@ operator.  The second form allows a list of keyname terms to be specified using the @IN@ notation and a parenthesized list of comma-delimited keyname terms.
+     
 h2. TRUNCATE
 
 _Synopsis:_

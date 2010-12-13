@@ -166,3 +166,38 @@ class TestCql(AvroTester):
         conn.execute('TRUNCATE Standard1;')
         r = conn.execute('SELECT "cd1" FROM Standard1 WHERE KEY = "kd"')
         assert len(r) == 0
+
+    def test_delete_columns(self):
+        "delete columns from a row"
+        conn = init()
+        r = conn.execute('SELECT "cd1", "col" FROM Standard1 WHERE KEY = "kd"')
+        assert "cd1" in [i['name'] for i in r[0]['columns']]
+        assert "col" in [i['name'] for i in r[0]['columns']]
+        conn.execute('DELETE "cd1", "col" FROM Standard1 WHERE KEY = "kd"')
+        r = conn.execute('SELECT "cd1", "col" FROM Standard1 WHERE KEY = "kd"')
+        assert len(r[0]['columns']) == 0
+
+    def test_delete_columns_multi_rows(self):
+        "delete columns from multiple rows"
+        conn = init()
+        r = conn.execute('SELECT "col" FROM Standard1 WHERE KEY = "kc"')
+        assert len(r[0]['columns']) == 1
+        r = conn.execute('SELECT "col" FROM Standard1 WHERE KEY = "kd"')
+        assert len(r[0]['columns']) == 1
+
+        conn.execute('DELETE "col" FROM Standard1 WHERE KEY IN ("kc", "kd")')
+        r = conn.execute('SELECT "col" FROM Standard1 WHERE KEY = "kc"')
+        assert len(r[0]['columns']) == 0
+        r = conn.execute('SELECT "col" FROM Standard1 WHERE KEY = "kd"')
+        assert len(r[0]['columns']) == 0
+
+    def test_delete_rows(self):
+        "delete entire rows"
+        conn = init()
+        r = conn.execute('SELECT "cd1", "col" FROM Standard1 WHERE KEY = "kd"')
+        assert "cd1" in [i['name'] for i in r[0]['columns']]
+        assert "col" in [i['name'] for i in r[0]['columns']]
+        conn.execute('DELETE FROM Standard1 WHERE KEY = "kd"')
+        r = conn.execute('SELECT "cd1", "col" FROM Standard1 WHERE KEY = "kd"')
+        assert len(r[0]['columns']) == 0
+

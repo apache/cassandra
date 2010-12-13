@@ -8,6 +8,7 @@ options {
     package org.apache.cassandra.cql;
     import java.util.Map;
     import java.util.HashMap;
+    import java.util.Collections;
     import org.apache.cassandra.thrift.ConsistencyLevel;
     import org.apache.cassandra.avro.InvalidRequestException;
 }
@@ -48,6 +49,7 @@ query returns [CQLStatement stmnt]
     | batchUpdateStatement { $stmnt = new CQLStatement(StatementType.BATCH_UPDATE, $batchUpdateStatement.expr); }
     | useStatement      { $stmnt = new CQLStatement(StatementType.USE, $useStatement.keyspace); }
     | truncateStatement { $stmnt = new CQLStatement(StatementType.TRUNCATE, $truncateStatement.cfam); }
+    | deleteStatement   { $stmnt = new CQLStatement(StatementType.DELETE, $deleteStatement.expr); }
     ;
 
 // USE <KEYSPACE>;
@@ -136,10 +138,42 @@ updateStatement returns [UpdateStatement expr]
       }
     ;
 
+/**
+ * DELETE
+ *     name1, name2
+ * FROM
+ *     <CF>
+ * USING
+ *     CONSISTENCY.<LVL>
+ * WHERE
+ *     KEY = keyname;
+ */
+deleteStatement returns [DeleteStatement expr]
+    : {
+          ConsistencyLevel cLevel = ConsistencyLevel.ONE;
+          List<Term> keyList = null;
+          List<Term> columnsList = Collections.emptyList();
+      }
+      K_DELETE
+          ( cols=termList { columnsList = $cols.items; })?
+          K_FROM columnFamily=IDENT ( K_USING K_CONSISTENCY '.' K_LEVEL )?
+          K_WHERE ( K_KEY '=' key=term           { keyList = Collections.singletonList(key); }
+                  | K_KEY K_IN '(' keys=termList { keyList = $keys.items; } ')'
+                  )?
+      {
+          return new DeleteStatement(columnsList, $columnFamily.text, cLevel, keyList);
+      }
+    ;
+
 // TODO: date/time, utf8
 term returns [Term item]
     : ( t=STRING_LITERAL | t=LONG )
       { $item = new Term($t.text, $t.type); }
+    ;
+
+termList returns [List<Term> items]
+    : { $items = new ArrayList<Term>(); }
+      t1=term { $items.add(t1); } (',' tN=term { $items.add(tN); })*
     ;
 
 // Note: ranges are inclusive so >= and >, and < and <= all have the same semantics.  
@@ -208,6 +242,8 @@ K_BEGIN:       B E G I N;
 K_APPLY:       A P P L Y;
 K_BATCH:       B A T C H;
 K_TRUNCATE:    T R U N C A T E;
+K_DELETE:      D E L E T E;
+K_IN:          I N;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');
