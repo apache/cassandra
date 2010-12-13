@@ -767,25 +767,21 @@ public class CompactionManager implements CompactionManagerMBean
             runnable = r;
         }
         
-        @Override
         public boolean cancel(boolean mayInterruptIfRunning)
         {
             throw new IllegalStateException("May not call SimpleFuture.cancel()");
         }
 
-        @Override
         public boolean isCancelled()
         {
             return false;
         }
 
-        @Override
         public boolean isDone()
         {
             return runnable == null;
         }
 
-        @Override
         public Object get() throws InterruptedException, ExecutionException
         {
             runnable.run();
@@ -793,7 +789,6 @@ public class CompactionManager implements CompactionManagerMBean
             return runnable;
         }
 
-        @Override
         public Object get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException
         {
             throw new IllegalStateException("May not call SimpleFuture.get(long, TimeUnit)");
