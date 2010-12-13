@@ -248,12 +248,15 @@ public class CliUserHelp {
                 state.out.println("set <cf>['<key>']['<col>'] = <function>(<argument>);");
                 state.out.println("set <cf>['<key>']['<super>']['<col>'] = <function>(<argument>);");
                 state.out.println("set <cf>[<key>][<function>(<col>)] = <value> || <function>;");
+                state.out.println("set <cf>[<key>][<function>(<col>) || <col>] = <value> || <function> with ttl = <secs>;");
                 state.out.println("Available functions: " + CliClient.Function.getFunctionNames() + "\n");
                 state.out.println("examples:");
                 state.out.println("set bar['testkey']['my super']['test col']='this is a test';");
                 state.out.println("set baz['testkey']['test col']='this is also a test';");
                 state.out.println("set diz[testkey][testcol] = utf8('this is utf8 string.');");
                 state.out.println("set bar[testkey][timeuuid()] = utf('hello world');");
+                state.out.println("set bar[testkey][timeuuid()] = utf('hello world') with ttl = 30;");
+                state.out.println("set diz[testkey][testcol] = 'this is utf8 string.' with ttl = 150;");
                 break;
 
             case CliParser.NODE_THRIFT_DEL:
@@ -339,8 +342,8 @@ public class CliUserHelp {
             state.out.println("get <cf> where <column> = <value> [and <column> > <value> and ...] [limit int];  ");
             state.out.println("get <cf>['<key>']['<col>'] (as <type>)*;                      Get a column value.");
             state.out.println("get <cf>['<key>']['<super>']['<col>'] (as <type>)*;       Get a sub column value.");
-            state.out.println("set <cf>['<key>']['<col>'] = <value>;                               Set a column.");
-            state.out.println("set <cf>['<key>']['<super>']['<col>'] = <value>;                Set a sub column.");
+            state.out.println("set <cf>['<key>']['<col>'] = <value> (with ttl = <secs>)*;          Set a column.");
+            state.out.println("set <cf>['<key>']['<super>']['<col>'] = <value> (with ttl = <secs>)*;   Set a sub column.");
             state.out.println("del <cf>['<key>'];                                                 Delete record.");
             state.out.println("del <cf>['<key>']['<col>'];                                        Delete column.");
             state.out.println("del <cf>['<key>']['<super>']['<col>'];                         Delete sub column.");

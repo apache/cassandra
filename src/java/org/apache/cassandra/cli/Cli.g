@@ -240,8 +240,8 @@ typeIdentifier
     ;
 
 setStatement
-    : SET columnFamilyExpr '=' value 
-        -> ^(NODE_THRIFT_SET columnFamilyExpr value)
+    : SET columnFamilyExpr '=' objectValue=value (WITH TTL '=' ttlValue=value)?
+        -> ^(NODE_THRIFT_SET columnFamilyExpr $objectValue ( $ttlValue )?)
     ;
 
 countStatement
@@ -525,6 +525,7 @@ LIST:       'LIST';
 LIMIT:      'LIMIT';
 TRUNCATE:   'TRUNCATE';
 ASSUME:     'ASSUME';
+TTL:        'TTL';
 
 IP_ADDRESS 
     : IntegerLiteral '.' IntegerLiteral '.' IntegerLiteral '.' IntegerLiteral

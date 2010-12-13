@@ -5,7 +5,14 @@
 0.7-dev
  * expose getNaturalEndpoints in StorageServiceMBean taking byte[]
    key; RMI cannot serialize ByteBuffer (CASSANDRA-1833)
+ * infer org.apache.cassandra.locator for replication strategy classes
+   when not otherwise specified
  * validation that generates less garbage (CASSANDRA-1814)
+ * add TTL support to CLI (CASSANDRA-1838)
+ * cli defaults to bytestype for subcomparator when creating
+   column families (CASSANDRA-1835)
+ * unregister index MBeans when index is dropped (CASSANDRA-1843)
+ * make ByteBufferUtil.clone thread-safe (CASSANDRA-1847)
 
 
 0.7.0-rc2
@@ -59,8 +66,9 @@
  * Fix misuse of DataOutputBuffer.getData in AntiEntropyService
    (CASSANDRA-1729)
  * detect and warn when obsolete version of JNA is present (CASSANDRA-1770)
-
-
+ * reduce fat client timeout (CASSANDRA-1730)
+ * cleanup smallest CFs first to increase free temp space for larger ones
+   (CASSANDRA-1811)
  * Update windows .bat files to work outside of main Cassandra
    directory (CASSANDRA-1713)
  * fix read repair regression from 0.6.7 (CASSANDRA-1727)

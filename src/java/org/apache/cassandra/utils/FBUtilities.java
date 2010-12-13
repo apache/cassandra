@@ -50,6 +50,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.PropertyFileSnitch;
 import org.apache.thrift.TBase;
 import org.apache.thrift.TDeserializer;

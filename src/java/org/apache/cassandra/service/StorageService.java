@@ -446,9 +446,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             }
         } 
 
-        if(!bootstrapped)
-            setToken(token);
-
+        SystemTable.setBootstrapped(true); // first startup is only chance to bootstrap
+        setToken(token);
         assert tokenMetadata_.sortedTokens().size() > 0;
     }
 
@@ -580,7 +579,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * STATE_NORMAL,token 
      *   ready to serve reads and writes.
      * STATE_NORMAL,token,REMOVE_TOKEN,token
-     *   specialized normal state in which this node acts as a proxy to tell the cluster about a dead node whose 
+     *   specialized normal state in which this node acts as a proxy to tell the cluster about a dead node whose
      *   token is being removed. this value becomes the permanent state of this node (unless it coordinates another
      *   removetoken in the future).
      * STATE_LEAVING,token 
@@ -1175,32 +1174,23 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return Gossiper.instance.getCurrentGenerationNumber(FBUtilities.getLocalAddress());
     }
 
-    public void forceTableCleanup() throws IOException, ExecutionException, InterruptedException
+    public void forceTableCleanup(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
-        List<String> tables = DatabaseDescriptor.getNonSystemTables();
-        for (String tName : tables)
+        if (tableName.equals("system"))
+            throw new RuntimeException("Cleanup of the system table is neither necessary nor wise");
+                    
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
         {
-            Table table = Table.open(tName);
-            table.forceCleanup();
+            cfStore.forceCleanup();
         }
     }
 
-    public void forceTableCleanup(String tableName) throws IOException, ExecutionException, InterruptedException
+    public void forceTableCompaction(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
-        Table table = getValidTable(tableName);
-        table.forceCleanup();
-    }
-
-    public void forceTableCompaction() throws IOException, ExecutionException, InterruptedException
-    {
-        for (Table table : Table.all())
-            table.forceCompaction();
-    }
-
-    public void forceTableCompaction(String tableName) throws IOException, ExecutionException, InterruptedException
-    {
-        Table table = getValidTable(tableName);
-        table.forceCompaction();
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
+        {
+            cfStore.forceMajorCompaction();
+        }
     }
 
     /**
@@ -2067,6 +2057,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         List<Token> sortedTokens = new ArrayList<Token>(getTokenToEndpointMap().keySet());
         Collections.sort(sortedTokens);
         return partitioner_.describeOwnership(sortedTokens);
+    }
+
+    public List<String> getKeyspaces()
+    {
+        List<String> tableslist = new ArrayList<String>(DatabaseDescriptor.getTables());
+        return Collections.unmodifiableList(tableslist);
     }
 
 }

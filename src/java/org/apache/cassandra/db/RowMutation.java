@@ -200,6 +200,11 @@ public class RowMutation
         Table.open(table_).apply(this, true);
     }
 
+    public void applyUnsafe() throws IOException
+    {
+        Table.open(table_).apply(this, false);
+    }
+
     /*
      * This is equivalent to calling commit. Applies the changes to
      * to the table that is obtained by calling Table.open().
