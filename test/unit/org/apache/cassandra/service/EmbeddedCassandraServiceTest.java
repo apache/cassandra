@@ -25,11 +25,13 @@ import com.google.common.base.Charsets;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
@@ -40,17 +42,14 @@ import org.apache.thrift.transport.TTransportException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Example how to use an embedded cassandra service.
  *
  * Tests connect to localhost:9160 when the embedded server is running.
  *
- * @author Ran Tavory (rantav@gmail.com)
- *
  */
-public class EmbeddedCassandraServiceTest
+public class EmbeddedCassandraServiceTest extends CleanupHelper
 {
 
     private static EmbeddedCassandraService cassandra;
