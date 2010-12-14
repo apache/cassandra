@@ -51,10 +51,13 @@ public final class KSMetaData
         this.cfMetaData = Collections.unmodifiableMap(cfmap);
     }
     
+    public int hashCode()
+    {
+        return name.hashCode();
+    }
+
     public boolean equals(Object obj)
     {
-        if (obj == null)
-            return false;
         if (!(obj instanceof KSMetaData))
             return false;
         KSMetaData other = (KSMetaData)obj;
