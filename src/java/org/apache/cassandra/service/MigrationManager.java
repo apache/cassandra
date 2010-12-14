@@ -26,6 +26,7 @@ import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
@@ -106,6 +107,8 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         Message msg = makeVersionMessage(version);
         for (InetAddress host : hosts)
             MessagingService.instance.sendOneWay(msg, host);
+        // this is for notifying nodes as they arrive in the cluster.
+        Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.valueFactory.migration(version));
     }
 
     /**
