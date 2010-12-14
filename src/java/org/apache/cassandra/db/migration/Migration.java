@@ -178,8 +178,6 @@ public abstract class Migration
         
         // immediate notification for esiting nodes.
         MigrationManager.announce(newVersion, Gossiper.instance.getLiveMembers());
-        // this is for notifying nodes as they arrive in the cluster.
-        Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.valueFactory.migration(newVersion));
     }
     
     public static UUID getLastMigrationId()
