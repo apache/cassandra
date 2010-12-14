@@ -51,11 +51,15 @@ mkdir -p %{buildroot}/usr/share/%{username}/lib
 mkdir -p %{buildroot}/usr/share/%{username}/default.conf
 mkdir -p %{buildroot}/etc/%{username}/default.conf
 mkdir -p %{buildroot}/etc/rc.d/init.d/
+mkdir -p %{buildroot}/etc/security/limits.d/
+mkdir -p %{buildroot}/etc/default/
 mkdir -p %{buildroot}/usr/sbin
 mkdir -p %{buildroot}/usr/bin
 cp -p conf/* %{buildroot}/etc/%{username}/default.conf
 cp -p conf/* %{buildroot}/usr/share/%{username}/default.conf
 cp -p redhat/%{username} %{buildroot}/etc/rc.d/init.d/
+cp -p redhat/%{username}.conf %{buildroot}/etc/security/limits.d/
+cp -p redhat/default %{buildroot}/etc/default/%{username}
 cp -p lib/*.jar %{buildroot}/usr/share/%{username}/lib
 mv redhat/cassandra.in.sh %{buildroot}/usr/share/%{username}
 rm bin/cassandra.in.sh
@@ -90,6 +94,8 @@ fi
 %attr(755,root,root) %{_bindir}/*
 %attr(755,root,root) %{_sbindir}/cassandra
 %attr(755,root,root) /etc/rc.d/init.d/%{username}
+%attr(755,root,root) /etc/default/%{username}
+%attr(755,root,root) /etc/security/limits.d/%{username}.conf
 %attr(755,%{username},%{username}) /usr/share/%{username}*
 %attr(755,%{username},%{username}) %config(noreplace) /%{_sysconfdir}/%{username}
 %attr(755,%{username},%{username}) %config(noreplace) /var/lib/%{username}/*
