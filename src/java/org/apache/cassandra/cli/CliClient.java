@@ -1916,7 +1916,7 @@ public class CliClient extends CliUserHelp
         return getBytesAccordingToType(key, keyComparator);
     }
 
-    private class KsDefNamesComparator implements Comparator<KsDef>
+    private static class KsDefNamesComparator implements Comparator<KsDef>
     {
         public int compare(KsDef a, KsDef b)
         {
@@ -1924,7 +1924,7 @@ public class CliClient extends CliUserHelp
         }
     }
 
-    private class CfDefNamesComparator implements Comparator<CfDef>
+    private static class CfDefNamesComparator implements Comparator<CfDef>
     {
         public int compare(CfDef a, CfDef b)
         {

@@ -532,7 +532,7 @@ public class MessagingService implements MessagingServiceMBean
             GCInspector.instance.logStats();
     }
 
-    private class SocketThread extends Thread
+    private static class SocketThread extends Thread
     {
         private final ServerSocket server;
         

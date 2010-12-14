@@ -50,7 +50,7 @@ public class RetryingScheduledThreadPoolExecutor extends ScheduledThreadPoolExec
         return new LoggingScheduledFuture<V>(task);
     }
 
-    private class LoggingScheduledFuture<V> implements RunnableScheduledFuture<V>
+    private static class LoggingScheduledFuture<V> implements RunnableScheduledFuture<V>
     {
         private final RunnableScheduledFuture<V> task;
 

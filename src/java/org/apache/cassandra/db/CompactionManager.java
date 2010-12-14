@@ -758,7 +758,7 @@ public class CompactionManager implements CompactionManagerMBean
         return executor.getCompletedTaskCount();
     }
     
-    private class SimpleFuture implements Future
+    private static class SimpleFuture implements Future
     {
         private Runnable runnable;
         
