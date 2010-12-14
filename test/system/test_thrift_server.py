@@ -1128,7 +1128,7 @@ class TestMutations(ThriftTester):
         exc = _expect_exception(add_invalid_keyspace, InvalidRequestException)
         s = str(exc)
         assert s.find("InvalidStrategyClass") > -1, s
-        assert s.find("keyspace replication strategy") > -1, s
+        assert s.find("Unable to find replication strategy") > -1, s
 
         def update_invalid_keyspace():
             client.system_add_keyspace(KsDef('ValidKsForUpdate', 'org.apache.cassandra.locator.SimpleStrategy', {}, 1, []))
@@ -1137,7 +1137,7 @@ class TestMutations(ThriftTester):
         exc = _expect_exception(update_invalid_keyspace, InvalidRequestException)
         s = str(exc)
         assert s.find("InvalidStrategyClass") > -1, s
-        assert s.find("keyspace replication strategy") > -1, s
+        assert s.find("Unable to find replication strategy") > -1, s
 
     def test_invalid_cf_names(self):
         def invalid_cf():
