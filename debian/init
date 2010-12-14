@@ -77,10 +77,13 @@ fi
 #
 classpath()
 {
-    cp=
+    cp="$EXTRA_CLASSPATH"
     for j in /usr/share/$NAME/*.jar; do
         [ "x$cp" = "x" ] && cp=$j || cp=$cp:$j
     done
+
+    # use JNA if installed in standard location
+    [ -r /usr/share/java/jna.jar ] && cp="$cp:/usr/share/java/jna.jar"
 
     # Include the conf directory for purposes of log4j-server.properties, and
     # commons-daemon in support of the daemonization class.
