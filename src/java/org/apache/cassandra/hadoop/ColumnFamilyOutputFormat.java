@@ -174,7 +174,7 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
     /**
      * An {@link OutputCommitter} that does nothing.
      */
-    public class NullOutputCommitter extends OutputCommitter
+    public static class NullOutputCommitter extends OutputCommitter
     {
         public void abortTask(TaskAttemptContext taskContext) { }
 

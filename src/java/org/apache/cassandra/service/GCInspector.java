@@ -191,7 +191,7 @@ public class GCInspector
     
     
     // wrapper for sun class. this enables other jdks to compile this class.
-    private final class SunGcWrapper
+    private static final class SunGcWrapper
     {
         
         private Map<String, MemoryUsage> usageBeforeGc = null;
