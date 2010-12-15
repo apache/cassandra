@@ -18,6 +18,7 @@
    (CASSANDRA-1811)
  * correct ordering of drain operations so CL.recover is no longer necessary
    (CASSANDRA-1408)
+ * ReadResponseResolver check digests against each other (CASSANDRA-1830)
 
 
 0.6.8

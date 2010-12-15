@@ -18,10 +18,15 @@
 
 package org.apache.cassandra.service;
 
+import org.apache.cassandra.utils.FBUtilities;
+
 public class DigestMismatchException extends Exception
 {
-	public DigestMismatchException(String message)
-	{
-		super(message);
-	}
+    public DigestMismatchException(String key, byte[] digest1, byte[] digest2)
+    {
+        super(String.format("Mismatch for key %s (%s vs %s)",
+                            key,
+                            FBUtilities.bytesToHex(digest1),
+                            FBUtilities.bytesToHex(digest2)));
+    }
 }
