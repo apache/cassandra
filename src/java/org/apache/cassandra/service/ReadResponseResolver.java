@@ -67,8 +67,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 		List<ColumnFamily> versions = new ArrayList<ColumnFamily>();
 		List<InetAddress> endpoints = new ArrayList<InetAddress>();
 		DecoratedKey key = null;
-		ByteBuffer digest = FBUtilities.EMPTY_BYTE_BUFFER;
-		boolean isDigestQuery = false;
+		ByteBuffer digest = null;
         
         /*
 		 * Populate the list of rows from each of the messages
@@ -82,8 +81,16 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             Message message = entry.getKey();
             if (result.isDigestQuery())
             {
-                digest = result.digest();
-                isDigestQuery = true;
+                if (digest == null)
+                {
+                    digest = result.digest();
+                }
+                else
+                {
+                    ByteBuffer digest2 = result.digest();
+                    if (!digest.equals(digest2))
+                        throw new DigestMismatchException(key, digest, digest2);
+                }
             }
             else
             {
@@ -95,17 +102,14 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 
 		// If there was a digest query compare it with all the data digests
 		// If there is a mismatch then throw an exception so that read repair can happen.
-        if (isDigestQuery)
+        if (digest != null)
         {
             
             for (ColumnFamily cf : versions)
             {
-                if (!ColumnFamily.digest(cf).equals(digest))
-                {
-                    /* Wrap the key as the context in this exception */
-                    String s = String.format("Mismatch for key %s (%s vs %s)", key, FBUtilities.bytesToHex(ColumnFamily.digest(cf)), FBUtilities.bytesToHex(digest));
-                    throw new DigestMismatchException(s);
-                }
+                ByteBuffer digest2 = ColumnFamily.digest(cf);
+                if (!digest.equals(digest2))
+                    throw new DigestMismatchException(key, digest, digest2);
             }
             if (logger_.isDebugEnabled())
                 logger_.debug("digests verified");
