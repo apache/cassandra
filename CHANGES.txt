@@ -13,6 +13,8 @@
    column families (CASSANDRA-1835)
  * unregister index MBeans when index is dropped (CASSANDRA-1843)
  * make ByteBufferUtil.clone thread-safe (CASSANDRA-1847)
+ * deleted columns resurrected after a flush on slice read path 
+   (CASSANDRA-1837)
 
 
 0.7.0-rc2
