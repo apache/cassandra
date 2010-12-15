@@ -216,7 +216,7 @@ public class StorageProxy implements StorageProxyMBean
             throws IOException, UnavailableException, TimeoutException, InvalidRequestException
     {
         if (StorageService.instance.isBootstrapMode())
-            throw new InvalidRequestException("This node cannot accept reads until it has bootstrapped");
+            throw new UnavailableException();
         long startTime = System.nanoTime();
 
         List<Row> rows;
