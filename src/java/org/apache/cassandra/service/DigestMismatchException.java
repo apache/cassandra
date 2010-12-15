@@ -18,10 +18,18 @@
 
 package org.apache.cassandra.service;
 
+import java.nio.ByteBuffer;
+
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.utils.FBUtilities;
+
 public class DigestMismatchException extends Exception
 {
-	public DigestMismatchException(String message)
-	{
-		super(message);
-	}
+    public DigestMismatchException(DecoratedKey key, ByteBuffer digest1, ByteBuffer digest2)
+    {
+        super(String.format("Mismatch for key %s (%s vs %s)",
+                            key.toString(),
+                            FBUtilities.bytesToHex(digest1),
+                            FBUtilities.bytesToHex(digest2)));
+    }
 }
