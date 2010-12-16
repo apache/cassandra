@@ -66,7 +66,7 @@ dev
    expressions (CASSANDRA-1745)
  * Fix misuse of DataOutputBuffer.getData in AntiEntropyService
    (CASSANDRA-1729)
- * detect and warn when obsolete version of JNA is present (CASSANDRA-1770)
+ * detect and warn when obsolete version of JNA is present (CASSANDRA-1760)
  * reduce fat client timeout (CASSANDRA-1730)
  * cleanup smallest CFs first to increase free temp space for larger ones
    (CASSANDRA-1811)
