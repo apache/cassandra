@@ -7,7 +7,7 @@
  * limit repaired ranges to what the nodes have in common (CASSANDRA-1674)
  * Fix misuse of DataOutputBuffer.getData in AntiEntropyService
    (CASSANDRA-1729)
- * detect and warn when obsolete version of JNA is present (CASSANDRA-1770)
+ * detect and warn when obsolete version of JNA is present (CASSANDRA-1760)
  * fix live-column-count of slice ranges including tombstoned supercolumn 
    with live subcolumn (CASSANDRA-1591)
  * clean up log messages for gossip token notifications (CASSANDRA-1518)
