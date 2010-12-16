@@ -190,7 +190,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         for (ColumnDefinition cdef : metadata.getColumn_metadata().values())
-            if (!indexedColumns.containsKey(cdef.name) && cdef.getIndexType() != null)
+            if (cdef.getIndexType() != null && !indexedColumns.containsKey(cdef.name))
                 addIndex(cdef);
     }
 
@@ -1796,7 +1796,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public SortedSet<ByteBuffer> getIndexedColumns()
     {
-        return (SortedSet<ByteBuffer>) indexedColumns.keySet();
+        return indexedColumns.keySet();
     }
 
     public ColumnFamilyStore getIndexedColumnFamilyStore(ByteBuffer column)

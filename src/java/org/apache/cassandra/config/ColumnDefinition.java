@@ -34,7 +34,8 @@ import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class ColumnDefinition {
+public class ColumnDefinition
+{
     public final ByteBuffer name;
     public final AbstractType validator;
     private IndexType index_type;
