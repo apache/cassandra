@@ -194,9 +194,7 @@ public class FileUtils
         {
             String[] children = dir.list();
             for (String child : children)
-            {
                 deleteRecursive(new File(dir, child));
-            }
         }
 
         // The directory is now empty so now it can be smoked

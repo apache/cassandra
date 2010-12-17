@@ -340,6 +340,7 @@ dev
  * streaming refactor (CASSANDRA-1189)
  * faster comparison for UUID types (CASSANDRA-1043)
  * secondary index support (CASSANDRA-749 and subtasks)
+ * make compaction buckets deterministic (CASSANDRA-1265)
 
 
 0.6.6

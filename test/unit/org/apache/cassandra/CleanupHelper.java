@@ -46,16 +46,12 @@ public class CleanupHelper extends SchemaLoader
     public static void cleanup() throws IOException
     {
         // clean up commitlog
-        String[] directoryNames = {
-                DatabaseDescriptor.getCommitLogLocation(),
-        };
+        String[] directoryNames = { DatabaseDescriptor.getCommitLogLocation(), };
         for (String dirName : directoryNames)
         {
             File dir = new File(dirName);
             if (!dir.exists())
-            {
                 throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
-            }
             FileUtils.deleteRecursive(dir);
         }
 
@@ -64,9 +60,7 @@ public class CleanupHelper extends SchemaLoader
         {
             File dir = new File(dirName);
             if (!dir.exists())
-            {
                 throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
-            }
             FileUtils.deleteRecursive(dir);
         }
     }
