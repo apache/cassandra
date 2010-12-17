@@ -11,7 +11,7 @@ dev
  * make ByteBufferUtil.clone thread-safe (CASSANDRA-1847)
  * change exception for read requests during bootstrap from 
    InvalidRequest to Unavailable (CASSANDRA-1862)
- * deleted columns resurrected after a flush on slice read path 
+ * respect row-level tombstones post-flush in range scans
    (CASSANDRA-1837)
  * ReadResponseResolver check digests against each other (CASSANDRA-1830)
  * return InvalidRequest when remove of subcolumn without supercolumn
