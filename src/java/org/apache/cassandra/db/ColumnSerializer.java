@@ -90,14 +90,11 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
         }
         else
         {
-            boolean delete = (b & DELETION_MASK) != 0;
             long ts = dis.readLong();
             ByteBuffer value = FBUtilities.readByteArray(dis);
-            if ((b & DELETION_MASK) != 0) {
-                return new DeletedColumn(name, value, ts);
-            } else {
-                return new Column(name, value, ts);
-            }
+            return (b & DELETION_MASK) == 0
+                   ? new Column(name, value, ts)
+                   : new DeletedColumn(name, value, ts);
         }
     }
 
