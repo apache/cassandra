@@ -21,6 +21,7 @@
  * ReadResponseResolver check digests against each other (CASSANDRA-1830)
  * change exception for read requests during bootstrap from 
    InvalidRequest to Unavailable (CASSANDRA-1862)
+ * make compaction buckets deterministic (CASSANDRA-1265)
 
 
 0.6.8

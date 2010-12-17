@@ -42,6 +42,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import org.apache.log4j.Logger;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -88,7 +89,9 @@ public class CompactionManager implements CompactionManagerMBean
                     return 0;
                 }
                 logger.debug("Checking to see if compaction of " + cfs.columnFamily_ + " would be useful");
-                Set<List<SSTableReader>> buckets = getBuckets(cfs.getSSTables(), 50L * 1024L * 1024L);
+
+                Set<List<SSTableReader>> buckets = getBuckets(
+                        convertSSTablesToPairs(cfs.getSSTables()), 50L * 1024L * 1024L);
                 updateEstimateFor(cfs, buckets);
                 
                 for (List<SSTableReader> sstables : buckets)
@@ -467,29 +470,43 @@ public class CompactionManager implements CompactionManagerMBean
     /*
     * Group files of similar size into buckets.
     */
-    static Set<List<SSTableReader>> getBuckets(Iterable<SSTableReader> files, long min)
+    static <T> Set<List<T>> getBuckets(Iterable<Pair<T, Long>> files, long min)
     {
-        Map<List<SSTableReader>, Long> buckets = new HashMap<List<SSTableReader>, Long>();
-        for (SSTableReader sstable : files)
+        // Sort the list in order to get deterministic results during the grouping below
+        List<Pair<T, Long>> sortedFiles = new ArrayList<Pair<T, Long>>();
+        for (Pair<T, Long> pair: files)
+            sortedFiles.add(pair);
+
+        Collections.sort(sortedFiles, new Comparator<Pair<T, Long>>()
         {
-            long size = sstable.length();
+            public int compare(Pair<T, Long> p1, Pair<T, Long> p2)
+            {
+                return p1.right.compareTo(p2.right);
+            }
+        });
+
+        Map<List<T>, Long> buckets = new HashMap<List<T>, Long>();
+
+        for (Pair<T, Long> pair: sortedFiles)
+        {
+            long size = pair.right;
 
             boolean bFound = false;
             // look for a bucket containing similar-sized files:
             // group in the same bucket if it's w/in 50% of the average for this bucket,
             // or this file and the bucket are all considered "small" (less than `min`)
-            for (Entry<List<SSTableReader>, Long> entry : buckets.entrySet())
+            for (Entry<List<T>, Long> entry : buckets.entrySet())
             {
-                List<SSTableReader> bucket = entry.getKey();
+                List<T> bucket = entry.getKey();
                 long averageSize = entry.getValue();
-                if ((size > averageSize / 2 && size < 3 * averageSize / 2)
+                if ((size > (averageSize / 2) && size < (3 * averageSize) / 2)
                     || (size < min && averageSize < min))
                 {
                     // remove and re-add because adding changes the hash
                     buckets.remove(bucket);
                     long totalSize = bucket.size() * averageSize;
                     averageSize = (totalSize + size) / (bucket.size() + 1);
-                    bucket.add(sstable);
+                    bucket.add(pair.left);
                     buckets.put(bucket, averageSize);
                     bFound = true;
                     break;
@@ -498,13 +515,21 @@ public class CompactionManager implements CompactionManagerMBean
             // no similar bucket found; put it in a new one
             if (!bFound)
             {
-                ArrayList<SSTableReader> bucket = new ArrayList<SSTableReader>();
-                bucket.add(sstable);
+                ArrayList<T> bucket = new ArrayList<T>();
+                bucket.add(pair.left);
                 buckets.put(bucket, size);
             }
         }
 
         return buckets.keySet();
+    }
+
+    private static Collection<Pair<SSTableReader, Long>> convertSSTablesToPairs(Collection<SSTableReader> collection)
+    {
+        Collection<Pair<SSTableReader, Long>> tablePairs = new HashSet<Pair<SSTableReader, Long>>();
+        for(SSTableReader table: collection)
+            tablePairs.add(new Pair<SSTableReader, Long>(table, table.length()));
+        return tablePairs;
     }
 
     public static int getDefaultGCBefore()
@@ -565,7 +590,9 @@ public class CompactionManager implements CompactionManagerMBean
                 public void run ()
                 {
                     logger.debug("Estimating compactions for " + cfs.columnFamily_);
-                    final Set<List<SSTableReader>> buckets = getBuckets(cfs.getSSTables(), 50L * 1024L * 1024L);
+
+                    final Set<List<SSTableReader>> buckets =
+                            getBuckets(convertSSTablesToPairs(cfs.getSSTables()), 50L * 1024L * 1024L);
                     updateEstimateFor(cfs, buckets);
                 }
             };
