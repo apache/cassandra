@@ -72,7 +72,7 @@ public class LongType extends AbstractType
 
         try
         {
-            longType = Long.valueOf(source);
+            longType = Long.parseLong(source);
         }
         catch (Exception e)
         {

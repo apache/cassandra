@@ -232,7 +232,7 @@ public class ConfigHelper
 
     public static int getRpcPort(Configuration conf)
     {
-        return Integer.valueOf(conf.get(THRIFT_PORT));
+        return Integer.parseInt(conf.get(THRIFT_PORT));
     }
 
     public static void setRpcPort(Configuration conf, String port)

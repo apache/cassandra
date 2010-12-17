@@ -76,11 +76,11 @@ public class FBUtilities
     {
         if (value.endsWith("%"))
         {
-            return Double.valueOf(value.substring(0, value.length() - 1)) / 100;
+            return Double.parseDouble(value.substring(0, value.length() - 1)) / 100;
         }
         else
         {
-            return Double.valueOf(value);
+            return Double.parseDouble(value);
         }
     }
 

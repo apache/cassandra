@@ -369,7 +369,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger_.warn("Unable to start GCInspector (currently only supported on the Sun JVM)");
         }
 
-        if (Boolean.valueOf(System.getProperty("cassandra.load_ring_state", "true")))
+        if (Boolean.parseBoolean(System.getProperty("cassandra.load_ring_state", "true")))
         {
             logger_.info("Loading persisted ring state");
             for (Map.Entry<Token, InetAddress> entry : SystemTable.loadTokens().entrySet())
