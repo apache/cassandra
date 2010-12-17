@@ -96,11 +96,12 @@ public class SSTableExport
             outs.print(column.timestamp());
             outs.print(", ");
             outs.print(column.isMarkedForDelete());
-            if (column instanceof ExpiringColumn) {
-              outs.print(", ");
-              outs.print(((ExpiringColumn)column).getTimeToLive());
-              outs.print(", ");
-              outs.print(column.getLocalDeletionTime());
+            if (column instanceof ExpiringColumn)
+            {
+                outs.print(", ");
+                outs.print(((ExpiringColumn) column).getTimeToLive());
+                outs.print(", ");
+                outs.print(column.getLocalDeletionTime());
             }
             outs.print("]");
             if (iter.hasNext())
@@ -303,13 +304,14 @@ public class SSTableExport
         try
         {
             cmd = parser.parse(options, args);
-        } catch (ParseException e1)
+        }
+        catch (ParseException e1)
         {
             System.err.println(e1.getMessage());
             System.err.println(usage);
             System.exit(1);
         }
-        
+
 
         if (cmd.getArgs().length != 1)
         {
@@ -332,13 +334,17 @@ public class SSTableExport
         }
 
         if (cmd.hasOption(ENUMERATEKEYS_OPTION))
+        {
             enumeratekeys(ssTableFileName, System.out);
-        else {
+        }
+        else
+        {
             if ((keys != null) && (keys.length > 0))
                 export(ssTableFileName, System.out, keys, excludes);
             else
                 export(ssTableFileName, excludes);
         }
+
         System.exit(0);
     }
 }
