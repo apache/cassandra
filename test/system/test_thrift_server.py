@@ -779,6 +779,11 @@ class TestMutations(ThriftTester):
                                                                    Column(_i64(7), 'value7', 0)])]
         assert super_columns == super_columns_expected, super_columns
 
+        # shouldn't be able to specify a column w/o a super column for remove
+        cp = ColumnPath(column_family='Super1', column='sc2')
+        e = _expect_exception(lambda: client.remove('key1', cp, 5, ConsistencyLevel.ONE), InvalidRequestException)
+        assert e.why.find("column cannot be specified without") >= 0
+
     def test_super_cf_remove_supercolumn(self):
         _set_keyspace('Keyspace1')
         
