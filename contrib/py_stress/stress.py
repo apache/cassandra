@@ -18,6 +18,8 @@
 # expects a Cassandra server to be running and listening on port 9160.
 # (read tests expect insert tests to have run first too.)
 
+from __future__ import with_statement
+
 have_multiproc = False
 try:
     from multiprocessing import Array as array, Process as Thread
@@ -73,6 +75,8 @@ parser.add_option('-C', '--cardinality', type="int", dest="cardinality",
                   help="Number of unique values stored in columns", default=50)
 parser.add_option('-d', '--nodes', type="string", dest="nodes",
                   help="Host nodes (comma separated)", default="localhost")
+parser.add_option('-D', '--nodefile', type="string", dest="nodefile",
+                  help="File containing list of nodes (one per line)", default=None)
 parser.add_option('-s', '--stdev', type="float", dest="stdev", default=0.1,
                   help="standard deviation factor")
 parser.add_option('-r', '--random', action="store_true", dest="random",
@@ -118,6 +122,9 @@ supers_per_key = options.supers
 # this allows client to round robin requests directly for
 # simple request load-balancing
 nodes = options.nodes.split(',')
+if options.nodefile != None:
+    with open(options.nodefile) as f:
+        nodes = [n.strip() for n in f.readlines() if len(n.strip()) > 0]
 
 # a generator that generates all keys according to a bell curve centered
 # around the middle of the keys generated (0..total_keys).  Remember that
