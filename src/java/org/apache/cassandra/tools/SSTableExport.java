@@ -100,7 +100,7 @@ public class SSTableExport
               json.append(", ");
               json.append(((ExpiringColumn)column).getTimeToLive());
               json.append(", ");
-              json.append(((ExpiringColumn)column).getLocalDeletionTime());
+              json.append(column.getLocalDeletionTime());
             }
             json.append("]");
             if (iter.hasNext())
@@ -170,20 +170,6 @@ public class SSTableExport
     }
 
     /**
-     * Enumerate row keys from an SSTable and write the result to a file.
-     * 
-     * @param ssTableFile the SSTable to export the rows from
-     * @param outFile file to write the output to
-     * @throws IOException on failure to read/write input/output
-     */
-    public static void enumeratekeys(String ssTableFile, String outFile)
-    throws IOException
-    {
-        PrintStream outs = new PrintStream(outFile);
-        enumeratekeys(ssTableFile, outs);
-    }
-    
-    /**
      * Export specific rows from an SSTable and write the resulting JSON to a PrintStream.
      * 
      * @param ssTableFile the SSTable to export the rows from
@@ -197,7 +183,7 @@ public class SSTableExport
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(ssTableFile));
         SSTableScanner scanner = reader.getScanner(INPUT_FILE_BUFFER_SIZE);
         IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();    
-        Set<String> excludeSet = new HashSet();
+        Set<String> excludeSet = new HashSet<String>();
         int i = 0;
 
         if (excludes != null)
@@ -240,27 +226,13 @@ public class SSTableExport
         outs.println("\n}");
         outs.flush();
     }
-    
-    /**
-     * Export specific rows from an SSTable and write the resulting JSON to a file.
-     * 
-     * @param ssTableFile the SSTable to export the rows from
-     * @param outFile file to write output to
-     * @param keys the keys corresponding to the rows to export
-     * @throws IOException on failure to read/write input/output
-     */
-    public static void export(String ssTableFile, String outFile, String[] keys, String[] excludes) throws IOException
-    {
-        PrintStream outs = new PrintStream(outFile);
-        export(ssTableFile, outs, keys, excludes);
-    }
-    
+
     // This is necessary to accommodate the test suite since you cannot open a Reader more
     // than once from within the same process.
     static void export(SSTableReader reader, PrintStream outs, String[] excludes) throws IOException
     {
         SSTableScanner scanner = reader.getScanner(INPUT_FILE_BUFFER_SIZE);
-        Set<String> excludeSet = new HashSet();
+        Set<String> excludeSet = new HashSet<String>();
 
         if (excludes != null)
             excludeSet = new HashSet<String>(Arrays.asList(excludes));
@@ -309,20 +281,7 @@ public class SSTableExport
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(ssTableFile));
         export(reader, outs, excludes);
     }
-    
-    /**
-     * Export an SSTable and write the resulting JSON to a file.
-     * 
-     * @param ssTableFile SSTable to export
-     * @param outFile file to write output to
-     * @throws IOException on failure to read/write SSTable/output file
-     */
-    public static void export(String ssTableFile, String outFile, String[] excludes) throws IOException
-    {
-        PrintStream outs = new PrintStream(outFile);
-        export(ssTableFile, outs, excludes);
-    }
-    
+
     /**
      * Export an SSTable and write the resulting JSON to standard out.
      * 
