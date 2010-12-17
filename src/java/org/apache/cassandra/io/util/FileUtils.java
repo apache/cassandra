@@ -159,11 +159,8 @@ public class FileUtils
     {
         if (dir.isDirectory())
         {
-            String[] children = dir.list();
-            for (int i = 0; i < children.length; i++)
-            {
-                deleteDir(new File(dir, children[i]));
-            }
+            for (String aChildren : dir.list())
+                deleteDir(new File(dir, aChildren));
         }
 
         // The directory is now empty so now it can be smoked

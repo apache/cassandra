@@ -43,9 +43,7 @@ public class CleanupHelper
     public static void cleanup() throws IOException
     {
         // clean up commitlog
-        String[] directoryNames = {
-                DatabaseDescriptor.getLogFileLocation(),
-        };
+        String[] directoryNames = { DatabaseDescriptor.getLogFileLocation(), };
         for (String dirName : directoryNames)
         {
             File dir = new File(dirName);
@@ -53,11 +51,7 @@ public class CleanupHelper
             {
                 throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
             }
-            for (File f : dir.listFiles())
-            {
-                FileUtils.deleteWithConfirm(f);
-            }
-            FileUtils.deleteWithConfirm(dir);
+            FileUtils.deleteDir(dir);
         }
 
         // clean up data directory which are stored as data directory/table/data files
@@ -68,19 +62,7 @@ public class CleanupHelper
             {
                 throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
             }
-            for (File tableFile : dir.listFiles())
-            {
-                // table directory
-                if (tableFile.isDirectory())
-                {
-                    for (File dataFile : tableFile.listFiles())
-                    {
-                        FileUtils.deleteWithConfirm(dataFile);
-                    }
-                }
-                FileUtils.deleteWithConfirm(tableFile);
-            }
-            FileUtils.deleteWithConfirm(dir);
+            FileUtils.deleteDir(dir);
         }
     }
 
