@@ -22,6 +22,7 @@
  * change exception for read requests during bootstrap from 
    InvalidRequest to Unavailable (CASSANDRA-1862)
  * make compaction buckets deterministic (CASSANDRA-1265)
+ * large row support for SSTableExport (CASSANDRA-1867)
 
 
 0.6.8
