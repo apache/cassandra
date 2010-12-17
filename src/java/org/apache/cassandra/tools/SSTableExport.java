@@ -80,72 +80,68 @@ public class SSTableExport
         return String.format("%s: ", quote(val));
     }
     
-    private static String serializeColumns(Collection<IColumn> cols, AbstractType comp)
+    private static void serializeColumns(PrintStream outs, Collection<IColumn> cols, AbstractType comp)
     {
-        StringBuilder json = new StringBuilder("[");
-        
+        outs.print("[");
+
         Iterator<IColumn> iter = cols.iterator();
         while (iter.hasNext())
         {
-            json.append("[");
+            outs.print("[");
             IColumn column = iter.next();
-            json.append(quote(bytesToHex(column.name())));
-            json.append(", ");
-            json.append(quote(bytesToHex(column.value())));
-            json.append(", ");
-            json.append(column.timestamp());
-            json.append(", ");
-            json.append(column.isMarkedForDelete());
+            outs.print(quote(bytesToHex(column.name())));
+            outs.print(", ");
+            outs.print(quote(bytesToHex(column.value())));
+            outs.print(", ");
+            outs.print(column.timestamp());
+            outs.print(", ");
+            outs.print(column.isMarkedForDelete());
             if (column instanceof ExpiringColumn) {
-              json.append(", ");
-              json.append(((ExpiringColumn)column).getTimeToLive());
-              json.append(", ");
-              json.append(column.getLocalDeletionTime());
+              outs.print(", ");
+              outs.print(((ExpiringColumn)column).getTimeToLive());
+              outs.print(", ");
+              outs.print(column.getLocalDeletionTime());
             }
-            json.append("]");
+            outs.print("]");
             if (iter.hasNext())
-                json.append(", ");
+                outs.print(", ");
         }
         
-        json.append("]");
-        
-        return json.toString();
+        outs.print("]");
     }
     
-    private static String serializeRow(SSTableIdentityIterator row) throws IOException
+    private static void serializeRow(PrintStream outs, SSTableIdentityIterator row) throws IOException
     {
         ColumnFamily cf = row.getColumnFamilyWithColumns();
         AbstractType comparator = cf.getComparator();
-        StringBuilder json = new StringBuilder(asKey(bytesToHex(row.getKey().key)));
-        
+        outs.print(asKey(bytesToHex(row.getKey().key)));
+
         if (cf.isSuper())
         {
-            json.append("{ ");
+            outs.print("{ ");
 
             Iterator<IColumn> iter = cf.getSortedColumns().iterator();
             while (iter.hasNext())
             {
                 IColumn column = iter.next();
-                json.append(asKey(bytesToHex(column.name())));
-                json.append("{");
-                json.append(asKey("deletedAt"));
-                json.append(column.getMarkedForDeleteAt());
-                json.append(", ");
-                json.append(asKey("subColumns"));
-                json.append(serializeColumns(column.getSubColumns(), comparator));
-                json.append("}");
+                outs.print(asKey(bytesToHex(column.name())));
+                outs.print("{");
+                outs.print(asKey("deletedAt"));
+                outs.print(column.getMarkedForDeleteAt());
+                outs.print(", ");
+                outs.print(asKey("subColumns"));
+                serializeColumns(outs, column.getSubColumns(), comparator);
+                outs.print("}");
                 if (iter.hasNext())
-                    json.append(", ");
+                    outs.print(", ");
             }
             
-            json.append("}");
+            outs.print("}");
         }
         else
         {
-            json.append(serializeColumns(cf.getSortedColumns(), comparator));
+            serializeColumns(outs, cf.getSortedColumns(), comparator);
         }
-     
-        return json.toString();
     }
 
     /**
@@ -205,10 +201,9 @@ public class SSTableExport
                 SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
                 try
                 {
-                    String jsonOut = serializeRow(row);
+                    serializeRow(outs, row);
                     if (i != 1)
                         outs.println(",");
-                    outs.print("  " + jsonOut);
                 }
                 catch (IOException ioexc)
                 {
@@ -246,8 +241,8 @@ public class SSTableExport
                 continue;
             try
             {
-                String jsonOut = serializeRow(row);
-                outs.print("  " + jsonOut);
+                serializeRow(outs, row);
+                outs.print("  ");
                 if (scanner.hasNext())
                     outs.println(",");
                 else
