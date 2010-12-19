@@ -10,4 +10,4 @@ Optional configuration files
 
 access.properties: used for authorization
 passwd.properties: used for authentication
-cassandra-rack.properties: used by PropertyFileSnitch
+cassandra-topology.properties: used by PropertyFileSnitch

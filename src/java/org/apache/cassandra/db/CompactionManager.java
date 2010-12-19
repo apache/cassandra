@@ -453,6 +453,20 @@ public class CompactionManager implements CompactionManagerMBean
      */
     private void doValidationCompaction(ColumnFamilyStore cfs, AntiEntropyService.Validator validator) throws IOException
     {
+        // flush first so everyone is validating data that is as similar as possible
+        try
+        {
+            StorageService.instance.forceTableFlush(cfs.table.name, cfs.getColumnFamilyName());
+        }
+        catch (ExecutionException e)
+        {
+            throw new IOException(e);
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
+
         CompactionIterator ci = new ValidationCompactionIterator(cfs);
         executor.beginCompaction(cfs, ci);
         try

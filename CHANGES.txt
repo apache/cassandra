@@ -15,9 +15,12 @@
  * make ByteBufferUtil.clone thread-safe (CASSANDRA-1847)
  * change exception for read requests during bootstrap from 
    InvalidRequest to Unavailable (CASSANDRA-1862)
- * deleted columns resurrected after a flush on slice read path 
+ * respect row-level tombstones post-flush in range scans
    (CASSANDRA-1837)
  * ReadResponseResolver check digests against each other (CASSANDRA-1830)
+ * return InvalidRequest when remove of subcolumn without supercolumn
+   is requested (CASSANDRA-1866)
+ * flush before repair (CASSANDRA-1748)
 
 
 0.7.0-rc2
@@ -70,7 +73,7 @@
    expressions (CASSANDRA-1745)
  * Fix misuse of DataOutputBuffer.getData in AntiEntropyService
    (CASSANDRA-1729)
- * detect and warn when obsolete version of JNA is present (CASSANDRA-1770)
+ * detect and warn when obsolete version of JNA is present (CASSANDRA-1760)
  * reduce fat client timeout (CASSANDRA-1730)
  * cleanup smallest CFs first to increase free temp space for larger ones
    (CASSANDRA-1811)
@@ -345,6 +348,7 @@
  * streaming refactor (CASSANDRA-1189)
  * faster comparison for UUID types (CASSANDRA-1043)
  * secondary index support (CASSANDRA-749 and subtasks)
+ * make compaction buckets deterministic (CASSANDRA-1265)
 
 
 0.6.6

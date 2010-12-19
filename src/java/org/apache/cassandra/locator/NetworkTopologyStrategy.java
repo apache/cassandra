@@ -65,7 +65,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         if (configOptions != null)
         {
             for (Entry entry : configOptions.entrySet())
-                newDatacenters.put((String) entry.getKey(), Integer.parseInt((String) entry.getValue()));
+                newDatacenters.put((String) entry.getKey(), Integer.valueOf((String) entry.getValue()));
         }
 
         datacenters = Collections.unmodifiableMap(newDatacenters);

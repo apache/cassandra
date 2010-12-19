@@ -561,7 +561,7 @@ public class NodeCmd {
 
             case SETCACHECAPACITY :
                 if (arguments.length != 5) { badUse("setcachecapacity requires ks, cf, keycachecap, and rowcachecap args."); }
-                probe.setCacheCapacities(arguments[1], arguments[2], Integer.valueOf(arguments[3]), Integer.valueOf(arguments[4]));
+                probe.setCacheCapacities(arguments[1], arguments[2], Integer.parseInt(arguments[3]), Integer.parseInt(arguments[4]));
                 break;
 
             case SETCOMPACTIONTHRESHOLD :

@@ -80,72 +80,69 @@ public class SSTableExport
         return String.format("%s: ", quote(val));
     }
     
-    private static String serializeColumns(Collection<IColumn> cols, AbstractType comp)
+    private static void serializeColumns(PrintStream outs, Collection<IColumn> cols, AbstractType comp)
     {
-        StringBuilder json = new StringBuilder("[");
-        
+        outs.print("[");
+
         Iterator<IColumn> iter = cols.iterator();
         while (iter.hasNext())
         {
-            json.append("[");
+            outs.print("[");
             IColumn column = iter.next();
-            json.append(quote(bytesToHex(column.name())));
-            json.append(", ");
-            json.append(quote(bytesToHex(column.value())));
-            json.append(", ");
-            json.append(column.timestamp());
-            json.append(", ");
-            json.append(column.isMarkedForDelete());
-            if (column instanceof ExpiringColumn) {
-              json.append(", ");
-              json.append(((ExpiringColumn)column).getTimeToLive());
-              json.append(", ");
-              json.append(((ExpiringColumn)column).getLocalDeletionTime());
+            outs.print(quote(bytesToHex(column.name())));
+            outs.print(", ");
+            outs.print(quote(bytesToHex(column.value())));
+            outs.print(", ");
+            outs.print(column.timestamp());
+            outs.print(", ");
+            outs.print(column.isMarkedForDelete());
+            if (column instanceof ExpiringColumn)
+            {
+                outs.print(", ");
+                outs.print(((ExpiringColumn) column).getTimeToLive());
+                outs.print(", ");
+                outs.print(column.getLocalDeletionTime());
             }
-            json.append("]");
+            outs.print("]");
             if (iter.hasNext())
-                json.append(", ");
+                outs.print(", ");
         }
         
-        json.append("]");
-        
-        return json.toString();
+        outs.print("]");
     }
     
-    private static String serializeRow(SSTableIdentityIterator row) throws IOException
+    private static void serializeRow(PrintStream outs, SSTableIdentityIterator row) throws IOException
     {
         ColumnFamily cf = row.getColumnFamilyWithColumns();
         AbstractType comparator = cf.getComparator();
-        StringBuilder json = new StringBuilder(asKey(bytesToHex(row.getKey().key)));
-        
+        outs.print(asKey(bytesToHex(row.getKey().key)));
+
         if (cf.isSuper())
         {
-            json.append("{ ");
+            outs.print("{ ");
 
             Iterator<IColumn> iter = cf.getSortedColumns().iterator();
             while (iter.hasNext())
             {
                 IColumn column = iter.next();
-                json.append(asKey(bytesToHex(column.name())));
-                json.append("{");
-                json.append(asKey("deletedAt"));
-                json.append(column.getMarkedForDeleteAt());
-                json.append(", ");
-                json.append(asKey("subColumns"));
-                json.append(serializeColumns(column.getSubColumns(), comparator));
-                json.append("}");
+                outs.print(asKey(bytesToHex(column.name())));
+                outs.print("{");
+                outs.print(asKey("deletedAt"));
+                outs.print(column.getMarkedForDeleteAt());
+                outs.print(", ");
+                outs.print(asKey("subColumns"));
+                serializeColumns(outs, column.getSubColumns(), comparator);
+                outs.print("}");
                 if (iter.hasNext())
-                    json.append(", ");
+                    outs.print(", ");
             }
             
-            json.append("}");
+            outs.print("}");
         }
         else
         {
-            json.append(serializeColumns(cf.getSortedColumns(), comparator));
+            serializeColumns(outs, cf.getSortedColumns(), comparator);
         }
-     
-        return json.toString();
     }
 
     /**
@@ -170,20 +167,6 @@ public class SSTableExport
     }
 
     /**
-     * Enumerate row keys from an SSTable and write the result to a file.
-     * 
-     * @param ssTableFile the SSTable to export the rows from
-     * @param outFile file to write the output to
-     * @throws IOException on failure to read/write input/output
-     */
-    public static void enumeratekeys(String ssTableFile, String outFile)
-    throws IOException
-    {
-        PrintStream outs = new PrintStream(outFile);
-        enumeratekeys(ssTableFile, outs);
-    }
-    
-    /**
      * Export specific rows from an SSTable and write the resulting JSON to a PrintStream.
      * 
      * @param ssTableFile the SSTable to export the rows from
@@ -197,7 +180,7 @@ public class SSTableExport
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(ssTableFile));
         SSTableScanner scanner = reader.getScanner(INPUT_FILE_BUFFER_SIZE);
         IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();    
-        Set<String> excludeSet = new HashSet();
+        Set<String> excludeSet = new HashSet<String>();
         int i = 0;
 
         if (excludes != null)
@@ -219,10 +202,9 @@ public class SSTableExport
                 SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
                 try
                 {
-                    String jsonOut = serializeRow(row);
+                    serializeRow(outs, row);
                     if (i != 1)
                         outs.println(",");
-                    outs.print("  " + jsonOut);
                 }
                 catch (IOException ioexc)
                 {
@@ -240,27 +222,13 @@ public class SSTableExport
         outs.println("\n}");
         outs.flush();
     }
-    
-    /**
-     * Export specific rows from an SSTable and write the resulting JSON to a file.
-     * 
-     * @param ssTableFile the SSTable to export the rows from
-     * @param outFile file to write output to
-     * @param keys the keys corresponding to the rows to export
-     * @throws IOException on failure to read/write input/output
-     */
-    public static void export(String ssTableFile, String outFile, String[] keys, String[] excludes) throws IOException
-    {
-        PrintStream outs = new PrintStream(outFile);
-        export(ssTableFile, outs, keys, excludes);
-    }
-    
+
     // This is necessary to accommodate the test suite since you cannot open a Reader more
     // than once from within the same process.
     static void export(SSTableReader reader, PrintStream outs, String[] excludes) throws IOException
     {
         SSTableScanner scanner = reader.getScanner(INPUT_FILE_BUFFER_SIZE);
-        Set<String> excludeSet = new HashSet();
+        Set<String> excludeSet = new HashSet<String>();
 
         if (excludes != null)
             excludeSet = new HashSet<String>(Arrays.asList(excludes));
@@ -274,8 +242,8 @@ public class SSTableExport
                 continue;
             try
             {
-                String jsonOut = serializeRow(row);
-                outs.print("  " + jsonOut);
+                serializeRow(outs, row);
+                outs.print("  ");
                 if (scanner.hasNext())
                     outs.println(",");
                 else
@@ -309,20 +277,7 @@ public class SSTableExport
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(ssTableFile));
         export(reader, outs, excludes);
     }
-    
-    /**
-     * Export an SSTable and write the resulting JSON to a file.
-     * 
-     * @param ssTableFile SSTable to export
-     * @param outFile file to write output to
-     * @throws IOException on failure to read/write SSTable/output file
-     */
-    public static void export(String ssTableFile, String outFile, String[] excludes) throws IOException
-    {
-        PrintStream outs = new PrintStream(outFile);
-        export(ssTableFile, outs, excludes);
-    }
-    
+
     /**
      * Export an SSTable and write the resulting JSON to standard out.
      * 
@@ -349,13 +304,14 @@ public class SSTableExport
         try
         {
             cmd = parser.parse(options, args);
-        } catch (ParseException e1)
+        }
+        catch (ParseException e1)
         {
             System.err.println(e1.getMessage());
             System.err.println(usage);
             System.exit(1);
         }
-        
+
 
         if (cmd.getArgs().length != 1)
         {
@@ -378,13 +334,17 @@ public class SSTableExport
         }
 
         if (cmd.hasOption(ENUMERATEKEYS_OPTION))
+        {
             enumeratekeys(ssTableFileName, System.out);
-        else {
+        }
+        else
+        {
             if ((keys != null) && (keys.length > 0))
                 export(ssTableFileName, System.out, keys, excludes);
             else
                 export(ssTableFileName, excludes);
         }
+
         System.exit(0);
     }
 }

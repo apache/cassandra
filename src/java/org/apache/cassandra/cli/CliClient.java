@@ -528,7 +528,7 @@ public class CliClient extends CliUserHelp
         if (statement.getChildCount() == 3)
         {
             Tree limitNode = statement.getChild(2);
-            int limitValue = Integer.valueOf(limitNode.getChild(0).getText());
+            int limitValue = Integer.parseInt(limitNode.getChild(0).getText());
 
             if (limitValue == 0)
             {
@@ -624,7 +624,7 @@ public class CliClient extends CliUserHelp
 
             try
             {
-                columnToInsert.setTtl(Integer.valueOf(ttl));
+                columnToInsert.setTtl(Integer.parseInt(ttl));
             }
             catch (NumberFormatException e)
             {

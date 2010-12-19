@@ -32,7 +32,7 @@ import org.slf4j.LoggerFactory;
 public class RangeSliceVerbHandler implements IVerbHandler
 {
 
-    private static final Logger logger = LoggerFactory.getLogger(IndexScanVerbHandler.class);
+    private static final Logger logger = LoggerFactory.getLogger(RangeSliceVerbHandler.class);
 
     public void doVerb(Message message)
     {

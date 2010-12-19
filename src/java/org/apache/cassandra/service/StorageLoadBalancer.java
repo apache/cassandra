@@ -184,7 +184,7 @@ public class StorageLoadBalancer implements IEndpointStateChangeSubscriber
     {
         if (state != ApplicationState.LOAD)
             return;
-        loadInfo_.put(endpoint, Double.parseDouble(value.value));
+        loadInfo_.put(endpoint, Double.valueOf(value.value));
 
         /*
         // clone load information to perform calculations

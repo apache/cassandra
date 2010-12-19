@@ -28,7 +28,7 @@ import org.slf4j.LoggerFactory;
 
 public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
 {
-    protected static Logger logger = LoggerFactory.getLogger(JMXEnabledThreadPoolExecutor.class);
+    protected static Logger logger = LoggerFactory.getLogger(DebuggableThreadPoolExecutor.class);
 
     public DebuggableThreadPoolExecutor(String threadPoolName, int priority)
     {

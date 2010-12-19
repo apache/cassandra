@@ -141,6 +141,13 @@ public class ThriftValidation
                 throw new InvalidRequestException("supercolumn may not be specified for standard CF " + column_path_or_parent.column_family);
             }
         }
+        if (cfType == ColumnFamilyType.Super)
+        {
+            if (column_path_or_parent.super_column == null && column_path_or_parent.column != null)
+            {
+                throw new InvalidRequestException("A column cannot be specified without specifying a super column for removal on super CF " + column_path_or_parent.column_family);
+            }
+        }
         if (column_path_or_parent.column != null)
         {
             validateColumns(tablename, column_path_or_parent.column_family, column_path_or_parent.super_column, Arrays.asList(column_path_or_parent.column));
