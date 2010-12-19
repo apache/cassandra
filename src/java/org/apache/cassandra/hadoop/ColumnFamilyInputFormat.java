@@ -73,7 +73,7 @@ import org.slf4j.LoggerFactory;
  */
 public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<ByteBuffer, IColumn>>
 {
-    private static final Logger logger = LoggerFactory.getLogger(StorageService.class);
+    private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyInputFormat.class);
     
     private String keyspace;
     private String cfName;
