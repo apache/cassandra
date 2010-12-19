@@ -23,6 +23,8 @@
    InvalidRequest to Unavailable (CASSANDRA-1862)
  * make compaction buckets deterministic (CASSANDRA-1265)
  * large row support for SSTableExport (CASSANDRA-1867)
+ * return InvalidRequest when remove of subcolumn without supercolumn
+   is requested (CASSANDRA-1866)
 
 
 0.6.8
