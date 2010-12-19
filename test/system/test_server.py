@@ -163,8 +163,8 @@ def _verify_super(supercf='Super1', key='key1'):
 def _expect_exception(fn, type_):
     try:
         r = fn()
-    except type_:
-        pass
+    except type_, e:
+        return e
     else:
         raise Exception('expected %s; got %s' % (type_.__name__, r))
     
@@ -711,6 +711,11 @@ class TestMutations(CassandraTester):
                                                                    Column(_i64(6), 'value6', 0), 
                                                                    Column(_i64(7), 'value7', 0)])]
         assert super_columns == super_columns_expected, super_columns
+
+        # shouldn't be able to specify a column w/o a super column for remove
+        cp = ColumnPath(column_family='Super1', column=_i64(6))
+        e = _expect_exception(lambda: client.remove('Keyspace1', 'key1', cp, 5, ConsistencyLevel.ONE), InvalidRequestException)
+        assert e.why.find("column cannot be specified without") >= 0
 
     def test_super_cf_remove_supercolumn(self):
         _insert_simple()
