@@ -413,6 +413,23 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return positions;
     }
 
+    public void cacheKey(DecoratedKey key, Long info)
+    {
+        keyCache.put(new Pair<Descriptor, DecoratedKey>(descriptor, key), info);
+    }
+
+    public Long getCachedPosition(DecoratedKey key)
+    {
+        return getCachedPosition(new Pair<Descriptor, DecoratedKey>(descriptor, key));
+    }
+
+    private Long getCachedPosition(Pair<Descriptor, DecoratedKey> unifiedKey)
+    {
+        if (keyCache != null && keyCache.getCapacity() > 0)
+            return keyCache.get(unifiedKey);
+        return null;
+    }
+
     /**
      * @param decoratedKey The key to apply as the rhs to the given Operator.
      * @param op The Operator defining matching keys: the nearest key to the target matching the operator wins.
@@ -426,14 +443,9 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
         // next, the key cache
         Pair<Descriptor, DecoratedKey> unifiedKey = new Pair<Descriptor, DecoratedKey>(descriptor, decoratedKey);
-        if (keyCache != null && keyCache.getCapacity() > 0)
-        {
-            Long cachedPosition = keyCache.get(unifiedKey);
-            if (cachedPosition != null)
-            {
-                return cachedPosition;
-            }
-        }
+        Long cachedPosition = getCachedPosition(unifiedKey);
+        if (cachedPosition != null)
+            return cachedPosition;
 
         // next, see if the sampled index says it's impossible for the key to be present
         IndexSummary.KeyPosition sampledPosition = getIndexScanPosition(decoratedKey);

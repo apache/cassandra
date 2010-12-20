@@ -157,9 +157,16 @@ public class SSTableExport
     {
         Descriptor desc = Descriptor.fromFilename(ssTableFile);
         KeyIterator iter = new KeyIterator(desc);
+        DecoratedKey lastKey = null;
         while (iter.hasNext())
         {
             DecoratedKey key = iter.next();
+
+            // validate order of the keys in the sstable
+            if (lastKey != null && lastKey.compareTo(key) > 0 )
+                throw new IOException("Key out of order! " + lastKey + " > " + key);
+            lastKey = key;
+
             outs.println(bytesToHex(key.key));
         }
         iter.close();
@@ -187,12 +194,21 @@ public class SSTableExport
             excludeSet = new HashSet<String>(Arrays.asList(excludes));
         
         outs.println("{");
+
+        // last key to compare order 
+        DecoratedKey lastKey = null;
         
         for (String key : keys)
         {
             if (excludeSet.contains(key))
                 continue;
             DecoratedKey<?> dk = partitioner.decorateKey(ByteBuffer.wrap(hexToBytes(key)));
+
+            // validate order of the keys in the sstable
+            if (lastKey != null && lastKey.compareTo(dk) > 0 )
+                throw new IOException("Key out of order! " + lastKey + " > " + dk);
+            lastKey = dk;
+
             scanner.seekTo(dk);
             
             i++;

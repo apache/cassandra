@@ -122,7 +122,7 @@ public class SSTableWriter extends SSTable
         dbuilder.addPotentialBoundary(dataPosition);
     }
 
-    public void append(AbstractCompactedRow row) throws IOException
+    public long append(AbstractCompactedRow row) throws IOException
     {
         long currentPosition = beforeAppend(row.key);
         FBUtilities.writeShortByteArray(row.key.key, dataFile);
@@ -130,6 +130,7 @@ public class SSTableWriter extends SSTable
         estimatedRowSize.add(dataFile.getFilePointer() - currentPosition);
         estimatedColumnCount.add(row.columnCount());
         afterAppend(row.key, currentPosition);
+        return currentPosition;
     }
 
     public void append(DecoratedKey decoratedKey, ColumnFamily cf) throws IOException

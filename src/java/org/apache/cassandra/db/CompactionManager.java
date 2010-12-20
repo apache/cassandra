@@ -305,6 +305,8 @@ public class CompactionManager implements CompactionManagerMBean
         Iterator<AbstractCompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
         executor.beginCompaction(cfs, ci);
 
+        Map<DecoratedKey, Long> cachedKeys = new HashMap<DecoratedKey, Long>();
+
         try
         {
             if (!nni.hasNext())
@@ -321,8 +323,17 @@ public class CompactionManager implements CompactionManagerMBean
             while (nni.hasNext())
             {
                 AbstractCompactedRow row = nni.next();
-                writer.append(row);
+                long position = writer.append(row);
                 totalkeysWritten++;
+
+                for (SSTableReader sstable : sstables)
+                {
+                    if (sstable.getCachedPosition(row.key) != null)
+                    {
+                        cachedKeys.put(row.key, position);
+                        break;
+                    }
+                }
             }
         }
         finally
@@ -332,6 +343,8 @@ public class CompactionManager implements CompactionManagerMBean
 
         SSTableReader ssTable = writer.closeAndOpenReader(getMaxDataAge(sstables));
         cfs.replaceCompactedSSTables(sstables, Arrays.asList(ssTable));
+        for (Entry<DecoratedKey, Long> entry : cachedKeys.entrySet())
+            ssTable.cacheKey(entry.getKey(), entry.getValue());
         submitMinorIfNeeded(cfs);
 
         long dTime = System.currentTimeMillis() - startTime;
