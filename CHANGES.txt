@@ -17,6 +17,7 @@ dev
  * return InvalidRequest when remove of subcolumn without supercolumn
    is requested (CASSANDRA-1866)
  * flush before repair (CASSANDRA-1748)
+ * SSTableExport validates key order (CASSANDRA-1884)
 
 
 0.7.0-rc2
