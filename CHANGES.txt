@@ -18,6 +18,7 @@ dev
    is requested (CASSANDRA-1866)
  * flush before repair (CASSANDRA-1748)
  * SSTableExport validates key order (CASSANDRA-1884)
+ * Re-cache hot keys post-compaction without hitting disk (CASSANDRA-1878)
 
 
 0.7.0-rc2
