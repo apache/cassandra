@@ -323,6 +323,23 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         }
     }
 
+    public void cacheKey(DecoratedKey key, PositionSize info)
+    {
+        keyCache.put(new Pair<String, DecoratedKey>(path, key), info);
+    }
+
+    public PositionSize getCachedPosition(DecoratedKey key)
+    {
+        return getCachedPosition(new Pair<String, DecoratedKey>(path, key));
+    }
+
+    private PositionSize getCachedPosition(Pair<String, DecoratedKey> unifiedKey)
+    {
+        if (keyCache != null && keyCache.getCapacity() > 0)
+            return keyCache.get(unifiedKey);
+        return null;
+    }
+
     /**
      * returns the position in the data file to find the given key, or -1 if the key is not present
      */
@@ -334,14 +351,9 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
         // next, the key cache
         Pair<String, DecoratedKey> unifiedKey = new Pair<String, DecoratedKey>(path, decoratedKey);
-        if (keyCache != null && keyCache.getCapacity() > 0)
-        {
-            PositionSize cachedPosition = keyCache.get(unifiedKey);
-            if (cachedPosition != null)
-            {
-                return cachedPosition;
-            }
-        }
+        PositionSize cachedPosition = getCachedPosition(unifiedKey);
+        if (cachedPosition != null)
+            return cachedPosition;
 
         // next, see if the sampled index says it's impossible for the key to be present
         IndexSummary.KeyPosition sampledPosition = getIndexScanPosition(decoratedKey);

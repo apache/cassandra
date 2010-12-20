@@ -281,6 +281,8 @@ public class CompactionManager implements CompactionManagerMBean
         Iterator<CompactionIterator.CompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
         executor.beginCompaction(cfs, ci);
 
+        Map<DecoratedKey, SSTable.PositionSize> cachedKeys = new HashMap<DecoratedKey, SSTable.PositionSize>();
+
         try
         {
             if (!nni.hasNext())
@@ -306,6 +308,15 @@ public class CompactionManager implements CompactionManagerMBean
                 if (rowsize > DatabaseDescriptor.getRowWarningThreshold())
                     logger.warn("Large row " + row.key.key + " in " + cfs.getColumnFamilyName() + " " + rowsize + " bytes");
                 cfs.addToCompactedRowStats(rowsize);
+
+                for (SSTableReader sstable : sstables)
+                {
+                    if (sstable.getCachedPosition(row.key) != null)
+                    {
+                        cachedKeys.put(row.key, new SSTable.PositionSize(prevpos, rowsize));
+                        break;
+                    }
+                }
             }
         }
         finally
@@ -315,6 +326,8 @@ public class CompactionManager implements CompactionManagerMBean
 
         SSTableReader ssTable = writer.closeAndOpenReader();
         cfs.replaceCompactedSSTables(sstables, Arrays.asList(ssTable));
+        for (Entry<DecoratedKey, SSTable.PositionSize> entry : cachedKeys.entrySet())
+            ssTable.cacheKey(entry.getKey(), entry.getValue());
         submitMinorIfNeeded(cfs);
 
         String format = "Compacted to %s.  %d/%d bytes for %d keys.  Time: %dms";
