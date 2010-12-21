@@ -24,11 +24,8 @@ import java.io.IOError;
 import java.io.IOException;
 import java.util.*;
 
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ReadResponse;
-import org.apache.cassandra.db.Row;
-import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.RowMutationMessage;
+import org.apache.cassandra.db.*;
+
 import java.net.InetAddress;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -48,14 +45,16 @@ public class ReadResponseResolver implements IResponseResolver<Row>
     private final String table;
     private final int responseCount;
     private final Map<Message, ReadResponse> results = new NonBlockingHashMap<Message, ReadResponse>();
+    private String key;
 
-    public ReadResponseResolver(String table, int responseCount)
+    public ReadResponseResolver(String table, String key, int responseCount)
     {
         assert 1 <= responseCount && responseCount <= DatabaseDescriptor.getReplicationFactor(table)
             : "invalid response count " + responseCount;
 
         this.responseCount = responseCount;
         this.table = table;
+        this.key = key;
     }
 
     /*
@@ -73,7 +72,6 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         long startTime = System.currentTimeMillis();
 		List<ColumnFamily> versions = new ArrayList<ColumnFamily>(responses.size());
 		List<InetAddress> endPoints = new ArrayList<InetAddress>(responses.size());
-		String key = null;
 		byte[] digest = null;
 
         /*
@@ -104,7 +102,6 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             {
                 versions.add(result.row().cf);
                 endPoints.add(message.getFrom());
-                key = result.row().key;
             }
         }
 

@@ -470,7 +470,8 @@ public class StorageProxy implements StorageProxyMBean
                 if (logger.isDebugEnabled())
                     logger.debug("strongread reading " + (m == message ? "data" : "digest") + " for " + command + " from " + m.getMessageId() + "@" + endpoint);
             }
-            QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(responseCount, new ReadResponseResolver(command.table, responseCount));
+            ReadResponseResolver resolver = new ReadResponseResolver(command.table, command.key, responseCount);
+            QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(responseCount, resolver);
             MessagingService.instance.sendRR(messages, endPoints, quorumResponseHandler);
             quorumResponseHandlers.add(quorumResponseHandler);
             commandEndPoints.add(endPoints);
@@ -500,7 +501,8 @@ public class StorageProxy implements StorageProxyMBean
                     if (logger.isDebugEnabled())
                         logger.debug("Digest mismatch:", ex);
                     int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(command.table), consistency_level);
-                    QuorumResponseHandler<Row> qrhRepair = new QuorumResponseHandler<Row>(responseCount, new ReadResponseResolver(command.table, responseCount));
+                    ReadResponseResolver resolver = new ReadResponseResolver(command.table, command.key, responseCount);
+                    QuorumResponseHandler<Row> qrhRepair = new QuorumResponseHandler<Row>(responseCount, resolver);
                     Message messageRepair = command.makeReadMessage();
                     MessagingService.instance.sendRR(messageRepair, commandEndPoints.get(i), qrhRepair);
                     if (repairResponseHandlers == null)
