@@ -483,15 +483,17 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         return tokenMetadata_;
     }
-    
+
     /**
      * This method performs the requisite operations to make
      * sure that the N replicas are in sync. We do this in the
      * background when we do not care much about consistency.
      */
-    public void doConsistencyCheck(Row row, List<InetAddress> endpoints, ReadCommand command)
+    public void doConsistencyCheck(Row row, ReadCommand command, InetAddress dataSource)
     {
-        consistencyManager_.submit(new ConsistencyChecker(command.table, row, endpoints, command));
+        List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
+        if (endpoints.size() > 1)
+            consistencyManager_.submit(new ConsistencyChecker(command, row, endpoints, dataSource));
     }
 
     /**

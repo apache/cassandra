@@ -59,6 +59,7 @@ private static ICompactSerializer<ReadResponse> serializer_;
 
 	public ReadResponse(Row row)
     {
+        assert row != null;
 		row_ = row;
 	}
 

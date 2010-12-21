@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.net;
 
+import java.net.InetAddress;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -36,6 +37,7 @@ class AsyncResult implements IAsyncResult
     private Lock lock = new ReentrantLock();
     private Condition condition;
     private long startTime;
+    private InetAddress from;
 
     public AsyncResult()
     {        
@@ -74,14 +76,15 @@ class AsyncResult implements IAsyncResult
         }
         return result;
     }
-      
+
     public void result(Message response)
     {        
         try
         {
             lock.lock();
             if (!done.get())
-            {                
+            {
+                from = response.getFrom();
                 result = response.getMessageBody();
                 done.set(true);
                 condition.signal();
@@ -91,5 +94,10 @@ class AsyncResult implements IAsyncResult
         {
             lock.unlock();
         }        
-    }    
+    }
+
+    public InetAddress getFrom()
+    {
+        return from;
+    }
 }

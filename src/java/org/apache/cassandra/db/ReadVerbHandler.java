@@ -96,14 +96,6 @@ public class ReadVerbHandler implements IVerbHandler
               logger_.debug(String.format("Read key %s; sending response to %s@%s",
                                           FBUtilities.bytesToHex(command.key), message.getMessageId(), message.getFrom()));
             MessagingService.instance.sendOneWay(response, message.getFrom());
-
-            /* Do read repair if header of the message says so */
-            if (message.getHeader(ReadCommand.DO_REPAIR) != null)
-            {
-                List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
-                if (endpoints.size() > 1)
-                    StorageService.instance.doConsistencyCheck(row, endpoints, command);
-            }
         }
         catch (IOException ex)
         {

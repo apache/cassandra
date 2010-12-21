@@ -41,7 +41,6 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Row;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -55,7 +54,7 @@ import org.apache.cassandra.utils.WrappedRunnable;
  * (1) sends DIGEST read requests to each other replica of the given row.
  *
  * [DigestResponseHandler]
- * (2) If any of the digests to not match the local one, it sends a second round of requests
+ * (2) If any of the digests to not match the data read, it sends a second round of requests
  * to each replica, this time for the full data
  *
  * [DataRepairHandler]
@@ -68,18 +67,17 @@ class ConsistencyChecker implements Runnable
 
     private static ScheduledExecutorService executor_ = new ScheduledThreadPoolExecutor(1); // TODO add JMX
 
-    private final String table_;
     private final Row row_;
     protected final List<InetAddress> replicas_;
     private final ReadCommand readCommand_;
+    private final InetAddress dataSource;
 
-    public ConsistencyChecker(String table, Row row, List<InetAddress> endpoints, ReadCommand readCommand)
+    public ConsistencyChecker(ReadCommand command, Row row, List<InetAddress> endpoints, InetAddress dataSource)
     {
-        table_ = table;
         row_ = row;
         replicas_ = endpoints;
-        readCommand_ = readCommand;
-        assert replicas_.contains(FBUtilities.getLocalAddress());
+        readCommand_ = command;
+        this.dataSource = dataSource;
     }
 
     public void run()
@@ -94,7 +92,7 @@ class ConsistencyChecker implements Runnable
             MessagingService.instance.addCallback(new DigestResponseHandler(), message.getMessageId());
             for (InetAddress endpoint : replicas_)
             {
-                if (!endpoint.equals(FBUtilities.getLocalAddress()))
+                if (!endpoint.equals(dataSource))
                     MessagingService.instance.sendOneWay(message, endpoint);
             }
 		}
@@ -130,17 +128,14 @@ class ConsistencyChecker implements Runnable
 
                 if (!localDigest.equals(digest))
                 {
-                    ReadResponseResolver readResponseResolver = new ReadResponseResolver(table_);
-                    IAsyncCallback responseHandler = new DataRepairHandler(row_, replicas_.size(), readResponseResolver);
-
                     ReadCommand readCommand = constructReadMessage(false);
                     Message message = readCommand.makeReadMessage();
                     if (logger_.isDebugEnabled())
                         logger_.debug("Digest mismatch; re-reading " + readCommand_.key + " from " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");                         
-                    MessagingService.instance.addCallback(responseHandler, message.getMessageId());
+                    MessagingService.instance.addCallback(new DataRepairHandler(), message.getMessageId());
                     for (InetAddress endpoint : replicas_)
                     {
-                        if (!endpoint.equals(FBUtilities.getLocalAddress()))
+                        if (!endpoint.equals(dataSource))
                             MessagingService.instance.sendOneWay(message, endpoint);
                     }
 
@@ -154,18 +149,18 @@ class ConsistencyChecker implements Runnable
         }
     }
 
-	static class DataRepairHandler implements IAsyncCallback
+    class DataRepairHandler implements IAsyncCallback
 	{
 		private final ReadResponseResolver readResponseResolver_;
 		private final int majority_;
 		
-        public DataRepairHandler(Row localRow, int responseCount, ReadResponseResolver readResponseResolver) throws IOException
+        public DataRepairHandler() throws IOException
         {
-            readResponseResolver_ = readResponseResolver;
-            majority_ = (responseCount / 2) + 1;
-            // wrap localRow in a response Message so it doesn't need to be special-cased in the resolver
-            ReadResponse readResponse = new ReadResponse(localRow);
-            Message fakeMessage = new Message(FBUtilities.getLocalAddress(), StorageService.Verb.INTERNAL_RESPONSE, ArrayUtils.EMPTY_BYTE_ARRAY);
+            readResponseResolver_ = new ReadResponseResolver(readCommand_.table);
+            majority_ = (replicas_.size() / 2) + 1;
+            // wrap original data Row in a response Message so it doesn't need to be special-cased in the resolver
+            ReadResponse readResponse = new ReadResponse(row_);
+            Message fakeMessage = new Message(dataSource, StorageService.Verb.INTERNAL_RESPONSE, ArrayUtils.EMPTY_BYTE_ARRAY);
             readResponseResolver_.injectPreProcessed(fakeMessage, readResponse);
         }
 
