@@ -1,4 +1,4 @@
-dev
+0.7.0-rc3
  * expose getNaturalEndpoints in StorageServiceMBean taking byte[]
    key; RMI cannot serialize ByteBuffer (CASSANDRA-1833)
  * infer org.apache.cassandra.locator for replication strategy classes
