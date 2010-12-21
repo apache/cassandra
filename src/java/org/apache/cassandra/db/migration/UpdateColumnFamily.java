@@ -80,7 +80,8 @@ public class UpdateColumnFamily extends Migration
         try 
         {
             DatabaseDescriptor.getCFMetaData(metadata.cfId).apply(CFMetaData.convertToAvro(metadata));
-        } catch (ConfigurationException ex) 
+        } 
+        catch (ConfigurationException ex) 
         {
             throw new IOException(ex);
         }
