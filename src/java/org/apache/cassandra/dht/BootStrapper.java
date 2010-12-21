@@ -45,6 +45,7 @@ package org.apache.cassandra.dht;
  import org.apache.cassandra.net.Message;
  import org.apache.cassandra.net.MessagingService;
  import org.apache.cassandra.service.StorageService;
+ import org.apache.cassandra.streaming.OperationType;
  import org.apache.cassandra.streaming.StreamIn;
  import org.apache.cassandra.utils.FBUtilities;
  import org.apache.cassandra.utils.SimpleCondition;
@@ -107,8 +108,8 @@ public class BootStrapper
                     }
                 };
                 if (logger.isDebugEnabled())
-                    logger.debug("Bootstrapping from " + source + " ranges " + StringUtils.join(ranges, ", "));
-                StreamIn.requestRanges(source, table, ranges, callback);
+                    logger.debug("Bootstrapping from " + source + " ranges " + StringUtils.join(entry.getValue(), ", "));
+                StreamIn.requestRanges(source, table, entry.getValue(), callback, OperationType.BOOTSTRAP);
             }
         }
 

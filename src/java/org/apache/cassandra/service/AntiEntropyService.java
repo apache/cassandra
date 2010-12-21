@@ -42,6 +42,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.AbstractCompactedRow;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.streaming.OperationType;
 import org.apache.cassandra.streaming.StreamIn;
 import org.apache.cassandra.streaming.StreamOut;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
@@ -502,9 +503,9 @@ public class AntiEntropyService
                 Callback callback = new Callback();
                 // send ranges to the remote node
                 StreamOutSession outsession = StreamOutSession.create(request.cf.left, request.endpoint, callback);
-                StreamOut.transferSSTables(outsession, sstables, ranges);
+                StreamOut.transferSSTables(outsession, sstables, ranges, OperationType.AES);
                 // request ranges from the remote node
-                StreamIn.requestRanges(request.endpoint, request.cf.left, ranges, callback);
+                StreamIn.requestRanges(request.endpoint, request.cf.left, ranges, callback, OperationType.AES);
             }
             catch(Exception e)
             {

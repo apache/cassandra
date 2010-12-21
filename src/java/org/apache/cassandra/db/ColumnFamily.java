@@ -33,6 +33,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AbstractCommutativeType;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.io.util.IIterableColumns;
 import org.apache.cassandra.utils.FBUtilities;
@@ -154,18 +155,25 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
 
     public void addColumn(QueryPath path, ByteBuffer value, long timestamp)
     {
-        assert path.columnName != null : path;
-        addColumn(path.superColumnName, new Column(path.columnName, value, timestamp));
+        addColumn(path, value, timestamp, 0);
     }
 
     public void addColumn(QueryPath path, ByteBuffer value, long timestamp, int timeToLive)
     {
         assert path.columnName != null : path;
         Column column;
-        if (timeToLive > 0)
-            column = new ExpiringColumn(path.columnName, value, timestamp, timeToLive);
+        AbstractType defaultValidator = metadata().getDefaultValidator();
+        if (!defaultValidator.isCommutative())
+        {
+            if (timeToLive > 0)
+                column = new ExpiringColumn(path.columnName, value, timestamp, timeToLive);
+            else
+                column = new Column(path.columnName, value, timestamp);
+        }
         else
-            column = new Column(path.columnName, value, timestamp);
+        {
+            column = ((AbstractCommutativeType)defaultValidator).createColumn(path.columnName, value, timestamp);
+        }
         addColumn(path.superColumnName, column);
     }
 

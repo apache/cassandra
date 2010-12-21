@@ -459,3 +459,10 @@ keyspaces:
               validator_class: LongType
               index_name: birthdate_idx
               index_type: KEYS
+
+        - name: Counter1
+          default_validation_class: CounterColumnType
+
+        - name: SuperCounter1
+          column_type: Super
+          default_validation_class: CounterColumnType

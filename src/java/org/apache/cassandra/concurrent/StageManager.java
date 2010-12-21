@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentReaders;
 import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentWriters;
+import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentReplicators;
 
 
 /**
@@ -44,6 +45,7 @@ public class StageManager
         stages.put(Stage.READ, multiThreadedConfigurableStage(Stage.READ, getConcurrentReaders()));        
         stages.put(Stage.REQUEST_RESPONSE, multiThreadedStage(Stage.REQUEST_RESPONSE, Math.max(2, Runtime.getRuntime().availableProcessors())));
         stages.put(Stage.INTERNAL_RESPONSE, multiThreadedStage(Stage.INTERNAL_RESPONSE, Math.max(2, Runtime.getRuntime().availableProcessors())));
+        stages.put(Stage.REPLICATE_ON_WRITE, multiThreadedConfigurableStage(Stage.REPLICATE_ON_WRITE, getConcurrentReplicators()));
         // the rest are all single-threaded
         stages.put(Stage.STREAM, new JMXEnabledThreadPoolExecutor(Stage.STREAM));
         stages.put(Stage.GOSSIP, new JMXEnabledThreadPoolExecutor(Stage.GOSSIP));

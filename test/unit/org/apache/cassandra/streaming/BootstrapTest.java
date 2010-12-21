@@ -37,7 +37,7 @@ public class BootstrapTest extends SchemaLoader
     public void testGetNewNames() throws IOException
     {
         Descriptor desc = Descriptor.fromFilename(new File("Keyspace1", "Standard1-500-Data.db").toString());
-        PendingFile inContext = new PendingFile(null, desc, "Data.db", Arrays.asList(new Pair<Long,Long>(0L, 1L)));
+        PendingFile inContext = new PendingFile(null, desc, "Data.db", Arrays.asList(new Pair<Long,Long>(0L, 1L)), OperationType.BOOTSTRAP);
 
         PendingFile outContext = StreamIn.getContextMapping(inContext);
         // filename and generation are expected to have changed

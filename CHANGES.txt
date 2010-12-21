@@ -1,5 +1,6 @@
 0.8-dev
  * avoid double RowMutation serialization on write path (CASSANDRA-1800)
+ * adds support for columns that act as incr/decr counters (CASSANDRA-1072)
 
 
 0.7-dev

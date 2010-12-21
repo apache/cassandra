@@ -49,19 +49,19 @@ public class StreamIn
     /**
      * Request ranges to be transferred from source to local node
      */
-    public static void requestRanges(InetAddress source, String tableName, Collection<Range> ranges)
+    public static void requestRanges(InetAddress source, String tableName, Collection<Range> ranges, OperationType type)
     {
-        requestRanges(source, tableName, ranges, null);
+        requestRanges(source, tableName, ranges, null, type);
     }
 
-    public static void requestRanges(InetAddress source, String tableName, Collection<Range> ranges, Runnable callback)
+    public static void requestRanges(InetAddress source, String tableName, Collection<Range> ranges, Runnable callback, OperationType type)
     {
         assert ranges.size() > 0;
 
         if (logger.isDebugEnabled())
             logger.debug("Requesting from {} ranges {}", source, StringUtils.join(ranges, ", "));
         StreamInSession session = StreamInSession.create(source, callback);
-        Message message = new StreamRequestMessage(FBUtilities.getLocalAddress(), ranges, tableName, session.getSessionId()).makeMessage();
+        Message message = new StreamRequestMessage(FBUtilities.getLocalAddress(), ranges, tableName, session.getSessionId(), type).makeMessage();
         MessagingService.instance.sendOneWay(message, source);
     }
 

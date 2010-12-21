@@ -23,6 +23,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.*;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -43,6 +46,9 @@ import org.apache.cassandra.thrift.Deletion;
 import org.apache.cassandra.thrift.Mutation;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AbstractCommutativeType;
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 
 public class RowMutation
@@ -316,7 +322,21 @@ public class RowMutation
             rm.delete(new QueryPath(cfName, del.super_column), del.timestamp);
         }
     }
-    
+
+    /**
+     * Update the context of all CounterColumns in this RowMutation
+     */
+    public void updateCommutativeTypes(InetAddress node)
+    {
+        for (ColumnFamily cf : modifications_.values())
+        {
+            AbstractType defaultValidator = cf.metadata().getDefaultValidator();
+            if (!defaultValidator.isCommutative())
+                continue;
+            ((AbstractCommutativeType)defaultValidator).update(cf, node);
+        }
+    }
+
     static RowMutation fromBytes(byte[] raw) throws IOException
     {
         RowMutation rm = serializer_.deserialize(new DataInputStream(new ByteArrayInputStream(raw)));

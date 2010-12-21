@@ -25,6 +25,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,9 +36,10 @@ import org.apache.cassandra.utils.FBUtilities;
 public class ColumnSerializer implements ICompactSerializer2<IColumn>
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnSerializer.class);
-
+    
     public final static int DELETION_MASK = 0x01;
     public final static int EXPIRATION_MASK = 0x02;
+    public final static int COUNTER_MASK    = 0x04;
 
     public void serialize(IColumn column, DataOutput dos)
     {
@@ -45,12 +47,21 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
         FBUtilities.writeShortByteArray(column.name(), dos);
         try
         {
-            if (column instanceof ExpiringColumn) {
-              dos.writeByte(EXPIRATION_MASK);
-              dos.writeInt(((ExpiringColumn) column).getTimeToLive());
-              dos.writeInt(column.getLocalDeletionTime());
-            } else {
-              dos.writeByte((column.isMarkedForDelete()) ? DELETION_MASK : 0);
+            if (column instanceof CounterColumn)
+            {
+                dos.writeByte(COUNTER_MASK);
+                dos.writeLong(((CounterColumn)column).timestampOfLastDelete());
+                FBUtilities.writeShortByteArray(ByteBuffer.wrap(((CounterColumn)column).partitionedCounter()), dos);
+            }
+            else if (column instanceof ExpiringColumn)
+            {
+                dos.writeByte(EXPIRATION_MASK);
+                dos.writeInt(((ExpiringColumn) column).getTimeToLive());
+                dos.writeInt(column.getLocalDeletionTime());
+            }
+            else
+            {
+                dos.writeByte((column.isMarkedForDelete()) ? DELETION_MASK : 0);
             }
             dos.writeLong(column.timestamp());
             FBUtilities.writeByteArray(column.value(), dos);
@@ -68,7 +79,16 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
             throw new CorruptColumnException("invalid column name length " + name.remaining());
 
         int b = dis.readUnsignedByte();
-        if ((b & EXPIRATION_MASK) != 0)
+        if ((b & COUNTER_MASK) != 0)
+        {
+            long timestampOfLastDelete = dis.readLong();
+            ByteBuffer pc = FBUtilities.readShortByteArray(dis);
+            byte[] partitionedCounter = Arrays.copyOfRange(pc.array(), pc.position() + pc.arrayOffset(), pc.limit());
+            long timestamp = dis.readLong();
+            ByteBuffer value = FBUtilities.readByteArray(dis);
+            return new CounterColumn(name, value, timestamp, partitionedCounter, timestampOfLastDelete);
+        }
+        else if ((b & EXPIRATION_MASK) != 0)
         {
             int ttl = dis.readInt();
             int expiration = dis.readInt();

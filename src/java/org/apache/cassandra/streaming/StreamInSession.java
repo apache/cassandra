@@ -107,7 +107,7 @@ public class StreamInSession
         if (logger.isDebugEnabled())
             logger.debug("Finished {}. Sending ack to {}", remoteFile, this);
 
-        Future future = CompactionManager.instance.submitSSTableBuild(localFile.desc);
+        Future future = CompactionManager.instance.submitSSTableBuild(localFile.desc, remoteFile.type);
         buildFutures.add(future);
 
         files.remove(remoteFile);

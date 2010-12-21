@@ -88,7 +88,6 @@ public class CassandraServer implements Cassandra {
     
     // CfDef default values
     private final static String D_CF_CFTYPE = "Standard";
-    private final static String D_CF_CFCLOCKTYPE = "Timestamp";
     private final static String D_CF_COMPTYPE = "BytesType";
     private final static String D_CF_SUBCOMPTYPE = "";
     private final static String D_CF_RECONCILER = null;
@@ -837,6 +836,7 @@ public class CassandraServer implements Cassandra {
                               cf_def.row_cache_size == null ? CFMetaData.DEFAULT_ROW_CACHE_SIZE : cf_def.row_cache_size,
                               cf_def.key_cache_size == null ? CFMetaData.DEFAULT_KEY_CACHE_SIZE : cf_def.key_cache_size,
                               cf_def.read_repair_chance == null ? CFMetaData.DEFAULT_READ_REPAIR_CHANCE : cf_def.read_repair_chance,
+                              cf_def.replicate_on_write == null ? CFMetaData.DEFAULT_REPLICATE_ON_WRITE : cf_def.replicate_on_write,
                               cf_def.gc_grace_seconds != null ? cf_def.gc_grace_seconds : CFMetaData.DEFAULT_GC_GRACE_SECONDS,
                               DatabaseDescriptor.getComparator(validate),
                               cf_def.min_compaction_threshold == null ? CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD : cf_def.min_compaction_threshold,

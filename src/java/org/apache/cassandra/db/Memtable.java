@@ -171,8 +171,18 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         {
             public void runMayThrow() throws IOException
             {
-                cfs.addSSTable(writeSortedContents());
-                cfs.getMemtablesPendingFlush().remove(Memtable.this);
+                if (!cfs.reverseReadWriteOrder())
+                {
+                    //XXX: race condition: may allow double reconcile; but never misses an MT
+                    cfs.addSSTable(writeSortedContents());
+                    cfs.getMemtablesPendingFlush().remove(Memtable.this);
+                }
+                else
+                {
+                    //XXX: race condition: may miss an MT, but no double counts
+                    cfs.getMemtablesPendingFlush().remove(Memtable.this);
+                    cfs.addSSTable(writeSortedContents());
+                }
                 latch.countDown();
             }
         });

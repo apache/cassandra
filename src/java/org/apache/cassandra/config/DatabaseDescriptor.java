@@ -224,6 +224,11 @@ public class    DatabaseDescriptor
                 throw new ConfigurationException("concurrent_writes must be at least 2");
             }
 
+            if (conf.concurrent_replicates != null && conf.concurrent_replicates < 2)
+            {
+                throw new ConfigurationException("conf.concurrent_replicates must be at least 2");
+            }
+
             /* Memtable flush writer threads */
             if (conf.memtable_flush_writers != null && conf.memtable_flush_writers < 1)
             {
@@ -613,6 +618,7 @@ public class    DatabaseDescriptor
                                              cf.rows_cached,
                                              cf.keys_cached, 
                                              cf.read_repair_chance,
+                                             cf.replicate_on_write,
                                              cf.gc_grace_seconds,
                                              default_validator,
                                              cf.min_compaction_threshold,
@@ -839,6 +845,11 @@ public class    DatabaseDescriptor
     public static int getConcurrentWriters()
     {
         return conf.concurrent_writes;
+    }
+
+    public static int getConcurrentReplicators()
+    {
+        return conf.concurrent_replicates;
     }
 
     public static int getFlushWriters()

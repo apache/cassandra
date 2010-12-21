@@ -66,13 +66,15 @@ class StreamRequestMessage
     // if these are specified, file shoud not be.
     protected final Collection<Range> ranges;
     protected final String table;
+    protected final OperationType type;
 
-    StreamRequestMessage(InetAddress target, Collection<Range> ranges, String table, long sessionId)
+    StreamRequestMessage(InetAddress target, Collection<Range> ranges, String table, long sessionId, OperationType type)
     {
         this.target = target;
         this.ranges = ranges;
         this.table = table;
         this.sessionId = sessionId;
+        this.type = type;
         file = null;
     }
 
@@ -81,6 +83,7 @@ class StreamRequestMessage
         this.target = target;
         this.file = file;
         this.sessionId = sessionId;
+        this.type = file.type;
         ranges = null;
         table = null;
     }
@@ -114,6 +117,7 @@ class StreamRequestMessage
                 sb.append(range);
                 sb.append(" ");
             }
+            sb.append(type);
         }
         else
         {
@@ -142,6 +146,7 @@ class StreamRequestMessage
                 {
                     AbstractBounds.serializer().serialize(range, dos);
                 }
+                dos.writeUTF(srm.type.name());
             }
         }
 
@@ -164,7 +169,8 @@ class StreamRequestMessage
                 {
                     ranges.add((Range) AbstractBounds.serializer().deserialize(dis));
                 }
-                return new StreamRequestMessage(target, ranges, table, sessionId);
+                OperationType type = OperationType.valueOf(dis.readUTF());
+                return new StreamRequestMessage(target, ranges, table, sessionId, type);
             }
         }
     }

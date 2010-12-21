@@ -52,6 +52,7 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.OperationType;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -595,11 +596,11 @@ public class CompactionManager implements CompactionManagerMBean
         else
             return executor.submit(runnable);
     }
-    
-    public Future<SSTableReader> submitSSTableBuild(Descriptor desc)
+
+    public Future<SSTableReader> submitSSTableBuild(Descriptor desc, OperationType type)
     {
         // invalid descriptions due to missing or dropped CFS are handled by SSTW and StreamInSession.
-        final SSTableWriter.Builder builder = SSTableWriter.createBuilder(desc);
+        final SSTableWriter.Builder builder = SSTableWriter.createBuilder(desc, type);
         Callable<SSTableReader> callable = new Callable<SSTableReader>()
         {
             public SSTableReader call() throws IOException

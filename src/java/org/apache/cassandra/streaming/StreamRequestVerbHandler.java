@@ -52,7 +52,7 @@ public class StreamRequestVerbHandler implements IVerbHandler
                 logger.debug(srm.toString());
 
             StreamOutSession session = StreamOutSession.create(srm.table, message.getFrom(), srm.sessionId);
-            StreamOut.transferRangesForRequest(session, srm.ranges);
+            StreamOut.transferRangesForRequest(session, srm.ranges, srm.type);
         }
         catch (IOException ex)
         {

@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Set;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
@@ -430,6 +431,30 @@ public class ThriftValidation
         catch (ConfigurationException e)
         {
             throw new InvalidRequestException(e.getMessage());
+        }
+    }
+
+    public static CFMetaData validateCFMetaData(String tablename, String cfName) throws InvalidRequestException
+    {
+        if (cfName.isEmpty())
+        {
+            throw new InvalidRequestException("non-empty columnfamily is required");
+        }
+        CFMetaData metadata = DatabaseDescriptor.getCFMetaData(tablename, cfName);
+        if (metadata == null)
+        {
+            throw new InvalidRequestException("unconfigured columnfamily " + cfName);
+        }
+        return metadata;
+    }
+
+    static void validateCommutative(String tablename, String cfName) throws InvalidRequestException
+    {
+        validateTable(tablename);
+        CFMetaData metadata = validateCFMetaData(tablename, cfName);
+        if (!metadata.getDefaultValidator().isCommutative())
+        {
+            throw new InvalidRequestException("not commutative columnfamily " + cfName);
         }
     }
 }

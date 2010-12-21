@@ -152,6 +152,70 @@ public class FBUtilities
         return new Pair(midpoint, remainder);
     }
 
+    /**
+     * Copy bytes from int into bytes starting from offset.
+     * @param bytes Target array
+     * @param offset Offset into the array
+     * @param i Value to write
+     */
+    public static void copyIntoBytes(byte[] bytes, int offset, int i)
+    {
+        bytes[offset]   = (byte)( ( i >>> 24 ) & 0xFF );
+        bytes[offset+1] = (byte)( ( i >>> 16 ) & 0xFF );
+        bytes[offset+2] = (byte)( ( i >>> 8  ) & 0xFF );
+        bytes[offset+3] = (byte)(   i          & 0xFF );
+    }
+
+    /**
+     * @param i Write this int to an array
+     * @return 4-byte array containing the int
+     */
+    public static byte[] toByteArray(int i)
+    {
+        byte[] bytes = new byte[4];
+        copyIntoBytes(bytes, 0, i);
+        return bytes;
+    }
+
+    /**
+     * @param bytes A byte array containing a serialized integer.
+     * @param offset Start position of the integer in the array.
+     * @return The integer value contained in the byte array.
+     */
+    public static int byteArrayToInt(byte[] bytes, int offset)
+    {
+        if (bytes.length - offset < 4)
+        {
+            throw new IllegalArgumentException("An integer must be 4 bytes in size.");
+        }
+        int n = 0;
+        for ( int i = 0; i < 4; ++i )
+        {
+            n <<= 8;
+            n |= bytes[offset + i] & 0xFF;
+        }
+        return n;
+    }
+
+    /**
+     * Convert a byte buffer to an integer.
+     * Does not change the byte buffer position.
+     */
+    public static int byteBufferToInt(ByteBuffer bytes)
+    {
+        if (bytes.remaining() < 4)
+        {
+            throw new IllegalArgumentException("An integer must be 4 bytes in size.");
+        }
+        int n = 0;
+        for (int i = 0; i < 4; ++i)
+        {
+            n <<= 8;
+            n |= bytes.array()[bytes.position() + bytes.arrayOffset() + i] & 0xFF;
+        }
+        return n;
+    }
+
     public static ByteBuffer toByteBuffer(int i)
     {
         byte[] bytes = new byte[4];
@@ -162,19 +226,69 @@ public class FBUtilities
         return ByteBuffer.wrap(bytes);
     }
 
-    public static int byteBufferToInt(ByteBuffer bytes)
+    /**
+     * Copy bytes from long into bytes starting from offset.
+     * @param bytes Target array
+     * @param offset Offset into the array
+     * @param l Value to write
+     */
+    public static void copyIntoBytes(byte[] bytes, int offset, long l)
     {
-        if (bytes.remaining() < 4 )
+        bytes[offset]   = (byte)( ( l >>> 56 ) & 0xFF );
+        bytes[offset+1] = (byte)( ( l >>> 48 ) & 0xFF );
+        bytes[offset+2] = (byte)( ( l >>> 40 ) & 0xFF );
+        bytes[offset+3] = (byte)( ( l >>> 32 ) & 0xFF );
+        bytes[offset+4] = (byte)( ( l >>> 24 ) & 0xFF );
+        bytes[offset+5] = (byte)( ( l >>> 16 ) & 0xFF );
+        bytes[offset+6] = (byte)( ( l >>> 8  ) & 0xFF );
+        bytes[offset+7] = (byte)(   l          & 0xFF );
+    }
+
+    /**
+     * @param l Write this long to an array
+     * @return 8-byte array containing the long
+     */
+    public static byte[] toByteArray(long l)
+    {
+        byte[] bytes = new byte[8];
+        copyIntoBytes(bytes, 0, l);
+        return bytes;
+    }
+    
+    /**
+     * @param bytes A byte array containing a serialized long.
+     * @return The long value contained in the byte array.
+     */
+    public static long byteArrayToLong(byte[] bytes)
+    {
+        return byteArrayToLong(bytes, 0);
+    }
+
+    /**
+     * @param bytes A byte array containing a serialized long.
+     * @param offset Start position of the long in the array.
+     * @return The long value contained in the byte array.
+     */
+    public static long byteArrayToLong(byte[] bytes, int offset)
+    {
+        if (bytes.length - offset < 8)
         {
-            throw new IllegalArgumentException("An integer must be 4 bytes in size.");
+            throw new IllegalArgumentException("A long must be 8 bytes in size.");
         }
-        int n = 0;
-        for ( int i = 0; i < 4; ++i )
+        long n = 0;
+        for ( int i = 0; i < 8; ++i )
         {
             n <<= 8;
-            n |= bytes.array()[bytes.position() + bytes.arrayOffset() + i] & 0xFF;
+            n |= bytes[offset + i] & 0xFF;
         }
         return n;
+    }
+
+    public static ByteBuffer toByteBuffer(long n)
+    {
+        byte[] bytes = new byte[8];
+        ByteBuffer bb = ByteBuffer.wrap(bytes).putLong(0, n);
+        return bb;
     }
 
     public static int compareUnsigned(byte[] bytes1, byte[] bytes2, int offset1, int offset2, int len1, int len2)
@@ -195,6 +309,38 @@ public class FBUtilities
         }
         if ((len1 - offset1) == (len2 - offset2)) return 0;
         else return ((len1 - offset1) < (len2 - offset2)) ? -1 : 1;
+    }
+  
+    /**
+     * Compare two byte[] at specified offsets for length. Compares the non equal bytes as unsigned.
+     * @param bytes1 First array to compare.
+     * @param offset1 Position to start the comparison at in the first array.
+     * @param bytes2 Second array to compare.
+     * @param offset2 Position to start the comparison at in the second array.
+     * @param length How many bytes to compare?
+     * @return -1 if byte1 is less than byte2, 1 if byte2 is less than byte1 or 0 if equal.
+     */
+    public static int compareByteSubArrays(byte[] bytes1, int offset1, byte[] bytes2, int offset2, int length)
+    {
+        if ( null == bytes1 )
+        {
+            if ( null == bytes2) return 0;
+            else return -1;
+        }
+        if (null == bytes2 ) return 1;
+
+        assert bytes1.length >= (offset1 + length) : "The first byte array isn't long enough for the specified offset and length.";
+        assert bytes2.length >= (offset2 + length) : "The second byte array isn't long enough for the specified offset and length.";
+        for ( int i = 0; i < length; i++ )
+        {
+            byte byte1 = bytes1[offset1+i];
+            byte byte2 = bytes2[offset2+i];
+            if ( byte1 == byte2 )
+                continue;
+            // compare non-equal bytes as unsigned
+            return (byte1 & 0xFF) < (byte2 & 0xFF) ? -1 : 1;
+        }
+        return 0;
     }
 
     /**
@@ -496,12 +642,41 @@ public class FBUtilities
         return decoded;
     }
 
-    public static ByteBuffer toByteBuffer(long n)
+    /** 
+     * Thin wrapper around byte[] to provide meaningful equals() and hashCode() operations
+     * caveat: assumed that wrapped byte[] will not be modified
+     */
+    public static final class ByteArrayWrapper
     {
-        byte[] bytes = new byte[8];
-        ByteBuffer bb = ByteBuffer.wrap(bytes).putLong(n);
-        bb.rewind();
-        return bb;
+        public final byte[] data;
+
+        public ByteArrayWrapper(byte[] data)
+        {
+            if ( null == data )
+            {
+                throw new NullPointerException();
+            }
+            this.data = data;
+        }
+
+        public boolean equals(Object other)
+        {
+            if ( !( other instanceof ByteArrayWrapper ) )
+            {
+                return false;
+            }
+            return Arrays.equals(data, ((ByteArrayWrapper)other).data);
+        }
+
+        public int hashCode()
+        {
+            return Arrays.hashCode(data);
+        }
+
+        public String toString()
+        {
+            return ArrayUtils.toString(data);
+        }
     }
 
     public static String resourceToFile(String filename) throws ConfigurationException
@@ -519,6 +694,10 @@ public class FBUtilities
         try
         {
             InputStream in = FBUtilities.class.getClassLoader().getResourceAsStream("org/apache/cassandra/config/version.properties");
+            if (in == null)
+            {
+                return "Unknown";
+            }
             Properties props = new Properties();
             props.load(in);
             return props.getProperty("CassandraVersion");

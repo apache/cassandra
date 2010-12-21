@@ -189,6 +189,21 @@ struct ColumnPath {
     5: optional binary column,
 }
 
+struct CounterColumn {
+    1: required binary name,
+    2: required i64 value
+}
+
+struct CounterSuperColumn {
+    1: required binary name,
+    2: required list<CounterColumn> columns
+}
+
+struct Counter {
+    1: optional CounterColumn column,
+    2: optional CounterSuperColumn super_column
+}
+
 /**
     A slice range is a structure that stores basic range, ordering and limit information for a query that will return
     multiple columns. It could be thought of as Cassandra's version of LIMIT and ORDER BY
@@ -298,6 +313,21 @@ struct Mutation {
     2: optional Deletion deletion,
 }
 
+struct CounterDeletion {
+    1: optional binary super_column,
+    2: optional SlicePredicate predicate,
+}
+
+/**
+    A CounterMutation is either an insert, represented by filling counter, or a deletion, represented by filling the deletion attribute.
+    @param counter. An insert to a counter column or supercolumn
+    @param deletion. A deletion of a counter column or supercolumn
+*/
+struct CounterMutation {
+    1: optional Counter counter,
+    2: optional CounterDeletion deletion,
+}
+
 struct TokenRange {
     1: required string start_token,
     2: required string end_token,
@@ -346,6 +376,7 @@ struct CfDef {
     21: optional i32 memtable_flush_after_mins,
     22: optional i32 memtable_throughput_in_mb,
     23: optional double memtable_operations_in_millions,
+    24: optional bool replicate_on_write=0,
 }
 
 /* describes a keyspace. */
@@ -470,6 +501,59 @@ service Cassandra {
   */
   void truncate(1:required string cfname)
        throws (1: InvalidRequestException ire, 2: UnavailableException ue),
+
+
+  # counter methods
+  
+  /**
+   * Increment or decrement a counter.
+   */
+  void add(1:required binary key,
+           2:required ColumnParent column_parent,
+           3:required CounterColumn column,
+           4:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
+       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
+  /**
+   * Batch increment or decrement a counter.
+   */
+  void batch_add(1:required map<binary, map<string, list<CounterMutation>>> update_map,
+                 2:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
+       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
+
+  /**
+   * Return the counter at the specified column path.
+   */
+  Counter get_counter(1:required binary key,
+                      2:required ColumnPath path,
+                      3:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
+      throws (1:InvalidRequestException ire, 2:NotFoundException nfe, 3:UnavailableException ue, 4:TimedOutException te),
+
+  /**
+   * Get a list of counters from the specified columns.
+   */
+  list<Counter> get_counter_slice(1:required binary key,
+                                  2:required ColumnParent column_parent, 
+                                  3:required SlicePredicate predicate, 
+                                  4:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
+      throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
+  
+  /**
+   * Get counter slices from multiple keys.
+   */
+  map<binary,list<Counter>> multiget_counter_slice(1:required list<binary> keys,
+                                                   2:required ColumnParent column_parent,
+                                                   3:required SlicePredicate predicate, 
+                                                   4:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
+      throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
+
+  /**
+   * Remove a counter at the specified location.
+   */
+  void remove_counter(1:required binary key,
+                      2:required ColumnPath path,
+                      3:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
+      throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
+
     
   // Meta-APIs -- APIs to get information about the node or cluster,
   // rather than user data.  The nodeprobe program provides usage examples.

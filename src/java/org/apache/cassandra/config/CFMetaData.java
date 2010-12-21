@@ -58,6 +58,7 @@ public final class CFMetaData
     public final static double DEFAULT_ROW_CACHE_SIZE = 0.0;
     public final static double DEFAULT_KEY_CACHE_SIZE = 200000;
     public final static double DEFAULT_READ_REPAIR_CHANCE = 1.0;
+    public final static boolean DEFAULT_REPLICATE_ON_WRITE = true;
     public final static int DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS = 0;
     public final static int DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS = 3600;
     public final static int DEFAULT_GC_GRACE_SECONDS = 864000;
@@ -90,6 +91,7 @@ public final class CFMetaData
                               0,
                               0.01,
                               0,
+                              false,
                               0,
                               BytesType.instance,
                               DEFAULT_MIN_COMPACTION_THRESHOLD,
@@ -155,6 +157,7 @@ public final class CFMetaData
     private double rowCacheSize;                      // default 0
     private double keyCacheSize;                      // default 0.01
     private double readRepairChance;                  // default 1.0 (always), chance [0.0,1.0] of read repair
+    private boolean replicateOnWrite;                 // default false
     private int gcGraceSeconds;                       // default 864000 (ten days)
     private AbstractType defaultValidator;            // default none, use comparator types
     private Integer minCompactionThreshold;           // default 4
@@ -177,6 +180,7 @@ public final class CFMetaData
                        double rowCacheSize,
                        double keyCacheSize,
                        double readRepairChance,
+                       boolean replicateOnWrite,
                        int gcGraceSeconds,
                        AbstractType defaultValidator,
                        int minCompactionThreshold,
@@ -204,6 +208,7 @@ public final class CFMetaData
         this.rowCacheSize = rowCacheSize;
         this.keyCacheSize = keyCacheSize;
         this.readRepairChance = readRepairChance;
+        this.replicateOnWrite = replicateOnWrite;
         this.gcGraceSeconds = gcGraceSeconds;
         this.defaultValidator = defaultValidator;
         this.minCompactionThreshold = minCompactionThreshold;
@@ -242,6 +247,7 @@ public final class CFMetaData
                       double rowCacheSize,
                       double keyCacheSize,
                       double readRepairChance,
+                      boolean replicateOnWrite,
                       int gcGraceSeconds,
                       AbstractType defaultValidator,
                       int minCompactionThreshold,
@@ -263,6 +269,7 @@ public final class CFMetaData
              rowCacheSize,
              keyCacheSize,
              readRepairChance,
+             replicateOnWrite,
              gcGraceSeconds,
              defaultValidator,
              minCompactionThreshold,
@@ -287,6 +294,7 @@ public final class CFMetaData
                               0,
                               0,
                               0,
+                              false,
                               DEFAULT_GC_GRACE_SECONDS,
                               BytesType.instance,
                               DEFAULT_MIN_COMPACTION_THRESHOLD,
@@ -311,6 +319,7 @@ public final class CFMetaData
                               cfm.rowCacheSize,
                               cfm.keyCacheSize,
                               cfm.readRepairChance,
+                              cfm.replicateOnWrite,
                               cfm.gcGraceSeconds,
                               cfm.defaultValidator,
                               cfm.minCompactionThreshold,
@@ -336,6 +345,7 @@ public final class CFMetaData
                               cfm.rowCacheSize,
                               cfm.keyCacheSize,
                               cfm.readRepairChance,
+                              cfm.replicateOnWrite,
                               cfm.gcGraceSeconds,
                               cfm.defaultValidator,
                               cfm.minCompactionThreshold,
@@ -369,6 +379,7 @@ public final class CFMetaData
         cf.row_cache_size = rowCacheSize;
         cf.key_cache_size = keyCacheSize;
         cf.read_repair_chance = readRepairChance;
+        cf.replicate_on_write = replicateOnWrite;
         cf.gc_grace_seconds = gcGraceSeconds;
         cf.default_validation_class = new Utf8(defaultValidator.getClass().getName());
         cf.min_compaction_threshold = minCompactionThreshold;
@@ -428,6 +439,7 @@ public final class CFMetaData
                               cf.row_cache_size,
                               cf.key_cache_size,
                               cf.read_repair_chance,
+                              cf.replicate_on_write,
                               cf.gc_grace_seconds,
                               validator,
                               minct,
@@ -459,6 +471,11 @@ public final class CFMetaData
     public double getReadRepairChance()
     {
         return readRepairChance;
+    }
+
+    public boolean getReplicateOnWrite()
+    {
+        return replicateOnWrite;
     }
     
     public int getGcGraceSeconds()
@@ -533,6 +550,7 @@ public final class CFMetaData
             .append(rowCacheSize, rhs.rowCacheSize)
             .append(keyCacheSize, rhs.keyCacheSize)
             .append(readRepairChance, rhs.readRepairChance)
+            .append(replicateOnWrite, rhs.replicateOnWrite)
             .append(gcGraceSeconds, rhs.gcGraceSeconds)
             .append(minCompactionThreshold, rhs.minCompactionThreshold)
             .append(maxCompactionThreshold, rhs.maxCompactionThreshold)
@@ -558,6 +576,7 @@ public final class CFMetaData
             .append(rowCacheSize)
             .append(keyCacheSize)
             .append(readRepairChance)
+            .append(replicateOnWrite)
             .append(gcGraceSeconds)
             .append(defaultValidator)
             .append(minCompactionThreshold)
@@ -654,6 +673,7 @@ public final class CFMetaData
         rowCacheSize = cf_def.row_cache_size;
         keyCacheSize = cf_def.key_cache_size;
         readRepairChance = cf_def.read_repair_chance;
+        replicateOnWrite = cf_def.replicate_on_write;
         gcGraceSeconds = cf_def.gc_grace_seconds;
         defaultValidator = DatabaseDescriptor.getComparator(cf_def.default_validation_class);
         minCompactionThreshold = cf_def.min_compaction_threshold;
@@ -716,6 +736,7 @@ public final class CFMetaData
         def.setRow_cache_size(cfm.rowCacheSize);
         def.setKey_cache_size(cfm.keyCacheSize);
         def.setRead_repair_chance(cfm.readRepairChance);
+        def.setReplicate_on_write(cfm.replicateOnWrite);
         def.setGc_grace_seconds(cfm.gcGraceSeconds);
         def.setDefault_validation_class(cfm.defaultValidator.getClass().getName());
         def.setMin_compaction_threshold(cfm.minCompactionThreshold);
@@ -757,6 +778,7 @@ public final class CFMetaData
         def.row_cache_size = cfm.rowCacheSize;
         def.key_cache_size = cfm.keyCacheSize;
         def.read_repair_chance = cfm.readRepairChance;
+        def.replicate_on_write = cfm.replicateOnWrite;
         def.gc_grace_seconds = cfm.gcGraceSeconds;
         def.default_validation_class = cfm.defaultValidator == null ? null : cfm.defaultValidator.getClass().getName();
         def.min_compaction_threshold = cfm.minCompactionThreshold;
@@ -799,6 +821,7 @@ public final class CFMetaData
         newDef.memtable_throughput_in_mb = def.getMemtable_throughput_in_mb();
         newDef.min_compaction_threshold = def.getMin_compaction_threshold();
         newDef.read_repair_chance = def.getRead_repair_chance();
+        newDef.replicate_on_write = def.isReplicate_on_write();
         newDef.row_cache_save_period_in_seconds = def.getRow_cache_save_period_in_seconds();
         newDef.row_cache_size = def.getRow_cache_size();
         newDef.subcomparator_type = def.getSubcomparator_type();
@@ -917,6 +940,7 @@ public final class CFMetaData
             .append("rowCacheSize", rowCacheSize)
             .append("keyCacheSize", keyCacheSize)
             .append("readRepairChance", readRepairChance)
+            .append("replicateOnWrite", replicateOnWrite)
             .append("gcGraceSeconds", gcGraceSeconds)
             .append("defaultValidator", defaultValidator)
             .append("minCompactionThreshold", minCompactionThreshold)

@@ -41,6 +41,8 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AbstractCommutativeType;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -117,6 +119,10 @@ public class StorageProxy implements StorageProxyMBean
 
                 responseHandlers.add(responseHandler);
                 Message unhintedMessage = null;
+
+                //XXX: if commutative value, only allow CL.ONE write
+                updateDestinationForCommutativeTypes(consistency_level, rm, hintedEndpoints);
+
                 for (Map.Entry<InetAddress, Collection<InetAddress>> entry : hintedEndpoints.asMap().entrySet())
                 {
                     InetAddress destination = entry.getKey();
@@ -124,6 +130,9 @@ public class StorageProxy implements StorageProxyMBean
 
                     if (targets.size() == 1 && targets.iterator().next().equals(destination))
                     {
+                        // only non-hinted writes are supported
+                        rm.updateCommutativeTypes(destination);
+
                         // unhinted writes
                         if (destination.equals(FBUtilities.getLocalAddress()))
                         {
@@ -180,6 +189,40 @@ public class StorageProxy implements StorageProxyMBean
 
     }
 
+    /**
+     * Update destination endpoints depending on the clock type.
+     */
+    private static void updateDestinationForCommutativeTypes(ConsistencyLevel consistency_level, RowMutation rm,
+            Multimap<InetAddress, InetAddress> destinationEndpoints)
+    {
+        AbstractType defaultValidator = rm.getColumnFamilies().iterator().next().metadata().getDefaultValidator();
+        if (!defaultValidator.isCommutative())
+            return;
+
+        InetAddress randomDestination = pickRandomDestination(destinationEndpoints);
+        destinationEndpoints.clear();
+        destinationEndpoints.put(randomDestination, randomDestination);
+    }
+
+    /**
+     * @param endpoints potential destinations.
+     * @return one destination randomly chosen from the endpoints unless localhost is in the map, then that is returned.
+     */
+    private static InetAddress pickRandomDestination(Multimap<InetAddress, InetAddress> endpoints)
+    {
+        Set<InetAddress> destinationSet = endpoints.keySet();
+
+        if (destinationSet.contains(FBUtilities.getLocalAddress()))
+        {
+            return FBUtilities.getLocalAddress();
+        }
+        else
+        {
+            InetAddress[] destinations = destinationSet.toArray(new InetAddress[0]);
+            return destinations[random.nextInt(destinations.length)];
+        }
+    }
+
     private static void addHintHeader(Message message, InetAddress target) throws IOException
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -203,6 +246,10 @@ public class StorageProxy implements StorageProxyMBean
             {
                 rm.deepCopy().apply();
                 responseHandler.response(null);
+
+                // repair-on-write (local message)
+                ReplicateOnWriteTask replicateOnWriteTask = new ReplicateOnWriteTask(rm);
+                StageManager.getStage(Stage.REPLICATE_ON_WRITE).execute(replicateOnWriteTask);
             }
         };
         StageManager.getStage(Stage.MUTATION).execute(runnable);

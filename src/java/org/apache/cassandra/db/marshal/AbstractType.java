@@ -91,4 +91,9 @@ public abstract class AbstractType implements Comparator<ByteBuffer>
         }
         return builder.toString();
     }
+
+    public boolean isCommutative()
+    {
+        return false;
+    }
 }

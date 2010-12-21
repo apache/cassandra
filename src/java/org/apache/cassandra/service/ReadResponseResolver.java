@@ -25,6 +25,8 @@ import java.io.IOException;
 import java.util.*;
 
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AbstractCommutativeType;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 
@@ -51,6 +53,13 @@ public class ReadResponseResolver implements IResponseResolver<Row>
     {
         this.table = table;
         this.key = StorageService.getPartitioner().decorateKey(key);
+    }
+
+    private void checkDigest(DecoratedKey key, ByteBuffer digest, ByteBuffer resultDigest) throws DigestMismatchException
+    {
+        if (resultDigest.equals(digest))
+            return;
+        throw new DigestMismatchException(key, digest, resultDigest);
     }
     
     /*
@@ -82,21 +91,25 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             Message message = entry.getKey();
             if (result.isDigestQuery())
             {
-                if (digest == null)
-                {
-                    digest = result.digest();
-                }
-                else
-                {
-                    ByteBuffer digest2 = result.digest();
-                    if (!digest.equals(digest2))
-                        throw new DigestMismatchException(key, digest, digest2);
-                }
+                if (digest != null)
+                    checkDigest(key, digest, result.digest());
+                digest = result.digest();
             }
             else
             {
-                versions.add(result.row().cf);
-                endpoints.add(message.getFrom());
+                ColumnFamily cf = result.row().cf;
+                InetAddress from = message.getFrom();
+                
+                if(cf != null) {
+                    AbstractType defaultValidator = cf.metadata().getDefaultValidator();
+                    if (!FBUtilities.getLocalAddress().equals(from) && cf != null && defaultValidator.isCommutative())
+                    {
+                        cf = cf.cloneMe();
+                        ((AbstractCommutativeType)defaultValidator).cleanContext(cf, FBUtilities.getLocalAddress());
+                    }                   
+                }
+                versions.add(cf);
+                endpoints.add(from);
             }
         }
 
@@ -107,9 +120,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             
             for (ColumnFamily cf : versions)
             {
-                ByteBuffer digest2 = ColumnFamily.digest(cf);
-                if (!digest.equals(digest2))
-                    throw new DigestMismatchException(key, digest, digest2);
+                checkDigest(key, digest, ColumnFamily.digest(cf));
             }
             if (logger_.isDebugEnabled())
                 logger_.debug("digests verified");
@@ -147,6 +158,14 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 
             // create and send the row mutation message based on the diff
             RowMutation rowMutation = new RowMutation(table, key.key);
+
+            AbstractType defaultValidator = diffCf.metadata().getDefaultValidator();
+            if (defaultValidator.isCommutative())
+                ((AbstractCommutativeType)defaultValidator).cleanContext(diffCf, endpoints.get(i));
+
+            if (diffCf.getColumnsMap().isEmpty() && !diffCf.isMarkedForDelete())
+                continue;
+
             rowMutation.add(diffCf);
             RowMutationMessage rowMutationMessage = new RowMutationMessage(rowMutation);
             Message repairMessage;
@@ -170,7 +189,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         {
             if (cf != null)
             {
-                resolved = cf.cloneMe();
+                resolved = cf.cloneMeShallow();
                 break;
             }
         }

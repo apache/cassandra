@@ -70,6 +70,14 @@ keyspaces:
           column_type: Super
           compare_subcolumns_with: UTF8Type
 
+        - name: Counter1
+          column_type: Standard
+          default_validation_class: CounterColumnType
+
+        - name: SuperCounter1
+          column_type: Super
+          default_validation_class: CounterColumnType
+
         - name: Indexed1
           column_metadata:
             - name: birthdate
@@ -135,3 +143,7 @@ keyspaces:
       replication_factor: 2
       column_families:
         - name: Standard1
+
+        - name: Counter1
+          column_type: Standard
+          default_validation_class: CounterColumnType

@@ -99,6 +99,11 @@ public class SuperColumn implements IColumn, IColumnContainer
     	return columns_.values();
     }
 
+    public Collection<IColumn> getSortedColumns()
+    {
+        return getSubColumns();
+    }
+
     public IColumn getSubColumn(ByteBuffer columnName)
     {
         IColumn column = columns_.get(columnName);

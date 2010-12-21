@@ -20,6 +20,7 @@ package org.apache.cassandra.utils;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -82,6 +83,78 @@ public class FBUtilitiesTest
             ByteBuffer ba = FBUtilities.toByteBuffer(i);
             int actual = FBUtilities.byteBufferToInt(ba);
             assertEquals(i, actual);
+        }
+    }
+
+    @Test
+    public void testCopyIntoBytes()
+    {
+        int i = 300;
+        long l = 1000;
+        byte[] b = new byte[20];
+        FBUtilities.copyIntoBytes(b, 0, i);
+        FBUtilities.copyIntoBytes(b, 4, l);
+        assertEquals(i, FBUtilities.byteArrayToInt(b, 0));
+        assertEquals(l, FBUtilities.byteArrayToLong(b, 4));
+    }
+    
+    @Test
+    public void testLongBytesConversions()
+    {
+        // positive, negative, 1 and 2 byte cases, including
+        // a few edges that would foul things up unless you're careful
+        // about masking away sign extension.
+        long[] longs = new long[]
+        {
+            -20L, -127L, -128L, 0L, 1L, 127L, 128L, 65534L, 65535L, -65534L, -65535L,
+            4294967294L, 4294967295L, -4294967294L, -4294967295L
+        };
+
+        for (long l : longs) {
+            byte[] ba = FBUtilities.toByteArray(l);
+            long actual = FBUtilities.byteArrayToLong(ba);
+            assertEquals(l, actual);
+        }
+    }
+  
+    @Test
+    public void testCompareByteSubArrays()
+    {
+        byte[] bytes = new byte[16];
+
+        // handle null
+        assert FBUtilities.compareByteSubArrays(
+                null, 0, null, 0, 0) == 0;
+        assert FBUtilities.compareByteSubArrays(
+                null, 0, FBUtilities.toByteArray(524255231), 0, 4) == -1;
+        assert FBUtilities.compareByteSubArrays(
+                FBUtilities.toByteArray(524255231), 0, null, 0, 4) == 1;
+
+        // handle comparisons
+        FBUtilities.copyIntoBytes(bytes, 3, 524255231);
+        assert FBUtilities.compareByteSubArrays(
+                bytes, 3, FBUtilities.toByteArray(524255231), 0, 4) == 0;
+        assert FBUtilities.compareByteSubArrays(
+                bytes, 3, FBUtilities.toByteArray(524255232), 0, 4) == -1;
+        assert FBUtilities.compareByteSubArrays(
+                bytes, 3, FBUtilities.toByteArray(524255230), 0, 4) == 1;
+
+        // check that incorrect length throws exception
+        try
+        {
+            assert FBUtilities.compareByteSubArrays(
+                    bytes, 3, FBUtilities.toByteArray(524255231), 0, 24) == 0;
+            fail("Should raise an AssertionError.");
+        } catch (AssertionError ae)
+        {
+        }
+        try
+        {
+            assert FBUtilities.compareByteSubArrays(
+                    bytes, 3, FBUtilities.toByteArray(524255231), 0, 12) == 0;
+            fail("Should raise an AssertionError.");
+        } catch (AssertionError ae)
+        {
         }
     }
 

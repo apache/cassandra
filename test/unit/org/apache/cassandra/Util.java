@@ -128,6 +128,27 @@ public class Util
         return cfStore.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName)));
     }
 
+    public static byte[] concatByteArrays(byte[] first, byte[]... remaining)
+    {
+        int length = first.length;
+        for (byte[] array : remaining)
+        {
+            length += array.length;
+        }
+
+        byte[] result = new byte[length];
+        System.arraycopy(first, 0, result, 0, first.length);
+        int offset = first.length;
+
+        for (byte[] array : remaining)
+        {
+            System.arraycopy(array, 0, result, offset, array.length);
+            offset += array.length;
+        }
+
+        return result;
+    }
+
     public static ColumnFamily cloneAndRemoveDeleted(ColumnFamily cf, int gcBefore)
     {
         return ColumnFamilyStore.removeDeleted(cf.cloneMe(), gcBefore);

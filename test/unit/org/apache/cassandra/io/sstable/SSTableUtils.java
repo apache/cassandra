@@ -52,6 +52,11 @@ public class SSTableUtils
 
     public static File tempSSTableFile(String tablename, String cfname) throws IOException
     {
+        return tempSSTableFile(tablename, cfname, 0);
+    }
+
+    public static File tempSSTableFile(String tablename, String cfname, int generation) throws IOException
+    {
         File tempdir = File.createTempFile(tablename, cfname);
         if(!tempdir.delete() || !tempdir.mkdir())
             throw new IOException("Temporary directory creation failed.");
@@ -59,7 +64,7 @@ public class SSTableUtils
         File tabledir = new File(tempdir, tablename);
         tabledir.mkdir();
         tabledir.deleteOnExit();
-        File datafile = new File(new Descriptor(tabledir, tablename, cfname, 0, false).filenameFor("Data.db"));
+        File datafile = new File(new Descriptor(tabledir, tablename, cfname, generation, false).filenameFor("Data.db"));
         if (!datafile.createNewFile())
             throw new IOException("unable to create file " + datafile);
         datafile.deleteOnExit();
@@ -92,7 +97,12 @@ public class SSTableUtils
 
     public static SSTableReader writeRawSSTable(String tablename, String cfname, Map<ByteBuffer, ByteBuffer> entries) throws IOException
     {
-        File datafile = tempSSTableFile(tablename, cfname);
+        return writeRawSSTable(tablename, cfname, entries, 0);
+    }
+
+    public static SSTableReader writeRawSSTable(String tablename, String cfname, Map<ByteBuffer, ByteBuffer> entries, int generation) throws IOException
+    {
+        File datafile = tempSSTableFile(tablename, cfname, generation);
         SSTableWriter writer = new SSTableWriter(datafile.getAbsolutePath(), entries.size());
         SortedMap<DecoratedKey, ByteBuffer> sortedEntries = new TreeMap<DecoratedKey, ByteBuffer>();
         for (Map.Entry<ByteBuffer, ByteBuffer> entry : entries.entrySet())

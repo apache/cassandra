@@ -56,6 +56,14 @@ public class DeletedColumn extends Column
     {
        return value.getInt(value.position()+value.arrayOffset()	);
     }
+
+    @Override
+    public IColumn reconcile(IColumn column)
+    {
+        if (column instanceof DeletedColumn)
+            return super.reconcile(column);
+        return column.reconcile(this);
+    }
     
     @Override
     public IColumn deepCopy()

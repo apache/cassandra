@@ -85,7 +85,7 @@ public class StreamingTransferTest extends CleanupHelper
         ranges.add(new Range(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("key1"))));
         ranges.add(new Range(p.getToken(ByteBufferUtil.bytes("key2")), p.getMinimumToken()));
         StreamOutSession session = StreamOutSession.create(table.name, LOCAL, null);
-        StreamOut.transferSSTables(session, Arrays.asList(sstable), ranges);
+        StreamOut.transferSSTables(session, Arrays.asList(sstable), ranges, OperationType.BOOTSTRAP);
         session.await();
 
         // confirm that the SSTable was transferred and registered
@@ -135,7 +135,7 @@ public class StreamingTransferTest extends CleanupHelper
         ranges.add(new Range(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("transfer1"))));
         ranges.add(new Range(p.getToken(ByteBufferUtil.bytes("test2")), p.getMinimumToken()));
         StreamOutSession session = StreamOutSession.create(tablename, LOCAL, null);
-        StreamOut.transferSSTables(session, Arrays.asList(sstable, sstable2), ranges);
+        StreamOut.transferSSTables(session, Arrays.asList(sstable, sstable2), ranges, OperationType.BOOTSTRAP);
         session.await();
 
         // confirm that the SSTable was transferred and registered

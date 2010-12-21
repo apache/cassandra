@@ -71,6 +71,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   private static final TField MEMTABLE_FLUSH_AFTER_MINS_FIELD_DESC = new TField("memtable_flush_after_mins", TType.I32, (short)21);
   private static final TField MEMTABLE_THROUGHPUT_IN_MB_FIELD_DESC = new TField("memtable_throughput_in_mb", TType.I32, (short)22);
   private static final TField MEMTABLE_OPERATIONS_IN_MILLIONS_FIELD_DESC = new TField("memtable_operations_in_millions", TType.DOUBLE, (short)23);
+  private static final TField REPLICATE_ON_WRITE_FIELD_DESC = new TField("replicate_on_write", TType.BOOL, (short)24);
 
   public String keyspace;
   public String name;
@@ -92,6 +93,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   public int memtable_flush_after_mins;
   public int memtable_throughput_in_mb;
   public double memtable_operations_in_millions;
+  public boolean replicate_on_write;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
@@ -114,7 +116,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     KEY_CACHE_SAVE_PERIOD_IN_SECONDS((short)20, "key_cache_save_period_in_seconds"),
     MEMTABLE_FLUSH_AFTER_MINS((short)21, "memtable_flush_after_mins"),
     MEMTABLE_THROUGHPUT_IN_MB((short)22, "memtable_throughput_in_mb"),
-    MEMTABLE_OPERATIONS_IN_MILLIONS((short)23, "memtable_operations_in_millions");
+    MEMTABLE_OPERATIONS_IN_MILLIONS((short)23, "memtable_operations_in_millions"),
+    REPLICATE_ON_WRITE((short)24, "replicate_on_write");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -169,6 +172,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
           return MEMTABLE_THROUGHPUT_IN_MB;
         case 23: // MEMTABLE_OPERATIONS_IN_MILLIONS
           return MEMTABLE_OPERATIONS_IN_MILLIONS;
+        case 24: // REPLICATE_ON_WRITE
+          return REPLICATE_ON_WRITE;
         default:
           return null;
       }
@@ -221,7 +226,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   private static final int __MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID = 9;
   private static final int __MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID = 10;
   private static final int __MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID = 11;
-  private BitSet __isset_bit_vector = new BitSet(12);
+  private static final int __REPLICATE_ON_WRITE_ISSET_ID = 12;
+  private BitSet __isset_bit_vector = new BitSet(13);
 
   public static final Map<_Fields, FieldMetaData> metaDataMap;
   static {
@@ -267,6 +273,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         new FieldValueMetaData(TType.I32)));
     tmpMap.put(_Fields.MEMTABLE_OPERATIONS_IN_MILLIONS, new FieldMetaData("memtable_operations_in_millions", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.DOUBLE)));
+    tmpMap.put(_Fields.REPLICATE_ON_WRITE, new FieldMetaData("replicate_on_write", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.BOOL)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(CfDef.class, metaDataMap);
   }
@@ -281,6 +289,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     this.key_cache_size = (double)200000;
 
     this.read_repair_chance = 1;
+
+    this.replicate_on_write = false;
 
   }
 
@@ -339,6 +349,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     this.memtable_flush_after_mins = other.memtable_flush_after_mins;
     this.memtable_throughput_in_mb = other.memtable_throughput_in_mb;
     this.memtable_operations_in_millions = other.memtable_operations_in_millions;
+    this.replicate_on_write = other.replicate_on_write;
   }
 
   public CfDef deepCopy() {
@@ -381,6 +392,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     this.memtable_throughput_in_mb = 0;
     setMemtable_operations_in_millionsIsSet(false);
     this.memtable_operations_in_millions = 0.0;
+    this.replicate_on_write = false;
+
   }
 
   public String getKeyspace() {
@@ -866,6 +879,29 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     __isset_bit_vector.set(__MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID, value);
   }
 
+  public boolean isReplicate_on_write() {
+    return this.replicate_on_write;
+  }
+
+  public CfDef setReplicate_on_write(boolean replicate_on_write) {
+    this.replicate_on_write = replicate_on_write;
+    setReplicate_on_writeIsSet(true);
+    return this;
+  }
+
+  public void unsetReplicate_on_write() {
+    __isset_bit_vector.clear(__REPLICATE_ON_WRITE_ISSET_ID);
+  }
+
+  /** Returns true if field replicate_on_write is set (has been asigned a value) and false otherwise */
+  public boolean isSetReplicate_on_write() {
+    return __isset_bit_vector.get(__REPLICATE_ON_WRITE_ISSET_ID);
+  }
+
+  public void setReplicate_on_writeIsSet(boolean value) {
+    __isset_bit_vector.set(__REPLICATE_ON_WRITE_ISSET_ID, value);
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case KEYSPACE:
@@ -1028,6 +1064,14 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       }
       break;
 
+    case REPLICATE_ON_WRITE:
+      if (value == null) {
+        unsetReplicate_on_write();
+      } else {
+        setReplicate_on_write((Boolean)value);
+      }
+      break;
+
     }
   }
 
@@ -1093,6 +1137,9 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     case MEMTABLE_OPERATIONS_IN_MILLIONS:
       return new Double(getMemtable_operations_in_millions());
 
+    case REPLICATE_ON_WRITE:
+      return new Boolean(isReplicate_on_write());
+
     }
     throw new IllegalStateException();
   }
@@ -1144,6 +1191,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return isSetMemtable_throughput_in_mb();
     case MEMTABLE_OPERATIONS_IN_MILLIONS:
       return isSetMemtable_operations_in_millions();
+    case REPLICATE_ON_WRITE:
+      return isSetReplicate_on_write();
     }
     throw new IllegalStateException();
   }
@@ -1341,6 +1390,15 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         return false;
     }
 
+    boolean this_present_replicate_on_write = true && this.isSetReplicate_on_write();
+    boolean that_present_replicate_on_write = true && that.isSetReplicate_on_write();
+    if (this_present_replicate_on_write || that_present_replicate_on_write) {
+      if (!(this_present_replicate_on_write && that_present_replicate_on_write))
+        return false;
+      if (this.replicate_on_write != that.replicate_on_write)
+        return false;
+    }
+
     return true;
   }
 
@@ -1447,6 +1505,11 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     builder.append(present_memtable_operations_in_millions);
     if (present_memtable_operations_in_millions)
       builder.append(memtable_operations_in_millions);
+
+    boolean present_replicate_on_write = true && (isSetReplicate_on_write());
+    builder.append(present_replicate_on_write);
+    if (present_replicate_on_write)
+      builder.append(replicate_on_write);
 
     return builder.toHashCode();
   }
@@ -1659,6 +1722,16 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetReplicate_on_write()).compareTo(typedOther.isSetReplicate_on_write());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetReplicate_on_write()) {
+      lastComparison = TBaseHelper.compareTo(this.replicate_on_write, typedOther.replicate_on_write);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -1745,14 +1818,14 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         case 13: // COLUMN_METADATA
           if (field.type == TType.LIST) {
             {
-              TList _list25 = iprot.readListBegin();
-              this.column_metadata = new ArrayList<ColumnDef>(_list25.size);
-              for (int _i26 = 0; _i26 < _list25.size; ++_i26)
+              TList _list29 = iprot.readListBegin();
+              this.column_metadata = new ArrayList<ColumnDef>(_list29.size);
+              for (int _i30 = 0; _i30 < _list29.size; ++_i30)
               {
-                ColumnDef _elem27;
-                _elem27 = new ColumnDef();
-                _elem27.read(iprot);
-                this.column_metadata.add(_elem27);
+                ColumnDef _elem31;
+                _elem31 = new ColumnDef();
+                _elem31.read(iprot);
+                this.column_metadata.add(_elem31);
               }
               iprot.readListEnd();
             }
@@ -1839,6 +1912,14 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 24: // REPLICATE_ON_WRITE
+          if (field.type == TType.BOOL) {
+            this.replicate_on_write = iprot.readBool();
+            setReplicate_on_writeIsSet(true);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           TProtocolUtil.skip(iprot, field.type);
       }
@@ -1912,9 +1993,9 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         oprot.writeFieldBegin(COLUMN_METADATA_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.column_metadata.size()));
-          for (ColumnDef _iter28 : this.column_metadata)
+          for (ColumnDef _iter32 : this.column_metadata)
           {
-            _iter28.write(oprot);
+            _iter32.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -1971,6 +2052,11 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (isSetMemtable_operations_in_millions()) {
       oprot.writeFieldBegin(MEMTABLE_OPERATIONS_IN_MILLIONS_FIELD_DESC);
       oprot.writeDouble(this.memtable_operations_in_millions);
+      oprot.writeFieldEnd();
+    }
+    if (isSetReplicate_on_write()) {
+      oprot.writeFieldBegin(REPLICATE_ON_WRITE_FIELD_DESC);
+      oprot.writeBool(this.replicate_on_write);
       oprot.writeFieldEnd();
     }
     oprot.writeFieldStop();
@@ -2127,6 +2213,12 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       if (!first) sb.append(", ");
       sb.append("memtable_operations_in_millions:");
       sb.append(this.memtable_operations_in_millions);
+      first = false;
+    }
+    if (isSetReplicate_on_write()) {
+      if (!first) sb.append(", ");
+      sb.append("replicate_on_write:");
+      sb.append(this.replicate_on_write);
       first = false;
     }
     sb.append(")");

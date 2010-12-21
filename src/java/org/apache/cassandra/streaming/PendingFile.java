@@ -52,20 +52,23 @@ public class PendingFile
     public final Descriptor desc;
     public final String component;
     public final List<Pair<Long,Long>> sections;
+    public final OperationType type;
     public final long size;
     public long progress;
 
     public PendingFile(Descriptor desc, PendingFile pf)
     {
-        this(null, desc, pf.component, pf.sections);
+        this(null, desc, pf.component, pf.sections, pf.type);
     }
 
-    public PendingFile(SSTable sstable, Descriptor desc, String component, List<Pair<Long,Long>> sections)
+    public PendingFile(SSTable sstable, Descriptor desc, String component, List<Pair<Long,Long>> sections, OperationType type)
     {
         this.sstable = sstable;
         this.desc = desc;
         this.component = component;
         this.sections = sections;
+        this.type = type;
+
         long tempSize = 0;
         for(Pair<Long,Long> section : sections)
         {
@@ -115,6 +118,7 @@ public class PendingFile
             {
                 dos.writeLong(section.left); dos.writeLong(section.right);
             }
+            dos.writeUTF(sc.type.name());
         }
 
         public PendingFile deserialize(DataInputStream dis) throws IOException
@@ -129,7 +133,8 @@ public class PendingFile
             List<Pair<Long,Long>> sections = new ArrayList<Pair<Long,Long>>(count);
             for (int i = 0; i < count; i++)
                 sections.add(new Pair<Long,Long>(Long.valueOf(dis.readLong()), Long.valueOf(dis.readLong())));
-            return new PendingFile(null, desc, component, sections);
+            OperationType type = OperationType.valueOf(dis.readUTF());
+            return new PendingFile(null, desc, component, sections, type);
         }
     }
 }
