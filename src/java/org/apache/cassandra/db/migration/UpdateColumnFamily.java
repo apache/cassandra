@@ -39,6 +39,7 @@ import org.apache.cassandra.utils.UUIDGen;
 /** todo: doesn't work with secondary indices yet. See CASSANDRA-1415. */
 public class UpdateColumnFamily extends Migration
 {
+    // does not point to a CFM stored in DatabaseDescriptor.
     private CFMetaData metadata;
     
     protected UpdateColumnFamily() { }
@@ -53,11 +54,15 @@ public class UpdateColumnFamily extends Migration
             throw new ConfigurationException("Keyspace does not already exist.");
         
         CFMetaData oldCfm = DatabaseDescriptor.getCFMetaData(CFMetaData.getId(cf_def.keyspace.toString(), cf_def.name.toString()));
-        oldCfm.apply(cf_def); 
-        this.metadata = oldCfm;
         
-        // clone ksm but include the new cf def.
-        rm = Migration.makeDefinitionMutation(ksm, null, newVersion);
+        // create a copy of the old CF meta data. Apply new settings on top of it.
+        this.metadata = CFMetaData.inflate(oldCfm.deflate());
+        this.metadata.apply(cf_def);
+        
+        // create a copy of the old KS meta data. Use it to create a RowMutation that gets applied to schema and migrations.
+        KSMetaData newKsMeta = KSMetaData.inflate(ksm.deflate());
+        newKsMeta.cfMetaData().get(cf_def.name.toString()).apply(cf_def);
+        rm = Migration.makeDefinitionMutation(newKsMeta, null, newVersion);
     }
     
     public void beforeApplyModels()
@@ -70,7 +75,16 @@ public class UpdateColumnFamily extends Migration
 
     void applyModels() throws IOException
     {
-        logger.debug("Updating " + metadata + " to " + metadata);
+        logger.debug("Updating " + DatabaseDescriptor.getCFMetaData(metadata.cfId) + " to " + metadata);
+        // apply the meta update.
+        try 
+        {
+            DatabaseDescriptor.getCFMetaData(metadata.cfId).apply(CFMetaData.convertToAvro(metadata));
+        } 
+        catch (ConfigurationException ex) 
+        {
+            throw new IOException(ex);
+        }
         DatabaseDescriptor.setTableDefinition(null, newVersion);
 
         if (!clientMode)
