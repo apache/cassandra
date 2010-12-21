@@ -30,6 +30,7 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.avro.util.Utf8;
+import org.apache.cassandra.avro.CfDef;
 import org.apache.cassandra.avro.ColumnDef;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.HintedHandOffManager;
@@ -586,6 +587,25 @@ public final class CFMetaData
     }
     
     /** applies implicit defaults to cf definition. useful in updates */
+    public static void applyImplicitDefaults(org.apache.cassandra.avro.CfDef cf_def)
+    {
+        if (cf_def.min_compaction_threshold == null)
+            cf_def.min_compaction_threshold = CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD;
+        if (cf_def.max_compaction_threshold == null)
+            cf_def.max_compaction_threshold = CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD;
+        if (cf_def.row_cache_save_period_in_seconds == null)
+            cf_def.row_cache_save_period_in_seconds = CFMetaData.DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS;
+        if (cf_def.key_cache_save_period_in_seconds == null)
+            cf_def.key_cache_save_period_in_seconds = CFMetaData.DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS;
+        if (cf_def.memtable_flush_after_mins == null)
+            cf_def.memtable_flush_after_mins = CFMetaData.DEFAULT_MEMTABLE_LIFETIME_IN_MINS;
+        if (cf_def.memtable_throughput_in_mb == null)
+            cf_def.memtable_throughput_in_mb = CFMetaData.DEFAULT_MEMTABLE_THROUGHPUT_IN_MB;
+        if (cf_def.memtable_operations_in_millions == null)
+            cf_def.memtable_operations_in_millions = CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS; 
+    }
+    
+    /** applies implicit defaults to cf definition. useful in updates */
     public static void applyImplicitDefaults(org.apache.cassandra.thrift.CfDef cf_def) 
     {
         if (!cf_def.isSetMin_compaction_threshold())
@@ -751,7 +771,7 @@ public final class CFMetaData
         {
             org.apache.cassandra.avro.ColumnDef tcd = new org.apache.cassandra.avro.ColumnDef();
             tcd.index_name = cd.getIndexName();
-            tcd.index_type = org.apache.cassandra.avro.IndexType.valueOf(cd.getIndexType().name());
+            tcd.index_type = cd.getIndexType() == null ? null : org.apache.cassandra.avro.IndexType.valueOf(cd.getIndexType().name());
             tcd.name = ByteBufferUtil.clone(cd.name);
             tcd.validation_class = cd.validator.getClass().getName();
             column_meta.add(tcd);

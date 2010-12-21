@@ -34,6 +34,8 @@ import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.avro.Schema;
+import org.apache.avro.util.Utf8;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
@@ -54,6 +56,7 @@ import org.apache.cassandra.db.migration.RenameColumnFamily;
 import org.apache.cassandra.db.migration.RenameKeyspace;
 import org.apache.cassandra.db.migration.UpdateColumnFamily;
 import org.apache.cassandra.db.migration.UpdateKeyspace;
+import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.locator.OldNetworkTopologyStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.thrift.CfDef;
@@ -67,6 +70,24 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class DefsTest extends CleanupHelper
 {   
+    @Test
+    public void testZeroInjection() throws IOException
+    {
+        org.apache.cassandra.avro.CfDef cd = new org.apache.cassandra.avro.CfDef();
+        // populate only fields that must be non-null.
+        cd.keyspace = new Utf8("Lest Ks");
+        cd.name = new Utf8("Mest Cf");
+        
+        org.apache.cassandra.avro.CfDef cd2 = SerDeUtils.deserializeWithSchema(SerDeUtils.serializeWithSchema(cd), new org.apache.cassandra.avro.CfDef());
+        assert cd.equals(cd2);
+        // make sure some of the fields didn't get unexpected zeros put in during [de]serialize operations.
+        assert cd.min_compaction_threshold == null;
+        assert cd2.min_compaction_threshold == null;
+        assert cd.row_cache_save_period_in_seconds == null;
+        assert cd2.row_cache_save_period_in_seconds == null;
+        
+    }
+    
     @Test
     public void ensureStaticCFMIdsAreLessThan1000()
     {
