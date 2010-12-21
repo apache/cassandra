@@ -332,7 +332,8 @@ public class StorageProxy implements StorageProxyMBean
             List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
 
             AbstractReplicationStrategy rs = Table.open(command.table).getReplicationStrategy();
-            QuorumResponseHandler<Row> handler = rs.getQuorumResponseHandler(new ReadResponseResolver(command.table), consistency_level);
+            ReadResponseResolver resolver = new ReadResponseResolver(command.table, command.key);
+            QuorumResponseHandler<Row> handler = rs.getQuorumResponseHandler(resolver, consistency_level);
             handler.assureSufficientLiveNodes(endpoints);
 
             Message messages[] = new Message[endpoints.size()];
@@ -371,7 +372,8 @@ public class StorageProxy implements StorageProxyMBean
             catch (DigestMismatchException ex)
             {
                 AbstractReplicationStrategy rs = Table.open(command.table).getReplicationStrategy();
-                QuorumResponseHandler<Row> handler = rs.getQuorumResponseHandler(new ReadResponseResolver(command.table), consistency_level);
+                ReadResponseResolver resolver = new ReadResponseResolver(command.table, command.key);
+                QuorumResponseHandler<Row> handler = rs.getQuorumResponseHandler(resolver, consistency_level);
                 if (logger.isDebugEnabled())
                     logger.debug("Digest mismatch:", ex);
                 Message messageRepair = command.makeReadMessage();

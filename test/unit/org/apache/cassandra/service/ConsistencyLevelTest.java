@@ -41,6 +41,7 @@ import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -95,7 +96,7 @@ public class ConsistencyLevelTest extends CleanupHelper
 
                     IWriteResponseHandler writeHandler = strategy.getWriteResponseHandler(hosts, hintedNodes, c);
 
-                    QuorumResponseHandler<Row> readHandler = strategy.getQuorumResponseHandler(new ReadResponseResolver(table), c);
+                    QuorumResponseHandler<Row> readHandler = strategy.getQuorumResponseHandler(new ReadResponseResolver(table, ByteBufferUtil.bytes("foo")), c);
 
                     boolean isWriteUnavailable = false;
                     boolean isReadUnavailable = false;

@@ -156,7 +156,7 @@ class ConsistencyChecker implements Runnable
 		
         public DataRepairHandler() throws IOException
         {
-            readResponseResolver_ = new ReadResponseResolver(readCommand_.table);
+            readResponseResolver_ = new ReadResponseResolver(readCommand_.table, readCommand_.key);
             majority_ = (replicas_.size() / 2) + 1;
             // wrap original data Row in a response Message so it doesn't need to be special-cased in the resolver
             ReadResponse readResponse = new ReadResponse(row_);
