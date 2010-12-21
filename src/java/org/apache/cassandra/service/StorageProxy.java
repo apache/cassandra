@@ -240,7 +240,7 @@ public class StorageProxy implements StorageProxyMBean
 
         // send off all the commands asynchronously
         List<Future<Object>> localFutures = null;
-        List<IAsyncResult> remoteResults = null;
+        HashMap<ReadCommand, IAsyncResult> remoteResults = null;
         for (ReadCommand command: commands)
         {
             InetAddress endPoint = StorageService.instance.findSuitableEndpoint(command.table, command.key);
@@ -257,13 +257,11 @@ public class StorageProxy implements StorageProxyMBean
             else
             {
                 if (remoteResults == null)
-                    remoteResults = new ArrayList<IAsyncResult>();
+                    remoteResults = new HashMap<ReadCommand, IAsyncResult>();
                 Message message = command.makeReadMessage();
                 if (logger.isDebugEnabled())
                     logger.debug("weakread reading " + command + " from " + message.getMessageId() + "@" + endPoint);
-                if (randomlyReadRepair(command))
-                    message.setHeader(ReadCommand.DO_REPAIR, ReadCommand.DO_REPAIR.getBytes());
-                remoteResults.add(MessagingService.instance.sendRR(message, endPoint));
+                remoteResults.put(command, MessagingService.instance.sendRR(message, endPoint));
             }
         }
 
@@ -286,14 +284,18 @@ public class StorageProxy implements StorageProxyMBean
         }
         if (remoteResults != null)
         {
-            for (IAsyncResult iar: remoteResults)
+            for (Map.Entry<ReadCommand, IAsyncResult> entry : remoteResults.entrySet())
             {
+                ReadCommand command = entry.getKey();
+                IAsyncResult iar = entry.getValue();
                 byte[] body;
                 body = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
                 ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
                 ReadResponse response = ReadResponse.serializer().deserialize(new DataInputStream(bufIn));
-                if (response.row() != null)
-                    rows.add(response.row());
+                assert response.row() != null;
+                rows.add(response.row());
+                if (randomlyReadRepair(command))
+                    StorageService.instance.doConsistencyCheck(response.row(), command, iar.getFrom());
             }
         }
 
@@ -331,7 +333,8 @@ public class StorageProxy implements StorageProxyMBean
             List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
 
             AbstractReplicationStrategy rs = Table.open(command.table).getReplicationStrategy();
-            QuorumResponseHandler<Row> handler = rs.getQuorumResponseHandler(new ReadResponseResolver(command.table), consistency_level);
+            ReadResponseResolver resolver = new ReadResponseResolver(command.table, command.key);
+            QuorumResponseHandler<Row> handler = rs.getQuorumResponseHandler(resolver, consistency_level);
             handler.assureSufficientLiveNodes(endpoints);
 
             Message messages[] = new Message[endpoints.size()];
@@ -370,7 +373,8 @@ public class StorageProxy implements StorageProxyMBean
             catch (DigestMismatchException ex)
             {
                 AbstractReplicationStrategy rs = Table.open(command.table).getReplicationStrategy();
-                QuorumResponseHandler<Row> handler = rs.getQuorumResponseHandler(new ReadResponseResolver(command.table), consistency_level);
+                ReadResponseResolver resolver = new ReadResponseResolver(command.table, command.key);
+                QuorumResponseHandler<Row> handler = rs.getQuorumResponseHandler(resolver, consistency_level);
                 if (logger.isDebugEnabled())
                     logger.debug("Digest mismatch:", ex);
                 Message messageRepair = command.makeReadMessage();
@@ -735,11 +739,7 @@ public class StorageProxy implements StorageProxyMBean
 
             // Do the consistency checks in the background
             if (randomlyReadRepair(command))
-            {
-                List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
-                if (endpoints.size() > 1)
-                    StorageService.instance.doConsistencyCheck(row, endpoints, command);
-            }
+                StorageService.instance.doConsistencyCheck(row, command, FBUtilities.getLocalAddress());
 
             return row;
         }

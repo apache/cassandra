@@ -23,6 +23,8 @@
  * flush before repair (CASSANDRA-1748)
  * SSTableExport validates key order (CASSANDRA-1884)
  * Re-cache hot keys post-compaction without hitting disk (CASSANDRA-1878)
+ * manage read repair in coordinator instead of data source, to
+   provide latency information to dynamic snitch (CASSANDRA-1873)
 
 
 0.7.0-rc2

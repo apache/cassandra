@@ -36,7 +36,6 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public abstract class ReadCommand
 {
-    public static final String DO_REPAIR = "READ-REPAIR";
     public static final byte CMD_TYPE_GET_SLICE_BY_NAMES = 1;
     public static final byte CMD_TYPE_GET_SLICE = 2;
 

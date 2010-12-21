@@ -45,10 +45,12 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 	private static Logger logger_ = LoggerFactory.getLogger(ReadResponseResolver.class);
     private final String table;
     private final Map<Message, ReadResponse> results = new NonBlockingHashMap<Message, ReadResponse>();
+    private DecoratedKey key;
 
-    public ReadResponseResolver(String table)
+    public ReadResponseResolver(String table, ByteBuffer key)
     {
         this.table = table;
+        this.key = StorageService.getPartitioner().decorateKey(key);
     }
     
     /*
@@ -66,9 +68,8 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         long startTime = System.currentTimeMillis();
 		List<ColumnFamily> versions = new ArrayList<ColumnFamily>();
 		List<InetAddress> endpoints = new ArrayList<InetAddress>();
-		DecoratedKey key = null;
 		ByteBuffer digest = null;
-        
+
         /*
 		 * Populate the list of rows from each of the messages
 		 * Check to see if there is a digest query. If a digest 
@@ -96,7 +97,6 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             {
                 versions.add(result.row().cf);
                 endpoints.add(message.getFrom());
-                key = result.row().key;
             }
         }
 

@@ -24,6 +24,7 @@ have_multiproc = False
 try:
     from multiprocessing import Array as array, Process as Thread
     from uuid import uuid1 as get_ident
+    array('i', 1) # catch "This platform lacks a functioning sem_open implementation"
     Thread.isAlive = Thread.is_alive
     have_multiproc = True
 except ImportError:

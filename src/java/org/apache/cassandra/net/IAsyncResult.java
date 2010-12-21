@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.net;
 
+import java.net.InetAddress;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -38,4 +39,6 @@ public interface IAsyncResult
      * @param result the response message
      */
     public void result(Message result);
+
+    public InetAddress getFrom();
 }
