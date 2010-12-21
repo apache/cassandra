@@ -310,8 +310,9 @@
       </jar>
     </target>
 
-    <!-- creates a release tarball -->
-    <target name="release" depends="jar,javadoc,rat-init" description="Create a full Cassandra binary distribution including tar.gz">
+    <!-- creates release tarballs -->
+    <target name="artifacts" depends="jar,javadoc"
+            description="Create Cassandra release artifacts">
       <mkdir dir="${dist.dir}"/>
       <copy todir="${dist.dir}/lib">
         <fileset dir="${build.lib}"/>
@@ -361,14 +362,6 @@
           </not>
         </tarfileset>
       </tar>
-      <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
-                  reportFile="${build.dir}/${final.name}-bin.rat.txt">
-        <tarfileset>
-          <gzipresource>
-            <file file="${build.dir}/${final.name}-bin.tar.gz" />
-          </gzipresource>
-        </tarfileset>
-      </rat:report>
 
       <tar compression="gzip" longfile="gnu"
            destfile="${build.dir}/${final.name}-src.tar.gz">
@@ -395,6 +388,39 @@
           <exclude name="bin/*.bat" />
         </tarfileset>
       </tar>
+    </target>
+
+    <target name="release" depends="artifacts,rat-init"
+            description="Create and QC release artifacts">
+      <checksum file="${build.dir}/${final.name}-bin.tar.gz"
+                forceOverwrite="yes"
+                todir="${build.dir}"
+                fileext=".md5"
+                algorithm="MD5" />
+      <checksum file="${build.dir}/${final.name}-src.tar.gz"
+                forceOverwrite="yes"
+                todir="${build.dir}"
+                fileext=".md5"
+                algorithm="MD5" />
+      <checksum file="${build.dir}/${final.name}-bin.tar.gz"
+                forceOverwrite="yes"
+                todir="${build.dir}"
+                fileext=".sha"
+                algorithm="SHA" />
+      <checksum file="${build.dir}/${final.name}-src.tar.gz"
+                forceOverwrite="yes"
+                todir="${build.dir}"
+                fileext=".sha"
+                algorithm="SHA" />
+
+      <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
+                  reportFile="${build.dir}/${final.name}-bin.rat.txt">
+        <tarfileset>
+          <gzipresource>
+            <file file="${build.dir}/${final.name}-bin.tar.gz" />
+          </gzipresource>
+        </tarfileset>
+      </rat:report>
 
       <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
                   reportFile="${build.dir}/${final.name}-src.rat.txt">
