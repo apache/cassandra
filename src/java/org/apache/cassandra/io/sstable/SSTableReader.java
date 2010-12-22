@@ -19,6 +19,7 @@
 
 package org.apache.cassandra.io.sstable;
 
+import java.io.BufferedInputStream;
 import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.File;
@@ -53,6 +54,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SegmentedFile;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
@@ -174,11 +176,18 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         File statsFile = new File(descriptor.filenameFor(SSTable.COMPONENT_STATS));
         if (statsFile.exists())
         {
-            logger.debug("Load statistics for {}", descriptor);
-            DataInputStream dis = new DataInputStream(new FileInputStream(statsFile));
-            rowSizes = EstimatedHistogram.serializer.deserialize(dis);
-            columnCounts = EstimatedHistogram.serializer.deserialize(dis);
-            dis.close();
+            DataInputStream dis = null;
+            try
+            {
+                logger.debug("Load statistics for {}", descriptor);
+                dis = new DataInputStream(new BufferedInputStream(new FileInputStream(statsFile)));
+                rowSizes = EstimatedHistogram.serializer.deserialize(dis);
+                columnCounts = EstimatedHistogram.serializer.deserialize(dis);
+            }
+            finally
+            {
+                FileUtils.closeQuietly(dis);
+            }
         }
         else
         {
@@ -253,14 +262,15 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     void loadBloomFilter() throws IOException
     {
-        DataInputStream stream = new DataInputStream(new FileInputStream(descriptor.filenameFor(Component.FILTER)));
+        DataInputStream stream = null;
         try
         {
+            stream = new DataInputStream(new BufferedInputStream(new FileInputStream(descriptor.filenameFor(Component.FILTER))));
             bf = BloomFilter.serializer().deserialize(stream);
         }
         finally
         {
-            stream.close();
+            FileUtils.closeQuietly(stream);
         }
     }
 
@@ -316,7 +326,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         }
         finally
         {
-            input.close();
+            FileUtils.closeQuietly(input);
         }
 
         // finalize the state of the reader
@@ -497,14 +507,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
             }
             finally
             {
-                try
-                {
-                    input.close();
-                }
-                catch (IOException e)
-                {
-                    logger.error("error closing file", e);
-                }
+                FileUtils.closeQuietly(input);
             }
         }
 

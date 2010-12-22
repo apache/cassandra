@@ -25,7 +25,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 
-import org.apache.cassandra.streaming.StreamHeader;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +34,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
+
 
 public class FileStreamTask extends WrappedRunnable
 {
@@ -109,14 +110,7 @@ public class FileStreamTask extends WrappedRunnable
         }
         finally
         {
-            try
-            {
-                raf.close();
-            }
-            catch (IOException e)
-            {
-                throw new AssertionError(e);
-            }
+            FileUtils.closeQuietly(raf);
         }
     }
 

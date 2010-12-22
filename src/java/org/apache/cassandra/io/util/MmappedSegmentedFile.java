@@ -173,14 +173,7 @@ public class MmappedSegmentedFile extends SegmentedFile
             }
             finally
             {
-                try
-                {
-                    if (raf != null) raf.close();
-                }
-                catch (IOException e)
-                {
-                    throw new IOError(e);
-                }
+                FileUtils.closeQuietly(raf);
             }
             return segments;
         }

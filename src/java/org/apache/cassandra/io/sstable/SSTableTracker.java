@@ -37,7 +37,9 @@ import org.apache.cassandra.cache.JMXInstrumentedCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Pair;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,19 +77,29 @@ public class SSTableTracker implements Iterable<SSTableReader>
             logger.info("saving " + msgSuffix);
             int count = 0;
             File tmpFile = File.createTempFile(savedCachePath.getName(), null, savedCachePath.getParentFile());
-            FileOutputStream fout = new FileOutputStream(tmpFile);
-            ObjectOutputStream out = new ObjectOutputStream(new BufferedOutputStream(fout));
-            FileDescriptor fd = fout.getFD();
-            for (K key : cache.getKeySet())
+            
+            FileOutputStream fout = null;
+            ObjectOutputStream out = null;
+            try
             {
-                ByteBuffer bytes = converter.apply(key);
-                out.writeInt(bytes.remaining());
-                out.write(bytes.array(),bytes.position()+bytes.arrayOffset(),bytes.remaining());
-                ++count;
+                fout = new FileOutputStream(tmpFile);
+                out = new ObjectOutputStream(new BufferedOutputStream(fout));
+                FileDescriptor fd = fout.getFD();
+                for (K key : cache.getKeySet())
+                {
+                    ByteBuffer bytes = converter.apply(key);
+                    out.writeInt(bytes.remaining());
+                    out.write(bytes.array(),bytes.position()+bytes.arrayOffset(),bytes.remaining());
+                    ++count;
+                }
+                out.flush();
+                fd.sync();
             }
-            out.flush();
-            fd.sync();
-            out.close();
+            finally
+            {
+                FileUtils.closeQuietly(out);
+                FileUtils.closeQuietly(fout);
+            }
             if (!tmpFile.renameTo(savedCachePath))
                 throw new IOException("Unable to rename cache to " + savedCachePath);
             if (logger.isDebugEnabled())

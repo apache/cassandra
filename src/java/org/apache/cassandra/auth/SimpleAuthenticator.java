@@ -28,6 +28,7 @@ import java.util.Properties;
 import java.util.Map;
 
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -92,12 +93,12 @@ public class SimpleAuthenticator implements IAuthenticator
 
         boolean authenticated = false;
 
+        InputStream in = null;
         try
         {
-            FileInputStream in = new FileInputStream(pfilename);
+            in = new BufferedInputStream(new FileInputStream(pfilename));
             Properties props = new Properties();
             props.load(in);
-            in.close();
 
             // note we keep the message here and for the wrong password exactly the same to prevent attackers from guessing what users are valid
             if (null == props.getProperty(username)) throw new AuthenticationException(authenticationErrorMessage(mode, username));
@@ -124,6 +125,10 @@ public class SimpleAuthenticator implements IAuthenticator
         catch (Exception e)
         {
             throw new RuntimeException("Unexpected authentication problem", e);
+        }
+        finally
+        {
+            FileUtils.closeQuietly(in);
         }
 
         if (!authenticated) throw new AuthenticationException(authenticationErrorMessage(mode, username));

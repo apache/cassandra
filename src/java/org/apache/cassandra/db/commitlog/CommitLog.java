@@ -339,7 +339,7 @@ public class CommitLog
             }
             finally
             {
-                reader.close();
+                FileUtils.closeQuietly(reader);
                 logger.info("Finished reading " + file);
             }
         }
