@@ -1,3 +1,7 @@
+dev
+ * fix cli crash after backgrounding (CASSANDRA-1875)
+
+
 0.7.0-rc3
  * expose getNaturalEndpoints in StorageServiceMBean taking byte[]
    key; RMI cannot serialize ByteBuffer (CASSANDRA-1833)

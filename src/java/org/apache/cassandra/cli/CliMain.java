@@ -325,7 +325,14 @@ public class CliMain
         {
             prompt = (inCompoundStatement) ? "...\t" : getPrompt(cliClient);
 
-            line = reader.readLine(prompt);
+            try
+            {
+                line = reader.readLine(prompt);
+            }
+            catch (IOException e)
+            {
+                // retry on I/O Exception
+            }
 
             if (line == null)
                 return;
