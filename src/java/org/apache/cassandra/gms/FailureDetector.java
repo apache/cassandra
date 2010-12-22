@@ -18,10 +18,12 @@
 
 package org.apache.cassandra.gms;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.IOError;
+import java.io.OutputStream;
 import java.lang.management.ManagementFactory;
 import java.util.*;
 import javax.management.MBeanServer;
@@ -31,6 +33,7 @@ import org.apache.commons.lang.StringUtils;
 
 import java.net.InetAddress;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.BoundedStatsDeque;
 import org.slf4j.Logger;
@@ -83,16 +86,20 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
      */
     public void dumpInterArrivalTimes()
     {
+        OutputStream os = null;
         try
         {
             File file = File.createTempFile("failuredetector-", ".dat");
-            FileOutputStream fos = new FileOutputStream(file, true);
-            fos.write(toString().getBytes());
-            fos.close();
+            os = new BufferedOutputStream(new FileOutputStream(file, true));
+            os.write(toString().getBytes());
         }
         catch (IOException e)
         {
             throw new IOError(e);
+        }
+        finally
+        {
+            FileUtils.closeQuietly(os);
         }
     }
     

@@ -18,22 +18,24 @@
 
 package org.apache.cassandra.locator;
 
+import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.Reader;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ResourceWatcher;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Used to determine if two IP's are in the same datacenter or on the same rack.
@@ -112,13 +114,19 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
 
         String rackPropertyFilename = FBUtilities.resourceToFile(RACK_PROPERTY_FILENAME);
         Properties properties = new Properties();
+        Reader reader = null;
         try
         {
-            properties.load(new FileReader(rackPropertyFilename));
+            reader = new BufferedReader(new FileReader(rackPropertyFilename));
+            properties.load(reader);
         }
         catch (IOException e)
         {
             throw new ConfigurationException("Unable to read " + RACK_PROPERTY_FILENAME, e);
+        }
+        finally
+        {
+            FileUtils.closeQuietly(reader);
         }
 
         for (Map.Entry<Object, Object> entry : properties.entrySet())

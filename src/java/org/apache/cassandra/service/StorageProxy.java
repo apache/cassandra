@@ -186,7 +186,6 @@ public class StorageProxy implements StorageProxyMBean
         {
             writeStats.addNano(System.nanoTime() - startTime);
         }
-
     }
 
     /**
@@ -265,19 +264,23 @@ public class StorageProxy implements StorageProxyMBean
         if (StorageService.instance.isBootstrapMode())
             throw new UnavailableException();
         long startTime = System.nanoTime();
-
         List<Row> rows;
-        if (consistency_level == ConsistencyLevel.ONE)
+        try
         {
-            rows = weakRead(commands);
+            if (consistency_level == ConsistencyLevel.ONE)
+            {
+                rows = weakRead(commands);
+            }
+            else
+            {
+                assert consistency_level.getValue() >= ConsistencyLevel.QUORUM.getValue();
+                rows = strongRead(commands, consistency_level);
+            }
         }
-        else
+        finally
         {
-            assert consistency_level.getValue() >= ConsistencyLevel.QUORUM.getValue();
-            rows = strongRead(commands, consistency_level);
+            readStats.addNano(System.nanoTime() - startTime);
         }
-
-        readStats.addNano(System.nanoTime() - startTime);
         return rows;
     }
 
@@ -463,77 +466,82 @@ public class StorageProxy implements StorageProxyMBean
         if (logger.isDebugEnabled())
             logger.debug(command.toString());
         long startTime = System.nanoTime();
-
-        List<AbstractBounds> ranges = getRestrictedRanges(command.range);
+        List<Row> rows;
         // now scan until we have enough results
-        List<Row> rows = new ArrayList<Row>(command.max_keys);
-        for (AbstractBounds range : ranges)
+        try
         {
-            List<InetAddress> liveEndpoints = StorageService.instance.getLiveNaturalEndpoints(command.keyspace, range.right);
-
-            if (consistency_level == ConsistencyLevel.ONE && liveEndpoints.contains(FBUtilities.getLocalAddress())) 
+            rows = new ArrayList<Row>(command.max_keys);
+            List<AbstractBounds> ranges = getRestrictedRanges(command.range);
+            for (AbstractBounds range : ranges)
             {
-                if (logger.isDebugEnabled())
-                    logger.debug("local range slice");
-                ColumnFamilyStore cfs = Table.open(command.keyspace).getColumnFamilyStore(command.column_family);
-                try 
-                {
-                    rows.addAll(cfs.getRangeSlice(command.super_column,
-                                                  range,
-                                                  command.max_keys,
-                                                  QueryFilter.getFilter(command.predicate, cfs.getComparator())));
-                } 
-                catch (ExecutionException e) 
-                {
-                    throw new RuntimeException(e.getCause());
-                } 
-                catch (InterruptedException e) 
-                {
-                    throw new AssertionError(e);
-                }           
-            }
-            else 
-            {
-                DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), liveEndpoints);
-                RangeSliceCommand c2 = new RangeSliceCommand(command.keyspace, command.column_family, command.super_column, command.predicate, range, command.max_keys);
-                Message message = c2.getMessage();
+                List<InetAddress> liveEndpoints = StorageService.instance.getLiveNaturalEndpoints(command.keyspace, range.right);
 
-                // collect replies and resolve according to consistency level
-                RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, liveEndpoints);
-                AbstractReplicationStrategy rs = Table.open(command.keyspace).getReplicationStrategy();
-                QuorumResponseHandler<List<Row>> handler = rs.getQuorumResponseHandler(resolver, consistency_level);
-                // TODO bail early if live endpoints can't satisfy requested consistency level
-                for (InetAddress endpoint : liveEndpoints) 
+                if (consistency_level == ConsistencyLevel.ONE && liveEndpoints.contains(FBUtilities.getLocalAddress())) 
                 {
-                    MessagingService.instance.sendRR(message, endpoint, handler);
                     if (logger.isDebugEnabled())
-                        logger.debug("reading " + c2 + " from " + message.getMessageId() + "@" + endpoint);
-                }
-                // TODO read repair on remaining replicas?
-
-                // if we're done, great, otherwise, move to the next range
-                try 
-                {
-                    if (logger.isDebugEnabled()) 
+                        logger.debug("local range slice");
+                    ColumnFamilyStore cfs = Table.open(command.keyspace).getColumnFamilyStore(command.column_family);
+                    try 
                     {
-                        for (Row row : handler.get()) 
-                        {
-                            logger.debug("range slices read " + row.key);
-                        }
-                    }
-                    rows.addAll(handler.get());
-                } 
-                catch (DigestMismatchException e) 
-                {
-                    throw new AssertionError(e); // no digests in range slices yet
+                        rows.addAll(cfs.getRangeSlice(command.super_column,
+                                                    range,
+                                                    command.max_keys,
+                                                    QueryFilter.getFilter(command.predicate, cfs.getComparator())));
+                    } 
+                    catch (ExecutionException e) 
+                    {
+                        throw new RuntimeException(e.getCause());
+                    } 
+                    catch (InterruptedException e) 
+                    {
+                        throw new AssertionError(e);
+                    }           
                 }
-            }
-          
-            if (rows.size() >= command.max_keys)
-                break;
-        }
+                else 
+                {
+                    DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), liveEndpoints);
+                    RangeSliceCommand c2 = new RangeSliceCommand(command.keyspace, command.column_family, command.super_column, command.predicate, range, command.max_keys);
+                    Message message = c2.getMessage();
 
-        rangeStats.addNano(System.nanoTime() - startTime);
+                    // collect replies and resolve according to consistency level
+                    RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, liveEndpoints);
+                    AbstractReplicationStrategy rs = Table.open(command.keyspace).getReplicationStrategy();
+                    QuorumResponseHandler<List<Row>> handler = rs.getQuorumResponseHandler(resolver, consistency_level);
+                    // TODO bail early if live endpoints can't satisfy requested consistency level
+                    for (InetAddress endpoint : liveEndpoints) 
+                    {
+                        MessagingService.instance.sendRR(message, endpoint, handler);
+                        if (logger.isDebugEnabled())
+                            logger.debug("reading " + c2 + " from " + message.getMessageId() + "@" + endpoint);
+                    }
+                    // TODO read repair on remaining replicas?
+
+                    // if we're done, great, otherwise, move to the next range
+                    try 
+                    {
+                        if (logger.isDebugEnabled()) 
+                        {
+                            for (Row row : handler.get()) 
+                            {
+                                logger.debug("range slices read " + row.key);
+                            }
+                        }
+                        rows.addAll(handler.get());
+                    } 
+                    catch (DigestMismatchException e) 
+                    {
+                        throw new AssertionError(e); // no digests in range slices yet
+                    }
+                }
+            
+                if (rows.size() >= command.max_keys)
+                    break;
+            }
+        }
+        finally
+        {
+            rangeStats.addNano(System.nanoTime() - startTime);
+        }
         return rows.size() > command.max_keys ? rows.subList(0, command.max_keys) : rows;
     }
 
@@ -666,6 +674,16 @@ public class StorageProxy implements StorageProxyMBean
         return readStats.getRecentLatencyMicros();
     }
 
+    public long[] getTotalReadLatencyHistogramMicros()
+    {
+        return readStats.getTotalLatencyHistogramMicros();
+    }
+
+    public long[] getRecentReadLatencyHistogramMicros()
+    {
+        return readStats.getRecentLatencyHistogramMicros();
+    }
+
     public long getRangeOperations()
     {
         return rangeStats.getOpCount();
@@ -681,6 +699,16 @@ public class StorageProxy implements StorageProxyMBean
         return rangeStats.getRecentLatencyMicros();
     }
 
+    public long[] getTotalRangeLatencyHistogramMicros()
+    {
+        return rangeStats.getTotalLatencyHistogramMicros();
+    }
+
+    public long[] getRecentRangeLatencyHistogramMicros()
+    {
+        return rangeStats.getRecentLatencyHistogramMicros();
+    }
+
     public long getWriteOperations()
     {
         return writeStats.getOpCount();
@@ -694,6 +722,16 @@ public class StorageProxy implements StorageProxyMBean
     public double getRecentWriteLatencyMicros()
     {
         return writeStats.getRecentLatencyMicros();
+    }
+
+    public long[] getTotalWriteLatencyHistogramMicros()
+    {
+        return writeStats.getTotalLatencyHistogramMicros();
+    }
+
+    public long[] getRecentWriteLatencyHistogramMicros()
+    {
+        return writeStats.getRecentLatencyHistogramMicros();
     }
 
     public static List<Row> scan(String keyspace, String column_family, IndexClause index_clause, SlicePredicate column_predicate, ConsistencyLevel consistency_level)

@@ -25,8 +25,8 @@ import java.util.Map;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.io.util.FileUtils;
 
 public class CommitLogHeader
 {
@@ -132,13 +132,12 @@ public class CommitLogHeader
         DataInputStream reader = null;
         try
         {
-            reader = new DataInputStream(new FileInputStream(headerFile));
+            reader = new DataInputStream(new BufferedInputStream(new FileInputStream(headerFile)));
             return serializer.deserialize(reader);
         }
         finally
         {
-            if (reader != null)
-                reader.close();
+            FileUtils.closeQuietly(reader);
         }
     }
 

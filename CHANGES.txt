@@ -4,6 +4,13 @@
 
 
 0.7-dev
+ * fix cli crash after backgrounding (CASSANDRA-1875)
+ * count timeouts in storageproxy latencies, and include latency 
+   histograms in StorageProxyMBean (CASSANDRA-1893)
+ * check log4j configuration for changes every 10s (CASSANDRA-1525)
+
+
+0.7.0-rc3
  * expose getNaturalEndpoints in StorageServiceMBean taking byte[]
    key; RMI cannot serialize ByteBuffer (CASSANDRA-1833)
  * infer org.apache.cassandra.locator for replication strategy classes
