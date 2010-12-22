@@ -42,6 +42,7 @@ import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Mx4jTool;
+import org.apache.log4j.PropertyConfigurator;
 import org.mortbay.thread.ThreadPool;
 
 /**
@@ -53,8 +54,16 @@ import org.mortbay.thread.ThreadPool;
  */
 public abstract class AbstractCassandraDaemon implements CassandraDaemon
 {
-    private static Logger logger = LoggerFactory
-            .getLogger(AbstractCassandraDaemon.class);
+
+    //Initialize logging in such a way that it checks for config changes every 10 seconds.
+    static
+    {
+        String config = System.getProperty("log4j.configuration", "log4j-server.properties");
+        PropertyConfigurator.configureAndWatch(ClassLoader.getSystemResource(config).getFile(), 10000);
+        org.apache.log4j.Logger.getLogger(AbstractCassandraDaemon.class).info("Logging initialized");
+    }
+
+    private static Logger logger = LoggerFactory.getLogger(AbstractCassandraDaemon.class);
     
     protected InetAddress listenAddr;
     protected int listenPort;
