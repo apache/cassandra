@@ -82,7 +82,6 @@ public class ReadVerbHandler implements IVerbHandler
             {
                 readResponse = new ReadResponse(row);
             }
-            readResponse.setIsDigestQuery(command.isDigestQuery());
             /* serialize the ReadResponseMessage. */
             readCtx.bufOut_.reset();
 
