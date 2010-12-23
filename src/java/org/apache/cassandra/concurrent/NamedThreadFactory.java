@@ -18,8 +18,8 @@
 
 package org.apache.cassandra.concurrent;
 
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.*;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * This class is an implementation of the <i>ThreadFactory</i> interface. This 

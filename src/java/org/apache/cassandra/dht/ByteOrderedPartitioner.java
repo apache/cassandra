@@ -19,7 +19,6 @@
 package org.apache.cassandra.dht;
 
 import java.nio.ByteBuffer;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 

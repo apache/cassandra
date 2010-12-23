@@ -23,7 +23,6 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;

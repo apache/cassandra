@@ -28,6 +28,8 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 
+import com.google.common.collect.AbstractIterator;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
@@ -36,8 +38,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
-
-import com.google.common.collect.AbstractIterator;
 
 /**
  *  This is a reader that finds the block for a starting column and returns

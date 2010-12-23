@@ -23,12 +23,11 @@ import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import com.google.common.collect.AbstractIterator;
+import org.apache.commons.collections.iterators.CollatingIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.commons.collections.iterators.CollatingIterator;
-
-import com.google.common.collect.AbstractIterator;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RangeSliceReply;

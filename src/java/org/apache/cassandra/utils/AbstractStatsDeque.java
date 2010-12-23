@@ -19,7 +19,6 @@
 package org.apache.cassandra.utils;
 
 import java.util.Iterator;
-import java.util.ArrayDeque;
 
 public abstract class AbstractStatsDeque implements Iterable<Double>
 {

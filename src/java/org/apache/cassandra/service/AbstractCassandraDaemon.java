@@ -27,13 +27,14 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.log4j.PropertyConfigurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
@@ -42,7 +43,6 @@ import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Mx4jTool;
-import org.apache.log4j.PropertyConfigurator;
 import org.mortbay.thread.ThreadPool;
 
 /**

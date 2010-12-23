@@ -18,12 +18,14 @@
 
 package org.apache.cassandra.cli;
 
-import org.antlr.runtime.*;
-import org.antlr.runtime.tree.*;
-import org.apache.cassandra.thrift.KsDef;
-import org.apache.cassandra.thrift.CfDef;
-
 import java.util.List;
+
+import org.antlr.runtime.ANTLRStringStream;
+import org.antlr.runtime.CharStream;
+import org.antlr.runtime.CommonTokenStream;
+import org.antlr.runtime.tree.Tree;
+import org.apache.cassandra.thrift.CfDef;
+import org.apache.cassandra.thrift.KsDef;
 
 
 public class CliCompiler

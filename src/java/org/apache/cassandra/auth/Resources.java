@@ -21,7 +21,6 @@
 
 package org.apache.cassandra.auth;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.apache.cassandra.utils.FBUtilities;

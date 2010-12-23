@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.locator;
 
-import org.apache.cassandra.locator.ILatencySubscriber;
-
 public interface ILatencyPublisher
 {
     public void register(ILatencySubscriber subcriber);

@@ -25,7 +25,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.avro.ipc.ResponderServlet;
 import org.apache.avro.specific.SpecificResponder;
-import org.apache.cassandra.utils.Mx4jTool;
 import org.mortbay.jetty.servlet.Context;
 import org.mortbay.jetty.servlet.ServletHolder;
 

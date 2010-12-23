@@ -23,10 +23,11 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Random;
 
+import org.apache.commons.lang.ArrayUtils;
+
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-import org.apache.commons.lang.ArrayUtils;
 
 public abstract class AbstractByteOrderedPartitioner implements IPartitioner<BytesToken>
 {

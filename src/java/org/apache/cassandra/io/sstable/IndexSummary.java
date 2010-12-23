@@ -22,12 +22,9 @@ package org.apache.cassandra.io.sstable;
 
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.DecoratedKey;
 
 /**

@@ -22,12 +22,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.SimpleCondition;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class TruncateResponseHandler implements IAsyncCallback
 {

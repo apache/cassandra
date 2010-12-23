@@ -19,19 +19,14 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileDescriptor;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.ObjectOutputStream;
+import java.io.*;
 import java.nio.ByteBuffer;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
+
+import com.google.common.base.Function;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.JMXInstrumentedCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -39,11 +34,6 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Pair;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.google.common.base.Function;
 
 public class SSTableTracker implements Iterable<SSTableReader>
 {

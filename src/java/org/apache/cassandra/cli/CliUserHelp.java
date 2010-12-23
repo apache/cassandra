@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.cli;
 
-import org.antlr.runtime.tree.Tree;
-
 import java.util.EnumMap;
+
+import org.antlr.runtime.tree.Tree;
 
 /**
  * @author Pavel A. Yaskevich

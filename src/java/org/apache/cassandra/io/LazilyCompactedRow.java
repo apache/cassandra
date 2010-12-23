@@ -31,7 +31,10 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
 import org.apache.commons.collections.iterators.CollatingIterator;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.ColumnIndexer;
+import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;

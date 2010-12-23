@@ -21,7 +21,9 @@ package org.apache.cassandra.io.sstable;
  */
 
 
-import java.io.*;
+import java.io.DataOutput;
+import java.io.IOError;
+import java.io.IOException;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;

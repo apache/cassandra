@@ -22,8 +22,6 @@ package org.apache.cassandra.db;
 import java.io.*;
 import java.util.Arrays;
 
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.io.util.DataOutputBuffer;

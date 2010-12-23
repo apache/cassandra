@@ -25,13 +25,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Handles blocking writes for ONE, ANY, QUORUM, and ALL consistency levels.

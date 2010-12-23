@@ -30,6 +30,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.collect.Multimap;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.locator.IEndpointSnitch;
@@ -37,8 +39,6 @@ import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
-
-import com.google.common.collect.Multimap;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**

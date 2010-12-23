@@ -18,18 +18,11 @@
 
 package org.apache.cassandra.db;
 
-import static com.google.common.base.Charsets.UTF_8;
-
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 import org.apache.avro.Schema;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -39,8 +32,10 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.UUIDGen;
+
+import static com.google.common.base.Charsets.UTF_8;
 
 public class DefsTable
 {

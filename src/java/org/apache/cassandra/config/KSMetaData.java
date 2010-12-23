@@ -18,18 +18,17 @@
 
 package org.apache.cassandra.config;
 
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.SimpleStrategy;
-import org.apache.cassandra.io.SerDeUtils;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
-import org.apache.avro.util.Utf8;
-
 import org.apache.commons.lang.ObjectUtils;
+
+import org.apache.avro.util.Utf8;
+import org.apache.cassandra.io.SerDeUtils;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.SimpleStrategy;
 
 public final class KSMetaData
 {

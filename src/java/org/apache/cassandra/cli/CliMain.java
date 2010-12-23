@@ -18,6 +18,12 @@
 
 package org.apache.cassandra.cli;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.*;
+
 import jline.ConsoleReader;
 import jline.History;
 import org.apache.cassandra.auth.SimpleAuthenticator;
@@ -27,13 +33,6 @@ import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
-
-import java.io.*;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 
 /**
  * Cassandra Command Line Interface (CLI) Main
