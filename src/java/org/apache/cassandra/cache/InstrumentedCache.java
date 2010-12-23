@@ -24,8 +24,8 @@ package org.apache.cassandra.cache;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.googlecode.concurrentlinkedhashmap.Weighers;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
+import com.googlecode.concurrentlinkedhashmap.Weighers;
 
 public class InstrumentedCache<K, V>
 {

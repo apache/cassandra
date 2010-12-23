@@ -23,9 +23,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentReaders;
-import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentWriters;
-import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentReplicators;
+import static org.apache.cassandra.config.DatabaseDescriptor.*;
 
 
 /**

@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
 import java.util.UUID;
 
 import org.apache.cassandra.utils.UUIDGen;
-import org.safehaus.uuid.UUIDGenerator;
 
 public class TimeUUIDType extends AbstractType
 {

@@ -21,7 +21,8 @@ package org.apache.cassandra.auth;
  */
 
 
-import java.io.*;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Properties;

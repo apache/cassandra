@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.db.context;
 
-import java.net.InetAddress;
-import java.util.List;
-
 /**
  * An opaque commutative context.
  *

@@ -19,17 +19,12 @@ package org.apache.cassandra.db.context;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+
+import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.db.DBConstants;
-import org.apache.cassandra.db.context.IContext;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.commons.lang.ArrayUtils;
 
 /**
  * An implementation of a partitioned counter context.

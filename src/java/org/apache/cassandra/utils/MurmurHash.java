@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.utils;
 
-import java.nio.ByteBuffer;
-
 /**
  * This is a very fast, non-cryptographic hash suitable for general hash-based
  * lookup.  See http://murmurhash.googlepages.com/ for more details.

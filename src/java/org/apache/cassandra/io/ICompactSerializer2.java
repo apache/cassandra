@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.io;
 
-import java.io.*;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 
 public interface ICompactSerializer2<T>
 {

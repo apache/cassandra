@@ -24,7 +24,6 @@ package org.apache.cassandra.locator;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 

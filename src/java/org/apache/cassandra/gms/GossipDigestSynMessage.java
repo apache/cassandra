@@ -21,15 +21,18 @@ package org.apache.cassandra.gms;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.*;
-import java.util.Map.Entry;
-
-import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 
 
 /**

@@ -23,15 +23,8 @@ package org.apache.cassandra.db.marshal;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.CounterColumn;
-import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.DeletedColumn;
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.IColumnContainer;
-import org.apache.cassandra.db.SuperColumn;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class CounterColumnType extends AbstractCommutativeType
 {

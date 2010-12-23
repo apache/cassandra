@@ -21,7 +21,8 @@ package org.apache.cassandra.dht;
  */
 
 
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
 
 import org.apache.cassandra.service.StorageService;
 

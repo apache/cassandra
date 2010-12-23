@@ -21,6 +21,7 @@
 package org.apache.cassandra.cql;
 
 import java.nio.ByteBuffer;
+
 import org.apache.cassandra.utils.FBUtilities;
 
 /**

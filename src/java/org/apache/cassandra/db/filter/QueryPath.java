@@ -29,7 +29,6 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.ColumnPath;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.commons.lang.ArrayUtils;
 
 public class QueryPath
 {

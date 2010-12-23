@@ -18,6 +18,14 @@
 
 package org.apache.cassandra.db;
 
+import java.io.IOError;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.UUID;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.ConfigurationException;
@@ -28,13 +36,6 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.IOError;
-import java.io.IOException;
-import java.util.Collection;
-import java.util.UUID;
 
 public class DefinitionsUpdateResponseVerbHandler implements IVerbHandler
 {

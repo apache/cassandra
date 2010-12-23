@@ -23,33 +23,19 @@ package org.apache.cassandra.cql;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeoutException;
 
-import org.antlr.runtime.ANTLRStringStream;
-import org.antlr.runtime.CharStream;
-import org.antlr.runtime.CommonTokenStream;
-import org.antlr.runtime.RecognitionException;
-import org.antlr.runtime.TokenStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.antlr.runtime.*;
 import org.apache.cassandra.avro.Column;
-import org.apache.cassandra.avro.CqlResult;
-import org.apache.cassandra.avro.CqlResultType;
-import org.apache.cassandra.avro.CqlRow;
+import org.apache.cassandra.avro.*;
 import org.apache.cassandra.avro.InvalidRequestException;
 import org.apache.cassandra.avro.TimedOutException;
 import org.apache.cassandra.avro.UnavailableException;
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.RangeSliceCommand;
-import org.apache.cassandra.db.ReadCommand;
-import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.SliceByNamesReadCommand;
-import org.apache.cassandra.db.SliceFromReadCommand;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
@@ -63,13 +49,11 @@ import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.SliceRange;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import static org.apache.cassandra.avro.AvroValidation.validateKey;
-import static org.apache.cassandra.avro.AvroValidation.validateColumnFamily;
 import static org.apache.cassandra.avro.AvroErrorFactory.newInvalidRequestException;
 import static org.apache.cassandra.avro.AvroErrorFactory.newUnavailableException;
+import static org.apache.cassandra.avro.AvroValidation.validateColumnFamily;
+import static org.apache.cassandra.avro.AvroValidation.validateKey;
 
 public class QueryProcessor
 {

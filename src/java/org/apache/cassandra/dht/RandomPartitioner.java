@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.dht;
 
-import static com.google.common.base.Charsets.UTF_8;
-
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -29,6 +27,8 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.GuidGenerator;
 import org.apache.cassandra.utils.Pair;
+
+import static com.google.common.base.Charsets.UTF_8;
 
 /**
  * This class generates a BigIntegerToken using MD5 hash.

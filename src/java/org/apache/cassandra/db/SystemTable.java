@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.db;
 
-import static com.google.common.base.Charsets.UTF_8;
-
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOError;
@@ -32,6 +30,9 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -43,8 +44,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static com.google.common.base.Charsets.UTF_8;
 
 public class SystemTable
 {

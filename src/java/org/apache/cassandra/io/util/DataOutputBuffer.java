@@ -18,10 +18,7 @@
 
 package org.apache.cassandra.io.util;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataInput;
 import java.io.DataOutputStream;
-import java.io.IOException;
 
 
 /**

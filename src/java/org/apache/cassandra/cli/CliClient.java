@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.cli;
 
+import java.nio.ByteBuffer;
+import java.util.*;
+
 import com.google.common.base.Charsets;
 
 import org.antlr.runtime.tree.Tree;
@@ -30,10 +33,6 @@ import org.apache.cassandra.utils.UUIDGen;
 import org.apache.thrift.TBaseHelper;
 import org.apache.thrift.TException;
 import org.safehaus.uuid.UUIDGenerator;
-
-import java.math.BigInteger;
-import java.nio.ByteBuffer;
-import java.util.*;
 
 // Cli Client Side Library
 public class CliClient extends CliUserHelp
