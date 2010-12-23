@@ -4,6 +4,7 @@ dev
    histograms in StorageProxyMBean (CASSANDRA-1893)
  * check log4j configuration for changes every 10s (CASSANDRA-1525)
  * More-efficient cross-DC replication (CASSANDRA-1530)
+ * upgrade to TFastFramedTransport (CASSANDRA-1743)
 
 
 0.7.0-rc3
