@@ -21,8 +21,6 @@ package org.apache.cassandra.db.marshal;
  */
 
 
-import java.util.Arrays;
-
 import org.apache.cassandra.utils.FBUtilities;
 
 public class BytesType extends AbstractType

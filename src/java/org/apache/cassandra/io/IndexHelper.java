@@ -19,12 +19,15 @@
 package org.apache.cassandra.io;
 
 import java.io.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
 import org.apache.cassandra.db.ColumnSerializer;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.utils.BloomFilter;
 
 
 /**

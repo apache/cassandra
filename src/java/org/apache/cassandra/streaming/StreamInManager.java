@@ -18,14 +18,12 @@
 
 package org.apache.cassandra.streaming;
 
-import java.util.*;
 import java.net.InetAddress;
+import java.util.*;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
-import org.apache.cassandra.streaming.IStreamComplete;
-
 import org.apache.log4j.Logger;
 
 class StreamInManager

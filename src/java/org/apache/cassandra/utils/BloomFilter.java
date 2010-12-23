@@ -23,9 +23,9 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.BitSet;
 
-import org.apache.cassandra.io.ICompactSerializer;
-
 import org.apache.log4j.Logger;
+
+import org.apache.cassandra.io.ICompactSerializer;
 
 public class BloomFilter extends Filter
 {

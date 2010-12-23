@@ -23,6 +23,8 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.util.*;
 
+import org.apache.commons.cli.*;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
@@ -37,7 +39,6 @@ import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.utils.FBUtilities.bytesToHex;
-import org.apache.commons.cli.*;
 
 /**
  * Export SSTables to JSON format.

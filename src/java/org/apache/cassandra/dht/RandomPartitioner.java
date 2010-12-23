@@ -20,10 +20,11 @@ package org.apache.cassandra.dht;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.util.*;
-import java.util.regex.Pattern;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.GuidGenerator;

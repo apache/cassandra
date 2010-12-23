@@ -21,8 +21,6 @@ package org.apache.cassandra.dht;
  */
 
 
-import java.util.*;
-
 import org.apache.cassandra.service.StorageService;
 
 public class Bounds extends AbstractBounds

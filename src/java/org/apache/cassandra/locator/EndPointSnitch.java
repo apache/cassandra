@@ -20,7 +20,6 @@ package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.*;
 
 /**
  * A simple endpoint snitch implementation that assumes rack and dc information is encoded

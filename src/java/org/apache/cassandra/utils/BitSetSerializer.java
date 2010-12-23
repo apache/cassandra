@@ -18,14 +18,8 @@
 */
 package org.apache.cassandra.utils;
 
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.DataInputStream;
-import java.io.ObjectOutputStream;
-import java.io.ObjectInputStream;
+import java.io.*;
 import java.util.BitSet;
-
-import org.apache.cassandra.io.ICompactSerializer;
 
 public class BitSetSerializer
 {

@@ -22,7 +22,6 @@ package org.apache.cassandra.utils;
 
 
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicLongArray;
 
 public class LatencyTracker
 {

@@ -27,13 +27,13 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.base.Function;
+import org.apache.log4j.Logger;
 
 import org.apache.cassandra.cache.JMXInstrumentedCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.Pair;
-import org.apache.log4j.Logger;
 
 public class SSTableTracker implements Iterable<SSTableReader>
 {

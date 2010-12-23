@@ -22,6 +22,7 @@ package org.apache.cassandra.db.marshal;
 
 
 import java.util.UUID;
+
 import org.apache.cassandra.utils.FBUtilities;
 
 public class TimeUUIDType extends AbstractType

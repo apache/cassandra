@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.locator;
 
+import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -25,13 +26,11 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.collect.*;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.service.StorageService;
-
-import java.net.InetAddress;
-
 import org.apache.commons.lang.StringUtils;
+
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.service.StorageService;
 
 public class TokenMetadata
 {

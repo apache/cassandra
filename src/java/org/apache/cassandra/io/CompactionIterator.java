@@ -22,23 +22,19 @@ package org.apache.cassandra.io;
 
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.io.IOError;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Set;
-import java.util.HashSet;
-import java.util.Iterator;
+import java.io.IOException;
+import java.util.*;
 
 import org.apache.log4j.Logger;
 import org.apache.commons.collections.iterators.CollatingIterator;
 
-import org.apache.cassandra.utils.ReducingIterator;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ReducingIterator;
 
 public class CompactionIterator extends ReducingIterator<IteratingRow, CompactionIterator.CompactedRow> implements Closeable
 {

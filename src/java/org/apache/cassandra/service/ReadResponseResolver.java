@@ -22,18 +22,16 @@ import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOError;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.*;
 
-import org.apache.cassandra.db.*;
+import org.apache.log4j.Logger;
 
-import java.net.InetAddress;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
-
-import org.apache.log4j.Logger;
 
 /**
  * Turns ReadResponse messages into Row objects, resolving to the most recent

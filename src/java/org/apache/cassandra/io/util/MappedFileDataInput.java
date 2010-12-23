@@ -21,8 +21,8 @@ package org.apache.cassandra.io.util;
  */
 
 
-import java.nio.MappedByteBuffer;
 import java.io.*;
+import java.nio.MappedByteBuffer;
 
 public class MappedFileDataInput extends InputStream implements FileDataInput
 {

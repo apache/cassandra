@@ -18,18 +18,13 @@
 
 package org.apache.cassandra.db;
 
-import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
-import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.FBUtilities;
-
 import org.apache.commons.lang.ArrayUtils;
+
+import org.apache.cassandra.io.ICompactSerializer;
 
 
 /*

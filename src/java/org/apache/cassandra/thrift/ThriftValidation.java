@@ -20,23 +20,23 @@ package org.apache.cassandra.thrift;
  * 
  */
 
-import java.util.Comparator;
 import java.util.Arrays;
-
-import org.apache.cassandra.db.KeyspaceNotDefinedException;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.MarshalException;
-
-import static org.apache.cassandra.thrift.ThriftGlue.*;
+import java.util.Comparator;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.KeyspaceNotDefinedException;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.thrift.ThriftGlue.createColumnParent;
+import static org.apache.cassandra.thrift.ThriftGlue.createColumnPath;
 
 public class ThriftValidation
 {

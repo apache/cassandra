@@ -18,9 +18,8 @@
 
 package org.apache.cassandra.service;
 
-import java.util.Collection;
-import java.util.List;
 import java.io.IOException;
+import java.util.Collection;
 
 import org.apache.cassandra.net.Message;
 

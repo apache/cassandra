@@ -19,7 +19,6 @@
 package org.apache.cassandra.streaming;
 
 import java.io.IOException;
-
 import java.net.InetAddress;
 
 interface IStreamComplete

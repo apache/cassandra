@@ -18,18 +18,20 @@
 
 package org.apache.cassandra.gms;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.net.InetAddress;
 import java.util.*;
 import java.util.Map.Entry;
-import java.net.InetAddress;
+
+import org.apache.log4j.Logger;
 
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
-
-import org.apache.log4j.Logger;
 
 /**
  * This module is responsible for Gossiping information for the local endpoint. This abstraction

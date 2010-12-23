@@ -18,31 +18,29 @@
 
 package org.apache.cassandra.db;
 
-import java.net.UnknownHostException;
-import java.util.Collection;
-import java.util.Arrays;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.ExecutorService;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.log4j.Logger;
+import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
-
-import java.net.InetAddress;
-
-import org.apache.commons.lang.ArrayUtils;
-
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.*;
+import org.apache.cassandra.service.DigestMismatchException;
+import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
 

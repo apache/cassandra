@@ -20,24 +20,17 @@ package org.apache.cassandra.streaming;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.net.InetAddress;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import java.net.InetAddress;
+import org.apache.log4j.Logger;
 
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.SimpleCondition;
-
-import org.apache.log4j.Logger;
 
 /**
  * This class manages the streaming of multiple files one after the other.

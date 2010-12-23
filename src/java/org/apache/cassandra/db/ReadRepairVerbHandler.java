@@ -18,12 +18,15 @@
 
 package org.apache.cassandra.db;
 
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.IOError;
+import java.io.IOException;
+
+import org.apache.log4j.Logger;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-
-import org.apache.log4j.Logger;
 
 public class ReadRepairVerbHandler implements IVerbHandler
 {

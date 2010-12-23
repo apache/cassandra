@@ -18,16 +18,14 @@
 */
 package org.apache.cassandra.locator;
 
+import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
-import java.net.InetAddress;
-import org.apache.cassandra.service.StorageService;
 
 /*
  * This class returns the nodes responsible for a given

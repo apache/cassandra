@@ -25,13 +25,13 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.concurrent.StageManager;
 
 
 public abstract class ReadCommand

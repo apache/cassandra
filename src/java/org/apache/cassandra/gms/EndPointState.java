@@ -22,10 +22,10 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.*;
-import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.service.StorageService;
 
 import org.apache.log4j.Logger;
+
+import org.apache.cassandra.io.ICompactSerializer;
 
 /**
  * This abstraction represents both the HeartBeatState and the ApplicationState in an EndPointState

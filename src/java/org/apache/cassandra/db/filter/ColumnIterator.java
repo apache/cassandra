@@ -21,11 +21,11 @@ package org.apache.cassandra.db.filter;
  */
 
 
-import java.util.Iterator;
 import java.io.IOException;
+import java.util.Iterator;
 
-import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.IColumn;
 
 public interface ColumnIterator extends Iterator<IColumn>
 {

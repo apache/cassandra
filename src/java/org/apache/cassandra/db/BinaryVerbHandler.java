@@ -21,11 +21,11 @@ package org.apache.cassandra.db;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 
+import org.apache.log4j.Logger;
+
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-
-import org.apache.log4j.Logger;
 
 public class BinaryVerbHandler implements IVerbHandler
 {

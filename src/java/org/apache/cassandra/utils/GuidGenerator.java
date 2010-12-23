@@ -18,11 +18,14 @@
 
 package org.apache.cassandra.utils;
 
-import org.apache.log4j.Logger;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.util.Random;
 
-import java.util.*;
-import java.net.*;
-import java.security.*;
+import org.apache.log4j.Logger;
 
 public class GuidGenerator {
     private static Logger logger_ = Logger.getLogger(GuidGenerator.class);

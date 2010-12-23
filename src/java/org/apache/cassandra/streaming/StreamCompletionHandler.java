@@ -31,8 +31,6 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.SSTableWriter;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.streaming.IStreamComplete;
-import org.apache.cassandra.streaming.StreamInManager;
 import org.apache.cassandra.service.StorageService;
 
 /**

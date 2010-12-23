@@ -19,10 +19,10 @@ package org.apache.cassandra.service;
 
 import java.util.TimerTask;
 
+import org.apache.log4j.Logger;
+
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
-
-import org.apache.log4j.Logger;
 
 class LoadDisseminator extends TimerTask
 {

@@ -21,15 +21,15 @@ package org.apache.cassandra.db.filter;
  */
 
 
+import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.DataInputStream;
 
 import org.apache.commons.lang.ArrayUtils;
 
+import org.apache.cassandra.db.ColumnSerializer;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.ColumnPath;
-import org.apache.cassandra.db.ColumnSerializer;
 
 public class QueryPath
 {

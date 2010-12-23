@@ -18,13 +18,14 @@
 
 package org.apache.cassandra.net;
 
-import java.util.*;
 import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.log4j.Logger;
 
 import org.apache.cassandra.locator.ILatencyPublisher;
 import org.apache.cassandra.locator.ILatencySubscriber;
-
-import org.apache.log4j.Logger;
 
 public class ResponseVerbHandler implements IVerbHandler, ILatencyPublisher
 {

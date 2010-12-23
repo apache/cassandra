@@ -32,6 +32,8 @@ import javax.management.ObjectName;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
@@ -60,8 +62,6 @@ import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
 
 /*
  * This abstraction contains the token/identifier of this node

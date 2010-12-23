@@ -24,7 +24,9 @@ import java.util.*;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.PeekingIterator;
 
-import org.apache.cassandra.dht.*;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 
 /**
  * A MerkleTree implemented as a binary tree.

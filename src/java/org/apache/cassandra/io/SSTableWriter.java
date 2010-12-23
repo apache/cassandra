@@ -25,8 +25,6 @@ import java.io.DataOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOError;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
 
 import org.apache.log4j.Logger;
 

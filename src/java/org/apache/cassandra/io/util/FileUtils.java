@@ -18,18 +18,13 @@
 
 package org.apache.cassandra.io.util;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
 import java.text.DecimalFormat;
-import java.util.*;
-import java.util.concurrent.ExecutorService;
-
-import com.sun.jna.LastErrorException;
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
+import java.util.Comparator;
+import java.util.List;
 
 import org.apache.log4j.Logger;
-
-import com.sun.jna.Native;
-import org.apache.cassandra.utils.CLibrary;
 
 
 public class FileUtils

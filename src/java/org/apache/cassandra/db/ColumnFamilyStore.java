@@ -34,6 +34,7 @@ import javax.management.ObjectName;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
+import org.apache.log4j.Logger;
 import org.apache.commons.collections.IteratorUtils;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
@@ -53,7 +54,6 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.utils.*;
-import org.apache.log4j.Logger;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {

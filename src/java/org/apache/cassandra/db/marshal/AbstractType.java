@@ -21,8 +21,8 @@ package org.apache.cassandra.db.marshal;
  */
 
 
-import java.util.Comparator;
 import java.util.Collection;
+import java.util.Comparator;
 
 import org.apache.cassandra.db.IColumn;
 

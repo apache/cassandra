@@ -18,18 +18,18 @@
 
 package org.apache.cassandra.db;
 
-import java.io.IOException;
 import java.io.DataOutput;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Iterator;
+import java.util.List;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.IndexHelper;
-import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.io.IndexHelper;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.utils.BloomFilter;
 
 
 /**

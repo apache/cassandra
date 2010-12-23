@@ -21,20 +21,23 @@ package org.apache.cassandra.tools;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
+
+import org.apache.commons.cli.*;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SuperColumn;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.SSTableWriter;
-import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
-import org.apache.commons.cli.*;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
 import org.json.simple.parser.ParseException;
+
+import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
 
 /**
  * Create SSTables from JSON input

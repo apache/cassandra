@@ -21,8 +21,8 @@ package org.apache.cassandra.db.marshal;
  */
 
 
-import java.util.UUID;
 import java.nio.ByteBuffer;
+import java.util.UUID;
 
 public class LexicalUUIDType extends AbstractType
 {

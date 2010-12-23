@@ -21,17 +21,21 @@ package org.apache.cassandra.db.filter;
  */
 
 
-import java.util.*;
 import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.List;
 
+import com.google.common.collect.AbstractIterator;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.io.*;
+import org.apache.cassandra.io.IndexHelper;
+import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import com.google.common.collect.AbstractIterator;
 
 /**
  *  A Column Iterator over SSTable

@@ -18,27 +18,19 @@
 
 package org.apache.cassandra.locator;
 
+import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import java.lang.management.ManagementFactory;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.ResponseVerbHandler;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.AbstractStatsDeque;
-import org.apache.cassandra.locator.IEndPointSnitch;
-import org.apache.cassandra.locator.ILatencyPublisher;
-import org.apache.cassandra.locator.ILatencySubscriber;
-import org.apache.cassandra.locator.AbstractEndpointSnitch;
-import org.apache.cassandra.locator.DynamicEndpointSnitchMBean;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**

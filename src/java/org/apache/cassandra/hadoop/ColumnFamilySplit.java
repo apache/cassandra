@@ -26,14 +26,8 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Arrays;
 
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.thrift.SlicePredicate;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.InputSplit;
-import org.apache.thrift.TDeserializer;
-import org.apache.thrift.TSerializer;
-import org.apache.thrift.protocol.TBinaryProtocol;
 
 public class ColumnFamilySplit extends InputSplit implements Writable
 {

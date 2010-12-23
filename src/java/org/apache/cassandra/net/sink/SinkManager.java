@@ -18,10 +18,9 @@
 
 package org.apache.cassandra.net.sink;
 
-import java.util.*;
-import java.io.IOException;
+import java.util.LinkedList;
+import java.util.ListIterator;
 
-import java.net.InetAddress;
 import org.apache.cassandra.net.Message;
 
 public class SinkManager

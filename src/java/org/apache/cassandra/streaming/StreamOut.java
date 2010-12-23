@@ -21,21 +21,20 @@ package org.apache.cassandra.streaming;
  */
 
 
-import java.net.InetAddress;
-import java.util.*;
-import java.io.IOException;
 import java.io.File;
 import java.io.IOError;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 import org.apache.log4j.Logger;
 import org.apache.commons.lang.StringUtils;
 
-import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.io.SSTable;
-import org.apache.cassandra.io.SSTableReader;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 

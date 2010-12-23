@@ -23,16 +23,15 @@ package org.apache.cassandra.io;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 import java.util.Arrays;
+import java.util.List;
 
 import org.apache.log4j.Logger;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.utils.BloomFilter;
 
 /**
  * This class is built on top of the SequenceFile. It stores

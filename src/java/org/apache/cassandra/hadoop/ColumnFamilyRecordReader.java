@@ -31,12 +31,10 @@ import java.util.TreeMap;
 
 import com.google.common.collect.AbstractIterator;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.thrift.*;
-import org.apache.cassandra.thrift.Column;
-import org.apache.cassandra.thrift.SuperColumn;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.hadoop.conf.Configuration;

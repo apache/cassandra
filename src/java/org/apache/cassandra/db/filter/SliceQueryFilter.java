@@ -22,19 +22,19 @@ package org.apache.cassandra.db.filter;
 
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
-import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.log4j.Logger;
+import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.collections.comparators.ReverseComparator;
 import org.apache.commons.collections.iterators.ReverseListIterator;
-import org.apache.commons.collections.IteratorUtils;
 
-import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.io.SSTableReader;
 
 public class SliceQueryFilter extends QueryFilter
 {

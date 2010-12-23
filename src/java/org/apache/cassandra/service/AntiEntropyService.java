@@ -22,12 +22,15 @@ import java.io.*;
 import java.net.InetAddress;
 import java.security.MessageDigest;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
+
+import org.apache.log4j.Logger;
 
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.Range;
@@ -35,15 +38,12 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.CompactionIterator.CompactedRow;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.IndexSummary;
-import org.apache.cassandra.io.SSTableReader;
-import org.apache.cassandra.streaming.StreamOut;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.streaming.StreamOut;
 import org.apache.cassandra.streaming.StreamOutManager;
 import org.apache.cassandra.utils.*;
-
-import org.apache.log4j.Logger;
 
 /**
  * AntiEntropyService encapsulates "validating" (hashing) individual column families,

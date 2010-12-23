@@ -21,15 +21,6 @@ package org.apache.cassandra.tools;
  */
 
 
-import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
-import org.apache.cassandra.concurrent.IExecutorMBean;
-import org.apache.cassandra.db.ColumnFamilyStoreMBean;
-import org.apache.cassandra.db.CompactionManager;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.utils.EstimatedHistogram;
-import org.apache.commons.cli.*;
-
 import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.management.MemoryUsage;
@@ -38,6 +29,16 @@ import java.text.DecimalFormat;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
+
+import org.apache.commons.cli.*;
+
+import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
+import org.apache.cassandra.concurrent.IExecutorMBean;
+import org.apache.cassandra.db.ColumnFamilyStoreMBean;
+import org.apache.cassandra.db.CompactionManager;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.utils.EstimatedHistogram;
 
 public class NodeCmd {
     private static final String HOST_OPT_LONG = "host";

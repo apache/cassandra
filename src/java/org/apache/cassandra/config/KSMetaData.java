@@ -18,17 +18,12 @@
 
 package org.apache.cassandra.config;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.IEndPointSnitch;
 import org.apache.cassandra.utils.FBUtilities;
-
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.HashMap;
-import java.util.Map;
 
 public final class KSMetaData
 {

@@ -22,14 +22,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-
 import javax.xml.bind.annotation.XmlElement;
 
+import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.concurrent.StageManager;
 
 public class RowMutationMessage
 {   

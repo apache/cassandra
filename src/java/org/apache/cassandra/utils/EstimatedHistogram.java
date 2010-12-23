@@ -18,8 +18,8 @@
 */
 package org.apache.cassandra.utils;
 
-import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicLongArray;
 
 public class EstimatedHistogram
 {

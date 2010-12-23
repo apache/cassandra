@@ -18,9 +18,7 @@
 
 package org.apache.cassandra.db;
 
-import java.util.concurrent.Future;
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicLongArray;
 
 /**
  * The MBean interface for ColumnFamilyStore

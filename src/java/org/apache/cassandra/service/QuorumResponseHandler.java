@@ -18,22 +18,19 @@
 
 package org.apache.cassandra.service;
 
+import java.io.IOException;
 import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.io.IOException;
+
+import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.SimpleCondition;
-
-import org.apache.log4j.Logger;
 
 public class QuorumResponseHandler<T> implements IAsyncCallback
 {

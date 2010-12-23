@@ -18,11 +18,13 @@
 
 package org.apache.cassandra.streaming;
 
-import java.net.InetSocketAddress;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
-import java.io.*;
 
 import org.apache.log4j.Logger;
 

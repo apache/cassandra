@@ -18,12 +18,10 @@
 
 package org.apache.cassandra.locator;
 
-import java.net.UnknownHostException;
-
 import java.net.InetAddress;
-import java.util.Set;
-import java.util.List;
+import java.net.UnknownHostException;
 import java.util.Collection;
+import java.util.List;
 
 
 /**

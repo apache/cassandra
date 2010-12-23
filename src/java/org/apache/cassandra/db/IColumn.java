@@ -18,8 +18,8 @@
 
 package org.apache.cassandra.db;
 
-import java.util.Collection;
 import java.security.MessageDigest;
+import java.util.Collection;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 

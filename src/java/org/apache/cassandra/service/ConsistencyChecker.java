@@ -42,7 +42,6 @@ import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ExpiringMap;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * ConsistencyChecker does the following:

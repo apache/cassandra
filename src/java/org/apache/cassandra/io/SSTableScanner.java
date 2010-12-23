@@ -18,17 +18,16 @@
 
 package org.apache.cassandra.io;
 
-import java.io.IOException;
 import java.io.Closeable;
 import java.io.IOError;
-import java.util.Iterator;
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
+
+import org.apache.log4j.Logger;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.io.util.FileDataInput;
-
-import org.apache.log4j.Logger;
 
 
 public class SSTableScanner implements Iterator<IteratingRow>, Closeable

@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service;
 
+import org.apache.log4j.Logger;
+
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.RangeSliceCommand;
 import org.apache.cassandra.db.RangeSliceReply;
@@ -25,7 +27,6 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.log4j.Logger;
 
 public class RangeSliceVerbHandler implements IVerbHandler
 {

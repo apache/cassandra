@@ -21,21 +21,21 @@ package org.apache.cassandra.service;
  */
 
 
-import org.apache.log4j.Logger;
-
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryUsage;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
-import org.apache.cassandra.concurrent.IExecutorMBean;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CompactionManager;
-
-import java.lang.management.MemoryUsage;
-import java.lang.management.ManagementFactory;
 import javax.management.JMX;
 import javax.management.MBeanServer;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
+
+import org.apache.log4j.Logger;
+
+import org.apache.cassandra.concurrent.IExecutorMBean;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CompactionManager;
 
 public class GCInspector
 {

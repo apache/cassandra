@@ -34,11 +34,8 @@ import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
 import org.apache.log4j.Logger;
-
 import org.apache.commons.collections.iterators.CollatingIterator;
 
-import com.sun.jna.LastErrorException;
-import com.sun.jna.Native;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;

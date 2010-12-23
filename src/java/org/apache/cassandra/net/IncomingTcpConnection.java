@@ -26,7 +26,6 @@ import java.net.Socket;
 
 import org.apache.log4j.Logger;
 
-import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.streaming.IncomingStreamReader;
 
 public class IncomingTcpConnection extends Thread
