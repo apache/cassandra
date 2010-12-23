@@ -32,12 +32,12 @@ public class SimpleSnitch extends AbstractEndpointSnitch
 {
     public String getRack(InetAddress endpoint)
     {
-        throw new UnsupportedOperationException();
+        return "rack1";
     }
 
     public String getDatacenter(InetAddress endpoint)
     {
-        throw new UnsupportedOperationException();
+        return "datacenter1";
     }
     
     public List<InetAddress> getSortedListByProximity(final InetAddress address, Collection<InetAddress> addresses)
