@@ -55,6 +55,7 @@ public class RowMutation
 {
     private static RowMutationSerializer serializer_;
     public static final String HINT = "HINT";
+    public static final String FORWARD_HEADER = "FORWARD";
 
     static
     {

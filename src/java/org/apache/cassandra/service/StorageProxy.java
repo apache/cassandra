@@ -27,14 +27,11 @@ import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Multimap;
-import static com.google.common.base.Charsets.UTF_8;
+import com.google.common.collect.*;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
@@ -44,6 +41,11 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AbstractCommutativeType;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
@@ -56,7 +58,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LatencyTracker;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.apache.cassandra.db.filter.QueryFilter;
+
+import static com.google.common.base.Charsets.UTF_8;
 
 public class StorageProxy implements StorageProxyMBean
 {
@@ -96,10 +99,11 @@ public class StorageProxy implements StorageProxyMBean
     public static void mutate(List<RowMutation> mutations, ConsistencyLevel consistency_level) throws UnavailableException, TimeoutException
     {
         long startTime = System.nanoTime();
-        ArrayList<IWriteResponseHandler> responseHandlers = new ArrayList<IWriteResponseHandler>();
+        List<IWriteResponseHandler> responseHandlers = new ArrayList<IWriteResponseHandler>();
 
         RowMutation mostRecentRowMutation = null;
         StorageService ss = StorageService.instance;
+        String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getLocalAddress());
         
         try
         {
@@ -113,11 +117,15 @@ public class StorageProxy implements StorageProxyMBean
                 Collection<InetAddress> writeEndpoints = ss.getTokenMetadata().getWriteEndpoints(StorageService.getPartitioner().getToken(rm.key()), table, naturalEndpoints);
                 Multimap<InetAddress, InetAddress> hintedEndpoints = rs.getHintedEndpoints(writeEndpoints);
                 
-                // send out the writes, as in mutate() above, but this time with a callback that tracks responses
                 final IWriteResponseHandler responseHandler = rs.getWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level);
+                
+                // exit early if we can't fulfill the CL at this time
                 responseHandler.assureSufficientLiveNodes();
-
+                
                 responseHandlers.add(responseHandler);
+                
+                // Multimap that holds onto all the messages and addresses meant for a specific datacenter
+                Multimap<String, Pair<Message, InetAddress>> dcMessages = HashMultimap.create(hintedEndpoints.size(), 10);
                 Message unhintedMessage = null;
 
                 //XXX: if commutative value, only allow CL.ONE write
@@ -127,6 +135,8 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     InetAddress destination = entry.getKey();
                     Collection<InetAddress> targets = entry.getValue();
+
+                    String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(destination);
 
                     if (targets.size() == 1 && targets.iterator().next().equals(destination))
                     {
@@ -140,7 +150,7 @@ public class StorageProxy implements StorageProxyMBean
                         }
                         else
                         {
-                            // belongs on a different server.  send it there.
+                            // belongs on a different server
                             if (unhintedMessage == null)
                             {
                                 unhintedMessage = rm.makeRowMutationMessage();
@@ -148,7 +158,7 @@ public class StorageProxy implements StorageProxyMBean
                             }
                             if (logger.isDebugEnabled())
                                 logger.debug("insert writing key " + FBUtilities.bytesToHex(rm.key()) + " to " + unhintedMessage.getMessageId() + "@" + destination);
-                            MessagingService.instance.sendOneWay(unhintedMessage, destination);
+                            dcMessages.put(dc, new Pair<Message, InetAddress>(unhintedMessage, destination));
                         }
                     }
                     else
@@ -165,15 +175,16 @@ public class StorageProxy implements StorageProxyMBean
                             }
                         }
                         responseHandler.addHintCallback(hintedMessage, destination);
-                        MessagingService.instance.sendOneWay(hintedMessage, destination);
+                        dcMessages.put(dc, new Pair<Message, InetAddress>(hintedMessage, destination));
                     }
                 }
+
+                sendMessages(localDataCenter, dcMessages);
             }
+                        
             // wait for writes.  throws timeoutexception if necessary
             for (IWriteResponseHandler responseHandler : responseHandlers)
-            {
                 responseHandler.get();
-            }
         }
         catch (IOException e)
         {
@@ -219,6 +230,59 @@ public class StorageProxy implements StorageProxyMBean
         {
             InetAddress[] destinations = destinationSet.toArray(new InetAddress[0]);
             return destinations[random.nextInt(destinations.length)];
+        }
+    }
+
+    /**
+     * for each datacenter, send a message to one node to relay the write to other replicas
+     */
+    private static void sendMessages(String localDataCenter, Multimap<String, Pair<Message, InetAddress>> dcMessages)
+    throws IOException
+    {
+        for (Map.Entry<String, Collection<Pair<Message, InetAddress>>> entry : dcMessages.asMap().entrySet())
+        {
+            String dataCenter = entry.getKey();
+
+            // Grab a set of all the messages bound for this dataCenter and create an iterator over this set.
+            Collection<Pair<Message, InetAddress>> messagesForDataCenter = entry.getValue();
+            Iterator<Pair<Message, InetAddress>> iter = messagesForDataCenter.iterator();
+            assert iter.hasNext();
+
+            // First endpoint in list is the destination for this group
+            Pair<Message, InetAddress> messageAndDestination = iter.next();
+
+            Message primaryMessage = messageAndDestination.left;
+            InetAddress target = messageAndDestination.right;
+
+            // Add all the other destinations that are bound for the same dataCenter as a header in the primary message.
+            while (iter.hasNext())
+            {
+                messageAndDestination = iter.next();
+                assert messageAndDestination.left == primaryMessage;
+
+                if (dataCenter.equals(localDataCenter))
+                {
+                    // direct write to local DC
+                    assert primaryMessage.getHeader(RowMutation.FORWARD_HEADER) == null;
+                    MessagingService.instance.sendOneWay(primaryMessage, target);
+                }
+                else
+                {
+                    // group all nodes in this DC as forward headers on the primary message
+                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                    DataOutputStream dos = new DataOutputStream(bos);
+
+                    // append to older addresses
+                    byte[] previousHints = primaryMessage.getHeader(RowMutation.FORWARD_HEADER);
+                    if (previousHints != null)
+                        dos.write(previousHints);
+
+                    dos.write(messageAndDestination.right.getAddress());
+                    primaryMessage.setHeader(RowMutation.FORWARD_HEADER, bos.toByteArray());
+                }
+            }
+
+            MessagingService.instance.sendOneWay(primaryMessage, target);
         }
     }
 
