@@ -376,7 +376,7 @@ public class CliClient extends CliUserHelp
         ByteBuffer key = getKeyAsBytes(columnFamily, columnFamilySpec.getChild(1));
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
         CfDef cfDef = getCfDef(columnFamily);
-        boolean isSuper = cfDef.comparator_type.equals("Super");
+        boolean isSuper = cfDef.column_type.equals("Super");
         
         byte[] superColumnName = null;
         ByteBuffer columnName;
