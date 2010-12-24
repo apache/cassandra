@@ -43,7 +43,7 @@ public class BufferedRandomAccessFileTest
 
         // write a chunk smaller then our buffer, so will not be flushed
         // to disk
-        byte[] lessThenBuffer = new byte[BufferedRandomAccessFile.BuffSz_ / 2];
+        byte[] lessThenBuffer = new byte[BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE / 2];
         rw.write(lessThenBuffer);
         assertEquals(lessThenBuffer.length, rw.length());
 
@@ -52,7 +52,7 @@ public class BufferedRandomAccessFileTest
         assertEquals(lessThenBuffer.length, rw.length());
 
         // write more then the buffer can hold and check length
-        byte[] biggerThenBuffer = new byte[BufferedRandomAccessFile.BuffSz_ * 2];
+        byte[] biggerThenBuffer = new byte[BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE * 2];
         rw.write(biggerThenBuffer);
         assertEquals(biggerThenBuffer.length + lessThenBuffer.length, rw.length());
 
@@ -76,11 +76,11 @@ public class BufferedRandomAccessFileTest
         BufferedRandomAccessFile rw = new BufferedRandomAccessFile(tmpFile, "rw");
 
         // Fully write the file and sync..
-        byte[] in = new byte[BufferedRandomAccessFile.BuffSz_];
+        byte[] in = new byte[BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE];
         rw.write(in);
 
         // Read it into a same size array.
-        byte[] out = new byte[BufferedRandomAccessFile.BuffSz_];
+        byte[] out = new byte[BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE];
         rw.read(out);
 
         // We're really at the end.
@@ -93,7 +93,7 @@ public class BufferedRandomAccessFileTest
         assert negone == -1 : "We read past the end of the file, should have gotten EOF -1. Instead, " + negone;
 
         // Writing will succeed
-        rw.write(new byte[BufferedRandomAccessFile.BuffSz_]);
+        rw.write(new byte[BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE]);
         // Forcing a rebuffer here
         rw.write(42);
     }

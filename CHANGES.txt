@@ -6,6 +6,8 @@ dev
  * More-efficient cross-DC replication (CASSANDRA-1530)
  * upgrade to TFastFramedTransport (CASSANDRA-1743)
  * fix CLI get recognition of supercolumns (CASSANDRA-1899)
+ * avoid polluting page cache with commitlog or sstable writes
+   and seq scan operations (CASSANDRA-1470)
 
 
 0.7.0-rc3

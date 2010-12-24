@@ -52,6 +52,7 @@ public class CommitLogSegment
         try
         {
             logWriter = createWriter(logFile);
+
             writeHeader();
         }
         catch (IOException e)
@@ -72,7 +73,7 @@ public class CommitLogSegment
 
     private static BufferedRandomAccessFile createWriter(String file) throws IOException
     {
-        return new BufferedRandomAccessFile(file, "rw", 128 * 1024);
+        return new BufferedRandomAccessFile(new File(file), "rw", 128 * 1024, true);
     }
 
     public CommitLogSegment.CommitLogContext write(RowMutation rowMutation, Object serializedRow) throws IOException
