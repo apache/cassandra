@@ -84,8 +84,8 @@ public class QueryFilter
     public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key)
     {
         if (path.superColumnName == null)
-            return filter.getSSTableColumnIterator(sstable.metadata, file, key);
-        return superFilter.getSSTableColumnIterator(sstable.metadata, file, key);
+            return filter.getSSTableColumnIterator(sstable, file, key);
+        return superFilter.getSSTableColumnIterator(sstable, file, key);
     }
 
     // here so it can be used by SQF and NQF.  non-package callers should call IFilter.getColumnComparator

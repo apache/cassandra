@@ -8,6 +8,7 @@ dev
  * fix CLI get recognition of supercolumns (CASSANDRA-1899)
  * avoid polluting page cache with commitlog or sstable writes
    and seq scan operations (CASSANDRA-1470)
+ * add OpenBitSet to support larger bloom filters (CASSANDRA-1555)
 
 
 0.7.0-rc3

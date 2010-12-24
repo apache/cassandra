@@ -64,7 +64,7 @@ public class SSTableSliceIterator implements IColumnIterator
             throw new IOError(e);
         }
 
-        reader = createReader(sstable.metadata, fileToClose, startColumn, finishColumn, reversed);
+        reader = createReader(sstable, fileToClose, startColumn, finishColumn, reversed);
     }
 
     /**
@@ -79,18 +79,18 @@ public class SSTableSliceIterator implements IColumnIterator
      * @param finishColumn The end of the slice
      * @param reversed Results are returned in reverse order iff reversed is true.
      */
-    public SSTableSliceIterator(CFMetaData metadata, FileDataInput file, DecoratedKey key, ByteBuffer startColumn, ByteBuffer finishColumn, boolean reversed)
+    public SSTableSliceIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, ByteBuffer startColumn, ByteBuffer finishColumn, boolean reversed)
     {
         this.key = key;
         fileToClose = null;
-        reader = createReader(metadata, file, startColumn, finishColumn, reversed);
+        reader = createReader(sstable, file, startColumn, finishColumn, reversed);
     }
 
-    private static IColumnIterator createReader(CFMetaData metadata, FileDataInput file, ByteBuffer startColumn, ByteBuffer finishColumn, boolean reversed)
+    private static IColumnIterator createReader(SSTableReader sstable, FileDataInput file, ByteBuffer startColumn, ByteBuffer finishColumn, boolean reversed)
     {
         return startColumn.remaining() == 0 && !reversed
-                 ? new SimpleSliceReader(metadata, file, finishColumn)
-                 : new IndexedSliceReader(metadata, file, startColumn, finishColumn, reversed);
+                 ? new SimpleSliceReader(sstable, file, finishColumn)
+                 : new IndexedSliceReader(sstable, file, startColumn, finishColumn, reversed);
     }
 
     public DecoratedKey getKey()

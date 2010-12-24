@@ -112,7 +112,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     private SegmentedFile dfile;
 
     private IndexSummary indexSummary;
-    private BloomFilter bf;
+    private Filter bf;
 
     private InstrumentedCache<Pair<Descriptor,DecoratedKey>, Long> keyCache;
 
@@ -203,7 +203,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     /**
      * Open a RowIndexedReader which already has its state initialized (by SSTableWriter).
      */
-    static SSTableReader internalOpen(Descriptor desc, Set<Component> components, CFMetaData metadata, IPartitioner partitioner, SegmentedFile ifile, SegmentedFile dfile, IndexSummary isummary, BloomFilter bf, long maxDataAge, EstimatedHistogram rowsize,
+    static SSTableReader internalOpen(Descriptor desc, Set<Component> components, CFMetaData metadata, IPartitioner partitioner, SegmentedFile ifile, SegmentedFile dfile, IndexSummary isummary, Filter bf, long maxDataAge, EstimatedHistogram rowsize,
                                       EstimatedHistogram columncount) throws IOException
     {
         assert desc != null && partitioner != null && ifile != null && dfile != null && isummary != null && bf != null;
@@ -217,7 +217,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                           SegmentedFile ifile,
                           SegmentedFile dfile,
                           IndexSummary indexSummary,
-                          BloomFilter bloomFilter,
+                          Filter bloomFilter,
                           long maxDataAge,
                           EstimatedHistogram rowSizes,
                           EstimatedHistogram columnCounts)
@@ -248,7 +248,14 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         try
         {
             stream = new DataInputStream(new BufferedInputStream(new FileInputStream(descriptor.filenameFor(Component.FILTER))));
-            bf = BloomFilter.serializer().deserialize(stream);
+            if (descriptor.usesOldBloomFilter)
+            {
+                bf = LegacyBloomFilter.serializer().deserialize(stream);
+            }
+            else
+            {
+                bf = BloomFilter.serializer().deserialize(stream);
+            }
         }
         finally
         {
@@ -280,7 +287,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
             indexSummary = new IndexSummary(estimatedKeys);
             if (recreatebloom)
                 // estimate key count based on index length
-                bf = BloomFilter.getFilter(estimatedKeys, 15);
+                bf = LegacyBloomFilter.getFilter(estimatedKeys, 15);
             while (true)
             {
                 long indexPosition = input.getFilePointer();
@@ -344,10 +351,10 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
      */
     public void forceFilterFailures()
     {
-        bf = BloomFilter.alwaysMatchingBloomFilter();
+        bf = LegacyBloomFilter.alwaysMatchingBloomFilter();
     }
 
-    public BloomFilter getBloomFilter()
+    public Filter getBloomFilter()
     {
       return bf;
     }
