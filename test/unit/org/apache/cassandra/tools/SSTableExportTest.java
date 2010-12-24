@@ -97,7 +97,7 @@ public class SSTableExportTest extends SchemaLoader
         ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Standard1");
         SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
         
-        int nowInSec = (int)(System.currentTimeMillis() / 1000);
+        int nowInSec = (int)(System.currentTimeMillis() / 1000) + 42; //live for 42 seconds
         // Add rowA
         cfamily.addColumn(new QueryPath("Standard1", null, ByteBufferUtil.bytes("colA")), ByteBufferUtil.bytes("valA"), 1);
         cfamily.addColumn(null, new ExpiringColumn(ByteBufferUtil.bytes("colExp"), ByteBufferUtil.bytes("valExp"), 1, 42, nowInSec));
