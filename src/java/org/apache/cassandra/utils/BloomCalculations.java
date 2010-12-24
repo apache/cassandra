@@ -32,6 +32,8 @@ class BloomCalculations {
     private static final int minBuckets = 2;
     private static final int minK = 1;
 
+    private static final int EXCESS = 20;
+
     /**
      * In the following table, the row 'i' shows false positive rates if i buckets
      * per element are used.  Column 'j' shows false positive rates if j hash
@@ -157,5 +159,21 @@ class BloomCalculations {
         }
 
         return new BloomSpecification(K, bucketsPerElement);
+    }
+
+    /**
+     * Calculates the maximum number of buckets per element that this implementation
+     * can support.  Crucially, it will lower the bucket count if necessary to meet
+     * BitSet's size restrictions.
+     */
+    public static int maxBucketsPerElement(long numElements)
+    {
+        numElements = Math.max(1, numElements);
+        double v = (Long.MAX_VALUE - EXCESS) / (double)numElements;
+        if (v < 1.0)
+        {
+            throw new UnsupportedOperationException("Cannot compute probabilities for " + numElements + " elements.");
+        }
+        return Math.min(BloomCalculations.probs.length - 1, (int)v);
     }
 }

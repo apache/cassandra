@@ -18,175 +18,133 @@
 
 package org.apache.cassandra.utils;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.BitSet;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.utils.obs.OpenBitSet;
 
 public class BloomFilter extends Filter
 {
+
     private static final Logger logger = LoggerFactory.getLogger(BloomFilter.class);
+    private static final int EXCESS = 20;
     static ICompactSerializer<BloomFilter> serializer_ = new BloomFilterSerializer();
 
-    private static final int EXCESS = 20;
+    public OpenBitSet bitset;
+
+    BloomFilter(int hashes, OpenBitSet bs)
+    {
+        hashCount = hashes;
+        bitset = bs;
+    }
 
     public static ICompactSerializer<BloomFilter> serializer()
     {
         return serializer_;
     }
 
-    private BitSet filter_;
-
-    BloomFilter(int hashes, BitSet filter)
+    long emptyBuckets()
     {
-        hashCount = hashes;
-        filter_ = filter;
-    }
-
-    private static BitSet bucketsFor(long numElements, int bucketsPer)
-    {
-        long numBits = numElements * bucketsPer + EXCESS;
-        return new BitSet((int)Math.min(Integer.MAX_VALUE, numBits));
-    }
-
-    /**
-     * Calculates the maximum number of buckets per element that this implementation
-     * can support.  Crucially, it will lower the bucket count if necessary to meet
-     * BitSet's size restrictions.
-     */
-    private static int maxBucketsPerElement(long numElements)
-    {
-        numElements = Math.max(1, numElements);
-        double v = (Integer.MAX_VALUE - EXCESS) / (double)numElements;
-        if (v < 1.0)
+        long n = 0;
+        for (long i = 0; i < buckets(); i++)
         {
-            throw new UnsupportedOperationException("Cannot compute probabilities for " + numElements + " elements.");
-        }
-        return Math.min(BloomCalculations.probs.length - 1, (int)v);
-    }
-
-    /**
-     * @return A BloomFilter with the lowest practical false positive probability
-     * for the given number of elements.
-     */
-    public static BloomFilter getFilter(long numElements, int targetBucketsPerElem)
-    {
-        int maxBucketsPerElement = Math.max(1, maxBucketsPerElement(numElements));
-        int bucketsPerElement = Math.min(targetBucketsPerElem, maxBucketsPerElement);
-        if (bucketsPerElement < targetBucketsPerElem)
-        {
-            logger.warn(String.format("Cannot provide an optimal BloomFilter for %d elements (%d/%d buckets per element).",
-                                      numElements, bucketsPerElement, targetBucketsPerElem));
-        }
-        BloomCalculations.BloomSpecification spec = BloomCalculations.computeBloomSpec(bucketsPerElement);
-        return new BloomFilter(spec.K, bucketsFor(numElements, spec.bucketsPerElement));
-    }
-
-    /**
-     * @return The smallest BloomFilter that can provide the given false positive
-     * probability rate for the given number of elements.
-     *
-     * Asserts that the given probability can be satisfied using this filter.
-     */
-    public static BloomFilter getFilter(long numElements, double maxFalsePosProbability)
-    {
-        assert maxFalsePosProbability <= 1.0 : "Invalid probability";
-        int bucketsPerElement = maxBucketsPerElement(numElements);
-        BloomCalculations.BloomSpecification spec = BloomCalculations.computeBloomSpec(bucketsPerElement, maxFalsePosProbability);
-        return new BloomFilter(spec.K, bucketsFor(numElements, spec.bucketsPerElement));
-    }
-
-    public void clear()
-    {
-        filter_.clear();
-    }
-
-    int buckets()
-    {
-        return filter_.size();
-    }
-
-    BitSet filter()
-    {
-        return filter_;
-    }
-
-    public boolean isPresent(ByteBuffer key)
-    {
-        for (int bucketIndex : getHashBuckets(key))
-        {
-            if (!filter_.get(bucketIndex))
-            {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /*
-     @param key -- value whose hash is used to fill
-     the filter_.
-     This is a general purpose API.
-     */
-    public void add(ByteBuffer key)
-    {
-        for (int bucketIndex : getHashBuckets(key))
-        {
-            filter_.set(bucketIndex);
-        }
-    }
-
-    public String toString()
-    {
-        return filter_.toString();
-    }
-
-    ICompactSerializer tserializer()
-    {
-        return serializer_;
-    }
-
-    int emptyBuckets()
-    {
-        int n = 0;
-        for (int i = 0; i < buckets(); i++)
-        {
-            if (!filter_.get(i))
+            if (!bitset.get(i))
             {
                 n++;
             }
         }
         return n;
     }
-
-    /** @return a BloomFilter that always returns a positive match, for testing */
-    public static BloomFilter alwaysMatchingBloomFilter()
+    
+    private static OpenBitSet bucketsFor(long numElements, int bucketsPer)
     {
-        BitSet set = new BitSet(64);
-        set.set(0, 64);
-        return new BloomFilter(1, set);
-    }
-}
-
-class BloomFilterSerializer implements ICompactSerializer<BloomFilter>
-{
-    public void serialize(BloomFilter bf, DataOutputStream dos)
-            throws IOException
-    {
-        dos.writeInt(bf.getHashCount());
-        BitSetSerializer.serialize(bf.filter(), dos);
+        long numBits = numElements * bucketsPer + EXCESS; //TODO overflow?
+        return new OpenBitSet((long)Math.min(Long.MAX_VALUE, numBits));
     }
 
-    public BloomFilter deserialize(DataInputStream dis) throws IOException
+    /**
+    * @return A BloomFilter with the lowest practical false positive probability
+    * for the given number of elements.
+    */
+    public static BloomFilter getFilter(long numElements, int targetBucketsPerElem)
     {
-        int hashes = dis.readInt();
-        BitSet bs = BitSetSerializer.deserialize(dis);
-        return new BloomFilter(hashes, bs);
+        int maxBucketsPerElement = Math.max(1, BloomCalculations.maxBucketsPerElement(numElements));
+        int bucketsPerElement = Math.min(targetBucketsPerElem, maxBucketsPerElement);
+        if (bucketsPerElement < targetBucketsPerElem)
+        {
+            logger.warn(String.format("Cannot provide an optimal BloomFilter for %d elements (%d/%d buckets per element).",
+                                    numElements, bucketsPerElement, targetBucketsPerElem));
+        }
+        BloomCalculations.BloomSpecification spec = BloomCalculations.computeBloomSpec(bucketsPerElement);
+        return new BloomFilter(spec.K, bucketsFor(numElements, spec.bucketsPerElement));
+    }
+
+    /**
+    * @return The smallest BloomFilter that can provide the given false positive
+    * probability rate for the given number of elements.
+    *
+    * Asserts that the given probability can be satisfied using this filter.
+    */
+    public static BloomFilter getFilter(long numElements, double maxFalsePosProbability)
+    {
+        assert maxFalsePosProbability <= 1.0 : "Invalid probability";
+        int bucketsPerElement = BloomCalculations.maxBucketsPerElement(numElements);
+        BloomCalculations.BloomSpecification spec = BloomCalculations.computeBloomSpec(bucketsPerElement, maxFalsePosProbability);
+        return new BloomFilter(spec.K, bucketsFor(numElements, spec.bucketsPerElement));
+    }
+
+    private long buckets()
+    {
+      return bitset.size();
+    }
+
+    private long[] getHashBuckets(ByteBuffer key)
+    {
+        return BloomFilter.getHashBuckets(key, hashCount, buckets());
+    }
+
+    // Murmur is faster than an SHA-based approach and provides as-good collision
+    // resistance.  The combinatorial generation approach described in
+    // http://www.eecs.harvard.edu/~kirsch/pubs/bbbf/esa06.pdf
+    // does prove to work in actual tests, and is obviously faster
+    // than performing further iterations of murmur.
+    static long[] getHashBuckets(ByteBuffer b, int hashCount, long max)
+    {
+        long[] result = new long[hashCount];
+        long hash1 = MurmurHash.hash64(b.array(), b.position()+b.arrayOffset(), b.remaining(), 0L);
+        long hash2 = MurmurHash.hash64(b.array(), b.position()+b.arrayOffset(), b.remaining(), hash1);
+        for (int i = 0; i < hashCount; ++i)
+        {
+            result[i] = Math.abs((hash1 + (long)i * hash2) % max);
+        }
+        return result;
+    }
+
+    public void add(ByteBuffer key)
+    {
+        for (long bucketIndex : getHashBuckets(key))
+        {
+            bitset.set(bucketIndex);
+        }
+    }
+
+    public boolean isPresent(ByteBuffer key)
+    {
+      for (long bucketIndex : getHashBuckets(key))
+      {
+          if (!bitset.get(bucketIndex))
+          {
+              return false;
+          }
+      }
+      return true;
+    }
+
+    public void clear()
+    {
+        bitset.clear(0, bitset.size());
     }
 }

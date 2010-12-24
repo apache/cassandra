@@ -38,6 +38,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
+import org.apache.cassandra.io.sstable.SSTableReader;
 
 /**
  *  This is a reader that finds the block for a starting column and returns
@@ -58,19 +59,19 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
     private Deque<IColumn> blockColumns = new ArrayDeque<IColumn>();
     private AbstractType comparator;
 
-    public IndexedSliceReader(CFMetaData metadata, FileDataInput input, ByteBuffer startColumn, ByteBuffer finishColumn, boolean reversed)
+    public IndexedSliceReader(SSTableReader sstable, FileDataInput input, ByteBuffer startColumn, ByteBuffer finishColumn, boolean reversed)
     {
         this.file = input;
         this.startColumn = startColumn;
         this.finishColumn = finishColumn;
         this.reversed = reversed;
-        comparator = metadata.comparator;
+        comparator = sstable.metadata.comparator;
         try
         {
             IndexHelper.skipBloomFilter(file);
             indexes = IndexHelper.deserializeIndex(file);
 
-            emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(ColumnFamily.create(metadata), file);
+            emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(ColumnFamily.create(sstable.metadata), file);
             fetcher = indexes == null ? new SimpleBlockFetcher() : new IndexedBlockFetcher();
         }
         catch (IOException e)
