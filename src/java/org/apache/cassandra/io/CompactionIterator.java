@@ -82,7 +82,7 @@ implements Closeable, ICompactionInfo
         CollatingIterator iter = FBUtilities.getCollatingIterator();
         for (SSTableReader sstable : sstables)
         {
-            iter.addIterator(sstable.getScanner(FILE_BUFFER_SIZE));
+            iter.addIterator(sstable.getDirectScanner(FILE_BUFFER_SIZE));
         }
         return iter;
     }

@@ -266,7 +266,10 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         SegmentedFile.Builder dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
 
         // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
-        BufferedRandomAccessFile input = new BufferedRandomAccessFile(descriptor.filenameFor(Component.PRIMARY_INDEX), "r");
+        BufferedRandomAccessFile input = new BufferedRandomAccessFile(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)),
+                                                                      "r",
+                                                                      BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE,
+                                                                      true);
         try
         {
             if (keyCache != null && keyCache.getCapacity() - keyCache.getSize() < keysToLoadInCache.size())
@@ -524,21 +527,23 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     /**
      * @param bufferSize Buffer size in bytes for this Scanner.
-     * @return A Scanner for seeking over the rows of the SSTable.
-     */
-    public SSTableScanner getScanner(int bufferSize)
-    {
-        return new SSTableScanner(this, bufferSize);
-    }
-
-    /**
-     * @param bufferSize Buffer size in bytes for this Scanner.
      * @param filter filter to use when reading the columns
      * @return A Scanner for seeking over the rows of the SSTable.
      */
     public SSTableScanner getScanner(int bufferSize, QueryFilter filter)
     {
         return new SSTableScanner(this, filter, bufferSize);
+    }
+
+   /**
+    * Direct I/O SSTableScanner
+    * @param bufferSize Buffer size in bytes for this Scanner.
+    * @return A Scanner for seeking over the rows of the SSTable.
+    * @throws IOException when I/O operation fails
+    */
+    public SSTableScanner getDirectScanner(int bufferSize)
+    {
+        return new SSTableScanner(this, bufferSize, true);
     }
 
     public FileDataInput getFileDataInput(DecoratedKey decoratedKey, int bufferSize)

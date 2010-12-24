@@ -185,7 +185,7 @@ public class SSTableExport
     throws IOException
     {
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(ssTableFile));
-        SSTableScanner scanner = reader.getScanner(INPUT_FILE_BUFFER_SIZE);
+        SSTableScanner scanner = reader.getDirectScanner(INPUT_FILE_BUFFER_SIZE);
         IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();    
         Set<String> excludeSet = new HashSet<String>();
         int i = 0;
@@ -243,7 +243,7 @@ public class SSTableExport
     // than once from within the same process.
     static void export(SSTableReader reader, PrintStream outs, String[] excludes) throws IOException
     {
-        SSTableScanner scanner = reader.getScanner(INPUT_FILE_BUFFER_SIZE);
+        SSTableScanner scanner = reader.getDirectScanner(INPUT_FILE_BUFFER_SIZE);
         Set<String> excludeSet = new HashSet<String>();
 
         if (excludes != null)

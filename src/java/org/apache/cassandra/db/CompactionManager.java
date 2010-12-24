@@ -653,7 +653,7 @@ public class CompactionManager implements CompactionManagerMBean
             CollatingIterator iter = FBUtilities.getCollatingIterator();
             for (SSTableReader sstable : sstables)
             {
-                SSTableScanner scanner = sstable.getScanner(FILE_BUFFER_SIZE);
+                SSTableScanner scanner = sstable.getDirectScanner(FILE_BUFFER_SIZE);
                 iter.addIterator(new FilterIterator(scanner, rangesPredicate));
             }
             return iter;

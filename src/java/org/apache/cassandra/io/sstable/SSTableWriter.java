@@ -73,7 +73,7 @@ public class SSTableWriter extends SSTable
               SSTable.defaultColumnHistogram());
         iwriter = new IndexWriter(descriptor, partitioner, keyCount);
         dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
-        dataFile = new BufferedRandomAccessFile(getFilename(), "rw", DatabaseDescriptor.getInMemoryCompactionLimit());
+        dataFile = new BufferedRandomAccessFile(new File(getFilename()), "rw", DatabaseDescriptor.getInMemoryCompactionLimit(), true);
     }
     
     public void mark()
@@ -309,7 +309,7 @@ public class SSTableWriter extends SSTable
 
         RowIndexer(Descriptor desc, CFMetaData metadata) throws IOException
         {
-            this(desc, new BufferedRandomAccessFile(desc.filenameFor(SSTable.COMPONENT_DATA), "r", 8 * 1024 * 1024), metadata);
+            this(desc, new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_DATA)), "r", 8 * 1024 * 1024, true), metadata);
         }
 
         protected RowIndexer(Descriptor desc, BufferedRandomAccessFile dfile, CFMetaData metadata) throws IOException
@@ -390,7 +390,7 @@ public class SSTableWriter extends SSTable
     {
         AESCommutativeRowIndexer(Descriptor desc, CFMetaData metadata) throws IOException
         {
-            super(desc, new BufferedRandomAccessFile(desc.filenameFor(SSTable.COMPONENT_DATA), "rw", 8 * 1024 * 1024), metadata);
+            super(desc, new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_DATA)), "rw", 8 * 1024 * 1024, true), metadata);
         }
 
         @Override
@@ -480,7 +480,7 @@ public class SSTableWriter extends SSTable
         {
             this.desc = desc;
             this.partitioner = part;
-            indexFile = new BufferedRandomAccessFile(desc.filenameFor(SSTable.COMPONENT_INDEX), "rw", 8 * 1024 * 1024);
+            indexFile = new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_INDEX)), "rw", 8 * 1024 * 1024, true);
             builder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
             summary = new IndexSummary(keyCount);
             bf = BloomFilter.getFilter(keyCount, 15);

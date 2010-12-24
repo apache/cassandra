@@ -837,4 +837,27 @@ public class FBUtilities
     {
         return o.getClass().isArray() ? Arrays.toString((Object[]) o) : o.toString();
     }
+
+    /**
+     * Used to get access to protected/private field of the specified class
+     * @param klass - name of the class
+     * @param fieldName - name of the field
+     * @return Field or null on error
+     */
+    public static Field getProtectedField(Class klass, String fieldName)
+    {
+        Field field;
+
+        try
+        {
+            field = klass.getDeclaredField(fieldName);
+            field.setAccessible(true);
+        }
+        catch (Exception e)
+        {
+            throw new AssertionError(e);
+        }
+
+        return field;
+    }
 }

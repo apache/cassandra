@@ -19,7 +19,9 @@
 package org.apache.cassandra.utils;
 
 import java.io.File;
+import java.io.FileDescriptor;
 import java.io.IOException;
+import java.lang.reflect.Field;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +37,18 @@ public final class CLibrary
     private static final int MCL_FUTURE = 2;
     
     private static final int ENOMEM = 12;
+
+    private static final int F_GETFL   = 3;  /* get file status flags */
+    private static final int F_SETFL   = 4;  /* set file status flags */
+    private static final int F_NOCACHE = 48; /* Mac OS X specific flag, turns cache on/off */
+    private static final int O_DIRECT  = 040000; /* fcntl.h */
+
+    private static final int POSIX_FADV_NORMAL     = 0; /* fadvise.h */
+    private static final int POSIX_FADV_RANDOM     = 1; /* fadvise.h */
+    private static final int POSIX_FADV_SEQUENTIAL = 2; /* fadvise.h */
+    private static final int POSIX_FADV_WILLNEED   = 3; /* fadvise.h */
+    private static final int POSIX_FADV_DONTNEED   = 4; /* fadvise.h */
+    private static final int POSIX_FADV_NOREUSE    = 5; /* fadvise.h */
 
     static
     {
@@ -61,6 +75,12 @@ public final class CLibrary
 
     private static native int link(String from, String to) throws LastErrorException;
 
+    // fcntl - manipulate file descriptor, `man 2 fcntl`
+    public static native int fcntl(int fd, int command, long flags) throws LastErrorException;
+
+    // fadvice
+    public static native int posix_fadvise(int fd, int offset, int len, int flag) throws LastErrorException;
+        
     private static int errno(RuntimeException e)
     {
         assert e instanceof LastErrorException;
@@ -167,5 +187,73 @@ public final class CLibrary
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public static void trySkipCache(int fd, int offset, int len)
+    {
+        if (fd < 0)
+            return;
+
+        try
+        {
+            if (System.getProperty("os.name").toLowerCase().contains("linux"))
+            {
+                posix_fadvise(fd, offset, len, POSIX_FADV_DONTNEED);
+            }
+            else if (System.getProperty("os.name").toLowerCase().contains("mac"))
+            {
+                tryFcntl(fd, F_NOCACHE, 1);
+            }
+        }
+        catch (UnsatisfiedLinkError e)
+        {
+            // if JNA is unavailable just skipping Direct I/O
+            // instance of this class will act like normal RandomAccessFile
+        }
+    }
+
+    public static int tryFcntl(int fd, int command, int flags)
+    {
+        int result = -1;
+
+        try
+        {
+            result = CLibrary.fcntl(fd, command, flags);
+            assert result >= 0; // on error a value of -1 is returned and errno is set to indicate the error.
+        }
+        catch (RuntimeException e)
+        {
+            if (!(e instanceof LastErrorException))
+                throw e;
+
+            logger.warn(String.format("fcntl(%d, %d, %d) failed, errno (%d).",
+                                      fd, command, flags, CLibrary.errno(e)));
+        }
+
+        return result;
+    }
+
+    /**
+     * Get system file descriptor from FileDescriptor object.
+     * @param descriptor - FileDescriptor objec to get fd from
+     * @return file descriptor, -1 or error
+     */
+    public static int getfd(FileDescriptor descriptor)
+    {
+        Field field = FBUtilities.getProtectedField(descriptor.getClass(), "fd");
+
+        if (field == null)
+            return -1;
+
+        try
+        {
+            return field.getInt(descriptor);
+        }
+        catch (Exception e)
+        {
+            logger.warn("unable to read fd field from FileDescriptor");
+        }
+
+        return -1;
     }
 }
