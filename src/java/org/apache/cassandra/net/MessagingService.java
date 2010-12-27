@@ -391,29 +391,29 @@ public class MessagingService implements MessagingServiceMBean
         stage.execute(runnable);
     }
 
-    public static IAsyncCallback getRegisteredCallback(String key)
+    public static IAsyncCallback getRegisteredCallback(String messageId)
     {
-        return callbackMap_.get(key);
+        return callbackMap_.get(messageId);
     }
     
-    public static void removeRegisteredCallback(String key)
+    public static void removeRegisteredCallback(String messageId)
     {
-        callbackMap_.remove(key);
+        callbackMap_.remove(messageId);
     }
     
-    public static IAsyncResult getAsyncResult(String key)
+    public static IAsyncResult getAsyncResult(String messageId)
     {
-        return taskCompletionMap_.remove(key);
+        return taskCompletionMap_.remove(messageId);
     }
 
-    public static long getRegisteredCallbackAge(String key)
+    public static long getRegisteredCallbackAge(String messageId)
     {
-        return callbackMap_.getAge(key);
+        return callbackMap_.getAge(messageId);
     }
 
-    public static long getAsyncResultAge(String key)
+    public static long getAsyncResultAge(String messageId)
     {
-        return taskCompletionMap_.getAge(key);
+        return taskCompletionMap_.getAge(messageId);
     }
 
     public static void validateMagic(int magic) throws IOException
