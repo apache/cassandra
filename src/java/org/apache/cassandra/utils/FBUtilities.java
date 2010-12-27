@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.base.Charsets;
+import com.google.common.base.Joiner;
 import org.apache.commons.collections.iterators.CollatingIterator;
 import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
@@ -643,14 +644,8 @@ public class FBUtilities
 
     public static String toString(Map<?,?> map)
     {
-        // wtf, why isn't something like this in guava or commons collections?
-        StringBuilder sb = new StringBuilder("{");
-        for (Map.Entry<?,?> entry : map.entrySet())
-        {
-            sb.append(toString(entry.getKey())).append(": ").append(toString(entry.getValue())).append(", ");
-        }
-        sb.append("}");
-        return sb.toString();
+        Joiner.MapJoiner joiner = Joiner.on(",").withKeyValueSeparator(":");
+        return joiner.join(map);
     }
 
     /** slow! */
