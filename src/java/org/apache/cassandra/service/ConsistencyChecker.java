@@ -26,12 +26,15 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
-import org.apache.log4j.Logger;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cache.ICacheExpungeHook;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
@@ -41,7 +44,7 @@ import org.apache.cassandra.db.Row;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.ExpiringMap;
+import org.apache.cassandra.utils.WrappedRunnable;
 
 /**
  * ConsistencyChecker does the following:
@@ -59,8 +62,9 @@ import org.apache.cassandra.utils.ExpiringMap;
  */
 class ConsistencyChecker implements Runnable
 {
-	private static Logger logger_ = Logger.getLogger(ConsistencyChecker.class);
-    private static ExpiringMap<String, String> readRepairTable_ = new ExpiringMap<String, String>(DatabaseDescriptor.getRpcTimeout());
+    private static Logger logger_ = LoggerFactory.getLogger(ConsistencyChecker.class);
+
+    private static ScheduledExecutorService executor_ = new ScheduledThreadPoolExecutor(1); // TODO add JMX
 
     private final Row row_;
     protected final List<InetAddress> replicas_;
@@ -126,7 +130,7 @@ class ConsistencyChecker implements Runnable
                     ReadCommand readCommand = constructReadMessage(false);
                     Message message = readCommand.makeReadMessage();
                     if (logger_.isDebugEnabled())
-                        logger_.debug("Digest mismatch; re-reading " + readCommand_.key + " from " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");                         
+                        logger_.debug("Digest mismatch; re-reading " + readCommand_.key + " from " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");
                     MessagingService.instance.addCallback(new DataRepairHandler(), message.getMessageId());
                     for (InetAddress endpoint : replicas_)
                     {
@@ -144,12 +148,12 @@ class ConsistencyChecker implements Runnable
         }
     }
 
-    class DataRepairHandler implements IAsyncCallback, ICacheExpungeHook<String, String>
+    class DataRepairHandler implements IAsyncCallback
 	{
 		private final Collection<Message> responses_ = new LinkedBlockingQueue<Message>();
 		private final ReadResponseResolver readResponseResolver_;
 		private final int majority_;
-		
+
         public DataRepairHandler() throws IOException
         {
             readResponseResolver_ = new ReadResponseResolver(readCommand_.table, readCommand_.key, replicas_.size());
@@ -170,20 +174,15 @@ class ConsistencyChecker implements Runnable
             readResponseResolver_.preprocess(message);
             if (responses_.size() == majority_)
             {
-                String messageId = message.getMessageId();
-                readRepairTable_.put(messageId, messageId, this);
-            }
-        }
-
-		public void callMe(String key, String value)
-		{
-            try
-			{
-				readResponseResolver_.resolve(responses_);
-            }
-            catch (Exception ex)
-            {
-                throw new RuntimeException(ex);
+                Runnable runnable = new WrappedRunnable()
+                {
+                    public void runMayThrow() throws IOException, DigestMismatchException
+                    {
+                        readResponseResolver_.resolve(responses_);
+                    }
+                };
+                // give remaining replicas until timeout to reply and get added to responses_
+                executor_.schedule(runnable, DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
             }
         }
     }
