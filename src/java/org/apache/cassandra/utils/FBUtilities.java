@@ -19,7 +19,6 @@
 package org.apache.cassandra.utils;
 
 import java.io.*;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
@@ -147,7 +146,7 @@ public class FBUtilities
             remainder = distance.testBit(0);
             midpoint = distance.shiftRight(1).add(left).mod(max);
         }
-        return new Pair(midpoint, remainder);
+        return new Pair<BigInteger, Boolean>(midpoint, remainder);
     }
 
     public static ByteBuffer toByteBuffer(int i)
@@ -489,9 +488,7 @@ public class FBUtilities
 
     public static String decodeToUTF8(ByteBuffer bytes) throws CharacterCodingException
     {
-        bytes = bytes.duplicate();
-        String decoded  =  Charsets.UTF_8.newDecoder().decode(bytes).toString();
-        return decoded;
+        return Charsets.UTF_8.newDecoder().decode(bytes.duplicate()).toString();
     }
 
     public static ByteBuffer toByteBuffer(long n)
@@ -558,7 +555,7 @@ public class FBUtilities
     {
         if (!partitionerClassName.contains("."))
             partitionerClassName = "org.apache.cassandra.dht." + partitionerClassName;
-        return FBUtilities.<IPartitioner>construct(partitionerClassName, "partitioner");
+        return FBUtilities.construct(partitionerClassName, "partitioner");
     }
 
     public static AbstractType getComparator(String compareWith) throws ConfigurationException
@@ -611,11 +608,10 @@ public class FBUtilities
      */
     public static <T> T construct(String classname, String readable) throws ConfigurationException
     {
-        Class<T> cls = FBUtilities.<T>classForName(classname, readable);
+        Class<T> cls = FBUtilities.classForName(classname, readable);
         try
         {
-            Constructor ctor = cls.getConstructor();
-            return (T)ctor.newInstance();
+            return cls.getConstructor().newInstance();
         }
         catch (NoSuchMethodException e)
         {
@@ -646,12 +642,6 @@ public class FBUtilities
     {
         Joiner.MapJoiner joiner = Joiner.on(",").withKeyValueSeparator(":");
         return joiner.join(map);
-    }
-
-    /** slow! */
-    private static Object toString(Object o)
-    {
-        return o.getClass().isArray() ? Arrays.toString((Object[]) o) : o.toString();
     }
 
     /**
