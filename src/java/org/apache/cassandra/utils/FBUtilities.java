@@ -19,7 +19,6 @@
 package org.apache.cassandra.utils;
 
 import java.io.*;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
@@ -36,6 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.base.Charsets;
+import com.google.common.base.Joiner;
 import org.apache.commons.collections.iterators.CollatingIterator;
 import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
@@ -146,7 +146,7 @@ public class FBUtilities
             remainder = distance.testBit(0);
             midpoint = distance.shiftRight(1).add(left).mod(max);
         }
-        return new Pair(midpoint, remainder);
+        return new Pair<BigInteger, Boolean>(midpoint, remainder);
     }
 
     /**
@@ -634,9 +634,7 @@ public class FBUtilities
 
     public static String decodeToUTF8(ByteBuffer bytes) throws CharacterCodingException
     {
-        bytes = bytes.duplicate();
-        String decoded  =  Charsets.UTF_8.newDecoder().decode(bytes).toString();
-        return decoded;
+        return Charsets.UTF_8.newDecoder().decode(bytes.duplicate()).toString();
     }
 
     /** 
@@ -736,7 +734,7 @@ public class FBUtilities
     {
         if (!partitionerClassName.contains("."))
             partitionerClassName = "org.apache.cassandra.dht." + partitionerClassName;
-        return FBUtilities.<IPartitioner>construct(partitionerClassName, "partitioner");
+        return FBUtilities.construct(partitionerClassName, "partitioner");
     }
 
     public static AbstractType getComparator(String compareWith) throws ConfigurationException
@@ -789,11 +787,10 @@ public class FBUtilities
      */
     public static <T> T construct(String classname, String readable) throws ConfigurationException
     {
-        Class<T> cls = FBUtilities.<T>classForName(classname, readable);
+        Class<T> cls = FBUtilities.classForName(classname, readable);
         try
         {
-            Constructor ctor = cls.getConstructor();
-            return (T)ctor.newInstance();
+            return cls.getConstructor().newInstance();
         }
         catch (NoSuchMethodException e)
         {
@@ -822,20 +819,8 @@ public class FBUtilities
 
     public static String toString(Map<?,?> map)
     {
-        // wtf, why isn't something like this in guava or commons collections?
-        StringBuilder sb = new StringBuilder("{");
-        for (Map.Entry<?,?> entry : map.entrySet())
-        {
-            sb.append(toString(entry.getKey())).append(": ").append(toString(entry.getValue())).append(", ");
-        }
-        sb.append("}");
-        return sb.toString();
-    }
-
-    /** slow! */
-    private static Object toString(Object o)
-    {
-        return o.getClass().isArray() ? Arrays.toString((Object[]) o) : o.toString();
+        Joiner.MapJoiner joiner = Joiner.on(",").withKeyValueSeparator(":");
+        return joiner.join(map);
     }
 
     /**

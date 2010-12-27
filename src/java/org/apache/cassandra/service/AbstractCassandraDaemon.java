@@ -21,6 +21,8 @@ package org.apache.cassandra.service;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.UUID;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.SynchronousQueue;
@@ -59,7 +61,20 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
     static
     {
         String config = System.getProperty("log4j.configuration", "log4j-server.properties");
-        PropertyConfigurator.configureAndWatch(ClassLoader.getSystemResource(config).getFile(), 10000);
+        URL configLocation = null;
+        try 
+        {
+            // try loading from a physical location first.
+            configLocation = new URL(config);
+        }
+        catch (MalformedURLException ex) 
+        {
+            // load from the classpath.
+            configLocation = AbstractCassandraDaemon.class.getClassLoader().getResource(config);
+            if (configLocation == null)
+                throw new RuntimeException("Couldn't figure out log4j configuration.");
+        }
+        PropertyConfigurator.configureAndWatch(configLocation.getFile(), 10000);
         org.apache.log4j.Logger.getLogger(AbstractCassandraDaemon.class).info("Logging initialized");
     }
 

@@ -14,6 +14,7 @@
  * avoid polluting page cache with commitlog or sstable writes
    and seq scan operations (CASSANDRA-1470)
  * add OpenBitSet to support larger bloom filters (CASSANDRA-1555)
+ * handle URL-specified log4j regression (CASSANDRA-1907)
 
 
 0.7.0-rc3
