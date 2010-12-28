@@ -24,7 +24,7 @@ package org.apache.cassandra.net;
  * service.  In particular, if any shared state is referenced, making
  * response alone synchronized will not suffice.
  */
-public interface IAsyncCallback 
+public interface IAsyncCallback extends IMessageCallback
 {
 	/**
 	 * @param msg response received.

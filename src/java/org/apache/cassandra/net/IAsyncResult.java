@@ -22,7 +22,7 @@ import java.net.InetAddress;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-public interface IAsyncResult
+public interface IAsyncResult extends IMessageCallback
 {    
     /**
      * This is used to check if the task has been completed
