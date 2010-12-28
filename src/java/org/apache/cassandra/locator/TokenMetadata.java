@@ -325,9 +325,9 @@ public class TokenMetadata
         if (map == null)
         {
             map = HashMultimap.create();
-            Multimap<Range, InetAddress> newmap = pendingRanges.putIfAbsent(table, map);
-            if (newmap != null)
-                map = newmap;
+            Multimap<Range, InetAddress> priorMap = pendingRanges.putIfAbsent(table, map);
+            if (priorMap != null)
+                map = priorMap;
         }
         return map;
     }
