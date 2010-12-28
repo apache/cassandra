@@ -11,6 +11,7 @@ dev
  * add OpenBitSet to support larger bloom filters (CASSANDRA-1555)
  * handle URL-specified log4j regression (CASSANDRA-1907)
  * enable keepalive on intra-cluster sockets (CASSANDRA-1766)
+ * count timeouts towards dynamicsnitch latencies (CASSANDRA-1905)
 
 
 0.7.0-rc3
