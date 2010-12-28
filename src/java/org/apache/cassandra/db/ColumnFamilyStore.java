@@ -354,7 +354,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             return;
 
         // if we're just linking in the index to indexedColumns on an already-built index post-restart, we're done
-        if (SystemTable.isIndexBuilt(table.name, indexedCfMetadata.cfName))
+        if (indexedCfs.isIndexBuilt())
             return;
 
         // build it asynchronously; addIndex gets called by CFS open and schema update, neither of which
@@ -2025,4 +2025,33 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         return histogram;
     }
+
+    /**
+     * Check if index is already built for current store
+     * @return true if built, false otherwise
+     */
+    public boolean isIndexBuilt()
+    {
+        return SystemTable.isIndexBuilt(table.name, columnFamily);
+    }
+
+    /**
+     * Returns a list of the names of the built column indexes for current store
+     * @return list of the index names
+     */
+    public List<String> getBuiltIndexes()
+    {
+        List<String> indexes = new ArrayList<String>();
+
+        for (ColumnFamilyStore cfs : indexedColumns.values())
+        {
+            if (cfs.isIndexBuilt())
+            {
+                indexes.add(cfs.columnFamily); // store.columnFamily represents a name of the index
+            }
+        }
+
+        return indexes;
+    }
+
 }

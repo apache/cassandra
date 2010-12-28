@@ -39,7 +39,8 @@ public class CliOptions {
     private static final String BATCH_OPTION = "batch";
     private static final String HELP_OPTION = "help";
     private static final String FILE_OPTION = "file";
-    
+    private static final String JMX_PORT_OPTION = "jmxport";
+
     // Default values for optional command line arguments
     private static final int    DEFAULT_THRIFT_PORT = 9160;
 
@@ -57,12 +58,13 @@ public class CliOptions {
         options.addOption(KEYSPACE_OPTION, true, "cassandra keyspace user is authenticated against");
         options.addOption(BATCH_OPTION, false, "enabled batch mode (supress output; errors are fatal)");
         options.addOption(FILE_OPTION, true, "load statements from the specific file.");
+        options.addOption(JMX_PORT_OPTION, true, "JMX service port.");
         options.addOption(HELP_OPTION, false, "usage help.");
     }
 
     private static void printUsage()
     {
-        System.err.println("Usage: cassandra-cli --host hostname [--port <portname>] [--file <filename>] [--unframed] [--debug]");
+        System.err.println("Usage: cassandra-cli --host hostname [--port <port>] [--jmxport <port>] [--file <filename>] [--unframed] [--debug]");
         System.err.println("\t[--username username] [--password password] [--keyspace keyspace] [--batch] [--help]");
     }
 
@@ -136,6 +138,11 @@ public class CliOptions {
             if (cmd.hasOption(FILE_OPTION))
             {
                 css.filename = cmd.getOptionValue(FILE_OPTION);
+            }
+
+            if (cmd.hasOption(JMX_PORT_OPTION))
+            {
+                css.jmxPort = Integer.parseInt(cmd.getOptionValue(JMX_PORT_OPTION));
             }
 
             if (cmd.hasOption(HELP_OPTION))

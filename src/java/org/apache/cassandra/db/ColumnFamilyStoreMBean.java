@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -213,4 +214,10 @@ public interface ColumnFamilyStoreMBean
 
     public long[] getEstimatedRowSizeHistogram();
     public long[] getEstimatedColumnCountHistogram();
+
+    /**
+     * Returns a list of the names of the built column indexes for current store
+     * @return list of the index names
+     */
+    public List<String> getBuiltIndexes();
 }

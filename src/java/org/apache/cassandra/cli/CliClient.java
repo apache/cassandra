@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cli;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -25,8 +26,11 @@ import com.google.common.base.Charsets;
 import org.antlr.runtime.tree.Tree;
 import org.apache.cassandra.auth.SimpleAuthenticator;
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.db.ColumnFamilyStoreMBean;
+import org.apache.cassandra.db.CompactionManagerMBean;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
@@ -1206,6 +1210,11 @@ public class CliClient extends CliUserHelp
 
     private void describeKeySpace(String keySpaceName, KsDef metadata) throws TException
     {
+        NodeProbe probe = sessionState.getNodeProbe();
+
+        // getting compaction manager MBean to displaying index building information
+        CompactionManagerMBean compactionManagerMBean = (probe == null) ? null : probe.getCompactionManagerProxy();
+
         // Describe and display
         sessionState.out.println("Keyspace: " + keySpaceName + ":");
         try
@@ -1213,10 +1222,12 @@ public class CliClient extends CliUserHelp
             KsDef ks_def;
             ks_def = metadata == null ? thriftClient.describe_keyspace(keySpaceName) : metadata;
             sessionState.out.println("  Replication Strategy: " + ks_def.strategy_class);
+
             if (ks_def.strategy_class.endsWith(".NetworkTopologyStrategy"))
                 sessionState.out.println("    Options: " + FBUtilities.toString(ks_def.strategy_options));
             else
                 sessionState.out.println("    Replication Factor: " + ks_def.replication_factor);
+
             sessionState.out.println("  Column Families:");
 
             boolean isSuper;
@@ -1224,6 +1235,9 @@ public class CliClient extends CliUserHelp
             Collections.sort(ks_def.cf_defs, new CfDefNamesComparator());
             for (CfDef cf_def : ks_def.cf_defs)
             {
+                // fetching bean for current column family store
+                ColumnFamilyStoreMBean cfMBean = (probe == null) ? null : probe.getCfsProxy(ks_def.getName(), cf_def.getName());
+
                 isSuper = cf_def.column_type.equals("Super");
                 sessionState.out.printf("    ColumnFamily: %s%s%n", cf_def.name, isSuper ? " (Super)" : "");
 
@@ -1240,6 +1254,12 @@ public class CliClient extends CliUserHelp
                 sessionState.out.printf("      GC grace seconds: %s%n", cf_def.gc_grace_seconds);
                 sessionState.out.printf("      Compaction min/max thresholds: %s/%s%n", cf_def.min_compaction_threshold, cf_def.max_compaction_threshold);
                 sessionState.out.printf("      Read repair chance: %s%n", cf_def.read_repair_chance);
+
+                // if we have connection to the cfMBean established
+                if (cfMBean != null)
+                {
+                    sessionState.out.printf("      Built indexes: %s%n", cfMBean.getBuiltIndexes());
+                }
 
                 if (cf_def.getColumn_metadataSize() != 0)
                 {
@@ -1281,6 +1301,26 @@ public class CliClient extends CliUserHelp
                     }
                 }
             }
+
+            // compaction manager information
+            if (compactionManagerMBean != null)
+            {
+                String compactionType = compactionManagerMBean.getCompactionType();
+
+                // if ongoing compaction type is index build
+                if (compactionType != null && compactionType.contains("index build"))
+                {
+                    String indexName         = compactionManagerMBean.getColumnFamilyInProgress();
+                    long bytesCompacted      = compactionManagerMBean.getBytesCompacted();
+                    long totalBytesToProcess = compactionManagerMBean.getBytesTotalInProgress();
+
+                    sessionState.out.printf("%nCurrently building index %s, completed %d of %d bytes.%n", indexName, bytesCompacted, totalBytesToProcess);
+                }
+            }
+
+            // closing JMX connection
+            if (probe != null)
+                probe.close();
         }
         catch (InvalidRequestException e)
         {
@@ -1290,7 +1330,12 @@ public class CliClient extends CliUserHelp
         {
             sessionState.out.println("Keyspace " + keySpaceName + " could not be found.");
         }
+        catch (IOException e)
+        {
+            sessionState.out.println("Error while closing JMX connection: " + e.getMessage());
+        }
     }
+
     // DESCRIBE KEYSPACE <keyspace_name> 
     private void executeDescribeKeySpace(Tree statement) throws TException, InvalidRequestException
     {

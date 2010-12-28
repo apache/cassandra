@@ -643,7 +643,7 @@ public class Table
 
         public String getTaskType()
         {
-            return "Secondary index build";
+            return String.format("Secondary index build %s", cfs.columnFamily);
         }
     }
 

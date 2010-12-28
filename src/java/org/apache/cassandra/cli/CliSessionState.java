@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.cli;
 
+import org.apache.cassandra.tools.NodeProbe;
+
 import java.io.InputStream;
 import java.io.PrintStream;
 
@@ -36,6 +38,7 @@ public class CliSessionState
     public String  keyspace;      // cassandra keyspace user is authenticating
     public boolean batch = false; // enable/disable batch processing mode
     public String  filename = ""; // file to read commands from
+    public int     jmxPort = 8080;// JMX service port
 
     /*
      * Streams to read/write from
@@ -65,4 +68,19 @@ public class CliSessionState
     {
         return !this.filename.isEmpty();
     }
+
+    public NodeProbe getNodeProbe()
+    {
+        try
+        {
+            return new NodeProbe(hostName, jmxPort);
+        }
+        catch (Exception e)
+        {
+            err.printf("WARNING: Could not connect to the JMX on %s:%d, information won't be shown.%n%n", hostName, jmxPort);
+        }
+
+        return null;
+    }
+
 }
