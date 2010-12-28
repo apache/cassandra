@@ -22,15 +22,11 @@ package org.apache.cassandra.io.sstable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.columniterator.SSTableNamesIterator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -45,7 +41,7 @@ public class LegacySSTableTest extends CleanupHelper
     public static final String KSNAME = "Keyspace1";
     public static final String CFNAME = "Standard1";
 
-    public static Map<ByteBuffer, ByteBuffer> TEST_DATA;
+    public static Set<String> TEST_DATA;
     public static File LEGACY_SSTABLE_ROOT;
 
     @BeforeClass
@@ -56,11 +52,9 @@ public class LegacySSTableTest extends CleanupHelper
         LEGACY_SSTABLE_ROOT = new File(scp).getAbsoluteFile();
         assert LEGACY_SSTABLE_ROOT.isDirectory();
 
-        TEST_DATA = new HashMap<ByteBuffer,ByteBuffer>();
+        TEST_DATA = new HashSet<String>();
         for (int i = 100; i < 1000; ++i)
-        {
-            TEST_DATA.put(ByteBuffer.wrap(Integer.toString(i).getBytes()), ByteBuffer.wrap(("Avinash Lakshman is a good man: " + i).getBytes()));
-        }
+            TEST_DATA.add(Integer.toString(i));
     }
 
     /**
@@ -83,44 +77,39 @@ public class LegacySSTableTest extends CleanupHelper
         Descriptor dest = getDescriptor(Descriptor.CURRENT_VERSION);
         assert dest.directory.mkdirs() : "Could not create " + dest.directory + ". Might it already exist?";
 
-        SSTableReader ssTable = SSTableUtils.writeRawSSTable(new File(dest.filenameFor(SSTable.COMPONENT_DATA)),
-                                                             KSNAME,
-                                                             CFNAME,
-                                                             TEST_DATA);
-        assert ssTable.desc.generation == 0 :
+        SSTableReader ssTable = SSTableUtils.prepare().ks(KSNAME).cf(CFNAME).dest(dest).write(TEST_DATA);
+        assert ssTable.descriptor.generation == 0 :
             "In order to create a generation 0 sstable, please run this test alone.";
         System.out.println(">>> Wrote " + dest);
     }
     */
 
     @Test
-    public void testVersions() throws IOException
+    public void testVersions() throws Throwable
     {
         for (File version : LEGACY_SSTABLE_ROOT.listFiles())
             if (Descriptor.versionValidate(version.getName()))
                 testVersion(version.getName());
     }
 
-    public void testVersion(String version)
+    public void testVersion(String version) throws Throwable
     {
         try
         {
             SSTableReader reader = SSTableReader.open(getDescriptor(version));
-
-            List<ByteBuffer> keys = new ArrayList<ByteBuffer>(TEST_DATA.keySet());
-            Collections.shuffle(keys);
-            BufferedRandomAccessFile file = new BufferedRandomAccessFile(reader.getFilename(), "r");
-            for (ByteBuffer key : keys)
+            for (String keystring : TEST_DATA)
             {
-                // confirm that the bloom filter does not reject any keys
-                file.seek(reader.getPosition(reader.partitioner.decorateKey(key), SSTableReader.Operator.EQ));
-                assert key.equals( FBUtilities.readShortByteArray(file));
+                ByteBuffer key = ByteBuffer.wrap(keystring.getBytes());
+                // confirm that the bloom filter does not reject any keys/names
+                DecoratedKey dk = reader.partitioner.decorateKey(key);
+                SSTableNamesIterator iter = new SSTableNamesIterator(reader, dk, FBUtilities.singleton(key));
+                assert iter.next().name().equals(key);
             }
         }
         catch (Throwable e)
         {
             System.err.println("Failed to read " + version);
-            e.printStackTrace(System.err);
+            throw e;
         }
     }
 }
