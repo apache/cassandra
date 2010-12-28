@@ -56,13 +56,6 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         this.key = StorageService.getPartitioner().decorateKey(key);
     }
 
-    private void checkDigest(DecoratedKey key, ByteBuffer digest, ByteBuffer resultDigest) throws DigestMismatchException
-    {
-        if (resultDigest.equals(digest))
-            return;
-        throw new DigestMismatchException(key, digest, resultDigest);
-    }
-    
     /*
       * This method for resolving read data should look at the timestamps of each
       * of the columns that are read and should pick up columns with the latest
@@ -92,9 +85,16 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             Message message = entry.getKey();
             if (result.isDigestQuery())
             {
-                if (digest != null)
-                    checkDigest(key, digest, result.digest());
-                digest = result.digest();
+                if (digest == null)
+                {
+                    digest = result.digest();
+                }
+                else
+                {
+                    ByteBuffer digest2 = result.digest();
+                    if (!digest.equals(digest2))
+                        throw new DigestMismatchException(key, digest, digest2);
+                }
             }
             else
             {
@@ -122,7 +122,9 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             
             for (ColumnFamily cf : versions)
             {
-                checkDigest(key, digest, ColumnFamily.digest(cf));
+                ByteBuffer digest2 = ColumnFamily.digest(cf);
+                if (!digest2.equals(digest))
+                    throw new DigestMismatchException(key, digest, digest2);
             }
             if (logger_.isDebugEnabled())
                 logger_.debug("digests verified");
