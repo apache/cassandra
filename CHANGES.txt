@@ -19,6 +19,8 @@
  * count timeouts towards dynamicsnitch latencies (CASSANDRA-1905)
  * Expose index-building status in JMX + cli schema description
    (CASSANDRA-1871)
+ * allow [LOCAL|EACH]_QUORUM to be used with non-NetworkTopology 
+   replication Strategies
 
 
 0.7.0-rc3

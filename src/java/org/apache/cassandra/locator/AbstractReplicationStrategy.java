@@ -224,6 +224,10 @@ public abstract class AbstractReplicationStrategy
 
     public QuorumResponseHandler getQuorumResponseHandler(IResponseResolver responseResolver, ConsistencyLevel consistencyLevel)
     {
+        if (consistencyLevel.equals(ConsistencyLevel.LOCAL_QUORUM) || consistencyLevel.equals(ConsistencyLevel.EACH_QUORUM))
+        {
+            return new DatacenterQuorumResponseHandler(responseResolver, consistencyLevel, table);
+        }
         return new QuorumResponseHandler(responseResolver, consistencyLevel, table);
     }
 
