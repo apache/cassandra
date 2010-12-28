@@ -100,14 +100,15 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             {
                 ColumnFamily cf = result.row().cf;
                 InetAddress from = message.getFrom();
-                
-                if(cf != null) {
+
+                if (cf != null)
+                {
                     AbstractType defaultValidator = cf.metadata().getDefaultValidator();
-                    if (!FBUtilities.getLocalAddress().equals(from) && cf != null && defaultValidator.isCommutative())
+                    if (!FBUtilities.getLocalAddress().equals(from) && defaultValidator.isCommutative())
                     {
                         cf = cf.cloneMe();
-                        ((AbstractCommutativeType)defaultValidator).cleanContext(cf, FBUtilities.getLocalAddress());
-                    }                   
+                        ((AbstractCommutativeType) defaultValidator).cleanContext(cf, FBUtilities.getLocalAddress());
+                    }
                 }
                 versions.add(cf);
                 endpoints.add(from);
