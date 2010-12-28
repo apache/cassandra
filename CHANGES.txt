@@ -12,6 +12,8 @@ dev
  * handle URL-specified log4j regression (CASSANDRA-1907)
  * enable keepalive on intra-cluster sockets (CASSANDRA-1766)
  * count timeouts towards dynamicsnitch latencies (CASSANDRA-1905)
+ * Expose index-building status in JMX + cli schema description
+   (CASSANDRA-1871)
 
 
 0.7.0-rc3
