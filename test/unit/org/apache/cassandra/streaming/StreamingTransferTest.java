@@ -119,7 +119,7 @@ public class StreamingTransferTest extends CleanupHelper
         content.add("transfer1");
         content.add("transfer2");
         content.add("transfer3");
-        SSTableReader sstable = SSTableUtils.writeSSTable(content);
+        SSTableReader sstable = SSTableUtils.prepare().write(content);
         String tablename = sstable.getTableName();
         String cfname = sstable.getColumnFamilyName();
 
@@ -127,7 +127,7 @@ public class StreamingTransferTest extends CleanupHelper
         content2.add("test");
         content2.add("test2");
         content2.add("test3");
-        SSTableReader sstable2 = SSTableUtils.writeSSTable(content2);
+        SSTableReader sstable2 = SSTableUtils.prepare().write(content2);
 
         // transfer the first and last key
         IPartitioner p = StorageService.getPartitioner();

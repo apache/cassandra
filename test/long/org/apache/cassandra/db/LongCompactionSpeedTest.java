@@ -86,7 +86,7 @@ public class LongCompactionSpeedTest extends CleanupHelper
                 }
                 rows.put(key, SSTableUtils.createCF(Long.MIN_VALUE, Integer.MIN_VALUE, cols));
             }
-            SSTableReader sstable = SSTableUtils.writeSSTable(rows);
+            SSTableReader sstable = SSTableUtils.prepare().write(rows);
             sstables.add(sstable);
             store.addSSTable(sstable);
         }

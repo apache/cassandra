@@ -40,7 +40,7 @@ public class SSTableTest extends CleanupHelper
 
         Map<ByteBuffer, ByteBuffer> map = new HashMap<ByteBuffer,ByteBuffer>();
         map.put(key, bytes);
-        SSTableReader ssTable = SSTableUtils.writeRawSSTable("Keyspace1", "Standard1", map);
+        SSTableReader ssTable = SSTableUtils.prepare().cf("Standard1").writeRaw(map);
 
         // verify
         verifySingle(ssTable, bytes, key);
@@ -68,7 +68,7 @@ public class SSTableTest extends CleanupHelper
         }
 
         // write
-        SSTableReader ssTable = SSTableUtils.writeRawSSTable("Keyspace1", "Standard2", map);
+        SSTableReader ssTable = SSTableUtils.prepare().cf("Standard2").writeRaw(map);
 
         // verify
         verifyMany(ssTable, map);

@@ -157,7 +157,7 @@ public class SSTableWriterAESCommutativeTest extends CleanupHelper
         cf.clear();
 
         // write out unmodified CF
-        SSTableReader orig = SSTableUtils.writeRawSSTable(keyspace, cfname, entries, 0);
+        SSTableReader orig = SSTableUtils.prepare().ks(keyspace).cf(cfname).generation(0).writeRaw(entries);
 
         // whack the index to trigger the recover
         FileUtils.deleteWithConfirm(orig.descriptor.filenameFor(Component.PRIMARY_INDEX));
@@ -170,7 +170,7 @@ public class SSTableWriterAESCommutativeTest extends CleanupHelper
             ).get();
 
         // write out cleaned CF
-        SSTableReader cleaned = SSTableUtils.writeRawSSTable(keyspace, cfname, cleanedEntries, 0);
+        SSTableReader cleaned = SSTableUtils.prepare().ks(keyspace).cf(cfname).generation(0).writeRaw(cleanedEntries);
 
         // verify
         BufferedRandomAccessFile origFile    = new BufferedRandomAccessFile(orig.descriptor.filenameFor(SSTable.COMPONENT_DATA), "r", 8 * 1024 * 1024);
