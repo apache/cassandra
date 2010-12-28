@@ -323,13 +323,15 @@ public class TokenMetadata
         }
     }
 
-    private synchronized Multimap<Range, InetAddress> getPendingRangesMM(String table)
+    private Multimap<Range, InetAddress> getPendingRangesMM(String table)
     {
         Multimap<Range, InetAddress> map = pendingRanges.get(table);
         if (map == null)
         {
-             map = HashMultimap.create();
-            pendingRanges.put(table, map);
+            map = HashMultimap.create();
+            Multimap<Range, InetAddress> priorMap = pendingRanges.putIfAbsent(table, map);
+            if (priorMap != null)
+                map = priorMap;
         }
         return map;
     }
@@ -556,12 +558,13 @@ public class TokenMetadata
      */
     public Collection<InetAddress> getWriteEndpoints(Token token, String table, Collection<InetAddress> naturalEndpoints)
     {
-        if (getPendingRanges(table).isEmpty())
+        Map<Range, Collection<InetAddress>> ranges = getPendingRanges(table);
+        if (ranges.isEmpty())
             return naturalEndpoints;
 
         List<InetAddress> endpoints = new ArrayList<InetAddress>(naturalEndpoints);
 
-        for (Map.Entry<Range, Collection<InetAddress>> entry : getPendingRanges(table).entrySet())
+        for (Map.Entry<Range, Collection<InetAddress>> entry : ranges.entrySet())
         {
             if (entry.getKey().contains(token))
             {
