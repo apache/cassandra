@@ -39,17 +39,17 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILatencySubscriber, DynamicEndpointSnitchMBean
 {
-    private static int UPDATES_PER_INTERVAL = 10000;
-    private static int UPDATE_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicUpdateInterval();
-    private static int RESET_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicResetInterval();
-    private static double BADNESS_THRESHOLD = DatabaseDescriptor.getDynamicBadnessThreshold();
-    private static int WINDOW_SIZE = 100;
+    private static final int UPDATES_PER_INTERVAL = 10000;
+    private static final int UPDATE_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicUpdateInterval();
+    private static final int RESET_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicResetInterval();
+    private static final double BADNESS_THRESHOLD = DatabaseDescriptor.getDynamicBadnessThreshold();
+    private static final int WINDOW_SIZE = 100;
     private boolean registered = false;
 
-    private ConcurrentHashMap<InetAddress, Double> scores = new ConcurrentHashMap();
-    private ConcurrentHashMap<InetAddress, AdaptiveLatencyTracker> windows = new ConcurrentHashMap();
-    private AtomicInteger intervalupdates = new AtomicInteger(0);
-    public IEndpointSnitch subsnitch;
+    private final ConcurrentHashMap<InetAddress, Double> scores = new ConcurrentHashMap<InetAddress, Double>();
+    private final ConcurrentHashMap<InetAddress, AdaptiveLatencyTracker> windows = new ConcurrentHashMap<InetAddress, AdaptiveLatencyTracker>();
+    private final AtomicInteger intervalupdates = new AtomicInteger(0);
+    public final IEndpointSnitch subsnitch;
 
     public DynamicEndpointSnitch(IEndpointSnitch snitch)
     {
@@ -213,8 +213,8 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
 /** a threadsafe version of BoundedStatsDeque+ArrivalWindow with modification for arbitrary times **/
 class AdaptiveLatencyTracker extends AbstractStatsDeque
 {
-    private LinkedBlockingDeque<Double> latencies;                                  
-    private static double SENTINEL_COMPARE = 0.0001; // arbitrary; as long as it is the same across hosts it doesn't matter
+    private final LinkedBlockingDeque<Double> latencies;
+    private static final double SENTINEL_COMPARE = 0.0001; // arbitrary; as long as it is the same across hosts it doesn't matter
 
     AdaptiveLatencyTracker(int size)
     {
