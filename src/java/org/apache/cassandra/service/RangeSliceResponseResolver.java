@@ -54,7 +54,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
         this.table = table;
     }
 
-    public List<Row> resolve() throws DigestMismatchException, IOException
+    public List<Row> resolve() throws IOException
     {
         CollatingIterator collator = new CollatingIterator(new Comparator<Pair<Row,InetAddress>>()
         {
