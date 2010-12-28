@@ -54,13 +54,17 @@ public class ReadResponseResolver implements IResponseResolver<Row>
     }
     
     /*
-      * This method for resolving read data should look at the timestamps of each
-      * of the columns that are read and should pick up columns with the latest
-      * timestamp. For those columns where the timestamp is not the latest a
-      * repair request should be scheduled.
-      *
-      */
-	public Row resolve() throws DigestMismatchException, IOException
+     * This method handles two different scenarios:
+     *
+     * 1) we're handling the initial read, of data from the closest replica + digests
+     *    from the rest.  In this case we check the digests against each other,
+     *    throw an exception if there is a mismatch, otherwise return the data row.
+     *
+     * 2) there was a mismatch on the initial read, so we redid the digest requests
+     *    as full data reads.  In this case we need to compute the most recent version
+     *    of each column, and send diffs to out-of-date replicas.
+     */
+    public Row resolve() throws DigestMismatchException, IOException
     {
         if (logger_.isDebugEnabled())
             logger_.debug("resolving " + results.size() + " responses");
@@ -70,50 +74,27 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 		List<InetAddress> endpoints = new ArrayList<InetAddress>();
 		ByteBuffer digest = null;
 
-        /*
-		 * Populate the list of rows from each of the messages
-		 * Check to see if there is a digest query. If a digest 
-         * query exists then we need to compare the digest with 
-         * the digest of the data that is received.
-        */
+        // validate digests against each other; throw immediately on mismatch.
+        // also, collects data results into versions/endpoints lists.
         for (Map.Entry<Message, ReadResponse> entry : results.entrySet())
         {
             ReadResponse result = entry.getValue();
             Message message = entry.getKey();
-            if (result.isDigestQuery())
-            {
-                if (digest == null)
-                {
-                    digest = result.digest();
-                }
-                else
-                {
-                    ByteBuffer digest2 = result.digest();
-                    if (!digest.equals(digest2))
-                        throw new DigestMismatchException(key, digest, digest2);
-                }
-            }
-            else
+            ByteBuffer resultDigest = result.isDigestQuery() ? result.digest() : ColumnFamily.digest(result.row().cf);
+            if (digest == null)
+                digest = resultDigest;
+            else if (!digest.equals(resultDigest))
+                throw new DigestMismatchException(key, digest, resultDigest);
+
+            if (!result.isDigestQuery())
             {
                 versions.add(result.row().cf);
                 endpoints.add(message.getFrom());
             }
         }
 
-		// If there was a digest query compare it with all the data digests
-		// If there is a mismatch then throw an exception so that read repair can happen.
-        if (digest != null)
-        {
-            
-            for (ColumnFamily cf : versions)
-            {
-                ByteBuffer digest2 = ColumnFamily.digest(cf);
-                if (!digest.equals(digest2))
-                    throw new DigestMismatchException(key, digest, digest2);
-            }
-            if (logger_.isDebugEnabled())
-                logger_.debug("digests verified");
-        }
+        if (logger_.isDebugEnabled())
+            logger_.debug("digests verified");
 
         ColumnFamily resolved;
         if (versions.size() > 1)
