@@ -319,13 +319,15 @@ public class TokenMetadata
         }
     }
 
-    private synchronized Multimap<Range, InetAddress> getPendingRangesMM(String table)
+    private Multimap<Range, InetAddress> getPendingRangesMM(String table)
     {
         Multimap<Range, InetAddress> map = pendingRanges.get(table);
         if (map == null)
         {
-             map = HashMultimap.create();
-            pendingRanges.put(table, map);
+            map = HashMultimap.create();
+            Multimap<Range, InetAddress> newmap = pendingRanges.putIfAbsent(table, map);
+            if (newmap != null)
+                map = newmap;
         }
         return map;
     }
