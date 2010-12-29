@@ -79,4 +79,15 @@ public class TimeUUIDType extends AbstractType
         }
         return uuid.toString();
     }
+
+    @Override
+    public void validate(byte[] bytes)
+    {
+        if (bytes.length != 16 && bytes.length != 0)
+            throw new MarshalException(String.format("TimeUUID should be 16 or 0 bytes (%d)", bytes.length));
+        // version is bits 4-7 of byte 6.
+        if (bytes.length > 0)
+            if ((bytes[6] & 0xf0) != 0x10)
+                throw new MarshalException("Invalid version for TimeUUID type.");
+    }
 }

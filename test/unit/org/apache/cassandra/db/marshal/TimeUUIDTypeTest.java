@@ -20,6 +20,7 @@ package org.apache.cassandra.db.marshal;
 
 import java.util.Arrays;
 import java.util.Random;
+import java.util.UUID;
 
 import org.junit.Test;
 
@@ -47,5 +48,35 @@ public class TimeUUIDTypeTest
             long i1 = LexicalUUIDType.getUUID(uuids[i]).timestamp();
             assert i0 <= i1;
         }
+    }
+    
+    @Test
+    public void testValidTimeVersion()
+    {
+        java.util.UUID uuid1 = java.util.UUID.fromString("00000000-0000-1000-0000-000000000000");
+        assert uuid1.version() == 1;
+        timeUUIDType.validate(decompose(uuid1));
+    }
+    
+    @Test(expected = MarshalException.class)
+    public void testInvalidTimeVersion()
+    {
+        java.util.UUID uuid2 = java.util.UUID.fromString("00000000-0000-2100-0000-000000000000");
+        assert uuid2.version() == 2;
+        timeUUIDType.validate(decompose(uuid2));
+    }
+    
+    /** decomposes a uuid into raw bytes. */
+    private static byte[] decompose(UUID uuid)
+    {
+        long most = uuid.getMostSignificantBits();
+        long least = uuid.getLeastSignificantBits();
+        byte[] b = new byte[16];
+        for (int i = 0; i < 8; i++)
+        {
+            b[i] = (byte)(most >>> ((7-i) * 8));
+            b[8+i] = (byte)(least >>> ((7-i) * 8));
+        }
+        return b;
     }
 }
