@@ -61,32 +61,17 @@ saved_caches_directory: /var/lib/cassandra/saved_caches
 # Size to allow commitlog to grow to before creating a new segment 
 commitlog_rotation_threshold_in_mb: 128
 
-# commitlog_sync supports the following modes:
-# 
-# batch:
-# In batch mode, Cassandra won't ack writes until the commit log
-# has been fsynced to disk.  But fsyncing each write at once is
-# performance-prohibitive, so instead Cassandra will wait up to
-# commitlog_sync_batch_window_in_ms milliseconds for other writes, before
-# syncing that "batch" at once.  This causes a performance penalty
-# of about 15% when the commitlog is on a separate device, and much more
-# when it shares the same device as the data files.
-#
-# periodic:
-# Writes may be acked immediately (without waiting for the commitlog
-# append) and the CommitLog is simply synced every
-# commitlog_sync_period_in_ms milliseconds.
-#
-# periodic_without_flush:
-# Like periodic, but the commitlog write buffer is only flushed
-# before the sync, so any interruption to the process can be
-# expected to lose some writes.  This is the old 0.6 periodic
-# behavior and will be removed in future versions if testing
-# continues to show no performance benefit over normal periodic.
+# commitlog_sync may be either "periodic" or "batch." 
+# When in batch mode, Cassandra won't ack writes until the commit log
+# has been fsynced to disk.  It will wait up to
+# CommitLogSyncBatchWindowInMS milliseconds for other writes, before
+# performing the sync.
 commitlog_sync: periodic
+
+# the other option is "timed," where writes may be acked immediately
+# and the CommitLog is simply synced every commitlog_sync_period_in_ms
+# milliseconds.
 commitlog_sync_period_in_ms: 10000
-# commitlog_sync: batch
-# commitlog_sync_batch_window_in_ms: 10
 
 # any class that implements the SeedProvider interface and has a constructor that takes a Map<String, String> of
 # parameters will do.

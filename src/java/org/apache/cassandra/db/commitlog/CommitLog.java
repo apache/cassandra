@@ -491,7 +491,6 @@ public class CommitLog
 
     // TODO this should be a Runnable since it doesn't actually return anything, but it's difficult to do that
     // without breaking the fragile CheaterFutureTask in BatchCLES.
-    final static boolean flushEachWrite = DatabaseDescriptor.getCommitLogSync() == Config.CommitLogSync.periodic;
     class LogRecordAdder implements Callable, Runnable
     {
         final RowMutation rowMutation;
@@ -511,10 +510,6 @@ public class CommitLog
                 {
                     sync();
                     segments.add(new CommitLogSegment());
-                }
-                else if (flushEachWrite)
-                {
-                    currentSegment().flush();
                 }
             }
             catch (IOException e)

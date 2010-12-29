@@ -130,11 +130,6 @@ public class CommitLogSegment
         logWriter.sync();
     }
 
-    public void flush() throws IOException
-    {
-        logWriter.flush();
-    }
-
     public CommitLogContext getContext()
     {
         return new CommitLogContext(logWriter.getFilePointer());
