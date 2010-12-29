@@ -1,4 +1,0 @@
-{
-  "rowA": {"superA": {"deletedAt": -9223372036854775808, "subColumns": [["colAA", "76616c75654141", 1, false], ["colAB", "76616c75654142", 1, false]]}},
-  "rowB": {"superB": {"deletedAt": -9223372036854775808, "subColumns": [["colBA", "76616c75654241", 1, false], ["colBB", "76616c75654242", 1, false]]}}
-}
