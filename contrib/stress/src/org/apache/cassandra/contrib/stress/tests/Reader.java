@@ -75,9 +75,12 @@ public class Reader extends OperationThread
                     List<ColumnOrSuperColumn> columns;
                     columns = client.get_slice(key, parent, predicate, session.getConsistencyLevel());
 
-                    if (columns == null)
+                    if (columns.size() == 0)
                     {
-                        throw new RuntimeException(String.format("Key %s not found.", superColumn));
+                        System.err.println(String.format("Key %s not found.", superColumn));
+
+                        if (!session.ignoreErrors())
+                            break;
                     }
                 }
                 catch (Exception e)
@@ -111,9 +114,12 @@ public class Reader extends OperationThread
                 List<ColumnOrSuperColumn> columns;
                 columns = client.get_slice(keyBuffer, parent, predicate, session.getConsistencyLevel());
 
-                if (columns == null)
+                if (columns.size() == 0)
                 {
-                    throw new RuntimeException(String.format("Key %s not found.", key.toString()));
+                    System.err.println(String.format("Key %s not found.", new String(key)));
+
+                    if (!session.ignoreErrors())
+                        break;
                 }
             }
             catch (Exception e)
