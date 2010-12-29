@@ -98,4 +98,22 @@ public class TimeUUIDTypeTest
             assert i0 <= i1;
         }
     }
+    
+    @Test
+    public void testValidTimeVersion()
+    {
+        java.util.UUID uuid1 = java.util.UUID.fromString("00000000-0000-1000-0000-000000000000");
+        assert uuid1.version() == 1;
+        timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(uuid1)));
+    }
+    
+    @Test(expected = MarshalException.class)
+    public void testInvalidTimeVersion()
+    {
+        java.util.UUID uuid2 = java.util.UUID.fromString("00000000-0000-2100-0000-000000000000");
+        assert uuid2.version() == 2;
+        timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(uuid2)));
+    }
+    
+    
 }
