@@ -30,6 +30,8 @@
    provide latency information to dynamic snitch (CASSANDRA-1873)
  * enable keepalive on intra-cluster sockets (CASSANDRA-1766)
  * count timeouts towards dynamicsnitch latencies (CASSANDRA-1905)
+ * change RandomPartitioner min token to -1 to avoid collision w/
+   tokens on actual nodes (CASSANDRA-1901)
  * examine the right nibble when validating TimeUUID (CASSANDRA-1910)
 
 

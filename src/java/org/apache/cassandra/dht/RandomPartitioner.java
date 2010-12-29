@@ -35,9 +35,8 @@ import org.apache.cassandra.utils.Pair;
  */
 public class RandomPartitioner implements IPartitioner<BigIntegerToken>
 {
-    public static final BigInteger TWO = new BigInteger("2");
-
-    public static final BigIntegerToken MINIMUM = new BigIntegerToken("0");
+    public static final BigInteger ZERO = new BigInteger("0");
+    public static final BigIntegerToken MINIMUM = new BigIntegerToken("-1");
 
     private static final String DELIMITER = ":";
 
@@ -62,7 +61,10 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
 
     public BigIntegerToken midpoint(BigIntegerToken ltoken, BigIntegerToken rtoken)
     {
-        Pair<BigInteger,Boolean> midpair = FBUtilities.midpoint(ltoken.token, rtoken.token, 127);
+        // the symbolic MINIMUM token should act as ZERO: the empty bit array
+        BigInteger left = ltoken.equals(MINIMUM) ? ZERO : ltoken.token;
+        BigInteger right = rtoken.equals(MINIMUM) ? ZERO : rtoken.token;
+        Pair<BigInteger,Boolean> midpair = FBUtilities.midpoint(left, right, 127);
         // discard the remainder
         return new BigIntegerToken(midpair.left);
     }
