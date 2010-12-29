@@ -162,6 +162,7 @@ public class OutboundTcpConnection extends Thread
             {
                 // zero means 'bind on any available port.'
                 socket = new Socket(endpoint, DatabaseDescriptor.getStoragePort(), FBUtilities.getLocalAddress(), 0);
+                socket.setKeepAlive(true);
                 socket.setTcpNoDelay(true);
                 output = new DataOutputStream(socket.getOutputStream());
                 return true;
