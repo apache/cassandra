@@ -20,16 +20,12 @@ package org.apache.cassandra.dht;
 
 import java.io.Serializable;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+
+import org.apache.commons.lang.ObjectUtils;
 
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.commons.lang.ObjectUtils;
 
 /**
  * A representation of the range that a node is responsible for on the DHT ring.

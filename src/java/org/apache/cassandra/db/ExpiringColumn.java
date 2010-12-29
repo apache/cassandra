@@ -22,10 +22,11 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 
+import org.apache.log4j.Logger;
+
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.log4j.Logger;
 
 /**
  * Alternative to Column that have an expiring time.

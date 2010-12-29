@@ -21,10 +21,10 @@ package org.apache.cassandra.gms;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.net.InetAddress;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
-import java.net.InetAddress;
 
 /**
  * Contains information about a specified list of Endpoints and the largest version 

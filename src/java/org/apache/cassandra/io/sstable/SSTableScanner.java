@@ -20,19 +20,19 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.io.IOError;
-import java.util.Iterator;
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.utils.FBUtilities;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 
 public class SSTableScanner implements Iterator<IColumnIterator>, Closeable

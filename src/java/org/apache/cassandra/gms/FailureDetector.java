@@ -23,18 +23,18 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.IOError;
 import java.lang.management.ManagementFactory;
+import java.net.InetAddress;
 import java.util.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import org.apache.commons.lang.StringUtils;
-
-import java.net.InetAddress;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.BoundedStatsDeque;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.BoundedStatsDeque;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * This FailureDetector is an implementation of the paper titled

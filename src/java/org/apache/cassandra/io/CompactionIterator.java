@@ -23,21 +23,21 @@ package org.apache.cassandra.io;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.List;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
+
+import org.apache.commons.collections.iterators.CollatingIterator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.apache.commons.collections.iterators.CollatingIterator;
-
-import org.apache.cassandra.utils.ReducingIterator;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ReducingIterator;
 
 public class CompactionIterator extends ReducingIterator<SSTableIdentityIterator, AbstractCompactedRow>
 implements Closeable, ICompactionInfo

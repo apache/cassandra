@@ -30,18 +30,15 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
-import org.apache.cassandra.db.Table;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
 import org.apache.cassandra.concurrent.IExecutorMBean;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.CompactionManagerMBean;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.MessagingServiceMBean;
+import org.apache.cassandra.utils.EstimatedHistogram;
 
 public class NodeCmd {
     private static final String HOST_OPT_LONG = "host";

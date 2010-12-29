@@ -25,11 +25,12 @@ import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.SynchronousQueue;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.RequestSchedulerOptions;
 import org.apache.cassandra.utils.Pair;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * A very basic Round Robin implementation of the RequestScheduler. It handles 

@@ -19,19 +19,14 @@
 package org.apache.cassandra.utils;
 
 import java.io.Serializable;
-import java.nio.ByteBuffer;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
+
+import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.PeekingIterator;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-
-import com.google.common.collect.AbstractIterator;
-import com.google.common.collect.PeekingIterator;
 
 /**
  * A MerkleTree implemented as a binary tree.

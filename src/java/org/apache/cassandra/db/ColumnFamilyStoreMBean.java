@@ -18,10 +18,8 @@
 
 package org.apache.cassandra.db;
 
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicLongArray;
+import java.util.concurrent.ExecutionException;
 
 /**
  * The MBean interface for ColumnFamilyStore

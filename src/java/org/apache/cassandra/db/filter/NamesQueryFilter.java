@@ -27,12 +27,7 @@ import java.util.Iterator;
 import java.util.SortedSet;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.IColumnContainer;
-import org.apache.cassandra.db.Memtable;
-import org.apache.cassandra.db.SuperColumn;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.SSTableNamesIterator;
 import org.apache.cassandra.db.marshal.AbstractType;

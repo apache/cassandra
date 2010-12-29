@@ -19,13 +19,14 @@
 
 package org.apache.cassandra.io.util;
 
-import java.io.*;
-import java.util.*;
+import java.io.IOError;
+import java.io.IOException;
 import java.nio.MappedByteBuffer;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 
-import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * Abstracts a read-only file that has been split into segments, each of which can be represented by an independent

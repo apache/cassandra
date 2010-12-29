@@ -29,8 +29,8 @@ import java.util.Set;
 import org.apache.avro.util.Utf8;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
@@ -40,8 +40,8 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.avro.ErrorFactory.newInvalidRequestException;
 import static org.apache.cassandra.avro.AvroRecordFactory.newColumnPath;
+import static org.apache.cassandra.avro.ErrorFactory.newInvalidRequestException;
 
 /**
  * The Avro analogue to org.apache.cassandra.service.ThriftValidation

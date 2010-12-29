@@ -1,11 +1,11 @@
 package org.apache.cassandra.cli;
 
+import java.util.LinkedHashSet;
+import java.util.Set;
+
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.thrift.KsDef;
-
-import java.util.LinkedHashSet;
-import java.util.Set;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one

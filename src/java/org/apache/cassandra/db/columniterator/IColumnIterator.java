@@ -21,12 +21,12 @@ package org.apache.cassandra.db.columniterator;
  */
 
 
-import java.util.Iterator;
 import java.io.IOException;
+import java.util.Iterator;
 
+import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.ColumnFamily;
 
 public interface IColumnIterator extends Iterator<IColumn>
 {

@@ -25,6 +25,7 @@ import java.nio.charset.CharacterCodingException;
 import java.util.Arrays;
 
 import com.google.common.base.Charsets;
+
 import org.apache.cassandra.utils.FBUtilities;
 
 public class UTF8Type extends BytesType

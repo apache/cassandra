@@ -18,8 +18,8 @@
 
 package org.apache.cassandra.gms;
 
-import java.util.Random;
 import java.util.BitSet;
+import java.util.Random;
 
 
 /**

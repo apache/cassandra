@@ -18,11 +18,11 @@
 */
 package org.apache.cassandra.utils;
 
-import java.io.IOException;
-import java.util.concurrent.atomic.AtomicLongArray;
-import java.util.Arrays;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicLongArray;
 
 import org.apache.cassandra.io.ICompactSerializer;
 

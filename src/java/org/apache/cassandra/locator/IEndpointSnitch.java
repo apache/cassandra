@@ -18,10 +18,7 @@
 
 package org.apache.cassandra.locator;
 
-import org.apache.cassandra.dht.Token;
-
 import java.net.InetAddress;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 

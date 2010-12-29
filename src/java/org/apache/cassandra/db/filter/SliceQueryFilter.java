@@ -27,23 +27,19 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.IColumnContainer;
-import org.apache.cassandra.db.Memtable;
-import org.apache.cassandra.db.SuperColumn;
-import org.apache.cassandra.db.columniterator.IColumnIterator;
-import org.apache.cassandra.db.columniterator.SSTableSliceIterator;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.collections.comparators.ReverseComparator;
 import org.apache.commons.collections.iterators.ReverseListIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.columniterator.IColumnIterator;
+import org.apache.cassandra.db.columniterator.SSTableSliceIterator;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.util.FileDataInput;
 
 public class SliceQueryFilter implements IFilter
 {

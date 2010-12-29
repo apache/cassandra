@@ -20,13 +20,14 @@ package org.apache.cassandra.service;
 
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class IndexScanVerbHandler implements IVerbHandler
 {

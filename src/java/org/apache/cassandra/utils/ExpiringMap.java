@@ -18,11 +18,15 @@
 
 package org.apache.cassandra.utils;
 
-import java.util.*;
+import java.util.Enumeration;
+import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
 
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class ExpiringMap<K, V>
 {

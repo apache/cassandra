@@ -23,7 +23,6 @@ package org.apache.cassandra.db;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.locks.Condition;
 
 public interface IFlushable
 {

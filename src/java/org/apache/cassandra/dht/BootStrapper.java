@@ -21,8 +21,8 @@ package org.apache.cassandra.dht;
  import java.io.IOException;
  import java.net.InetAddress;
  import java.util.*;
- import java.util.concurrent.locks.Condition;
  import java.util.concurrent.CountDownLatch;
+ import java.util.concurrent.locks.Condition;
 
  import com.google.common.base.Charsets;
  import com.google.common.collect.ArrayListMultimap;
@@ -33,12 +33,12 @@ package org.apache.cassandra.dht;
  import org.slf4j.Logger;
  import org.slf4j.LoggerFactory;
 
+ import org.apache.cassandra.config.ConfigurationException;
  import org.apache.cassandra.config.DatabaseDescriptor;
  import org.apache.cassandra.db.Table;
  import org.apache.cassandra.gms.FailureDetector;
  import org.apache.cassandra.gms.IFailureDetector;
  import org.apache.cassandra.locator.AbstractReplicationStrategy;
- import org.apache.cassandra.config.ConfigurationException;
  import org.apache.cassandra.locator.TokenMetadata;
  import org.apache.cassandra.net.IAsyncCallback;
  import org.apache.cassandra.net.IVerbHandler;

@@ -18,11 +18,11 @@
 
 package org.apache.cassandra.db;
 
+import java.util.UUID;
+
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.MigrationManager;
-
-import java.util.UUID;
 
 public class DefinitionsAnnounceVerbHandler implements IVerbHandler
 {

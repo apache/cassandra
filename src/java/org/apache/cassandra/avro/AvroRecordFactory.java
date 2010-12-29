@@ -23,7 +23,6 @@ package org.apache.cassandra.avro;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Map;
 
 import org.apache.avro.generic.GenericArray;
 import org.apache.avro.util.Utf8;

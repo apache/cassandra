@@ -23,20 +23,17 @@ import java.io.DataInput;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.util.*;
-
-import org.apache.cassandra.avro.Mutation;
-import org.apache.cassandra.avro.StreamingMutation;
-import org.apache.cassandra.hadoop.ConfigHelper;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.avro.io.BinaryDecoder;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.specific.SpecificDatumReader;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.streaming.io.OutputReader;
+import org.apache.cassandra.avro.Mutation;
+import org.apache.cassandra.avro.StreamingMutation;
 import org.apache.hadoop.streaming.PipeMapRed;
+import org.apache.hadoop.streaming.io.OutputReader;
 
 /**
  * An OutputReader that reads sequential StreamingMutations (from Cassandra's Avro client API), and converts them to

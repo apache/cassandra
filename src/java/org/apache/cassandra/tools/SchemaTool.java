@@ -20,8 +20,9 @@ package org.apache.cassandra.tools;
  * 
  */
 
-import org.apache.cassandra.config.ConfigurationException;
 import java.io.IOException;
+
+import org.apache.cassandra.config.ConfigurationException;
 
 public class SchemaTool
 {

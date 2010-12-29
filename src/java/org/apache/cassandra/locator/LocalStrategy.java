@@ -20,10 +20,12 @@
 package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class LocalStrategy extends AbstractReplicationStrategy
 {

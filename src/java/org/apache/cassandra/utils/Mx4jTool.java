@@ -22,7 +22,6 @@ package org.apache.cassandra.utils;
 
 
 import java.lang.management.ManagementFactory;
-
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 

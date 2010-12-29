@@ -21,9 +21,11 @@ package org.apache.cassandra.gms;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.*;
-import org.apache.cassandra.io.ICompactSerializer;
 import java.net.InetAddress;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.apache.cassandra.io.ICompactSerializer;
 
 
 /**
