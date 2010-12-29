@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.net;
 
-
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,35 +36,28 @@ public class ResponseVerbHandler implements IVerbHandler, ILatencyPublisher
 
     public void doVerb(Message message)
     {     
-        String messageId = message.getMessageId();        
-        IAsyncCallback cb = MessagingService.getRegisteredCallback(messageId);
-        double age = 0;
-        if (cb != null)
+        String messageId = message.getMessageId();
+        MessagingService.responseReceivedFrom(messageId, message.getFrom());
+        double age = System.currentTimeMillis() - MessagingService.getRegisteredCallbackAge(messageId);
+        IMessageCallback cb = MessagingService.getRegisteredCallback(messageId);
+        if (cb == null)
+            return;
+
+        // if cb is not null, then age will be valid
+        for (ILatencySubscriber subscriber : subscribers)
+            subscriber.receiveTiming(message.getFrom(), age);
+
+        if (cb instanceof IAsyncCallback)
         {
             if (logger_.isDebugEnabled())
                 logger_.debug("Processing response on a callback from " + message.getMessageId() + "@" + message.getFrom());
-            age = System.currentTimeMillis() - MessagingService.getRegisteredCallbackAge(messageId);
-            cb.response(message);
+            ((IAsyncCallback) cb).response(message);
         }
         else
         {
-            IAsyncResult ar = MessagingService.getAsyncResult(messageId);
-            if (ar != null)
-            {
-                if (logger_.isDebugEnabled())
-                    logger_.debug("Processing response on an async result from " + message.getMessageId() + "@" + message.getFrom());
-                age = System.currentTimeMillis() - MessagingService.getAsyncResultAge(messageId);
-                ar.result(message);
-            }
-        }
-        notifySubscribers(message.getFrom(), age);
-    }
-
-    private void notifySubscribers(InetAddress host, double latency)
-    {
-        for (ILatencySubscriber subscriber : subscribers)
-        {
-            subscriber.receiveTiming(host, latency);
+            if (logger_.isDebugEnabled())
+                logger_.debug("Processing response on an async result from " + message.getMessageId() + "@" + message.getFrom());
+            ((IAsyncResult) cb).result(message);
         }
     }
 

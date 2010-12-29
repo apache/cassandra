@@ -36,6 +36,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import com.google.common.base.Function;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,6 +46,8 @@ import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.locator.ILatencyPublisher;
+import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.net.io.SerializerType;
 import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.service.GCInspector;
@@ -54,7 +59,7 @@ import org.apache.cassandra.utils.GuidGenerator;
 import org.apache.cassandra.utils.SimpleCondition;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
-public class MessagingService implements MessagingServiceMBean
+public class MessagingService implements MessagingServiceMBean, ILatencyPublisher
 {
     private static int version_ = 1;
     //TODO: make this parameter dynamic somehow.  Not sure if config is appropriate.
@@ -64,9 +69,9 @@ public class MessagingService implements MessagingServiceMBean
     public static final int PROTOCOL_MAGIC = 0xCA552DFA;
 
     /* This records all the results mapped by message Id */
-    private static ExpiringMap<String, IAsyncCallback> callbackMap_;
-    private static ExpiringMap<String, IAsyncResult> taskCompletionMap_;
-    
+    private static ExpiringMap<String, IMessageCallback> callbacks;
+    private static Multimap<String, InetAddress> targets;
+
     /* Lookup table for registering message handlers based on the verb. */
     private static Map<StorageService.Verb, IVerbHandler> verbHandlers_;
 
@@ -83,6 +88,8 @@ public class MessagingService implements MessagingServiceMBean
     private SocketThread socketThread;
     private SimpleCondition listenGate;
     private static final Map<StorageService.Verb, AtomicInteger> droppedMessages = new EnumMap<StorageService.Verb, AtomicInteger>(StorageService.Verb.class);
+    private final List<ILatencySubscriber> subscribers = new ArrayList<ILatencySubscriber>();
+
     static
     {
         for (StorageService.Verb verb : StorageService.Verb.values())
@@ -99,15 +106,6 @@ public class MessagingService implements MessagingServiceMBean
     {
         listenGate = new SimpleCondition();
         verbHandlers_ = new EnumMap<StorageService.Verb, IVerbHandler>(StorageService.Verb.class);
-        /*
-         * Leave callbacks in the cachetable long enough that any related messages will arrive
-         * before the callback is evicted from the table. The concurrency level is set at 128
-         * which is the sum of the threads in the pool that adds shit into the table and the 
-         * pool that retrives the callback from here.
-        */
-        callbackMap_ = new ExpiringMap<String, IAsyncCallback>((long) (1.1 * DatabaseDescriptor.getRpcTimeout()));
-        taskCompletionMap_ = new ExpiringMap<String, IAsyncResult>((long) (1.1 * DatabaseDescriptor.getRpcTimeout()));
-
         streamExecutor_ = new DebuggableThreadPoolExecutor("Streaming", DatabaseDescriptor.getCompactionThreadPriority());
         Runnable logDropped = new Runnable()
         {
@@ -117,6 +115,26 @@ public class MessagingService implements MessagingServiceMBean
             }
         };
         StorageService.scheduledTasks.scheduleWithFixedDelay(logDropped, LOG_DROPPED_INTERVAL_IN_MS, LOG_DROPPED_INTERVAL_IN_MS, TimeUnit.MILLISECONDS);
+
+        Function<String, ?> timeoutReporter = new Function<String, Object>()
+        {
+            public Object apply(String messageId)
+            {
+                Collection<InetAddress> addresses = targets.removeAll(messageId);
+                if (addresses == null)
+                    return null;
+
+                for (InetAddress address : addresses)
+                {
+                    for (ILatencySubscriber subscriber : subscribers)
+                        subscriber.receiveTiming(address, (double) DatabaseDescriptor.getRpcTimeout());
+                }
+
+                return null;
+            }
+        };
+        targets = ArrayListMultimap.create();
+        callbacks = new ExpiringMap<String, IMessageCallback>((long) (1.1 * DatabaseDescriptor.getRpcTimeout()), timeoutReporter);
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
@@ -230,6 +248,7 @@ public class MessagingService implements MessagingServiceMBean
         addCallback(cb, messageId);
         for (InetAddress endpoint : to)
         {
+            targets.put(messageId, endpoint);
             sendOneWay(message, endpoint);
         }
         return messageId;
@@ -237,7 +256,7 @@ public class MessagingService implements MessagingServiceMBean
 
     public void addCallback(IAsyncCallback cb, String messageId)
     {
-        callbackMap_.put(messageId, cb);
+        callbacks.put(messageId, cb);
     }
 
     /**
@@ -254,6 +273,7 @@ public class MessagingService implements MessagingServiceMBean
     {        
         String messageId = message.getMessageId();
         addCallback(cb, messageId);
+        targets.put(messageId, to);
         sendOneWay(message, to);
         return messageId;
     }
@@ -280,6 +300,7 @@ public class MessagingService implements MessagingServiceMBean
         for ( int i = 0; i < messages.length; ++i )
         {
             messages[i].setMessageId(groupId);
+            targets.put(groupId, to.get(i));
             sendOneWay(messages[i], to.get(i));
         }
         return groupId;
@@ -332,7 +353,8 @@ public class MessagingService implements MessagingServiceMBean
     public IAsyncResult sendRR(Message message, InetAddress to)
     {
         IAsyncResult iar = new AsyncResult();
-        taskCompletionMap_.put(message.getMessageId(), iar);
+        callbacks.put(message.getMessageId(), iar);
+        targets.put(message.getMessageId(), to);
         sendOneWay(message, to);
         return iar;
     }
@@ -350,6 +372,11 @@ public class MessagingService implements MessagingServiceMBean
         streamExecutor_.execute(new FileStreamTask(header, to));
     }
     
+    public void register(ILatencySubscriber subcriber)
+    {
+        subscribers.add(subcriber);
+    }
+
     /** blocks until the processing pools are empty and done. */
     public static void waitFor() throws InterruptedException
     {
@@ -371,10 +398,7 @@ public class MessagingService implements MessagingServiceMBean
         }
 
         streamExecutor_.shutdownNow();
-
-        /* shut down the cachetables */
-        taskCompletionMap_.shutdown();
-        callbackMap_.shutdown();
+        callbacks.shutdown();
 
         logger_.info("Shutdown complete (no further commands will be processed)");
     }
@@ -391,29 +415,25 @@ public class MessagingService implements MessagingServiceMBean
         stage.execute(runnable);
     }
 
-    public static IAsyncCallback getRegisteredCallback(String messageId)
+    public static IMessageCallback getRegisteredCallback(String messageId)
     {
-        return callbackMap_.get(messageId);
+        return callbacks.get(messageId);
     }
     
-    public static void removeRegisteredCallback(String messageId)
+    public static IMessageCallback removeRegisteredCallback(String messageId)
     {
-        callbackMap_.remove(messageId);
-    }
-    
-    public static IAsyncResult getAsyncResult(String messageId)
-    {
-        return taskCompletionMap_.remove(messageId);
+        targets.removeAll(messageId); // TODO fix this when we clean up quorum reads to do proper RR
+        return callbacks.remove(messageId);
     }
 
     public static long getRegisteredCallbackAge(String messageId)
     {
-        return callbackMap_.getAge(messageId);
+        return callbacks.getAge(messageId);
     }
 
-    public static long getAsyncResultAge(String messageId)
+    public static void responseReceivedFrom(String messageId, InetAddress from)
     {
-        return taskCompletionMap_.getAge(messageId);
+        targets.remove(messageId, from);
     }
 
     public static void validateMagic(int magic) throws IOException

@@ -22,7 +22,9 @@ import java.util.Enumeration;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.Callable;
 
+import com.google.common.base.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,6 +33,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 public class ExpiringMap<K, V>
 {
     private static final Logger logger = LoggerFactory.getLogger(ExpiringMap.class);
+    private final Function<K, ?> postExpireHook;
 
     private static class CacheableObject<T>
     {
@@ -76,6 +79,7 @@ public class ExpiringMap<K, V>
                     if (co != null && co.isReadyToDie(expiration))
                     {
                         cache.remove(key);
+                        postExpireHook.apply(key);
                     }
                 }
             }
@@ -86,12 +90,18 @@ public class ExpiringMap<K, V>
     private final Timer timer;
     private static int counter = 0;
 
-    /*
-    * Specify the TTL for objects in the cache
-    * in milliseconds.
-    */
     public ExpiringMap(long expiration)
     {
+        this(expiration, null);
+    }
+
+    /**
+     *
+     * @param expiration the TTL for objects in the cache in milliseconds
+     */
+    public ExpiringMap(long expiration, Function<K, ?> postExpireHook)
+    {
+        this.postExpireHook = postExpireHook;
         if (expiration <= 0)
         {
             throw new IllegalArgumentException("Argument specified must be a positive number");

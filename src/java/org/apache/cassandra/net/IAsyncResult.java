@@ -22,7 +22,7 @@ import java.net.InetAddress;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-public interface IAsyncResult
+public interface IAsyncResult extends IMessageCallback
 {    
     /**
      * Same operation as the above get() but allows the calling

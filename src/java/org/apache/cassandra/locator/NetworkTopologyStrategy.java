@@ -164,18 +164,4 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         }
         return super.getWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level);
     }
-
-    /**
-     * This method will generate the WRH object and returns. If the Consistency
-     * level is LOCAL_QUORUM/EACH_QUORUM then it will return a DCQRH.
-     */
-    @Override
-    public QuorumResponseHandler getQuorumResponseHandler(IResponseResolver responseResolver, ConsistencyLevel consistencyLevel)
-    {
-        if (consistencyLevel.equals(ConsistencyLevel.LOCAL_QUORUM) || consistencyLevel.equals(ConsistencyLevel.EACH_QUORUM))
-        {
-            return new DatacenterQuorumResponseHandler(responseResolver, consistencyLevel, table);
-        }
-        return super.getQuorumResponseHandler(responseResolver, consistencyLevel);
-    }
 }
