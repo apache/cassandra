@@ -262,7 +262,7 @@ public class Table
             throw new RuntimeException(e);
         }
 
-        indexLocks = new Object[DatabaseDescriptor.getConcurrentWriters() * 8];
+        indexLocks = new Object[DatabaseDescriptor.getConcurrentWriters() * 128];
         for (int i = 0; i < indexLocks.length; i++)
             indexLocks[i] = new Object();
         // create data directories.

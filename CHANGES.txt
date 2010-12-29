@@ -21,6 +21,7 @@
    (CASSANDRA-1871)
  * allow [LOCAL|EACH]_QUORUM to be used with non-NetworkTopology 
    replication Strategies
+ * increased amount of index locks for faster commitlog replay
 
 
 0.7.0-rc3
