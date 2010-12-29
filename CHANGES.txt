@@ -18,6 +18,7 @@ dev
    replication Strategies
  * increased amount of index locks for faster commitlog replay
  * collect secondary index tombstones immediately (CASSANDRA-1914)
+ * revert commitlog changes from #1780 (CASSANDRA-1917)
 
 
 0.7.0-rc3
