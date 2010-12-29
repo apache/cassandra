@@ -12,7 +12,6 @@ dev
  * increased amount of index locks for faster commitlog replay
  * collect secondary index tombstones immediately (CASSANDRA-1914)
  * revert commitlog changes from #1780 (CASSANDRA-1917)
- * large row support for SSTableExport (CASSANDRA-1867)
  * examine the right nibble when validating TimeUUID (CASSANDRA-1910)
 
 
@@ -36,6 +35,7 @@ dev
    is requested (CASSANDRA-1866)
  * flush before repair (CASSANDRA-1748)
  * SSTableExport validates key order (CASSANDRA-1884)
+ * large row support for SSTableExport (CASSANDRA-1867)
  * Re-cache hot keys post-compaction without hitting disk (CASSANDRA-1878)
  * manage read repair in coordinator instead of data source, to
    provide latency information to dynamic snitch (CASSANDRA-1873)
