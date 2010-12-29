@@ -101,7 +101,7 @@ public abstract class OperationThread extends Thread
      */
     private byte[] generateGaussKey()
     {
-        String format = "%0" + session.getTotalKeysLength() + "f";
+        String format = "%0" + session.getTotalKeysLength() + "d";
 
         for (;;)
         {
@@ -109,7 +109,7 @@ public abstract class OperationThread extends Thread
 
             if (0 <= token && token < session.getNumKeys())
             {
-                return String.format(format, token).getBytes();
+                return String.format(format, (int) token).getBytes();
             }
         }
     }

@@ -164,7 +164,7 @@ public class Session
                 columnFamilyType = ColumnFamilyType.valueOf(cmd.getOptionValue("y"));
 
             if (cmd.hasOption("k"))
-                ignoreErrors = Boolean.parseBoolean(cmd.getOptionValue("k"));
+                ignoreErrors = true;
 
             if (cmd.hasOption("i"))
                 progressInterval = Integer.parseInt(cmd.getOptionValue("i"));

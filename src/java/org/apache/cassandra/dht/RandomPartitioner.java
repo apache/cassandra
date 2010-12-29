@@ -35,9 +35,8 @@ import static com.google.common.base.Charsets.UTF_8;
  */
 public class RandomPartitioner implements IPartitioner<BigIntegerToken>
 {
-    public static final BigInteger TWO = new BigInteger("2");
-
-    public static final BigIntegerToken MINIMUM = new BigIntegerToken("0");
+    public static final BigInteger ZERO = new BigInteger("0");
+    public static final BigIntegerToken MINIMUM = new BigIntegerToken("-1");
 
     private static final byte DELIMITER_BYTE = ":".getBytes()[0];
 
@@ -68,7 +67,10 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
 
     public Token midpoint(Token ltoken, Token rtoken)
     {
-        Pair<BigInteger,Boolean> midpair = FBUtilities.midpoint(((BigIntegerToken)ltoken).token, ((BigIntegerToken)rtoken).token, 127);
+        // the symbolic MINIMUM token should act as ZERO: the empty bit array
+        BigInteger left = ltoken.equals(MINIMUM) ? ZERO : ((BigIntegerToken)ltoken).token;
+        BigInteger right = rtoken.equals(MINIMUM) ? ZERO : ((BigIntegerToken)rtoken).token;
+        Pair<BigInteger,Boolean> midpair = FBUtilities.midpoint(left, right, 127);
         // discard the remainder
         return new BigIntegerToken(midpair.left);
     }
