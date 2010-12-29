@@ -75,7 +75,7 @@ public class SSTableWriterTest extends CleanupHelper {
         ColumnFamily.serializer().serializeWithIndexes(cf, buffer);               
         entries.put(ByteBufferUtil.bytes("k3"), ByteBuffer.wrap(Arrays.copyOf(buffer.getData(), buffer.getLength())));
         
-        SSTableReader orig = SSTableUtils.writeRawSSTable("Keyspace1", "Indexed1", entries);        
+        SSTableReader orig = SSTableUtils.prepare().cf("Indexed1").writeRaw(entries);        
         // whack the index to trigger the recover
         FileUtils.deleteWithConfirm(orig.descriptor.filenameFor(Component.PRIMARY_INDEX));
         FileUtils.deleteWithConfirm(orig.descriptor.filenameFor(Component.FILTER));
