@@ -47,20 +47,21 @@ private static ICompactSerializer<ReadResponse> serializer_;
         return serializer_;
     }
     
-	private Row row_;
-	private ByteBuffer digest_ = FBUtilities.EMPTY_BYTE_BUFFER;
-    private boolean isDigestQuery_ = false;
+	private final Row row_;
+	private final ByteBuffer digest_;
 
 	public ReadResponse(ByteBuffer digest )
     {
         assert digest != null;
 		digest_= digest;
+        row_ = null;
 	}
 
 	public ReadResponse(Row row)
     {
         assert row != null;
 		row_ = row;
+        digest_ = null;
 	}
 
 	public Row row() 
@@ -75,12 +76,7 @@ private static ICompactSerializer<ReadResponse> serializer_;
 
 	public boolean isDigestQuery()
     {
-    	return isDigestQuery_;
-    }
-    
-    public void setIsDigestQuery(boolean isDigestQuery)
-    {
-    	isDigestQuery_ = isDigestQuery;
+    	return digest_ != null;
     }
 }
 
@@ -88,31 +84,35 @@ class ReadResponseSerializer implements ICompactSerializer<ReadResponse>
 {
 	public void serialize(ReadResponse rm, DataOutputStream dos) throws IOException
 	{
-        dos.writeInt(rm.digest().remaining());
-        dos.write(rm.digest().array(), rm.digest().position() + rm.digest().arrayOffset(), rm.digest().remaining());
+        dos.writeInt(rm.isDigestQuery() ? rm.digest().remaining() : 0);
+        ByteBuffer buffer = rm.isDigestQuery() ? rm.digest() : FBUtilities.EMPTY_BYTE_BUFFER;
+        dos.write(buffer.array(), buffer.position() + buffer.arrayOffset(), buffer.remaining());
         dos.writeBoolean(rm.isDigestQuery());
-        
-        if( !rm.isDigestQuery() && rm.row() != null )
-        {            
+
+        if (!rm.isDigestQuery())
+        {
             Row.serializer().serialize(rm.row(), dos);
-        }				
-	}
+        }
+    }
 	
     public ReadResponse deserialize(DataInputStream dis) throws IOException
     {
+        byte[] digest = null;
         int digestSize = dis.readInt();
-        byte[] digest = new byte[digestSize];
-        dis.read(digest, 0 , digestSize);
+        if (digestSize > 0)
+        {
+            digest = new byte[digestSize];
+            dis.readFully(digest, 0, digestSize);
+        }
         boolean isDigest = dis.readBoolean();
-        
+        assert isDigest == digestSize > 0;
+
         Row row = null;
         if (!isDigest)
         {
             row = Row.serializer().deserialize(dis);
         }
 
-        ReadResponse rmsg = isDigest ? new ReadResponse(ByteBuffer.wrap(digest)) : new ReadResponse(row);
-        rmsg.setIsDigestQuery(isDigest);
-    	return rmsg;
+        return isDigest ? new ReadResponse(ByteBuffer.wrap(digest)) : new ReadResponse(row);
     } 
 }
