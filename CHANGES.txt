@@ -30,6 +30,7 @@
    provide latency information to dynamic snitch (CASSANDRA-1873)
  * enable keepalive on intra-cluster sockets (CASSANDRA-1766)
  * count timeouts towards dynamicsnitch latencies (CASSANDRA-1905)
+ * examine the right nibble when validating TimeUUID (CASSANDRA-1910)
 
 
 0.6.8
