@@ -2054,4 +2054,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return indexes;
     }
 
+    /** true if this CFS contains secondary index data */
+    public boolean isIndex()
+    {
+        return partitioner instanceof LocalPartitioner;
+    }
 }

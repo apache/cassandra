@@ -117,7 +117,12 @@ public class CompactionManager implements CompactionManagerMBean
                             // if we have too many to compact all at once, compact older ones first -- this avoids
                             // re-compacting files we just created.
                             Collections.sort(sstables);
-                            return doCompaction(cfs, sstables.subList(0, Math.min(sstables.size(), maxThreshold)), (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds());
+                            int gcBefore = cfs.isIndex()
+                                         ? Integer.MAX_VALUE
+                                         : (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds();
+                            return doCompaction(cfs,
+                                                sstables.subList(0, Math.min(sstables.size(), maxThreshold)),
+                                                gcBefore);
                         }
                     }
                 }
