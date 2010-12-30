@@ -538,6 +538,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     if (!file.delete())
                         logger.warn("could not delete " + file.getAbsolutePath());
         }
+        
+        // also clean out any index leftovers.
+        CFMetaData cfm = DatabaseDescriptor.getCFMetaData(table, columnFamily);
+        if (cfm != null) // secondary indexes aren't stored in DD.
+        {
+            for (ColumnDefinition def : cfm.getColumn_metadata().values())
+                scrubDataDirectories(table, CFMetaData.indexName(cfm.cfName, def));
+        }
     }
 
     // must be called after all sstables are loaded since row cache merges all row versions

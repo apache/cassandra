@@ -27,6 +27,8 @@
  * change RandomPartitioner min token to -1 to avoid collision w/
    tokens on actual nodes (CASSANDRA-1901)
  * examine the right nibble when validating TimeUUID (CASSANDRA-1910)
+ * CFS.scrubDataDirectories should also cleanup invalid secondary indexes
+   (CASSANDRA-1904)
 
 
 0.7.0-rc3
