@@ -267,11 +267,11 @@ public final class CFMetaData
              nextId(),
              column_metadata);
     }
-
+    
     public static CFMetaData newIndexMetadata(String table, String parentCf, ColumnDefinition info, AbstractType columnComparator)
     {
         return new CFMetaData(table,
-                              parentCf + "." + (info.getIndexName() == null ? FBUtilities.bytesToHex(info.name) : info.getIndexName()),
+                              indexName(parentCf, info),
                               ColumnFamilyType.Standard,
                               columnComparator,
                               null,
@@ -345,6 +345,12 @@ public final class CFMetaData
     public static void purge(CFMetaData cfm)
     {
         cfIdMap.remove(new Pair<String, String>(cfm.tableName, cfm.cfName));
+    }
+    
+    /** convention for nameing secondary indexes. */
+    public static String indexName(String parentCf, ColumnDefinition info)
+    {
+        return parentCf + "." + (info.getIndexName() == null ? FBUtilities.bytesToHex(info.name) : info.getIndexName());
     }
 
     public org.apache.cassandra.avro.CfDef deflate()
