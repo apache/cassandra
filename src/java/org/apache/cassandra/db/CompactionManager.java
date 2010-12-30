@@ -18,10 +18,12 @@
 
 package org.apache.cassandra.db;
 
+import java.io.DataOutput;
 import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
-import java.net.InetAddress;
+import java.nio.ByteBuffer;
+import java.security.MessageDigest;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
@@ -31,7 +33,6 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import org.apache.commons.collections.PredicateUtils;
-import org.apache.commons.collections.iterators.CollatingIterator;
 import org.apache.commons.collections.iterators.FilterIterator;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -47,7 +48,6 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -368,83 +368,6 @@ public class CompactionManager implements CompactionManagerMBean
     }
 
     /**
-     * This function is used to do the anti compaction process , it spits out the file which has keys that belong to a given range
-     * If the target is not specified it spits out the file as a compacted file with the unecessary ranges wiped out.
-     *
-     * @param cfs
-     * @param sstables
-     * @param ranges
-     * @param target
-     * @return
-     * @throws java.io.IOException
-     */
-    private List<SSTableReader> doAntiCompaction(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, Collection<Range> ranges, InetAddress target)
-            throws IOException
-    {
-        Table table = cfs.table;
-        logger.info("AntiCompacting [" + StringUtils.join(sstables, ",") + "]");
-        // Calculate the expected compacted filesize
-        long expectedRangeFileSize = cfs.getExpectedCompactedFileSize(sstables) / 2;
-        String compactionFileLocation = table.getDataFileLocation(expectedRangeFileSize);
-        if (compactionFileLocation == null)
-        {
-            throw new UnsupportedOperationException("disk full");
-        }
-
-        List<SSTableReader> results = new ArrayList<SSTableReader>();
-        long startTime = System.currentTimeMillis();
-        long totalkeysWritten = 0;
-
-        int expectedBloomFilterSize = Math.max(DatabaseDescriptor.getIndexInterval(), (int)(SSTableReader.getApproximateKeyCount(sstables) / 2));
-        if (logger.isDebugEnabled())
-          logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
-
-        SSTableWriter writer = null;
-        CompactionIterator ci = new AntiCompactionIterator(cfs, sstables, ranges, (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds(), cfs.isCompleteSSTables(sstables));
-        Iterator<AbstractCompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
-        executor.beginCompaction(cfs, ci);
-
-        try
-        {
-            if (!nni.hasNext())
-            {
-                return results;
-            }
-
-            while (nni.hasNext())
-            {
-                AbstractCompactedRow row = nni.next();
-                if (writer == null)
-                {
-                    FileUtils.createDirectory(compactionFileLocation);
-                    String newFilename = new File(cfs.getTempSSTablePath(compactionFileLocation)).getAbsolutePath();
-                    writer = new SSTableWriter(newFilename, expectedBloomFilterSize, cfs.metadata, cfs.partitioner);
-                }
-                writer.append(row);
-                totalkeysWritten++;
-            }
-        }
-        finally
-        {
-            ci.close();
-        }
-
-        if (writer != null)
-        {
-            results.add(writer.closeAndOpenReader(getMaxDataAge(sstables)));
-
-            String format = "AntiCompacted to %s.  %,d to %,d (~%d%% of original) bytes for %,d keys.  Time: %,dms.";
-            long dTime = System.currentTimeMillis() - startTime;
-            long startsize = SSTable.getTotalBytes(sstables);
-            long endsize = results.get(0).length();
-            double ratio = (double)endsize / (double)startsize;
-            logger.info(String.format(format, writer.getFilename(), startsize, endsize, (int)(ratio*100), totalkeysWritten, dTime));
-        }
-
-        return results;
-    }
-
-    /**
      * This function goes over each file and removes the keys that the node is not responsible for
      * and only keeps keys that this node is responsible for.
      *
@@ -452,12 +375,102 @@ public class CompactionManager implements CompactionManagerMBean
      */
     private void doCleanupCompaction(ColumnFamilyStore cfs) throws IOException
     {
-        Collection<SSTableReader> originalSSTables = cfs.getSSTables();
-        List<SSTableReader> sstables = doAntiCompaction(cfs, originalSSTables, StorageService.instance.getLocalRanges(cfs.table.name), null);
-        if (!sstables.isEmpty())
+        assert !cfs.isIndex();
+        Table table = cfs.table;
+        Collection<Range> ranges = StorageService.instance.getLocalRanges(table.name);
+
+        for (SSTableReader sstable : cfs.getSSTables())
         {
-            cfs.replaceCompactedSSTables(originalSSTables, sstables);
+            logger.info("AntiCompacting " + sstable);
+            // Calculate the expected compacted filesize
+            long expectedRangeFileSize = cfs.getExpectedCompactedFileSize(Arrays.asList(sstable)) / 2;
+            String compactionFileLocation = table.getDataFileLocation(expectedRangeFileSize);
+            if (compactionFileLocation == null)
+                throw new UnsupportedOperationException("disk full");
+
+            long startTime = System.currentTimeMillis();
+            long totalkeysWritten = 0;
+
+            int expectedBloomFilterSize = Math.max(DatabaseDescriptor.getIndexInterval(),
+                                                   (int)(SSTableReader.getApproximateKeyCount(Arrays.asList(sstable)) / 2));
+            if (logger.isDebugEnabled())
+              logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
+
+            SSTableWriter writer = null;
+            SSTableScanner scanner = sstable.getDirectScanner(CompactionIterator.FILE_BUFFER_SIZE);
+            SortedSet<ByteBuffer> indexedColumns = cfs.getIndexedColumns();
+            executor.beginCompaction(cfs, new CleanupInfo(sstable, scanner));
+            try
+            {
+                while (scanner.hasNext())
+                {
+                    SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
+                    if (Range.isTokenInRanges(row.getKey().token, ranges))
+                    {
+                        writer = maybeCreateWriter(cfs, compactionFileLocation, expectedBloomFilterSize, writer);
+                        writer.append(new EchoedRow(row));
+                        totalkeysWritten++;
+                    }
+                    else
+                    {
+                        while (row.hasNext())
+                        {
+                            IColumn column = row.next();
+                            if (indexedColumns.contains(column.name()))
+                                Table.cleanupIndexEntry(cfs, row.getKey().key, column);
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                scanner.close();
+            }
+
+            List<SSTableReader> results = new ArrayList<SSTableReader>();
+            if (writer != null)
+            {
+                SSTableReader newSstable = writer.closeAndOpenReader(sstable.maxDataAge);
+                results.add(newSstable);
+
+                String format = "AntiCompacted to %s.  %,d to %,d (~%d%% of original) bytes for %,d keys.  Time: %,dms.";
+                long dTime = System.currentTimeMillis() - startTime;
+                long startsize = sstable.length();
+                long endsize = newSstable.length();
+                double ratio = (double)endsize / (double)startsize;
+                logger.info(String.format(format, writer.getFilename(), startsize, endsize, (int)(ratio*100), totalkeysWritten, dTime));
+            }
+
+            // flush to ensure we don't lose the tombstones on a restart, since they are not commitlog'd
+            for (ByteBuffer columnName : cfs.getIndexedColumns())
+            {
+                try
+                {
+                    cfs.getIndexedColumnFamilyStore(columnName).forceBlockingFlush();
+                }
+                catch (ExecutionException e)
+                {
+                    throw new RuntimeException(e);
+                }
+                catch (InterruptedException e)
+                {
+                    throw new AssertionError(e);
+                }
+            }
+            cfs.replaceCompactedSSTables(Arrays.asList(sstable), results);
         }
+    }
+
+    private SSTableWriter maybeCreateWriter(ColumnFamilyStore cfs, String compactionFileLocation, int expectedBloomFilterSize, SSTableWriter writer)
+            throws IOException
+    {
+        if (writer == null)
+        {
+            FileUtils.createDirectory(compactionFileLocation);
+            String newFilename = new File(cfs.getTempSSTablePath(compactionFileLocation)).getAbsolutePath();
+            writer = new SSTableWriter(newFilename, expectedBloomFilterSize, cfs.metadata, cfs.partitioner);
+        }
+        return writer;
     }
 
     /**
@@ -633,55 +646,6 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
-    private static class AntiCompactionIterator extends CompactionIterator
-    {
-        private Set<SSTableScanner> scanners;
-
-        public AntiCompactionIterator(ColumnFamilyStore cfStore, Collection<SSTableReader> sstables, Collection<Range> ranges, int gcBefore, boolean isMajor)
-                throws IOException
-        {
-            super(cfStore, getCollatedRangeIterator(sstables, ranges), gcBefore, isMajor);
-        }
-
-        private static Iterator getCollatedRangeIterator(Collection<SSTableReader> sstables, final Collection<Range> ranges)
-                throws IOException
-        {
-            org.apache.commons.collections.Predicate rangesPredicate = new org.apache.commons.collections.Predicate()
-            {
-                public boolean evaluate(Object row)
-                {
-                    return Range.isTokenInRanges(((SSTableIdentityIterator)row).getKey().token, ranges);
-                }
-            };
-            // TODO CollatingIterator iter = FBUtilities.<SSTableIdentityIterator>getCollatingIterator();
-            CollatingIterator iter = FBUtilities.getCollatingIterator();
-            for (SSTableReader sstable : sstables)
-            {
-                SSTableScanner scanner = sstable.getDirectScanner(FILE_BUFFER_SIZE);
-                iter.addIterator(new FilterIterator(scanner, rangesPredicate));
-            }
-            return iter;
-        }
-
-        public Iterable<SSTableScanner> getScanners()
-        {
-            if (scanners == null)
-            {
-                scanners = new HashSet<SSTableScanner>();
-                for (Object o : ((CollatingIterator)source).getIterators())
-                {
-                    scanners.add((SSTableScanner)((FilterIterator)o).getIterator());
-                }
-            }
-            return scanners;
-        }
-
-        public String getTaskType()
-        {
-            return "Cleanup";
-        }
-    }
-
     public void checkAllColumnFamilies() throws IOException
     {
         // perform estimates
@@ -819,6 +783,65 @@ public class CompactionManager implements CompactionManagerMBean
         public Object get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException
         {
             throw new IllegalStateException("May not call SimpleFuture.get(long, TimeUnit)");
+        }
+    }
+
+    private static class EchoedRow extends AbstractCompactedRow
+    {
+        private final SSTableIdentityIterator row;
+
+        public EchoedRow(SSTableIdentityIterator row)
+        {
+            super(row.getKey());
+            this.row = row;
+        }
+
+        public void write(DataOutput out) throws IOException
+        {
+            row.echoData(out);
+        }
+
+        public void update(MessageDigest digest)
+        {
+            // EchoedRow is not used in anti-entropy validation
+            throw new UnsupportedOperationException();
+        }
+
+        public boolean isEmpty()
+        {
+            return !row.hasNext();
+        }
+
+        public int columnCount()
+        {
+            return row.columnCount;
+        }
+    }
+
+    private static class CleanupInfo implements ICompactionInfo
+    {
+        private final SSTableReader sstable;
+        private final SSTableScanner scanner;
+
+        public CleanupInfo(SSTableReader sstable, SSTableScanner scanner)
+        {
+            this.sstable = sstable;
+            this.scanner = scanner;
+        }
+
+        public long getTotalBytes()
+        {
+            return scanner.getFileLength();
+        }
+
+        public long getBytesRead()
+        {
+            return scanner.getFilePointer();
+        }
+
+        public String getTaskType()
+        {
+            return "Cleanup of " + sstable.getColumnFamilyName();
         }
     }
 }
