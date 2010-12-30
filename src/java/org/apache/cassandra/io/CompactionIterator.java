@@ -44,7 +44,7 @@ implements Closeable, ICompactionInfo
 {
     private static Logger logger = LoggerFactory.getLogger(CompactionIterator.class);
 
-    protected static final int FILE_BUFFER_SIZE = 1024 * 1024;
+    public static final int FILE_BUFFER_SIZE = 1024 * 1024;
 
     protected final List<SSTableIdentityIterator> rows = new ArrayList<SSTableIdentityIterator>();
     private final ColumnFamilyStore cfs;
