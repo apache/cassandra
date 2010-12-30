@@ -381,7 +381,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         for (SSTableReader sstable : cfs.getSSTables())
         {
-            logger.info("AntiCompacting " + sstable);
+            logger.info("Cleaning up " + sstable);
             // Calculate the expected compacted filesize
             long expectedRangeFileSize = cfs.getExpectedCompactedFileSize(Arrays.asList(sstable)) / 2;
             String compactionFileLocation = table.getDataFileLocation(expectedRangeFileSize);
@@ -433,7 +433,7 @@ public class CompactionManager implements CompactionManagerMBean
                 SSTableReader newSstable = writer.closeAndOpenReader(sstable.maxDataAge);
                 results.add(newSstable);
 
-                String format = "AntiCompacted to %s.  %,d to %,d (~%d%% of original) bytes for %,d keys.  Time: %,dms.";
+                String format = "Cleaned up to %s.  %,d to %,d (~%d%% of original) bytes for %,d keys.  Time: %,dms.";
                 long dTime = System.currentTimeMillis() - startTime;
                 long startsize = sstable.length();
                 long endsize = newSstable.length();
