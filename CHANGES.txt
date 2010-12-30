@@ -1,15 +1,16 @@
 dev
+ * check log4j configuration for changes every 10s (CASSANDRA-1525, 1907)
+ * More-efficient cross-DC replication (CASSANDRA-1530)
+ * upgrade to TFastFramedTransport (CASSANDRA-1743)
+ * avoid polluting page cache with commitlog or sstable writes
+   and seq scan operations (CASSANDRA-1470)
+
+
+0.7.0-rc4
  * fix cli crash after backgrounding (CASSANDRA-1875)
  * count timeouts in storageproxy latencies, and include latency 
    histograms in StorageProxyMBean (CASSANDRA-1893)
- * check log4j configuration for changes every 10s (CASSANDRA-1525)
- * More-efficient cross-DC replication (CASSANDRA-1530)
- * upgrade to TFastFramedTransport (CASSANDRA-1743)
  * fix CLI get recognition of supercolumns (CASSANDRA-1899)
- * avoid polluting page cache with commitlog or sstable writes
-   and seq scan operations (CASSANDRA-1470)
- * add OpenBitSet to support larger bloom filters (CASSANDRA-1555)
- * handle URL-specified log4j regression (CASSANDRA-1907)
  * enable keepalive on intra-cluster sockets (CASSANDRA-1766)
  * count timeouts towards dynamicsnitch latencies (CASSANDRA-1905)
  * Expose index-building status in JMX + cli schema description
