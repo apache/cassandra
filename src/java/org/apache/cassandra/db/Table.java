@@ -571,6 +571,21 @@ public class Table
         return fullMemtables;
     }
 
+    public static void cleanupIndexEntry(ColumnFamilyStore cfs, ByteBuffer key, IColumn column)
+    {
+        if (column.isMarkedForDelete())
+            return;
+        int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
+        DecoratedKey<LocalToken> valueKey = cfs.getIndexKeyFor(column.name(), column.value());
+        ColumnFamily cfi = cfs.newIndexedColumnFamily(column.name());
+        cfi.addTombstone(key, localDeletionTime, column.timestamp());
+        Memtable fullMemtable = cfs.getIndexedColumnFamilyStore(column.name()).apply(valueKey, cfi);
+        if (logger.isDebugEnabled())
+            logger.debug("removed index entry for cleaned-up value {}:{}", valueKey, cfi);
+        if (fullMemtable != null)
+            fullMemtable.cfs.maybeSwitchMemtable(fullMemtable, false);
+    }
+
     public IndexBuilder createIndexBuilder(ColumnFamilyStore cfs, SortedSet<ByteBuffer> columns, ReducingKeyIterator iter)
     {
         return new IndexBuilder(cfs, columns, iter);
