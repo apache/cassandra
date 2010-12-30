@@ -799,6 +799,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         public void write(DataOutput out) throws IOException
         {
+            out.writeLong(row.dataSize);
             row.echoData(out);
         }
 
