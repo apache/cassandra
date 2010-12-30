@@ -230,6 +230,7 @@ public abstract class SSTable
             ifile.skipBytes(8);
             keys++;
         }
+        assert keys > 0 && ifile.getFilePointer() > 0 && ifile.length() > 0;
         long estimatedRows = ifile.length() / (ifile.getFilePointer() / keys);
         ifile.seek(0);
         return estimatedRows;
