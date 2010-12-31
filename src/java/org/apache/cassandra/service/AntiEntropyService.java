@@ -229,7 +229,7 @@ public class AntiEntropyService
     TreeRequest request(String sessionid, InetAddress remote, String ksname, String cfname)
     {
         TreeRequest request = new TreeRequest(sessionid, remote, new CFPair(ksname, cfname));
-        MessagingService.instance.sendOneWay(TreeRequestVerbHandler.makeVerb(request), remote);
+        MessagingService.instance().sendOneWay(TreeRequestVerbHandler.makeVerb(request), remote);
         return request;
     }
 
@@ -240,7 +240,7 @@ public class AntiEntropyService
      */
     void respond(Validator validator, InetAddress local)
     {
-        MessagingService ms = MessagingService.instance;
+        MessagingService ms = MessagingService.instance();
 
         try
         {

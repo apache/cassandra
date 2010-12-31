@@ -118,7 +118,7 @@ public class ReplicateOnWriteTask implements Runnable
                 RowMutationMessage repairMessage = new RowMutationMessage(
                     repairRowMutation);
                 Message message = repairMessage.makeRowMutationMessage(StorageService.Verb.REPLICATE_ON_WRITE);
-                MessagingService.instance.sendOneWay(message, foreignReplica);
+                MessagingService.instance().sendOneWay(message, foreignReplica);
             }
         }
         catch (IOException e)

@@ -57,7 +57,7 @@ public class Gossiper implements IFailureDetectionEventListener
             try
             {
                 //wait on messaging service to start listening
-                MessagingService.instance.waitUntilListening();
+                MessagingService.instance().waitUntilListening();
                 
                 /* Update the local heartbeat counter. */
                 endpointStateMap_.get(localEndpoint_).getHeartBeatState().updateHeartBeat();
@@ -326,7 +326,7 @@ public class Gossiper implements IFailureDetectionEventListener
         InetAddress to = liveEndpoints.get(index);
         if (logger_.isTraceEnabled())
             logger_.trace("Sending a GossipDigestSynMessage to {} ...", to);
-        MessagingService.instance.sendOneWay(message, to);
+        MessagingService.instance().sendOneWay(message, to);
         return seeds_.contains(to);
     }
 

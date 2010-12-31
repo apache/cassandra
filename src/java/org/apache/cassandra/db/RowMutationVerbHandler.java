@@ -78,7 +78,7 @@ public class RowMutationVerbHandler implements IVerbHandler
             Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);
             if (logger_.isDebugEnabled())
               logger_.debug(rm + " applied.  Sending response to " + message.getMessageId() + "@" + message.getFrom());
-            MessagingService.instance.sendOneWay(responseMessage, message.getFrom());
+            MessagingService.instance().sendOneWay(responseMessage, message.getFrom());
 
             // repair-on-write (remote message)
             ReplicateOnWriteTask replicateOnWriteTask = new ReplicateOnWriteTask(rm);
@@ -113,7 +113,7 @@ public class RowMutationVerbHandler implements IVerbHandler
 
             // Send the original message to the address specified by the FORWARD_HINT
             // Let the response go back to the coordinator
-            MessagingService.instance.sendOneWay(message, message.getFrom());
+            MessagingService.instance().sendOneWay(message, message.getFrom());
 
             offset += bytesPerInetAddress;
         }

@@ -149,7 +149,7 @@ public class StorageLoadBalancer implements IEndpointStateChangeSubscriber
         public void doVerb(Message message)
         {
             Message reply = message.getInternalReply(new byte[] {(byte)(isMoveable_.get() ? 1 : 0)});
-            MessagingService.instance.sendOneWay(reply, message.getFrom());
+            MessagingService.instance().sendOneWay(reply, message.getFrom());
             if ( isMoveable_.get() )
             {
                 // MoveMessage moveMessage = (MoveMessage)message.getMessageBody()[0];

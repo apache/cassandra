@@ -83,8 +83,6 @@ public class MessagingService implements MessagingServiceMBean, ILatencyPublishe
     private static Logger logger_ = LoggerFactory.getLogger(MessagingService.class);
     private static int LOG_DROPPED_INTERVAL_IN_MS = 5000;
 
-    public static final MessagingService instance = new MessagingService();
-
     private SocketThread socketThread;
     private SimpleCondition listenGate;
     private static final Map<StorageService.Verb, AtomicInteger> droppedMessages = new EnumMap<StorageService.Verb, AtomicInteger>(StorageService.Verb.class);
@@ -94,6 +92,15 @@ public class MessagingService implements MessagingServiceMBean, ILatencyPublishe
     {
         for (StorageService.Verb verb : StorageService.Verb.values())
             droppedMessages.put(verb, new AtomicInteger());
+    }
+
+    private static class MSHandle
+    {
+        public static final MessagingService instance = new MessagingService();
+    }
+    public static MessagingService instance()
+    {
+        return MSHandle.instance;
     }
 
     public Object clone() throws CloneNotSupportedException
@@ -390,7 +397,7 @@ public class MessagingService implements MessagingServiceMBean, ILatencyPublishe
 
         try
         {
-            instance.socketThread.close();
+            instance().socketThread.close();
         }
         catch (IOException e)
         {

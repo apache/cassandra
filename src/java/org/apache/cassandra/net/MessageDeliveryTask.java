@@ -58,7 +58,7 @@ public class MessageDeliveryTask implements Runnable
                 break;
         }
 
-        IVerbHandler verbHandler = MessagingService.instance.getVerbHandler(verb);
+        IVerbHandler verbHandler = MessagingService.instance().getVerbHandler(verb);
         assert verbHandler != null : "unknown verb " + verb;
         verbHandler.doVerb(message_);
     }

@@ -162,7 +162,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             {
                 throw new IOError(e);
             }
-            MessagingService.instance.sendOneWay(repairMessage, endpoints.get(i));
+            MessagingService.instance().sendOneWay(repairMessage, endpoints.get(i));
         }
     }
 

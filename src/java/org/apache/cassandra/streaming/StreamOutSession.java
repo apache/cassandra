@@ -108,7 +108,7 @@ public class StreamOutSession
         if (logger.isDebugEnabled())
             logger.debug("Streaming {} ...", pf);
         currentFile = pf.getFilename();
-        MessagingService.instance.stream(new StreamHeader(table, getSessionId(), pf), getHost());
+        MessagingService.instance().stream(new StreamHeader(table, getSessionId(), pf), getHost());
     }
 
     public void startNext() throws IOException
@@ -173,6 +173,6 @@ public class StreamOutSession
         StreamHeader header = new StreamHeader(table, getSessionId(), first, files.values());
         logger.info("Streaming to {}", getHost());
         logger.debug("Files are {}", StringUtils.join(files.values(), ","));
-        MessagingService.instance.stream(header, getHost());
+        MessagingService.instance().stream(header, getHost());
     }
 }

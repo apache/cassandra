@@ -78,7 +78,7 @@ public class TruncateVerbHandler implements IVerbHandler
             Message responseMessage = TruncateResponse.makeTruncateResponseMessage(message, response);
             logger.debug("{} applied.  Sending response to {}@{} ",
                     new Object[]{t, message.getMessageId(), message.getFrom()});
-            MessagingService.instance.sendOneWay(responseMessage, message.getFrom());
+            MessagingService.instance().sendOneWay(responseMessage, message.getFrom());
         }
         catch (IOException e)
         {
@@ -101,6 +101,6 @@ public class TruncateVerbHandler implements IVerbHandler
     {
         TruncateResponse response = new TruncateResponse(t.keyspace, t.columnFamily, false);
         Message responseMessage = TruncateResponse.makeTruncateResponseMessage(truncateRequestMessage, response);
-        MessagingService.instance.sendOneWay(responseMessage, truncateRequestMessage.getFrom());
+        MessagingService.instance().sendOneWay(responseMessage, truncateRequestMessage.getFrom());
     }
 }
