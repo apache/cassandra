@@ -376,30 +376,4 @@ protocol Cassandra {
                                      KeyRange range,
                                      ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException;
-
-    enum Compression {
-        GZIP
-    }
-
-    enum CqlResultType {
-        ROWS, VOID, INT
-    }
-
-    record CqlRow {
-        bytes key;
-        array<Column> columns;
-    }
-
-    record CqlResult {
-        CqlResultType type;
-        union { array<CqlRow>, null } rows;
-        union { int, null } num;
-    }
-
-    /**
-     * Executes a CQL (Cassandra Query Language) statement and returns a
-     * CqlResult containing the results.
-     */
-    CqlResult execute_cql_query(bytes query, Compression compression)
-    throws InvalidRequestException, UnavailableException, TimedOutException;
 }

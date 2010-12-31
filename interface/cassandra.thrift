@@ -388,6 +388,29 @@ struct KsDef {
     5: required list<CfDef> cf_defs,
 }
 
+/** CQL query compression */
+enum Compression {
+    GZIP = 1
+}
+
+enum CqlResultType {
+    ROWS = 1,
+    VOID = 2,
+    INT = 3
+}
+
+/** Row returned from a CQL query */
+struct CqlRow {
+    1: required binary key,
+    2: required list<Column> columns
+}
+
+struct CqlResult {
+    1: required CqlResultType type,
+    2: optional list<CqlRow> rows,
+    3: optional i32 num
+}
+
 service Cassandra {
   # auth methods
   void login(1: required AuthenticationRequest auth_request) throws (1:AuthenticationException authnx, 2:AuthorizationException authzx),
@@ -630,4 +653,11 @@ service Cassandra {
   /** updates properties of a column family. returns the new schema id. */
   string system_update_column_family(1:required CfDef cf_def)
     throws (1:InvalidRequestException ire),
+  
+  /**
+   * Executes a CQL (Cassandra Query Language) statement and returns a
+   * CqlResult containing the results.
+   */
+  CqlResult execute_cql_query(1:required binary query, 2:required Compression compression)
+    throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te)
 }
