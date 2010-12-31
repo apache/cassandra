@@ -338,6 +338,15 @@ public class Cassandra {
      */
     public String system_update_column_family(CfDef cf_def) throws InvalidRequestException, TException;
 
+    /**
+     * Executes a CQL (Cassandra Query Language) statement and returns a
+     * CqlResult containing the results.
+     * 
+     * @param query
+     * @param compression
+     */
+    public CqlResult execute_cql_query(ByteBuffer query, Compression compression) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
+
   }
 
   public interface AsyncIface {
@@ -409,6 +418,8 @@ public class Cassandra {
     public void system_update_keyspace(KsDef ks_def, AsyncMethodCallback<AsyncClient.system_update_keyspace_call> resultHandler) throws TException;
 
     public void system_update_column_family(CfDef cf_def, AsyncMethodCallback<AsyncClient.system_update_column_family_call> resultHandler) throws TException;
+
+    public void execute_cql_query(ByteBuffer query, Compression compression, AsyncMethodCallback<AsyncClient.execute_cql_query_call> resultHandler) throws TException;
 
   }
 
@@ -1882,6 +1893,52 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "system_update_column_family failed: unknown result");
     }
 
+    public CqlResult execute_cql_query(ByteBuffer query, Compression compression) throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    {
+      send_execute_cql_query(query, compression);
+      return recv_execute_cql_query();
+    }
+
+    public void send_execute_cql_query(ByteBuffer query, Compression compression) throws TException
+    {
+      oprot_.writeMessageBegin(new TMessage("execute_cql_query", TMessageType.CALL, ++seqid_));
+      execute_cql_query_args args = new execute_cql_query_args();
+      args.setQuery(query);
+      args.setCompression(compression);
+      args.write(oprot_);
+      oprot_.writeMessageEnd();
+      oprot_.getTransport().flush();
+    }
+
+    public CqlResult recv_execute_cql_query() throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    {
+      TMessage msg = iprot_.readMessageBegin();
+      if (msg.type == TMessageType.EXCEPTION) {
+        TApplicationException x = TApplicationException.read(iprot_);
+        iprot_.readMessageEnd();
+        throw x;
+      }
+      if (msg.seqid != seqid_) {
+        throw new TApplicationException(TApplicationException.BAD_SEQUENCE_ID, "execute_cql_query failed: out of sequence response");
+      }
+      execute_cql_query_result result = new execute_cql_query_result();
+      result.read(iprot_);
+      iprot_.readMessageEnd();
+      if (result.isSetSuccess()) {
+        return result.success;
+      }
+      if (result.ire != null) {
+        throw result.ire;
+      }
+      if (result.ue != null) {
+        throw result.ue;
+      }
+      if (result.te != null) {
+        throw result.te;
+      }
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "execute_cql_query failed: unknown result");
+    }
+
   }
   public static class AsyncClient extends TAsyncClient implements AsyncIface {
     public static class Factory implements TAsyncClientFactory<AsyncClient> {
@@ -3068,6 +3125,40 @@ public class Cassandra {
       }
     }
 
+    public void execute_cql_query(ByteBuffer query, Compression compression, AsyncMethodCallback<execute_cql_query_call> resultHandler) throws TException {
+      checkReady();
+      execute_cql_query_call method_call = new execute_cql_query_call(query, compression, resultHandler, this, protocolFactory, transport);
+      manager.call(method_call);
+    }
+
+    public static class execute_cql_query_call extends TAsyncMethodCall {
+      private ByteBuffer query;
+      private Compression compression;
+      public execute_cql_query_call(ByteBuffer query, Compression compression, AsyncMethodCallback<execute_cql_query_call> resultHandler, TAsyncClient client, TProtocolFactory protocolFactory, TNonblockingTransport transport) throws TException {
+        super(client, protocolFactory, transport, resultHandler, false);
+        this.query = query;
+        this.compression = compression;
+      }
+
+      public void write_args(TProtocol prot) throws TException {
+        prot.writeMessageBegin(new TMessage("execute_cql_query", TMessageType.CALL, 0));
+        execute_cql_query_args args = new execute_cql_query_args();
+        args.setQuery(query);
+        args.setCompression(compression);
+        args.write(prot);
+        prot.writeMessageEnd();
+      }
+
+      public CqlResult getResult() throws InvalidRequestException, UnavailableException, TimedOutException, TException {
+        if (getState() != State.RESPONSE_READ) {
+          throw new IllegalStateException("Method call not finished!");
+        }
+        TMemoryInputTransport memoryTransport = new TMemoryInputTransport(getFrameBuffer().array());
+        TProtocol prot = client.getProtocolFactory().getProtocol(memoryTransport);
+        return (new Client(prot)).recv_execute_cql_query();
+      }
+    }
+
   }
 
   public static class Processor implements TProcessor {
@@ -3109,6 +3200,7 @@ public class Cassandra {
       processMap_.put("system_drop_keyspace", new system_drop_keyspace());
       processMap_.put("system_update_keyspace", new system_update_keyspace());
       processMap_.put("system_update_column_family", new system_update_column_family());
+      processMap_.put("execute_cql_query", new execute_cql_query());
     }
 
     protected static interface ProcessFunction {
@@ -4436,6 +4528,48 @@ public class Cassandra {
           return;
         }
         oprot.writeMessageBegin(new TMessage("system_update_column_family", TMessageType.REPLY, seqid));
+        result.write(oprot);
+        oprot.writeMessageEnd();
+        oprot.getTransport().flush();
+      }
+
+    }
+
+    private class execute_cql_query implements ProcessFunction {
+      public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
+      {
+        execute_cql_query_args args = new execute_cql_query_args();
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("execute_cql_query", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
+        iprot.readMessageEnd();
+        execute_cql_query_result result = new execute_cql_query_result();
+        try {
+          result.success = iface_.execute_cql_query(args.query, args.compression);
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+        } catch (UnavailableException ue) {
+          result.ue = ue;
+        } catch (TimedOutException te) {
+          result.te = te;
+        } catch (Throwable th) {
+          LOGGER.error("Internal error processing execute_cql_query", th);
+          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing execute_cql_query");
+          oprot.writeMessageBegin(new TMessage("execute_cql_query", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
+        oprot.writeMessageBegin(new TMessage("execute_cql_query", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
         oprot.getTransport().flush();
@@ -7972,14 +8106,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list42 = iprot.readListBegin();
-                this.success = new ArrayList<ColumnOrSuperColumn>(_list42.size);
-                for (int _i43 = 0; _i43 < _list42.size; ++_i43)
+                TList _list50 = iprot.readListBegin();
+                this.success = new ArrayList<ColumnOrSuperColumn>(_list50.size);
+                for (int _i51 = 0; _i51 < _list50.size; ++_i51)
                 {
-                  ColumnOrSuperColumn _elem44;
-                  _elem44 = new ColumnOrSuperColumn();
-                  _elem44.read(iprot);
-                  this.success.add(_elem44);
+                  ColumnOrSuperColumn _elem52;
+                  _elem52 = new ColumnOrSuperColumn();
+                  _elem52.read(iprot);
+                  this.success.add(_elem52);
                 }
                 iprot.readListEnd();
               }
@@ -8029,9 +8163,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (ColumnOrSuperColumn _iter45 : this.success)
+          for (ColumnOrSuperColumn _iter53 : this.success)
           {
-            _iter45.write(oprot);
+            _iter53.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -9783,13 +9917,13 @@ public class Cassandra {
           case 1: // KEYS
             if (field.type == TType.LIST) {
               {
-                TList _list46 = iprot.readListBegin();
-                this.keys = new ArrayList<ByteBuffer>(_list46.size);
-                for (int _i47 = 0; _i47 < _list46.size; ++_i47)
+                TList _list54 = iprot.readListBegin();
+                this.keys = new ArrayList<ByteBuffer>(_list54.size);
+                for (int _i55 = 0; _i55 < _list54.size; ++_i55)
                 {
-                  ByteBuffer _elem48;
-                  _elem48 = iprot.readBinary();
-                  this.keys.add(_elem48);
+                  ByteBuffer _elem56;
+                  _elem56 = iprot.readBinary();
+                  this.keys.add(_elem56);
                 }
                 iprot.readListEnd();
               }
@@ -9839,9 +9973,9 @@ public class Cassandra {
         oprot.writeFieldBegin(KEYS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.keys.size()));
-          for (ByteBuffer _iter49 : this.keys)
+          for (ByteBuffer _iter57 : this.keys)
           {
-            oprot.writeBinary(_iter49);
+            oprot.writeBinary(_iter57);
           }
           oprot.writeListEnd();
         }
@@ -10414,26 +10548,26 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.MAP) {
               {
-                TMap _map50 = iprot.readMapBegin();
-                this.success = new HashMap<ByteBuffer,List<ColumnOrSuperColumn>>(2*_map50.size);
-                for (int _i51 = 0; _i51 < _map50.size; ++_i51)
+                TMap _map58 = iprot.readMapBegin();
+                this.success = new HashMap<ByteBuffer,List<ColumnOrSuperColumn>>(2*_map58.size);
+                for (int _i59 = 0; _i59 < _map58.size; ++_i59)
                 {
-                  ByteBuffer _key52;
-                  List<ColumnOrSuperColumn> _val53;
-                  _key52 = iprot.readBinary();
+                  ByteBuffer _key60;
+                  List<ColumnOrSuperColumn> _val61;
+                  _key60 = iprot.readBinary();
                   {
-                    TList _list54 = iprot.readListBegin();
-                    _val53 = new ArrayList<ColumnOrSuperColumn>(_list54.size);
-                    for (int _i55 = 0; _i55 < _list54.size; ++_i55)
+                    TList _list62 = iprot.readListBegin();
+                    _val61 = new ArrayList<ColumnOrSuperColumn>(_list62.size);
+                    for (int _i63 = 0; _i63 < _list62.size; ++_i63)
                     {
-                      ColumnOrSuperColumn _elem56;
-                      _elem56 = new ColumnOrSuperColumn();
-                      _elem56.read(iprot);
-                      _val53.add(_elem56);
+                      ColumnOrSuperColumn _elem64;
+                      _elem64 = new ColumnOrSuperColumn();
+                      _elem64.read(iprot);
+                      _val61.add(_elem64);
                     }
                     iprot.readListEnd();
                   }
-                  this.success.put(_key52, _val53);
+                  this.success.put(_key60, _val61);
                 }
                 iprot.readMapEnd();
               }
@@ -10483,14 +10617,14 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, this.success.size()));
-          for (Map.Entry<ByteBuffer, List<ColumnOrSuperColumn>> _iter57 : this.success.entrySet())
+          for (Map.Entry<ByteBuffer, List<ColumnOrSuperColumn>> _iter65 : this.success.entrySet())
           {
-            oprot.writeBinary(_iter57.getKey());
+            oprot.writeBinary(_iter65.getKey());
             {
-              oprot.writeListBegin(new TList(TType.STRUCT, _iter57.getValue().size()));
-              for (ColumnOrSuperColumn _iter58 : _iter57.getValue())
+              oprot.writeListBegin(new TList(TType.STRUCT, _iter65.getValue().size()));
+              for (ColumnOrSuperColumn _iter66 : _iter65.getValue())
               {
-                _iter58.write(oprot);
+                _iter66.write(oprot);
               }
               oprot.writeListEnd();
             }
@@ -11062,13 +11196,13 @@ public class Cassandra {
           case 1: // KEYS
             if (field.type == TType.LIST) {
               {
-                TList _list59 = iprot.readListBegin();
-                this.keys = new ArrayList<ByteBuffer>(_list59.size);
-                for (int _i60 = 0; _i60 < _list59.size; ++_i60)
+                TList _list67 = iprot.readListBegin();
+                this.keys = new ArrayList<ByteBuffer>(_list67.size);
+                for (int _i68 = 0; _i68 < _list67.size; ++_i68)
                 {
-                  ByteBuffer _elem61;
-                  _elem61 = iprot.readBinary();
-                  this.keys.add(_elem61);
+                  ByteBuffer _elem69;
+                  _elem69 = iprot.readBinary();
+                  this.keys.add(_elem69);
                 }
                 iprot.readListEnd();
               }
@@ -11118,9 +11252,9 @@ public class Cassandra {
         oprot.writeFieldBegin(KEYS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.keys.size()));
-          for (ByteBuffer _iter62 : this.keys)
+          for (ByteBuffer _iter70 : this.keys)
           {
-            oprot.writeBinary(_iter62);
+            oprot.writeBinary(_iter70);
           }
           oprot.writeListEnd();
         }
@@ -11689,15 +11823,15 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.MAP) {
               {
-                TMap _map63 = iprot.readMapBegin();
-                this.success = new HashMap<ByteBuffer,Integer>(2*_map63.size);
-                for (int _i64 = 0; _i64 < _map63.size; ++_i64)
+                TMap _map71 = iprot.readMapBegin();
+                this.success = new HashMap<ByteBuffer,Integer>(2*_map71.size);
+                for (int _i72 = 0; _i72 < _map71.size; ++_i72)
                 {
-                  ByteBuffer _key65;
-                  int _val66;
-                  _key65 = iprot.readBinary();
-                  _val66 = iprot.readI32();
-                  this.success.put(_key65, _val66);
+                  ByteBuffer _key73;
+                  int _val74;
+                  _key73 = iprot.readBinary();
+                  _val74 = iprot.readI32();
+                  this.success.put(_key73, _val74);
                 }
                 iprot.readMapEnd();
               }
@@ -11747,10 +11881,10 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.I32, this.success.size()));
-          for (Map.Entry<ByteBuffer, Integer> _iter67 : this.success.entrySet())
+          for (Map.Entry<ByteBuffer, Integer> _iter75 : this.success.entrySet())
           {
-            oprot.writeBinary(_iter67.getKey());
-            oprot.writeI32(_iter67.getValue());
+            oprot.writeBinary(_iter75.getKey());
+            oprot.writeI32(_iter75.getValue());
           }
           oprot.writeMapEnd();
         }
@@ -12902,14 +13036,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list68 = iprot.readListBegin();
-                this.success = new ArrayList<KeySlice>(_list68.size);
-                for (int _i69 = 0; _i69 < _list68.size; ++_i69)
+                TList _list76 = iprot.readListBegin();
+                this.success = new ArrayList<KeySlice>(_list76.size);
+                for (int _i77 = 0; _i77 < _list76.size; ++_i77)
                 {
-                  KeySlice _elem70;
-                  _elem70 = new KeySlice();
-                  _elem70.read(iprot);
-                  this.success.add(_elem70);
+                  KeySlice _elem78;
+                  _elem78 = new KeySlice();
+                  _elem78.read(iprot);
+                  this.success.add(_elem78);
                 }
                 iprot.readListEnd();
               }
@@ -12959,9 +13093,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (KeySlice _iter71 : this.success)
+          for (KeySlice _iter79 : this.success)
           {
-            _iter71.write(oprot);
+            _iter79.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -14113,14 +14247,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list72 = iprot.readListBegin();
-                this.success = new ArrayList<KeySlice>(_list72.size);
-                for (int _i73 = 0; _i73 < _list72.size; ++_i73)
+                TList _list80 = iprot.readListBegin();
+                this.success = new ArrayList<KeySlice>(_list80.size);
+                for (int _i81 = 0; _i81 < _list80.size; ++_i81)
                 {
-                  KeySlice _elem74;
-                  _elem74 = new KeySlice();
-                  _elem74.read(iprot);
-                  this.success.add(_elem74);
+                  KeySlice _elem82;
+                  _elem82 = new KeySlice();
+                  _elem82.read(iprot);
+                  this.success.add(_elem82);
                 }
                 iprot.readListEnd();
               }
@@ -14170,9 +14304,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (KeySlice _iter75 : this.success)
+          for (KeySlice _iter83 : this.success)
           {
-            _iter75.write(oprot);
+            _iter83.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -16789,38 +16923,38 @@ public class Cassandra {
           case 1: // MUTATION_MAP
             if (field.type == TType.MAP) {
               {
-                TMap _map76 = iprot.readMapBegin();
-                this.mutation_map = new HashMap<ByteBuffer,Map<String,List<Mutation>>>(2*_map76.size);
-                for (int _i77 = 0; _i77 < _map76.size; ++_i77)
+                TMap _map84 = iprot.readMapBegin();
+                this.mutation_map = new HashMap<ByteBuffer,Map<String,List<Mutation>>>(2*_map84.size);
+                for (int _i85 = 0; _i85 < _map84.size; ++_i85)
                 {
-                  ByteBuffer _key78;
-                  Map<String,List<Mutation>> _val79;
-                  _key78 = iprot.readBinary();
+                  ByteBuffer _key86;
+                  Map<String,List<Mutation>> _val87;
+                  _key86 = iprot.readBinary();
                   {
-                    TMap _map80 = iprot.readMapBegin();
-                    _val79 = new HashMap<String,List<Mutation>>(2*_map80.size);
-                    for (int _i81 = 0; _i81 < _map80.size; ++_i81)
+                    TMap _map88 = iprot.readMapBegin();
+                    _val87 = new HashMap<String,List<Mutation>>(2*_map88.size);
+                    for (int _i89 = 0; _i89 < _map88.size; ++_i89)
                     {
-                      String _key82;
-                      List<Mutation> _val83;
-                      _key82 = iprot.readString();
+                      String _key90;
+                      List<Mutation> _val91;
+                      _key90 = iprot.readString();
                       {
-                        TList _list84 = iprot.readListBegin();
-                        _val83 = new ArrayList<Mutation>(_list84.size);
-                        for (int _i85 = 0; _i85 < _list84.size; ++_i85)
+                        TList _list92 = iprot.readListBegin();
+                        _val91 = new ArrayList<Mutation>(_list92.size);
+                        for (int _i93 = 0; _i93 < _list92.size; ++_i93)
                         {
-                          Mutation _elem86;
-                          _elem86 = new Mutation();
-                          _elem86.read(iprot);
-                          _val83.add(_elem86);
+                          Mutation _elem94;
+                          _elem94 = new Mutation();
+                          _elem94.read(iprot);
+                          _val91.add(_elem94);
                         }
                         iprot.readListEnd();
                       }
-                      _val79.put(_key82, _val83);
+                      _val87.put(_key90, _val91);
                     }
                     iprot.readMapEnd();
                   }
-                  this.mutation_map.put(_key78, _val79);
+                  this.mutation_map.put(_key86, _val87);
                 }
                 iprot.readMapEnd();
               }
@@ -16854,19 +16988,19 @@ public class Cassandra {
         oprot.writeFieldBegin(MUTATION_MAP_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.MAP, this.mutation_map.size()));
-          for (Map.Entry<ByteBuffer, Map<String,List<Mutation>>> _iter87 : this.mutation_map.entrySet())
+          for (Map.Entry<ByteBuffer, Map<String,List<Mutation>>> _iter95 : this.mutation_map.entrySet())
           {
-            oprot.writeBinary(_iter87.getKey());
+            oprot.writeBinary(_iter95.getKey());
             {
-              oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, _iter87.getValue().size()));
-              for (Map.Entry<String, List<Mutation>> _iter88 : _iter87.getValue().entrySet())
+              oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, _iter95.getValue().size()));
+              for (Map.Entry<String, List<Mutation>> _iter96 : _iter95.getValue().entrySet())
               {
-                oprot.writeString(_iter88.getKey());
+                oprot.writeString(_iter96.getKey());
                 {
-                  oprot.writeListBegin(new TList(TType.STRUCT, _iter88.getValue().size()));
-                  for (Mutation _iter89 : _iter88.getValue())
+                  oprot.writeListBegin(new TList(TType.STRUCT, _iter96.getValue().size()));
+                  for (Mutation _iter97 : _iter96.getValue())
                   {
-                    _iter89.write(oprot);
+                    _iter97.write(oprot);
                   }
                   oprot.writeListEnd();
                 }
@@ -19536,38 +19670,38 @@ public class Cassandra {
           case 1: // UPDATE_MAP
             if (field.type == TType.MAP) {
               {
-                TMap _map90 = iprot.readMapBegin();
-                this.update_map = new HashMap<ByteBuffer,Map<String,List<CounterMutation>>>(2*_map90.size);
-                for (int _i91 = 0; _i91 < _map90.size; ++_i91)
+                TMap _map98 = iprot.readMapBegin();
+                this.update_map = new HashMap<ByteBuffer,Map<String,List<CounterMutation>>>(2*_map98.size);
+                for (int _i99 = 0; _i99 < _map98.size; ++_i99)
                 {
-                  ByteBuffer _key92;
-                  Map<String,List<CounterMutation>> _val93;
-                  _key92 = iprot.readBinary();
+                  ByteBuffer _key100;
+                  Map<String,List<CounterMutation>> _val101;
+                  _key100 = iprot.readBinary();
                   {
-                    TMap _map94 = iprot.readMapBegin();
-                    _val93 = new HashMap<String,List<CounterMutation>>(2*_map94.size);
-                    for (int _i95 = 0; _i95 < _map94.size; ++_i95)
+                    TMap _map102 = iprot.readMapBegin();
+                    _val101 = new HashMap<String,List<CounterMutation>>(2*_map102.size);
+                    for (int _i103 = 0; _i103 < _map102.size; ++_i103)
                     {
-                      String _key96;
-                      List<CounterMutation> _val97;
-                      _key96 = iprot.readString();
+                      String _key104;
+                      List<CounterMutation> _val105;
+                      _key104 = iprot.readString();
                       {
-                        TList _list98 = iprot.readListBegin();
-                        _val97 = new ArrayList<CounterMutation>(_list98.size);
-                        for (int _i99 = 0; _i99 < _list98.size; ++_i99)
+                        TList _list106 = iprot.readListBegin();
+                        _val105 = new ArrayList<CounterMutation>(_list106.size);
+                        for (int _i107 = 0; _i107 < _list106.size; ++_i107)
                         {
-                          CounterMutation _elem100;
-                          _elem100 = new CounterMutation();
-                          _elem100.read(iprot);
-                          _val97.add(_elem100);
+                          CounterMutation _elem108;
+                          _elem108 = new CounterMutation();
+                          _elem108.read(iprot);
+                          _val105.add(_elem108);
                         }
                         iprot.readListEnd();
                       }
-                      _val93.put(_key96, _val97);
+                      _val101.put(_key104, _val105);
                     }
                     iprot.readMapEnd();
                   }
-                  this.update_map.put(_key92, _val93);
+                  this.update_map.put(_key100, _val101);
                 }
                 iprot.readMapEnd();
               }
@@ -19601,19 +19735,19 @@ public class Cassandra {
         oprot.writeFieldBegin(UPDATE_MAP_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.MAP, this.update_map.size()));
-          for (Map.Entry<ByteBuffer, Map<String,List<CounterMutation>>> _iter101 : this.update_map.entrySet())
+          for (Map.Entry<ByteBuffer, Map<String,List<CounterMutation>>> _iter109 : this.update_map.entrySet())
           {
-            oprot.writeBinary(_iter101.getKey());
+            oprot.writeBinary(_iter109.getKey());
             {
-              oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, _iter101.getValue().size()));
-              for (Map.Entry<String, List<CounterMutation>> _iter102 : _iter101.getValue().entrySet())
+              oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, _iter109.getValue().size()));
+              for (Map.Entry<String, List<CounterMutation>> _iter110 : _iter109.getValue().entrySet())
               {
-                oprot.writeString(_iter102.getKey());
+                oprot.writeString(_iter110.getKey());
                 {
-                  oprot.writeListBegin(new TList(TType.STRUCT, _iter102.getValue().size()));
-                  for (CounterMutation _iter103 : _iter102.getValue())
+                  oprot.writeListBegin(new TList(TType.STRUCT, _iter110.getValue().size()));
+                  for (CounterMutation _iter111 : _iter110.getValue())
                   {
-                    _iter103.write(oprot);
+                    _iter111.write(oprot);
                   }
                   oprot.writeListEnd();
                 }
@@ -22420,14 +22554,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list104 = iprot.readListBegin();
-                this.success = new ArrayList<Counter>(_list104.size);
-                for (int _i105 = 0; _i105 < _list104.size; ++_i105)
+                TList _list112 = iprot.readListBegin();
+                this.success = new ArrayList<Counter>(_list112.size);
+                for (int _i113 = 0; _i113 < _list112.size; ++_i113)
                 {
-                  Counter _elem106;
-                  _elem106 = new Counter();
-                  _elem106.read(iprot);
-                  this.success.add(_elem106);
+                  Counter _elem114;
+                  _elem114 = new Counter();
+                  _elem114.read(iprot);
+                  this.success.add(_elem114);
                 }
                 iprot.readListEnd();
               }
@@ -22477,9 +22611,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (Counter _iter107 : this.success)
+          for (Counter _iter115 : this.success)
           {
-            _iter107.write(oprot);
+            _iter115.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -23048,13 +23182,13 @@ public class Cassandra {
           case 1: // KEYS
             if (field.type == TType.LIST) {
               {
-                TList _list108 = iprot.readListBegin();
-                this.keys = new ArrayList<ByteBuffer>(_list108.size);
-                for (int _i109 = 0; _i109 < _list108.size; ++_i109)
+                TList _list116 = iprot.readListBegin();
+                this.keys = new ArrayList<ByteBuffer>(_list116.size);
+                for (int _i117 = 0; _i117 < _list116.size; ++_i117)
                 {
-                  ByteBuffer _elem110;
-                  _elem110 = iprot.readBinary();
-                  this.keys.add(_elem110);
+                  ByteBuffer _elem118;
+                  _elem118 = iprot.readBinary();
+                  this.keys.add(_elem118);
                 }
                 iprot.readListEnd();
               }
@@ -23104,9 +23238,9 @@ public class Cassandra {
         oprot.writeFieldBegin(KEYS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.keys.size()));
-          for (ByteBuffer _iter111 : this.keys)
+          for (ByteBuffer _iter119 : this.keys)
           {
-            oprot.writeBinary(_iter111);
+            oprot.writeBinary(_iter119);
           }
           oprot.writeListEnd();
         }
@@ -23679,26 +23813,26 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.MAP) {
               {
-                TMap _map112 = iprot.readMapBegin();
-                this.success = new HashMap<ByteBuffer,List<Counter>>(2*_map112.size);
-                for (int _i113 = 0; _i113 < _map112.size; ++_i113)
+                TMap _map120 = iprot.readMapBegin();
+                this.success = new HashMap<ByteBuffer,List<Counter>>(2*_map120.size);
+                for (int _i121 = 0; _i121 < _map120.size; ++_i121)
                 {
-                  ByteBuffer _key114;
-                  List<Counter> _val115;
-                  _key114 = iprot.readBinary();
+                  ByteBuffer _key122;
+                  List<Counter> _val123;
+                  _key122 = iprot.readBinary();
                   {
-                    TList _list116 = iprot.readListBegin();
-                    _val115 = new ArrayList<Counter>(_list116.size);
-                    for (int _i117 = 0; _i117 < _list116.size; ++_i117)
+                    TList _list124 = iprot.readListBegin();
+                    _val123 = new ArrayList<Counter>(_list124.size);
+                    for (int _i125 = 0; _i125 < _list124.size; ++_i125)
                     {
-                      Counter _elem118;
-                      _elem118 = new Counter();
-                      _elem118.read(iprot);
-                      _val115.add(_elem118);
+                      Counter _elem126;
+                      _elem126 = new Counter();
+                      _elem126.read(iprot);
+                      _val123.add(_elem126);
                     }
                     iprot.readListEnd();
                   }
-                  this.success.put(_key114, _val115);
+                  this.success.put(_key122, _val123);
                 }
                 iprot.readMapEnd();
               }
@@ -23748,14 +23882,14 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, this.success.size()));
-          for (Map.Entry<ByteBuffer, List<Counter>> _iter119 : this.success.entrySet())
+          for (Map.Entry<ByteBuffer, List<Counter>> _iter127 : this.success.entrySet())
           {
-            oprot.writeBinary(_iter119.getKey());
+            oprot.writeBinary(_iter127.getKey());
             {
-              oprot.writeListBegin(new TList(TType.STRUCT, _iter119.getValue().size()));
-              for (Counter _iter120 : _iter119.getValue())
+              oprot.writeListBegin(new TList(TType.STRUCT, _iter127.getValue().size()));
+              for (Counter _iter128 : _iter127.getValue())
               {
-                _iter120.write(oprot);
+                _iter128.write(oprot);
               }
               oprot.writeListEnd();
             }
@@ -25347,25 +25481,25 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.MAP) {
               {
-                TMap _map121 = iprot.readMapBegin();
-                this.success = new HashMap<String,List<String>>(2*_map121.size);
-                for (int _i122 = 0; _i122 < _map121.size; ++_i122)
+                TMap _map129 = iprot.readMapBegin();
+                this.success = new HashMap<String,List<String>>(2*_map129.size);
+                for (int _i130 = 0; _i130 < _map129.size; ++_i130)
                 {
-                  String _key123;
-                  List<String> _val124;
-                  _key123 = iprot.readString();
+                  String _key131;
+                  List<String> _val132;
+                  _key131 = iprot.readString();
                   {
-                    TList _list125 = iprot.readListBegin();
-                    _val124 = new ArrayList<String>(_list125.size);
-                    for (int _i126 = 0; _i126 < _list125.size; ++_i126)
+                    TList _list133 = iprot.readListBegin();
+                    _val132 = new ArrayList<String>(_list133.size);
+                    for (int _i134 = 0; _i134 < _list133.size; ++_i134)
                     {
-                      String _elem127;
-                      _elem127 = iprot.readString();
-                      _val124.add(_elem127);
+                      String _elem135;
+                      _elem135 = iprot.readString();
+                      _val132.add(_elem135);
                     }
                     iprot.readListEnd();
                   }
-                  this.success.put(_key123, _val124);
+                  this.success.put(_key131, _val132);
                 }
                 iprot.readMapEnd();
               }
@@ -25399,14 +25533,14 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, this.success.size()));
-          for (Map.Entry<String, List<String>> _iter128 : this.success.entrySet())
+          for (Map.Entry<String, List<String>> _iter136 : this.success.entrySet())
           {
-            oprot.writeString(_iter128.getKey());
+            oprot.writeString(_iter136.getKey());
             {
-              oprot.writeListBegin(new TList(TType.STRING, _iter128.getValue().size()));
-              for (String _iter129 : _iter128.getValue())
+              oprot.writeListBegin(new TList(TType.STRING, _iter136.getValue().size()));
+              for (String _iter137 : _iter136.getValue())
               {
-                oprot.writeString(_iter129);
+                oprot.writeString(_iter137);
               }
               oprot.writeListEnd();
             }
@@ -25973,14 +26107,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list130 = iprot.readListBegin();
-                this.success = new ArrayList<KsDef>(_list130.size);
-                for (int _i131 = 0; _i131 < _list130.size; ++_i131)
+                TList _list138 = iprot.readListBegin();
+                this.success = new ArrayList<KsDef>(_list138.size);
+                for (int _i139 = 0; _i139 < _list138.size; ++_i139)
                 {
-                  KsDef _elem132;
-                  _elem132 = new KsDef();
-                  _elem132.read(iprot);
-                  this.success.add(_elem132);
+                  KsDef _elem140;
+                  _elem140 = new KsDef();
+                  _elem140.read(iprot);
+                  this.success.add(_elem140);
                 }
                 iprot.readListEnd();
               }
@@ -26014,9 +26148,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (KsDef _iter133 : this.success)
+          for (KsDef _iter141 : this.success)
           {
-            _iter133.write(oprot);
+            _iter141.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -27633,14 +27767,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list134 = iprot.readListBegin();
-                this.success = new ArrayList<TokenRange>(_list134.size);
-                for (int _i135 = 0; _i135 < _list134.size; ++_i135)
+                TList _list142 = iprot.readListBegin();
+                this.success = new ArrayList<TokenRange>(_list142.size);
+                for (int _i143 = 0; _i143 < _list142.size; ++_i143)
                 {
-                  TokenRange _elem136;
-                  _elem136 = new TokenRange();
-                  _elem136.read(iprot);
-                  this.success.add(_elem136);
+                  TokenRange _elem144;
+                  _elem144 = new TokenRange();
+                  _elem144.read(iprot);
+                  this.success.add(_elem144);
                 }
                 iprot.readListEnd();
               }
@@ -27674,9 +27808,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (TokenRange _iter137 : this.success)
+          for (TokenRange _iter145 : this.success)
           {
-            _iter137.write(oprot);
+            _iter145.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -30276,13 +30410,13 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list138 = iprot.readListBegin();
-                this.success = new ArrayList<String>(_list138.size);
-                for (int _i139 = 0; _i139 < _list138.size; ++_i139)
+                TList _list146 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list146.size);
+                for (int _i147 = 0; _i147 < _list146.size; ++_i147)
                 {
-                  String _elem140;
-                  _elem140 = iprot.readString();
-                  this.success.add(_elem140);
+                  String _elem148;
+                  _elem148 = iprot.readString();
+                  this.success.add(_elem148);
                 }
                 iprot.readListEnd();
               }
@@ -30308,9 +30442,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.success.size()));
-          for (String _iter141 : this.success)
+          for (String _iter149 : this.success)
           {
-            oprot.writeString(_iter141);
+            oprot.writeString(_iter149);
           }
           oprot.writeListEnd();
         }
@@ -34366,6 +34500,991 @@ public class Cassandra {
         sb.append("null");
       } else {
         sb.append(this.ire);
+      }
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws TException {
+      // check for required fields
+    }
+
+  }
+
+  public static class execute_cql_query_args implements TBase<execute_cql_query_args, execute_cql_query_args._Fields>, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("execute_cql_query_args");
+
+    private static final TField QUERY_FIELD_DESC = new TField("query", TType.STRING, (short)1);
+    private static final TField COMPRESSION_FIELD_DESC = new TField("compression", TType.I32, (short)2);
+
+    public ByteBuffer query;
+    /**
+     * 
+     * @see Compression
+     */
+    public Compression compression;
+
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements TFieldIdEnum {
+      QUERY((short)1, "query"),
+      /**
+       * 
+       * @see Compression
+       */
+      COMPRESSION((short)2, "compression");
+
+      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+      static {
+        for (_Fields field : EnumSet.allOf(_Fields.class)) {
+          byName.put(field.getFieldName(), field);
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, or null if its not found.
+       */
+      public static _Fields findByThriftId(int fieldId) {
+        switch(fieldId) {
+          case 1: // QUERY
+            return QUERY;
+          case 2: // COMPRESSION
+            return COMPRESSION;
+          default:
+            return null;
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, throwing an exception
+       * if it is not found.
+       */
+      public static _Fields findByThriftIdOrThrow(int fieldId) {
+        _Fields fields = findByThriftId(fieldId);
+        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+        return fields;
+      }
+
+      /**
+       * Find the _Fields constant that matches name, or null if its not found.
+       */
+      public static _Fields findByName(String name) {
+        return byName.get(name);
+      }
+
+      private final short _thriftId;
+      private final String _fieldName;
+
+      _Fields(short thriftId, String fieldName) {
+        _thriftId = thriftId;
+        _fieldName = fieldName;
+      }
+
+      public short getThriftFieldId() {
+        return _thriftId;
+      }
+
+      public String getFieldName() {
+        return _fieldName;
+      }
+    }
+
+    // isset id assignments
+
+    public static final Map<_Fields, FieldMetaData> metaDataMap;
+    static {
+      Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
+      tmpMap.put(_Fields.QUERY, new FieldMetaData("query", TFieldRequirementType.REQUIRED, 
+          new FieldValueMetaData(TType.STRING)));
+      tmpMap.put(_Fields.COMPRESSION, new FieldMetaData("compression", TFieldRequirementType.REQUIRED, 
+          new EnumMetaData(TType.ENUM, Compression.class)));
+      metaDataMap = Collections.unmodifiableMap(tmpMap);
+      FieldMetaData.addStructMetaDataMap(execute_cql_query_args.class, metaDataMap);
+    }
+
+    public execute_cql_query_args() {
+    }
+
+    public execute_cql_query_args(
+      ByteBuffer query,
+      Compression compression)
+    {
+      this();
+      this.query = query;
+      this.compression = compression;
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public execute_cql_query_args(execute_cql_query_args other) {
+      if (other.isSetQuery()) {
+        this.query = TBaseHelper.copyBinary(other.query);
+;
+      }
+      if (other.isSetCompression()) {
+        this.compression = other.compression;
+      }
+    }
+
+    public execute_cql_query_args deepCopy() {
+      return new execute_cql_query_args(this);
+    }
+
+    @Override
+    public void clear() {
+      this.query = null;
+      this.compression = null;
+    }
+
+    public byte[] getQuery() {
+      setQuery(TBaseHelper.rightSize(query));
+      return query.array();
+    }
+
+    public ByteBuffer BufferForQuery() {
+      return query;
+    }
+
+    public execute_cql_query_args setQuery(byte[] query) {
+      setQuery(ByteBuffer.wrap(query));
+      return this;
+    }
+
+    public execute_cql_query_args setQuery(ByteBuffer query) {
+      this.query = query;
+      return this;
+    }
+
+    public void unsetQuery() {
+      this.query = null;
+    }
+
+    /** Returns true if field query is set (has been asigned a value) and false otherwise */
+    public boolean isSetQuery() {
+      return this.query != null;
+    }
+
+    public void setQueryIsSet(boolean value) {
+      if (!value) {
+        this.query = null;
+      }
+    }
+
+    /**
+     * 
+     * @see Compression
+     */
+    public Compression getCompression() {
+      return this.compression;
+    }
+
+    /**
+     * 
+     * @see Compression
+     */
+    public execute_cql_query_args setCompression(Compression compression) {
+      this.compression = compression;
+      return this;
+    }
+
+    public void unsetCompression() {
+      this.compression = null;
+    }
+
+    /** Returns true if field compression is set (has been asigned a value) and false otherwise */
+    public boolean isSetCompression() {
+      return this.compression != null;
+    }
+
+    public void setCompressionIsSet(boolean value) {
+      if (!value) {
+        this.compression = null;
+      }
+    }
+
+    public void setFieldValue(_Fields field, Object value) {
+      switch (field) {
+      case QUERY:
+        if (value == null) {
+          unsetQuery();
+        } else {
+          setQuery((ByteBuffer)value);
+        }
+        break;
+
+      case COMPRESSION:
+        if (value == null) {
+          unsetCompression();
+        } else {
+          setCompression((Compression)value);
+        }
+        break;
+
+      }
+    }
+
+    public Object getFieldValue(_Fields field) {
+      switch (field) {
+      case QUERY:
+        return getQuery();
+
+      case COMPRESSION:
+        return getCompression();
+
+      }
+      throw new IllegalStateException();
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+    public boolean isSet(_Fields field) {
+      if (field == null) {
+        throw new IllegalArgumentException();
+      }
+
+      switch (field) {
+      case QUERY:
+        return isSetQuery();
+      case COMPRESSION:
+        return isSetCompression();
+      }
+      throw new IllegalStateException();
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof execute_cql_query_args)
+        return this.equals((execute_cql_query_args)that);
+      return false;
+    }
+
+    public boolean equals(execute_cql_query_args that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_query = true && this.isSetQuery();
+      boolean that_present_query = true && that.isSetQuery();
+      if (this_present_query || that_present_query) {
+        if (!(this_present_query && that_present_query))
+          return false;
+        if (!this.query.equals(that.query))
+          return false;
+      }
+
+      boolean this_present_compression = true && this.isSetCompression();
+      boolean that_present_compression = true && that.isSetCompression();
+      if (this_present_compression || that_present_compression) {
+        if (!(this_present_compression && that_present_compression))
+          return false;
+        if (!this.compression.equals(that.compression))
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      HashCodeBuilder builder = new HashCodeBuilder();
+
+      boolean present_query = true && (isSetQuery());
+      builder.append(present_query);
+      if (present_query)
+        builder.append(query);
+
+      boolean present_compression = true && (isSetCompression());
+      builder.append(present_compression);
+      if (present_compression)
+        builder.append(compression.getValue());
+
+      return builder.toHashCode();
+    }
+
+    public int compareTo(execute_cql_query_args other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      execute_cql_query_args typedOther = (execute_cql_query_args)other;
+
+      lastComparison = Boolean.valueOf(isSetQuery()).compareTo(typedOther.isSetQuery());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetQuery()) {
+        lastComparison = TBaseHelper.compareTo(this.query, typedOther.query);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetCompression()).compareTo(typedOther.isSetCompression());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetCompression()) {
+        lastComparison = TBaseHelper.compareTo(this.compression, typedOther.compression);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      return 0;
+    }
+
+    public _Fields fieldForId(int fieldId) {
+      return _Fields.findByThriftId(fieldId);
+    }
+
+    public void read(TProtocol iprot) throws TException {
+      TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == TType.STOP) { 
+          break;
+        }
+        switch (field.id) {
+          case 1: // QUERY
+            if (field.type == TType.STRING) {
+              this.query = iprot.readBinary();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // COMPRESSION
+            if (field.type == TType.I32) {
+              this.compression = Compression.findByValue(iprot.readI32());
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
+        }
+        iprot.readFieldEnd();
+      }
+      iprot.readStructEnd();
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      validate();
+    }
+
+    public void write(TProtocol oprot) throws TException {
+      validate();
+
+      oprot.writeStructBegin(STRUCT_DESC);
+      if (this.query != null) {
+        oprot.writeFieldBegin(QUERY_FIELD_DESC);
+        oprot.writeBinary(this.query);
+        oprot.writeFieldEnd();
+      }
+      if (this.compression != null) {
+        oprot.writeFieldBegin(COMPRESSION_FIELD_DESC);
+        oprot.writeI32(this.compression.getValue());
+        oprot.writeFieldEnd();
+      }
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("execute_cql_query_args(");
+      boolean first = true;
+
+      sb.append("query:");
+      if (this.query == null) {
+        sb.append("null");
+      } else {
+        TBaseHelper.toString(this.query, sb);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("compression:");
+      if (this.compression == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.compression);
+      }
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws TException {
+      // check for required fields
+      if (query == null) {
+        throw new TProtocolException("Required field 'query' was not present! Struct: " + toString());
+      }
+      if (compression == null) {
+        throw new TProtocolException("Required field 'compression' was not present! Struct: " + toString());
+      }
+    }
+
+  }
+
+  public static class execute_cql_query_result implements TBase<execute_cql_query_result, execute_cql_query_result._Fields>, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("execute_cql_query_result");
+
+    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRUCT, (short)0);
+    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
+    private static final TField UE_FIELD_DESC = new TField("ue", TType.STRUCT, (short)2);
+    private static final TField TE_FIELD_DESC = new TField("te", TType.STRUCT, (short)3);
+
+    public CqlResult success;
+    public InvalidRequestException ire;
+    public UnavailableException ue;
+    public TimedOutException te;
+
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements TFieldIdEnum {
+      SUCCESS((short)0, "success"),
+      IRE((short)1, "ire"),
+      UE((short)2, "ue"),
+      TE((short)3, "te");
+
+      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+      static {
+        for (_Fields field : EnumSet.allOf(_Fields.class)) {
+          byName.put(field.getFieldName(), field);
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, or null if its not found.
+       */
+      public static _Fields findByThriftId(int fieldId) {
+        switch(fieldId) {
+          case 0: // SUCCESS
+            return SUCCESS;
+          case 1: // IRE
+            return IRE;
+          case 2: // UE
+            return UE;
+          case 3: // TE
+            return TE;
+          default:
+            return null;
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, throwing an exception
+       * if it is not found.
+       */
+      public static _Fields findByThriftIdOrThrow(int fieldId) {
+        _Fields fields = findByThriftId(fieldId);
+        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+        return fields;
+      }
+
+      /**
+       * Find the _Fields constant that matches name, or null if its not found.
+       */
+      public static _Fields findByName(String name) {
+        return byName.get(name);
+      }
+
+      private final short _thriftId;
+      private final String _fieldName;
+
+      _Fields(short thriftId, String fieldName) {
+        _thriftId = thriftId;
+        _fieldName = fieldName;
+      }
+
+      public short getThriftFieldId() {
+        return _thriftId;
+      }
+
+      public String getFieldName() {
+        return _fieldName;
+      }
+    }
+
+    // isset id assignments
+
+    public static final Map<_Fields, FieldMetaData> metaDataMap;
+    static {
+      Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
+      tmpMap.put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
+          new StructMetaData(TType.STRUCT, CqlResult.class)));
+      tmpMap.put(_Fields.IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      tmpMap.put(_Fields.UE, new FieldMetaData("ue", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      tmpMap.put(_Fields.TE, new FieldMetaData("te", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      metaDataMap = Collections.unmodifiableMap(tmpMap);
+      FieldMetaData.addStructMetaDataMap(execute_cql_query_result.class, metaDataMap);
+    }
+
+    public execute_cql_query_result() {
+    }
+
+    public execute_cql_query_result(
+      CqlResult success,
+      InvalidRequestException ire,
+      UnavailableException ue,
+      TimedOutException te)
+    {
+      this();
+      this.success = success;
+      this.ire = ire;
+      this.ue = ue;
+      this.te = te;
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public execute_cql_query_result(execute_cql_query_result other) {
+      if (other.isSetSuccess()) {
+        this.success = new CqlResult(other.success);
+      }
+      if (other.isSetIre()) {
+        this.ire = new InvalidRequestException(other.ire);
+      }
+      if (other.isSetUe()) {
+        this.ue = new UnavailableException(other.ue);
+      }
+      if (other.isSetTe()) {
+        this.te = new TimedOutException(other.te);
+      }
+    }
+
+    public execute_cql_query_result deepCopy() {
+      return new execute_cql_query_result(this);
+    }
+
+    @Override
+    public void clear() {
+      this.success = null;
+      this.ire = null;
+      this.ue = null;
+      this.te = null;
+    }
+
+    public CqlResult getSuccess() {
+      return this.success;
+    }
+
+    public execute_cql_query_result setSuccess(CqlResult success) {
+      this.success = success;
+      return this;
+    }
+
+    public void unsetSuccess() {
+      this.success = null;
+    }
+
+    /** Returns true if field success is set (has been asigned a value) and false otherwise */
+    public boolean isSetSuccess() {
+      return this.success != null;
+    }
+
+    public void setSuccessIsSet(boolean value) {
+      if (!value) {
+        this.success = null;
+      }
+    }
+
+    public InvalidRequestException getIre() {
+      return this.ire;
+    }
+
+    public execute_cql_query_result setIre(InvalidRequestException ire) {
+      this.ire = ire;
+      return this;
+    }
+
+    public void unsetIre() {
+      this.ire = null;
+    }
+
+    /** Returns true if field ire is set (has been asigned a value) and false otherwise */
+    public boolean isSetIre() {
+      return this.ire != null;
+    }
+
+    public void setIreIsSet(boolean value) {
+      if (!value) {
+        this.ire = null;
+      }
+    }
+
+    public UnavailableException getUe() {
+      return this.ue;
+    }
+
+    public execute_cql_query_result setUe(UnavailableException ue) {
+      this.ue = ue;
+      return this;
+    }
+
+    public void unsetUe() {
+      this.ue = null;
+    }
+
+    /** Returns true if field ue is set (has been asigned a value) and false otherwise */
+    public boolean isSetUe() {
+      return this.ue != null;
+    }
+
+    public void setUeIsSet(boolean value) {
+      if (!value) {
+        this.ue = null;
+      }
+    }
+
+    public TimedOutException getTe() {
+      return this.te;
+    }
+
+    public execute_cql_query_result setTe(TimedOutException te) {
+      this.te = te;
+      return this;
+    }
+
+    public void unsetTe() {
+      this.te = null;
+    }
+
+    /** Returns true if field te is set (has been asigned a value) and false otherwise */
+    public boolean isSetTe() {
+      return this.te != null;
+    }
+
+    public void setTeIsSet(boolean value) {
+      if (!value) {
+        this.te = null;
+      }
+    }
+
+    public void setFieldValue(_Fields field, Object value) {
+      switch (field) {
+      case SUCCESS:
+        if (value == null) {
+          unsetSuccess();
+        } else {
+          setSuccess((CqlResult)value);
+        }
+        break;
+
+      case IRE:
+        if (value == null) {
+          unsetIre();
+        } else {
+          setIre((InvalidRequestException)value);
+        }
+        break;
+
+      case UE:
+        if (value == null) {
+          unsetUe();
+        } else {
+          setUe((UnavailableException)value);
+        }
+        break;
+
+      case TE:
+        if (value == null) {
+          unsetTe();
+        } else {
+          setTe((TimedOutException)value);
+        }
+        break;
+
+      }
+    }
+
+    public Object getFieldValue(_Fields field) {
+      switch (field) {
+      case SUCCESS:
+        return getSuccess();
+
+      case IRE:
+        return getIre();
+
+      case UE:
+        return getUe();
+
+      case TE:
+        return getTe();
+
+      }
+      throw new IllegalStateException();
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+    public boolean isSet(_Fields field) {
+      if (field == null) {
+        throw new IllegalArgumentException();
+      }
+
+      switch (field) {
+      case SUCCESS:
+        return isSetSuccess();
+      case IRE:
+        return isSetIre();
+      case UE:
+        return isSetUe();
+      case TE:
+        return isSetTe();
+      }
+      throw new IllegalStateException();
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof execute_cql_query_result)
+        return this.equals((execute_cql_query_result)that);
+      return false;
+    }
+
+    public boolean equals(execute_cql_query_result that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_success = true && this.isSetSuccess();
+      boolean that_present_success = true && that.isSetSuccess();
+      if (this_present_success || that_present_success) {
+        if (!(this_present_success && that_present_success))
+          return false;
+        if (!this.success.equals(that.success))
+          return false;
+      }
+
+      boolean this_present_ire = true && this.isSetIre();
+      boolean that_present_ire = true && that.isSetIre();
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
+          return false;
+        if (!this.ire.equals(that.ire))
+          return false;
+      }
+
+      boolean this_present_ue = true && this.isSetUe();
+      boolean that_present_ue = true && that.isSetUe();
+      if (this_present_ue || that_present_ue) {
+        if (!(this_present_ue && that_present_ue))
+          return false;
+        if (!this.ue.equals(that.ue))
+          return false;
+      }
+
+      boolean this_present_te = true && this.isSetTe();
+      boolean that_present_te = true && that.isSetTe();
+      if (this_present_te || that_present_te) {
+        if (!(this_present_te && that_present_te))
+          return false;
+        if (!this.te.equals(that.te))
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      HashCodeBuilder builder = new HashCodeBuilder();
+
+      boolean present_success = true && (isSetSuccess());
+      builder.append(present_success);
+      if (present_success)
+        builder.append(success);
+
+      boolean present_ire = true && (isSetIre());
+      builder.append(present_ire);
+      if (present_ire)
+        builder.append(ire);
+
+      boolean present_ue = true && (isSetUe());
+      builder.append(present_ue);
+      if (present_ue)
+        builder.append(ue);
+
+      boolean present_te = true && (isSetTe());
+      builder.append(present_te);
+      if (present_te)
+        builder.append(te);
+
+      return builder.toHashCode();
+    }
+
+    public int compareTo(execute_cql_query_result other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      execute_cql_query_result typedOther = (execute_cql_query_result)other;
+
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetSuccess()) {
+        lastComparison = TBaseHelper.compareTo(this.success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetIre()) {
+        lastComparison = TBaseHelper.compareTo(this.ire, typedOther.ire);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetUe()).compareTo(typedOther.isSetUe());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetUe()) {
+        lastComparison = TBaseHelper.compareTo(this.ue, typedOther.ue);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetTe()).compareTo(typedOther.isSetTe());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetTe()) {
+        lastComparison = TBaseHelper.compareTo(this.te, typedOther.te);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      return 0;
+    }
+
+    public _Fields fieldForId(int fieldId) {
+      return _Fields.findByThriftId(fieldId);
+    }
+
+    public void read(TProtocol iprot) throws TException {
+      TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == TType.STOP) { 
+          break;
+        }
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.STRUCT) {
+              this.success = new CqlResult();
+              this.success.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 1: // IRE
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // UE
+            if (field.type == TType.STRUCT) {
+              this.ue = new UnavailableException();
+              this.ue.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // TE
+            if (field.type == TType.STRUCT) {
+              this.te = new TimedOutException();
+              this.te.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
+        }
+        iprot.readFieldEnd();
+      }
+      iprot.readStructEnd();
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      validate();
+    }
+
+    public void write(TProtocol oprot) throws TException {
+      oprot.writeStructBegin(STRUCT_DESC);
+
+      if (this.isSetSuccess()) {
+        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
+        this.success.write(oprot);
+        oprot.writeFieldEnd();
+      } else if (this.isSetIre()) {
+        oprot.writeFieldBegin(IRE_FIELD_DESC);
+        this.ire.write(oprot);
+        oprot.writeFieldEnd();
+      } else if (this.isSetUe()) {
+        oprot.writeFieldBegin(UE_FIELD_DESC);
+        this.ue.write(oprot);
+        oprot.writeFieldEnd();
+      } else if (this.isSetTe()) {
+        oprot.writeFieldBegin(TE_FIELD_DESC);
+        this.te.write(oprot);
+        oprot.writeFieldEnd();
+      }
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("execute_cql_query_result(");
+      boolean first = true;
+
+      sb.append("success:");
+      if (this.success == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.success);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ire:");
+      if (this.ire == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.ire);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ue:");
+      if (this.ue == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.ue);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("te:");
+      if (this.te == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.te);
       }
       first = false;
       sb.append(")");
