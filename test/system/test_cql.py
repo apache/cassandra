@@ -5,7 +5,7 @@ import sys
 sys.path.append(join(abspath(dirname(__file__)), '../../drivers/py'))
 
 from cql import Connection, CQLException
-from . import AvroTester
+from . import ThriftTester
 from avro_utils import assert_raises
 
 def load_sample(dbconn):
@@ -49,33 +49,33 @@ def init(keyspace="Keyspace1"):
     load_sample(dbconn)
     return dbconn
 
-class TestCql(AvroTester):
+class TestCql(ThriftTester):
     def test_select_simple(self):
         "retrieve a column"
         conn = init()
         r = conn.execute('SELECT "ca1" FROM Standard1 WHERE KEY="ka"')
-        assert r[0]['key'] == 'ka'
-        assert r[0]['columns'][0]['name'] == 'ca1'
-        assert r[0]['columns'][0]['value'] == 'va1'
+        assert r[0].key == 'ka'
+        assert r[0].columns[0].name == 'ca1'
+        assert r[0].columns[0].value == 'va1'
 
     def test_select_columns(self):
         "retrieve multiple columns"
         conn = init()
         r = conn.execute('SELECT "cd1", "col" FROM Standard1 WHERE KEY = "kd"')
-        assert "cd1" in [i['name'] for i in r[0]['columns']]
-        assert "col" in [i['name'] for i in r[0]['columns']]
+        assert "cd1" in [i.name for i in r[0].columns]
+        assert "col" in [i.name for i in r[0].columns]
 
     def test_select_row_range(self):
         "retrieve a range of rows with columns"
         conn = init()
         r = conn.execute('SELECT 4L FROM StandardLong1 WHERE KEY > "ad" AND KEY < "ag";')
         assert len(r) == 3
-        assert r[0]['key'] == "ad"
-        assert r[1]['key'] == "ae"
-        assert r[2]['key'] == "af"
-        assert len(r[0]['columns']) == 1
-        assert len(r[1]['columns']) == 1
-        assert len(r[2]['columns']) == 1
+        assert r[0].key == "ad"
+        assert r[1].key == "ae"
+        assert r[2].key == "af"
+        assert len(r[0].columns) == 1
+        assert len(r[1].columns) == 1
+        assert len(r[2].columns) == 1
 
     def test_select_row_range_with_limit(self):
         "retrieve a limited range of rows with columns"
@@ -90,26 +90,26 @@ class TestCql(AvroTester):
         conn = init()
         r = conn.execute('SELECT 1L..3L FROM StandardLong1 WHERE KEY = "aa";')
         assert len(r) == 1
-        assert r[0]['columns'][0]['value'] == "1"
-        assert r[0]['columns'][1]['value'] == "2"
-        assert r[0]['columns'][2]['value'] == "3"
+        assert r[0].columns[0].value == "1"
+        assert r[0].columns[1].value == "2"
+        assert r[0].columns[2].value == "3"
 
     def test_select_columns_slice_with_limit(self):
         "range of columns (slice) by row with limit"
         conn = init()
         r = conn.execute('SELECT FIRST 1 1L..3L FROM StandardLong1 WHERE KEY = "aa";')
         assert len(r) == 1
-        assert len(r[0]['columns']) == 1
-        assert r[0]['columns'][0]['value'] == "1"
+        assert len(r[0].columns) == 1
+        assert r[0].columns[0].value == "1"
 
     def test_select_columns_slice_reversed(self):
         "range of columns (slice) by row reversed"
         conn = init()
         r = conn.execute('SELECT FIRST 2 REVERSED 3L..1L FROM StandardLong1 WHERE KEY = "aa";')
         assert len(r) == 1, "%d != 1" % len(r)
-        assert len(r[0]['columns']) == 2
-        assert r[0]['columns'][0]['value'] == "3"
-        assert r[0]['columns'][1]['value'] == "2"
+        assert len(r[0].columns) == 2
+        assert r[0].columns[0].value == "3"
+        assert r[0].columns[1].value == "2"
 
     def test_error_on_multiple_key_by(self):
         "ensure multiple key-bys in where clause excepts"
@@ -122,10 +122,10 @@ class TestCql(AvroTester):
         conn = init()
         r = conn.execute('SELECT "birthdate" FROM Indexed1 WHERE "birthdate" = 100L')
         assert len(r) == 2
-        assert r[0]['key'] == "asmith"
-        assert r[1]['key'] == "dozer"
-        assert len(r[0]['columns']) == 1
-        assert len(r[1]['columns']) == 1
+        assert r[0].key == "asmith"
+        assert r[1].key == "dozer"
+        assert len(r[0].columns) == 1
+        assert len(r[1].columns) == 1
 
     def test_index_scan_greater_than(self):
         "indexed scan where a column is greater than a value"
@@ -134,7 +134,7 @@ class TestCql(AvroTester):
             SELECT "birthdate" FROM Indexed1 WHERE "birthdate" = 100L AND "unindexed" > 200L
         """)
         assert len(r) == 1
-        assert r[0]['key'] == "asmith"
+        assert r[0].key == "asmith"
 
     def test_index_scan_with_start_key(self):
         "indexed scan with a starting key"
@@ -143,22 +143,22 @@ class TestCql(AvroTester):
             SELECT "birthdate" FROM Indexed1 WHERE "birthdate" = 100L AND KEY > "asmithZ"
         """)
         assert len(r) == 1
-        assert r[0]['key'] == "dozer"
+        assert r[0].key == "dozer"
 
     def test_no_where_clause(self):
         "empty where clause (range query w/o start key)"
         conn = init()
         r = conn.execute('SELECT "col" FROM Standard1 LIMIT 3')
         assert len(r) == 3
-        assert r[0]['key'] == "ka"
-        assert r[1]['key'] == "kb"
-        assert r[2]['key'] == "kc"
+        assert r[0].key == "ka"
+        assert r[1].key == "kb"
+        assert r[2].key == "kc"
 
     def test_column_count(self):
         "getting a result count instead of results"
         conn = init()
         r = conn.execute('SELECT COUNT(1L..4L) FROM StandardLong1 WHERE KEY = "aa";')
-        assert r == 4
+        assert r == 4, "expected 4 results, got %d" % (r and r or 0)
 
     def test_truncate_columnfamily(self):
         "truncating a column family"
@@ -171,33 +171,33 @@ class TestCql(AvroTester):
         "delete columns from a row"
         conn = init()
         r = conn.execute('SELECT "cd1", "col" FROM Standard1 WHERE KEY = "kd"')
-        assert "cd1" in [i['name'] for i in r[0]['columns']]
-        assert "col" in [i['name'] for i in r[0]['columns']]
+        assert "cd1" in [i.name for i in r[0].columns]
+        assert "col" in [i.name for i in r[0].columns]
         conn.execute('DELETE "cd1", "col" FROM Standard1 WHERE KEY = "kd"')
         r = conn.execute('SELECT "cd1", "col" FROM Standard1 WHERE KEY = "kd"')
-        assert len(r[0]['columns']) == 0
+        assert len(r[0].columns) == 0
 
     def test_delete_columns_multi_rows(self):
         "delete columns from multiple rows"
         conn = init()
         r = conn.execute('SELECT "col" FROM Standard1 WHERE KEY = "kc"')
-        assert len(r[0]['columns']) == 1
+        assert len(r[0].columns) == 1
         r = conn.execute('SELECT "col" FROM Standard1 WHERE KEY = "kd"')
-        assert len(r[0]['columns']) == 1
+        assert len(r[0].columns) == 1
 
         conn.execute('DELETE "col" FROM Standard1 WHERE KEY IN ("kc", "kd")')
         r = conn.execute('SELECT "col" FROM Standard1 WHERE KEY = "kc"')
-        assert len(r[0]['columns']) == 0
+        assert len(r[0].columns) == 0
         r = conn.execute('SELECT "col" FROM Standard1 WHERE KEY = "kd"')
-        assert len(r[0]['columns']) == 0
+        assert len(r[0].columns) == 0
 
     def test_delete_rows(self):
         "delete entire rows"
         conn = init()
         r = conn.execute('SELECT "cd1", "col" FROM Standard1 WHERE KEY = "kd"')
-        assert "cd1" in [i['name'] for i in r[0]['columns']]
-        assert "col" in [i['name'] for i in r[0]['columns']]
+        assert "cd1" in [i.name for i in r[0].columns]
+        assert "col" in [i.name for i in r[0].columns]
         conn.execute('DELETE FROM Standard1 WHERE KEY = "kd"')
         r = conn.execute('SELECT "cd1", "col" FROM Standard1 WHERE KEY = "kd"')
-        assert len(r[0]['columns']) == 0
+        assert len(r[0].columns) == 0
 

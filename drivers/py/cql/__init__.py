@@ -1,85 +1,79 @@
 
-from avro.ipc  import HTTPTransceiver, Requestor, AvroRemoteException
-import avro.protocol, zlib, socket
-from os.path   import exists, abspath, dirname, join
+from os.path import exists, abspath, dirname, join
+from thrift.transport import TTransport, TSocket
+from thrift.protocol import TBinaryProtocol
+from thrift.Thrift import TApplicationException
+import zlib
 
-def _load_protocol():
-    # By default, look for the proto schema in the same dir as this file.
-    avpr = join(abspath(dirname(__file__)), 'cassandra.avpr')
-    if exists(avpr):
-        return avro.protocol.parse(open(avpr).read())
-
-    # Fall back to ../../interface/avro/cassandra.avpr (dev environ).
-    avpr = join(abspath(dirname(__file__)),
-                '..',
-                '..',
-                '..',
-                'interface',
-                'avro',
-                'cassandra.avpr')
-    if exists(avpr):
-        return avro.protocol.parse(open(avpr).read())
-
-    raise Exception("Unable to locate an avro protocol schema!")
-
+try:
+    from cassandra import Cassandra
+    from cassandra.ttypes import Compression, InvalidRequestException, \
+                                 CqlResultType
+except ImportError:
+    # Hack to run from a source tree
+    import sys
+    sys.path.append(join(abspath(dirname(__file__)),
+                         '..',
+                         '..',
+                         '..',
+                         'interface',
+                         'thrift',
+                         'gen-py'))
+    from cassandra import Cassandra
+    from cassandra.ttypes import Compression, InvalidRequestException, \
+                          CqlResultType
+    
 COMPRESSION_SCHEMES = ['GZIP']
 DEFAULT_COMPRESSION = 'GZIP'
 
-
 class Connection(object):
     def __init__(self, keyspace, host, port=9160):
-        client = HTTPTransceiver(host, port)
-        # disabled nagle
-        client.conn.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        self.requestor = Requestor(_load_protocol(), client)
+        socket = TSocket.TSocket(host, port)
+        self.transport = TTransport.TFramedTransport(socket)
+        protocol = TBinaryProtocol.TBinaryProtocolAccelerated(self.transport)
+        self.client = Cassandra.Client(protocol)
+        socket.open()
+
         if keyspace:
             self.execute('USE %s' % keyspace)
 
     def execute(self, query, compression=None):
         compress = compression is None and DEFAULT_COMPRESSION \
                 or compression.upper()
-        if not compress in COMPRESSION_SCHEMES:
-            raise InvalidCompressionScheme(compress)
     
         compressed_query = Connection.compress_query(query, compress)
-        request_params = dict(query=compressed_query, compression=compress)
+        request_compression = getattr(Compression, compress)
 
         try:
-            response = self.requestor.request('execute_cql_query', request_params)
-        except AvroRemoteException, are:
-            raise CQLException(are)
+            response = self.client.execute_cql_query(compressed_query,
+                                                     request_compression)
+        except InvalidRequestException, ire:
+            raise CQLException("Bad Request: %s" % ire.why)
+        except TApplicationException, tapp:
+            raise CQLException("Internal application error")
+        except Exception, exc:
+            raise CQLException(exc)
 
-        if response['type'] == 'ROWS':
-            return response['rows']
-        if response['type'] == 'INT':
-            return response['num']
+        if response.type == CqlResultType.ROWS:
+            return response.rows
+        if response.type == CqlResultType.INT:
+            return response.num
 
         return None
 
+    def close(self):
+        self.transport.close()
+
     @classmethod
     def compress_query(cls, query, compression):
+        if not compression in COMPRESSION_SCHEMES:
+            raise InvalidCompressionScheme(compression)
+
         if compression == 'GZIP':
             return zlib.compress(query)
 
 
 class InvalidCompressionScheme(Exception): pass
-
-class CQLException(Exception):
-    def __init__(self, arg):
-        if isinstance(arg, AvroRemoteException):
-            if arg.args and isinstance(arg.args[0], dict) and arg.args[0].has_key('why'):
-                message = arg.args[0]['why']
-            else:
-                message = str(arg)
-            Exception.__init__(self, message)
-        else:
-            Exception.__init__(self, arg)
-
-if __name__ == '__main__':
-    dbconn = Connection('localhost', 9160)
-    query = 'USE Keyspace1;'
-    dbconn.execute(query, 'GZIP') 
-    query = 'UPDATE Standard2 WITH ROW("k", COL("c", "v"));'
-    dbconn.execute(query, 'GZIP') 
+class CQLException(Exception): pass
 
 # vi: ai ts=4 tw=0 sw=4 et
