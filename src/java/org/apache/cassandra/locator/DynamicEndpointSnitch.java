@@ -40,19 +40,23 @@ import org.apache.cassandra.utils.FBUtilities;
 public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILatencySubscriber, DynamicEndpointSnitchMBean
 {
     private static final int UPDATES_PER_INTERVAL = 10000;
-    private static final int UPDATE_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicUpdateInterval();
-    private static final int RESET_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicResetInterval();
-    private static final double BADNESS_THRESHOLD = DatabaseDescriptor.getDynamicBadnessThreshold();
     private static final int WINDOW_SIZE = 100;
+
+    private int UPDATE_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicUpdateInterval();
+    private int RESET_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicResetInterval();
+    private double BADNESS_THRESHOLD = DatabaseDescriptor.getDynamicBadnessThreshold();
+    private String mbeanName;
     private boolean registered = false;
 
     private final ConcurrentHashMap<InetAddress, Double> scores = new ConcurrentHashMap<InetAddress, Double>();
     private final ConcurrentHashMap<InetAddress, AdaptiveLatencyTracker> windows = new ConcurrentHashMap<InetAddress, AdaptiveLatencyTracker>();
     private final AtomicInteger intervalupdates = new AtomicInteger(0);
+
     public final IEndpointSnitch subsnitch;
 
     public DynamicEndpointSnitch(IEndpointSnitch snitch)
     {
+        mbeanName = "org.apache.cassandra.db:type=DynamicEndpointSnitch,instance="+hashCode();
         subsnitch = snitch;
         Runnable update = new Runnable()
         {
@@ -72,11 +76,28 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         };
         StorageService.scheduledTasks.scheduleWithFixedDelay(update, UPDATE_INTERVAL_IN_MS, UPDATE_INTERVAL_IN_MS, TimeUnit.MILLISECONDS);
         StorageService.scheduledTasks.scheduleWithFixedDelay(reset, RESET_INTERVAL_IN_MS, RESET_INTERVAL_IN_MS, TimeUnit.MILLISECONDS);
+        registerMBean();
+   }
 
+    private void registerMBean()
+    {
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
-            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.db:type=DynamicEndpointSnitch,instance="+hashCode()));
+            mbs.registerMBean(this, new ObjectName(mbeanName));
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void unregisterMBean()
+    {
+        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+        try
+        {
+            mbs.unregisterMBean(new ObjectName(mbeanName));
         }
         catch (Exception e)
         {
@@ -208,6 +229,25 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     {
         return scores;
     }
+
+    public int getUpdateInterval()
+    {
+        return UPDATE_INTERVAL_IN_MS;
+    }
+    public int getResetInterval()
+    {
+        return RESET_INTERVAL_IN_MS;
+    }
+    public double getBadnessThreshold()
+    {
+        return BADNESS_THRESHOLD;
+    }
+    public String getSubsnitchClassName()
+    {
+        return subsnitch.getClass().getName();
+    }
+
+
 }
 
 /** a threadsafe version of BoundedStatsDeque+ArrivalWindow with modification for arbitrary times **/

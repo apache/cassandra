@@ -259,4 +259,15 @@ public interface StorageServiceMBean
     public Map<Token, Float> getOwnership();
 
     public List<String> getKeyspaces();
+
+    /**
+     * Change endpointsnitch class and dynamic-ness (and dynamic attributes) at runtime
+     * @param epSnitchClassName        the canonical path name for a class implementing IEndpointSnitch
+     * @param dynamic                  boolean that decides whether dynamicsnitch is used or not
+     * @param dynamicUpdateInterval    integer, in ms (default 100)
+     * @param dynamicResetInterval     integer, in ms (default 600,000)
+     * @param dynamicBadnessThreshold  double, (default 0.0)
+     * @throws ConfigurationException  classname not found on classpath
+     */
+    public void updateSnitch(String epSnitchClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ConfigurationException;
 }

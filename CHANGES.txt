@@ -5,6 +5,7 @@ dev
  * avoid polluting page cache with commitlog or sstable writes
    and seq scan operations (CASSANDRA-1470)
  * add RMI authentication options to nodetool (CASSANDRA-1921)
+ * Make snitches configurable at runtime (CASSANDRA-1374)
 
 
 0.7.0-rc4

@@ -46,9 +46,10 @@ public abstract class AbstractReplicationStrategy
     private static final Logger logger = LoggerFactory.getLogger(AbstractReplicationStrategy.class);
 
     public final String table;
-    private final TokenMetadata tokenMetadata;
-    public final IEndpointSnitch snitch;
     public final Map<String, String> configOptions;
+    private final TokenMetadata tokenMetadata;
+
+    public IEndpointSnitch snitch;
 
     AbstractReplicationStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {

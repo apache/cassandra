@@ -400,7 +400,7 @@ public class    DatabaseDescriptor
         IEndpointSnitch snitch = FBUtilities.construct(endpointSnitchClassName, "snitch");
         return conf.dynamic_snitch ? new DynamicEndpointSnitch(snitch) : snitch;
     }
-    
+
     /** load keyspace (table) definitions, but do not initialize the table instances. */
     public static void loadSchemas() throws IOException                         
     {
@@ -704,6 +704,10 @@ public class    DatabaseDescriptor
     public static IEndpointSnitch getEndpointSnitch()
     {
         return snitch;
+    }
+    public static void setEndpointSnitch(IEndpointSnitch eps)
+    {
+        snitch = eps;
     }
 
     public static IRequestScheduler getRequestScheduler()
@@ -1104,14 +1108,26 @@ public class    DatabaseDescriptor
     {
         return conf.dynamic_snitch_update_interval_in_ms;
     }
+    public static void setDynamicUpdateInterval(Integer dynamicUpdateInterval)
+    {
+        conf.dynamic_snitch_update_interval_in_ms = dynamicUpdateInterval;
+    }
 
     public static int getDynamicResetInterval()
     {
         return conf.dynamic_snitch_reset_interval_in_ms;
     }
+    public static void setDynamicResetInterval(Integer dynamicResetInterval)
+    {
+        conf.dynamic_snitch_reset_interval_in_ms = dynamicResetInterval;
+    }
 
     public static double getDynamicBadnessThreshold()
     {
         return conf.dynamic_snitch_badness_threshold;
+    }
+    public static void setDynamicBadnessThreshold(Double dynamicBadnessThreshold)
+    {
+        conf.dynamic_snitch_badness_threshold = dynamicBadnessThreshold;
     }
 }
