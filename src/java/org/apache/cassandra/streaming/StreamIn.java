@@ -62,7 +62,7 @@ public class StreamIn
             logger.debug("Requesting from {} ranges {}", source, StringUtils.join(ranges, ", "));
         StreamInSession session = StreamInSession.create(source, callback);
         Message message = new StreamRequestMessage(FBUtilities.getLocalAddress(), ranges, tableName, session.getSessionId()).makeMessage();
-        MessagingService.instance.sendOneWay(message, source);
+        MessagingService.instance().sendOneWay(message, source);
     }
 
     /** Translates remote files to local files by creating a local sstable per remote sstable. */

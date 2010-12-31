@@ -89,7 +89,7 @@ public class ReadVerbHandler implements IVerbHandler
             if (logger_.isDebugEnabled())
               logger_.debug(String.format("Read key %s; sending response to %s@%s",
                                           FBUtilities.bytesToHex(command.key), message.getMessageId(), message.getFrom()));
-            MessagingService.instance.sendOneWay(response, message.getFrom());
+            MessagingService.instance().sendOneWay(response, message.getFrom());
         }
         catch (IOException ex)
         {

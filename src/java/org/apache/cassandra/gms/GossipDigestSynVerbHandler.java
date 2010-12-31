@@ -72,7 +72,7 @@ public class GossipDigestSynVerbHandler implements IVerbHandler
             Message gDigestAckMessage = Gossiper.instance.makeGossipDigestAckMessage(gDigestAck);
             if (logger_.isTraceEnabled())
                 logger_.trace("Sending a GossipDigestAckMessage to {}", from);
-            MessagingService.instance.sendOneWay(gDigestAckMessage, from);
+            MessagingService.instance().sendOneWay(gDigestAckMessage, from);
         }
         catch (IOException e)
         {

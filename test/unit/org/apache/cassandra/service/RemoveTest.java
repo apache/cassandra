@@ -72,7 +72,7 @@ public class RemoveTest extends CleanupHelper
         // create a ring of 5 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 6);
 
-        MessagingService.instance.listen(FBUtilities.getLocalAddress());
+        MessagingService.instance().listen(FBUtilities.getLocalAddress());
         Gossiper.instance.start(FBUtilities.getLocalAddress(), 1);
         for (int i = 0; i < 6; i++)
         {
@@ -142,7 +142,7 @@ public class RemoveTest extends CleanupHelper
         for (InetAddress host : hosts)
         {
             Message msg = new Message(host, StorageService.Verb.REPLICATION_FINISHED, new byte[0]);
-            MessagingService.instance.sendRR(msg, FBUtilities.getLocalAddress());
+            MessagingService.instance().sendRR(msg, FBUtilities.getLocalAddress());
         }
 
         remover.join();
@@ -215,7 +215,7 @@ public class RemoveTest extends CleanupHelper
                 assertEquals(Stage.MISC, msg.getMessageType());
                 // simulate a response from remote server
                 Message response = msg.getReply(FBUtilities.getLocalAddress(), new byte[]{ });
-                MessagingService.instance.sendOneWay(response, FBUtilities.getLocalAddress());
+                MessagingService.instance().sendOneWay(response, FBUtilities.getLocalAddress());
                 return null;
             }
             else

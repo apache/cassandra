@@ -39,6 +39,6 @@ public class ReplicationFinishedVerbHandler implements IVerbHandler
         Message response = msg.getInternalReply(ArrayUtils.EMPTY_BYTE_ARRAY);
         if (logger.isDebugEnabled())
             logger.debug("Replying to " + msg.getMessageId() + "@" + msg.getFrom());
-        MessagingService.instance.sendOneWay(response, msg.getFrom());
+        MessagingService.instance().sendOneWay(response, msg.getFrom());
     }
 }

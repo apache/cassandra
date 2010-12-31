@@ -35,6 +35,6 @@ public class SchemaCheckVerbHandler implements IVerbHandler
     {
         logger.debug("Received schema check request.");
         Message response = message.getInternalReply(DatabaseDescriptor.getDefsVersion().toString().getBytes());
-        MessagingService.instance.sendOneWay(response, message.getFrom());
+        MessagingService.instance().sendOneWay(response, message.getFrom());
     }
 }

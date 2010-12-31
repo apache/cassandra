@@ -85,11 +85,11 @@ class ConsistencyChecker implements Runnable
             if (logger_.isDebugEnabled())
               logger_.debug("Reading consistency digest for " + readCommand_.key + " from " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");
 
-            MessagingService.instance.addCallback(new DigestResponseHandler(), message.getMessageId());
+            MessagingService.instance().addCallback(new DigestResponseHandler(), message.getMessageId());
             for (InetAddress endpoint : replicas_)
             {
                 if (!endpoint.equals(dataSource))
-                    MessagingService.instance.sendOneWay(message, endpoint);
+                    MessagingService.instance().sendOneWay(message, endpoint);
             }
 		}
 		catch (IOException ex)
@@ -128,11 +128,11 @@ class ConsistencyChecker implements Runnable
                     Message message = readCommand.makeReadMessage();
                     if (logger_.isDebugEnabled())
                         logger_.debug("Digest mismatch; re-reading " + readCommand_.key + " from " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");                         
-                    MessagingService.instance.addCallback(new DataRepairHandler(), message.getMessageId());
+                    MessagingService.instance().addCallback(new DataRepairHandler(), message.getMessageId());
                     for (InetAddress endpoint : replicas_)
                     {
                         if (!endpoint.equals(dataSource))
-                            MessagingService.instance.sendOneWay(message, endpoint);
+                            MessagingService.instance().sendOneWay(message, endpoint);
                     }
 
                     repairInvoked = true;

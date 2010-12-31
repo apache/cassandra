@@ -217,30 +217,30 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
 
         /* register the verb handlers */
-        MessagingService.instance.registerVerbHandlers(Verb.BINARY, new BinaryVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.MUTATION, new RowMutationVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.READ_REPAIR, new ReadRepairVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.READ, new ReadVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.RANGE_SLICE, new RangeSliceVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.INDEX_SCAN, new IndexScanVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.BINARY, new BinaryVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.MUTATION, new RowMutationVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.READ_REPAIR, new ReadRepairVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.READ, new ReadVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.RANGE_SLICE, new RangeSliceVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.INDEX_SCAN, new IndexScanVerbHandler());
         // see BootStrapper for a summary of how the bootstrap verbs interact
-        MessagingService.instance.registerVerbHandlers(Verb.BOOTSTRAP_TOKEN, new BootStrapper.BootstrapTokenVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.STREAM_REQUEST, new StreamRequestVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.STREAM_REPLY, new StreamReplyVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.REPLICATION_FINISHED, new ReplicationFinishedVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.REQUEST_RESPONSE, new ResponseVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.INTERNAL_RESPONSE, new ResponseVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.TREE_REQUEST, new TreeRequestVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.TREE_RESPONSE, new AntiEntropyService.TreeResponseVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.BOOTSTRAP_TOKEN, new BootStrapper.BootstrapTokenVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.STREAM_REQUEST, new StreamRequestVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.STREAM_REPLY, new StreamReplyVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.REPLICATION_FINISHED, new ReplicationFinishedVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.REQUEST_RESPONSE, new ResponseVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.INTERNAL_RESPONSE, new ResponseVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.TREE_REQUEST, new TreeRequestVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.TREE_RESPONSE, new AntiEntropyService.TreeResponseVerbHandler());
 
-        MessagingService.instance.registerVerbHandlers(Verb.GOSSIP_DIGEST_SYN, new GossipDigestSynVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.GOSSIP_DIGEST_ACK, new GossipDigestAckVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.GOSSIP_DIGEST_ACK2, new GossipDigestAck2VerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.GOSSIP_DIGEST_SYN, new GossipDigestSynVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.GOSSIP_DIGEST_ACK, new GossipDigestAckVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.GOSSIP_DIGEST_ACK2, new GossipDigestAck2VerbHandler());
         
-        MessagingService.instance.registerVerbHandlers(Verb.DEFINITIONS_ANNOUNCE, new DefinitionsAnnounceVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.DEFINITIONS_UPDATE_RESPONSE, new DefinitionsUpdateResponseVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.TRUNCATE, new TruncateVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.SCHEMA_CHECK, new SchemaCheckVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.DEFINITIONS_ANNOUNCE, new DefinitionsAnnounceVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.DEFINITIONS_UPDATE_RESPONSE, new DefinitionsUpdateResponseVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.TRUNCATE, new TruncateVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.SCHEMA_CHECK, new SchemaCheckVerbHandler());
 
         // spin up the streaming serivice so it is available for jmx tools.
         if (StreamingService.instance == null)
@@ -275,7 +275,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         setMode("Client", false);
         Gossiper.instance.register(this);
         Gossiper.instance.start(FBUtilities.getLocalAddress(), (int)(System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
-        MessagingService.instance.listen(FBUtilities.getLocalAddress());
+        MessagingService.instance().listen(FBUtilities.getLocalAddress());
         
         // sleep a while to allow gossip to warm up (the other nodes need to know about this one before they can reply).
         try
@@ -331,7 +331,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.register(migrationManager);
         Gossiper.instance.start(FBUtilities.getLocalAddress(), SystemTable.incrementAndGetGeneration()); // needed for node-ring gathering.
 
-        MessagingService.instance.listen(FBUtilities.getLocalAddress());
+        MessagingService.instance().listen(FBUtilities.getLocalAddress());
         StorageLoadBalancer.instance.startBroadcasting();
         MigrationManager.announce(DatabaseDescriptor.getDefsVersion(), DatabaseDescriptor.getSeeds());
 
@@ -878,7 +878,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         IFailureDetector failureDetector = FailureDetector.instance;
         while (failureDetector.isAlive(remote))
         {
-            IAsyncResult iar = MessagingService.instance.sendRR(msg, remote);
+            IAsyncResult iar = MessagingService.instance().sendRR(msg, remote);
             try 
             {
                 iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
@@ -1016,7 +1016,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public void onDead(InetAddress endpoint, EndpointState state)
     {
-        MessagingService.instance.convict(endpoint);
+        MessagingService.instance().convict(endpoint);
     }
 
     /** raw load value */

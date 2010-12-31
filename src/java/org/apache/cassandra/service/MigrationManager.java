@@ -93,7 +93,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     {
         Message msg = makeVersionMessage(version);
         for (InetAddress host : hosts)
-            MessagingService.instance.sendOneWay(msg, host);
+            MessagingService.instance().sendOneWay(msg, host);
         // this is for notifying nodes as they arrive in the cluster.
         if (!StorageService.instance.isClientMode())
             Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.valueFactory.migration(version));
@@ -161,7 +161,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         try
         {
             Message msg = makeMigrationMessage(migrations);
-            MessagingService.instance.sendOneWay(msg, host);
+            MessagingService.instance().sendOneWay(msg, host);
         }
         catch (IOException ex)
         {

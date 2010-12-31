@@ -44,7 +44,7 @@ public class IndexScanVerbHandler implements IVerbHandler
             Message response = reply.getReply(message);
             if (logger.isDebugEnabled())
                 logger.debug("Sending " + reply+ " to " + message.getMessageId() + "@" + message.getFrom());
-            MessagingService.instance.sendOneWay(response, message.getFrom());
+            MessagingService.instance().sendOneWay(response, message.getFrom());
         }
         catch (Exception ex)
         {

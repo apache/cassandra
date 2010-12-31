@@ -146,7 +146,7 @@ public class StorageProxy implements StorageProxyMBean
                             if (unhintedMessage == null)
                             {
                                 unhintedMessage = rm.makeRowMutationMessage();
-                                MessagingService.instance.addCallback(responseHandler, unhintedMessage.getMessageId());
+                                MessagingService.instance().addCallback(responseHandler, unhintedMessage.getMessageId());
                             }
                             if (logger.isDebugEnabled())
                                 logger.debug("insert writing key " + FBUtilities.bytesToHex(rm.key()) + " to " + unhintedMessage.getMessageId() + "@" + destination);
@@ -222,7 +222,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     // direct write to local DC
                     assert primaryMessage.getHeader(RowMutation.FORWARD_HEADER) == null;
-                    MessagingService.instance.sendOneWay(primaryMessage, target);
+                    MessagingService.instance().sendOneWay(primaryMessage, target);
                 }
                 else
                 {
@@ -240,7 +240,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
             }
 
-            MessagingService.instance.sendOneWay(primaryMessage, target);
+            MessagingService.instance().sendOneWay(primaryMessage, target);
         }
     }
 
@@ -329,7 +329,7 @@ public class StorageProxy implements StorageProxyMBean
                 Message message = command.makeReadMessage();
                 if (logger.isDebugEnabled())
                     logger.debug("weakread reading " + command + " from " + message.getMessageId() + "@" + endPoint);
-                remoteResults.put(command, MessagingService.instance.sendRR(message, endPoint));
+                remoteResults.put(command, MessagingService.instance().sendRR(message, endPoint));
             }
         }
 
@@ -416,7 +416,7 @@ public class StorageProxy implements StorageProxyMBean
                 if (logger.isDebugEnabled())
                     logger.debug("strongread reading " + (m == message ? "data" : "digest") + " for " + command + " from " + m.getMessageId() + "@" + endpoint);
             }
-            MessagingService.instance.sendRR(messages, endpoints, handler);
+            MessagingService.instance().sendRR(messages, endpoints, handler);
             quorumResponseHandlers.add(handler);
             commandEndpoints.add(endpoints);
         }
@@ -446,7 +446,7 @@ public class StorageProxy implements StorageProxyMBean
                 if (logger.isDebugEnabled())
                     logger.debug("Digest mismatch:", ex);
                 Message messageRepair = command.makeReadMessage();
-                MessagingService.instance.sendRR(messageRepair, commandEndpoints.get(i), handler);
+                MessagingService.instance().sendRR(messageRepair, commandEndpoints.get(i), handler);
                 if (repairResponseHandlers == null)
                     repairResponseHandlers = new ArrayList<QuorumResponseHandler<Row>>();
                 repairResponseHandlers.add(handler);
@@ -528,7 +528,7 @@ public class StorageProxy implements StorageProxyMBean
                     // TODO bail early if live endpoints can't satisfy requested consistency level
                     for (InetAddress endpoint : liveEndpoints) 
                     {
-                        MessagingService.instance.sendRR(message, endpoint, handler);
+                        MessagingService.instance().sendRR(message, endpoint, handler);
                         if (logger.isDebugEnabled())
                             logger.debug("reading " + c2 + " from " + message.getMessageId() + "@" + endpoint);
                     }
@@ -576,7 +576,7 @@ public class StorageProxy implements StorageProxyMBean
         final Message msg = new Message(FBUtilities.getLocalAddress(), StorageService.Verb.SCHEMA_CHECK, ArrayUtils.EMPTY_BYTE_ARRAY);
         final CountDownLatch latch = new CountDownLatch(liveHosts.size());
         // an empty message acts as a request to the SchemaCheckVerbHandler.
-        MessagingService.instance.sendRR(msg, liveHosts, new IAsyncCallback()
+        MessagingService.instance().sendRR(msg, liveHosts, new IAsyncCallback()
         {
             public void response(Message msg)
             {
@@ -783,7 +783,7 @@ public class StorageProxy implements StorageProxyMBean
             Message message = command.getMessage();
             for (InetAddress endpoint : liveEndpoints)
             {
-                MessagingService.instance.sendRR(message, endpoint, handler);
+                MessagingService.instance().sendRR(message, endpoint, handler);
                 if (logger.isDebugEnabled())
                     logger.debug("reading " + command + " from " + message.getMessageId() + "@" + endpoint);
             }
@@ -879,7 +879,7 @@ public class StorageProxy implements StorageProxyMBean
         logger.debug("Starting to send truncate messages to hosts {}", allEndpoints);
         Truncation truncation = new Truncation(keyspace, cfname);
         Message message = truncation.makeTruncationMessage();
-        MessagingService.instance.sendRR(message, allEndpoints, responseHandler);
+        MessagingService.instance().sendRR(message, allEndpoints, responseHandler);
 
         // Wait for all
         logger.debug("Sent all truncate messages, now waiting for {} responses", blockFor);

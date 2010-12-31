@@ -165,12 +165,12 @@ public class GCInspector
         logger.info(String.format("%-25s%10s%10s",
                                   "CompactionManager", "n/a", CompactionManager.instance.getPendingTasks()));
         int pendingCommands = 0;
-        for (int n : MessagingService.instance.getCommandPendingTasks().values())
+        for (int n : MessagingService.instance().getCommandPendingTasks().values())
         {
             pendingCommands += n;
         }
         int pendingResponses = 0;
-        for (int n : MessagingService.instance.getResponsePendingTasks().values())
+        for (int n : MessagingService.instance().getResponsePendingTasks().values())
         {
             pendingResponses += n;
         }

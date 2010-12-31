@@ -73,7 +73,6 @@ import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.Path;
@@ -189,7 +188,7 @@ public class CassandraBulkLoader {
             for (InetAddress endpoint: StorageService.instance.getNaturalEndpoints(keyspace, ByteBuffer.wrap(key.getBytes())))
             {
                 /* Send message to end point */
-                results.add(MessagingService.instance.sendRR(message, endpoint));
+                results.add(MessagingService.instance().sendRR(message, endpoint));
             }
             /* wait for acks */
             for (IAsyncResult result : results)

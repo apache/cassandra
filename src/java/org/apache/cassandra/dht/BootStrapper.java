@@ -216,7 +216,7 @@ public class BootStrapper
     {
         Message message = new Message(FBUtilities.getLocalAddress(), StorageService.Verb.BOOTSTRAP_TOKEN, ArrayUtils.EMPTY_BYTE_ARRAY);
         BootstrapTokenCallback btc = new BootstrapTokenCallback();
-        MessagingService.instance.sendRR(message, maxEndpoint, btc);
+        MessagingService.instance().sendRR(message, maxEndpoint, btc);
         return btc.getToken();
     }
 
@@ -255,7 +255,7 @@ public class BootStrapper
             StorageService ss = StorageService.instance;
             String tokenString = StorageService.getPartitioner().getTokenFactory().toString(ss.getBootstrapToken());
             Message response = message.getInternalReply(tokenString.getBytes(Charsets.UTF_8));
-            MessagingService.instance.sendOneWay(response, message.getFrom());
+            MessagingService.instance().sendOneWay(response, message.getFrom());
         }
     }
 
