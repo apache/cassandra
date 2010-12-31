@@ -44,7 +44,7 @@ public class ThriftValidation
 {
     private static final Logger logger = LoggerFactory.getLogger(ThriftValidation.class);
 
-    static void validateKey(ByteBuffer key) throws InvalidRequestException
+    public static void validateKey(ByteBuffer key) throws InvalidRequestException
     {
         if (key == null || key.remaining() == 0)
         {

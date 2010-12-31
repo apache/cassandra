@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.thrift;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.Map.Entry;
@@ -26,14 +29,18 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
+import java.util.zip.DataFormatException;
+import java.util.zip.Inflater;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.antlr.runtime.RecognitionException;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.cql.QueryProcessor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
@@ -1125,6 +1132,65 @@ public class CassandraServer implements Cassandra.Iface
         ThriftValidation.validateCommutative(keyspace, path.column_family);
 
         internal_remove(key, path, System.currentTimeMillis(), consistency_level);
+    }
+
+    @Override
+    public CqlResult execute_cql_query(ByteBuffer query, Compression compression)
+            throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    {
+        String queryString = null;
+        
+        // Decompress the query string.
+        try
+        {
+            switch (compression)
+            {
+                case GZIP:
+                    ByteArrayOutputStream byteArray = new ByteArrayOutputStream();
+                    byte[] outBuffer = new byte[1024], inBuffer = new byte[1024];
+                    
+                    Inflater decompressor = new Inflater();
+                    
+                    int lenRead = 0;
+                    while (true)
+                    {
+                        if (decompressor.needsInput())
+                            lenRead = query.remaining() < 1024 ? query.remaining() : 1024;
+                            query.get(inBuffer, 0, lenRead);
+                            decompressor.setInput(inBuffer, 0, lenRead);
+                        
+                        int lenWrite = 0;
+                        while ((lenWrite = decompressor.inflate(outBuffer)) !=0)
+                            byteArray.write(outBuffer, 0, lenWrite);
+                        
+                        if (decompressor.finished())
+                            break;
+                    }
+                    
+                    decompressor.end();
+                    
+                    queryString = new String(byteArray.toByteArray(), 0, byteArray.size(), "UTF-8");
+            }
+        }
+        catch (DataFormatException e)
+        {
+            throw new InvalidRequestException("Error deflating query string.");
+        }
+        catch (UnsupportedEncodingException e)
+        {
+            throw new InvalidRequestException("Unknown query string encoding.");
+        }
+        
+        try
+        {
+            return QueryProcessor.process(queryString, state());
+        }
+        catch (RecognitionException e)
+        {
+            InvalidRequestException ire = new InvalidRequestException("Invalid or malformed CQL query string");
+            ire.initCause(e);
+            throw ire;
+        }
     }
 
     // main method moved to CassandraDaemon

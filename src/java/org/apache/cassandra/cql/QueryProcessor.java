@@ -30,11 +30,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.antlr.runtime.*;
-import org.apache.cassandra.avro.Column;
-import org.apache.cassandra.avro.*;
-import org.apache.cassandra.avro.InvalidRequestException;
-import org.apache.cassandra.avro.TimedOutException;
-import org.apache.cassandra.avro.UnavailableException;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -43,17 +38,11 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.IndexClause;
-import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.thrift.IndexOperator;
-import org.apache.cassandra.thrift.SlicePredicate;
-import org.apache.cassandra.thrift.SliceRange;
+import org.apache.cassandra.thrift.Column;
+import org.apache.cassandra.thrift.*;
 
-import static org.apache.cassandra.avro.AvroErrorFactory.newInvalidRequestException;
-import static org.apache.cassandra.avro.AvroErrorFactory.newUnavailableException;
-import static org.apache.cassandra.avro.AvroValidation.validateColumnFamily;
-import static org.apache.cassandra.avro.AvroValidation.validateKey;
+import static org.apache.cassandra.thrift.ThriftValidation.validateKey;
+import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 
 public class QueryProcessor
 {
@@ -103,16 +92,6 @@ public class QueryProcessor
         catch (IOException e)
         {
             throw new RuntimeException(e);
-        }
-        catch (org.apache.cassandra.thrift.UnavailableException e)
-        {
-            UnavailableException error = new UnavailableException();
-            error.initCause(e);
-            throw error;
-        }
-        catch (org.apache.cassandra.thrift.InvalidRequestException e)
-        {
-            throw newInvalidRequestException(e);
         }
         
         return rows;
@@ -182,14 +161,6 @@ public class QueryProcessor
                                      thriftIndexClause,
                                      thriftSlicePredicate,
                                      select.getConsistencyLevel());
-        }
-        catch (org.apache.cassandra.thrift.UnavailableException ex) 
-        {
-            UnavailableException avroEx = new UnavailableException();
-            avroEx.why = ex.getMessage();
-            if (avroEx.why == null || avroEx.why.length() == 0)
-                avroEx.why = "StorageProxy.scan() failed because of insufficent responses.";
-            throw avroEx;
         }
         catch (IOException e)
         {
@@ -267,23 +238,23 @@ public class QueryProcessor
     private static void validateSelect(String keyspace, SelectStatement select) throws InvalidRequestException
     {
         if (select.isCountOperation() && (select.isKeyRange() || select.getKeys().size() < 1))
-            throw newInvalidRequestException("Counts can only be performed for a single record (Hint: KEY=term)");
+            throw new InvalidRequestException("Counts can only be performed for a single record (Hint: KEY=term)");
         
         // Finish key w/o start key (KEY < foo)
         if (!select.isKeyRange() && (select.getKeyFinish() != null))
-            throw newInvalidRequestException("Key range clauses must include a start key (i.e. KEY > term)");
+            throw new InvalidRequestException("Key range clauses must include a start key (i.e. KEY > term)");
         
         // Key range and by-key(s) combined (KEY > foo AND KEY = bar)
         if (select.isKeyRange() && select.getKeys().size() > 0)
-            throw newInvalidRequestException("You cannot combine key range and by-key clauses in a SELECT");
+            throw new InvalidRequestException("You cannot combine key range and by-key clauses in a SELECT");
         
         // Start and finish keys, *and* column relations (KEY > foo AND KEY < bar and name1 = value1).
         if (select.isKeyRange() && (select.getKeyFinish() != null) && (select.getColumnRelations().size() > 0))
-            throw newInvalidRequestException("You cannot combine key range and by-column clauses in a SELECT");
+            throw new InvalidRequestException("You cannot combine key range and by-column clauses in a SELECT");
         
         // Multiget scenario (KEY = foo AND KEY = bar ...)
         if (select.getKeys().size() > 1)
-            throw newInvalidRequestException("SELECTs can contain only by by-key clause");
+            throw new InvalidRequestException("SELECTs can contain only by by-key clause");
         
         if (select.getColumnRelations().size() > 0)
         {
@@ -293,7 +264,7 @@ public class QueryProcessor
                 if ((relation.operator().equals(RelationType.EQ)) && indexed.contains(relation.getEntity().getByteBuffer()))
                     return;
             }
-            throw newInvalidRequestException("No indexed columns present in by-columns clause with \"equals\" operator");
+            throw new InvalidRequestException("No indexed columns present in by-columns clause with \"equals\" operator");
         }
     }
 
@@ -328,9 +299,9 @@ public class QueryProcessor
                     {
                         avroResult.type = CqlResultType.INT;
                         if (rows.size() > 0)
-                            avroResult.num = rows.get(0).cf != null ? rows.get(0).cf.getSortedColumns().size() : 0;
+                            avroResult.setNum(rows.get(0).cf != null ? rows.get(0).cf.getSortedColumns().size() : 0);
                         else
-                            avroResult.num = 0;
+                            avroResult.setNum(0);
                         return avroResult;
                     }
                 }
@@ -394,7 +365,7 @@ public class QueryProcessor
                 
                 for (UpdateStatement up : batch.getUpdates())
                     if (up.isSetConsistencyLevel())
-                        throw newInvalidRequestException(
+                        throw new InvalidRequestException(
                                 "Consistency level must be set on the BATCH, not individual UPDATE statements");
                 
                 batchUpdate(keyspace, batch.getUpdates(), batch.getConsistencyLevel());
@@ -414,17 +385,13 @@ public class QueryProcessor
                 {
                     StorageProxy.truncateBlocking(keyspace, columnFamily);
                 }
-                catch (org.apache.cassandra.thrift.UnavailableException e)
-                {
-                    throw newUnavailableException(e);
-                }
                 catch (TimeoutException e)
                 {
-                    throw newUnavailableException(e);
+                    throw (UnavailableException) new UnavailableException().initCause(e);
                 }
                 catch (IOException e)
                 {
-                    throw newUnavailableException(e);
+                    throw (UnavailableException) new UnavailableException().initCause(e);
                 }
                 
                 avroResult.type = CqlResultType.VOID;
@@ -451,10 +418,6 @@ public class QueryProcessor
                 try
                 {
                     StorageProxy.mutate(rowMutations, delete.getConsistencyLevel());
-                }
-                catch (org.apache.cassandra.thrift.UnavailableException e)
-                {
-                    throw newUnavailableException(e);
                 }
                 catch (TimeoutException e)
                 {

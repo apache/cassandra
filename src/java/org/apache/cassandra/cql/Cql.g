@@ -10,7 +10,7 @@ options {
     import java.util.HashMap;
     import java.util.Collections;
     import org.apache.cassandra.thrift.ConsistencyLevel;
-    import org.apache.cassandra.avro.InvalidRequestException;
+    import org.apache.cassandra.thrift.InvalidRequestException;
 }
 
 @members {
@@ -31,11 +31,7 @@ options {
     public void throwLastRecognitionError() throws InvalidRequestException
     {
         if (recognitionErrors.size() > 0)
-        {
-            InvalidRequestException invalidExcep = new InvalidRequestException();
-            invalidExcep.why = recognitionErrors.get((recognitionErrors.size()-1));
-            throw invalidExcep;
-        }
+            throw new InvalidRequestException(recognitionErrors.get((recognitionErrors.size()-1)));
     }
 }
 
