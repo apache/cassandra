@@ -163,38 +163,38 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
 
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens)
     {
-        // alltokens will contain the count and be returned, sorted_ranges is shorthand for token<->token math.
-        Map<Token, Float> alltokens = new HashMap<Token, Float>();
-        List<Range> sorted_ranges = new ArrayList<Range>();
+        // allTokens will contain the count and be returned, sorted_ranges is shorthand for token<->token math.
+        Map<Token, Float> allTokens = new HashMap<Token, Float>();
+        List<Range> sortedRanges = new ArrayList<Range>();
 
         // this initializes the counts to 0 and calcs the ranges in order.
-        Token last_t = sortedTokens.get(sortedTokens.size()-1);
+        Token lastToken = sortedTokens.get(sortedTokens.size() - 1);
         for (Token node : sortedTokens)
         {
-            alltokens.put(node, new Float(0.0));
-            sorted_ranges.add(new Range(last_t, node));
-            last_t = node;
+            allTokens.put(node, new Float(0.0));
+            sortedRanges.add(new Range(lastToken, node));
+            lastToken = node;
         }
 
-        for(String ks : DatabaseDescriptor.getTables())
+        for (String ks : DatabaseDescriptor.getTables())
         {
             for (CFMetaData cfmd : DatabaseDescriptor.getKSMetaData(ks).cfMetaData().values())
             {
-                for (Range r : sorted_ranges)
+                for (Range r : sortedRanges)
                 {
                     // Looping over every KS:CF:Range, get the splits size and add it to the count
-                    alltokens.put(r.right, alltokens.get(r.right) + StorageService.instance.getSplits(ks, cfmd.cfName, r, 1).size());
+                    allTokens.put(r.right, allTokens.get(r.right) + StorageService.instance.getSplits(ks, cfmd.cfName, r, 1).size());
                 }
             }
         }
 
         // Sum every count up and divide count/total for the fractional ownership.
         Float total = new Float(0.0);
-        for (Float f : alltokens.values()) { total += f; }
-        for (Map.Entry<Token, Float> row : alltokens.entrySet()) {
-            alltokens.put(row.getKey(), row.getValue() / total);
-        }
-        
-        return alltokens;
+        for (Float f : allTokens.values())
+            total += f;
+        for (Map.Entry<Token, Float> row : allTokens.entrySet())
+            allTokens.put(row.getKey(), row.getValue() / total);
+
+        return allTokens;
     }
 }

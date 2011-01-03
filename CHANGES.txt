@@ -7,6 +7,7 @@ dev
  * add RMI authentication options to nodetool (CASSANDRA-1921)
  * Make snitches configurable at runtime (CASSANDRA-1374)
  * retry hadoop split requests on connection failure (CASSANDRA-1927)
+ * implement describeOwnership for BOP, COPP (CASSANDRA-1928)
 
 
 0.7.0-rc4

@@ -19,8 +19,6 @@
 package org.apache.cassandra.dht;
 
 import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.Map;
 
 public class ByteOrderedPartitioner extends AbstractByteOrderedPartitioner
 {
@@ -30,6 +28,4 @@ public class ByteOrderedPartitioner extends AbstractByteOrderedPartitioner
             return MINIMUM;
         return new BytesToken(key);
     }
-
-    public Map<Token, Float> describeOwnership(List<Token> sortedTokens){ throw new UnsupportedOperationException(); }
 }
