@@ -27,11 +27,13 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 import javax.management.MBeanServer;
+import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+import org.apache.cassandra.locator.*;
 import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -49,9 +51,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.DeletionService;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.IEndpointSnitch;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -2014,4 +2013,28 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return Collections.unmodifiableList(tableslist);
     }
 
+    public void updateSnitch(String epSnitchClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ConfigurationException
+    {
+        IEndpointSnitch oldSnitch = DatabaseDescriptor.getEndpointSnitch();
+
+        // new snitch registers mbean during construction
+        IEndpointSnitch newSnitch = FBUtilities.construct(epSnitchClassName, "snitch");
+        if (dynamic)
+        {
+            DatabaseDescriptor.setDynamicUpdateInterval(dynamicUpdateInterval);
+            DatabaseDescriptor.setDynamicResetInterval(dynamicResetInterval);
+            DatabaseDescriptor.setDynamicBadnessThreshold(dynamicBadnessThreshold);
+            newSnitch = new DynamicEndpointSnitch(newSnitch);
+        }
+
+        // point snitch references to the new instance
+        DatabaseDescriptor.setEndpointSnitch(newSnitch);
+        for (String ks : DatabaseDescriptor.getTables())
+        {
+            Table.open(ks).getReplicationStrategy().snitch = newSnitch;
+        }
+
+        if (oldSnitch instanceof DynamicEndpointSnitch)
+            ((DynamicEndpointSnitch)oldSnitch).unregisterMBean();
+    }
 }

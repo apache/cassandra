@@ -65,6 +65,8 @@ public class NodeProbe
     private static final int defaultPort = 8080;
     final String host;
     final int port;
+    private String username;
+    private String password;
 
     private JMXConnector jmxc;
     private MBeanServerConnection mbeanServerConn;
@@ -74,6 +76,25 @@ public class NodeProbe
     private RuntimeMXBean runtimeProxy;
     private StreamingServiceMBean streamProxy;
     
+    /**
+     * Creates a NodeProbe using the specified JMX host, port, username, and password.
+     *
+     * @param host hostname or IP address of the JMX agent
+     * @param port TCP port of the remote JMX agent
+     * @throws IOException on connection failures
+     */
+    public NodeProbe(String host, int port, String username, String password) throws IOException, InterruptedException
+    {
+        assert username != null && !username.isEmpty() && null != password && !password.isEmpty()
+               : "neither username nor password can be blank";
+
+        this.host = host;
+        this.port = port;
+        this.username = username;
+        this.password = password;
+        connect();
+    }
+
     /**
      * Creates a NodeProbe using the specified JMX host and port.
      * 
@@ -109,7 +130,13 @@ public class NodeProbe
     private void connect() throws IOException
     {
         JMXServiceURL jmxUrl = new JMXServiceURL(String.format(fmtUrl, host, port));
-        jmxc = JMXConnectorFactory.connect(jmxUrl, null);
+        Map<String,Object> env = new HashMap<String,Object>();
+        if (username != null)
+        {
+            String[] creds = { username, password };
+            env.put(JMXConnector.CREDENTIALS, creds);
+        }
+        jmxc = JMXConnectorFactory.connect(jmxUrl, env);
         mbeanServerConn = jmxc.getMBeanServerConnection();
         
         try

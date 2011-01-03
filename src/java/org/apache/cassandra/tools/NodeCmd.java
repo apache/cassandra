@@ -45,6 +45,10 @@ public class NodeCmd {
     private static final String HOST_OPT_SHORT = "h";
     private static final String PORT_OPT_LONG = "port";
     private static final String PORT_OPT_SHORT = "p";
+    private static final String USERNAME_OPT_LONG = "username";
+    private static final String USERNAME_OPT_SHORT = "u";
+    private static final String PASSWORD_OPT_LONG = "password";
+    private static final String PASSWORD_OPT_SHORT = "pw";
     private static final int defaultPort = 8080;
     private static Options options = null;
     
@@ -57,6 +61,8 @@ public class NodeCmd {
         optHost.setRequired(true);
         options.addOption(optHost);
         options.addOption(PORT_OPT_SHORT, PORT_OPT_LONG, true, "remote jmx agent port number");
+        options.addOption(USERNAME_OPT_SHORT, USERNAME_OPT_LONG, true, "remote jmx agent username");
+        options.addOption(PASSWORD_OPT_SHORT, PASSWORD_OPT_LONG, true, "remote jmx agent password");
     }
     
     public NodeCmd(NodeProbe probe)
@@ -469,11 +475,13 @@ public class NodeCmd {
                 throw new ParseException("Port must be a number");
             }
         }
+        String username = cmd.getOptionValue(USERNAME_OPT_LONG);
+        String password = cmd.getOptionValue(PASSWORD_OPT_LONG);
         
         NodeProbe probe = null;
         try
         {
-            probe = new NodeProbe(host, port);
+            probe = username == null ? new NodeProbe(host, port) : new NodeProbe(host, port, username, password);
         }
         catch (IOException ioe)
         {

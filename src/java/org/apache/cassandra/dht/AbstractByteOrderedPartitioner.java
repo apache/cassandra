@@ -20,26 +20,33 @@ package org.apache.cassandra.dht;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 import org.apache.commons.lang.ArrayUtils;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 public abstract class AbstractByteOrderedPartitioner implements IPartitioner<BytesToken>
 {
     public static final BytesToken MINIMUM = new BytesToken(ArrayUtils.EMPTY_BYTE_ARRAY);
-    
+
     public static final BigInteger BYTE_MASK = new BigInteger("255");
 
     public DecoratedKey<BytesToken> decorateKey(ByteBuffer key)
     {
         return new DecoratedKey<BytesToken>(getToken(key), key);
     }
-    
+
     public DecoratedKey<BytesToken> convertFromDiskFormat(ByteBuffer key)
     {
         return new DecoratedKey<BytesToken>(getToken(key), key);
@@ -49,7 +56,7 @@ public abstract class AbstractByteOrderedPartitioner implements IPartitioner<Byt
     {
         int ll,rl;
         ByteBuffer lb,rb;
-        
+
         if(ltoken.token instanceof byte[])
         {
             ll = ((byte[])ltoken.token).length;
@@ -60,7 +67,7 @@ public abstract class AbstractByteOrderedPartitioner implements IPartitioner<Byt
             ll = ((ByteBuffer)ltoken.token).remaining();
             lb = (ByteBuffer)ltoken.token;
         }
-        
+
         if(rtoken.token instanceof byte[])
         {
             rl = ((byte[])rtoken.token).length;
@@ -160,4 +167,41 @@ public abstract class AbstractByteOrderedPartitioner implements IPartitioner<Byt
     }
 
     public abstract BytesToken getToken(ByteBuffer key);
+
+    public Map<Token, Float> describeOwnership(List<Token> sortedTokens)
+    {
+        // allTokens will contain the count and be returned, sorted_ranges is shorthand for token<->token math.
+        Map<Token, Float> allTokens = new HashMap<Token, Float>();
+        List<Range> sortedRanges = new ArrayList<Range>();
+
+        // this initializes the counts to 0 and calcs the ranges in order.
+        Token lastToken = sortedTokens.get(sortedTokens.size() - 1);
+        for (Token node : sortedTokens)
+        {
+            allTokens.put(node, new Float(0.0));
+            sortedRanges.add(new Range(lastToken, node));
+            lastToken = node;
+        }
+
+        for (String ks : DatabaseDescriptor.getTables())
+        {
+            for (CFMetaData cfmd : DatabaseDescriptor.getKSMetaData(ks).cfMetaData().values())
+            {
+                for (Range r : sortedRanges)
+                {
+                    // Looping over every KS:CF:Range, get the splits size and add it to the count
+                    allTokens.put(r.right, allTokens.get(r.right) + StorageService.instance.getSplits(ks, cfmd.cfName, r, 1).size());
+                }
+            }
+        }
+
+        // Sum every count up and divide count/total for the fractional ownership.
+        Float total = new Float(0.0);
+        for (Float f : allTokens.values())
+            total += f;
+        for (Map.Entry<Token, Float> row : allTokens.entrySet())
+            allTokens.put(row.getKey(), row.getValue() / total);
+
+        return allTokens;
+    }
 }
