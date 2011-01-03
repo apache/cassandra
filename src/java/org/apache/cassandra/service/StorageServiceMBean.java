@@ -271,4 +271,13 @@ public interface StorageServiceMBean
      * @throws ConfigurationException  classname not found on classpath
      */
     public void updateSnitch(String epSnitchClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ConfigurationException;
+
+    // allows a user to forcibly 'kill' a sick node
+    public void stopGossiping();
+
+    // allows a user to recover a forcibly 'killed' node
+    public void startGossiping();
+
+    // to determine if gossip is disabled
+    public boolean isInitialized();
 }
