@@ -283,6 +283,11 @@
           <exclude name="build/**" />
           <exclude name="src/gen-java/**" />
           <exclude name=".git/**" />
+          <!-- exclude Eclipse files -->
+          <exclude name=".project" />
+          <exclude name=".classpath" />
+          <exclude name=".settings/**" />
+          <exclude name=".externalToolBuilders/**" />
         </tarfileset>
       </tar>
       <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
@@ -431,5 +436,112 @@
       </fileset>
     </javadoc>
    </target>
+
+  <!-- Generate Eclipse project description files -->
+  <target name="generate-eclipse-files" depends="build">
+    <echo file=".project"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
+<projectDescription>
+  <name>${eclipse.project.name}</name>
+  <comment></comment>
+  <projects>
+  </projects>
+    <buildSpec>
+      <buildCommand>
+        <name>org.eclipse.ui.externaltools.ExternalToolBuilder</name>
+        <triggers>full,incremental,auto,clean,</triggers>
+        <arguments>
+          <dictionary>
+            <key>LaunchConfigHandle</key>
+            <value>&lt;project&gt;/.externalToolBuilders/Cassandra_Ant_Builder.launch</value>
+          </dictionary>
+        </arguments>
+      </buildCommand>
+    </buildSpec>
+  <natures>
+    <nature>org.eclipse.jdt.core.javanature</nature>
+  </natures>
+</projectDescription>]]>
+    </echo>
+	<echo file=".classpath"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+  <classpathentry kind="src" path="src/java"/>
+  <classpathentry kind="src" path="src/gen-java"/>
+  <classpathentry kind="src" path="interface/avro/gen-java"/>
+  <classpathentry kind="src" path="interface/thrift/gen-java"/>
+  <classpathentry kind="src" path="test/unit"/>
+  <classpathentry kind="src" path="test/long"/>
+  <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+  <classpathentry kind="output" path="build/classes"/>
+  <classpathentry kind="lib" path="build/test/classes"/>
+  <classpathentry kind="lib" path="test/conf"/>
+]]>
+	</echo>	  
+  	<path id="eclipse-project-libs-path">
+  	 <fileset dir="lib">
+  	    <include name="**/*.jar" />
+     </fileset>
+ 	 <fileset dir="build/lib/jars">
+  	    <include name="**/*.jar" />
+  	 </fileset>
+  	</path>
+  	<property name="eclipse-project-libs" refid="eclipse-project-libs-path"/>
+  	<script language="javascript"> <![CDATA[
+  		importClass(java.io.File);
+  		jars = project.getProperty("eclipse-project-libs").split(":");  
+  		
+  		cp = "";
+  	    for (i=0; i< jars.length; i++) {
+  	       cp += ' <classpathentry kind="lib" path="'+jars[i]+'"/>\n';
+  		}
+  		
+  		cp += '</classpath>';
+  	    
+  		echo = project.createTask("echo");
+  	    echo.setMessage(cp);
+  		echo.setFile(new File(".classpath"));
+  		echo.setAppend(true);
+  	    echo.perform();	     
+  	]]> </script>
+    <mkdir dir=".settings" />
+    <mkdir dir=".externalToolBuilders" />
+    <echo file=".externalToolBuilders/Cassandra_Ant_Builder.launch"><![CDATA[<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<launchConfiguration type="org.eclipse.ant.AntBuilderLaunchConfigurationType">
+<stringAttribute key="org.eclipse.ant.ui.ATTR_ANT_AFTER_CLEAN_TARGETS" value="build,build-test,"/>
+<stringAttribute key="org.eclipse.ant.ui.ATTR_ANT_AUTO_TARGETS" value="build,build-test,"/>
+<stringAttribute key="org.eclipse.ant.ui.ATTR_ANT_CLEAN_TARGETS" value="build,build-test,"/>
+<stringAttribute key="org.eclipse.ant.ui.ATTR_ANT_MANUAL_TARGETS" value="build,build-test,"/>
+<booleanAttribute key="org.eclipse.ant.ui.ATTR_TARGETS_UPDATED" value="true"/>
+<booleanAttribute key="org.eclipse.ant.ui.DEFAULT_VM_INSTALL" value="false"/>
+<listAttribute key="org.eclipse.debug.core.MAPPED_RESOURCE_PATHS">
+<listEntry value="/${eclipse.project.name}/build.xml"/>
+</listAttribute>
+<listAttribute key="org.eclipse.debug.core.MAPPED_RESOURCE_TYPES">
+<listEntry value="1"/>
+</listAttribute>
+<booleanAttribute key="org.eclipse.debug.ui.ATTR_LAUNCH_IN_BACKGROUND" value="false"/>
+<stringAttribute key="org.eclipse.jdt.launching.CLASSPATH_PROVIDER" value="org.eclipse.ant.ui.AntClasspathProvider"/>
+<booleanAttribute key="org.eclipse.jdt.launching.DEFAULT_CLASSPATH" value="true"/>
+<stringAttribute key="org.eclipse.jdt.launching.PROJECT_ATTR" value="${eclipse.project.name}"/>
+<stringAttribute key="org.eclipse.ui.externaltools.ATTR_LOCATION" value="$${workspace_loc:/${eclipse.project.name}/build.xml}"/>
+<stringAttribute key="org.eclipse.ui.externaltools.ATTR_RUN_BUILD_KINDS" value="full,incremental,auto,clean,"/>
+<booleanAttribute key="org.eclipse.ui.externaltools.ATTR_TRIGGERS_CONFIGURED" value="true"/>
+<stringAttribute key="org.eclipse.ui.externaltools.ATTR_WORKING_DIRECTORY" value="$${workspace_loc:/${eclipse.project.name}}"/>
+</launchConfiguration>]]>
+    </echo>
+  </target>
+
+  <pathconvert property="eclipse.project.name">
+    <path path="${basedir}" />
+    <regexpmapper from="^.*/([^/]+)$$" to="\1" handledirsep="yes" />
+  </pathconvert>
+
+  <!-- Clean Eclipse project description files -->
+  <target name="clean-eclipse-files">
+    <delete file=".project" />
+    <delete file=".classpath" />
+    <delete dir=".settings" />
+  	<delete dir=".externalToolBuilders" />
+  	<delete dir="build/eclipse-classes" />
+  </target>
 
 </project>
