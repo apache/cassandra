@@ -6,6 +6,7 @@ dev
    and seq scan operations (CASSANDRA-1470)
  * add RMI authentication options to nodetool (CASSANDRA-1921)
  * Make snitches configurable at runtime (CASSANDRA-1374)
+ * retry hadoop split requests on connection failure (CASSANDRA-1927)
 
 
 0.7.0-rc4
