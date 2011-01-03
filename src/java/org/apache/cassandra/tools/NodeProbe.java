@@ -503,6 +503,21 @@ public class NodeProbe
     {
         return ssProxy.getKeyspaces();
     }
+
+    public void stopGossiping()
+    {
+        ssProxy.stopGossiping();
+    }
+
+    public void startGossiping()
+    {
+        ssProxy.startGossiping();
+    }
+
+    public boolean isInitialized()
+    {
+        return ssProxy.isInitialized();
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>

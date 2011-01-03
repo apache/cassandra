@@ -246,6 +246,28 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             throw new RuntimeException("Streaming service is unavailable.");
     }
 
+    // should only be called via JMX
+    public void stopGossiping()
+    {
+        if (initialized)
+        {
+            logger_.warn("Stopping gossip by operator request");
+            Gossiper.instance.stop();
+            initialized = false;
+        }
+    }
+
+    // should only be called via JMX
+    public void startGossiping()
+    {
+        if (!initialized)
+        {
+            logger_.warn("Starting gossip by operator request");
+            Gossiper.instance.start(FBUtilities.getLocalAddress(), (int)(System.currentTimeMillis() / 1000));
+            initialized = true;
+        }
+    }
+
     public void stopClient()
     {
         Gossiper.instance.unregister(migrationManager);

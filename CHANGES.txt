@@ -30,6 +30,8 @@ dev
  * include secondary indexes in cleanup (CASSANDRA-1916)
  * CFS.scrubDataDirectories should also cleanup invalid secondary indexes
    (CASSANDRA-1904)
+ * ability to disable/enable gossip on nodes to force them down
+   (CASSANDRA-1108)
 
 
 0.7.0-rc3

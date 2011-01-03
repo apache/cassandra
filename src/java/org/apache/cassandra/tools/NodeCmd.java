@@ -74,7 +74,7 @@ public class NodeCmd {
         RING, INFO, CFSTATS, SNAPSHOT, CLEARSNAPSHOT, VERSION, TPSTATS, FLUSH, DRAIN,
         DECOMMISSION, MOVE, LOADBALANCE, REMOVETOKEN, REPAIR, CLEANUP, COMPACT,
         SETCACHECAPACITY, GETCOMPACTIONTHRESHOLD, SETCOMPACTIONTHRESHOLD, NETSTATS, CFHISTOGRAMS,
-        COMPACTIONSTATS
+        COMPACTIONSTATS, DISABLEGOSSIP, ENABLEGOSSIP
     }
 
     
@@ -96,6 +96,8 @@ public class NodeCmd {
                          + "decommission\n"
                          + "loadbalance\n"
                          + "compactionstats\n"
+                         + "disablegossip\n"
+                         + "enablegossip\n"
 
                          // One arg
                          + "snapshot [snapshotname]\n"
@@ -189,6 +191,7 @@ public class NodeCmd {
     public void printInfo(PrintStream outs)
     {
         outs.println(probe.getToken());
+        outs.printf("%-17s: %s%n", "Gossip active", probe.isInitialized());
         outs.printf("%-17s: %s%n", "Load", probe.getLoadString());
         outs.printf("%-17s: %s%n", "Generation No", probe.getCurrentGenerationNumber());
         
@@ -519,6 +522,8 @@ public class NodeCmd {
             case TPSTATS         : nodeCmd.printThreadPoolStats(System.out); break;
             case VERSION         : nodeCmd.printReleaseVersion(System.out); break;
             case COMPACTIONSTATS : nodeCmd.printCompactionStats(System.out); break;
+            case DISABLEGOSSIP   : probe.stopGossiping(); break;
+            case ENABLEGOSSIP    : probe.startGossiping(); break;
 
             case DRAIN :
                 try { probe.drain(); }
