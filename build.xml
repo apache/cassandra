@@ -639,6 +639,7 @@
   <classpathentry kind="src" path="src/gen-java"/>
   <classpathentry kind="src" path="interface/avro/gen-java"/>
   <classpathentry kind="src" path="interface/thrift/gen-java"/>
+  <classpathentry kind="src" path="drivers/java/src"/>
   <classpathentry kind="src" path="test/unit"/>
   <classpathentry kind="src" path="test/long"/>
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
