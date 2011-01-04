@@ -1,3 +1,7 @@
+0.6.10
+  * buffer network stack to avoid inefficient small TCP messages while avoiding
+    the nagle/delayed ack problem (CASSANDRA-1896)
+
 0.6.9
  * add clustertool, config-converter, sstablekeys, and schematool 
    Windows .bat files (CASSANDRA-1723)
