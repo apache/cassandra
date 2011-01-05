@@ -4,7 +4,8 @@ import sys
 
 sys.path.append(join(abspath(dirname(__file__)), '../../drivers/py'))
 
-from cql import Connection, CQLException
+from cql import Connection
+from cql.errors import CQLException
 from . import ThriftTester
 from avro_utils import assert_raises
 
@@ -45,7 +46,7 @@ def load_sample(dbconn):
     """)
 
 def init(keyspace="Keyspace1"):
-    dbconn = Connection(keyspace, 'localhost', 9170)
+    dbconn = Connection('localhost', 9170, keyspace)
     load_sample(dbconn)
     return dbconn
 

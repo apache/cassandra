@@ -15,9 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Cassandra Query Language driver
-"""
+__all__ = ['InvalidCompressionScheme', 'CQLException']
 
-from connection import Connection
-from connection_pool import ConnectionPool
+class InvalidCompressionScheme(Exception): pass
+class CQLException(Exception): pass
