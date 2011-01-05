@@ -124,7 +124,7 @@ public class NameSortTest extends CleanupHelper
                 assert subColumns.size() == 4;
                 for (IColumn subColumn : subColumns)
                 {
-                    long k = subColumn.name().getLong(subColumn.name().position() + subColumn.name().arrayOffset());
+                    long k = subColumn.name().getLong(subColumn.name().position());
                     byte[] bytes = (j + k) % 2 == 0 ? "a".getBytes() : "b".getBytes();
                     assertEquals(new String(bytes), ByteBufferUtil.string(subColumn.value()));
                 }

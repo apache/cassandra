@@ -55,7 +55,7 @@ public class DeletedColumn extends Column
     @Override
     public int getLocalDeletionTime()
     {
-       return value.getInt(value.position()+value.arrayOffset()	);
+       return value.getInt(value.position());
     }
 
     @Override

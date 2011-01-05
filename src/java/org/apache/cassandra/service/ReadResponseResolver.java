@@ -93,7 +93,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 		List<ColumnFamily> versions = new ArrayList<ColumnFamily>();
 		List<InetAddress> endpoints = new ArrayList<InetAddress>();
 
-        // validate digests against each other; throw immediately on mismatch.
+        // case 1: validate digests against each other; throw immediately on mismatch.
         // also, collects data results into versions/endpoints lists.
         //
         // results are cleared as we process them, to avoid unnecessary duplication of work
@@ -103,13 +103,20 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         {
             ReadResponse result = entry.getValue();
             Message message = entry.getKey();
-            ByteBuffer resultDigest = result.isDigestQuery() ? result.digest() : ColumnFamily.digest(result.row().cf);
-            if (digest == null)
-                digest = resultDigest;
-            else if (!digest.equals(resultDigest))
-                throw new DigestMismatchException(key, digest, resultDigest);
-
-            if (!result.isDigestQuery())
+            if (result.isDigestQuery())
+            {
+                if (digest == null)
+                {
+                    digest = result.digest();
+                }
+                else
+                {
+                    ByteBuffer digest2 = result.digest();
+                    if (!digest.equals(digest2))
+                        throw new DigestMismatchException(key, digest, digest2);
+                }
+            }
+            else
             {
                 ColumnFamily cf = result.row().cf;
                 InetAddress from = message.getFrom();
@@ -130,8 +137,23 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             results.remove(message);
         }
 
-        if (logger_.isDebugEnabled())
-            logger_.debug("digests verified");
+		// If there was a digest query compare it with all the data digests
+		// If there is a mismatch then throw an exception so that read repair can happen.
+        //
+        // It's important to note that we do not compare the digests of multiple data responses --
+        // if we are in that situation we know there was a previous mismatch and now we're doing a repair,
+        // so our job is now case 2: figure out what the most recent version is and update everyone to that version.
+        if (digest != null)
+        {
+            for (ColumnFamily cf : versions)
+            {
+                ByteBuffer digest2 = ColumnFamily.digest(cf);
+                if (!digest.equals(digest2))
+                    throw new DigestMismatchException(key, digest, digest2);
+            }
+            if (logger_.isDebugEnabled())
+                logger_.debug("digests verified");
+        }
 
         ColumnFamily resolved;
         if (versions.size() > 1)
