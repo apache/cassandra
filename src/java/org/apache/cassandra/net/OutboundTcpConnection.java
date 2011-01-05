@@ -21,6 +21,7 @@ package org.apache.cassandra.net;
  */
 
 
+import java.io.BufferedOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -164,7 +165,7 @@ public class OutboundTcpConnection extends Thread
                 socket = new Socket(endpoint, DatabaseDescriptor.getStoragePort(), FBUtilities.getLocalAddress(), 0);
                 socket.setKeepAlive(true);
                 socket.setTcpNoDelay(true);
-                output = new DataOutputStream(socket.getOutputStream());
+                output = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), 4096));
                 return true;
             }
             catch (IOException e)
