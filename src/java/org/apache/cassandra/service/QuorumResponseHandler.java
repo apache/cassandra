@@ -39,8 +39,9 @@ import org.apache.cassandra.utils.SimpleCondition;
 public class QuorumResponseHandler<T> implements IAsyncCallback
 {
     protected static final Logger logger = LoggerFactory.getLogger( QuorumResponseHandler.class );
+
+    public final IResponseResolver<T> resolver;
     protected final SimpleCondition condition = new SimpleCondition();
-    protected final IResponseResolver<T> resolver;
     private final long startTime;
     protected final int blockfor;
     
@@ -58,38 +59,34 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
     
     public T get() throws TimeoutException, DigestMismatchException, IOException
     {
+        long timeout = DatabaseDescriptor.getRpcTimeout() - (System.currentTimeMillis() - startTime);
+        boolean success;
         try
         {
-            long timeout = DatabaseDescriptor.getRpcTimeout() - (System.currentTimeMillis() - startTime);
-            boolean success;
-            try
-            {
-                success = condition.await(timeout, TimeUnit.MILLISECONDS);
-            }
-            catch (InterruptedException ex)
-            {
-                throw new AssertionError(ex);
-            }
-
-            if (!success)
-            {
-                StringBuilder sb = new StringBuilder("");
-                for (Message message : resolver.getMessages())
-                {
-                    sb.append(message.getFrom());
-                }
-                throw new TimeoutException("Operation timed out - received only " + resolver.getMessageCount() + " responses from " + sb.toString() + " .");
-            }
+            success = condition.await(timeout, TimeUnit.MILLISECONDS);
         }
-        finally
+        catch (InterruptedException ex)
         {
-            for (Message response : resolver.getMessages())
-            {
-                MessagingService.removeRegisteredCallback(response.getMessageId());
-            }
+            throw new AssertionError(ex);
         }
 
-        return resolver.resolve();
+        if (!success)
+        {
+            StringBuilder sb = new StringBuilder("");
+            for (Message message : resolver.getMessages())
+                sb.append(message.getFrom()).append(", ");
+            throw new TimeoutException("Operation timed out - received only " + resolver.getMessageCount() + " responses from " + sb.toString() + " .");
+        }
+
+        return blockfor == 1 ? resolver.getData() : resolver.resolve();
+    }
+
+    public void close()
+    {
+        for (Message response : resolver.getMessages())
+        {
+            MessagingService.removeRegisteredCallback(response.getMessageId());
+        }
     }
     
     public void response(Message message)

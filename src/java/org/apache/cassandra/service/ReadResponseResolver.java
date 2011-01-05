@@ -46,6 +46,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
     private final String table;
     private final Map<Message, ReadResponse> results = new NonBlockingHashMap<Message, ReadResponse>();
     private DecoratedKey key;
+    private ByteBuffer digest;
 
     public ReadResponseResolver(String table, ByteBuffer key)
     {
@@ -53,14 +54,29 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         this.key = StorageService.getPartitioner().decorateKey(key);
     }
     
+    public Row getData() throws IOException
+    {
+        for (Map.Entry<Message, ReadResponse> entry : results.entrySet())
+        {
+            ReadResponse result = entry.getValue();
+            if (!result.isDigestQuery())
+                return result.row();
+        }
+
+        throw new AssertionError("getData should not be invoked when no data is present");
+    }
+
     /*
-     * This method handles two different scenarios:
+     * This method handles three different scenarios:
      *
-     * 1) we're handling the initial read, of data from the closest replica + digests
+     * 1a)we're handling the initial read, of data from the closest replica + digests
      *    from the rest.  In this case we check the digests against each other,
      *    throw an exception if there is a mismatch, otherwise return the data row.
      *
-     * 2) there was a mismatch on the initial read, so we redid the digest requests
+     * 1b)we're checking additional digests that arrived after the minimum to handle
+     *    the requested ConsistencyLevel, i.e. asynchronouse read repair check
+     *
+     * 2) there was a mismatch on the initial read (1a or 1b), so we redid the digest requests
      *    as full data reads.  In this case we need to compute the most recent version
      *    of each column, and send diffs to out-of-date replicas.
      */
@@ -72,7 +88,6 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         long startTime = System.currentTimeMillis();
 		List<ColumnFamily> versions = new ArrayList<ColumnFamily>();
 		List<InetAddress> endpoints = new ArrayList<InetAddress>();
-		ByteBuffer digest = null;
 
         // validate digests against each other; throw immediately on mismatch.
         // also, collects data results into versions/endpoints lists.
