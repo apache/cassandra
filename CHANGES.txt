@@ -1,3 +1,7 @@
+0.7.0-final
+ * fix offsets to ByteBuffer.get (CASSANDRA-1939)
+
+
 0.7.0-rc4
  * fix cli crash after backgrounding (CASSANDRA-1875)
  * count timeouts in storageproxy latencies, and include latency 

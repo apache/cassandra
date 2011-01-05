@@ -63,7 +63,7 @@ public class LongType extends AbstractType
         }
         
         
-        return String.valueOf(bytes.getLong(bytes.position()+bytes.arrayOffset()));
+        return String.valueOf(bytes.getLong(bytes.position()));
     }
 
     public ByteBuffer fromString(String source)

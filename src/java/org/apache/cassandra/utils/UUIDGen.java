@@ -56,7 +56,7 @@ public class UUIDGen
     /** creates a type 1 uuid from raw bytes. */
     public static UUID getUUID(ByteBuffer raw)
     {
-        return new UUID(raw.getLong(raw.position() + raw.arrayOffset()), raw.getLong(raw.position() + raw.arrayOffset() + 8));
+        return new UUID(raw.getLong(raw.position()), raw.getLong(raw.position() + 8));
     }
 
     /** decomposes a uuid into raw bytes. */

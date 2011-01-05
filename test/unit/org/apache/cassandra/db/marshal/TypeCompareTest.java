@@ -89,8 +89,8 @@ public class TypeCompareTest
         for (int i = 1; i < data.length; i++)
         {
         	
-            long l0 = data[i - 1].getLong(data[i - 1].position()+data[i - 1].arrayOffset());
-            long l1 = data[i].getLong(data[i].position()+data[i].arrayOffset());
+            long l0 = data[i - 1].getLong(data[i - 1].position());
+            long l1 = data[i].getLong(data[i].position());
             assert l0 <= l1;
         }
     }
