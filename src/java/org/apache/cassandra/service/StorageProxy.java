@@ -50,7 +50,6 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.IAsyncCallback;
-import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.thrift.*;
@@ -64,6 +63,8 @@ import static com.google.common.base.Charsets.UTF_8;
 public class StorageProxy implements StorageProxyMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(StorageProxy.class);
+
+    private static ScheduledExecutorService repairExecutor = new ScheduledThreadPoolExecutor(1); // TODO JMX-enable this
 
     private static final Random random = new Random();
     // mbean stuff
@@ -351,15 +352,7 @@ public class StorageProxy implements StorageProxyMBean
         List<Row> rows;
         try
         {
-            if (consistency_level == ConsistencyLevel.ONE)
-            {
-                rows = weakRead(commands);
-            }
-            else
-            {
-                assert consistency_level.getValue() >= ConsistencyLevel.QUORUM.getValue();
-                rows = strongRead(commands, consistency_level);
-            }
+            rows = fetchRows(commands, consistency_level);
         }
         finally
         {
@@ -368,91 +361,23 @@ public class StorageProxy implements StorageProxyMBean
         return rows;
     }
 
-    private static List<Row> weakRead(List<ReadCommand> commands) throws IOException, UnavailableException, TimeoutException
-    {
-        List<Row> rows = new ArrayList<Row>();
-
-        // send off all the commands asynchronously
-        List<Future<Object>> localFutures = null;
-        HashMap<ReadCommand, IAsyncResult> remoteResults = null;
-        for (ReadCommand command: commands)
-        {
-            InetAddress endPoint = StorageService.instance.findSuitableEndpoint(command.table, command.key);
-            if (endPoint.equals(FBUtilities.getLocalAddress()))
-            {
-                if (logger.isDebugEnabled())
-                    logger.debug("weakread reading " + command + " locally");
-
-                if (localFutures == null)
-                    localFutures = new ArrayList<Future<Object>>();
-                Callable<Object> callable = new weakReadLocalCallable(command);
-                localFutures.add(StageManager.getStage(Stage.READ).submit(callable));
-            }
-            else
-            {
-                if (remoteResults == null)
-                    remoteResults = new HashMap<ReadCommand, IAsyncResult>();
-                Message message = command.makeReadMessage();
-                if (logger.isDebugEnabled())
-                    logger.debug("weakread reading " + command + " from " + message.getMessageId() + "@" + endPoint);
-                remoteResults.put(command, MessagingService.instance().sendRR(message, endPoint));
-            }
-        }
-
-        // wait for results
-        if (localFutures != null)
-        {
-            for (Future<Object> future : localFutures)
-            {
-                Row row;
-                try
-                {
-                    row = (Row) future.get();
-                }
-                catch (Exception e)
-                {
-                    throw new RuntimeException(e);
-                }
-                rows.add(row);
-            }
-        }
-        if (remoteResults != null)
-        {
-            for (Map.Entry<ReadCommand, IAsyncResult> entry : remoteResults.entrySet())
-            {
-                ReadCommand command = entry.getKey();
-                IAsyncResult iar = entry.getValue();
-                byte[] body;
-                body = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
-                ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
-                ReadResponse response = ReadResponse.serializer().deserialize(new DataInputStream(bufIn));
-                assert response.row() != null;
-                rows.add(response.row());
-                if (randomlyReadRepair(command))
-                    StorageService.instance.doConsistencyCheck(response.row(), command, iar.getFrom());
-            }
-        }
-
-        return rows;
-    }
-
-    /*
-     * This function executes the read protocol.
-        // 1. Get the N nodes from storage service where the data needs to be
-        // replicated
-        // 2. Construct a message for read\write
-         * 3. Set one of the messages to get the data and the rest to get the digest
-        // 4. SendRR ( to all the nodes above )
-        // 5. Wait for a response from at least X nodes where X <= N and the data node
-         * 6. If the digest matches return the data.
-         * 7. else carry out read repair by getting data from all the nodes.
-        // 5. return success
+    /**
+     * This function executes local and remote reads, and blocks for the results:
+     *
+     * 1. Get the replica locations, sorted by response time according to the snitch
+     * 2. Send a data request to the closest replica, and digest requests to either
+     *    a) all the replicas, if read repair is enabled
+     *    b) the closest R-1 replicas, where R is the number required to satisfy the ConsistencyLevel
+     * 3. Wait for a response from R replicas
+     * 4. If the digests (if any) match the data return the data
+     * 5. else carry out read repair by getting data from all the nodes.
      */
-    private static List<Row> strongRead(List<ReadCommand> commands, ConsistencyLevel consistency_level) throws IOException, UnavailableException, TimeoutException
+    private static List<Row> fetchRows(List<ReadCommand> commands, ConsistencyLevel consistency_level) throws IOException, UnavailableException, TimeoutException
     {
-        List<QuorumResponseHandler<Row>> quorumResponseHandlers = new ArrayList<QuorumResponseHandler<Row>>();
+        List<ReadCallback<Row>> readCallbacks = new ArrayList<ReadCallback<Row>>();
         List<List<InetAddress>> commandEndpoints = new ArrayList<List<InetAddress>>();
         List<Row> rows = new ArrayList<Row>();
+        Set<ReadCommand> repairs = new HashSet<ReadCommand>();
 
         // send out read requests
         for (ReadCommand command: commands)
@@ -468,53 +393,65 @@ public class StorageProxy implements StorageProxyMBean
 
             AbstractReplicationStrategy rs = Table.open(command.table).getReplicationStrategy();
             ReadResponseResolver resolver = new ReadResponseResolver(command.table, command.key);
-            QuorumResponseHandler<Row> handler = rs.getQuorumResponseHandler(resolver, consistency_level);
+            ReadCallback<Row> handler = getReadCallback(resolver, command.table, consistency_level);
             handler.assureSufficientLiveNodes(endpoints);
 
-            Message messages[] = new Message[endpoints.size()];
+            int targets;
+            if (randomlyReadRepair(command))
+            {
+                targets = endpoints.size();
+                if (targets > handler.blockfor)
+                    repairs.add(command);
+            }
+            else
+            {
+                targets = handler.blockfor;
+            }
+            Message[] messages = new Message[targets];
+
             // data-request message is sent to dataPoint, the node that will actually get
             // the data for us. The other replicas are only sent a digest query.
-            int n = 0;
-            for (InetAddress endpoint : endpoints)
+            for (int i = 0; i < messages.length; i++)
             {
+                InetAddress endpoint = endpoints.get(i);
                 Message m = endpoint.equals(dataPoint) ? message : messageDigestOnly;
-                messages[n++] = m;
+                messages[i] = m;
                 if (logger.isDebugEnabled())
-                    logger.debug("strongread reading " + (m == message ? "data" : "digest") + " for " + command + " from " + m.getMessageId() + "@" + endpoint);
+                    logger.debug("reading " + (m == message ? "data" : "digest") + " for " + command + " from " + m.getMessageId() + "@" + endpoint);
             }
             MessagingService.instance().sendRR(messages, endpoints, handler);
-            quorumResponseHandlers.add(handler);
+            readCallbacks.add(handler);
             commandEndpoints.add(endpoints);
         }
 
         // read results and make a second pass for any digest mismatches
-        List<QuorumResponseHandler<Row>> repairResponseHandlers = null;
+        List<RepairCallback<Row>> repairResponseHandlers = null;
         for (int i = 0; i < commands.size(); i++)
         {
-            QuorumResponseHandler<Row> quorumResponseHandler = quorumResponseHandlers.get(i);
+            ReadCallback<Row> readCallback = readCallbacks.get(i);
             Row row;
             ReadCommand command = commands.get(i);
+            List<InetAddress> endpoints = commandEndpoints.get(i);
             try
             {
                 long startTime2 = System.currentTimeMillis();
-                row = quorumResponseHandler.get();
+                row = readCallback.get();
                 if (row != null)
                     rows.add(row);
 
                 if (logger.isDebugEnabled())
-                    logger.debug("quorumResponseHandler: " + (System.currentTimeMillis() - startTime2) + " ms.");
+                    logger.debug("Read: " + (System.currentTimeMillis() - startTime2) + " ms.");
+
+                if (repairs.contains(command))
+                    repairExecutor.schedule(new RepairRunner(readCallback.resolver, command, endpoints), DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
             }
             catch (DigestMismatchException ex)
             {
-                AbstractReplicationStrategy rs = Table.open(command.table).getReplicationStrategy();
-                ReadResponseResolver resolver = new ReadResponseResolver(command.table, command.key);
-                QuorumResponseHandler<Row> handler = rs.getQuorumResponseHandler(resolver, consistency_level);
                 if (logger.isDebugEnabled())
                     logger.debug("Digest mismatch:", ex);
-                Message messageRepair = command.makeReadMessage();
-                MessagingService.instance().sendRR(messageRepair, commandEndpoints.get(i), handler);
+                RepairCallback<Row> handler = repair(command, endpoints);
                 if (repairResponseHandlers == null)
-                    repairResponseHandlers = new ArrayList<QuorumResponseHandler<Row>>();
+                    repairResponseHandlers = new ArrayList<RepairCallback<Row>>();
                 repairResponseHandlers.add(handler);
             }
         }
@@ -522,7 +459,7 @@ public class StorageProxy implements StorageProxyMBean
         // read the results for the digest mismatch retries
         if (repairResponseHandlers != null)
         {
-            for (QuorumResponseHandler<Row> handler : repairResponseHandlers)
+            for (RepairCallback<Row> handler : repairResponseHandlers)
             {
                 try
                 {
@@ -538,6 +475,26 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         return rows;
+    }
+
+    static <T> ReadCallback<T> getReadCallback(IResponseResolver<T> resolver, String table, ConsistencyLevel consistencyLevel)
+    {
+        if (consistencyLevel.equals(ConsistencyLevel.LOCAL_QUORUM) || consistencyLevel.equals(ConsistencyLevel.EACH_QUORUM))
+        {
+            return new DatacenterReadCallback(resolver, consistencyLevel, table);
+        }
+        return new ReadCallback(resolver, consistencyLevel, table);
+    }
+
+    // TODO repair resolver shouldn't take consistencylevel (it should repair exactly as many as it receives replies for)
+    private static RepairCallback<Row> repair(ReadCommand command, List<InetAddress> endpoints)
+    throws IOException
+    {
+        ReadResponseResolver resolver = new ReadResponseResolver(command.table, command.key);
+        RepairCallback<Row> handler = new RepairCallback<Row>(resolver, endpoints);
+        Message messageRepair = command.makeReadMessage();
+        MessagingService.instance().sendRR(messageRepair, endpoints, handler);
+        return handler;
     }
 
     /*
@@ -590,7 +547,7 @@ public class StorageProxy implements StorageProxyMBean
                     // collect replies and resolve according to consistency level
                     RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, liveEndpoints);
                     AbstractReplicationStrategy rs = Table.open(command.keyspace).getReplicationStrategy();
-                    QuorumResponseHandler<List<Row>> handler = rs.getQuorumResponseHandler(resolver, consistency_level);
+                    ReadCallback<List<Row>> handler = getReadCallback(resolver, command.keyspace, consistency_level);
                     // TODO bail early if live endpoints can't satisfy requested consistency level
                     for (InetAddress endpoint : liveEndpoints) 
                     {
@@ -837,7 +794,7 @@ public class StorageProxy implements StorageProxyMBean
             // collect replies and resolve according to consistency level
             RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(keyspace, liveEndpoints);
             AbstractReplicationStrategy rs = Table.open(keyspace).getReplicationStrategy();
-            QuorumResponseHandler<List<Row>> handler = rs.getQuorumResponseHandler(resolver, consistency_level);
+            ReadCallback<List<Row>> handler = getReadCallback(resolver, keyspace, consistency_level);
             
             // bail early if live endpoints can't satisfy requested consistency level
             if(handler.blockfor > liveEndpoints.size())
@@ -889,31 +846,6 @@ public class StorageProxy implements StorageProxyMBean
         return hintedHandoffEnabled;
     }
 
-    static class weakReadLocalCallable implements Callable<Object>
-    {
-        private ReadCommand command;
-
-        weakReadLocalCallable(ReadCommand command)
-        {
-            this.command = command;
-        }
-
-        public Object call() throws IOException
-        {
-            if (logger.isDebugEnabled())
-                logger.debug("weakreadlocal reading " + command);
-
-            Table table = Table.open(command.table);
-            Row row = command.getRow(table);
-
-            // Do the consistency checks in the background
-            if (randomlyReadRepair(command))
-                StorageService.instance.doConsistencyCheck(row, command, FBUtilities.getLocalAddress());
-
-            return row;
-        }
-    }
-
     /**
      * Performs the truncate operatoin, which effectively deletes all data from
      * the column family cfname
@@ -958,5 +890,33 @@ public class StorageProxy implements StorageProxyMBean
     private static boolean isAnyHostDown()
     {
         return !Gossiper.instance.getUnreachableMembers().isEmpty();
+    }
+
+    private static class RepairRunner extends WrappedRunnable
+    {
+        private final IResponseResolver<Row> resolver;
+        private final ReadCommand command;
+        private final List<InetAddress> endpoints;
+
+        public RepairRunner(IResponseResolver<Row> resolver, ReadCommand command, List<InetAddress> endpoints)
+        {
+            this.resolver = resolver;
+            this.command = command;
+            this.endpoints = endpoints;
+        }
+
+        protected void runMayThrow() throws IOException
+        {
+            try
+            {
+                resolver.resolve();
+            }
+            catch (DigestMismatchException e)
+            {
+                if (logger.isDebugEnabled())
+                    logger.debug("Digest mismatch:", e);
+                repair(command, endpoints);
+            }
+        }
     }
 }

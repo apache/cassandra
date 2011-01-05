@@ -454,18 +454,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     }
 
     /**
-     * This method performs the requisite operations to make
-     * sure that the N replicas are in sync. We do this in the
-     * background when we do not care much about consistency.
-     */
-    public void doConsistencyCheck(Row row, ReadCommand command, InetAddress dataSource)
-    {
-        List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
-        if (endpoints.size() > 1)
-            consistencyManager_.submit(new ConsistencyChecker(command, row, endpoints, dataSource));
-    }
-
-    /**
      * for a keyspace, return the ranges and corresponding hosts for a given keyspace.
      * @param keyspace
      * @return

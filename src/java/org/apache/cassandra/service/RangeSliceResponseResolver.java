@@ -54,6 +54,15 @@ public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
         this.table = table;
     }
 
+    public List<Row> getData() throws IOException
+    {
+        Message response = responses.iterator().next();
+        RangeSliceReply reply = RangeSliceReply.read(response.getMessageBody());
+        return reply.rows;
+    }
+
+    // Note: this deserializes the response a 2nd time if getData was called first
+    // (this is not currently an issue since we don't do read repair for range queries.)
     public List<Row> resolve() throws IOException
     {
         CollatingIterator collator = new CollatingIterator(new Comparator<Pair<Row,InetAddress>>()

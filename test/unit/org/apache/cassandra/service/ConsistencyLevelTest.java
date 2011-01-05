@@ -96,7 +96,7 @@ public class ConsistencyLevelTest extends CleanupHelper
 
                     IWriteResponseHandler writeHandler = strategy.getWriteResponseHandler(hosts, hintedNodes, c);
 
-                    QuorumResponseHandler<Row> readHandler = strategy.getQuorumResponseHandler(new ReadResponseResolver(table, ByteBufferUtil.bytes("foo")), c);
+                    ReadCallback<Row> readHandler = StorageProxy.getReadCallback(new ReadResponseResolver(table, ByteBufferUtil.bytes("foo")), table, c);
 
                     boolean isWriteUnavailable = false;
                     boolean isReadUnavailable = false;
