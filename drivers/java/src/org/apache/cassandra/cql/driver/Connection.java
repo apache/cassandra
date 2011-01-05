@@ -1,33 +1,8 @@
-/*
- * 
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
- */
 package org.apache.cassandra.cql.driver;
-
-import java.io.ByteArrayOutputStream;
-import java.nio.ByteBuffer;
-import java.util.zip.Deflater;
 
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.Compression;
 import org.apache.cassandra.thrift.CqlResult;
-import org.apache.cassandra.thrift.CqlRow;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.TimedOutException;
 import org.apache.cassandra.thrift.UnavailableException;
@@ -37,105 +12,95 @@ import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
+import org.apache.thrift.transport.TTransportException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/** CQL connection object. */
 public class Connection
 {
-    private static final Logger logger = LoggerFactory.getLogger(Connection.class);
+    public static Compression defaultCompression = Compression.GZIP;
+    public final String hostName;
+    public final int portNo;
     
-    public String hostName;
-    public int port;
+    private static final Logger logger = LoggerFactory.getLogger(Connection.class);
+    protected long timeOfLastFailure = 0;
+    protected int numFailures = 0;
     private Cassandra.Client client;
     private TTransport transport;
-    private Compression defaultCompression = Compression.GZIP;
     
-    public Connection(String keyspaceName, String...hosts) throws InvalidRequestException, TException
+    /**
+     * Create a new <code>Connection</code> instance.
+     * 
+     * @param hostName hostname or IP address of the remote host
+     * @param portNo TCP port number
+     * @throws TTransportException if unable to connect
+     */
+    public Connection(String hostName, int portNo) throws TTransportException
     {
-        assert hosts.length > 0;
+        this.hostName = hostName;
+        this.portNo = portNo;
         
-        for (String hostSpec : hosts)
-        {
-            String[] parts = hostSpec.split(":", 2);
-            this.hostName = parts[0];
-            this.port = Integer.parseInt(parts[1]);
-            
-            // TODO: This will need to do connection pooling.
-            break;
-        }
-        
-        TSocket socket = new TSocket(hostName, port);
+        TSocket socket = new TSocket(hostName, portNo);
         transport = new TFramedTransport(socket);
         TProtocol protocol = new TBinaryProtocol(transport);
         client = new Cassandra.Client(protocol);
         socket.open();
         
-        client.set_keyspace(keyspaceName);
+        logger.info("Connected to {}:{}", hostName, portNo);
     }
     
-    private ByteBuffer compressQuery(String queryStr, Compression compression)
-    {
-        byte[] data = queryStr.getBytes();
-        Deflater compressor = new Deflater();
-        compressor.setInput(data);
-        compressor.finish();
-        
-        ByteArrayOutputStream byteArray = new ByteArrayOutputStream();
-        byte[] buffer = new byte[1024];
-        
-        while (!compressor.finished())
-        {
-            int size = compressor.deflate(buffer);
-            byteArray.write(buffer, 0, size);
-        }
-        
-        logger.trace("Compressed query statement {} bytes in length to {} bytes",
-                     data.length,
-                     byteArray.size());
-        
-        return ByteBuffer.wrap(byteArray.toByteArray());
-    }
-    
+    /**
+     * Execute a CQL query.
+     * 
+     * @param queryStr a CQL query string
+     * @return the query results encoded as a CqlResult struct
+     * @throws InvalidRequestException on poorly constructed or illegal requests
+     * @throws UnavailableException when not all required replicas could be created/read
+     * @throws TimedOutException when a cluster operation timed out
+     * @throws TException
+     */
     public CqlResult execute(String queryStr)
     throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
-        return execute(queryStr, getDefaultCompression());
+        return execute(queryStr, defaultCompression);
     }
     
-    public CqlResult execute(String queryStr, Compression compression)
+    /**
+     * Execute a CQL query.
+     * 
+     * @param queryStr a CQL query string
+     * @param compress query compression to use
+     * @return the query results encoded as a CqlResult struct
+     * @throws InvalidRequestException on poorly constructed or illegal requests
+     * @throws UnavailableException when not all required replicas could be created/read
+     * @throws TimedOutException when a cluster operation timed out
+     * @throws TException
+     */
+    public CqlResult execute(String queryStr, Compression compress)
     throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
-        logger.trace("Executing CQL Query: {}", queryStr);
-        return client.execute_cql_query(compressQuery(queryStr, compression), compression);
+        try
+        {
+            return client.execute_cql_query(Utils.compressQuery(queryStr, compress), compress);
+        }
+        catch (TException error)
+        {
+            numFailures++;
+            timeOfLastFailure = System.currentTimeMillis();
+            throw error;
+        }
     }
     
-    public Compression getDefaultCompression()
+    /** Shutdown the remote connection */
+    public void close()
     {
-        return defaultCompression;
+        transport.close();
     }
-
-    public void setDefaultCompression(Compression defaultCompression)
+    
+    /** Connection state. */
+    public boolean isOpen()
     {
-        this.defaultCompression = defaultCompression;
-    }
-
-    public static void main(String[] args) throws Exception
-    {
-        Connection conn = new Connection("Keyspace1", "localhost:9160");
-        CqlResult result = conn.execute("UPDATE Standard2 USING CONSISTENCY.ONE WITH ROW(\"mango\", COL(\"disposition\", \"fruit\"));");
-        String selectQ = "SELECT FROM Standard2 WHERE KEY > \"apple\" AND KEY < \"carrot\" ROWLIMIT 5 DESC;";
-        result = conn.execute(selectQ);
-        switch (result.type)
-        {
-            case ROWS:
-                for (CqlRow row : result.rows)
-                {
-                    System.out.println("KEY: " + new String(row.key.array()));
-                    for (org.apache.cassandra.thrift.Column col : row.columns)
-                    {
-                        System.out.println("  COL: " + new String(col.name.array()) + ":" + new String(col.value.array()));
-                    }
-                }
-        }
+        return transport.isOpen();
     }
 }
