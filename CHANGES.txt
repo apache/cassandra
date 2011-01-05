@@ -4,6 +4,8 @@
 
 
 0.7-dev
+ * buffer network stack to avoid inefficient small TCP messages while avoiding
+   the nagle/delayed ack problem (CASSANDRA-1896)
  * check log4j configuration for changes every 10s (CASSANDRA-1525, 1907)
  * More-efficient cross-DC replication (CASSANDRA-1530)
  * upgrade to TFastFramedTransport (CASSANDRA-1743)

@@ -43,7 +43,7 @@ public class IncomingTcpConnection extends Thread
         this.socket = socket;
         try
         {
-            input = new DataInputStream(socket.getInputStream());
+            input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 4096));
         }
         catch (IOException e)
         {
