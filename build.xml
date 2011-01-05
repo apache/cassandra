@@ -41,12 +41,14 @@
     <property name="interface.avro.dir" value="${interface.dir}/avro"/>
     <property name="test.dir" value="${basedir}/test"/>
     <property name="test.resources" value="${test.dir}/resources"/>
+    <property name="test.lib" value="${build.dir}/test/lib"/>
     <property name="test.classes" value="${build.dir}/test/classes"/>
     <property name="test.conf" value="${test.dir}/conf"/>
     <property name="test.data" value="${test.dir}/data"/>
     <property name="test.name" value="*Test"/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
     <property name="test.long.src" value="${test.dir}/long"/>
+    <property name="test.distributed.src" value="${test.dir}/distributed"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
     <property name="base.version" value="0.7.0-rc4"/>
     <condition property="version" value="${base.version}">
@@ -108,6 +110,7 @@
         <fail unless="is.source.artifact"
             message="Not a source artifact, stopping here." />
         <mkdir dir="${build.classes}"/>
+        <mkdir dir="${test.lib}"/>
         <mkdir dir="${test.classes}"/>
         <mkdir dir="${build.src.gen-java}"/>
     </target>
@@ -189,8 +192,15 @@
     </target>
 
     <target name="ivy-retrieve-build" depends="ivy-init">
+      <ivy:resolve file="${basedir}/ivy.xml"/>
       <ivy:retrieve type="jar,source" sync="true"
              pattern="${build.dir.lib}/[type]s/[artifact]-[revision].[ext]" />
+    </target>
+
+    <target name="ivy-retrieve-test" depends="ivy-init">
+      <ivy:resolve file="${basedir}/test/distributed/ivy.xml"/>
+      <ivy:retrieve type="jar,source" sync="true"
+             pattern="${test.lib}/[type]s/[artifact]-[revision].[ext]" />
     </target>
 
     <!--
@@ -479,28 +489,49 @@
     </copy>
   </target>
 
+  <target name="build-distributed-test" depends="build-test,ivy-retrieve-test" description="Compile distributed test classes (which have additional deps)">
+    <javac
+     debug="true"
+     debuglevel="${debuglevel}"
+     destdir="${test.classes}">
+      <classpath>
+          <path refid="cassandra.classpath"/>
+          <pathelement location="${test.classes}"/>
+          <fileset dir="${test.lib}">
+            <include name="**/*.jar" />
+          </fileset>
+      </classpath>
+      <src path="${test.distributed.src}"/>
+    </javac>
+  </target>
+
   <macrodef name="testmacro">
     <attribute name="suitename" />
     <attribute name="inputdir" />
     <attribute name="timeout" />
+    <attribute name="forkmode" default="perTest"/>
+    <element name="optjvmargs" implicit="true" optional="true" />
     <sequential>
       <echo message="running @{suitename} tests"/>
       <mkdir dir="${build.test.dir}/cassandra"/>
       <mkdir dir="${build.test.dir}/output"/>
-      <junit fork="on" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}">
+      <junit fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}">
         <sysproperty key="net.sourceforge.cobertura.datafile" file="${cobertura.datafile}"/>
         <formatter type="xml" usefile="true"/>
         <formatter type="brief" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
         <jvmarg value="-Daccess.properties=${test.conf}/access.properties"/>
         <jvmarg value="-Dlog4j.configuration=log4j-junit.properties" />
-        <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
         <jvmarg value="-ea"/>
+        <optjvmargs/>
         <classpath>
           <path refid="cassandra.classpath" />
           <pathelement location="${test.classes}"/>
           <pathelement location="${cobertura.dir}/cobertura.jar"/>
           <pathelement location="${test.conf}"/>
+          <fileset dir="${test.lib}">
+            <include name="**/*.jar" />
+          </fileset>
         </classpath>
         <batchtest todir="${build.test.dir}/output">
           <fileset dir="@{inputdir}" includes="**/${test.name}.java" />
@@ -511,13 +542,22 @@
   </macrodef>
 
   <target name="test" depends="build-test" description="Execute unit tests">
-    <testmacro suitename="unit" inputdir="${test.unit.src}"
-               timeout="${test.timeout}" />
+    <testmacro suitename="unit" inputdir="${test.unit.src}" timeout="60000">
+      <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
+    </testmacro>
   </target>
 
   <target name="long-test" depends="build-test" description="Execute functional tests">
     <testmacro suitename="long" inputdir="${test.long.src}"
                timeout="${test.long.timeout}" />
+  </target>
+
+  <!-- Depends on artifacts so that we can push a tarball to remote nodes, and has its own build target for cloudy deps. -->
+  <target name="distributed-test" depends="build-distributed-test,artifacts" description="Execute distributed tests: see ${test.distributed.src}/README.txt">
+    <testmacro suitename="distributed" inputdir="${test.distributed.src}" timeout="1200000" forkmode="once">
+      <jvmarg value="-Dwhirr.config=${whirr.config}"/>
+      <jvmarg value="-Dwhirr.cassandra_tarball=${build.dir}/${final.name}-bin.tar.gz"/>
+    </testmacro>
   </target>
 
   <!-- instruments the classes to later create code coverage reports -->
