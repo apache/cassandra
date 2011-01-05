@@ -127,7 +127,7 @@ updateStatement returns [UpdateStatement expr]
       }
       K_UPDATE columnFamily=IDENT
           (K_USING K_CONSISTENCY '.' K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); })?
-          K_SET c1=term '=' v1=term { columns.put(c1, v1); } (',' cN=term '=' vN=term { columns.put(cN, vN); })*
+          K_SET termPair[columns] (',' termPair[columns])*
           K_WHERE K_KEY '=' key=term endStmnt
       {
           return new UpdateStatement($columnFamily.text, cLevel, columns, key);
@@ -170,6 +170,11 @@ term returns [Term item]
 termList returns [List<Term> items]
     : { $items = new ArrayList<Term>(); }
       t1=term { $items.add(t1); } (',' tN=term { $items.add(tN); })*
+    ;
+
+// term = term
+termPair[Map<Term, Term> columns]
+    :   key=term '=' value=term { columns.put(key, value); }
     ;
 
 // Note: ranges are inclusive so >= and >, and < and <= all have the same semantics.  
