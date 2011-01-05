@@ -91,6 +91,10 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 
         // validate digests against each other; throw immediately on mismatch.
         // also, collects data results into versions/endpoints lists.
+        //
+        // results are cleared as we process them, to avoid unnecessary duplication of work
+        // when resolve() is called a second time for read repair on responses that were not
+        // necessary to satisfy ConsistencyLevel.
         for (Map.Entry<Message, ReadResponse> entry : results.entrySet())
         {
             ReadResponse result = entry.getValue();
@@ -106,6 +110,8 @@ public class ReadResponseResolver implements IResponseResolver<Row>
                 versions.add(result.row().cf);
                 endpoints.add(message.getFrom());
             }
+
+            results.remove(message);
         }
 
         if (logger_.isDebugEnabled())
