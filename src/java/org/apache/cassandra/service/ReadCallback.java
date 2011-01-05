@@ -36,9 +36,9 @@ import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.SimpleCondition;
 
-public class QuorumResponseHandler<T> implements IAsyncCallback
+public class ReadCallback<T> implements IAsyncCallback
 {
-    protected static final Logger logger = LoggerFactory.getLogger( QuorumResponseHandler.class );
+    protected static final Logger logger = LoggerFactory.getLogger( ReadCallback.class );
 
     public final IResponseResolver<T> resolver;
     protected final SimpleCondition condition = new SimpleCondition();
@@ -48,13 +48,13 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
     /**
      * Constructor when response count has to be calculated and blocked for.
      */
-    public QuorumResponseHandler(IResponseResolver<T> resolver, ConsistencyLevel consistencyLevel, String table)
+    public ReadCallback(IResponseResolver<T> resolver, ConsistencyLevel consistencyLevel, String table)
     {
         this.blockfor = determineBlockFor(consistencyLevel, table);
         this.resolver = resolver;
         this.startTime = System.currentTimeMillis();
 
-        logger.debug("QuorumResponseHandler blocking for {} responses", blockfor);
+        logger.debug("ReadCallback blocking for {} responses", blockfor);
     }
     
     public T get() throws TimeoutException, DigestMismatchException, IOException

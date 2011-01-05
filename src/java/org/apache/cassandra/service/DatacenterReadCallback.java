@@ -37,15 +37,15 @@ import org.apache.cassandra.utils.FBUtilities;
 /**
  * Datacenter Quorum response handler blocks for a quorum of responses from the local DC
  */
-public class DatacenterQuorumResponseHandler<T> extends QuorumResponseHandler<T>
+public class DatacenterReadCallback<T> extends ReadCallback<T>
 {
     private static final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
 	private static final String localdc = snitch.getDatacenter(FBUtilities.getLocalAddress());
     private AtomicInteger localResponses;
     
-    public DatacenterQuorumResponseHandler(IResponseResolver<T> responseResolver, ConsistencyLevel consistencyLevel, String table)
+    public DatacenterReadCallback(IResponseResolver<T> resolver, ConsistencyLevel consistencyLevel, String table)
     {
-        super(responseResolver, consistencyLevel, table);
+        super(resolver, consistencyLevel, table);
         localResponses = new AtomicInteger(blockfor);
     }
     

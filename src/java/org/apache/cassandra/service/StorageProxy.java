@@ -328,7 +328,7 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static List<Row> fetchRows(List<ReadCommand> commands, ConsistencyLevel consistency_level) throws IOException, UnavailableException, TimeoutException
     {
-        List<QuorumResponseHandler<Row>> quorumResponseHandlers = new ArrayList<QuorumResponseHandler<Row>>();
+        List<ReadCallback<Row>> readCallbacks = new ArrayList<ReadCallback<Row>>();
         List<List<InetAddress>> commandEndpoints = new ArrayList<List<InetAddress>>();
         List<Row> rows = new ArrayList<Row>();
         Set<ReadCommand> repairs = new HashSet<ReadCommand>();
@@ -347,7 +347,7 @@ public class StorageProxy implements StorageProxyMBean
 
             AbstractReplicationStrategy rs = Table.open(command.table).getReplicationStrategy();
             ReadResponseResolver resolver = new ReadResponseResolver(command.table, command.key);
-            QuorumResponseHandler<Row> handler = rs.getQuorumResponseHandler(resolver, consistency_level);
+            ReadCallback<Row> handler = getReadCallback(resolver, command.table, consistency_level);
             handler.assureSufficientLiveNodes(endpoints);
 
             int targets;
@@ -374,7 +374,7 @@ public class StorageProxy implements StorageProxyMBean
                     logger.debug("reading " + (m == message ? "data" : "digest") + " for " + command + " from " + m.getMessageId() + "@" + endpoint);
             }
             MessagingService.instance().sendRR(messages, endpoints, handler);
-            quorumResponseHandlers.add(handler);
+            readCallbacks.add(handler);
             commandEndpoints.add(endpoints);
         }
 
@@ -382,22 +382,22 @@ public class StorageProxy implements StorageProxyMBean
         List<RepairCallback<Row>> repairResponseHandlers = null;
         for (int i = 0; i < commands.size(); i++)
         {
-            QuorumResponseHandler<Row> quorumResponseHandler = quorumResponseHandlers.get(i);
+            ReadCallback<Row> readCallback = readCallbacks.get(i);
             Row row;
             ReadCommand command = commands.get(i);
             List<InetAddress> endpoints = commandEndpoints.get(i);
             try
             {
                 long startTime2 = System.currentTimeMillis();
-                row = quorumResponseHandler.get();
+                row = readCallback.get();
                 if (row != null)
                     rows.add(row);
 
                 if (logger.isDebugEnabled())
-                    logger.debug("quorumResponseHandler: " + (System.currentTimeMillis() - startTime2) + " ms.");
+                    logger.debug("Read: " + (System.currentTimeMillis() - startTime2) + " ms.");
 
                 if (repairs.contains(command))
-                    repairExecutor.schedule(new RepairRunner(quorumResponseHandler.resolver, command, endpoints), DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
+                    repairExecutor.schedule(new RepairRunner(readCallback.resolver, command, endpoints), DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
             }
             catch (DigestMismatchException ex)
             {
@@ -429,6 +429,15 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         return rows;
+    }
+
+    static <T> ReadCallback<T> getReadCallback(IResponseResolver<T> resolver, String table, ConsistencyLevel consistencyLevel)
+    {
+        if (consistencyLevel.equals(ConsistencyLevel.LOCAL_QUORUM) || consistencyLevel.equals(ConsistencyLevel.EACH_QUORUM))
+        {
+            return new DatacenterReadCallback(resolver, consistencyLevel, table);
+        }
+        return new ReadCallback(resolver, consistencyLevel, table);
     }
 
     // TODO repair resolver shouldn't take consistencylevel (it should repair exactly as many as it receives replies for)
@@ -492,7 +501,7 @@ public class StorageProxy implements StorageProxyMBean
                     // collect replies and resolve according to consistency level
                     RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, liveEndpoints);
                     AbstractReplicationStrategy rs = Table.open(command.keyspace).getReplicationStrategy();
-                    QuorumResponseHandler<List<Row>> handler = rs.getQuorumResponseHandler(resolver, consistency_level);
+                    ReadCallback<List<Row>> handler = getReadCallback(resolver, command.keyspace, consistency_level);
                     // TODO bail early if live endpoints can't satisfy requested consistency level
                     for (InetAddress endpoint : liveEndpoints) 
                     {
@@ -741,7 +750,7 @@ public class StorageProxy implements StorageProxyMBean
             // collect replies and resolve according to consistency level
             RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(keyspace, liveEndpoints);
             AbstractReplicationStrategy rs = Table.open(keyspace).getReplicationStrategy();
-            QuorumResponseHandler<List<Row>> handler = rs.getQuorumResponseHandler(resolver, consistency_level);
+            ReadCallback<List<Row>> handler = getReadCallback(resolver, keyspace, consistency_level);
             
             // bail early if live endpoints can't satisfy requested consistency level
             if(handler.blockfor > liveEndpoints.size())
