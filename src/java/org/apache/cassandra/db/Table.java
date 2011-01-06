@@ -64,7 +64,7 @@ public class Table
      * accesses to CFS.memtable should acquire this for thread safety.
      * Table.maybeSwitchMemtable should aquire the writeLock; see that method for the full explanation.
      */
-    static final ReentrantReadWriteLock flusherLock = new ReentrantReadWriteLock(true);
+    static final ReentrantReadWriteLock flusherLock = new ReentrantReadWriteLock();
 
     // It is possible to call Table.open without a running daemon, so it makes sense to ensure
     // proper directories here as well as in CassandraDaemon.

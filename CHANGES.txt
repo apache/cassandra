@@ -13,6 +13,7 @@
  * make read repair behave as expected for ConsistencyLevel > ONE
    (CASSANDRA-982)
  * distributed test harness (CASSANDRA-1859)
+ * reduce flush lock contention (CASSANDRA-1930)
 
 
 0.7.0-dev
