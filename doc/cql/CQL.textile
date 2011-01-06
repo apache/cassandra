@@ -127,7 +127,7 @@ h3. Specifying Columns
 bc. 
 DELETE [COLUMNS] ...
 
-Following the @DELETE@ keyword is an optional comma-delimited list of column name terms. When no column names are specified, the remove applies to the entire row(s) matched by the "@WHERE@ clause":#deleterows
+Following the @DELETE@ keyword is an optional comma-delimited list of column name terms. When no column names are specified, the remove applies to the entire row(s) matched by the "WHERE clause":#deleterows
 
 h3. Column Family
 
