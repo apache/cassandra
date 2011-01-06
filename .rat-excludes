@@ -20,3 +20,5 @@ redhat/cassandra
 redhat/cassandra.conf
 redhat/cassandra.in.sh
 redhat/default
+.externalToolBuilders/**
+**/*.wpr
