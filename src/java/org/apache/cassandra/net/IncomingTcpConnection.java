@@ -34,37 +34,44 @@ public class IncomingTcpConnection extends Thread
 {
     private static Logger logger = LoggerFactory.getLogger(IncomingTcpConnection.class);
 
-    private final DataInputStream input;
     private Socket socket;
 
     public IncomingTcpConnection(Socket socket)
     {
         assert socket != null;
         this.socket = socket;
+    }
+
+    /**
+     * A new connection will either stream or message for its entire lifetime: because streaming
+     * bypasses the InputStream implementations to use sendFile, we cannot begin buffering until
+     * we've determined the type of the connection.
+     */
+    @Override
+    public void run()
+    {
+        DataInputStream input;
+        boolean isStream;
         try
         {
-            input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 4096));
+            // determine the connection type to decide whether to buffer
+            input = new DataInputStream(socket.getInputStream());
+            MessagingService.validateMagic(input.readInt());
+            int header = input.readInt();
+            isStream = MessagingService.getBits(header, 3, 1) == 1;
+            if (!isStream)
+                // we should buffer
+                input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 4096));
         }
         catch (IOException e)
         {
             close();
             throw new IOError(e);
         }
-    }
-
-    @Override
-    public void run()
-    {
         while (true)
         {
             try
             {
-                MessagingService.validateMagic(input.readInt());
-                int header = input.readInt();
-                int type = MessagingService.getBits(header, 1, 2);
-                boolean isStream = MessagingService.getBits(header, 3, 1) == 1;
-                int version = MessagingService.getBits(header, 15, 8);
-
                 if (isStream)
                 {
                     int size = input.readInt();
@@ -72,6 +79,7 @@ public class IncomingTcpConnection extends Thread
                     input.readFully(headerBytes);
                     StreamHeader streamHeader = StreamHeader.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(headerBytes)));
                     new IncomingStreamReader(streamHeader, socket.getChannel()).read();
+                    break;
                 }
                 else
                 {
@@ -82,6 +90,10 @@ public class IncomingTcpConnection extends Thread
                     Message message = Message.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(contentBytes)));
                     MessagingService.receive(message);
                 }
+                // prepare to read the next message
+                MessagingService.validateMagic(input.readInt());
+                int header = input.readInt();
+                assert isStream == (MessagingService.getBits(header, 3, 1) == 1) : "Connections cannot change type: " + isStream;
             }
             catch (EOFException e)
             {
