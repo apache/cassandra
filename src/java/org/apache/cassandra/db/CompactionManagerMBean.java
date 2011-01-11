@@ -50,4 +50,12 @@ public interface CompactionManagerMBean
      * @return number of completed compactions since server [re]start
      */
     public long getCompletedTasks();
+
+    /**
+     * Triggers the compaction of user specified sstables.
+     *
+     * @param ksname the keyspace for the sstables to compact
+     * @param dataFiles a comma separated list of sstable filename to compact
+     */
+    public void forceUserDefinedCompaction(String ksname, String dataFiles);
 }
