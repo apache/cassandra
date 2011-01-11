@@ -20,6 +20,9 @@
  * distributed test harness (CASSANDRA-1859)
  * reduce flush lock contention (CASSANDRA-1930)
  * optimize supercolumn deserialization (CASSANDRA-1891)
+ * fix CFMetaData.apply to only compare objects of the same class 
+   (CASSANDRA-1962)
+ * allow specifying specific SSTables to compact from JMX (CASSANDRA-1963)
 
 
 0.7.0-dev

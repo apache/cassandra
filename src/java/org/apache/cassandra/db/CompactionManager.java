@@ -226,6 +226,102 @@ public class CompactionManager implements CompactionManagerMBean
         return executor.submit(callable);
     }
 
+    public void forceUserDefinedCompaction(String ksname, String dataFiles)
+    {
+        if (!DatabaseDescriptor.getTables().contains(ksname))
+            throw new IllegalArgumentException("Unknown keyspace " + ksname);
+
+        File directory = new File(ksname);
+        String[] filenames = dataFiles.split(",");
+        Collection<Descriptor> descriptors = new ArrayList<Descriptor>(filenames.length);
+
+        String cfname = null;
+        for (String filename : filenames)
+        {
+            Pair<Descriptor, String> p = Descriptor.fromFilename(directory, filename.trim());
+            if (!p.right.equals(Component.DATA.name()))
+            {
+                throw new IllegalArgumentException(filename + " does not appear to be a data file");
+            }
+            if (cfname == null)
+            {
+                cfname = p.left.cfname;
+            }
+            else if (!cfname.equals(p.left.cfname))
+            {
+                throw new IllegalArgumentException("All provided sstables should be for the same column family");
+            }
+
+            descriptors.add(p.left);
+        }
+
+        ColumnFamilyStore cfs = Table.open(ksname).getColumnFamilyStore(cfname);
+        submitUserDefined(cfs, descriptors, (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds());
+    }
+
+    private Future<Object> submitUserDefined(final ColumnFamilyStore cfs, final Collection<Descriptor> dataFiles, final int gcBefore)
+    {
+        Callable<Object> callable = new Callable<Object>()
+        {
+            public Object call() throws IOException
+            {
+                compactionLock.lock();
+                try
+                {
+                    if (cfs.isInvalid())
+                        return this;
+
+                    // look up the sstables now that we're on the compaction executor, so we don't try to re-compact
+                    // something that was already being compacted earlier.
+                    Collection<SSTableReader> sstables = new ArrayList<SSTableReader>();
+                    for (Descriptor desc : dataFiles)
+                    {
+                        // inefficient but not in a performance sensitive path
+                        SSTableReader sstable = lookupSSTable(cfs, desc);
+                        if (sstable == null)
+                        {
+                            logger.info("Will not compact {}: it is not an active sstable", desc);
+                        }
+                        else
+                        {
+                            sstables.add(sstable);
+                        }
+                    }
+
+                    if (sstables.isEmpty())
+                    {
+                        logger.error("No file to compact for user defined compaction");
+                    }
+                    else
+                    {
+                        doCompaction(cfs, sstables, gcBefore);
+                    }
+
+                    return this;
+                }
+                finally
+                {
+                    compactionLock.unlock();
+                }
+            }
+        };
+        return executor.submit(callable);
+    }
+
+    private SSTableReader lookupSSTable(final ColumnFamilyStore cfs, Descriptor descriptor)
+    {
+        for (SSTableReader sstable : cfs.getSSTables())
+        {
+            // .equals() with no other changes won't work because in sstable.descriptor, the directory is an absolute path.
+            // We could construct descriptor with an absolute path too but I haven't found any satisfying way to do that
+            // (DB.getDataFileLocationForTable() may not return the right path if you have multiple volumes). Hence the
+            // endsWith.
+            if (sstable.descriptor.toString().endsWith(descriptor.toString()))
+                return sstable;
+        }
+        return null;
+    }
+
     public Future<Object> submitValidation(final ColumnFamilyStore cfStore, final AntiEntropyService.Validator validator)
     {
         Callable<Object> callable = new Callable<Object>()

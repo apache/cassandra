@@ -647,11 +647,11 @@ public final class CFMetaData
         // validate
         if (!cf_def.id.equals(cfId))
             throw new ConfigurationException("ids do not match.");
-        if (!cf_def.keyspace.equals(tableName))
+        if (!cf_def.keyspace.toString().equals(tableName))
             throw new ConfigurationException("keyspaces do not match.");
-        if (!cf_def.name.equals(cfName))
+        if (!cf_def.name.toString().equals(cfName))
             throw new ConfigurationException("names do not match.");
-        if (!cf_def.column_type.equals(cfType.name()))
+        if (!cf_def.column_type.toString().equals(cfType.name()))
             throw new ConfigurationException("types do not match.");
         if (comparator != DatabaseDescriptor.getComparator(cf_def.comparator_type))
             throw new ConfigurationException("comparators do not match.");

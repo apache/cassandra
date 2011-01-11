@@ -123,7 +123,7 @@ public class Descriptor
      * Filename of the form "<ksname>/<cfname>-[tmp-][<version>-]<gen>-<component>"
      * @return A Descriptor for the SSTable, and the Component remainder.
      */
-    static Pair<Descriptor,String> fromFilename(File directory, String name)
+    public static Pair<Descriptor,String> fromFilename(File directory, String name)
     {
         // name of parent directory is keyspace name
         String ksname = directory.getName();
