@@ -88,7 +88,7 @@ public class IncomingTcpConnection extends Thread
                     input.readFully(contentBytes);
                     
                     Message message = Message.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(contentBytes)));
-                    MessagingService.receive(message);
+                    MessagingService.instance().receive(message);
                 }
                 // prepare to read the next message
                 MessagingService.validateMagic(input.readInt());

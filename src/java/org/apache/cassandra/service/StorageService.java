@@ -273,7 +273,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.unregister(migrationManager);
         Gossiper.instance.unregister(this);
         Gossiper.instance.stop();
-        MessagingService.shutdown();
+        MessagingService.instance().shutdown();
         StageManager.shutdownNow();
     }
     
@@ -1500,7 +1500,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             public void run()
             {
                 Gossiper.instance.stop();
-                MessagingService.shutdown();
+                MessagingService.instance().shutdown();
                 StageManager.shutdownNow();
                 setMode("Decommissioned", true);
                 // let op be responsible for killing the process
@@ -1797,9 +1797,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         setMode("Starting drain process", true);
         Gossiper.instance.stop();
         setMode("Draining: shutting down MessageService", false);
-        MessagingService.shutdown();
+        MessagingService.instance().shutdown();
         setMode("Draining: emptying MessageService pools", false);
-        MessagingService.waitFor();
+        MessagingService.instance().waitFor();
 
         setMode("Draining: clearing mutation stage", false);
         mutationStage.shutdown();

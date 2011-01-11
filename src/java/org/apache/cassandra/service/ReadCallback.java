@@ -83,9 +83,10 @@ public class ReadCallback<T> implements IAsyncCallback
 
     public void close()
     {
+        MessagingService ms = MessagingService.instance();
         for (Message response : resolver.getMessages())
         {
-            MessagingService.removeRegisteredCallback(response.getMessageId());
+            ms.removeRegisteredCallback(response.getMessageId());
         }
     }
     
