@@ -1,6 +1,8 @@
 0.6.10
-  * buffer network stack to avoid inefficient small TCP messages while avoiding
-    the nagle/delayed ack problem (CASSANDRA-1896)
+ * buffer network stack to avoid inefficient small TCP messages while avoiding
+   the nagle/delayed ack problem (CASSANDRA-1896)
+ * fix race condition in MessagingService.targets (CASSANDRA-1959)
+
 
 0.6.9
  * add clustertool, config-converter, sstablekeys, and schematool 
