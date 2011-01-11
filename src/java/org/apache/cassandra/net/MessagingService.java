@@ -30,6 +30,7 @@ import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.ServerSocketChannel;
 import java.security.MessageDigest;
 import java.util.*;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -58,37 +59,37 @@ import org.apache.cassandra.utils.ExpiringMap;
 import org.apache.cassandra.utils.GuidGenerator;
 import org.apache.cassandra.utils.SimpleCondition;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
-public class MessagingService implements MessagingServiceMBean, ILatencyPublisher
+public final class MessagingService implements MessagingServiceMBean, ILatencyPublisher
 {
-    private static int version_ = 1;
+    private static final int version_ = 1;
     //TODO: make this parameter dynamic somehow.  Not sure if config is appropriate.
-    private static SerializerType serializerType_ = SerializerType.BINARY;
+    private SerializerType serializerType_ = SerializerType.BINARY;
 
     /** we preface every message with this number so the recipient can validate the sender is sane */
-    public static final int PROTOCOL_MAGIC = 0xCA552DFA;
+    private static final int PROTOCOL_MAGIC = 0xCA552DFA;
 
     /* This records all the results mapped by message Id */
-    private static ExpiringMap<String, IMessageCallback> callbacks;
-    private static Multimap<String, InetAddress> targets;
+    private final ExpiringMap<String, IMessageCallback> callbacks;
+    private final ConcurrentMap<String, Collection<InetAddress>> targets = new NonBlockingHashMap<String, Collection<InetAddress>>();
 
     /* Lookup table for registering message handlers based on the verb. */
-    private static Map<StorageService.Verb, IVerbHandler> verbHandlers_;
+    private final Map<StorageService.Verb, IVerbHandler> verbHandlers_;
 
     /* Thread pool to handle messaging write activities */
-    private static ExecutorService streamExecutor_;
+    private final ExecutorService streamExecutor_;
     
-    private static NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool> connectionManagers_ = new NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool>();
+    private final NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool> connectionManagers_ = new NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool>();
     
-    private static Logger logger_ = LoggerFactory.getLogger(MessagingService.class);
-    private static int LOG_DROPPED_INTERVAL_IN_MS = 5000;
+    private static final Logger logger_ = LoggerFactory.getLogger(MessagingService.class);
+    private static final int LOG_DROPPED_INTERVAL_IN_MS = 5000;
 
     private SocketThread socketThread;
-    private SimpleCondition listenGate;
-    private static final Map<StorageService.Verb, AtomicInteger> droppedMessages = new EnumMap<StorageService.Verb, AtomicInteger>(StorageService.Verb.class);
+    private final SimpleCondition listenGate;
+    private final Map<StorageService.Verb, AtomicInteger> droppedMessages = new EnumMap<StorageService.Verb, AtomicInteger>(StorageService.Verb.class);
     private final List<ILatencySubscriber> subscribers = new ArrayList<ILatencySubscriber>();
 
-    static
     {
         for (StorageService.Verb verb : StorageService.Verb.values())
             droppedMessages.put(verb, new AtomicInteger());
@@ -103,13 +104,7 @@ public class MessagingService implements MessagingServiceMBean, ILatencyPublishe
         return MSHandle.instance;
     }
 
-    public Object clone() throws CloneNotSupportedException
-    {
-        //Prevents the singleton from being cloned
-        throw new CloneNotSupportedException();
-    }
-
-    protected MessagingService()
+    private MessagingService()
     {
         listenGate = new SimpleCondition();
         verbHandlers_ = new EnumMap<StorageService.Verb, IVerbHandler>(StorageService.Verb.class);
@@ -127,7 +122,7 @@ public class MessagingService implements MessagingServiceMBean, ILatencyPublishe
         {
             public Object apply(String messageId)
             {
-                Collection<InetAddress> addresses = targets.removeAll(messageId);
+                Collection<InetAddress> addresses = targets.remove(messageId);
                 if (addresses == null)
                     return null;
 
@@ -140,7 +135,6 @@ public class MessagingService implements MessagingServiceMBean, ILatencyPublishe
                 return null;
             }
         };
-        targets = ArrayListMultimap.create();
         callbacks = new ExpiringMap<String, IMessageCallback>((long) (1.1 * DatabaseDescriptor.getRpcTimeout()), timeoutReporter);
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
@@ -154,7 +148,7 @@ public class MessagingService implements MessagingServiceMBean, ILatencyPublishe
         }
     }
 
-    public byte[] hash(String type, byte data[])
+    public static byte[] hash(String type, byte data[])
     {
         byte result[];
         try
@@ -203,7 +197,7 @@ public class MessagingService implements MessagingServiceMBean, ILatencyPublishe
         }
     }
 
-    public static OutboundTcpConnectionPool getConnectionPool(InetAddress to)
+    public OutboundTcpConnectionPool getConnectionPool(InetAddress to)
     {
         OutboundTcpConnectionPool cp = connectionManagers_.get(to);
         if (cp == null)
@@ -214,7 +208,7 @@ public class MessagingService implements MessagingServiceMBean, ILatencyPublishe
         return cp;
     }
 
-    public static OutboundTcpConnection getConnection(InetAddress to, Message msg)
+    public OutboundTcpConnection getConnection(InetAddress to, Message msg)
     {
         return getConnectionPool(to).getConnection(msg);
     }
@@ -255,10 +249,31 @@ public class MessagingService implements MessagingServiceMBean, ILatencyPublishe
         addCallback(cb, messageId);
         for (InetAddress endpoint : to)
         {
-            targets.put(messageId, endpoint);
+            putTarget(messageId, endpoint);
             sendOneWay(message, endpoint);
         }
         return messageId;
+    }
+
+    private void putTarget(String messageId, InetAddress endpoint)
+    {
+        Collection<InetAddress> addresses = targets.get(messageId);
+        if (addresses == null)
+        {
+            addresses = new NonBlockingHashSet<InetAddress>();
+            Collection<InetAddress> oldAddresses = targets.putIfAbsent(messageId, addresses);
+            if (oldAddresses != null)
+                addresses = oldAddresses;
+        }
+        addresses.add(endpoint);
+    }
+
+    private void removeTarget(String messageId, InetAddress from)
+    {
+        Collection<InetAddress> addresses = targets.get(messageId);
+        // null is expected if we removed the callback or we got a reply after its timeout expired
+        if (addresses != null)
+            addresses.remove(from);
     }
 
     public void addCallback(IAsyncCallback cb, String messageId)
@@ -280,7 +295,7 @@ public class MessagingService implements MessagingServiceMBean, ILatencyPublishe
     {        
         String messageId = message.getMessageId();
         addCallback(cb, messageId);
-        targets.put(messageId, to);
+        putTarget(messageId, to);
         sendOneWay(message, to);
         return messageId;
     }
@@ -307,7 +322,7 @@ public class MessagingService implements MessagingServiceMBean, ILatencyPublishe
         for ( int i = 0; i < messages.length; ++i )
         {
             messages[i].setMessageId(groupId);
-            targets.put(groupId, to.get(i));
+            putTarget(groupId, to.get(i));
             sendOneWay(messages[i], to.get(i));
         }
         return groupId;
@@ -324,7 +339,7 @@ public class MessagingService implements MessagingServiceMBean, ILatencyPublishe
         // do local deliveries
         if ( message.getFrom().equals(to) )
         {
-            MessagingService.receive(message);
+            receive(message);
             return;
         }
 
@@ -361,7 +376,7 @@ public class MessagingService implements MessagingServiceMBean, ILatencyPublishe
     {
         IAsyncResult iar = new AsyncResult();
         callbacks.put(message.getMessageId(), iar);
-        targets.put(message.getMessageId(), to);
+        putTarget(message.getMessageId(), to);
         sendOneWay(message, to);
         return iar;
     }
@@ -385,19 +400,19 @@ public class MessagingService implements MessagingServiceMBean, ILatencyPublishe
     }
 
     /** blocks until the processing pools are empty and done. */
-    public static void waitFor() throws InterruptedException
+    public void waitFor() throws InterruptedException
     {
         while (!streamExecutor_.isTerminated())
             streamExecutor_.awaitTermination(5, TimeUnit.SECONDS);
     }
 
-    public static void shutdown()
+    public void shutdown()
     {
         logger_.info("Shutting down MessageService...");
 
         try
         {
-            instance().socketThread.close();
+            socketThread.close();
         }
         catch (IOException e)
         {
@@ -410,7 +425,7 @@ public class MessagingService implements MessagingServiceMBean, ILatencyPublishe
         logger_.info("Shutdown complete (no further commands will be processed)");
     }
 
-    public static void receive(Message message)
+    public void receive(Message message)
     {
         message = SinkManager.processServerMessage(message);
         if (message == null)
@@ -422,25 +437,25 @@ public class MessagingService implements MessagingServiceMBean, ILatencyPublishe
         stage.execute(runnable);
     }
 
-    public static IMessageCallback getRegisteredCallback(String messageId)
+    public IMessageCallback getRegisteredCallback(String messageId)
     {
         return callbacks.get(messageId);
     }
     
-    public static IMessageCallback removeRegisteredCallback(String messageId)
+    public IMessageCallback removeRegisteredCallback(String messageId)
     {
-        targets.removeAll(messageId); // TODO fix this when we clean up quorum reads to do proper RR
+        targets.remove(messageId); // TODO fix this when we clean up quorum reads to do proper RR
         return callbacks.remove(messageId);
     }
 
-    public static long getRegisteredCallbackAge(String messageId)
+    public long getRegisteredCallbackAge(String messageId)
     {
         return callbacks.getAge(messageId);
     }
 
-    public static void responseReceivedFrom(String messageId, InetAddress from)
+    public void responseReceivedFrom(String messageId, InetAddress from)
     {
-        targets.remove(messageId, from);
+        removeTarget(messageId, from);
     }
 
     public static void validateMagic(int magic) throws IOException
@@ -454,7 +469,7 @@ public class MessagingService implements MessagingServiceMBean, ILatencyPublishe
         return x >>> (p + 1) - n & ~(-1 << n);
     }
         
-    public static ByteBuffer packIt(byte[] bytes, boolean compress)
+    public ByteBuffer packIt(byte[] bytes, boolean compress)
     {
         /*
              Setting up the protocol header. This is 4 bytes long
@@ -484,7 +499,7 @@ public class MessagingService implements MessagingServiceMBean, ILatencyPublishe
         return buffer;
     }
         
-    public static ByteBuffer constructStreamHeader(StreamHeader streamHeader, boolean compress)
+    public ByteBuffer constructStreamHeader(StreamHeader streamHeader, boolean compress)
     {
         /* 
         Setting up the protocol header. This is 4 bytes long
@@ -535,12 +550,12 @@ public class MessagingService implements MessagingServiceMBean, ILatencyPublishe
         return buffer;
     }
 
-    public static int incrementDroppedMessages(StorageService.Verb verb)
+    public int incrementDroppedMessages(StorageService.Verb verb)
     {
         return droppedMessages.get(verb).incrementAndGet();
     }
                
-    private static void logDroppedMessages()
+    private void logDroppedMessages()
     {
         boolean logTpstats = false;
         for (Map.Entry<StorageService.Verb, AtomicInteger> entry : droppedMessages.entrySet())

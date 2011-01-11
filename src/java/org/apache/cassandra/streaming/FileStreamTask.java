@@ -84,7 +84,7 @@ public class FileStreamTask extends WrappedRunnable
 
     private void stream(SocketChannel channel) throws IOException
     {
-        ByteBuffer buffer = MessagingService.constructStreamHeader(header, false);
+        ByteBuffer buffer = MessagingService.instance().constructStreamHeader(header, false);
         channel.write(buffer);
         assert buffer.remaining() == 0;
         if (header.file == null)

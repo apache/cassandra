@@ -23,6 +23,7 @@
  * fix CFMetaData.apply to only compare objects of the same class 
    (CASSANDRA-1962)
  * allow specifying specific SSTables to compact from JMX (CASSANDRA-1963)
+ * fix race condition in MessagingService.targets (CASSANDRA-1959)
 
 
 0.7.0-dev

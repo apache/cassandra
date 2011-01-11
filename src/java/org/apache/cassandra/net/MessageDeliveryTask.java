@@ -50,7 +50,7 @@ public class MessageDeliveryTask implements Runnable
             case REQUEST_RESPONSE:
                 if (System.currentTimeMillis() > constructionTime_ + DatabaseDescriptor.getRpcTimeout())
                 {
-                    MessagingService.incrementDroppedMessages(verb);
+                    MessagingService.instance().incrementDroppedMessages(verb);
                     return;
                 }
                 break;

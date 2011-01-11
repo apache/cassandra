@@ -37,9 +37,9 @@ public class ResponseVerbHandler implements IVerbHandler, ILatencyPublisher
     public void doVerb(Message message)
     {     
         String messageId = message.getMessageId();
-        MessagingService.responseReceivedFrom(messageId, message.getFrom());
-        double age = System.currentTimeMillis() - MessagingService.getRegisteredCallbackAge(messageId);
-        IMessageCallback cb = MessagingService.getRegisteredCallback(messageId);
+        MessagingService.instance().responseReceivedFrom(messageId, message.getFrom());
+        double age = System.currentTimeMillis() - MessagingService.instance().getRegisteredCallbackAge(messageId);
+        IMessageCallback cb = MessagingService.instance().getRegisteredCallback(messageId);
         if (cb == null)
             return;
 
