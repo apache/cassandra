@@ -36,6 +36,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
 import static org.apache.cassandra.io.sstable.SSTableUtils.tempSSTableFile;
+import static org.junit.Assert.assertEquals;
 
 import org.apache.cassandra.Util;
 
@@ -82,6 +83,9 @@ public class SSTableImportTest extends SchemaLoader
         QueryFilter qf = QueryFilter.getNamesFilter(Util.dk("rowA"), new QueryPath("Super4", null, null), ByteBufferUtil.bytes("superA"));
         ColumnFamily cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
         IColumn superCol = cf.getColumn(ByteBufferUtil.bytes("superA"));
-        assert superCol.getSubColumn(ByteBufferUtil.bytes("colAA")).value().equals(ByteBuffer.wrap(hexToBytes("76616c75654141")));
+        assert superCol != null;
+        assert superCol.getSubColumns().size() > 0;
+        IColumn subColumn = superCol.getSubColumn(ByteBufferUtil.bytes("colAA"));
+        assert subColumn.value().equals(ByteBuffer.wrap(hexToBytes("76616c75654141")));
     }
 }

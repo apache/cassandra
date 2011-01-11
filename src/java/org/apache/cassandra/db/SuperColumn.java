@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.io.util.ColumnSortedMap;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -41,7 +42,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class SuperColumn implements IColumn, IColumnContainer
 {
-	private static Logger logger_ = LoggerFactory.getLogger(SuperColumn.class);
+    private static Logger logger_ = LoggerFactory.getLogger(SuperColumn.class);
 
     public static SuperColumnSerializer serializer(AbstractType comparator)
     {
@@ -58,7 +59,7 @@ public class SuperColumn implements IColumn, IColumnContainer
         this(name, new ConcurrentSkipListMap<ByteBuffer, IColumn>(comparator));
     }
 
-    private SuperColumn(ByteBuffer name, ConcurrentSkipListMap<ByteBuffer, IColumn> columns)
+    SuperColumn(ByteBuffer name, ConcurrentSkipListMap<ByteBuffer, IColumn> columns)
     {
         assert name != null;
         assert name.remaining() <= IColumn.MAX_NAME_LENGTH;
@@ -317,6 +318,8 @@ public class SuperColumn implements IColumn, IColumnContainer
 
 class SuperColumnSerializer implements ICompactSerializer2<IColumn>
 {
+    private static Logger logger = LoggerFactory.getLogger(SuperColumnSerializer.class);
+
     private AbstractType comparator;
 
     public SuperColumnSerializer(AbstractType comparator)
@@ -331,7 +334,7 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
 
     public void serialize(IColumn column, DataOutput dos)
     {
-    	SuperColumn superColumn = (SuperColumn)column;
+        SuperColumn superColumn = (SuperColumn)column;
         FBUtilities.writeShortByteArray(column.name(), dos);
         try
         {
@@ -354,21 +357,23 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
     public IColumn deserialize(DataInput dis) throws IOException
     {
         ByteBuffer name = FBUtilities.readShortByteArray(dis);
-        SuperColumn superColumn = new SuperColumn(name, comparator);
         int localDeleteTime = dis.readInt();
         if (localDeleteTime != Integer.MIN_VALUE && localDeleteTime <= 0)
         {
             throw new IOException("Invalid localDeleteTime read: " + localDeleteTime);
         }
-        superColumn.markForDeleteAt(localDeleteTime, dis.readLong());
+        long markedForDeleteAt = dis.readLong();
 
         /* read the number of columns */
         int size = dis.readInt();
-        for ( int i = 0; i < size; ++i )
+        ColumnSerializer serializer = Column.serializer();
+        ColumnSortedMap preSortedMap = new ColumnSortedMap(comparator, serializer, dis, size);
+        SuperColumn superColumn = new SuperColumn(name, new ConcurrentSkipListMap<ByteBuffer,IColumn>(preSortedMap));
+        if (localDeleteTime != Integer.MIN_VALUE && localDeleteTime <= 0)
         {
-            IColumn subColumn = Column.serializer().deserialize(dis);
-            superColumn.addColumn(subColumn);
+            throw new IOException("Invalid localDeleteTime read: " + localDeleteTime);
         }
+        superColumn.markForDeleteAt(localDeleteTime, markedForDeleteAt);
         return superColumn;
     }
 }

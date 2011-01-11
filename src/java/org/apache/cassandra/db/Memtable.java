@@ -223,7 +223,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         final Collection<IColumn> filteredColumns = filter.reversed ? cf.getReverseSortedColumns() : cf.getSortedColumns();
 
         // ok to not have subcolumnComparator since we won't be adding columns to this object
-        IColumn startColumn = isSuper ? new SuperColumn(filter.start, null) :  new Column(filter.start);
+        IColumn startColumn = isSuper ? new SuperColumn(filter.start, (AbstractType)null) :  new Column(filter.start);
         Comparator<IColumn> comparator = filter.getColumnComparator(typeComparator);
 
         final PeekingIterator<IColumn> filteredIter = Iterators.peekingIterator(filteredColumns.iterator());
