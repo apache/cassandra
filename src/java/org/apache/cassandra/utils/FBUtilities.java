@@ -637,43 +637,6 @@ public class FBUtilities
         return Charsets.UTF_8.newDecoder().decode(bytes.duplicate()).toString();
     }
 
-    /** 
-     * Thin wrapper around byte[] to provide meaningful equals() and hashCode() operations
-     * caveat: assumed that wrapped byte[] will not be modified
-     */
-    public static final class ByteArrayWrapper
-    {
-        public final byte[] data;
-
-        public ByteArrayWrapper(byte[] data)
-        {
-            if ( null == data )
-            {
-                throw new NullPointerException();
-            }
-            this.data = data;
-        }
-
-        public boolean equals(Object other)
-        {
-            if ( !( other instanceof ByteArrayWrapper ) )
-            {
-                return false;
-            }
-            return Arrays.equals(data, ((ByteArrayWrapper)other).data);
-        }
-
-        public int hashCode()
-        {
-            return Arrays.hashCode(data);
-        }
-
-        public String toString()
-        {
-            return ArrayUtils.toString(data);
-        }
-    }
-
     public static String resourceToFile(String filename) throws ConfigurationException
     {
         ClassLoader loader = PropertyFileSnitch.class.getClassLoader();

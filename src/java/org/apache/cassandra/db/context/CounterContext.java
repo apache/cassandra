@@ -46,7 +46,7 @@ import org.apache.cassandra.utils.FBUtilities;
 public class CounterContext implements IContext
 {
     private static final int idLength;
-    private static final FBUtilities.ByteArrayWrapper idWrapper;
+    private static final byte[] localId;
     private static final int clockLength = DBConstants.longSize_;
     private static final int countLength = DBConstants.longSize_;
     private static final int stepLength; // length: id + logical clock + count
@@ -59,9 +59,8 @@ public class CounterContext implements IContext
 
     static
     {
-        byte[] id  = FBUtilities.getLocalAddress().getAddress();
-        idLength   = id.length;
-        idWrapper  = new FBUtilities.ByteArrayWrapper(id);
+        localId  = FBUtilities.getLocalAddress().getAddress();
+        idLength   = localId.length;
         stepLength = idLength + clockLength + countLength;
     }
 
@@ -95,103 +94,45 @@ public class CounterContext implements IContext
         FBUtilities.copyIntoBytes(context, offset + idLength + clockLength, count);
     }
 
+    public byte[] insertElementAtStepOffset(byte[] context, int stepOffset, byte[] id, long clock, long count)
+    {
+        int offset = stepOffset * stepLength;
+        byte[] newContext = new byte[context.length + stepLength];
+        System.arraycopy(context, 0, newContext, 0, offset);
+        writeElementAtStepOffset(newContext, stepOffset, id, clock, count);
+        System.arraycopy(context, offset, newContext, offset + stepLength, context.length - offset);
+        return newContext;
+    }
+
     public byte[] update(byte[] context, InetAddress node, long delta)
     {
         // calculate node id
         byte[] nodeId = node.getAddress();
+        int idCount = context.length / stepLength;
 
         // look for this node id
-        for (int offset = 0; offset < context.length; offset += stepLength)
+        for (int stepOffset = 0; stepOffset < idCount; ++stepOffset)
         {
-            if (FBUtilities.compareByteSubArrays(nodeId, 0, context, offset, idLength) != 0)
-                continue;
-
-            // node id found: increment clock, update count; shift to front
-            long clock = FBUtilities.byteArrayToLong(context, offset + idLength);
-            long count = FBUtilities.byteArrayToLong(context, offset + idLength + clockLength);
-
-            System.arraycopy(
-                context,
-                0,
-                context,
-                stepLength,
-                offset);
-            writeElement(context, nodeId, clock + 1L, count + delta);
-
-            return context;
-        }
-
-        // node id not found: widen context
-        byte[] previous = context;
-        context = new byte[previous.length + stepLength];
-
-        writeElement(context, nodeId, 1L, delta);
-        System.arraycopy(
-            previous,
-            0,
-            context,
-            stepLength,
-            previous.length);
-
-        return context;
-    }
-
-    // swap bytes of step length in context
-    protected static void swapElement(byte[] context, int left, int right)
-    {
-        if (left == right) return;
-
-        byte temp;
-        for (int i = 0; i < stepLength; i++)
-        {
-            temp = context[left+i];
-            context[left+i] = context[right+i];
-            context[right+i] = temp;
-        }
-    }
-
-    // partition bytes of step length in context (for quicksort)
-    protected static int partitionElements(byte[] context, int left, int right, int pivotIndex)
-    {
-        int leftOffset  = left       * stepLength;
-        int rightOffset = right      * stepLength;
-        int pivotOffset = pivotIndex * stepLength;
-
-        byte[] pivotValue = ArrayUtils.subarray(context, pivotOffset, pivotOffset + stepLength);
-        swapElement(context, pivotOffset, rightOffset);
-        int storeOffset = leftOffset;
-        for (int i = leftOffset; i < rightOffset; i += stepLength)
-        {
-            if (FBUtilities.compareByteSubArrays(context, i, pivotValue, 0, stepLength) <= 0)
+            int offset = stepOffset * stepLength;
+            int cmp = FBUtilities.compareByteSubArrays(nodeId, 0, context, offset, idLength);
+            if (cmp == 0)
             {
-                swapElement(context, i, storeOffset);
-                storeOffset += stepLength;
+                // node id found: increment clock, update count; shift to front
+                long clock = FBUtilities.byteArrayToLong(context, offset + idLength);
+                long count = FBUtilities.byteArrayToLong(context, offset + idLength + clockLength);
+
+                writeElementAtStepOffset(context, stepOffset, nodeId, clock + 1L, count + delta);
+                return context;
+            }
+            if (cmp < 0)
+            {
+                // id at offset is greater that the one we are updating, inserting
+                return insertElementAtStepOffset(context, stepOffset, nodeId, 1L, delta);
             }
         }
-        swapElement(context, storeOffset, rightOffset);
-        return storeOffset / stepLength;
-    }
 
-    // quicksort helper
-    protected static void sortElementsByIdHelper(byte[] context, int left, int right)
-    {
-        if (right <= left) return;
-
-        int pivotIndex = (left + right) / 2;
-        int pivotIndexNew = partitionElements(context, left, right, pivotIndex);
-        sortElementsByIdHelper(context, left, pivotIndexNew - 1);
-        sortElementsByIdHelper(context, pivotIndexNew + 1, right);
-    }
-
-    // quicksort context by id
-    protected static byte[] sortElementsById(byte[] context)
-    {
-        assert 0 == (context.length % stepLength) : "context size is not correct.";
-        sortElementsByIdHelper(
-            context,
-            0,
-            (int)(context.length / stepLength) - 1);
-        return context;
+        // node id not found: adding at the end
+        return insertElementAtStepOffset(context, idCount, nodeId, 1L, delta);
     }
 
     /**
@@ -213,9 +154,6 @@ public class CounterContext implements IContext
      */
     public ContextRelationship diff(byte[] left, byte[] right)
     {
-        left  = sortElementsById(left);
-        right = sortElementsById(right);
-
         ContextRelationship relationship = ContextRelationship.EQUAL;
 
         int leftIndex  = 0;
@@ -382,87 +320,99 @@ public class CounterContext implements IContext
      */
     public byte[] merge(byte[] left, byte[] right)
     {
-        // strategy:
-        //   1) map id -> (clock, count)
-        //      a) local id:  sum clocks, counts
-        //      b) remote id: keep highest clock, count (reconcile)
-        //   2) create a context from sorted array
-        Map<FBUtilities.ByteArrayWrapper, CounterNode> contextsMap =
-            new HashMap<FBUtilities.ByteArrayWrapper, CounterNode>();
-
-        // map left context: id -> (clock, count)
-        for (int offset = 0; offset < left.length; offset += stepLength)
+        if (left.length > right.length)
         {
-            FBUtilities.ByteArrayWrapper id = new FBUtilities.ByteArrayWrapper(
-                ArrayUtils.subarray(left, offset, offset + idLength));
-            long clock = FBUtilities.byteArrayToLong(left, offset + idLength);
-            long count = FBUtilities.byteArrayToLong(left, offset + idLength + clockLength);
-
-            contextsMap.put(id, new CounterNode(clock, count));
+            byte[] tmp = right;
+            right = left;
+            left = tmp;
         }
 
-        // map right context: id -> (clock, count)
-        for (int offset = 0; offset < right.length; offset += stepLength)
+        // Compute size of result
+        int size = 0;
+        int leftOffset  = 0;
+        int rightOffset = 0;
+        while ((leftOffset < left.length) && (rightOffset < right.length))
         {
-            FBUtilities.ByteArrayWrapper id = new FBUtilities.ByteArrayWrapper(
-                ArrayUtils.subarray(right, offset, offset + idLength));
-            long clock = FBUtilities.byteArrayToLong(right, offset + idLength);
-            long count = FBUtilities.byteArrayToLong(right, offset + idLength + clockLength);
-
-            if (!contextsMap.containsKey(id))
+            int cmp = FBUtilities.compareByteSubArrays(left, leftOffset, right, rightOffset, idLength);
+            if (cmp == 0)
             {
-                contextsMap.put(id, new CounterNode(clock, count));
-                continue;
+                ++size;
+                rightOffset += stepLength;
+                leftOffset += stepLength;
             }
-
-            CounterNode node = contextsMap.get(id);
-
-            // local id: sum clocks, counts
-            if (this.idWrapper.equals(id))
+            else if (cmp > 0)
             {
-                contextsMap.put(id, new CounterNode(
-                    clock + node.clock,
-                    count + node.count));
-                continue;
+                ++size;
+                rightOffset += stepLength;
             }
-
-            // remote id: keep highest clock and its count
-            if (node.clock < clock)
+            else // cmp < 0
             {
-                contextsMap.put(id, new CounterNode(clock, count));
+                ++size;
+                leftOffset += stepLength;
             }
         }
+        size += (left.length  - leftOffset)  / stepLength;
+        size += (right.length - rightOffset) / stepLength;
 
-        // sort merged tuples
-        List<Map.Entry<FBUtilities.ByteArrayWrapper, CounterNode>> contextsList =
-            new ArrayList<Map.Entry<FBUtilities.ByteArrayWrapper, CounterNode>>(
-                    contextsMap.entrySet());
-        Collections.sort(
-            contextsList,
-            new Comparator<Map.Entry<FBUtilities.ByteArrayWrapper, CounterNode>>()
+        byte[] merged = new byte[size * stepLength];
+
+        // Do the actual merge:
+        //   a) local id:  sum clocks, counts
+        //   b) remote id: keep highest clock, count (reconcile)
+        int mergedOffset = 0; leftOffset = 0; rightOffset = 0;
+        while ((leftOffset < left.length) && (rightOffset < right.length))
+        {
+            int cmp = FBUtilities.compareByteSubArrays(left, leftOffset, right, rightOffset, idLength);
+            if (cmp == 0)
             {
-                public int compare(
-                    Map.Entry<FBUtilities.ByteArrayWrapper, CounterNode> e1,
-                    Map.Entry<FBUtilities.ByteArrayWrapper, CounterNode> e2)
+                // sum for local id, keep highest othewise
+                long leftClock = FBUtilities.byteArrayToLong(left, leftOffset + idLength);
+                long rightClock = FBUtilities.byteArrayToLong(right, rightOffset + idLength);
+                if (FBUtilities.compareByteSubArrays(left, leftOffset, localId, 0, idLength) == 0)
                 {
-                    // reversed
-                    return e2.getValue().compareClockTo(e1.getValue());
+                    long leftCount = FBUtilities.byteArrayToLong(left, leftOffset + idLength + clockLength);
+                    long rightCount = FBUtilities.byteArrayToLong(right, rightOffset + idLength + clockLength);
+                    writeElementAtStepOffset(merged, mergedOffset / stepLength, localId, leftClock + rightClock, leftCount + rightCount);
                 }
-            });
-
-        // create merged context
-        int length = contextsList.size();
-        byte[] merged = new byte[length * stepLength];
-        for (int i = 0; i < length; i++)
-        {
-            Map.Entry<FBUtilities.ByteArrayWrapper, CounterNode> entry = contextsList.get(i);
-            writeElementAtStepOffset(
-                merged,
-                i,
-                entry.getKey().data,
-                entry.getValue().clock,
-                entry.getValue().count);
+                else
+                {
+                    if (leftClock >= rightClock)
+                        System.arraycopy(left, leftOffset, merged, mergedOffset, stepLength);
+                    else
+                        System.arraycopy(right, rightOffset, merged, mergedOffset, stepLength);
+                }
+                mergedOffset += stepLength;
+                rightOffset += stepLength;
+                leftOffset += stepLength;
+            }
+            else if (cmp > 0)
+            {
+                System.arraycopy(right, rightOffset, merged, mergedOffset, stepLength);
+                mergedOffset += stepLength;
+                rightOffset += stepLength;
+            }
+            else // cmp < 0
+            {
+                System.arraycopy(left, leftOffset, merged, mergedOffset, stepLength);
+                mergedOffset += stepLength;
+                leftOffset += stepLength;
+            }
         }
+        if (leftOffset < left.length)
+            System.arraycopy(
+                left,
+                leftOffset,
+                merged,
+                mergedOffset,
+                left.length - leftOffset);
+        if (rightOffset < right.length)
+            System.arraycopy(
+                right,
+                rightOffset,
+                merged,
+                mergedOffset,
+                right.length - rightOffset);
+
         return merged;
     }
 
@@ -528,19 +478,26 @@ public class CounterContext implements IContext
         // look for this node id
         for (int offset = 0; offset < context.length; offset += stepLength)
         {
-            if (FBUtilities.compareByteSubArrays(context, offset, nodeId, 0, idLength) != 0)
+            int cmp = FBUtilities.compareByteSubArrays(context, offset, nodeId, 0, idLength);
+            if (cmp < 0)
                 continue;
-
-            // node id found: remove node count
-            byte[] truncatedContext = new byte[context.length - stepLength];
-            System.arraycopy(context, 0, truncatedContext, 0, offset);
-            System.arraycopy(
-                context,
-                offset + stepLength,
-                truncatedContext,
-                offset,
-                context.length - (offset + stepLength));
-            return truncatedContext;
+            else if (cmp == 0)
+            {
+                // node id found: remove node count
+                byte[] truncatedContext = new byte[context.length - stepLength];
+                System.arraycopy(context, 0, truncatedContext, 0, offset);
+                System.arraycopy(
+                        context,
+                        offset + stepLength,
+                        truncatedContext,
+                        offset,
+                        context.length - (offset + stepLength));
+                return truncatedContext;
+            }
+            else // cmp > 0
+            {
+                break; // node id not present
+            }
         }
 
         return context;

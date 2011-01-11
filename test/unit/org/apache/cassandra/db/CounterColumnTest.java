@@ -106,13 +106,13 @@ public class CounterColumnTest
 
         assert c.partitionedCounter().length == (2 * stepLength);
 
-        assert   2 == FBUtilities.byteArrayToInt(c.partitionedCounter(),  0*stepLength);
-        assert  3L == FBUtilities.byteArrayToLong(c.partitionedCounter(), 0*stepLength + idLength);
-        assert 14L == FBUtilities.byteArrayToLong(c.partitionedCounter(), 0*stepLength + idLength + clockLength);
+        assert  1 == FBUtilities.byteArrayToInt(c.partitionedCounter(),  0*stepLength);
+        assert 1L == FBUtilities.byteArrayToLong(c.partitionedCounter(), 0*stepLength + idLength);
+        assert 1L == FBUtilities.byteArrayToLong(c.partitionedCounter(), 0*stepLength + idLength + clockLength);
 
-        assert  1 == FBUtilities.byteArrayToInt(c.partitionedCounter(),  1*stepLength);
-        assert 1L == FBUtilities.byteArrayToLong(c.partitionedCounter(), 1*stepLength + idLength);
-        assert 1L == FBUtilities.byteArrayToLong(c.partitionedCounter(), 1*stepLength + idLength + clockLength);
+        assert   2 == FBUtilities.byteArrayToInt(c.partitionedCounter(),  1*stepLength);
+        assert  3L == FBUtilities.byteArrayToLong(c.partitionedCounter(), 1*stepLength + idLength);
+        assert 14L == FBUtilities.byteArrayToLong(c.partitionedCounter(), 1*stepLength + idLength + clockLength);
     }
 
     @Test
@@ -204,8 +204,9 @@ public class CounterColumnTest
         right = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBuffer.wrap(cc.total(context)), 3L, context, 4L);
 
         reconciled = left.reconcile(right);
+
         assert reconciled.name() == left.name();
-        assert 9L == reconciled.value().getLong(reconciled.value().arrayOffset());
+        assert 9L == reconciled.value().getLong(reconciled.value().position());
         assert reconciled.timestamp() == 9L;
 
         context = ((CounterColumn)reconciled).partitionedCounter();
