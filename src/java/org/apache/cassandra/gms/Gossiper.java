@@ -433,7 +433,7 @@ public class Gossiper implements IFailureDetectionEventListener
         }
     }
 
-    EndpointState getEndpointStateForEndpoint(InetAddress ep)
+    public EndpointState getEndpointStateForEndpoint(InetAddress ep)
     {
         return endpointStateMap_.get(ep);
     }
@@ -847,6 +847,9 @@ public class Gossiper implements IFailureDetectionEventListener
             localState.isAGossiper(true);
             endpointStateMap_.put(localEndpoint_, localState);
         }
+
+        //notify snitches that Gossiper is about to start
+        DatabaseDescriptor.getEndpointSnitch().gossiperStarting();
 
         scheduledGossipTask = StorageService.scheduledTasks.scheduleWithFixedDelay(new GossipTask(),
                                                                                    Gossiper.intervalInMillis_,

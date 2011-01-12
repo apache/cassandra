@@ -36,6 +36,8 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class EndpointState
 {
+    protected static Logger logger = LoggerFactory.getLogger(EndpointState.class);
+
     private final static ICompactSerializer<EndpointState> serializer_ = new EndpointStateSerializer();
 
     volatile HeartBeatState hbState_;

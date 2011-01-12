@@ -54,4 +54,9 @@ public interface IEndpointSnitch
      * compares two endpoints in relation to the target endpoint, returning as Comparator.compare would
      */
     public int compareEndpoints(InetAddress target, InetAddress a1, InetAddress a2);
+
+    /**
+     * called after Gossiper instance exists immediately before it starts gossiping
+     */
+    public void gossiperStarting();
 }

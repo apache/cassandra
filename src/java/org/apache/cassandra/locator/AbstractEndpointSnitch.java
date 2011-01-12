@@ -37,4 +37,9 @@ public abstract class AbstractEndpointSnitch implements IEndpointSnitch
     {
         return a1.getHostAddress().compareTo(a2.getHostAddress());
     }
+
+    public void gossiperStarting()
+    {
+        //noop by default
+    }
 }
