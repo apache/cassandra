@@ -1145,6 +1145,22 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
     }
 
+    public void invalidateKeyCaches(String tableName, String... columnFamilies) throws IOException
+    {
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
+        {
+            cfStore.invalidateKeyCache();
+        }
+    }
+
+    public void invalidateRowCaches(String tableName, String... columnFamilies) throws IOException
+    {
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
+        {
+            cfStore.invalidateRowCache();
+        }
+    }
+
     /**
      * Takes the snapshot for a given table.
      *

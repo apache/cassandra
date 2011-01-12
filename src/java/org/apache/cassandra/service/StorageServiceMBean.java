@@ -279,4 +279,7 @@ public interface StorageServiceMBean
 
     // to determine if gossip is disabled
     public boolean isInitialized();
+
+    public void invalidateKeyCaches(String ks, String... cfs) throws IOException;
+    public void invalidateRowCaches(String ks, String... cfs) throws IOException;
 }

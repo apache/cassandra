@@ -146,9 +146,15 @@ public interface ColumnFamilyStoreMBean
     public void forceMajorCompaction() throws ExecutionException, InterruptedException;
 
     /**
+     * invalidate the key cache; for use after invalidating row cache
+     */
+    public void invalidateKeyCache();
+
+    /**
      * invalidate the row cache; for use after bulk loading via BinaryMemtable
      */
     public void invalidateRowCache();
+
 
     /**
      * return the size of the smallest compacted row

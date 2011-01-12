@@ -181,7 +181,17 @@ public class NodeProbe
     {
         ssProxy.forceTableRepair(tableName, columnFamilies);
     }
-    
+
+    public void invalidateKeyCaches(String tableName, String... columnFamilies) throws IOException
+    {
+        ssProxy.invalidateKeyCaches(tableName, columnFamilies);
+    }
+
+    public void invalidateRowCaches(String tableName, String... columnFamilies) throws IOException
+    {
+        ssProxy.invalidateRowCaches(tableName, columnFamilies);
+    }
+
     public void drain() throws IOException, InterruptedException, ExecutionException
     {
         ssProxy.drain();	
