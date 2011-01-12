@@ -444,7 +444,7 @@ public final class MessagingService implements MessagingServiceMBean, ILatencyPu
     
     public IMessageCallback removeRegisteredCallback(String messageId)
     {
-        targets.remove(messageId); // TODO fix this when we clean up quorum reads to do proper RR
+        targets.remove(messageId);
         return callbacks.remove(messageId);
     }
 

@@ -81,15 +81,6 @@ public class ReadCallback<T> implements IAsyncCallback
         return blockfor == 1 ? resolver.getData() : resolver.resolve();
     }
 
-    public void close()
-    {
-        MessagingService ms = MessagingService.instance();
-        for (Message response : resolver.getMessages())
-        {
-            ms.removeRegisteredCallback(response.getMessageId());
-        }
-    }
-    
     public void response(Message message)
     {
         resolver.preprocess(message);
