@@ -309,9 +309,8 @@ index_interval: 128
 #   With NetworkTopologyStrategy,
 #   for each datacenter, you can specify how many replicas you want
 #   on a per-keyspace basis.  Replicas are placed on different racks
-#   within each DC, if possible. With SimpleSnitch, this will be 
-#   equivalent to SimpleStrategy.  Later, the snitch can be upgraded to
-#   one such as RackInferringSnitch or PropertyFileSnitch.
+#   within each DC, if possible. This strategy also requires rack aware
+#   snitch, such as RackInferringSnitch or PropertyFileSnitch.
 #   An example:
 #    - name: Keyspace1
 #      replica_placement_strategy: org.apache.cassandra.locator.NetworkTopologyStrategy
@@ -406,7 +405,7 @@ index_interval: 128
 # /NOTE
 keyspaces:
     - name: Keyspace1
-      replica_placement_strategy: org.apache.cassandra.locator.NetworkTopologyStrategy
+      replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
       replication_factor: 1
       column_families:
         - name: Standard1
