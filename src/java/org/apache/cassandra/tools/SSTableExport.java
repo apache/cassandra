@@ -251,19 +251,25 @@ public class SSTableExport
 
         outs.println("{");
 
+        SSTableIdentityIterator row;
+
+        boolean elementWritten = false;
         while (scanner.hasNext())
         {
-            SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
+            row = (SSTableIdentityIterator) scanner.next();
+
             if (excludeSet.contains(bytesToHex(row.getKey().key)))
                 continue;
+            else if (elementWritten)
+                outs.println(",");
+
             try
             {
                 serializeRow(outs, row);
-                outs.print("  ");
-                if (scanner.hasNext())
-                    outs.println(",");
-                else
-                    outs.println();
+
+                // used to decide should we put ',' after previous row or not
+                if (!elementWritten)
+                    elementWritten = true;
             }
             catch (IOException ioexcep)
             {
@@ -277,7 +283,7 @@ public class SSTableExport
             }
         }
         
-        outs.println("}");
+        outs.printf("%n}%n");
         outs.flush();
     }
     
