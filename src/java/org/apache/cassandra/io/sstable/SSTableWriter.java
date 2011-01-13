@@ -382,6 +382,7 @@ public class SSTableWriter extends SSTable
 
                 rows++;
             }
+            writeStatistics(desc, rowSizes, columnCounts);
             return rows;
         }
     }
@@ -451,6 +452,7 @@ public class SSTableWriter extends SSTable
 
                 dfile.sync();
             }
+            writeStatistics(desc, rowSizes, columnCounts);
 
             if (writeRowPosition != readRowPosition)
             {
