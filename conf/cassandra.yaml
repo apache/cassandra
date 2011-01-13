@@ -314,8 +314,7 @@ index_interval: 128
 #   With NetworkTopologyStrategy,
 #   for each datacenter, you can specify how many replicas you want
 #   on a per-keyspace basis.  Replicas are placed on different racks
-#   within each DC, if possible. This strategy also requires rack aware
-#   snitch, such as RackInferringSnitch or PropertyFileSnitch.
+#   within each DC, if possible. 
 #   An example:
 #    - name: Keyspace1
 #      replica_placement_strategy: org.apache.cassandra.locator.NetworkTopologyStrategy

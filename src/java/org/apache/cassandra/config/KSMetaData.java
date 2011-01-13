@@ -28,7 +28,7 @@ import org.apache.commons.lang.ObjectUtils;
 import org.apache.avro.util.Utf8;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.locator.NetworkTopologyStrategy;
 
 public final class KSMetaData
 {
@@ -41,7 +41,7 @@ public final class KSMetaData
     public KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, int replicationFactor, CFMetaData... cfDefs)
     {
         this.name = name;
-        this.strategyClass = strategyClass == null ? SimpleStrategy.class : strategyClass;
+        this.strategyClass = strategyClass == null ? NetworkTopologyStrategy.class : strategyClass;
         this.strategyOptions = strategyOptions;
         this.replicationFactor = replicationFactor;
         Map<String, CFMetaData> cfmap = new HashMap<String, CFMetaData>();

@@ -1,6 +1,7 @@
 0.8-dev
  * avoid double RowMutation serialization on write path (CASSANDRA-1800)
  * adds support for columns that act as incr/decr counters (CASSANDRA-1072)
+ * make NetworkTopologyStrategy the default (CASSANDRA-1960)
 
 
 0.7.1-dev
