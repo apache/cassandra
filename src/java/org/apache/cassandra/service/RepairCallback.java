@@ -51,5 +51,4 @@ public class RepairCallback<T> implements IAsyncCallback
         if (resolver.getMessageCount() == endpoints.size())
             condition.signal();
     }
-
 }

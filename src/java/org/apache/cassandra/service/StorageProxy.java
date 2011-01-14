@@ -389,7 +389,7 @@ public class StorageProxy implements StorageProxyMBean
             try
             {
                 long startTime2 = System.currentTimeMillis();
-                row = readCallback.get();
+                row = readCallback.get(); // CL.ONE is special cased here to ignore digests even if some have arrived
                 if (row != null)
                     rows.add(row);
 
@@ -440,7 +440,6 @@ public class StorageProxy implements StorageProxyMBean
         return new ReadCallback(resolver, consistencyLevel, table);
     }
 
-    // TODO repair resolver shouldn't take consistencylevel (it should repair exactly as many as it receives replies for)
     private static RepairCallback<Row> repair(ReadCommand command, List<InetAddress> endpoints)
     throws IOException
     {
