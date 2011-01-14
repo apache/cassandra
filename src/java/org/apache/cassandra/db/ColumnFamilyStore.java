@@ -1723,6 +1723,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ssTables.getRowCache().clear();
     }
 
+    public void invalidateKeyCache()
+    {
+        ssTables.getKeyCache().clear();
+    }
+
     public int getRowCacheCapacity()
     {
         return ssTables.getRowCache().getCapacity();

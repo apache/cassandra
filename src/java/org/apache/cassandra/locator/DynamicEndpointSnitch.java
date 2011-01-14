@@ -105,6 +105,12 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         }
     }
 
+    @Override
+    public void gossiperStarting()
+    {
+        subsnitch.gossiperStarting();
+    }
+
     public String getRack(InetAddress endpoint)
     {
         return subsnitch.getRack(endpoint);
@@ -302,5 +308,4 @@ class AdaptiveLatencyTracker extends AbstractStatsDeque
         }
         return log;
     }
-
 }

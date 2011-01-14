@@ -109,12 +109,16 @@ seed_provider:
 # non-mmapped i/o.)
 disk_access_mode: auto
 
-# Unlike most systems, in Cassandra writes are faster than reads, so
-# you can afford more of those in parallel.  A good rule of thumb is 2
-# concurrent reads per processor core.  Increase ConcurrentWrites to
-# the number of clients writing at once if you enable CommitLogSync +
-# CommitLogSyncDelay. -->
-concurrent_reads: 8
+# For workloads with more data than can fit in memory, Cassandra's
+# bottleneck will be reads that need to fetch data from
+# disk. "concurrent_reads" should be set to (16 * number_of_drives) in
+# order to allow the operations to enqueue low enough in the stack
+# that the OS and drives can reorder them.
+#
+# On the other hand, since writes are almost never IO bound, the ideal
+# number of "concurrent_writes" is dependent on the number of cores in
+# your system; (8 * number_of_cores) is a good rule of thumb.
+concurrent_reads: 32
 concurrent_writes: 32
 
 # This sets the amount of memtable flush writer threads.  These will

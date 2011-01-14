@@ -132,6 +132,16 @@ public class VersionedValue implements Comparable<VersionedValue>
                                         + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
         }
 
+        public VersionedValue datacenter(String dcId)
+        {
+            return new VersionedValue(dcId);
+        }
+
+        public VersionedValue rack(String rackId)
+        {
+            return new VersionedValue(rackId);
+        }
+
     }
 
     private static class VersionedValueSerializer implements ICompactSerializer<VersionedValue>

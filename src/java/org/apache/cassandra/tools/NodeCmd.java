@@ -74,7 +74,7 @@ public class NodeCmd {
         RING, INFO, CFSTATS, SNAPSHOT, CLEARSNAPSHOT, VERSION, TPSTATS, FLUSH, DRAIN,
         DECOMMISSION, MOVE, LOADBALANCE, REMOVETOKEN, REPAIR, CLEANUP, COMPACT,
         SETCACHECAPACITY, GETCOMPACTIONTHRESHOLD, SETCOMPACTIONTHRESHOLD, NETSTATS, CFHISTOGRAMS,
-        COMPACTIONSTATS, DISABLEGOSSIP, ENABLEGOSSIP
+        COMPACTIONSTATS, DISABLEGOSSIP, ENABLEGOSSIP, INVALIDATEKEYCACHE, INVALIDATEROWCACHE
     }
 
     
@@ -110,6 +110,8 @@ public class NodeCmd {
                          + "repair [keyspace] [cfnames]\n"
                          + "cleanup [keyspace] [cfnames]\n"
                          + "compact [keyspace] [cfnames]\n"
+                         + "invalidatekeycache [keyspace] [cfnames]\n"
+                         + "invalidaterowcache [keyspace] [cfnames]\n"
                          + "getcompactionthreshold <keyspace> <cfname>\n"
                          + "cfhistograms <keyspace> <cfname>\n"
 
@@ -556,6 +558,8 @@ public class NodeCmd {
             case COMPACT :
             case REPAIR  :
             case FLUSH   :
+            case INVALIDATEKEYCACHE :
+            case INVALIDATEROWCACHE :
                 optionalKSandCFs(nc, arguments, probe);
                 break;
 
@@ -615,7 +619,9 @@ public class NodeCmd {
             {
                 switch (nc)
                 {
-                    case REPAIR  : probe.forceTableRepair(keyspace); break;
+                    case REPAIR             : probe.forceTableRepair(keyspace); break;
+                    case INVALIDATEKEYCACHE : probe.invalidateKeyCaches(keyspace); break;
+                    case INVALIDATEROWCACHE : probe.invalidateRowCaches(keyspace); break;
                     case FLUSH   :
                         try { probe.forceTableFlush(keyspace); }
                         catch (ExecutionException ee) { err(ee, "Error occured while flushing keyspace " + keyspace); }
@@ -646,6 +652,8 @@ public class NodeCmd {
             switch (nc)
             {
                 case REPAIR  : probe.forceTableRepair(keyspace, columnFamilies); break;
+                case INVALIDATEKEYCACHE : probe.invalidateKeyCaches(keyspace, columnFamilies); break;
+                case INVALIDATEROWCACHE : probe.invalidateRowCaches(keyspace, columnFamilies); break;
                 case FLUSH   :
                     try { probe.forceTableFlush(keyspace, columnFamilies); }
                     catch (ExecutionException ee) { err(ee, "Error occured during flushing"); }
