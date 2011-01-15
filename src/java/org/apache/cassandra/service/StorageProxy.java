@@ -242,7 +242,7 @@ public class StorageProxy implements StorageProxyMBean
                     {
                         // direct write to local DC
                         assert message.getHeader(RowMutation.FORWARD_HEADER) == null;
-                        MessagingService.instance().sendOneWay(message, target);
+                        MessagingService.instance().sendOneWay(message, destination);
                     }
                     else
                     {
