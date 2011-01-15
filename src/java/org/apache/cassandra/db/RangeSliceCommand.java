@@ -50,10 +50,11 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.SlicePredicate;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TSerializer;
-import org.apache.thrift.protocol.TBinaryProtocol;
+import org.apache.cassandra.thrift.TBinaryProtocol;
 
 public class RangeSliceCommand
 {
@@ -123,7 +124,7 @@ class RangeSliceCommandSerializer implements ICompactSerializer<RangeSliceComman
         ByteBuffer sc = sliceCommand.super_column;
         dos.writeInt(sc == null ? 0 : sc.remaining());
         if (sc != null)
-            dos.write(sc.array(), sc.position() + sc.arrayOffset(), sc.remaining());
+            ByteBufferUtil.write(sc, dos);
 
         TSerializer ser = new TSerializer(new TBinaryProtocol.Factory());
         FBUtilities.serialize(ser, sliceCommand.predicate, dos);

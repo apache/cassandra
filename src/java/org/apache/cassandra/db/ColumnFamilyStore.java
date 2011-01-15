@@ -1138,8 +1138,49 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if ((cached = ssTables.getRowCache().get(key)) == null)
         {
             cached = getTopLevelColumns(QueryFilter.getIdentityFilter(key, new QueryPath(columnFamily)), Integer.MIN_VALUE);
+
             if (cached == null)
+            {
                 return null;
+            }
+
+            /**
+             *  checking if name or value of the column don't have backing array
+             *  if found then removing column and storing deep copy instead
+             *  because we don't want to put such columns to the cache
+             */
+            for (IColumn column : cached.getSortedColumns())
+            {
+                // for Super CF checking only name
+                if (cached.isSuper())
+                {
+                    // if name of the super column is DirectBuffer then copying whole column
+                    if (!column.name().hasArray())
+                    {
+                        cached.deepCopyColumn(column);
+                    }
+                    // checking if sub-columns also have DirectBuffer as name or value
+                    else
+                    {
+                        SuperColumn superColumn = (SuperColumn) column;
+
+                        for (IColumn subColumn : column.getSubColumns())
+                        {
+                            if (!subColumn.name().hasArray() || !subColumn.value().hasArray())
+                            {
+                                superColumn.remove(subColumn.name());
+                                superColumn.addColumn(subColumn.deepCopy());
+                            }
+                        }
+                    }
+                }
+                // for Standard checking name and value
+                else if (!column.name().hasArray() || !column.value().hasArray())
+                {
+                    cached.deepCopyColumn(column);
+                }
+            }
+
             ssTables.getRowCache().put(key, cached);
         }
         return cached;

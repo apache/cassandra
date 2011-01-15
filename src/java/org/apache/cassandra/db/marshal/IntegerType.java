@@ -34,10 +34,10 @@ public final class IntegerType extends AbstractType
         int i = 0;
         for (; i < len; i++)
         {
-            byte b0 = bytes.array()[bytes.position()+bytes.arrayOffset()+i];
+            byte b0 = bytes.get(bytes.position() + i);
             if (b0 != 0 && b0 != -1)
                 break;
-            byte b1 = bytes.array()[bytes.position()+bytes.arrayOffset()+ i + 1];
+            byte b1 = bytes.get(bytes.position() + i + 1);
             if (b0 == 0 && b1 != 0)
             {
                 if (b1 > 0)
@@ -73,8 +73,8 @@ public final class IntegerType extends AbstractType
         int lhsLenDiff = lhsLen - lhsMsbIdx;
         int rhsLenDiff = rhsLen - rhsMsbIdx;
 
-        byte lhsMsb = lhs.array()[lhs.position()+lhs.arrayOffset()+lhsMsbIdx];
-        byte rhsMsb = rhs.array()[rhs.position()+rhs.arrayOffset()+rhsMsbIdx];
+        byte lhsMsb = lhs.get(lhs.position() + lhsMsbIdx);
+        byte rhsMsb = rhs.get(rhs.position() + rhsMsbIdx);
 
         /*         +    -
          *      -----------
@@ -104,8 +104,9 @@ public final class IntegerType extends AbstractType
         // remaining bytes are compared unsigned
         while (lhsMsbIdx < lhsLen)
         {
-            lhsMsb = lhs.array()[lhs.position()+lhs.arrayOffset()+lhsMsbIdx++];
-            rhsMsb = rhs.array()[rhs.position()+rhs.arrayOffset()+rhsMsbIdx++];
+            lhsMsb = lhs.get(lhs.position() + lhsMsbIdx++);
+            rhsMsb = rhs.get(rhs.position() + rhsMsbIdx++);
+
             if (lhsMsb != rhsMsb)
                 return (lhsMsb & 0xFF) - (rhsMsb & 0xFF);
         }

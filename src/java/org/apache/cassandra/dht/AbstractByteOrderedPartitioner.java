@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -94,7 +95,7 @@ public abstract class AbstractByteOrderedPartitioner implements IPartitioner<Byt
     {
         byte[] b = new byte[sigbytes];
         Arrays.fill(b, (byte) 0); // append zeros
-        System.arraycopy(bytes.array(), bytes.position()+bytes.arrayOffset(), b, 0, bytes.remaining());
+        ByteBufferUtil.arrayCopy(bytes, bytes.position(), b, 0, bytes.remaining());
         return new BigInteger(1, b);
     }
 

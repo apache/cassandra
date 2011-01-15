@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -124,7 +125,7 @@ public class SSTableWriter extends SSTable
     public long append(AbstractCompactedRow row) throws IOException
     {
         long currentPosition = beforeAppend(row.key);
-        FBUtilities.writeShortByteArray(row.key.key, dataFile);
+        ByteBufferUtil.writeWithShortLength(row.key.key, dataFile);
         row.write(dataFile);
         estimatedRowSize.add(dataFile.getFilePointer() - currentPosition);
         estimatedColumnCount.add(row.columnCount());
@@ -135,7 +136,7 @@ public class SSTableWriter extends SSTable
     public void append(DecoratedKey decoratedKey, ColumnFamily cf) throws IOException
     {
         long startPosition = beforeAppend(decoratedKey);
-        FBUtilities.writeShortByteArray(decoratedKey.key, dataFile);
+        ByteBufferUtil.writeWithShortLength(decoratedKey.key, dataFile);
         // write placeholder for the row size, since we don't know it yet
         long sizePosition = dataFile.getFilePointer();
         dataFile.writeLong(-1);
@@ -155,10 +156,10 @@ public class SSTableWriter extends SSTable
     public void append(DecoratedKey decoratedKey, ByteBuffer value) throws IOException
     {
         long currentPosition = beforeAppend(decoratedKey);
-        FBUtilities.writeShortByteArray(decoratedKey.key, dataFile);
+        ByteBufferUtil.writeWithShortLength(decoratedKey.key, dataFile);
         assert value.remaining() > 0;
         dataFile.writeLong(value.remaining());
-        dataFile.write(value.array(),value.position()+value.arrayOffset(),value.remaining());
+        ByteBufferUtil.write(value, dataFile);
         afterAppend(decoratedKey, currentPosition);
     }
 
@@ -436,7 +437,7 @@ public class SSTableWriter extends SSTable
 
                 // write key
                 dfile.seek(writeRowPosition);
-                FBUtilities.writeShortByteArray(diskKey, dfile);
+                ByteBufferUtil.writeWithShortLength(diskKey, dfile);
 
                 // write data size; serialize CF w/ bloom filter, column index
                 long writeSizePosition = dfile.getFilePointer();
@@ -492,7 +493,7 @@ public class SSTableWriter extends SSTable
         {
             bf.add(key.key);
             long indexPosition = indexFile.getFilePointer();
-            FBUtilities.writeShortByteArray(key.key, indexFile);
+            ByteBufferUtil.writeWithShortLength(key.key, indexFile);
             indexFile.writeLong(dataPosition);
             if (logger.isTraceEnabled())
                 logger.trace("wrote index of " + key + " at " + indexPosition);

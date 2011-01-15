@@ -26,6 +26,7 @@ import java.util.Arrays;
 
 import com.google.common.base.Charsets;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class UTF8Type extends BytesType
@@ -42,7 +43,7 @@ public class UTF8Type extends BytesType
         }
         catch (CharacterCodingException e)
         {
-            throw new MarshalException("invalid UTF8 bytes " + Arrays.toString(bytes.array()));
+            throw new MarshalException("invalid UTF8 bytes " + ByteBufferUtil.string(bytes));
         }
     }
 

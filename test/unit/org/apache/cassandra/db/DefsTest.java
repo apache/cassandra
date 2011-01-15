@@ -528,10 +528,10 @@ public class DefsTest extends CleanupHelper
         // tests new write.
         
         ByteBuffer val = cfam.getColumn(ByteBufferUtil.bytes("col0")).value();
-        assertEquals( new String(val.array(),val.position(),val.remaining()), "newvalue");
+        assertEquals(ByteBufferUtil.string(val), "newvalue");
         // tests old write.
          val = cfam.getColumn(ByteBufferUtil.bytes("col1")).value();
-        assertEquals( new String(val.array(),val.position(),val.remaining()), "value");
+        assertEquals(ByteBufferUtil.string(val), "value");
     }
 
     @Test

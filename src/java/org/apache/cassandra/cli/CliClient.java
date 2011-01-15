@@ -41,6 +41,8 @@ import org.apache.thrift.TBaseHelper;
 import org.apache.thrift.TException;
 import org.safehaus.uuid.UUIDGenerator;
 
+import org.apache.cassandra.thrift.TBinaryProtocol;
+
 // Cli Client Side Library
 public class CliClient extends CliUserHelp
 {

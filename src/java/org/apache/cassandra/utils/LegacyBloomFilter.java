@@ -161,8 +161,8 @@ public class LegacyBloomFilter extends Filter
     static int[] getHashBuckets(ByteBuffer b, int hashCount, int max)
     {
         int[] result = new int[hashCount];
-        int hash1 = MurmurHash.hash32(b.array(), b.position()+b.arrayOffset(), b.remaining(), 0);
-        int hash2 = MurmurHash.hash32(b.array(), b.position()+b.arrayOffset(), b.remaining(), hash1);
+        int hash1 = MurmurHash.hash32(b, b.position(), b.remaining(), 0);
+        int hash2 = MurmurHash.hash32(b, b.position(), b.remaining(), hash1);
         for (int i = 0; i < hashCount; i++)
         {
             result[i] = Math.abs((hash1 + i * hash2) % max);

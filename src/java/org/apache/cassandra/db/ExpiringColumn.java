@@ -84,8 +84,9 @@ public class ExpiringColumn extends Column
     @Override
     public void updateDigest(MessageDigest digest)
     {
-        digest.update(name.array(), name.position()+name.arrayOffset(), name.remaining());
-        digest.update(value.array(), value.position()+value.arrayOffset(), value.remaining());
+        digest.update(name.duplicate());
+        digest.update(value.duplicate());
+
         DataOutputBuffer buffer = new DataOutputBuffer();
         try
         {

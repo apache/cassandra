@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 
@@ -81,7 +82,7 @@ public class WriteResponse
         public void serialize(WriteResponse wm, DataOutputStream dos) throws IOException
         {
             dos.writeUTF(wm.table());
-            FBUtilities.writeShortByteArray(wm.key(), dos);
+            ByteBufferUtil.writeWithShortLength(wm.key(), dos);
             dos.writeBoolean(wm.isSuccess());
         }
 

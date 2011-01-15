@@ -27,6 +27,7 @@ import java.util.Collection;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -176,15 +177,15 @@ public class HintedHandOffManager
 
     private static String[] getTableAndCFNames(ByteBuffer joined)
     {
-        int index;
-        index = ArrayUtils.lastIndexOf(joined.array(), SEPARATOR.getBytes()[0],joined.limit()+joined.arrayOffset());
-        if (index == -1 || index < (joined.position() + joined.arrayOffset() + 1))
-            throw new RuntimeException("Corrupted hint name " + new String(joined.array(), joined.arrayOffset() + joined.position(), joined.remaining()));
-        String[] parts = new String[2];
-        parts[0] = new String(ArrayUtils.subarray(joined.array(), joined.position()+joined.arrayOffset(), index));
-        parts[1] = new String(ArrayUtils.subarray(joined.array(), index+1, joined.limit()+joined.arrayOffset()));
-        return parts;
+        int index = ByteBufferUtil.lastIndexOf(joined, SEPARATOR.getBytes()[0], joined.limit());
 
+        if (index == -1 || index < (joined.position() + 1))
+            throw new RuntimeException("Corrupted hint name " + ByteBufferUtil.string(joined));
+
+        return new String[] {
+                                ByteBufferUtil.string(joined, joined.position(), index),
+                                ByteBufferUtil.string(joined, index + 1, joined.limit())
+                            };
     }
             
     private void deliverHintsToEndpoint(InetAddress endpoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException

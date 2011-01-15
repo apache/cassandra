@@ -23,9 +23,7 @@ package org.apache.cassandra.io;
 
 import static junit.framework.Assert.assertEquals;
 
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
@@ -43,6 +41,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.MappedFileDataInput;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.junit.Test;
@@ -70,8 +69,18 @@ public class LazilyCompactedRowTest extends CleanupHelper
             DataOutputBuffer out2 = new DataOutputBuffer();
             row1.write(out1);
             row2.write(out2);
-            DataInputStream in1 = new DataInputStream(new ByteArrayInputStream(out1.getData(), 0, out1.getLength()));
-            DataInputStream in2 = new DataInputStream(new ByteArrayInputStream(out2.getData(), 0, out2.getLength()));
+
+            File tmpFile1 = File.createTempFile("lcrt1", null);
+            File tmpFile2 = File.createTempFile("lcrt2", null);
+
+            tmpFile1.deleteOnExit();
+            tmpFile2.deleteOnExit();
+
+            new FileOutputStream(tmpFile1).write(out1.getData()); // writing data from row1
+            new FileOutputStream(tmpFile2).write(out2.getData()); // writing data from row2
+
+            MappedFileDataInput in1 = new MappedFileDataInput(new FileInputStream(tmpFile1), tmpFile1.getAbsolutePath(), 0);
+            MappedFileDataInput in2 = new MappedFileDataInput(new FileInputStream(tmpFile2), tmpFile2.getAbsolutePath(), 0);
 
             // key isn't part of what CompactedRow writes, that's done by SSTW.append
 
@@ -87,11 +96,12 @@ public class LazilyCompactedRowTest extends CleanupHelper
             int indexSize1 = in1.readInt();
             int indexSize2 = in2.readInt();
             assertEquals(indexSize1, indexSize2);
-            byte[] bytes1 = new byte[indexSize1];
-            byte[] bytes2 = new byte[indexSize2];
-            in1.readFully(bytes1);
-            in2.readFully(bytes2);
-            assert Arrays.equals(bytes1, bytes2);
+
+            ByteBuffer bytes1 = in1.readBytes(indexSize1);
+            ByteBuffer bytes2 = in2.readBytes(indexSize2);
+
+            assert bytes1.equals(bytes2);
+
             // cf metadata
             ColumnFamily cf1 = ColumnFamily.create("Keyspace1", "Standard1");
             ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");

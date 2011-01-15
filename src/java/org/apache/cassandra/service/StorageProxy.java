@@ -53,10 +53,7 @@ import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.thrift.*;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.LatencyTracker;
-import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.utils.*;
 
 import static com.google.common.base.Charsets.UTF_8;
 
@@ -284,7 +281,7 @@ public class StorageProxy implements StorageProxyMBean
                     {
                         // direct write to local DC
                         assert message.getHeader(RowMutation.FORWARD_HEADER) == null;
-                        MessagingService.instance().sendOneWay(message, target);
+                        MessagingService.instance().sendOneWay(message, destination);
                     }
                     else
                     {
@@ -316,7 +313,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             dos.write(previousHints);
         }
-        FBUtilities.writeShortByteArray(ByteBuffer.wrap(target.getHostAddress().getBytes(UTF_8)), dos);
+        ByteBufferUtil.writeWithShortLength(ByteBuffer.wrap(target.getHostAddress().getBytes(UTF_8)), dos);
         message.setHeader(RowMutation.HINT, bos.toByteArray());
     }
 
@@ -435,7 +432,7 @@ public class StorageProxy implements StorageProxyMBean
             try
             {
                 long startTime2 = System.currentTimeMillis();
-                row = readCallback.get();
+                row = readCallback.get(); // CL.ONE is special cased here to ignore digests even if some have arrived
                 if (row != null)
                     rows.add(row);
 
@@ -486,7 +483,6 @@ public class StorageProxy implements StorageProxyMBean
         return new ReadCallback(resolver, consistencyLevel, table);
     }
 
-    // TODO repair resolver shouldn't take consistencylevel (it should repair exactly as many as it receives replies for)
     private static RepairCallback<Row> repair(ReadCommand command, List<InetAddress> endpoints)
     throws IOException
     {

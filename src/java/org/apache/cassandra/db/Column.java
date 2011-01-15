@@ -149,9 +149,9 @@ public class Column implements IColumn
 
     public void updateDigest(MessageDigest digest)
     {
-        digest.update(name.array(),name.position()+name.arrayOffset(),name.remaining());
-        digest.update(value.array(),value.position()+name.arrayOffset(),value.remaining());        
-        
+        digest.update(name.duplicate());
+        digest.update(value.duplicate());
+
         DataOutputBuffer buffer = new DataOutputBuffer();
         try
         {
@@ -211,7 +211,6 @@ public class Column implements IColumn
         return result;
     }
 
-    @Override
     public IColumn deepCopy()
     {
         return new Column(ByteBufferUtil.clone(name), ByteBufferUtil.clone(value), timestamp);

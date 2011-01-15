@@ -245,7 +245,7 @@ public class SuperColumn implements IColumn, IColumnContainer
     public void updateDigest(MessageDigest digest)
     {
         assert name_ != null;
-        digest.update(name_.array(),name_.position()+name_.arrayOffset(),name_.remaining());
+        digest.update(name_.duplicate());
         DataOutputBuffer buffer = new DataOutputBuffer();
         try
         {
@@ -335,7 +335,7 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
     public void serialize(IColumn column, DataOutput dos)
     {
         SuperColumn superColumn = (SuperColumn)column;
-        FBUtilities.writeShortByteArray(column.name(), dos);
+        ByteBufferUtil.writeWithShortLength(column.name(), dos);
         try
         {
             dos.writeInt(superColumn.getLocalDeletionTime());

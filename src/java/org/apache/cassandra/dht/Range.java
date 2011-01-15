@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.ObjectUtils;
 
 import org.apache.cassandra.service.StorageService;
@@ -214,42 +215,35 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
        return compare(left,right) >= 0;           
     }
     
-    public static int compare(Token left, Token right){
-        byte[] l,r;
-        int lo,ll,ro,rl;
-        
-        if(left.token instanceof byte[])
+    public static int compare(Token left, Token right)
+    {
+        ByteBuffer l,r;
+
+        if (left.token instanceof byte[])
         {
-            l  = (byte[]) left.token;
-            lo = 0;
-            ll = l.length;
+            l  = ByteBuffer.wrap((byte[]) left.token);
         }
-        else if(left.token instanceof ByteBuffer)
+        else if (left.token instanceof ByteBuffer)
         {
-            l  = ((ByteBuffer)left.token).array();
-            lo = ((ByteBuffer)left.token).position()+((ByteBuffer)left.token).arrayOffset();
-            ll = ((ByteBuffer)left.token).limit()+((ByteBuffer)left.token).arrayOffset();
-        }else{
-            //Handles other token types
-            return left.compareTo(right);
-        }
-            
-        if(right.token instanceof byte[])
-        {
-            r  = (byte[]) right.token;
-            ro = 0;
-            rl = r.length;
+            l  = (ByteBuffer) left.token;
         }
         else
         {
-            r  = ((ByteBuffer)right.token).array();
-            ro = ((ByteBuffer)right.token).position()+((ByteBuffer)right.token).arrayOffset();
-            rl = ((ByteBuffer)right.token).limit()+((ByteBuffer)right.token).arrayOffset();
+            //Handles other token types
+            return left.compareTo(right);
         }
-       
-            
-        return FBUtilities.compareUnsigned(l, r, lo, ro, ll, rl);
-    }
+
+        if (right.token instanceof byte[])
+        {
+            r  = ByteBuffer.wrap((byte[]) right.token);
+        }
+        else
+        {
+            r  = (ByteBuffer) right.token;
+        }
+
+        return ByteBufferUtil.compareUnsigned(l, r);
+     }
     
     public int compareTo(Range rhs)
     {

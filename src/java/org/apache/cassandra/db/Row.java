@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class Row
@@ -64,7 +65,7 @@ class RowSerializer implements ICompactSerializer<Row>
 {
     public void serialize(Row row, DataOutputStream dos) throws IOException
     {
-        FBUtilities.writeShortByteArray(row.key.key, dos);
+        ByteBufferUtil.writeWithShortLength(row.key.key, dos);
         ColumnFamily.serializer().serialize(row.cf, dos);
     }
 

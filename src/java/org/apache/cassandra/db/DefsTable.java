@@ -87,7 +87,9 @@ public class DefsTable
         if (avroschema == null)
             // TODO: more polite way to handle this?
             throw new RuntimeException("Cannot read system table! Are you upgrading a pre-release version?");
-        Schema schema = Schema.parse(new String(avroschema.value().array(),avroschema.value().position()+avroschema.value().arrayOffset(),avroschema.value().remaining()));
+
+        ByteBuffer value = avroschema.value();
+        Schema schema = Schema.parse(ByteBufferUtil.string(value, value.position(), value.remaining()));
 
         // deserialize keyspaces using schema
         Collection<KSMetaData> keyspaces = new ArrayList<KSMetaData>();

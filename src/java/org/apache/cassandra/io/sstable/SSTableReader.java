@@ -301,13 +301,13 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                 long dataPosition = input.readLong();
                 if (key != null)
                 {
-                    DecoratedKey decoratedKey = decodeKey(partitioner, descriptor, key);
+                    DecoratedKey decoratedKey = decodeKey(partitioner, descriptor, ByteBufferUtil.clone(key));
                     if (recreatebloom)
                         bf.add(decoratedKey.key);
                     if (shouldAddEntry)
                         indexSummary.addEntry(decoratedKey, indexPosition);
                     if (cacheLoading && keysToLoadInCache.contains(decoratedKey))
-                        keyCache.put(new Pair(descriptor, decoratedKey), dataPosition);
+                        keyCache.put(new Pair<Descriptor, DecoratedKey>(descriptor, decoratedKey), dataPosition);
                 }
 
                 indexSummary.incrementRowid();
@@ -481,7 +481,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                             if (op == Operator.EQ)
                                 bloomFilterTracker.addTruePositive();
                             // store exact match for the key
-                            keyCache.put(unifiedKey, Long.valueOf(dataPosition));
+                            keyCache.put(unifiedKey, dataPosition);
                         }
                         return dataPosition;
                     }
@@ -546,7 +546,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     * Direct I/O SSTableScanner
     * @param bufferSize Buffer size in bytes for this Scanner.
     * @return A Scanner for seeking over the rows of the SSTable.
-    * @throws IOException when I/O operation fails
     */
     public SSTableScanner getDirectScanner(int bufferSize)
     {

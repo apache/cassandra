@@ -298,6 +298,16 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
         return length;
     }
 
+    public ByteBuffer readBytes(int length) throws IOException
+    {
+        assert length >= 0 : "buffer length should not be negative: " + length;
+
+        byte[] buff = new byte[length];
+        readFully(buff); // reading data buffer
+
+        return ByteBuffer.wrap(buff);
+    }
+
     @Override
     public void write(int val) throws IOException
     {
