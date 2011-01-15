@@ -198,6 +198,9 @@ public class FBUtilities
     /**
      * Convert a byte buffer to an integer.
      * Does not change the byte buffer position.
+     *
+     * @param bytes byte buffer to convert to integer
+     * @return int representation of the byte buffer
      */
     public static int byteBufferToInt(ByteBuffer bytes)
     {
@@ -209,7 +212,7 @@ public class FBUtilities
         for (int i = 0; i < 4; ++i)
         {
             n <<= 8;
-            n |= bytes.array()[bytes.position() + bytes.arrayOffset() + i] & 0xFF;
+            n |= bytes.get(bytes.position() + i) & 0xFF;
         }
         return n;
     }

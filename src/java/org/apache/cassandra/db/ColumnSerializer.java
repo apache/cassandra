@@ -84,7 +84,7 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
         {
             long timestampOfLastDelete = dis.readLong();
             ByteBuffer pc = FBUtilities.readShortByteArray(dis);
-            byte[] partitionedCounter = Arrays.copyOfRange(pc.array(), pc.position() + pc.arrayOffset(), pc.limit());
+            byte[] partitionedCounter = ByteBufferUtil.getArray(pc);
             long timestamp = dis.readLong();
             ByteBuffer value = FBUtilities.readByteArray(dis);
             return new CounterColumn(name, value, timestamp, partitionedCounter, timestampOfLastDelete);
