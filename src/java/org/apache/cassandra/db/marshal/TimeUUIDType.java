@@ -50,24 +50,31 @@ public class TimeUUIDType extends AbstractType
 
     private static int compareTimestampBytes(ByteBuffer o1, ByteBuffer o2)
     {
-        int o1Pos = o1.position()+o1.arrayOffset();
-        int o2Pos = o2.position()+o2.arrayOffset();
-        
-        int d = (o1.array()[o1Pos+6] & 0xF) - (o2.array()[o2Pos+6] & 0xF);
+        int o1Pos = o1.position();
+        int o2Pos = o2.position();
+
+        int d = (o1.get(o1Pos+6) & 0xF) - (o2.get(o2Pos+6) & 0xF);
         if (d != 0) return d;
-        d = (o1.array()[o1Pos+7] & 0xFF) - (o2.array()[o2Pos+7] & 0xFF);
+
+        d = (o1.get(o1Pos+7) & 0xFF) - (o2.get(o2Pos+7) & 0xFF);
         if (d != 0) return d;
-        d = (o1.array()[o1Pos+4] & 0xFF) - (o2.array()[o2Pos+4] & 0xFF);
+
+        d = (o1.get(o1Pos+4) & 0xFF) - (o2.get(o2Pos+4) & 0xFF);
         if (d != 0) return d;
-        d = (o1.array()[o1Pos+5] & 0xFF) - (o2.array()[o2Pos+5] & 0xFF);
+
+        d = (o1.get(o1Pos+5) & 0xFF) - (o2.get(o2Pos+5) & 0xFF);
         if (d != 0) return d;
-        d = (o1.array()[o1Pos+0] & 0xFF) - (o2.array()[o2Pos+0] & 0xFF);
+
+        d = (o1.get(o1Pos) & 0xFF) - (o2.get(o2Pos) & 0xFF);
         if (d != 0) return d;
-        d = (o1.array()[o1Pos+1] & 0xFF) - (o2.array()[o2Pos+1] & 0xFF);
+
+        d = (o1.get(o1Pos+1) & 0xFF) - (o2.get(o2Pos+1) & 0xFF);
         if (d != 0) return d;
-        d = (o1.array()[o1Pos+2] & 0xFF) - (o2.array()[o2Pos+2] & 0xFF);
+
+        d = (o1.get(o1Pos+2) & 0xFF) - (o2.get(o2Pos+2) & 0xFF);
         if (d != 0) return d;
-        return (o1.array()[o1Pos+3] & 0xFF) - (o2.array()[o2Pos+3] & 0xFF);
+
+        return (o1.get(o1Pos+3) & 0xFF) - (o2.get(o2Pos+3) & 0xFF);
     }
 
     public String getString(ByteBuffer bytes)

@@ -28,6 +28,7 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.ColumnPath;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class QueryPath
@@ -84,8 +85,8 @@ public class QueryPath
         assert superColumnName == null || superColumnName.remaining() > 0;
         assert columnName == null || columnName.remaining() > 0;
         dos.writeUTF(columnFamilyName == null ? "" : columnFamilyName);
-        FBUtilities.writeShortByteArray(superColumnName == null ? FBUtilities.EMPTY_BYTE_BUFFER : superColumnName, dos);
-        FBUtilities.writeShortByteArray(columnName == null ? FBUtilities.EMPTY_BYTE_BUFFER : columnName, dos);
+        ByteBufferUtil.writeWithShortLength(superColumnName == null ? FBUtilities.EMPTY_BYTE_BUFFER : superColumnName, dos);
+        ByteBufferUtil.writeWithShortLength(columnName == null ? FBUtilities.EMPTY_BYTE_BUFFER : columnName, dos);
     }
 
     public static QueryPath deserialize(DataInputStream din) throws IOException

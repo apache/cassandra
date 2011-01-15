@@ -51,10 +51,7 @@ import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.thrift.*;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.LatencyTracker;
-import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.utils.*;
 
 import static com.google.common.base.Charsets.UTF_8;
 
@@ -274,7 +271,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             dos.write(previousHints);
         }
-        FBUtilities.writeShortByteArray(ByteBuffer.wrap(target.getHostAddress().getBytes(UTF_8)), dos);
+        ByteBufferUtil.writeWithShortLength(ByteBuffer.wrap(target.getHostAddress().getBytes(UTF_8)), dos);
         message.setHeader(RowMutation.HINT, bos.toByteArray());
     }
 

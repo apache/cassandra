@@ -114,8 +114,8 @@ public class BloomFilter extends Filter
     static long[] getHashBuckets(ByteBuffer b, int hashCount, long max)
     {
         long[] result = new long[hashCount];
-        long hash1 = MurmurHash.hash64(b.array(), b.position()+b.arrayOffset(), b.remaining(), 0L);
-        long hash2 = MurmurHash.hash64(b.array(), b.position()+b.arrayOffset(), b.remaining(), hash1);
+        long hash1 = MurmurHash.hash64(b, b.position(), b.remaining(), 0L);
+        long hash2 = MurmurHash.hash64(b, b.position(), b.remaining(), hash1);
         for (int i = 0; i < hashCount; ++i)
         {
             result[i] = Math.abs((hash1 + (long)i * hash2) % max);

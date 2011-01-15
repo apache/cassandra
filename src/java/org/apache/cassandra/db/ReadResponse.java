@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 
@@ -85,7 +86,7 @@ class ReadResponseSerializer implements ICompactSerializer<ReadResponse>
 	{
         dos.writeInt(rm.isDigestQuery() ? rm.digest().remaining() : 0);
         ByteBuffer buffer = rm.isDigestQuery() ? rm.digest() : FBUtilities.EMPTY_BYTE_BUFFER;
-        dos.write(buffer.array(), buffer.position() + buffer.arrayOffset(), buffer.remaining());
+        ByteBufferUtil.write(buffer, dos);
         dos.writeBoolean(rm.isDigestQuery());
 
         if (!rm.isDigestQuery())

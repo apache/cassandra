@@ -30,6 +30,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -105,7 +106,7 @@ public class OutboundTcpConnection extends Thread
     {
         try
         {
-            output.write(bb.array(), bb.position()+bb.arrayOffset(), bb.limit()+bb.arrayOffset());
+            ByteBufferUtil.write(bb, output);
             if (queue.peek() == null)
             {
                 output.flush();

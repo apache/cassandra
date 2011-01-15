@@ -21,14 +21,14 @@ package org.apache.cassandra.dht;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.thrift.TBaseHelper;
 
 public class BytesToken extends Token<byte[]>
 {
     public BytesToken(ByteBuffer token)
     {
-        this(TBaseHelper.byteBufferToByteArray(token));
+        this(ByteBufferUtil.getArray(token));
     }
 
     public BytesToken(byte[] token)

@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class Token<T> implements Comparable<Token<T>>, Serializable
 {
@@ -81,8 +82,7 @@ public abstract class Token<T> implements Comparable<Token<T>>, Serializable
         {
             IPartitioner p = StorageService.getPartitioner();
             ByteBuffer b = p.getTokenFactory().toByteArray(token);
-            dos.writeInt(b.remaining());
-            dos.write(b.array(),b.position()+b.arrayOffset(),b.remaining());
+            ByteBufferUtil.writeWithLength(b, dos);
         }
 
         public Token deserialize(DataInput dis) throws IOException

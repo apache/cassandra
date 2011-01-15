@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.GuidGenerator;
 import org.apache.cassandra.utils.Pair;
@@ -49,9 +50,9 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
     {
         // find the delimiter position
         int splitPoint = -1;
-        for (int i = fromdisk.position()+fromdisk.arrayOffset(); i < fromdisk.limit()+fromdisk.arrayOffset(); i++)
+        for (int i = fromdisk.position(); i < fromdisk.limit(); i++)
         {
-            if (fromdisk.array()[i] == DELIMITER_BYTE)
+            if (fromdisk.get(i) == DELIMITER_BYTE)
             {
                 splitPoint = i;
                 break;
@@ -60,9 +61,10 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
         assert splitPoint != -1;
 
         // and decode the token and key
-        String token = new String(fromdisk.array(), fromdisk.position()+fromdisk.arrayOffset(), splitPoint, UTF_8);
-        byte[] key = Arrays.copyOfRange(fromdisk.array(), splitPoint + 1, fromdisk.limit()+fromdisk.arrayOffset());
-        return new DecoratedKey<BigIntegerToken>(new BigIntegerToken(token), ByteBuffer.wrap(key));
+        String token = ByteBufferUtil.string(fromdisk, fromdisk.position(), splitPoint, UTF_8);
+        ByteBuffer key = fromdisk.duplicate();
+        key.position(splitPoint + 1);
+        return new DecoratedKey<BigIntegerToken>(new BigIntegerToken(token), key);
     }
 
     public Token midpoint(Token ltoken, Token rtoken)

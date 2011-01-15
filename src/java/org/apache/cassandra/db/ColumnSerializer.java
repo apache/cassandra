@@ -30,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class ColumnSerializer implements ICompactSerializer2<IColumn>
@@ -42,7 +43,7 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
     public void serialize(IColumn column, DataOutput dos)
     {
         assert column.name().remaining() > 0;
-        FBUtilities.writeShortByteArray(column.name(), dos);
+        ByteBufferUtil.writeWithShortLength(column.name(), dos);
         try
         {
             if (column instanceof ExpiringColumn) {
@@ -53,7 +54,7 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
               dos.writeByte((column.isMarkedForDelete()) ? DELETION_MASK : 0);
             }
             dos.writeLong(column.timestamp());
-            FBUtilities.writeByteArray(column.value(), dos);
+            ByteBufferUtil.writeWithLength(column.value(), dos);
         }
         catch (IOException e)
         {

@@ -24,7 +24,10 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
+import javax.swing.plaf.basic.BasicButtonListener;
+
 import com.google.common.base.Function;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,8 +81,7 @@ public class SSTableTracker implements Iterable<SSTableReader>
                 for (K key : cache.getKeySet())
                 {
                     ByteBuffer bytes = converter.apply(key);
-                    out.writeInt(bytes.remaining());
-                    out.write(bytes.array(),bytes.position()+bytes.arrayOffset(),bytes.remaining());
+                    ByteBufferUtil.writeWithLength(bytes, out);
                     ++count;
                 }
                 out.flush();
@@ -130,6 +132,9 @@ public class SSTableTracker implements Iterable<SSTableReader>
         for (SSTableReader sstable : replacements)
         {
             assert sstable.getKeySamples() != null;
+            if (logger.isDebugEnabled())
+                logger.debug(String.format("adding %s to list of files tracked for %s.%s",
+                                           sstable.descriptor, ksname, cfname));
             sstablesNew.add(sstable);
             long size = sstable.bytesOnDisk();
             liveSize.addAndGet(size);
@@ -140,6 +145,9 @@ public class SSTableTracker implements Iterable<SSTableReader>
         long maxDataAge = -1;
         for (SSTableReader sstable : oldSSTables)
         {
+            if (logger.isDebugEnabled())
+                logger.debug(String.format("removing %s from list of files tracked for %s.%s",
+                                           sstable.descriptor, ksname, cfname));
             boolean removed = sstablesNew.remove(sstable);
             assert removed;
             sstable.markCompacted();

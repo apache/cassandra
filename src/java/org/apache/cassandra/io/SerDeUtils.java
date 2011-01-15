@@ -35,6 +35,7 @@ import org.apache.avro.specific.SpecificDatumWriter;
 import org.apache.avro.specific.SpecificRecord;
 import org.apache.avro.util.Utf8;
 import org.apache.cassandra.io.util.OutputBuffer;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Static serialization/deserialization utility functions, intended to eventually replace ICompactSerializers.
@@ -61,7 +62,7 @@ public final class SerDeUtils
      */
     public static <T extends SpecificRecord> T deserialize(Schema writer, ByteBuffer bytes, T ob) throws IOException
     {
-        BinaryDecoder dec = DIRECT_DECODERS.createBinaryDecoder(bytes.array(),bytes.position()+bytes.arrayOffset(),bytes.remaining(), null);
+        BinaryDecoder dec = DIRECT_DECODERS.createBinaryDecoder(ByteBufferUtil.getArray(bytes), null);
         SpecificDatumReader<T> reader = new SpecificDatumReader<T>(writer);
         reader.setExpected(ob.getSchema());
         return reader.read(ob, dec);
@@ -89,7 +90,7 @@ public final class SerDeUtils
      */
     public static <T extends SpecificRecord> T deserializeWithSchema(ByteBuffer bytes, T ob) throws IOException
     {
-        BinaryDecoder dec = DIRECT_DECODERS.createBinaryDecoder(bytes.array(),bytes.position()+bytes.arrayOffset(), bytes.remaining(), null);
+        BinaryDecoder dec = DIRECT_DECODERS.createBinaryDecoder(ByteBufferUtil.getArray(bytes), null);
         Schema writer = Schema.parse(dec.readString(new Utf8()).toString());
         SpecificDatumReader<T> reader = new SpecificDatumReader<T>(writer);
         reader.setExpected(ob.getSchema());

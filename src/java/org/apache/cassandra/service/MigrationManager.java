@@ -25,6 +25,7 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -184,10 +185,8 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         for (IColumn col : migrations)
         {
             assert col instanceof Column;
-            dout.writeInt(col.name().remaining());
-            dout.write(col.name().array(),col.name().position()+col.name().arrayOffset(),col.name().remaining());
-            dout.writeInt(col.value().remaining());
-            dout.write(col.value().array(),col.value().position()+col.value().arrayOffset(),col.value().remaining());
+            ByteBufferUtil.writeWithLength(col.name(), dout);
+            ByteBufferUtil.writeWithLength(col.value(), dout);
         }
         dout.close();
         byte[] body = bout.toByteArray();

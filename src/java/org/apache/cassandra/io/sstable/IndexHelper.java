@@ -28,10 +28,7 @@ import java.util.List;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
-import org.apache.cassandra.utils.LegacyBloomFilter;
-import org.apache.cassandra.utils.BloomFilter;
-import org.apache.cassandra.utils.Filter;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.*;
 
 /**
  * Provides helper to serialize, deserialize and use column indexes.
@@ -44,7 +41,7 @@ public class IndexHelper
      * @param in the data input from which the bloom filter should be skipped
      * @throws IOException
      */
-    public static void skipBloomFilter(DataInput in) throws IOException
+    public static void skipBloomFilter(FileDataInput in) throws IOException
     {
         /* size of the bloom filter */
         int size = in.readInt();
@@ -57,9 +54,9 @@ public class IndexHelper
 	/**
 	 * Skip the index
 	 * @param file the data input from which the index should be skipped
-	 * @throws IOException
+	 * @throws IOException if an I/O error occurs.
 	 */
-	public static void skipIndex(DataInput file) throws IOException
+	public static void skipIndex(FileDataInput file) throws IOException
 	{
         /* read only the column index list */
         int columnIndexSize = file.readInt();
@@ -70,7 +67,11 @@ public class IndexHelper
     
     /**
      * Deserialize the index into a structure and return it
-     * @throws IOException
+     *
+     * @param in - input source
+     *
+     * @return ArrayList<IndexInfo> - list of de-serialized indexes
+     * @throws IOException if an I/O error occurs.
      */
 	public static ArrayList<IndexInfo> deserializeIndex(FileDataInput in) throws IOException
 	{
@@ -89,26 +90,43 @@ public class IndexHelper
 	}
 
     /**
-     * Defreeze the bloom filter.
+     * De-freeze the bloom filter.
+     *
+     * @param file - source file
+     * @param useOldBuffer - do we need to reuse old buffer?
      *
      * @return bloom filter summarizing the column information
-     * @throws java.io.IOException
+     * @throws java.io.IOException if an I/O error occurs.
      */
-    public static Filter defreezeBloomFilter(DataInput file, boolean useOldBF) throws IOException
+    public static Filter defreezeBloomFilter(FileDataInput file, boolean useOldBuffer) throws IOException
     {
         int size = file.readInt();
-        byte[] bytes = new byte[size];
-        file.readFully(bytes);
+        ByteBuffer bytes = file.readBytes(size);
 
-        ByteArrayInputStream bufIn = new ByteArrayInputStream(bytes);
-        return useOldBF
-               ? LegacyBloomFilter.serializer().deserialize(new DataInputStream(bufIn))
-               : BloomFilter.serializer().deserialize(new DataInputStream(bufIn));
+        DataInputStream stream = new DataInputStream(FBUtilities.inputStream(bytes));
+
+        return useOldBuffer
+                ? LegacyBloomFilter.serializer().deserialize(stream)
+                : BloomFilter.serializer().deserialize(stream);
     }
 
     /**
      * the index of the IndexInfo in which @name will be found.
      * If the index is @indexList.size(), the @name appears nowhere.
+     *
+     * @param name
+     *         name of the index
+     *
+     * @param indexList
+     *          list of the indexInfo objects
+     *
+     * @param comparator
+     *          comparator type
+     *
+     * @param reversed
+     *          is name reversed
+     *
+     * @return int index
      */
     public static int indexFor(ByteBuffer name, List<IndexInfo> indexList, AbstractType comparator, boolean reversed)
     {
@@ -147,8 +165,8 @@ public class IndexHelper
 
         public void serialize(DataOutput dos) throws IOException
         {
-            FBUtilities.writeShortByteArray(firstName, dos);
-            FBUtilities.writeShortByteArray(lastName, dos);
+            ByteBufferUtil.writeWithShortLength(firstName, dos);
+            ByteBufferUtil.writeWithShortLength(lastName, dos);
             dos.writeLong(offset);
             dos.writeLong(width);
         }

@@ -18,6 +18,7 @@
 */
 package org.apache.cassandra.dht;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -292,5 +293,25 @@ public class RangeTest
         assertIntersection(wraps1,
                            wraps6,
                            new Range(new BigIntegerToken("100"), new BigIntegerToken("10")));
+    }
+
+    @Test
+    public void testByteTokensCompare()
+    {
+        Token t1 = new BytesToken(ByteBuffer.wrap(new byte[] { 1,2,3 }));
+        Token t2 = new BytesToken(ByteBuffer.wrap(new byte[] { 1,2,3 }));
+        Token t3 = new BytesToken(ByteBuffer.wrap(new byte[]{1, 2, 3, 4}));
+
+        assert Range.compare(t1, t2) == 0;
+        assert Range.compare(t1, t3) == -1;
+        assert Range.compare(t3, t1) == 1;
+        assert Range.compare(t1, t1) == 0;
+
+        Token t4 = new BytesToken(new byte[] { 1,2,3 });
+        Token t5 = new BytesToken(new byte[] { 4,5,6,7 });
+
+        assert Range.compare(t4, t5) == -1;
+        assert Range.compare(t5, t4) == 1;
+        assert Range.compare(t1, t4) == 0;
     }
 }

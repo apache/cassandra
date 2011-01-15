@@ -49,7 +49,7 @@ public class AsciiType extends BytesType
         // 0-127
         for (int i = 0; i < bytes.remaining(); i++)
         {
-            byte b = bytes.array()[bytes.arrayOffset() + bytes.position() + i]; 
+            byte b = bytes.get(bytes.position() + i);
             if (b < 0 || b > 127)
                 throw new MarshalException("Invalid byte for ascii: " + Byte.toString(b));
         }

@@ -436,4 +436,14 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
     {
         return columns.values().iterator();
     }
+
+    /**
+     * Used to force copy an existing column
+     * @param column column to copy
+     */
+    public void deepCopyColumn(IColumn column)
+    {
+        remove(column.name());
+        addColumn(column.deepCopy());
+    }
 }

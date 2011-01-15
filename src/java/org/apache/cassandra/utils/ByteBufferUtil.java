@@ -18,9 +18,12 @@
  */
 package org.apache.cassandra.utils;
 
+import java.io.DataOutput;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.util.Arrays;
 
 /**
  * Utility methods to make ByteBuffers less painful
@@ -64,29 +67,114 @@ public class ByteBufferUtil
 {
     public static int compareUnsigned(ByteBuffer o1, ByteBuffer o2)
     {
-        return FBUtilities.compareUnsigned(o1.array(), o2.array(), o1.arrayOffset()+o1.position(), o2.arrayOffset()+o2.position(), o1.limit()+o1.arrayOffset(), o2.limit()+o2.arrayOffset());
+        assert o1 != null;
+        assert o2 != null;
+
+        int minLength = Math.min(o1.remaining(), o2.remaining());
+        for (int x = 0, i = o1.position(), j = o2.position(); x < minLength; x++, i++, j++)
+        {
+            if (o1.get(i) == o2.get(j))
+                continue;
+            // compare non-equal bytes as unsigned
+            return (o1.get(i) & 0xFF) < (o2.get(j) & 0xFF) ? -1 : 1;
+        }
+
+        return (o1.remaining() == o2.remaining()) ? 0 : ((o1.remaining() < o2.remaining()) ? -1 : 1);
     }
     
     public static int compare(byte[] o1, ByteBuffer o2)
     {
-        return FBUtilities.compareUnsigned(o1, o2.array(), 0, o2.arrayOffset()+o2.position(), o1.length, o2.limit()+o2.arrayOffset());
+        return compareUnsigned(ByteBuffer.wrap(o1), o2);
     }
 
     public static int compare(ByteBuffer o1, byte[] o2)
     {
-        return FBUtilities.compareUnsigned(o1.array(), o2, o1.arrayOffset()+o1.position(), 0, o1.limit()+o1.arrayOffset(), o2.length);
+        return compareUnsigned(o1, ByteBuffer.wrap(o2));
     }
 
-    public static String string(ByteBuffer b, Charset charset)
+    public static String string(ByteBuffer buffer)
     {
-        return new String(b.array(), b.arrayOffset() + b.position(), b.remaining(), charset);
+        return string(buffer, Charset.defaultCharset());
     }
 
-    public static String string(ByteBuffer b)
+    public static String string(ByteBuffer buffer, Charset charset)
     {
-        return new String(b.array(), b.arrayOffset() + b.position(), b.remaining());
+        return string(buffer, buffer.position(), buffer.remaining(), charset);
     }
-    
+
+    public static String string(ByteBuffer buffer, int offset, int length)
+    {
+        return string(buffer, offset, length, Charset.defaultCharset());
+    }
+
+    public static String string(ByteBuffer buffer, int offset, int length, Charset charset)
+    {
+        if (buffer.hasArray())
+            return new String(buffer.array(), buffer.arrayOffset() + offset, length + buffer.arrayOffset(), charset);
+
+        byte[] buff = getArray(buffer, offset, length);
+        return new String(buff, charset);
+    }
+
+    /**
+     * You should almost never use this.  Instead, use the write* methods to avoid copies.
+     */
+    public static byte[] getArray(ByteBuffer buffer)
+    {
+        return getArray(buffer, buffer.position(), buffer.remaining());
+    }
+
+    public static byte[] getArray(ByteBuffer b, int start, int length)
+    {
+        if (b.hasArray())
+            return Arrays.copyOfRange(b.array(), start + b.arrayOffset(), start + length + b.arrayOffset());
+
+        byte[] bytes = new byte[length];
+
+        for (int i = 0; i < length; i++)
+        {
+            bytes[i] = b.get(start++);
+        }
+
+        return bytes;
+    }
+
+    /**
+     * ByteBuffer adoption of org.apache.commons.lang.ArrayUtils.lastIndexOf method
+     *
+     * @param buffer the array to traverse for looking for the object, may be <code>null</code>
+     * @param valueToFind the value to find
+     * @param startIndex the start index to travers backwards from
+     * @return the last index of the value within the array,
+     * <code>-1</code> if not found or <code>null</code> array input
+     */
+    public static int lastIndexOf(ByteBuffer buffer, byte valueToFind, int startIndex)
+    {
+        if (buffer == null)
+        {
+            return -1;
+        }
+
+        if (startIndex < 0)
+        {
+            return -1;
+        }
+        else if (startIndex >= buffer.limit())
+        {
+            startIndex = buffer.limit() - 1;
+        }
+
+        for (int i = startIndex; i >= 0; i--)
+        {
+            if (valueToFind == buffer.get(i))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
     public static ByteBuffer bytes(String s) 
     { 
         try
@@ -122,5 +210,57 @@ public class ByteBufferUtil
         }
 
         return clone;
+    }
+
+    public static void arrayCopy(ByteBuffer buffer, int position, byte[] bytes, int offset, int length)
+    {
+        if (buffer.hasArray())
+        {
+            System.arraycopy(buffer.array(), buffer.arrayOffset() + position, bytes, offset, length);
+        }
+        else
+        {
+            for (int i = 0; i < length; i++)
+            {
+                bytes[offset++] = buffer.get(position++);
+            }
+        }
+    }
+
+    public static void writeWithLength(ByteBuffer bytes, DataOutput out) throws IOException
+    {
+        out.writeInt(bytes.remaining());
+        write(bytes, out); // writing data bytes to output source
+    }
+
+    public static void write(ByteBuffer buffer, DataOutput out) throws IOException
+    {
+        if (buffer.hasArray())
+        {
+            out.write(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
+        }
+        else
+        {
+            for (int i = buffer.position(); i < buffer.limit(); i++)
+            {
+                out.writeByte(buffer.get(i));
+            }
+        }
+    }
+
+    public static void writeWithShortLength(ByteBuffer buffer, DataOutput out)
+    {
+        int length = buffer.remaining();
+        assert 0 <= length && length <= FBUtilities.MAX_UNSIGNED_SHORT;
+        try
+        {
+            out.writeByte((length >> 8) & 0xFF);
+            out.writeByte(length & 0xFF);
+            write(buffer, out); // writing data bytes to output source
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 }

@@ -27,6 +27,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnParent;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class SliceByNamesReadCommand extends ReadCommand
@@ -81,14 +82,14 @@ class SliceByNamesReadCommandSerializer extends ReadCommandSerializer
         SliceByNamesReadCommand realRM = (SliceByNamesReadCommand)rm;
         dos.writeBoolean(realRM.isDigestQuery());
         dos.writeUTF(realRM.table);
-        FBUtilities.writeShortByteArray(realRM.key, dos);
+        ByteBufferUtil.writeWithShortLength(realRM.key, dos);
         realRM.queryPath.serialize(dos);
         dos.writeInt(realRM.columnNames.size());
         if (realRM.columnNames.size() > 0)
         {
             for (ByteBuffer cName : realRM.columnNames)
             {
-                FBUtilities.writeShortByteArray(cName, dos);
+                ByteBufferUtil.writeWithShortLength(cName, dos);
             }
         }
     }

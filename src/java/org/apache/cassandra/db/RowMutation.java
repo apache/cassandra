@@ -370,7 +370,7 @@ class RowMutationSerializer implements ICompactSerializer<RowMutation>
     public void serialize(RowMutation rm, DataOutputStream dos) throws IOException
     {
         dos.writeUTF(rm.getTable());
-        FBUtilities.writeShortByteArray(rm.key(), dos);
+        ByteBufferUtil.writeWithShortLength(rm.key(), dos);
 
         /* serialize the modifications_ in the mutation */
         freezeTheMaps(rm.modifications_, dos);

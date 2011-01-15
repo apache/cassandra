@@ -180,7 +180,7 @@ public class SystemTable
                 {
                     ByteBuffer v = column.value();
                     byte[] addr = new byte[v.remaining()];
-                    System.arraycopy(v.array(), v.position() + v.arrayOffset(), addr, 0, v.remaining());
+                    ByteBufferUtil.arrayCopy(v, v.position(), addr, 0, v.remaining());
                     tokenMap.put(p.getTokenFactory().fromByteArray(column.name()), InetAddress.getByAddress(addr));
                 }
                 catch (UnknownHostException e)

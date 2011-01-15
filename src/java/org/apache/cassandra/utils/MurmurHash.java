@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.utils;
 
+import java.nio.ByteBuffer;
+
 /**
  * This is a very fast, non-cryptographic hash suitable for general hash-based
  * lookup. See http://murmurhash.googlepages.com/ for more details.
@@ -29,7 +31,7 @@ package org.apache.cassandra.utils;
  */
 public class MurmurHash
 {
-    public static int hash32(byte[] data, int offset, int length, int seed)
+    public static int hash32(ByteBuffer data, int offset, int length, int seed)
     {
         int m = 0x5bd1e995;
         int r = 24;
@@ -41,13 +43,13 @@ public class MurmurHash
         for (int i = 0; i < len_4; i++)
         {
             int i_4 = i << 2;
-            int k = data[offset + i_4 + 3];
+            int k = data.get(offset + i_4 + 3);
             k = k << 8;
-            k = k | (data[offset + i_4 + 2] & 0xff);
+            k = k | (data.get(offset + i_4 + 2) & 0xff);
             k = k << 8;
-            k = k | (data[offset + i_4 + 1] & 0xff);
+            k = k | (data.get(offset + i_4 + 1) & 0xff);
             k = k << 8;
-            k = k | (data[offset + i_4 + 0] & 0xff);
+            k = k | (data.get(offset + i_4 + 0) & 0xff);
             k *= m;
             k ^= k >>> r;
             k *= m;
@@ -63,15 +65,15 @@ public class MurmurHash
         {
             if (left >= 3)
             {
-                h ^= (int) data[offset + length - 3] << 16;
+                h ^= (int) data.get(offset + length - 3) << 16;
             }
             if (left >= 2)
             {
-                h ^= (int) data[offset + length - 2] << 8;
+                h ^= (int) data.get(offset + length - 2) << 8;
             }
             if (left >= 1)
             {
-                h ^= (int) data[offset + length - 1];
+                h ^= (int) data.get(offset + length - 1);
             }
 
             h *= m;
@@ -84,7 +86,7 @@ public class MurmurHash
         return h;
     }
 
-    public static long hash64(byte[] key, int offset, int length, long seed)
+    public static long hash64(ByteBuffer key, int offset, int length, long seed)
     {
         long m64 = 0xc6a4a7935bd1e995L;
         int r64 = 47;
@@ -96,11 +98,11 @@ public class MurmurHash
         for (int i = 0; i < lenLongs; ++i)
         {
             int i_8 = i << 3;
-            
-            long k64 =  ((long)key[offset+i_8+0]&0xff)       + (((long)key[offset+i_8+1]&0xff)<<8)  +
-			            (((long)key[offset+i_8+2]&0xff)<<16) + (((long)key[offset+i_8+3]&0xff)<<24) +
-			            (((long)key[offset+i_8+4]&0xff)<<32) + (((long)key[offset+i_8+5]&0xff)<<40) +
-			            (((long)key[offset+i_8+6]&0xff)<<48) + (((long)key[offset+i_8+7]&0xff)<<56);
+
+            long k64 =  ((long)  key.get(offset+i_8+0) & 0xff)      + (((long) key.get(offset+i_8+1) & 0xff)<<8)  +
+			            (((long) key.get(offset+i_8+2) & 0xff)<<16) + (((long) key.get(offset+i_8+3) & 0xff)<<24) +
+			            (((long) key.get(offset+i_8+4) & 0xff)<<32) + (((long) key.get(offset+i_8+5) & 0xff)<<40) +
+			            (((long) key.get(offset+i_8+6) & 0xff)<<48) + (((long) key.get(offset+i_8+7) & 0xff)<<56);
            
             k64 *= m64;
             k64 ^= k64 >>> r64;
@@ -117,19 +119,19 @@ public class MurmurHash
         case 0:
             break;
         case 7:
-            h64 ^= (long) key[offset + length - rem + 6] << 48; 
+            h64 ^= (long) key.get(offset + length - rem + 6) << 48;
         case 6:
-            h64 ^= (long) key[offset + length - rem + 5] << 40;
+            h64 ^= (long) key.get(offset + length - rem + 5) << 40;
         case 5:
-            h64 ^= (long) key[offset + length - rem + 4] << 32;
+            h64 ^= (long) key.get(offset + length - rem + 4) << 32;
         case 4:
-            h64 ^= (long) key[offset + length - rem + 3] << 24;
+            h64 ^= (long) key.get(offset + length - rem + 3) << 24;
         case 3:
-            h64 ^= (long) key[offset + length - rem + 2] << 16;
+            h64 ^= (long) key.get(offset + length - rem + 2) << 16;
         case 2:
-            h64 ^= (long) key[offset + length - rem + 1] << 8;
+            h64 ^= (long) key.get(offset + length - rem + 1) << 8;
         case 1:
-            h64 ^= (long) key[offset + length - rem];
+            h64 ^= (long) key.get(offset + length - rem);
             h64 *= m64;
         }
 
