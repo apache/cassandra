@@ -25,7 +25,7 @@
    (CASSANDRA-1962)
  * allow specifying specific SSTables to compact from JMX (CASSANDRA-1963)
  * fix race condition in MessagingService.targets (CASSANDRA-1959)
-
+ * zero-copy reads (CASSANDRA-1714)
 
 0.7.0-dev
  * fix offsets to ByteBuffer.get (CASSANDRA-1939)
