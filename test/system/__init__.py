@@ -22,11 +22,6 @@ from thrift.transport import TTransport
 from thrift.transport import TSocket
 from thrift.transport import THttpClient
 from thrift.protocol import TBinaryProtocol
-try:
-    import avro.ipc as ipc
-    import avro.protocol as protocol
-except ImportError:
-    pass
 
 # add cassandra directory to sys.path
 L = os.path.abspath(__file__).split(os.path.sep)[:-3]
@@ -43,12 +38,6 @@ def get_thrift_client(host='127.0.0.1', port=9170):
     client.transport = transport
     return client
 thrift_client = get_thrift_client()
-
-def get_avro_client(host='127.0.0.1', port=9170):
-    schema = os.path.join(root, 'interface/avro', 'cassandra.avpr')
-    proto = protocol.parse(open(schema).read())
-    client = ipc.HTTPTransceiver(host, port)
-    return ipc.Requestor(proto, client)
 
 pid_fname = "system_test.pid"
 def pid():
@@ -185,103 +174,5 @@ class ThriftTester(BaseTester):
 
         for ks in [keyspace1, keyspace2]:
             self.client.system_add_keyspace(ks)
-
-class AvroTester(BaseTester):
-    client = None
-    extra_args = ['-a']
-
-    def open_client(self):
-        self.client = get_avro_client()
-
-    def close_client(self):
-        self.client.transceiver.conn.close()
-    
-    def define_schema(self):
-        keyspace1 = dict()
-        keyspace1['name'] = 'Keyspace1'
-        keyspace1['replication_factor'] = 1
-        keyspace1['strategy_class'] = 'org.apache.cassandra.locator.SimpleStrategy'
-
-        keyspace1['cf_defs'] = [{
-            'keyspace': 'Keyspace1',
-            'name': 'Standard1',
-        }]
-
-        keyspace1['cf_defs'].append({
-            'keyspace': 'Keyspace1',
-            'name': 'StandardLong1',
-            'comparator_type': 'LongType',
-        })
-
-        keyspace1['cf_defs'].append({
-            'keyspace': 'Keyspace1',
-            'name': 'Super1',
-            'column_type': 'Super',
-            'comparator_type': 'BytesType',
-            'subcomparator_type': 'LongType',
-            'comment': '',
-            'row_cache_size': 1000,
-            'key_cache_size': 0
-        })
-        
-        keyspace1['cf_defs'].append({
-            'keyspace': 'Keyspace1',
-            'name': 'Super2',
-            'column_type': 'Super',
-            'subcomparator_type': 'LongType',
-        })
-        
-        keyspace1['cf_defs'].append({
-            'keyspace': 'Keyspace1',
-            'name': 'Super3',
-            'column_type': 'Super',
-            'subcomparator_type': 'LongType',
-        })
-        
-        keyspace1['cf_defs'].append({
-            'keyspace': 'Keyspace1',
-            'name': 'Super4',
-            'column_type': 'Super',
-            'subcomparator_type': 'UTF8Type',
-        })
-
-        keyspace1['cf_defs'].append({
-            'keyspace': 'Keyspace1',
-            'name': 'Indexed1',
-            'column_metadata': [{'name': 'birthdate', 'validation_class': 'LongType', 'index_type': 'KEYS', 'index_name': 'birthdate'}],
-        })
-
-        self.client.request('system_add_keyspace', {'ks_def': keyspace1})
-        
-        keyspace2 = dict()
-        keyspace2['name'] = 'Keyspace2'
-        keyspace2['replication_factor'] = 1
-        keyspace2['strategy_class'] = 'org.apache.cassandra.locator.SimpleStrategy'
-        
-        keyspace2['cf_defs'] = [{
-            'keyspace': 'Keyspace2',
-            'name': 'Standard1',
-        }]
-        
-        keyspace2['cf_defs'].append({
-            'keyspace': 'Keyspace2',
-            'name': 'Standard3',
-        })
-        
-        keyspace2['cf_defs'].append({
-            'keyspace': 'Keyspace2',
-            'name': 'Super3',
-            'column_type': 'Super',
-            'subcomparator_type': 'BytesType',
-        })
-        
-        keyspace2['cf_defs'].append({
-            'keyspace': 'Keyspace2',
-            'name': 'Super4',
-            'column_type': 'Super',
-            'subcomparator_type': 'TimeUUIDType',
-        });
-        
-        self.client.request('system_add_keyspace', {'ks_def': keyspace2})
 
 # vim:ai sw=4 ts=4 tw=0 et
