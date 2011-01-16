@@ -63,7 +63,7 @@ public class DefsTable
         rm.add(new QueryPath(Migration.SCHEMA_CF,
                              null,
                              DEFINITION_SCHEMA_COLUMN_NAME),
-                             ByteBuffer.wrap(org.apache.cassandra.avro.KsDef.SCHEMA$.toString().getBytes(UTF_8)),
+                             ByteBuffer.wrap(org.apache.cassandra.db.migration.avro.KsDef.SCHEMA$.toString().getBytes(UTF_8)),
                              now);
         rm.apply();
 
@@ -97,7 +97,7 @@ public class DefsTable
         {
             if (column.name().equals(DEFINITION_SCHEMA_COLUMN_NAME))
                 continue;
-            org.apache.cassandra.avro.KsDef ks = SerDeUtils.deserialize(schema, column.value(), new org.apache.cassandra.avro.KsDef());
+            org.apache.cassandra.db.migration.avro.KsDef ks = SerDeUtils.deserialize(schema, column.value(), new org.apache.cassandra.db.migration.avro.KsDef());
             keyspaces.add(KSMetaData.inflate(ks));
         }
         return keyspaces;

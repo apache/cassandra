@@ -19,7 +19,6 @@
 package org.apache.cassandra;
 
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -34,7 +33,7 @@ public class EmbeddedServer extends CleanupHelper
     
     enum GatewayService
     {
-        Thrift, Avro
+        Thrift
     }
     
     public static GatewayService getDaemonGatewayService()
@@ -54,9 +53,6 @@ public class EmbeddedServer extends CleanupHelper
             {
                 switch (getDaemonGatewayService())
                 {
-                    case Avro:
-                        daemon = new org.apache.cassandra.avro.CassandraDaemon();
-                        break;
                     case Thrift:
                     default:
                         daemon = new org.apache.cassandra.thrift.CassandraDaemon();
