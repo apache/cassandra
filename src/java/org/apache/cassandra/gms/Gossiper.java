@@ -105,6 +105,7 @@ public class Gossiper implements IFailureDetectionEventListener
     }
 
     public final static int intervalInMillis_ = 1000;
+    public final static int QUARANTINE_DELAY = StorageService.RING_DELAY * 2;
     private static Logger logger_ = LoggerFactory.getLogger(Gossiper.class);
     public static final Gossiper instance = new Gossiper();
 
@@ -136,7 +137,7 @@ public class Gossiper implements IFailureDetectionEventListener
     Map<InetAddress, EndpointState> endpointStateMap_ = new ConcurrentHashMap<InetAddress, EndpointState>();
 
     /* map where key is endpoint and value is timestamp when this endpoint was removed from
-     * gossip. We will ignore any gossip regarding these endpoints for Streaming.RING_DELAY time
+     * gossip. We will ignore any gossip regarding these endpoints for QUARANTINE_DELAY time
      * after removal to prevent nodes from falsely reincarnating during the time when removal
      * gossip gets propagated to all nodes */
     Map<InetAddress, Long> justRemovedEndpoints_ = new ConcurrentHashMap<InetAddress, Long>();
@@ -145,8 +146,8 @@ public class Gossiper implements IFailureDetectionEventListener
     {
         // 3 days
         aVeryLongTime_ = 259200 * 1000;
-        // half of RING_DELAY, to ensure justRemovedEndpoints has enough leeway to prevent re-gossip
-        FatClientTimeout_ = (long)(StorageService.RING_DELAY / 2);
+        // half of QUARATINE_DELAY, to ensure justRemovedEndpoints has enough leeway to prevent re-gossip
+        FatClientTimeout_ = (long)(QUARANTINE_DELAY / 2);
         /* register with the Failure Detector for receiving Failure detector events */
         FailureDetector.instance.registerFailureDetectionEventListener(this);
     }
@@ -423,10 +424,10 @@ public class Gossiper implements IFailureDetectionEventListener
             Map<InetAddress, Long> copy = new HashMap<InetAddress, Long>(justRemovedEndpoints_);
             for (Map.Entry<InetAddress, Long> entry : copy.entrySet())
             {
-                if ((now - entry.getValue()) > StorageService.RING_DELAY)
+                if ((now - entry.getValue()) > QUARANTINE_DELAY)
                 {
                     if (logger_.isDebugEnabled())
-                        logger_.debug(StorageService.RING_DELAY + " elapsed, " + entry.getKey() + " gossip quarantine over");
+                        logger_.debug(QUARANTINE_DELAY + " elapsed, " + entry.getKey() + " gossip quarantine over");
                     justRemovedEndpoints_.remove(entry.getKey());
                 }
             }
