@@ -21,6 +21,7 @@
  * fix race condition in MessagingService.targets (CASSANDRA-1959)
  * refuse to open sstables from a future version (CASSANDRA-1935)
  * zero-copy reads (CASSANDRA-1714)
+ * fix copy bounds for word Text in wordcount demo (CASSANDRA-1993)
 
 
 0.7.0-final
