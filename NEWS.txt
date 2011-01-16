@@ -1,3 +1,13 @@
+Whatever
+========
+
+Upgrading
+---------
+    Avro record classes used in map/reduce and Hadoop streaming code have
+    moved from org.apache.cassandra.avro to org.apache.cassandra.hadoop.avro,
+    applications using these classes will need to be updated accordingly.
+
+
 0.7.0
 =====
 
