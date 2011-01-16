@@ -129,7 +129,7 @@ launch_service()
 }
 
 # Parse any command line options.
-args=`getopt fahp:bD: "$@"`
+args=`getopt fhp:bD: "$@"`
 eval set -- "$args"
 
 classname="org.apache.cassandra.thrift.CassandraDaemon"
@@ -151,10 +151,6 @@ while true; do
         -D)
             properties="$properties -D$2"
             shift 2
-        ;;
-        -a)
-            classname="org.apache.cassandra.avro.CassandraDaemon"
-            shift
         ;;
         --)
             shift
