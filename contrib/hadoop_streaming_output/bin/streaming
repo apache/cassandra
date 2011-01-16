@@ -32,7 +32,7 @@ hadoop jar $cwd/../../../build/lib/jars/hadoop-streaming*.jar \
     -D cassandra.thrift.address=127.0.0.1 \
     -D cassandra.thrift.port=9160 \
     -libjars $ARCHIVES \
-    -file $cwd/../../../interface/avro/cassandra.avpr \
+    -file $cwd/../../../src/gen-java/org/apache/cassandra/hadoop/hadoop.avpr \
     -outputformat org.apache.cassandra.hadoop.ColumnFamilyOutputFormat \
     -output /tmp/ignored \
     -mapper $cwd/mapper.py -reducer $cwd/reducer.py \
