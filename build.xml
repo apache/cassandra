@@ -222,9 +222,6 @@
 
     <target name="avro-interface-generate-client" unless="avroInterfaceUpToDate"
             depends="init,check-avro-generate,ivy-retrieve-build">
-      <!-- A copy for interested clients. TODO: Jar this stuff up. -->
-      <avromacro protocolname="cassandra" inputfile="${interface.dir}/cassandra.genavro"
-          jsondir="${interface.avro.dir}" outputdir="${interface.avro.dir}" />
       <!-- A copy for our build. -->
       <avromacro protocolname="api" inputfile="${interface.dir}/cassandra.genavro"
                  jsondir="${build.dir}" outputdir="${build.src}" />
@@ -318,9 +315,6 @@
         <taskdef name="paranamer" classname="com.thoughtworks.paranamer.ant.ParanamerGeneratorTask">
           <classpath refid="cassandra.classpath" />
         </taskdef>
-
-        <!--<paranamer sourceDirectory="${interface.avro.dir}"-->
-               <!--outputDirectory="${build.classes}"/>-->
 
         <antcall target="createVersionPropFile"/>
     </target>
@@ -679,7 +673,6 @@
 <classpath>
   <classpathentry kind="src" path="src/java"/>
   <classpathentry kind="src" path="src/gen-java"/>
-  <classpathentry kind="src" path="interface/avro/gen-java"/>
   <classpathentry kind="src" path="interface/thrift/gen-java"/>
   <classpathentry kind="src" path="drivers/java/src"/>
   <classpathentry kind="src" path="test/unit"/>
