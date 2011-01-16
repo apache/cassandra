@@ -38,7 +38,6 @@
     <property name="interface.dir" value="${basedir}/interface"/>
     <property name="interface.thrift.dir" value="${interface.dir}/thrift"/>
     <property name="interface.thrift.gen-java" value="${interface.thrift.dir}/gen-java"/>
-    <property name="interface.avro.dir" value="${interface.dir}/avro"/>
     <property name="test.dir" value="${basedir}/test"/>
     <property name="test.resources" value="${test.dir}/resources"/>
     <property name="test.lib" value="${build.dir}/test/lib"/>
@@ -119,7 +118,6 @@
         <delete dir="${build.test.dir}" />
         <delete dir="${build.classes}" />
         <delete dir="${build.src.gen-java}" />
-        <delete dir="${interface.avro.dir}" />
         <delete file="${build.dir}/internode.avpr" />
     </target>
     <target depends="clean" name="cleanall"/>
@@ -210,21 +208,23 @@
       <taskdef name="avro-protocol" classname="org.apache.avro.specific.ProtocolTask">
         <classpath refid="cassandra.classpath" />
       </taskdef>
-      <uptodate property="avroInterfaceUpToDate" srcfile="${interface.dir}/cassandra.genavro"
-                targetfile="${interface.avro.dir}/cassandra.avpr" />
+      <uptodate property="avroInterfaceUpToDate"
+                srcfile="${build.src.java}/org/apache/cassandra/hadoop/hadoop.genavro"
+                targetfile="${build.src.gen-java}/org/apache/cassandra/hadoop/hadoop.avpr" />
       <uptodate property="avroINProtoUpToDate" srcfile="${avro.src}/internode.genavro"
                 targetfile="${build.dir}/internode.avpr" />
     </target>
 
     <target name="avro-generate"
-            depends="avro-interface-generate-client,avro-interface-generate-internode"
+            depends="avro-interface-generate-hadoop,avro-interface-generate-internode"
             description="Generates Java Avro classes for client and internal use." />
 
-    <target name="avro-interface-generate-client" unless="avroInterfaceUpToDate"
+    <target name="avro-interface-generate-hadoop" unless="avroInterfaceUpToDate"
             depends="init,check-avro-generate,ivy-retrieve-build">
-      <!-- A copy for our build. -->
-      <avromacro protocolname="api" inputfile="${interface.dir}/cassandra.genavro"
-                 jsondir="${build.dir}" outputdir="${build.src}" />
+      <avromacro protocolname="hadoop"
+                 inputfile="${build.src.java}/org/apache/cassandra/hadoop/hadoop.genavro"
+                 jsondir="${build.src.gen-java}/org/apache/cassandra/hadoop"
+                 outputdir="${build.src}" />
     </target>
     <target name="avro-interface-generate-internode" unless="avroINProtoUpToDate"
             depends="init,check-avro-generate,ivy-retrieve-build">
@@ -362,8 +362,6 @@
       <copy todir="${dist.dir}/interface">
         <fileset dir="interface">
           <include name="**/*.thrift" />
-          <include name="cassandra.genavro" />
-          <include name="avro/cassandra.avpr" />
         </fileset>
       </copy>
       <copy todir="${dist.dir}/">
@@ -401,7 +399,6 @@
           <include name="**"/>
           <exclude name="build/**" />
           <exclude name="src/gen-java/**" />
-          <exclude name="interface/avro/**" />
           <exclude name=".git/**" />
           <exclude name="bin/*" /> <!-- handled separately below -->
           <!-- exclude Eclipse files -->

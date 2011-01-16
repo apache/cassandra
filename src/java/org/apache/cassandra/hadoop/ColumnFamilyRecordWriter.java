@@ -59,8 +59,8 @@ import static org.apache.cassandra.io.SerDeUtils.copy;
  * @see OutputFormat
  * 
  */
-final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer,List<org.apache.cassandra.avro.Mutation>>
-implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cassandra.avro.Mutation>>
+final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer,List<org.apache.cassandra.hadoop.avro.Mutation>>
+implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cassandra.hadoop.avro.Mutation>>
 {
     // The configuration this writer is associated with.
     private final Configuration conf;
@@ -118,7 +118,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
      * @throws IOException
      */
     @Override
-    public void write(ByteBuffer keybuff, List<org.apache.cassandra.avro.Mutation> value) throws IOException
+    public void write(ByteBuffer keybuff, List<org.apache.cassandra.hadoop.avro.Mutation> value) throws IOException
     {
         Range range = ringCache.getRange(keybuff);
 
@@ -132,17 +132,17 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
             clients.put(range, client);
         }
 
-        for (org.apache.cassandra.avro.Mutation amut : value)
+        for (org.apache.cassandra.hadoop.avro.Mutation amut : value)
             client.put(new Pair<ByteBuffer,Mutation>(keybuff, avroToThrift(amut)));
     }
 
     /**
      * Deep copies the given Avro mutation into a new Thrift mutation.
      */
-    private Mutation avroToThrift(org.apache.cassandra.avro.Mutation amut)
+    private Mutation avroToThrift(org.apache.cassandra.hadoop.avro.Mutation amut)
     {
         Mutation mutation = new Mutation();
-        org.apache.cassandra.avro.ColumnOrSuperColumn acosc = amut.column_or_supercolumn;
+        org.apache.cassandra.hadoop.avro.ColumnOrSuperColumn acosc = amut.column_or_supercolumn;
         if (acosc != null)
         {
             // creation
@@ -156,7 +156,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
                 // super column
                 ByteBuffer scolname = acosc.super_column.name;
                 List<Column> scolcols = new ArrayList<Column>(acosc.super_column.columns.size());
-                for (org.apache.cassandra.avro.Column acol : acosc.super_column.columns)
+                for (org.apache.cassandra.hadoop.avro.Column acol : acosc.super_column.columns)
                     scolcols.add(avroToThrift(acol));
                 cosc.setSuper_column(new SuperColumn(scolname, scolcols));
             }
@@ -166,7 +166,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
             // deletion
             Deletion deletion = new Deletion(amut.deletion.timestamp);
             mutation.setDeletion(deletion);
-            org.apache.cassandra.avro.SlicePredicate apred = amut.deletion.predicate;
+            org.apache.cassandra.hadoop.avro.SlicePredicate apred = amut.deletion.predicate;
             if (amut.deletion.super_column != null)
                 // super column
                 deletion.setSuper_column(copy(amut.deletion.super_column));
@@ -187,12 +187,12 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
         return mutation;
     }
 
-    private SliceRange avroToThrift(org.apache.cassandra.avro.SliceRange asr)
+    private SliceRange avroToThrift(org.apache.cassandra.hadoop.avro.SliceRange asr)
     {
         return new SliceRange(asr.start, asr.finish, asr.reversed, asr.count);
     }
 
-    private Column avroToThrift(org.apache.cassandra.avro.Column acol)
+    private Column avroToThrift(org.apache.cassandra.hadoop.avro.Column acol)
     {
         return new Column(acol.name, acol.value, acol.timestamp);
     }

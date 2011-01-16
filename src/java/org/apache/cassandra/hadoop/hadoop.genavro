@@ -19,7 +19,7 @@
 /**
  * Cassandra client interface (legacy).
  */
-@namespace("org.apache.cassandra.avro")
+@namespace("org.apache.cassandra.hadoop.avro")
 
 protocol Cassandra {
     record Column {
