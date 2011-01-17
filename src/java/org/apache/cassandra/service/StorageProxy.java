@@ -911,7 +911,15 @@ public class StorageProxy implements StorageProxyMBean
             {
                 if (logger.isDebugEnabled())
                     logger.debug("Digest mismatch:", e);
-                repair(command, endpoints);
+                final RepairCallback<Row> callback = repair(command, endpoints);
+                Runnable runnable = new WrappedRunnable()
+                {
+                    public void runMayThrow() throws DigestMismatchException, IOException, TimeoutException
+                    {
+                        callback.get();
+                    }
+                };
+                repairExecutor.schedule(runnable, DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
             }
         }
     }

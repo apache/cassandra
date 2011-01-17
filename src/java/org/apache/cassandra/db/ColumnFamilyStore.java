@@ -481,7 +481,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // get the max generation number, to prevent generation conflicts
         List<Integer> generations = new ArrayList<Integer>();
         for (Descriptor desc : files(table.name, columnFamily, true).keySet())
+        {
             generations.add(desc.generation);
+            if (desc.isFromTheFuture())
+            {
+                throw new RuntimeException("you can't open sstables from the future!");
+            }
+        }
         Collections.sort(generations);
         int value = (generations.size() > 0) ? (generations.get(generations.size() - 1)) : 0;
 

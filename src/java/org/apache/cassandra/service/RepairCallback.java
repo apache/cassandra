@@ -13,9 +13,9 @@ import org.apache.cassandra.utils.SimpleCondition;
 
 public class RepairCallback<T> implements IAsyncCallback
 {
-    public final IResponseResolver<T> resolver;
+    private final IResponseResolver<T> resolver;
     private final List<InetAddress> endpoints;
-    protected final SimpleCondition condition = new SimpleCondition();
+    private final SimpleCondition condition = new SimpleCondition();
     private final long startTime;
 
     public RepairCallback(IResponseResolver<T> resolver, List<InetAddress> endpoints)
@@ -41,9 +41,8 @@ public class RepairCallback<T> implements IAsyncCallback
             throw new AssertionError(ex);
         }
 
-        return resolver.resolve();
+        return resolver.isDataPresent() ? resolver.resolve() : null;
     }
-
 
     public void response(Message message)
     {

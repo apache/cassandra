@@ -134,8 +134,7 @@ public class WordCount extends Configured implements Tool
         private static Mutation getMutation(Text word, int sum)
         {
             Column c = new Column();
-            byte[] wordBytes = word.getBytes();
-            c.name = ByteBuffer.wrap(Arrays.copyOf(wordBytes, wordBytes.length));
+            c.name = ByteBuffer.wrap(Arrays.copyOf(word.getBytes(), word.getLength()));
             c.value = ByteBuffer.wrap(String.valueOf(sum).getBytes());
             c.timestamp = System.currentTimeMillis() * 1000;
 

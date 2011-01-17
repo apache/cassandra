@@ -180,6 +180,11 @@ public class Descriptor
         return true;
     }
 
+    public boolean isFromTheFuture()
+    {
+        return version.compareTo(CURRENT_VERSION) > 0;
+    }
+
     @Override
     public String toString()
     {
