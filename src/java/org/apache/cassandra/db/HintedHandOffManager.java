@@ -183,8 +183,8 @@ public class HintedHandOffManager
             throw new RuntimeException("Corrupted hint name " + ByteBufferUtil.string(joined));
 
         return new String[] {
-                                ByteBufferUtil.string(joined, joined.position(), index),
-                                ByteBufferUtil.string(joined, index + 1, joined.limit())
+                                ByteBufferUtil.string(joined, joined.position(), index - joined.position()),
+                                ByteBufferUtil.string(joined, index + 1, joined.limit() - (index + 1))
                             };
     }
             

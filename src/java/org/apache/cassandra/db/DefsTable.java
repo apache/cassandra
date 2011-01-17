@@ -89,7 +89,7 @@ public class DefsTable
             throw new RuntimeException("Cannot read system table! Are you upgrading a pre-release version?");
 
         ByteBuffer value = avroschema.value();
-        Schema schema = Schema.parse(ByteBufferUtil.string(value, value.position(), value.remaining()));
+        Schema schema = Schema.parse(ByteBufferUtil.string(value));
 
         // deserialize keyspaces using schema
         Collection<KSMetaData> keyspaces = new ArrayList<KSMetaData>();

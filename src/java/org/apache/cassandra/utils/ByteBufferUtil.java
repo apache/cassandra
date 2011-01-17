@@ -110,7 +110,7 @@ public class ByteBufferUtil
     public static String string(ByteBuffer buffer, int offset, int length, Charset charset)
     {
         if (buffer.hasArray())
-            return new String(buffer.array(), buffer.arrayOffset() + offset, length + buffer.arrayOffset(), charset);
+            return new String(buffer.array(), buffer.arrayOffset() + offset, length, charset);
 
         byte[] buff = getArray(buffer, offset, length);
         return new String(buff, charset);
