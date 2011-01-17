@@ -28,6 +28,7 @@
  * zero-copy reads (CASSANDRA-1714)
  * refuse to open sstables from a future version (CASSANDRA-1935)
  * fix copy bounds for word Text in wordcount demo (CASSANDRA-1993)
+ * fixes for contrib/javautils (CASSANDRA-1979)
 
 
 0.7.0-final

@@ -24,7 +24,12 @@ import static org.junit.Assert.assertNotNull;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.nio.ByteBuffer;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.AuthorizationException;
@@ -38,9 +43,11 @@ import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.NotFoundException;
 import org.apache.cassandra.thrift.TimedOutException;
 import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
+import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
@@ -56,6 +63,8 @@ import org.junit.Test;
 public class CassandraServiceTest {
 
     private static EmbeddedCassandraService cassandra;
+    private static Thread cassandraRunner;
+    private static CassandraServiceDataCleaner cleaner;
 
     /**
      * Set embedded cassandra up and spawn it in a new thread.
@@ -66,18 +75,40 @@ public class CassandraServiceTest {
      */
     @BeforeClass
     public static void setup() throws TTransportException, IOException,
-            InterruptedException {
+            InterruptedException, ConfigurationException {
         // Tell cassandra where the configuration files are.
         // Use the test configuration file.
-        System.setProperty("storage-config", "../../test/conf");
-
-        CassandraServiceDataCleaner cleaner = new CassandraServiceDataCleaner();
+        System.setProperty("cassandra.config", "file:../../test/conf/cassandra.yaml");
+        System.setProperty("log4j.configuration", "file:../../test/conf/log4j-junit.properties");
+        //String configUrl = System.getProperty("cassandra.config");
+        loadYamlTables();
+        initCleaner();
+    }
+    
+    private static void initCleaner() throws IOException, TTransportException, ConfigurationException {
+        cleaner = new CassandraServiceDataCleaner();
         cleaner.prepare();
+        
         cassandra = new EmbeddedCassandraService();
         cassandra.init();
-        Thread t = new Thread(cassandra);
-        t.setDaemon(true);
-        t.start();
+        
+        if ( cassandraRunner == null ) {
+            cassandraRunner = new Thread(cassandra);
+            cassandraRunner.setDaemon(true);
+            cassandraRunner.start();
+        }
+    }
+    
+
+    /** Manually load tables from the test configuration file.
+     * @throws ConfigurationException */
+    private static void loadYamlTables() throws ConfigurationException {
+      for (KSMetaData table : DatabaseDescriptor.readTablesFromYaml()) {
+        for (CFMetaData cfm : table.cfMetaData().values()) {
+          CFMetaData.map(cfm);
+        }
+        DatabaseDescriptor.setTableDefinition(table, DatabaseDescriptor.getDefsVersion());
+      }
     }
 
 
@@ -88,29 +119,32 @@ public class CassandraServiceTest {
             NotFoundException, AuthenticationException, AuthorizationException {
         Cassandra.Client client = getClient();
 
-        client.login(null);
+        client.set_keyspace("Keyspace1");        
 
         String key_user_id = "1";
+        
         long timestamp = System.currentTimeMillis();   
 
         // insert
         ColumnParent colParent = new ColumnParent("Standard1");
-        Column column = new Column("name".getBytes("utf-8"), "Ran".getBytes("UTF-8"), timestamp);
+        Column column = new Column(ByteBufferUtil.bytes("name"), 
+                ByteBufferUtil.bytes("Ran"), timestamp);
         
-        client.insert(key_user_id.getBytes(), colParent, column, ConsistencyLevel.ONE);
+        client.insert(ByteBufferUtil.bytes(key_user_id), colParent, column, ConsistencyLevel.ONE);
 
         // read
         ColumnPath cp = new ColumnPath("Standard1");
-        cp.setColumn("name".getBytes("utf-8"));
+        cp.setColumn(ByteBufferUtil.bytes("name"));
 
-        ColumnOrSuperColumn got = client.get(key_user_id.getBytes(), cp,
+        ColumnOrSuperColumn got = client.get(ByteBufferUtil.bytes(key_user_id), cp,
                 ConsistencyLevel.ONE);
 
         // assert
         assertNotNull("Got a null ColumnOrSuperColumn", got);
         assertEquals("Ran", new String(got.getColumn().getValue(), "utf-8"));
     }
-
+    
+    
     /**
      * Gets a connection to the localhost client
      *
@@ -118,7 +152,7 @@ public class CassandraServiceTest {
      * @throws TTransportException
      */
     private Cassandra.Client getClient() throws TTransportException {
-        TTransport tr = new TSocket("localhost", 9170);
+        TTransport tr = new TFramedTransport(new TSocket("localhost", 9170));
         TProtocol proto = new TBinaryProtocol(tr);
         Cassandra.Client client = new Cassandra.Client(proto);
         tr.open();

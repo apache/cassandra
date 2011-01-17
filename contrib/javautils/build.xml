@@ -20,6 +20,7 @@
 <project basedir="." default="build" name="apache-cassandra-javautils">
   <property name="cassandra.dir" value="../.." />
   <property name="cassandra.lib" value="${cassandra.dir}/lib" />
+  <property name="test.lib" value="${cassandra.dir}/build/lib" />
   <property name="cassandra.classes" value="${cassandra.dir}/build/classes" />
   <property name="build.src" value="${basedir}/src/main/java" />
   <property name="test.src" value="${basedir}/src/test/java" />
@@ -40,6 +41,10 @@
     <path refid="classpath"/>
     <path>
       <pathelement location="${build.classes}" />
+        <fileset dir="${test.lib}">
+          <exclude name="**/ant-1.6.5.jar" />	
+          <include name="**/*.jar" />        	
+        </fileset>    	
     </path>
   </path>
 
@@ -66,9 +71,9 @@
   </target>
 
   <target name="test" depends="build-tests">
-    <delete dir="${test.reports}" failonerror="no"/>
+    <delete dir="${test.reports}" failonerror="yes"/>
     <mkdir dir="${test.reports}"/>
-    <junit printsummary="yes" dir="${basedir}" timeout="600000" fork="yes" includeantruntime="yes">
+    <junit showoutput="true" printsummary="yes" dir="${basedir}" timeout="600000" fork="yes" includeantruntime="yes">
       <classpath refid="test.classpath"/>
       <formatter type="plain"/>
       <batchtest todir="${test.reports}">
