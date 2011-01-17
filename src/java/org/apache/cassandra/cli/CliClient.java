@@ -38,8 +38,6 @@ import org.apache.thrift.TBaseHelper;
 import org.apache.thrift.TException;
 import org.safehaus.uuid.UUIDGenerator;
 
-import org.apache.cassandra.thrift.TBinaryProtocol;
-
 // Cli Client Side Library
 public class CliClient extends CliUserHelp
 {
@@ -242,7 +240,7 @@ public class CliClient extends CliUserHelp
             colParent = new ColumnParent(columnFamily).setSuper_column(superColumn);
         }
 
-        SliceRange range = new SliceRange(FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER, false, Integer.MAX_VALUE);
+        SliceRange range = new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, Integer.MAX_VALUE);
         SlicePredicate predicate = new SlicePredicate().setColumn_names(null).setSlice_range(range);
 
         int count = thriftClient.get_count(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)), colParent, predicate, ConsistencyLevel.ONE);
@@ -307,7 +305,7 @@ public class CliClient extends CliUserHelp
         if(superColumnName != null)
             parent.setSuper_column(superColumnName);
 
-        SliceRange range = new SliceRange(FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER, false, 1000000);
+        SliceRange range = new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1000000);
         List<ColumnOrSuperColumn> columns = thriftClient.get_slice(key, parent, new SlicePredicate().setColumn_names(null).setSlice_range(range), ConsistencyLevel.ONE);
 
         AbstractType validator;
@@ -984,8 +982,8 @@ public class CliClient extends CliUserHelp
         // set the key range
         KeyRange range = new KeyRange(limitCount);
         AbstractType keyComparator = this.cfKeysComparators.get(columnFamily);
-        ByteBuffer startKey = rawStartKey.isEmpty() ? FBUtilities.EMPTY_BYTE_BUFFER : getBytesAccordingToType(rawStartKey, keyComparator);
-        ByteBuffer endKey = rawEndKey.isEmpty() ? FBUtilities.EMPTY_BYTE_BUFFER : getBytesAccordingToType(rawEndKey, keyComparator);
+        ByteBuffer startKey = rawStartKey.isEmpty() ? ByteBufferUtil.EMPTY_BYTE_BUFFER : getBytesAccordingToType(rawStartKey, keyComparator);
+        ByteBuffer endKey = rawEndKey.isEmpty() ? ByteBufferUtil.EMPTY_BYTE_BUFFER : getBytesAccordingToType(rawEndKey, keyComparator);
         range.setStart_key(startKey).setEnd_key(endKey);
 
         ColumnParent columnParent = new ColumnParent(columnFamily);

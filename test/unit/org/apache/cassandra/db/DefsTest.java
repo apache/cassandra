@@ -34,7 +34,6 @@ import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
-import org.apache.avro.Schema;
 import org.apache.avro.util.Utf8;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
@@ -59,8 +58,6 @@ import org.apache.cassandra.db.migration.UpdateKeyspace;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.locator.OldNetworkTopologyStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
-import org.apache.cassandra.thrift.CfDef;
-import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
@@ -364,7 +361,7 @@ public class DefsTest extends CleanupHelper
         // do some reads.
         store = Table.open(oldCfm.tableName).getColumnFamilyStore(cfName);
         assert store != null;
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getSliceFilter(dk, new QueryPath(cfName), FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER, false, 1000));
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getSliceFilter(dk, new QueryPath(cfName), ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1000));
         assert cfam.getSortedColumns().size() == 100; // should be good enough?
         
         // do some writes

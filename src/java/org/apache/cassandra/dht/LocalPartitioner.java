@@ -26,7 +26,7 @@ import java.util.Map;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class LocalPartitioner implements IPartitioner<LocalToken>
 {
@@ -54,7 +54,7 @@ public class LocalPartitioner implements IPartitioner<LocalToken>
 
     public LocalToken getMinimumToken()
     {
-        return new LocalToken(comparator, FBUtilities.EMPTY_BYTE_BUFFER);
+        return new LocalToken(comparator, ByteBufferUtil.EMPTY_BYTE_BUFFER);
     }
 
     public LocalToken getToken(ByteBuffer key)

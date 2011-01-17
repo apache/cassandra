@@ -62,8 +62,6 @@ public class FBUtilities
 
     public static final BigInteger TWO = new BigInteger("2");
 
-    public static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(ArrayUtils.EMPTY_BYTE_ARRAY);
-    
     private static volatile InetAddress localInetAddress_;
 
     private static final ThreadLocal<MessageDigest> localMessageDigest = new ThreadLocal<MessageDigest>()

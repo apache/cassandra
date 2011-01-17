@@ -1407,8 +1407,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 if (getMaxRowSize() < DatabaseDescriptor.getColumnIndexSize())
                 {
                     logger.debug("Expanding slice filter to entire row to cover additional expressions");
-                    firstFilter = new SliceQueryFilter(FBUtilities.EMPTY_BYTE_BUFFER,
-                                                       FBUtilities.EMPTY_BYTE_BUFFER,
+                    firstFilter = new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                       ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                        ((SliceQueryFilter) dataFilter).reversed,
                                                        Integer.MAX_VALUE);
                 }
@@ -1464,7 +1464,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             QueryFilter indexFilter = QueryFilter.getSliceFilter(indexKey,
                                                                  new QueryPath(indexCFS.getColumnFamilyName()),
                                                                  startKey,
-                                                                 FBUtilities.EMPTY_BYTE_BUFFER,
+                                                                 ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                                  false,
                                                                  clause.count);
             ColumnFamily indexRow = indexCFS.getColumnFamily(indexFilter);

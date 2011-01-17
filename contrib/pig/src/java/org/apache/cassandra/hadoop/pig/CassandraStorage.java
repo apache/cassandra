@@ -26,7 +26,7 @@ import org.apache.cassandra.db.SuperColumn;
 import org.apache.cassandra.hadoop.*;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.SliceRange;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -54,7 +54,7 @@ public class CassandraStorage extends LoadFunc
     public final static String PIG_INITIAL_ADDRESS = "PIG_INITIAL_ADDRESS";
     public final static String PIG_PARTITIONER = "PIG_PARTITIONER";
 
-    private final static ByteBuffer BOUND = FBUtilities.EMPTY_BYTE_BUFFER;
+    private final static ByteBuffer BOUND = ByteBufferUtil.EMPTY_BYTE_BUFFER;
     private final static int LIMIT = 1024;
 
     private Configuration conf;

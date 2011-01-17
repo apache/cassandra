@@ -340,7 +340,7 @@ public class SystemTable
     public static void setIndexBuilt(String table, String indexName)
     {
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, INDEX_CF);
-        cf.addColumn(new Column(ByteBuffer.wrap(indexName.getBytes(UTF_8)), FBUtilities.EMPTY_BYTE_BUFFER, System.currentTimeMillis()));
+        cf.addColumn(new Column(ByteBuffer.wrap(indexName.getBytes(UTF_8)), ByteBufferUtil.EMPTY_BYTE_BUFFER, System.currentTimeMillis()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, ByteBuffer.wrap(table.getBytes(UTF_8)));
         rm.add(cf);
         try

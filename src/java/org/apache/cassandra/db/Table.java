@@ -50,6 +50,7 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -534,11 +535,11 @@ public class Table
             if (column instanceof ExpiringColumn)
             {
                 ExpiringColumn ec = (ExpiringColumn)column;
-                cfi.addColumn(new ExpiringColumn(key, FBUtilities.EMPTY_BYTE_BUFFER, ec.timestamp, ec.getTimeToLive(), ec.getLocalDeletionTime()));
+                cfi.addColumn(new ExpiringColumn(key, ByteBufferUtil.EMPTY_BYTE_BUFFER, ec.timestamp, ec.getTimeToLive(), ec.getLocalDeletionTime()));
             }
             else
             {
-                cfi.addColumn(new Column(key, FBUtilities.EMPTY_BYTE_BUFFER, column.timestamp()));
+                cfi.addColumn(new Column(key, ByteBufferUtil.EMPTY_BYTE_BUFFER, column.timestamp()));
             }
             if (logger.isDebugEnabled())
                 logger.debug("applying index row {}:{}", valueKey, cfi);

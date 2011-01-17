@@ -29,7 +29,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 
 /**
@@ -53,7 +52,7 @@ public class Column implements IColumn
 
     Column(ByteBuffer name)
     {
-        this(name, FBUtilities.EMPTY_BYTE_BUFFER);
+        this(name, ByteBufferUtil.EMPTY_BYTE_BUFFER);
     }
 
     public Column(ByteBuffer name, ByteBuffer value)

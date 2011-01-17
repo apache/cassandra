@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutionException;
 import java.util.*;
 
-import org.apache.commons.lang.ArrayUtils;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
@@ -33,9 +32,7 @@ import org.apache.cassandra.Util;
 
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.marshal.LongType;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
@@ -58,7 +55,7 @@ public class TimeSortTest extends CleanupHelper
         rm.add(new QueryPath("StandardLong1", null, getBytes(0)), ByteBufferUtil.bytes("b"), 0);
         rm.apply();
 
-        ColumnFamily cf = cfStore.getColumnFamily(key, new QueryPath("StandardLong1"), getBytes(10), FBUtilities.EMPTY_BYTE_BUFFER, false, 1000);
+        ColumnFamily cf = cfStore.getColumnFamily(key, new QueryPath("StandardLong1"), getBytes(10), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1000);
         Collection<IColumn> columns = cf.getSortedColumns();
         assert columns.size() == 1;
     }
@@ -99,7 +96,7 @@ public class TimeSortTest extends CleanupHelper
         rm.apply();
 
         // verify
-        ColumnFamily cf = cfStore.getColumnFamily(key, new QueryPath("StandardLong1"), getBytes(0), FBUtilities.EMPTY_BYTE_BUFFER, false, 1000);
+        ColumnFamily cf = cfStore.getColumnFamily(key, new QueryPath("StandardLong1"), getBytes(0), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1000);
         Collection<IColumn> columns = cf.getSortedColumns();
         assertEquals(12, columns.size());
         Iterator<IColumn> iter = columns.iterator();
@@ -124,7 +121,7 @@ public class TimeSortTest extends CleanupHelper
             DecoratedKey key = Util.dk(Integer.toString(i));
             for (int j = 0; j < 8; j += 3)
             {
-                ColumnFamily cf = table.getColumnFamilyStore("StandardLong1").getColumnFamily(key, new QueryPath("StandardLong1"), getBytes(j * 2), FBUtilities.EMPTY_BYTE_BUFFER, false, 1000);
+                ColumnFamily cf = table.getColumnFamilyStore("StandardLong1").getColumnFamily(key, new QueryPath("StandardLong1"), getBytes(j * 2), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1000);
                 Collection<IColumn> columns = cf.getSortedColumns();
                 assert columns.size() == 8 - j;
                 int k = j;

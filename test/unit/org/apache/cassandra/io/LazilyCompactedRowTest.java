@@ -25,7 +25,6 @@ import static junit.framework.Assert.assertEquals;
 
 import java.io.*;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 
@@ -43,7 +42,7 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.MappedFileDataInput;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
+
 import org.junit.Test;
 
 
@@ -134,7 +133,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
 
         ByteBuffer key = ByteBufferUtil.bytes("k");
         RowMutation rm = new RowMutation("Keyspace1", key);
-        rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("c")), FBUtilities.EMPTY_BYTE_BUFFER, 0);
+        rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("c")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
         cfs.forceBlockingFlush();
 
@@ -151,8 +150,8 @@ public class LazilyCompactedRowTest extends CleanupHelper
 
         ByteBuffer key =ByteBuffer.wrap( "k".getBytes() );
         RowMutation rm = new RowMutation("Keyspace1", key);
-        rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("c")), FBUtilities.EMPTY_BYTE_BUFFER, 0);
-        rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("d")), FBUtilities.EMPTY_BYTE_BUFFER, 0);
+        rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("c")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+        rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("d")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
         cfs.forceBlockingFlush();
 
@@ -169,7 +168,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
 
         ByteBuffer key = ByteBufferUtil.bytes("k");
         RowMutation rm = new RowMutation("Keyspace1", key);
-        rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("c")), FBUtilities.EMPTY_BYTE_BUFFER, 0);
+        rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("c")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
         cfs.forceBlockingFlush();
 
@@ -189,8 +188,8 @@ public class LazilyCompactedRowTest extends CleanupHelper
 
         ByteBuffer key = ByteBufferUtil.bytes("k");
         RowMutation rm = new RowMutation("Keyspace1", key);
-        rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("c")), FBUtilities.EMPTY_BYTE_BUFFER, 0);
-        rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("d")), FBUtilities.EMPTY_BYTE_BUFFER, 0);
+        rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("c")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+        rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("d")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
         cfs.forceBlockingFlush();
 
@@ -213,7 +212,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
             for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
                 ByteBuffer key = ByteBuffer.wrap(String.valueOf(i % 2).getBytes());
                 RowMutation rm = new RowMutation("Keyspace1", key);
-                rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap(String.valueOf(i / 2).getBytes())), FBUtilities.EMPTY_BYTE_BUFFER, j * ROWS_PER_SSTABLE + i);
+                rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap(String.valueOf(i / 2).getBytes())), ByteBufferUtil.EMPTY_BYTE_BUFFER, j * ROWS_PER_SSTABLE + i);
                 rm.apply();
             }
             cfs.forceBlockingFlush();
