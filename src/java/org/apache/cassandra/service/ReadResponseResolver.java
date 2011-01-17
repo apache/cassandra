@@ -190,6 +190,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
     static ColumnFamily resolveSuperset(List<ColumnFamily> versions)
     {
         assert versions.size() > 0;
+
         ColumnFamily resolved = null;
         for (ColumnFamily cf : versions)
         {
@@ -201,10 +202,10 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         }
         if (resolved == null)
             return null;
+
         for (ColumnFamily cf : versions)
-        {
             resolved.resolve(cf);
-        }
+
         return resolved;
     }
 

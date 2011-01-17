@@ -129,9 +129,7 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
     public void addAll(ColumnFamily cf)
     {
         for (IColumn column : cf.getSortedColumns())
-        {
             addColumn(column);
-        }
         delete(cf);
     }
 
@@ -358,7 +356,7 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
         sb.append(cfm == null ? "<anonymous>" : cfm.cfName);
 
         if (isMarkedForDelete())
-            sb.append(" -deleted at " + getMarkedForDeleteAt() + "-");
+            sb.append(" -deleted at ").append(getMarkedForDeleteAt()).append("-");
 
         sb.append(" [").append(getComparator().getColumnsString(getSortedColumns())).append("])");
         return sb.toString();
@@ -409,14 +407,6 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
         if (cf1 == null)
             return cf2;
         return cf1.diff(cf2);
-    }
-
-    public static ColumnFamily resolve(ColumnFamily cf1, ColumnFamily cf2)
-    {
-        if (cf1 == null)
-            return cf2;
-        cf1.resolve(cf2);
-        return cf1;
     }
 
     public void resolve(ColumnFamily cf)
