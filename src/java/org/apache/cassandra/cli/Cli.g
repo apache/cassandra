@@ -176,11 +176,11 @@ helpStatement
         -> ^(NODE_HELP NODE_EXIT)
     | HELP QUIT 
         -> ^(NODE_HELP NODE_EXIT)
-    | HELP SHOW CLUSTER NAME 
+    | HELP SHOW 'CLUSTER NAME'
         -> ^(NODE_HELP NODE_SHOW_CLUSTER_NAME)
     | HELP SHOW KEYSPACES 
         -> ^(NODE_HELP NODE_SHOW_KEYSPACES)
-    | HELP SHOW VERSION 
+    | HELP SHOW API_VERSION
         -> ^(NODE_HELP NODE_SHOW_VERSION)
     | HELP CREATE KEYSPACE 
         -> ^(NODE_HELP NODE_ADD_KEYSPACE)
@@ -276,7 +276,7 @@ assumeStatement
     ;
 
 showClusterName
-    : SHOW CLUSTER NAME 
+    : SHOW 'CLUSTER NAME'
         -> ^(NODE_SHOW_CLUSTER_NAME)
     ;
 
@@ -311,7 +311,7 @@ delColumnFamily
     ;
 
 showVersion
-    : SHOW VERSION 
+    : SHOW API_VERSION
         -> ^(NODE_SHOW_VERSION)
     ;
 
@@ -496,36 +496,34 @@ port
 // CLI is case-insensitive with respect to these keywords.
 // However, they MUST be listed in upper case here.
 // 
-CONFIG:     'CONFIG';
-CONNECT:    'CONNECT';
-COUNT:      'COUNT';
-CLUSTER:    'CLUSTER';
-DEL:        'DEL';
-DESCRIBE:   'DESCRIBE';
-USE:        'USE';
-GET:        'GET';
-HELP:       'HELP';
-EXIT:       'EXIT';
-FILE:       'FILE';
-NAME:       'NAME';
-QUIT:       'QUIT';
-SET:        'SET';
-SHOW:       'SHOW';
-KEYSPACE:   'KEYSPACE';
-KEYSPACES:  'KEYSPACES';
-VERSION:    'API VERSION';
-CREATE:     'CREATE';
-DROP:       'DROP';
-COLUMN:     'COLUMN';
-FAMILY:     'FAMILY';
-WITH:       'WITH';
-AND:        'AND';
-UPDATE:     'UPDATE';
-LIST:       'LIST';
-LIMIT:      'LIMIT';
-TRUNCATE:   'TRUNCATE';
-ASSUME:     'ASSUME';
-TTL:        'TTL';
+CONFIG:      'CONFIG';
+CONNECT:     'CONNECT';
+COUNT:       'COUNT';
+DEL:         'DEL';
+DESCRIBE:    'DESCRIBE';
+USE:         'USE';
+GET:         'GET';
+HELP:        'HELP';
+EXIT:        'EXIT';
+FILE:        'FILE';
+QUIT:        'QUIT';
+SET:         'SET';
+SHOW:        'SHOW';
+KEYSPACE:    'KEYSPACE';
+KEYSPACES:   'KEYSPACES';
+API_VERSION: 'API VERSION';
+CREATE:      'CREATE';
+DROP:        'DROP';
+COLUMN:      'COLUMN';
+FAMILY:      'FAMILY';
+WITH:        'WITH';
+AND:         'AND';
+UPDATE:      'UPDATE';
+LIST:        'LIST';
+LIMIT:       'LIMIT';
+TRUNCATE:    'TRUNCATE';
+ASSUME:      'ASSUME';
+TTL:         'TTL';
 
 IP_ADDRESS 
     : IntegerLiteral '.' IntegerLiteral '.' IntegerLiteral '.' IntegerLiteral
