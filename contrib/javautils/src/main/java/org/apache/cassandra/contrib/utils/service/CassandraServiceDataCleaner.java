@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.io.util.FileUtils;
 
 /**
@@ -42,6 +43,7 @@ public class CassandraServiceDataCleaner {
     public void prepare() throws IOException {
         makeDirsIfNotExist();
         cleanupDataDirectories();
+        CommitLog.instance.resetUnsafe();
     }
 
     /**
@@ -58,9 +60,7 @@ public class CassandraServiceDataCleaner {
      * @throws IOException if directories cannot be created (permissions etc).
      */
     public void makeDirsIfNotExist() throws IOException {
-        for (String s: getDataDirs()) {
-            mkdir(s);
-        }
+        DatabaseDescriptor.createAllDirectories();
     }
 
     /**
@@ -75,15 +75,6 @@ public class CassandraServiceDataCleaner {
         }
         dirs.add(DatabaseDescriptor.getCommitLogLocation());
         return dirs;
-    }
-    /**
-     * Creates a directory
-     *
-     * @param dir
-     * @throws IOException
-     */
-    private void mkdir(String dir) throws IOException {
-        FileUtils.createDirectory(dir);
     }
 
     /**
