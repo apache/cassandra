@@ -83,7 +83,7 @@ public class QueryProcessor
 
         try
         {
-            rows = StorageProxy.readProtocol(commands, select.getConsistencyLevel());
+            rows = StorageProxy.read(commands, select.getConsistencyLevel());
         }
         catch (TimeoutException e)
         {
