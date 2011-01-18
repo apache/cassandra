@@ -107,7 +107,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         INDEX_SCAN,
         REPLICATION_FINISHED,
         INTERNAL_RESPONSE, // responses to internal calls
-        REPLICATE_ON_WRITE,
+        COUNTER_MUTATION,
         ;
         // remember to add new verbs at the end, since we serialize by ordinal
     }
@@ -136,7 +136,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         put(Verb.INDEX_SCAN, Stage.READ);
         put(Verb.REPLICATION_FINISHED, Stage.MISC);
         put(Verb.INTERNAL_RESPONSE, Stage.INTERNAL_RESPONSE);
-        put(Verb.REPLICATE_ON_WRITE, Stage.REPLICATE_ON_WRITE);
+        put(Verb.COUNTER_MUTATION, Stage.MUTATION);
     }};
 
 
@@ -224,7 +224,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         MessagingService.instance().registerVerbHandlers(Verb.READ, new ReadVerbHandler());
         MessagingService.instance().registerVerbHandlers(Verb.RANGE_SLICE, new RangeSliceVerbHandler());
         MessagingService.instance().registerVerbHandlers(Verb.INDEX_SCAN, new IndexScanVerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.REPLICATE_ON_WRITE, new ReplicateOnWriteVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.COUNTER_MUTATION, new CounterMutationVerbHandler());
         // see BootStrapper for a summary of how the bootstrap verbs interact
         MessagingService.instance().registerVerbHandlers(Verb.BOOTSTRAP_TOKEN, new BootStrapper.BootstrapTokenVerbHandler());
         MessagingService.instance().registerVerbHandlers(Verb.STREAM_REQUEST, new StreamRequestVerbHandler());

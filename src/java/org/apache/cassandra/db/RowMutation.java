@@ -40,7 +40,7 @@ import org.apache.cassandra.thrift.Mutation;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class RowMutation
+public class RowMutation implements IMutation
 {
     private static RowMutationSerializer serializer_;
     public static final String HINT = "HINT";

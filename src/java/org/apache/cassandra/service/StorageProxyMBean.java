@@ -38,6 +38,12 @@ public interface StorageProxyMBean
     public long[] getTotalWriteLatencyHistogramMicros();
     public long[] getRecentWriteLatencyHistogramMicros();
 
+    public long getCounterWriteOperations();
+    public long getTotalCounterWriteLatencyMicros();
+    public double getRecentCounterWriteLatencyMicros();
+    public long[] getTotalCounterWriteLatencyHistogramMicros();
+    public long[] getRecentCounterWriteLatencyHistogramMicros();
+
     public boolean getHintedHandoffEnabled();
     public void setHintedHandoffEnabled(boolean b);
 }

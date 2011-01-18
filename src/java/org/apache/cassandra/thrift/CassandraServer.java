@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.thrift;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -397,7 +396,9 @@ public class CassandraServer implements Cassandra.Iface
                     ThriftValidation.validateMutation(state().getKeyspace(), cfName, mutation);
                 }
             }
-            rowMutations.add(RowMutation.getRowMutationFromMutations(state().getKeyspace(), key, columnFamilyToMutations));
+            RowMutation rm = RowMutation.getRowMutationFromMutations(state().getKeyspace(), key, columnFamilyToMutations);
+            if (!rm.isEmpty())
+                rowMutations.add(rm);
         }
 
         doInsert(consistency_level, rowMutations);
@@ -441,7 +442,23 @@ public class CassandraServer implements Cassandra.Iface
 
             try
             {
-                StorageProxy.mutate(mutations, consistency_level);
+                if (!mutations.isEmpty())
+                {
+                    // FIXME: Mighty ugly but we've made sure above this will always work
+                    if (mutations.iterator().next().getColumnFamilies().iterator().next().metadata().getDefaultValidator().isCommutative())
+                    {
+                        List<org.apache.cassandra.db.CounterMutation> cmutations = new ArrayList<org.apache.cassandra.db.CounterMutation>(mutations.size());
+                        for (RowMutation mutation : mutations)
+                        {
+                            cmutations.add(new org.apache.cassandra.db.CounterMutation(mutation, consistency_level));
+                        }
+                        StorageProxy.mutateCounters(cmutations);
+                    }
+                    else
+                    {
+                        StorageProxy.mutate(mutations, consistency_level);
+                    }
+                }
             }
             catch (TimeoutException e)
             {
@@ -961,13 +978,8 @@ public class CassandraServer implements Cassandra.Iface
     {
         logger.debug("add");
 
-        if (ConsistencyLevel.ONE != consistency_level)
-        {
-            throw new InvalidRequestException("Commutative CFs only support ConsistencyLevel.ONE");
-        }
-
         String keyspace = state().getKeyspace();
-        ThriftValidation.validateCommutative(keyspace, column_parent.column_family);
+        ThriftValidation.validateCommutativeForWrite(keyspace, column_parent.column_family, consistency_level);
 
         internal_insert(key, column_parent, getCounterColumn(column), consistency_level);
     }
@@ -1017,11 +1029,6 @@ public class CassandraServer implements Cassandra.Iface
     {
         logger.debug("batch_add");
 
-        if (ConsistencyLevel.ONE != consistency_level)
-        {
-            throw new InvalidRequestException("Commutative CFs only support ConsistencyLevel.ONE");
-        }
-
         String keyspace = state().getKeyspace();
         
         Map<ByteBuffer,Map<String,List<Mutation>>> mutation_map = new HashMap<ByteBuffer,Map<String,List<Mutation>>>();
@@ -1032,7 +1039,7 @@ public class CassandraServer implements Cassandra.Iface
             
             for (Entry<String, List<CounterMutation>> innerEntry : entry.getValue().entrySet())
             {
-                ThriftValidation.validateCommutative(keyspace, innerEntry.getKey());
+                ThriftValidation.validateCommutativeForWrite(keyspace, innerEntry.getKey(), consistency_level);
                 
                 List<Mutation> mutations = new ArrayList<Mutation>(innerEntry.getValue().size());
                 for (CounterMutation cm : innerEntry.getValue())

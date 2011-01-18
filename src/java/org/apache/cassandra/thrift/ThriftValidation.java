@@ -445,13 +445,23 @@ public class ThriftValidation
         return metadata;
     }
 
-    static void validateCommutative(String tablename, String cfName) throws InvalidRequestException
+    public static CFMetaData validateCommutative(String tablename, String cfName) throws InvalidRequestException
     {
         validateTable(tablename);
         CFMetaData metadata = validateCFMetaData(tablename, cfName);
         if (!metadata.getDefaultValidator().isCommutative())
         {
             throw new InvalidRequestException("not commutative columnfamily " + cfName);
+        }
+        return metadata;
+    }
+
+    public static void validateCommutativeForWrite(String tablename, String cfName, ConsistencyLevel consistency) throws InvalidRequestException
+    {
+        CFMetaData metadata = validateCommutative(tablename, cfName);
+        if (!metadata.getReplicateOnWrite() && consistency != ConsistencyLevel.ONE)
+        {
+            throw new InvalidRequestException("cannot achieve CL > CL.ONE without replicate_on_write on columnfamily " + cfName);
         }
     }
 }
