@@ -427,6 +427,7 @@ public final class CFMetaData
         Integer memtable_flush_after_mins = cf.memtable_flush_after_mins == null ? DEFAULT_MEMTABLE_LIFETIME_IN_MINS : cf.memtable_flush_after_mins;
         Integer memtable_throughput_in_mb = cf.memtable_throughput_in_mb == null ? DEFAULT_MEMTABLE_THROUGHPUT_IN_MB : cf.memtable_throughput_in_mb;
         Double memtable_operations_in_millions = cf.memtable_operations_in_millions == null ? DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS : cf.memtable_operations_in_millions;
+        Boolean replicate_on_write = cf.replicate_on_write == null ? Boolean.FALSE : cf.replicate_on_write;
 
         return new CFMetaData(cf.keyspace.toString(),
                               cf.name.toString(),
@@ -437,7 +438,7 @@ public final class CFMetaData
                               cf.row_cache_size,
                               cf.key_cache_size,
                               cf.read_repair_chance,
-                              cf.replicate_on_write,
+                              replicate_on_write,
                               cf.gc_grace_seconds,
                               validator,
                               minct,

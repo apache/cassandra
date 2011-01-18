@@ -40,6 +40,7 @@ protocol InterNode {
     @aliases(["org.apache.cassandra.config.avro.CfDef"])
     @namespace("org.apache.cassandra.avro")
     record CfDef {
+        /* order is important. */
         string keyspace;
         string name;
         union { string, null } column_type;
@@ -49,7 +50,6 @@ protocol InterNode {
         union { double, null } row_cache_size;
         union { double, null } key_cache_size;
         union { double, null } read_repair_chance;
-        union { boolean, null } replicate_on_write;
         union { int, null } gc_grace_seconds;
         union { null, string } default_validation_class = null;
         union { null, int } min_compaction_threshold = null;
@@ -61,6 +61,7 @@ protocol InterNode {
         union { null, double} memtable_operations_in_millions = null;
         union { int, null } id;
         union { array<ColumnDef>, null } column_metadata;
+        union { boolean, null } replicate_on_write;
     }
 
     @aliases(["org.apache.cassandra.config.avro.KsDef"])
