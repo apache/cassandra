@@ -70,12 +70,12 @@ public class DefsTest extends CleanupHelper
     @Test
     public void testZeroInjection() throws IOException
     {
-        org.apache.cassandra.avro.CfDef cd = new org.apache.cassandra.avro.CfDef();
+        org.apache.cassandra.db.migration.avro.CfDef cd = new org.apache.cassandra.db.migration.avro.CfDef();
         // populate only fields that must be non-null.
         cd.keyspace = new Utf8("Lest Ks");
         cd.name = new Utf8("Mest Cf");
         
-        org.apache.cassandra.avro.CfDef cd2 = SerDeUtils.deserializeWithSchema(SerDeUtils.serializeWithSchema(cd), new org.apache.cassandra.avro.CfDef());
+        org.apache.cassandra.db.migration.avro.CfDef cd2 = SerDeUtils.deserializeWithSchema(SerDeUtils.serializeWithSchema(cd), new org.apache.cassandra.db.migration.avro.CfDef());
         assert cd.equals(cd2);
         // make sure some of the fields didn't get unexpected zeros put in during [de]serialize operations.
         assert cd.min_compaction_threshold == null;
@@ -126,20 +126,20 @@ public class DefsTest extends CleanupHelper
         
         // we'll be adding this one later. make sure it's not already there.
         assert cfm.getColumn_metadata().get(ByteBuffer.wrap(new byte[] { 5 })) == null;
-        org.apache.cassandra.avro.CfDef cfDef = CFMetaData.convertToAvro(cfm);
+        org.apache.cassandra.db.migration.avro.CfDef cfDef = CFMetaData.convertToAvro(cfm);
         
         // add one.
-        org.apache.cassandra.avro.ColumnDef addIndexDef = new org.apache.cassandra.avro.ColumnDef();
+        org.apache.cassandra.db.migration.avro.ColumnDef addIndexDef = new org.apache.cassandra.db.migration.avro.ColumnDef();
         addIndexDef.index_name = "5";
-        addIndexDef.index_type = org.apache.cassandra.avro.IndexType.KEYS;
+        addIndexDef.index_type = org.apache.cassandra.db.migration.avro.IndexType.KEYS;
         addIndexDef.name = ByteBuffer.wrap(new byte[] { 5 });
         addIndexDef.validation_class = BytesType.class.getName();
         cfDef.column_metadata.add(addIndexDef);
         
         // remove one.
-        org.apache.cassandra.avro.ColumnDef removeIndexDef = new org.apache.cassandra.avro.ColumnDef();
+        org.apache.cassandra.db.migration.avro.ColumnDef removeIndexDef = new org.apache.cassandra.db.migration.avro.ColumnDef();
         removeIndexDef.index_name = "0";
-        removeIndexDef.index_type = org.apache.cassandra.avro.IndexType.KEYS;
+        removeIndexDef.index_type = org.apache.cassandra.db.migration.avro.IndexType.KEYS;
         removeIndexDef.name = ByteBuffer.wrap(new byte[] { 0 });
         removeIndexDef.validation_class = BytesType.class.getName();
         assert cfDef.column_metadata.remove(removeIndexDef);
@@ -627,9 +627,9 @@ public class DefsTest extends CleanupHelper
         assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName) != null;
         
         // updating certain fields should fail.
-        org.apache.cassandra.avro.CfDef cf_def = CFMetaData.convertToAvro(cf);
+        org.apache.cassandra.db.migration.avro.CfDef cf_def = CFMetaData.convertToAvro(cf);
         cf_def.row_cache_size = 43.3;
-        cf_def.column_metadata = new ArrayList<org.apache.cassandra.avro.ColumnDef>();
+        cf_def.column_metadata = new ArrayList<org.apache.cassandra.db.migration.avro.ColumnDef>();
         cf_def.default_validation_class ="BytesType";
         cf_def.min_compaction_threshold = 5;
         cf_def.max_compaction_threshold = 31;

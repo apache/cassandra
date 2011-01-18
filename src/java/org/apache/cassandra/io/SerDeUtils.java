@@ -64,8 +64,7 @@ public final class SerDeUtils
     {
         BinaryDecoder dec = DIRECT_DECODERS.createBinaryDecoder(ByteBufferUtil.getArray(bytes), null);
         SpecificDatumReader<T> reader = new SpecificDatumReader<T>(writer);
-        // we're expecting to see the schema of the writer, not the current schema, aka ob.getSchema().
-        reader.setExpected(writer);
+        reader.setExpected(ob.getSchema());
         return reader.read(ob, dec);
     }
 
