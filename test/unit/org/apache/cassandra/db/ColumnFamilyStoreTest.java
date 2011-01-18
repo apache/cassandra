@@ -105,7 +105,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         {
             public void runMayThrow() throws IOException
             {
-                QueryFilter sliceFilter = QueryFilter.getSliceFilter(Util.dk("key1"), new QueryPath("Standard2", null, null), FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER, false, 1);
+                QueryFilter sliceFilter = QueryFilter.getSliceFilter(Util.dk("key1"), new QueryPath("Standard2", null, null), ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
                 ColumnFamily cf = store.getColumnFamily(sliceFilter);
                 assert cf.isMarkedForDelete();
                 assert cf.getColumnsMap().isEmpty();
@@ -126,7 +126,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         ColumnFamilyStore cfs = insertKey1Key2();
 
         IPartitioner p = StorageService.getPartitioner();
-        List<Row> result = cfs.getRangeSlice(FBUtilities.EMPTY_BYTE_BUFFER,
+        List<Row> result = cfs.getRangeSlice(ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                              Util.range(p, "key1", "key2"),
                                              10,
                                              new NamesQueryFilter(ByteBufferUtil.bytes("asdf")));
@@ -161,7 +161,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
 
         // basic single-expression query
         IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, FBUtilities.toByteBuffer(1L));
-        IndexClause clause = new IndexClause(Arrays.asList(expr),FBUtilities.EMPTY_BYTE_BUFFER, 100);
+        IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
@@ -181,7 +181,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
 
         // add a second expression
         IndexExpression expr2 = new IndexExpression(ByteBufferUtil.bytes("notbirthdate"), IndexOperator.GTE, FBUtilities.toByteBuffer(2L));
-        clause = new IndexClause(Arrays.asList(expr, expr2), FBUtilities.EMPTY_BYTE_BUFFER, 100);
+        clause = new IndexClause(Arrays.asList(expr, expr2), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
         rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").scan(clause, range, filter);
 
         assert rows.size() == 1 : StringUtils.join(rows, ",");
@@ -198,7 +198,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         assert rows.get(0).cf.getColumnCount() == 1 : rows.get(0).cf;
 
         // once more, this time with a slice rowset that needs to be expanded
-        SliceQueryFilter emptyFilter = new SliceQueryFilter(FBUtilities.EMPTY_BYTE_BUFFER, FBUtilities.EMPTY_BYTE_BUFFER, false, 0);
+        SliceQueryFilter emptyFilter = new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 0);
         rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").scan(clause, range, emptyFilter);
       
         assert rows.size() == 1 : StringUtils.join(rows, ",");
@@ -210,7 +210,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         // query with index hit but rejected by secondary clause, with a small enough count that just checking count
         // doesn't tell the scan loop that it's done
         IndexExpression expr3 = new IndexExpression(ByteBufferUtil.bytes("notbirthdate"), IndexOperator.EQ, FBUtilities.toByteBuffer(-1L));
-        clause = new IndexClause(Arrays.asList(expr, expr3), FBUtilities.EMPTY_BYTE_BUFFER, 1);
+        clause = new IndexClause(Arrays.asList(expr, expr3), ByteBufferUtil.EMPTY_BYTE_BUFFER, 1);
         rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").scan(clause, range, filter);
 
         assert rows.isEmpty();
@@ -227,7 +227,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.apply();
 
         IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, FBUtilities.toByteBuffer(1L));
-        IndexClause clause = new IndexClause(Arrays.asList(expr), FBUtilities.EMPTY_BYTE_BUFFER, 100);
+        IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
@@ -247,7 +247,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         IColumn deletion = rm.getColumnFamilies().iterator().next().iterator().next();
         ByteBuffer deletionLong = FBUtilities.toByteBuffer((long) FBUtilities.byteBufferToInt(deletion.value()));
         IndexExpression expr0 = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, deletionLong);
-        IndexClause clause0 = new IndexClause(Arrays.asList(expr0), FBUtilities.EMPTY_BYTE_BUFFER, 100);
+        IndexClause clause0 = new IndexClause(Arrays.asList(expr0), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
         rows = cfs.scan(clause0, range, filter);
         assert rows.isEmpty();
 
@@ -283,7 +283,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.apply();
 
         IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, FBUtilities.toByteBuffer(1L));
-        IndexClause clause = new IndexClause(Arrays.asList(expr), FBUtilities.EMPTY_BYTE_BUFFER, 100);
+        IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
@@ -291,7 +291,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         assert rows.size() == 0;
 
         expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, FBUtilities.toByteBuffer(2L));
-        clause = new IndexClause(Arrays.asList(expr), FBUtilities.EMPTY_BYTE_BUFFER, 100);
+        clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
         rows = table.getColumnFamilyStore("Indexed1").scan(clause, range, filter);
         String key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining()); 
         assert "k1".equals( key );
@@ -326,7 +326,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
             TimeUnit.MILLISECONDS.sleep(100);
 
         IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, FBUtilities.toByteBuffer(1L));
-        IndexClause clause = new IndexClause(Arrays.asList(expr), FBUtilities.EMPTY_BYTE_BUFFER, 100);
+        IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());

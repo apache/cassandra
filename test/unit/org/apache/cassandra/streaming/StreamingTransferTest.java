@@ -103,7 +103,7 @@ public class StreamingTransferTest extends CleanupHelper
 
         // and that the secondary index works
         IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, FBUtilities.toByteBuffer(3L));
-        IndexClause clause = new IndexClause(Arrays.asList(expr), FBUtilities.EMPTY_BYTE_BUFFER, 100);
+        IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
         IFilter filter = new IdentityQueryFilter();
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
         rows = cfs.scan(clause, range, filter);

@@ -45,7 +45,6 @@ import org.apache.cassandra.service.IWriteResponseHandler;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
@@ -107,10 +106,10 @@ public class HintedHandOffManager
         Table table = Table.open(tableName);
         DecoratedKey dkey = StorageService.getPartitioner().decorateKey(key);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
-        ByteBuffer startColumn = FBUtilities.EMPTY_BYTE_BUFFER;
+        ByteBuffer startColumn = ByteBufferUtil.EMPTY_BYTE_BUFFER;
         while (true)
         {
-            QueryFilter filter = QueryFilter.getSliceFilter(dkey, new QueryPath(cfs.getColumnFamilyName()), startColumn, FBUtilities.EMPTY_BYTE_BUFFER, false, PAGE_SIZE);
+            QueryFilter filter = QueryFilter.getSliceFilter(dkey, new QueryPath(cfs.getColumnFamilyName()), startColumn, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, PAGE_SIZE);
             ColumnFamily cf = cfs.getColumnFamily(filter);
             if (pagingFinished(cf, startColumn))
                 break;
@@ -183,8 +182,8 @@ public class HintedHandOffManager
             throw new RuntimeException("Corrupted hint name " + ByteBufferUtil.string(joined));
 
         return new String[] {
-                                ByteBufferUtil.string(joined, joined.position(), index),
-                                ByteBufferUtil.string(joined, index + 1, joined.limit())
+                                ByteBufferUtil.string(joined, joined.position(), index - joined.position()),
+                                ByteBufferUtil.string(joined, index + 1, joined.limit() - (index + 1))
                             };
     }
             
@@ -201,11 +200,11 @@ public class HintedHandOffManager
         DecoratedKey epkey =  StorageService.getPartitioner().decorateKey(ByteBuffer.wrap(endpoint.getHostAddress().getBytes(UTF_8)));
         int rowsReplayed = 0;
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
-        ByteBuffer startColumn = FBUtilities.EMPTY_BYTE_BUFFER;
+        ByteBuffer startColumn = ByteBufferUtil.EMPTY_BYTE_BUFFER;
         delivery:
             while (true)
             {
-                QueryFilter filter = QueryFilter.getSliceFilter(epkey, new QueryPath(HINTS_CF), startColumn, FBUtilities.EMPTY_BYTE_BUFFER, false, PAGE_SIZE);
+                QueryFilter filter = QueryFilter.getSliceFilter(epkey, new QueryPath(HINTS_CF), startColumn, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, PAGE_SIZE);
                 ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
                 if (pagingFinished(hintColumnFamily, startColumn))
                     break;
@@ -257,11 +256,11 @@ public class HintedHandOffManager
         // we're basically going to fetch, drop and add the scf for the old and new table. we need to do it piecemeal 
         // though since there could be GB of data.
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
-        ByteBuffer startCol = FBUtilities.EMPTY_BYTE_BUFFER;
+        ByteBuffer startCol = ByteBufferUtil.EMPTY_BYTE_BUFFER;
         long now = System.currentTimeMillis();
         while (true)
         {
-            QueryFilter filter = QueryFilter.getSliceFilter(oldTableKey, new QueryPath(HINTS_CF), startCol, FBUtilities.EMPTY_BYTE_BUFFER, false, PAGE_SIZE);
+            QueryFilter filter = QueryFilter.getSliceFilter(oldTableKey, new QueryPath(HINTS_CF), startCol, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, PAGE_SIZE);
             ColumnFamily cf = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
             if (pagingFinished(cf, startCol))
                 break;

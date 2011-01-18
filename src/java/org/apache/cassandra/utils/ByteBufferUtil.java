@@ -25,6 +25,8 @@ import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 
+import org.apache.commons.lang.ArrayUtils;
+
 /**
  * Utility methods to make ByteBuffers less painful
  * The following should illustrate the different ways byte buffers can be used 
@@ -65,6 +67,8 @@ import java.util.Arrays;
  */
 public class ByteBufferUtil
 {
+    public static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(ArrayUtils.EMPTY_BYTE_ARRAY);
+
     public static int compareUnsigned(ByteBuffer o1, ByteBuffer o2)
     {
         assert o1 != null;
@@ -110,7 +114,7 @@ public class ByteBufferUtil
     public static String string(ByteBuffer buffer, int offset, int length, Charset charset)
     {
         if (buffer.hasArray())
-            return new String(buffer.array(), buffer.arrayOffset() + offset, length + buffer.arrayOffset(), charset);
+            return new String(buffer.array(), buffer.arrayOffset() + offset, length, charset);
 
         byte[] buff = getArray(buffer, offset, length);
         return new String(buff, charset);
@@ -192,7 +196,7 @@ public class ByteBufferUtil
         assert o != null;
         
         if (o.remaining() == 0)
-            return FBUtilities.EMPTY_BYTE_BUFFER;
+            return EMPTY_BYTE_BUFFER;
           
         ByteBuffer clone = ByteBuffer.allocate(o.remaining());
 

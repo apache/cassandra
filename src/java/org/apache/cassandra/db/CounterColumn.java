@@ -56,7 +56,7 @@ public class CounterColumn extends Column
 
     public CounterColumn(ByteBuffer name, ByteBuffer value, long timestamp, byte[] partitionedCounter, long timestampOfLastDelete)
     {
-        super(name, FBUtilities.EMPTY_BYTE_BUFFER, timestamp);
+        super(name, ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp);
         this.value = value;
         this.partitionedCounter = partitionedCounter;
         this.timestampOfLastDelete = timestampOfLastDelete;

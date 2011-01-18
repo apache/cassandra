@@ -61,7 +61,7 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
         assert splitPoint != -1;
 
         // and decode the token and key
-        String token = ByteBufferUtil.string(fromdisk, fromdisk.position(), splitPoint, UTF_8);
+        String token = ByteBufferUtil.string(fromdisk, fromdisk.position(), splitPoint - fromdisk.position(), UTF_8);
         ByteBuffer key = fromdisk.duplicate();
         key.position(splitPoint + 1);
         return new DecoratedKey<BigIntegerToken>(new BigIntegerToken(token), key);

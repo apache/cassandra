@@ -85,8 +85,8 @@ public class QueryPath
         assert superColumnName == null || superColumnName.remaining() > 0;
         assert columnName == null || columnName.remaining() > 0;
         dos.writeUTF(columnFamilyName == null ? "" : columnFamilyName);
-        ByteBufferUtil.writeWithShortLength(superColumnName == null ? FBUtilities.EMPTY_BYTE_BUFFER : superColumnName, dos);
-        ByteBufferUtil.writeWithShortLength(columnName == null ? FBUtilities.EMPTY_BYTE_BUFFER : columnName, dos);
+        ByteBufferUtil.writeWithShortLength(superColumnName == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : superColumnName, dos);
+        ByteBufferUtil.writeWithShortLength(columnName == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : columnName, dos);
     }
 
     public static QueryPath deserialize(DataInputStream din) throws IOException

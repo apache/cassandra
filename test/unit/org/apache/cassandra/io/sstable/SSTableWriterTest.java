@@ -88,7 +88,7 @@ public class SSTableWriterTest extends CleanupHelper {
         cfs.buildSecondaryIndexes(cfs.getSSTables(), cfs.getIndexedColumns());
         
         IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, FBUtilities.toByteBuffer(1L));
-        IndexClause clause = new IndexClause(Arrays.asList(expr), FBUtilities.EMPTY_BYTE_BUFFER, 100);
+        IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
