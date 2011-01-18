@@ -95,7 +95,7 @@ public class CassandraServer implements Cassandra.Iface
             try
             {
                 schedule();
-                rows = StorageProxy.readProtocol(commands, consistency_level);
+                rows = StorageProxy.read(commands, consistency_level);
             }
             finally
             {

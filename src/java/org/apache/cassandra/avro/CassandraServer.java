@@ -154,7 +154,7 @@ public class CassandraServer implements Cassandra {
         try
         {
             schedule();
-            rows = StorageProxy.readProtocol(commands, thriftConsistencyLevel(consistency));
+            rows = StorageProxy.read(commands, thriftConsistencyLevel(consistency));
         }
         catch (TimeoutException e) 
         {

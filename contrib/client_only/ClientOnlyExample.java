@@ -89,7 +89,7 @@ public class ClientOnlyExample
                                                                               new QueryPath("Standard1", null, null), cols);
             readCommand.setDigestQuery(false);
             commands.add(readCommand);
-            List<Row> rows = StorageProxy.readProtocol(commands, ConsistencyLevel.ONE);
+            List<Row> rows = StorageProxy.read(commands, ConsistencyLevel.ONE);
             assert rows.size() == 1;
             Row row = rows.get(0);
             ColumnFamily cf = row.cf;
