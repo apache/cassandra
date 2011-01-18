@@ -23,6 +23,7 @@
  * zero-copy reads (CASSANDRA-1714)
  * fix copy bounds for word Text in wordcount demo (CASSANDRA-1993)
  * fixes for contrib/javautils (CASSANDRA-1979)
+ * check more frequently for memtable expiration (CASSANDRA-2000)
 
 
 0.7.0-final

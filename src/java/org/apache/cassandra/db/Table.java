@@ -295,7 +295,7 @@ public class Table
         int minCheckMs = Integer.MAX_VALUE;
         for (ColumnFamilyStore cfs : columnFamilyStores.values())
         {
-            minCheckMs = Math.min(minCheckMs, cfs.getMemtableFlushAfterMins() * 60 * 1000);
+            minCheckMs = Math.min(minCheckMs, cfs.getMemtableFlushAfterMins() * 60 * 1000 / 10);
         }
 
         Runnable runnable = new Runnable()
