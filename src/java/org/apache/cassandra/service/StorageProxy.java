@@ -468,7 +468,7 @@ public class StorageProxy implements StorageProxyMBean
      * Performs the actual reading of a row out of the StorageService, fetching
      * a specific set of column names from a given column family.
      */
-    public static List<Row> readProtocol(List<ReadCommand> commands, ConsistencyLevel consistency_level)
+    public static List<Row> read(List<ReadCommand> commands, ConsistencyLevel consistency_level)
             throws IOException, UnavailableException, TimeoutException, InvalidRequestException
     {
         if (StorageService.instance.isBootstrapMode())
@@ -516,7 +516,6 @@ public class StorageProxy implements StorageProxyMBean
             InetAddress dataPoint = StorageService.instance.findSuitableEndpoint(command.table, command.key);
             List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
 
-            AbstractReplicationStrategy rs = Table.open(command.table).getReplicationStrategy();
             ReadResponseResolver resolver = new ReadResponseResolver(command.table, command.key);
             ReadCallback<Row> handler = getReadCallback(resolver, command.table, consistency_level);
             handler.assureSufficientLiveNodes(endpoints);
@@ -942,7 +941,6 @@ public class StorageProxy implements StorageProxyMBean
 
             // collect replies and resolve according to consistency level
             RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(keyspace, liveEndpoints);
-            AbstractReplicationStrategy rs = Table.open(keyspace).getReplicationStrategy();
             ReadCallback<List<Row>> handler = getReadCallback(resolver, keyspace, consistency_level);
             
             // bail early if live endpoints can't satisfy requested consistency level
