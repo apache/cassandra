@@ -29,7 +29,7 @@ import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.apache.commons.lang.builder.ToStringBuilder;
 
 import org.apache.avro.util.Utf8;
-import org.apache.cassandra.db.migration.avro.ColumnDef;
+import org.apache.cassandra.avro.ColumnDef;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.db.SystemTable;
@@ -363,9 +363,9 @@ public final class CFMetaData
         return parentCf + "." + (info.getIndexName() == null ? FBUtilities.bytesToHex(info.name) : info.getIndexName());
     }
 
-    public org.apache.cassandra.db.migration.avro.CfDef deflate()
+    public org.apache.cassandra.avro.CfDef deflate()
     {
-        org.apache.cassandra.db.migration.avro.CfDef cf = new org.apache.cassandra.db.migration.avro.CfDef();
+        org.apache.cassandra.avro.CfDef cf = new org.apache.cassandra.avro.CfDef();
         cf.id = cfId;
         cf.keyspace = new Utf8(tableName);
         cf.name = new Utf8(cfName);
@@ -388,13 +388,13 @@ public final class CFMetaData
         cf.memtable_throughput_in_mb = memtableThroughputInMb;
         cf.memtable_operations_in_millions = memtableOperationsInMillions;
         cf.column_metadata = SerDeUtils.createArray(column_metadata.size(),
-                                                    org.apache.cassandra.db.migration.avro.ColumnDef.SCHEMA$);
+                                                    org.apache.cassandra.avro.ColumnDef.SCHEMA$);
         for (ColumnDefinition cd : column_metadata.values())
             cf.column_metadata.add(cd.deflate());
         return cf;
     }
 
-    public static CFMetaData inflate(org.apache.cassandra.db.migration.avro.CfDef cf)
+    public static CFMetaData inflate(org.apache.cassandra.avro.CfDef cf)
     {
         AbstractType comparator;
         AbstractType subcolumnComparator = null;
@@ -413,7 +413,7 @@ public final class CFMetaData
             throw new RuntimeException("Could not inflate CFMetaData for " + cf, ex);
         }
         Map<ByteBuffer, ColumnDefinition> column_metadata = new TreeMap<ByteBuffer, ColumnDefinition>(BytesType.instance);
-        for (ColumnDef aColumn_metadata : cf.column_metadata)
+        for (org.apache.cassandra.avro.ColumnDef aColumn_metadata : cf.column_metadata)
         {
             ColumnDefinition cd = ColumnDefinition.inflate(aColumn_metadata);
             column_metadata.put(cd.name, cd);
@@ -604,7 +604,7 @@ public final class CFMetaData
     }
     
     /** applies implicit defaults to cf definition. useful in updates */
-    public static void applyImplicitDefaults(org.apache.cassandra.db.migration.avro.CfDef cf_def)
+    public static void applyImplicitDefaults(org.apache.cassandra.avro.CfDef cf_def)
     {
         if (cf_def.min_compaction_threshold == null)
             cf_def.min_compaction_threshold = CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD;
@@ -642,7 +642,7 @@ public final class CFMetaData
     }
     
     // merges some final fields from this CFM with modifiable fields from CfDef into a new CFMetaData.
-    public void apply(org.apache.cassandra.db.migration.avro.CfDef cf_def) throws ConfigurationException
+    public void apply(org.apache.cassandra.avro.CfDef cf_def) throws ConfigurationException
     {
         // validate
         if (!cf_def.id.equals(cfId))
@@ -685,8 +685,8 @@ public final class CFMetaData
         // adjust secondary indexes. figure out who is coming and going.
         Set<ByteBuffer> toRemove = new HashSet<ByteBuffer>();
         Set<ByteBuffer> newIndexNames = new HashSet<ByteBuffer>();
-        Set<org.apache.cassandra.db.migration.avro.ColumnDef> toAdd = new HashSet<org.apache.cassandra.db.migration.avro.ColumnDef>();
-        for (org.apache.cassandra.db.migration.avro.ColumnDef def : cf_def.column_metadata)
+        Set<org.apache.cassandra.avro.ColumnDef> toAdd = new HashSet<org.apache.cassandra.avro.ColumnDef>();
+        for (org.apache.cassandra.avro.ColumnDef def : cf_def.column_metadata)
         {
             newIndexNames.add(def.name);
             if (!column_metadata.containsKey(def.name))
@@ -700,7 +700,7 @@ public final class CFMetaData
         for (ByteBuffer indexName : toRemove)
             column_metadata.remove(indexName);
         // update the ones staying
-        for (org.apache.cassandra.db.migration.avro.ColumnDef def : cf_def.column_metadata)
+        for (org.apache.cassandra.avro.ColumnDef def : cf_def.column_metadata)
         {
             if (!column_metadata.containsKey(def.name))
                 continue;
@@ -708,7 +708,7 @@ public final class CFMetaData
             column_metadata.get(def.name).setIndexName(def.index_name == null ? null : def.index_name.toString());
         }
         // add the new ones coming in.
-        for (org.apache.cassandra.db.migration.avro.ColumnDef def : toAdd)
+        for (org.apache.cassandra.avro.ColumnDef def : toAdd)
         {
             ColumnDefinition cd = new ColumnDefinition(def.name, 
                                                        def.validation_class.toString(), 
@@ -759,9 +759,9 @@ public final class CFMetaData
     }
     
     // converts CFM to avro CfDef
-    public static org.apache.cassandra.db.migration.avro.CfDef convertToAvro(CFMetaData cfm)
+    public static org.apache.cassandra.avro.CfDef convertToAvro(CFMetaData cfm)
     {
-        org.apache.cassandra.db.migration.avro.CfDef def = new org.apache.cassandra.db.migration.avro.CfDef();
+        org.apache.cassandra.avro.CfDef def = new org.apache.cassandra.avro.CfDef();
         def.name = cfm.cfName;
         def.keyspace = cfm.tableName;
         def.id = cfm.cfId;
@@ -786,12 +786,12 @@ public final class CFMetaData
         def.memtable_flush_after_mins = cfm.memtableFlushAfterMins;
         def.memtable_throughput_in_mb = cfm.memtableThroughputInMb;
         def.memtable_operations_in_millions = cfm.memtableOperationsInMillions;
-        List<org.apache.cassandra.db.migration.avro.ColumnDef> column_meta = new ArrayList<org.apache.cassandra.db.migration.avro.ColumnDef>(cfm.column_metadata.size());
+        List<org.apache.cassandra.avro.ColumnDef> column_meta = new ArrayList<org.apache.cassandra.avro.ColumnDef>(cfm.column_metadata.size());
         for (ColumnDefinition cd : cfm.column_metadata.values())
         {
-            org.apache.cassandra.db.migration.avro.ColumnDef tcd = new org.apache.cassandra.db.migration.avro.ColumnDef();
+            org.apache.cassandra.avro.ColumnDef tcd = new org.apache.cassandra.avro.ColumnDef();
             tcd.index_name = cd.getIndexName();
-            tcd.index_type = cd.getIndexType() == null ? null : org.apache.cassandra.db.migration.avro.IndexType.valueOf(cd.getIndexType().name());
+            tcd.index_type = cd.getIndexType() == null ? null : org.apache.cassandra.avro.IndexType.valueOf(cd.getIndexType().name());
             tcd.name = ByteBufferUtil.clone(cd.name);
             tcd.validation_class = cd.validator.getClass().getName();
             column_meta.add(tcd);
@@ -800,9 +800,9 @@ public final class CFMetaData
         return def;
     }
     
-    public static org.apache.cassandra.db.migration.avro.CfDef convertToAvro(org.apache.cassandra.thrift.CfDef def)
+    public static org.apache.cassandra.avro.CfDef convertToAvro(org.apache.cassandra.thrift.CfDef def)
     {
-        org.apache.cassandra.db.migration.avro.CfDef newDef = new org.apache.cassandra.db.migration.avro.CfDef();
+        org.apache.cassandra.avro.CfDef newDef = new org.apache.cassandra.avro.CfDef();
         newDef.keyspace = def.getKeyspace();
         newDef.name = def.getName();
         newDef.column_type = def.getColumn_type();
@@ -824,14 +824,14 @@ public final class CFMetaData
         newDef.row_cache_size = def.getRow_cache_size();
         newDef.subcomparator_type = def.getSubcomparator_type();
         
-        List<org.apache.cassandra.db.migration.avro.ColumnDef> columnMeta = new ArrayList<org.apache.cassandra.db.migration.avro.ColumnDef>();
+        List<org.apache.cassandra.avro.ColumnDef> columnMeta = new ArrayList<org.apache.cassandra.avro.ColumnDef>();
         for (org.apache.cassandra.thrift.ColumnDef cdef : def.getColumn_metadata())
         {
-            org.apache.cassandra.db.migration.avro.ColumnDef tdef = new org.apache.cassandra.db.migration.avro.ColumnDef();
+            org.apache.cassandra.avro.ColumnDef tdef = new org.apache.cassandra.avro.ColumnDef();
             tdef.name = ByteBufferUtil.clone(cdef.BufferForName());
             tdef.validation_class = cdef.getValidation_class();
             tdef.index_name = cdef.getIndex_name();
-            tdef.index_type = cdef.getIndex_type() == null ? null : org.apache.cassandra.db.migration.avro.IndexType.valueOf(cdef.getIndex_type().name());
+            tdef.index_type = cdef.getIndex_type() == null ? null : org.apache.cassandra.avro.IndexType.valueOf(cdef.getIndex_type().name());
             columnMeta.add(tdef);
         }
         newDef.column_metadata = columnMeta;
@@ -868,7 +868,7 @@ public final class CFMetaData
         }
     }
 
-    public static void validateMinMaxCompactionThresholds(org.apache.cassandra.db.migration.avro.CfDef cf_def) throws ConfigurationException
+    public static void validateMinMaxCompactionThresholds(org.apache.cassandra.avro.CfDef cf_def) throws ConfigurationException
     {
         if (cf_def.min_compaction_threshold != null && cf_def.max_compaction_threshold != null)
         {
@@ -911,7 +911,7 @@ public final class CFMetaData
         }
     }
 
-    public static void validateMemtableSettings(org.apache.cassandra.db.migration.avro.CfDef cf_def) throws ConfigurationException
+    public static void validateMemtableSettings(org.apache.cassandra.avro.CfDef cf_def) throws ConfigurationException
     {
         if (cf_def.memtable_flush_after_mins != null && cf_def.memtable_flush_after_mins <= 0) {
             throw new ConfigurationException("memtable_flush_after_mins cannot be non-positive");

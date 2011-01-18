@@ -23,13 +23,13 @@
 
 protocol InterNode {
     @aliases(["org.apache.cassandra.config.avro.IndexType"])
-    @namespace("org.apache.cassandra.db.migration.avro")
+    @namespace("org.apache.cassandra.avro")
     enum IndexType {
         KEYS
     }
 
     @aliases(["org.apache.cassandra.config.avro.ColumnDef"])
-    @namespace("org.apache.cassandra.db.migration.avro")
+    @namespace("org.apache.cassandra.avro")
     record ColumnDef {
         bytes name;
         string validation_class;
@@ -38,7 +38,7 @@ protocol InterNode {
     }
 
     @aliases(["org.apache.cassandra.config.avro.CfDef"])
-    @namespace("org.apache.cassandra.db.migration.avro")
+    @namespace("org.apache.cassandra.avro")
     record CfDef {
         string keyspace;
         string name;
@@ -64,7 +64,7 @@ protocol InterNode {
     }
 
     @aliases(["org.apache.cassandra.config.avro.KsDef"])
-    @namespace("org.apache.cassandra.db.migration.avro")
+    @namespace("org.apache.cassandra.avro")
     record KsDef {
         string name;
         string strategy_class;
@@ -78,12 +78,12 @@ protocol InterNode {
 
     @namespace("org.apache.cassandra.db.migration.avro")
     record AddColumnFamily {
-        CfDef cf;
+        org.apache.cassandra.avro.CfDef cf;
     }
 
     @namespace("org.apache.cassandra.db.migration.avro")
     record AddKeyspace {
-        KsDef ks;
+        org.apache.cassandra.avro.KsDef ks;
     }
 
     @namespace("org.apache.cassandra.db.migration.avro")
@@ -113,13 +113,13 @@ protocol InterNode {
     
     @namespace("org.apache.cassandra.db.migration.avro")
     record UpdateKeyspace {
-        KsDef oldKs;
-        KsDef newKs;
+        org.apache.cassandra.avro.KsDef oldKs;
+        org.apache.cassandra.avro.KsDef newKs;
     }
     
     @namespace("org.apache.cassandra.db.migration.avro")
     record UpdateColumnFamily {
-        CfDef metadata;
+        org.apache.cassandra.avro.CfDef metadata;
     }
 
     @namespace("org.apache.cassandra.db.migration.avro")

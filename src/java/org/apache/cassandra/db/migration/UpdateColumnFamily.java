@@ -38,7 +38,7 @@ public class UpdateColumnFamily extends Migration
     protected UpdateColumnFamily() { }
     
     /** assumes validation has already happened. That is, replacing oldCfm with newCfm is neither illegal or totally whackass. */
-    public UpdateColumnFamily(org.apache.cassandra.db.migration.avro.CfDef cf_def) throws ConfigurationException, IOException
+    public UpdateColumnFamily(org.apache.cassandra.avro.CfDef cf_def) throws ConfigurationException, IOException
     {
         super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress()), DatabaseDescriptor.getDefsVersion());
         

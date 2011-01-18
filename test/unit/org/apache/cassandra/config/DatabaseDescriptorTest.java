@@ -51,7 +51,7 @@ public class DatabaseDescriptorTest
         {
             for (CFMetaData cfm : DatabaseDescriptor.getTableMetaData(table).values())
             {
-                CFMetaData cfmDupe = CFMetaData.inflate(serDe(cfm.deflate(), new org.apache.cassandra.db.migration.avro.CfDef()));
+                CFMetaData cfmDupe = CFMetaData.inflate(serDe(cfm.deflate(), new org.apache.cassandra.avro.CfDef()));
                 assert cfmDupe != null;
                 assert cfmDupe.equals(cfm);
             }
@@ -63,7 +63,7 @@ public class DatabaseDescriptorTest
     {
         for (KSMetaData ksm : DatabaseDescriptor.tables.values())
         {
-            KSMetaData ksmDupe = KSMetaData.inflate(serDe(ksm.deflate(), new org.apache.cassandra.db.migration.avro.KsDef()));
+            KSMetaData ksmDupe = KSMetaData.inflate(serDe(ksm.deflate(), new org.apache.cassandra.avro.KsDef()));
             assert ksmDupe != null;
             assert ksmDupe.equals(ksm);
         }
