@@ -19,10 +19,8 @@ package org.apache.cassandra.contrib.stress.tests;
 
 import org.apache.cassandra.contrib.stress.util.OperationThread;
 import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.thrift.ColumnOrSuperColumn;
-import org.apache.cassandra.thrift.ColumnParent;
-import org.apache.cassandra.thrift.SlicePredicate;
-import org.apache.cassandra.thrift.SliceRange;
+import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -77,7 +75,7 @@ public class Reader extends OperationThread
 
                     if (columns.size() == 0)
                     {
-                        System.err.println(String.format("Key %s not found.", superColumn));
+                        System.err.printf("Key %s not found in Super Column %s.%n", ByteBufferUtil.string(key), superColumn);
 
                         if (!session.ignoreErrors())
                             break;
@@ -85,7 +83,7 @@ public class Reader extends OperationThread
                 }
                 catch (Exception e)
                 {
-                    System.err.println(e.getMessage());
+                    System.err.printf("Error while reading Super Column %s key %s - %s%n", superColumn, ByteBufferUtil.string(key), getExceptionMessage(e));
 
                     if (!session.ignoreErrors())
                         break;
@@ -124,7 +122,7 @@ public class Reader extends OperationThread
             }
             catch (Exception e)
             {
-                System.err.println(e.getMessage());
+                System.err.printf("Error while reading key %s - %s%n", new String(key), getExceptionMessage(e));
 
                 if (!session.ignoreErrors())
                     break;

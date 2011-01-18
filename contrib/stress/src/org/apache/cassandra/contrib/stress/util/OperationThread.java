@@ -20,6 +20,7 @@ package org.apache.cassandra.contrib.stress.util;
 import org.apache.cassandra.contrib.stress.Session;
 import org.apache.cassandra.contrib.stress.Stress;
 import org.apache.cassandra.thrift.Cassandra;
+import org.apache.cassandra.thrift.InvalidRequestException;
 
 import java.math.BigInteger;
 import java.security.MessageDigest;
@@ -176,6 +177,13 @@ public abstract class OperationThread extends Thread
             result.append(str);
 
         return result.toString();
+    }
+
+    protected String getExceptionMessage(Exception e)
+    {
+        String className = e.getClass().getSimpleName();
+        String message = (e instanceof InvalidRequestException) ? ((InvalidRequestException) e).getWhy() : e.getMessage();
+        return (message == null) ? "(" + className + ")" : String.format("(%s): %s", className, message);
     }
 
 }

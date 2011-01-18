@@ -19,10 +19,8 @@ package org.apache.cassandra.contrib.stress.tests;
 
 import org.apache.cassandra.contrib.stress.util.OperationThread;
 import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.thrift.Column;
-import org.apache.cassandra.thrift.ColumnOrSuperColumn;
-import org.apache.cassandra.thrift.Mutation;
-import org.apache.cassandra.thrift.SuperColumn;
+import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -85,7 +83,7 @@ public class Inserter extends OperationThread
             }
             catch (Exception e)
             {
-                System.err.println(e.getMessage());
+                System.err.printf("Error while inserting key %s - %s%n", ByteBufferUtil.string(key), getExceptionMessage(e));
 
                 if (!session.ignoreErrors())
                     return;
