@@ -165,31 +165,6 @@ public class FBUtilities
         return new Pair<BigInteger, Boolean>(midpoint, remainder);
     }
 
-    public static ByteBuffer toByteBuffer(int i)
-    {
-        byte[] bytes = new byte[4];
-        bytes[0] = (byte)( ( i >>> 24 ) & 0xFF);
-        bytes[1] = (byte)( ( i >>> 16 ) & 0xFF);
-        bytes[2] = (byte)( ( i >>> 8 ) & 0xFF);
-        bytes[3] = (byte)( i & 0xFF );
-        return ByteBuffer.wrap(bytes);
-    }
-
-    public static int byteBufferToInt(ByteBuffer bytes)
-    {
-        if (bytes.remaining() < 4 )
-        {
-            throw new IllegalArgumentException("An integer must be 4 bytes in size.");
-        }
-        int n = 0;
-        for ( int i = 0; i < 4; ++i )
-        {
-            n <<= 8;
-            n |= bytes.get(bytes.position() + i) & 0xFF;
-        }
-        return n;
-    }
-
     public static int compareUnsigned(byte[] bytes1, byte[] bytes2, int offset1, int offset2, int len1, int len2)
     {
         if (bytes1 == null)

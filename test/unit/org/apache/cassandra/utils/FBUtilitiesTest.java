@@ -79,8 +79,8 @@ public class FBUtilitiesTest
         };
 
         for (int i : ints) {
-            ByteBuffer ba = FBUtilities.toByteBuffer(i);
-            int actual = FBUtilities.byteBufferToInt(ba);
+            ByteBuffer ba = ByteBufferUtil.bytes(i);
+            int actual = ByteBufferUtil.toInt(ba);
             assertEquals(i, actual);
         }
     }

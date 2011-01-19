@@ -267,4 +267,26 @@ public class ByteBufferUtil
             throw new RuntimeException(e);
         }
     }
+
+    /**
+     * Convert a byte buffer to an integer.
+     * Does not change the byte buffer position.
+     *
+     * @param bytes byte buffer to convert to integer
+     * @return int representation of the byte buffer
+     */
+    public static int toInt(ByteBuffer bytes)
+    {
+        return bytes.getInt(bytes.position());
+    }
+
+    public static ByteBuffer bytes(int i)
+    {
+        return ByteBuffer.allocate(4).putInt(0, i);
+    }
+
+    public static ByteBuffer bytes(long n)
+    {
+        return ByteBuffer.allocate(8).putLong(0, n);
+    }
 }

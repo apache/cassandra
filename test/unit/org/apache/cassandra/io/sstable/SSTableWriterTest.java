@@ -44,7 +44,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
-import org.apache.cassandra.utils.FBUtilities;
 import org.junit.Test;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -56,12 +55,12 @@ public class SSTableWriterTest extends CleanupHelper {
         RowMutation rm;
 
         rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("k1"));
-        rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), FBUtilities.toByteBuffer(1L), 0);
+        rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(1L), 0);
         rm.apply();
         
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Indexed1");        
-        cf.addColumn(new Column(ByteBufferUtil.bytes("birthdate"), FBUtilities.toByteBuffer(1L), 0));
-        cf.addColumn(new Column(ByteBufferUtil.bytes("anydate"), FBUtilities.toByteBuffer(1L), 0));
+        cf.addColumn(new Column(ByteBufferUtil.bytes("birthdate"), ByteBufferUtil.bytes(1L), 0));
+        cf.addColumn(new Column(ByteBufferUtil.bytes("anydate"), ByteBufferUtil.bytes(1L), 0));
         
         Map<ByteBuffer, ByteBuffer> entries = new HashMap<ByteBuffer, ByteBuffer>();
         
@@ -70,7 +69,7 @@ public class SSTableWriterTest extends CleanupHelper {
         entries.put(ByteBufferUtil.bytes("k2"), ByteBuffer.wrap(Arrays.copyOf(buffer.getData(), buffer.getLength())));        
         cf.clear();
         
-        cf.addColumn(new Column(ByteBufferUtil.bytes("anydate"), FBUtilities.toByteBuffer(1L), 0));
+        cf.addColumn(new Column(ByteBufferUtil.bytes("anydate"), ByteBufferUtil.bytes(1L), 0));
         buffer = new DataOutputBuffer();
         ColumnFamily.serializer().serializeWithIndexes(cf, buffer);               
         entries.put(ByteBufferUtil.bytes("k3"), ByteBuffer.wrap(Arrays.copyOf(buffer.getData(), buffer.getLength())));
@@ -86,7 +85,7 @@ public class SSTableWriterTest extends CleanupHelper {
         cfs.addSSTable(sstr);
         cfs.buildSecondaryIndexes(cfs.getSSTables(), cfs.getIndexedColumns());
         
-        IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, FBUtilities.toByteBuffer(1L));
+        IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, ByteBufferUtil.bytes(1L));
         IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();

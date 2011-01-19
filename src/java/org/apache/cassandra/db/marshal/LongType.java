@@ -24,7 +24,6 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class LongType extends AbstractType
 {
@@ -79,7 +78,7 @@ public class LongType extends AbstractType
             throw new RuntimeException("'" + source + "' could not be translated into a LongType.");
         }
 
-        return FBUtilities.toByteBuffer(longType);
+        return ByteBufferUtil.bytes(longType);
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException

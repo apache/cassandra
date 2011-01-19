@@ -283,13 +283,13 @@ public class SystemTable
         }
         else
         {
-            generation = Math.max(FBUtilities.byteBufferToInt(cf.getColumn(GENERATION).value()) + 1,
+            generation = Math.max(ByteBufferUtil.toInt(cf.getColumn(GENERATION).value()) + 1,
                                   (int) (System.currentTimeMillis() / 1000));
         }
 
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
         cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.STATUS_CF);
-        cf.addColumn(new Column(GENERATION, FBUtilities.toByteBuffer(generation), FBUtilities.timestampMicros()));
+        cf.addColumn(new Column(GENERATION, ByteBufferUtil.bytes(generation), FBUtilities.timestampMicros()));
         rm.add(cf);
         rm.apply();
         forceBlockingFlush(STATUS_CF);

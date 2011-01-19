@@ -689,7 +689,7 @@ public class Table
             Collection<IColumn> columns = columnFamily.getSortedColumns();
             for (IColumn column : columns)
             {
-                ColumnFamilyStore cfStore = columnFamilyStores.get(FBUtilities.byteBufferToInt(column.name()));
+                ColumnFamilyStore cfStore = columnFamilyStores.get(ByteBufferUtil.toInt(column.name()));
                 cfStore.applyBinary(key, column.value());
             }
         }

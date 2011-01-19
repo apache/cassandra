@@ -70,7 +70,7 @@ public class StreamingTransferTest extends CleanupHelper
             RowMutation rm = new RowMutation("Keyspace1", ByteBuffer.wrap(key.getBytes()));
             ColumnFamily cf = ColumnFamily.create(table.name, cfs.columnFamily);
             cf.addColumn(column(key, "v", 0));
-            cf.addColumn(new Column(ByteBufferUtil.bytes("birthdate"), FBUtilities.toByteBuffer((long) i), 0));
+            cf.addColumn(new Column(ByteBufferUtil.bytes("birthdate"), ByteBufferUtil.bytes((long) i), 0));
             rm.add(cf);
             rm.apply();
         }
@@ -102,7 +102,7 @@ public class StreamingTransferTest extends CleanupHelper
         assert null != cfs.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("key3"), new QueryPath(cfs.columnFamily)));
 
         // and that the secondary index works
-        IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, FBUtilities.toByteBuffer(3L));
+        IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, ByteBufferUtil.bytes(3L));
         IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
         IFilter filter = new IdentityQueryFilter();
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());

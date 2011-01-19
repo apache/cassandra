@@ -238,7 +238,7 @@ public class TableTest extends CleanupHelper
         {
             RowMutation rm = new RowMutation("Keyspace1", ROW.key);
             ColumnFamily cf = ColumnFamily.create("Keyspace1", "StandardLong1");
-            cf.addColumn(new Column(FBUtilities.toByteBuffer((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
+            cf.addColumn(new Column(ByteBufferUtil.bytes((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
             rm.add(cf);
             rm.apply();
         }
@@ -249,7 +249,7 @@ public class TableTest extends CleanupHelper
         {
             RowMutation rm = new RowMutation("Keyspace1", ROW.key);
             ColumnFamily cf = ColumnFamily.create("Keyspace1", "StandardLong1");
-            cf.addColumn(new Column(FBUtilities.toByteBuffer((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
+            cf.addColumn(new Column(ByteBufferUtil.bytes((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
             rm.add(cf);
             rm.apply();
 
