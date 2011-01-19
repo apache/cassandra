@@ -2,6 +2,7 @@
  * buffer network stack to avoid inefficient small TCP messages while avoiding
    the nagle/delayed ack problem (CASSANDRA-1896)
  * fix race condition in MessagingService.targets (CASSANDRA-1959)
+ * add latency information from local reads to DynamicSnitch (CASSANDRA-2004)
 
 
 0.6.9

@@ -38,10 +38,11 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILatencySubscriber, DynamicEndpointSnitchMBean
 {
-    private static int UPDATES_PER_INTERVAL = 10000;
-    private static int UPDATE_INTERVAL_IN_MS = 100;
-    private static int RESET_INTERVAL_IN_MS = 60000 * 10;
-    private static int WINDOW_SIZE = 100;
+    private static final int UPDATES_PER_INTERVAL = 10000;
+    private static final int UPDATE_INTERVAL_IN_MS = 100;
+    private static final int RESET_INTERVAL_IN_MS = 60000 * 10;
+    private static final int WINDOW_SIZE = 100;
+
     private boolean registered = false;
 
     private ConcurrentHashMap<InetAddress, Double> scores = new ConcurrentHashMap();
@@ -151,13 +152,8 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     {
         if (!registered)
         {
-       	    ILatencyPublisher handler = (ILatencyPublisher)MessagingService.instance.getVerbHandler(StorageService.Verb.READ_RESPONSE);
-            if (handler != null)
-            {
-                handler.register(this);
-                registered = true;
-            }
-
+            MessagingService.instance.register(this);
+            registered = true;
         }
         for (Map.Entry<InetAddress, AdaptiveLatencyTracker> entry: windows.entrySet())
         {

@@ -35,16 +35,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.base.Function;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Multimaps;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.locator.ILatencyPublisher;
 import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.net.io.SerializerType;
 import org.apache.cassandra.net.sink.SinkManager;
@@ -56,7 +52,7 @@ import org.apache.cassandra.utils.SimpleCondition;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
-public class MessagingService implements ILatencyPublisher
+public class MessagingService
 {
     private static int version_ = 1;
     //TODO: make this parameter dynamic somehow.  Not sure if config is appropriate.
@@ -116,10 +112,7 @@ public class MessagingService implements ILatencyPublisher
                     return null;
 
                 for (InetAddress address : addresses)
-                {
-                    for (ILatencySubscriber subscriber : subscribers)
-                        subscriber.receiveTiming(address, (double) DatabaseDescriptor.getRpcTimeout());
-                }
+                    addLatency(address, (double) DatabaseDescriptor.getRpcTimeout());
 
                 return null;
             }
@@ -138,6 +131,12 @@ public class MessagingService implements ILatencyPublisher
         };
         Timer timer = new Timer("DroppedMessagesLogger");
         timer.schedule(logDropped, LOG_DROPPED_INTERVAL_IN_MS, LOG_DROPPED_INTERVAL_IN_MS);
+    }
+
+    public void addLatency(InetAddress address, double latency)
+    {
+        for (ILatencySubscriber subscriber : subscribers)
+            subscriber.receiveTiming(address, latency);
     }
 
     public byte[] hash(String type, byte data[])

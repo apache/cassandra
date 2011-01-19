@@ -702,7 +702,8 @@ public class StorageProxy implements StorageProxyMBean
 
     static class weakReadLocalCallable implements Callable<Object>
     {
-        private ReadCommand command;
+        private final ReadCommand command;
+        private final long start = System.currentTimeMillis();
 
         weakReadLocalCallable(ReadCommand command)
         {
@@ -718,6 +719,7 @@ public class StorageProxy implements StorageProxyMBean
             Row row = command.getRow(table);
             StorageService.instance.doConsistencyCheck(row, command, FBUtilities.getLocalAddress());
 
+            MessagingService.instance.addLatency(FBUtilities.getLocalAddress(), System.currentTimeMillis() - start);
             return row;
         }
     }

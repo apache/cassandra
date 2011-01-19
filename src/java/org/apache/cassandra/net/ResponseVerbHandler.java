@@ -18,19 +18,12 @@
 
 package org.apache.cassandra.net;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.apache.log4j.Logger;
 
-import org.apache.cassandra.locator.ILatencyPublisher;
-import org.apache.cassandra.locator.ILatencySubscriber;
-
-public class ResponseVerbHandler implements IVerbHandler, ILatencyPublisher
+public class ResponseVerbHandler implements IVerbHandler
 {
     private static final Logger logger_ = Logger.getLogger( ResponseVerbHandler.class );
-    private List<ILatencySubscriber>  subscribers = new ArrayList<ILatencySubscriber>();
-    
+
     public void doVerb(Message message)
     {     
         String messageId = message.getMessageId();
@@ -41,8 +34,7 @@ public class ResponseVerbHandler implements IVerbHandler, ILatencyPublisher
             return;
 
         // if cb is not null, then age will be valid
-        for (ILatencySubscriber subscriber : subscribers)
-            subscriber.receiveTiming(message.getFrom(), age);
+        MessagingService.instance.addLatency(message.getFrom(), age);
 
         if (cb instanceof IAsyncCallback)
         {
@@ -58,8 +50,4 @@ public class ResponseVerbHandler implements IVerbHandler, ILatencyPublisher
         }
     }
 
-    public void register(ILatencySubscriber subscriber)
-    {
-        subscribers.add(subscriber);
-    }
 }
