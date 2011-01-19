@@ -37,7 +37,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Joiner;
-import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.commons.collections.iterators.CollatingIterator;
 import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
@@ -236,51 +235,6 @@ public class FBUtilities
     	}
     	return result;
 	}
-
-    public static ByteBuffer readByteArray(DataInput in) throws IOException
-    {
-        int length = in.readInt();
-        if (length < 0)
-        {
-            throw new IOException("Corrupt (negative) value length encountered");
-        }
-
-        return readDataBytes(in, length);
-    }
-
-    /* @return An unsigned short in an integer. */
-    private static int readShortLength(DataInput in) throws IOException
-    {
-        int length = (in.readByte() & 0xFF) << 8;
-        return length | (in.readByte() & 0xFF);
-    }
-
-    /**
-     * @param in data input
-     * @return An unsigned short in an integer.
-     * @throws IOException if an I/O error occurs.
-     */
-    public static ByteBuffer readShortByteArray(DataInput in) throws IOException
-    {
-        return readDataBytes(in, readShortLength(in));
-    }
-
-    /**
-     * @param in data input
-     * @return null
-     * @throws IOException if an I/O error occurs.
-     */
-    public static byte[] skipShortByteArray(DataInput in) throws IOException
-    {
-        int skip = readShortLength(in);
-        while (skip > 0)
-        {
-            int skipped = in.skipBytes(skip);
-            if (skipped == 0) throw new EOFException();
-            skip -= skipped;
-        }
-        return null;
-    }
 
     public static byte[] hexToBytes(String str)
     {
@@ -635,24 +589,6 @@ public class FBUtilities
         }
 
         return field;
-    }
-
-    private static ByteBuffer readDataBytes(DataInput in, int length) throws IOException
-    {
-        ByteBuffer array;
-
-        if (in instanceof FileDataInput)
-        {
-            array = ((FileDataInput) in).readBytes(length);
-        }
-        else
-        {
-            byte[] buff = new byte[length];
-            in.readFully(buff);
-            array = ByteBuffer.wrap(buff);
-        }
-
-        return array;
     }
 
     public static InputStream inputStream(ByteBuffer bytes)

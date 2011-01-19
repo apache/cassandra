@@ -32,7 +32,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  *  A Column Iterator over SSTable
@@ -54,7 +54,7 @@ public class SSTableSliceIterator implements IColumnIterator
         {
             DecoratedKey keyInDisk = SSTableReader.decodeKey(sstable.partitioner,
                                                              sstable.descriptor,
-                                                             FBUtilities.readShortByteArray(fileToClose));
+                                                             ByteBufferUtil.readWithShortLength(fileToClose));
             assert keyInDisk.equals(key)
                    : String.format("%s != %s in %s", keyInDisk, key, fileToClose.getPath());
             SSTableReader.readRowSize(fileToClose, sstable.descriptor);

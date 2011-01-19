@@ -296,8 +296,8 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
                 boolean shouldAddEntry = indexSummary.shouldAddEntry();
                 ByteBuffer key = (ByteBuffer) ((shouldAddEntry || cacheLoading || recreatebloom)
-                             ? FBUtilities.readShortByteArray(input)
-                             : FBUtilities.skipShortByteArray(input));
+                             ? ByteBufferUtil.readWithShortLength(input)
+                             : ByteBufferUtil.skipShortLength(input));
                 long dataPosition = input.readLong();
                 if (key != null)
                 {
@@ -469,7 +469,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                 while (!input.isEOF())
                 {
                     // read key & data position from index entry
-                    DecoratedKey indexDecoratedKey = decodeKey(partitioner, descriptor, FBUtilities.readShortByteArray(input));
+                    DecoratedKey indexDecoratedKey = decodeKey(partitioner, descriptor, ByteBufferUtil.readWithShortLength(input));
                     long dataPosition = input.readLong();
 
                     int comparison = indexDecoratedKey.compareTo(decoratedKey);

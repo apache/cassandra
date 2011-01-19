@@ -89,7 +89,7 @@ public class WriteResponse
         public WriteResponse deserialize(DataInputStream dis) throws IOException
         {
             String table = dis.readUTF();
-            ByteBuffer key = FBUtilities.readShortByteArray(dis);
+            ByteBuffer key = ByteBufferUtil.readWithShortLength(dis);
             boolean status = dis.readBoolean();
             return new WriteResponse(table, key, status);
         }

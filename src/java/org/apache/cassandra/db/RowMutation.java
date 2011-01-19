@@ -392,7 +392,7 @@ class RowMutationSerializer implements ICompactSerializer<RowMutation>
     public RowMutation deserialize(DataInputStream dis) throws IOException
     {
         String table = dis.readUTF();
-        ByteBuffer key = FBUtilities.readShortByteArray(dis);
+        ByteBuffer key = ByteBufferUtil.readWithShortLength(dis);
         Map<Integer, ColumnFamily> modifications = defreezeTheMaps(dis);
         return new RowMutation(table, key, modifications);
     }

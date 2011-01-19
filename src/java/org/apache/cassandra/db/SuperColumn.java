@@ -351,7 +351,7 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
 
     public IColumn deserialize(DataInput dis) throws IOException
     {
-        ByteBuffer name = FBUtilities.readShortByteArray(dis);
+        ByteBuffer name = ByteBufferUtil.readWithShortLength(dis);
         int localDeleteTime = dis.readInt();
         if (localDeleteTime != Integer.MIN_VALUE && localDeleteTime <= 0)
         {

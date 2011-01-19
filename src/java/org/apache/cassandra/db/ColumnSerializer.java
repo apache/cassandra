@@ -31,7 +31,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class ColumnSerializer implements ICompactSerializer2<IColumn>
 {
@@ -64,7 +63,7 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
 
     public Column deserialize(DataInput dis) throws IOException
     {
-        ByteBuffer name = FBUtilities.readShortByteArray(dis);
+        ByteBuffer name = ByteBufferUtil.readWithShortLength(dis);
         if (name.remaining() <= 0)
             throw new CorruptColumnException("invalid column name length " + name.remaining());
 
@@ -74,7 +73,7 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
             int ttl = dis.readInt();
             int expiration = dis.readInt();
             long ts = dis.readLong();
-            ByteBuffer value = FBUtilities.readByteArray(dis);
+            ByteBuffer value = ByteBufferUtil.readWithLength(dis);
             if ((int) (System.currentTimeMillis() / 1000 ) > expiration)
             {
                 // the column is now expired, we can safely return a simple
@@ -92,7 +91,7 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
         else
         {
             long ts = dis.readLong();
-            ByteBuffer value = FBUtilities.readByteArray(dis);
+            ByteBuffer value = ByteBufferUtil.readWithLength(dis);
             return (b & DELETION_MASK) == 0
                    ? new Column(name, value, ts)
                    : new DeletedColumn(name, value, ts);

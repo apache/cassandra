@@ -18,13 +18,16 @@
  */
 package org.apache.cassandra.utils;
 
+import java.io.DataInput;
 import java.io.DataOutput;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 
+import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.commons.lang.ArrayUtils;
 
 /**
@@ -268,6 +271,68 @@ public class ByteBufferUtil
         }
     }
 
+    public static ByteBuffer readWithLength(DataInput in) throws IOException
+    {
+        int length = in.readInt();
+        if (length < 0)
+        {
+            throw new IOException("Corrupt (negative) value length encountered");
+        }
+
+        return ByteBufferUtil.read(in, length);
+    }
+
+    /* @return An unsigned short in an integer. */
+    private static int readShortLength(DataInput in) throws IOException
+    {
+        int length = (in.readByte() & 0xFF) << 8;
+        return length | (in.readByte() & 0xFF);
+    }
+
+    /**
+     * @param in data input
+     * @return An unsigned short in an integer.
+     * @throws IOException if an I/O error occurs.
+     */
+    public static ByteBuffer readWithShortLength(DataInput in) throws IOException
+    {
+        return ByteBufferUtil.read(in, readShortLength(in));
+    }
+
+    /**
+     * @param in data input
+     * @return null
+     * @throws IOException if an I/O error occurs.
+     */
+    public static void skipShortLength(DataInput in) throws IOException
+    {
+        int skip = readShortLength(in);
+        while (skip > 0)
+        {
+            int skipped = in.skipBytes(skip);
+            if (skipped == 0) throw new EOFException();
+            skip -= skipped;
+        }
+    }
+
+    private static ByteBuffer read(DataInput in, int length) throws IOException
+    {
+        ByteBuffer array;
+
+        if (in instanceof FileDataInput)
+        {
+            array = ((FileDataInput) in).readBytes(length);
+        }
+        else
+        {
+            byte[] buff = new byte[length];
+            in.readFully(buff);
+            array = ByteBuffer.wrap(buff);
+        }
+
+        return array;
+    }
+
     /**
      * Convert a byte buffer to an integer.
      * Does not change the byte buffer position.
@@ -289,4 +354,5 @@ public class ByteBufferUtil
     {
         return ByteBuffer.allocate(8).putLong(0, n);
     }
+
 }

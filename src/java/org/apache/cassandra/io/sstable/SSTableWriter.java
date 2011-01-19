@@ -288,7 +288,7 @@ public class SSTableWriter extends SSTable
                 long rowPosition = 0;
                 while (rowPosition < dfile.length())
                 {
-                    key = SSTableReader.decodeKey(StorageService.getPartitioner(), desc, FBUtilities.readShortByteArray(dfile));
+                    key = SSTableReader.decodeKey(StorageService.getPartitioner(), desc, ByteBufferUtil.readWithShortLength(dfile));
                     iwriter.afterAppend(key, rowPosition);
 
                     long dataSize = SSTableReader.readRowSize(dfile, desc);

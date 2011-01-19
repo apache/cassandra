@@ -99,14 +99,14 @@ class SliceByNamesReadCommandSerializer extends ReadCommandSerializer
     {
         boolean isDigest = dis.readBoolean();
         String table = dis.readUTF();
-        ByteBuffer key = FBUtilities.readShortByteArray(dis);
+        ByteBuffer key = ByteBufferUtil.readWithShortLength(dis);
         QueryPath columnParent = QueryPath.deserialize(dis);
 
         int size = dis.readInt();
         List<ByteBuffer> columns = new ArrayList<ByteBuffer>();
         for (int i = 0; i < size; ++i)
         {
-            columns.add(FBUtilities.readShortByteArray(dis));
+            columns.add(ByteBufferUtil.readWithShortLength(dis));
         }
         SliceByNamesReadCommand rm = new SliceByNamesReadCommand(table, key, columnParent, columns);
         rm.setDigestQuery(isDigest);

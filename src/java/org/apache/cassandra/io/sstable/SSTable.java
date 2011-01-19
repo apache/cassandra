@@ -34,8 +34,8 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -209,7 +209,7 @@ public abstract class SSTable
         while (dataPosition < BYTES_CAP && keys < SAMPLES_CAP)
         {
             dfile.seek(dataPosition);
-            FBUtilities.skipShortByteArray(dfile);
+            ByteBufferUtil.skipShortLength(dfile);
             long dataSize = SSTableReader.readRowSize(dfile, desc);
             dataPosition = dfile.getFilePointer() + dataSize;
             keys++;
@@ -226,7 +226,7 @@ public abstract class SSTable
         int keys = 0;
         while (ifile.getFilePointer() < BYTES_CAP && keys < SAMPLES_CAP)
         {
-            FBUtilities.skipShortByteArray(ifile);
+            ByteBufferUtil.skipShortLength(ifile);
             ifile.skipBytes(8);
             keys++;
         }

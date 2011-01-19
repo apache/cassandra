@@ -100,10 +100,10 @@ class SliceFromReadCommandSerializer extends ReadCommandSerializer
     {
         boolean isDigest = dis.readBoolean();
         SliceFromReadCommand rm = new SliceFromReadCommand(dis.readUTF(),
-                                                           FBUtilities.readShortByteArray(dis),
+                                                           ByteBufferUtil.readWithShortLength(dis),
                                                            QueryPath.deserialize(dis),
-                                                           FBUtilities.readShortByteArray(dis),
-                                                           FBUtilities.readShortByteArray(dis),
+                                                           ByteBufferUtil.readWithShortLength(dis),
+                                                           ByteBufferUtil.readWithShortLength(dis),
                                                            dis.readBoolean(),
                                                            dis.readInt());
         rm.setDigestQuery(isDigest);

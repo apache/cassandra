@@ -39,7 +39,6 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.MmappedSegmentedFile;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 import org.apache.cassandra.Util;
@@ -120,7 +119,7 @@ public class SSTableReaderTest extends CleanupHelper
             FileDataInput file = sstable.getFileDataInput(dk, DatabaseDescriptor.getIndexedReadBufferSizeInKB() * 1024);
             DecoratedKey keyInDisk = SSTableReader.decodeKey(sstable.partitioner,
                                                              sstable.descriptor,
-                                                             FBUtilities.readShortByteArray(file));
+                                                             ByteBufferUtil.readWithShortLength(file));
             assert keyInDisk.equals(dk) : String.format("%s != %s in %s", keyInDisk, dk, file.getPath());
         }
 
