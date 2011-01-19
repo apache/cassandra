@@ -46,12 +46,15 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.ILatencyPublisher;
 import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.net.io.SerializerType;
 import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.service.GCInspector;
+import org.apache.cassandra.security.SSLFactory;
+import org.apache.cassandra.security.streaming.SSLFileStreamTask;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.FileStreamTask;
 import org.apache.cassandra.streaming.StreamHeader;
@@ -175,14 +178,30 @@ public final class MessagingService implements MessagingServiceMBean, ILatencyPu
      * @param localEp InetAddress whose port to listen on.
      */
     public void listen(InetAddress localEp) throws IOException
-    {        
-        ServerSocketChannel serverChannel = ServerSocketChannel.open();
-        final ServerSocket ss = serverChannel.socket();
-        ss.setReuseAddress(true);
-        ss.bind(new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort()));
-        socketThread = new SocketThread(ss, "ACCEPT-" + localEp);
+    {
+        socketThread = new SocketThread(getServerSocket(localEp), "ACCEPT-" + localEp);
         socketThread.start();
         listenGate.signalAll();
+    }
+
+    private ServerSocket getServerSocket(InetAddress localEp) throws IOException
+    {
+        final ServerSocket ss;
+        if (DatabaseDescriptor.getEncryptionOptions().internode_encryption == EncryptionOptions.InternodeEncryption.all)
+        {
+            ss = SSLFactory.getServerSocket(DatabaseDescriptor.getEncryptionOptions(), localEp, DatabaseDescriptor.getStoragePort());
+            // setReuseAddress happens in the factory.
+            logger_.info("Starting Encrypted Messaging Service on port {}", DatabaseDescriptor.getStoragePort());
+        }
+        else
+        {
+            ServerSocketChannel serverChannel = ServerSocketChannel.open();
+            ss = serverChannel.socket();
+            ss.setReuseAddress(true);
+            ss.bind(new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort()));
+            logger_.info("Starting Messaging Service on port {}", DatabaseDescriptor.getStoragePort());
+        }
+        return ss;
     }
 
     public void waitUntilListening()
@@ -391,7 +410,10 @@ public final class MessagingService implements MessagingServiceMBean, ILatencyPu
     public void stream(StreamHeader header, InetAddress to)
     {
         /* Streaming asynchronously on streamExector_ threads. */
-        streamExecutor_.execute(new FileStreamTask(header, to));
+        if (DatabaseDescriptor.getEncryptionOptions().internode_encryption == EncryptionOptions.InternodeEncryption.all)
+            streamExecutor_.execute(new SSLFileStreamTask(header, to));
+        else
+            streamExecutor_.execute(new FileStreamTask(header, to));
     }
     
     public void register(ILatencySubscriber subcriber)

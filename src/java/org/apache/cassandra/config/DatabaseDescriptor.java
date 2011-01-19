@@ -54,7 +54,7 @@ import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.error.YAMLException;
 
-public class    DatabaseDescriptor
+public class DatabaseDescriptor
 {
     private static Logger logger = LoggerFactory.getLogger(DatabaseDescriptor.class);
 
@@ -1139,8 +1139,14 @@ public class    DatabaseDescriptor
     {
         return conf.dynamic_snitch_badness_threshold;
     }
+
     public static void setDynamicBadnessThreshold(Double dynamicBadnessThreshold)
     {
         conf.dynamic_snitch_badness_threshold = dynamicBadnessThreshold;
+    }
+
+    public static EncryptionOptions getEncryptionOptions()
+    {
+        return conf.encryption_options;
     }
 }

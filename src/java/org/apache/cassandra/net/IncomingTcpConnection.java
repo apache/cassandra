@@ -27,6 +27,9 @@ import java.net.Socket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.security.streaming.SSLIncomingStreamReader;
 import org.apache.cassandra.streaming.IncomingStreamReader;
 import org.apache.cassandra.streaming.StreamHeader;
 
@@ -77,8 +80,7 @@ public class IncomingTcpConnection extends Thread
                     int size = input.readInt();
                     byte[] headerBytes = new byte[size];
                     input.readFully(headerBytes);
-                    StreamHeader streamHeader = StreamHeader.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(headerBytes)));
-                    new IncomingStreamReader(streamHeader, socket.getChannel()).read();
+                    stream(StreamHeader.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(headerBytes))), input);
                     break;
                 }
                 else
@@ -123,5 +125,13 @@ public class IncomingTcpConnection extends Thread
             if (logger.isDebugEnabled())
                 logger.debug("error closing socket", e);
         }
+    }
+
+    private void stream(StreamHeader streamHeader, DataInputStream input) throws IOException
+    {
+        if (DatabaseDescriptor.getEncryptionOptions().internode_encryption == EncryptionOptions.InternodeEncryption.all)
+            new SSLIncomingStreamReader(streamHeader, socket, input).read();
+        else
+            new IncomingStreamReader(streamHeader, socket).read();
     }
 }

@@ -35,6 +35,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class OutboundTcpConnection extends Thread
@@ -163,7 +165,14 @@ public class OutboundTcpConnection extends Thread
             try
             {
                 // zero means 'bind on any available port.'
-                socket = new Socket(endpoint, DatabaseDescriptor.getStoragePort(), FBUtilities.getLocalAddress(), 0);
+                if (DatabaseDescriptor.getEncryptionOptions().internode_encryption == EncryptionOptions.InternodeEncryption.all)
+                {
+                    socket = SSLFactory.getSocket(DatabaseDescriptor.getEncryptionOptions(), endpoint, DatabaseDescriptor.getStoragePort(), FBUtilities.getLocalAddress(), 0);
+                }
+                else {
+                    socket = new Socket(endpoint, DatabaseDescriptor.getStoragePort(), FBUtilities.getLocalAddress(), 0);
+                }
+
                 socket.setKeepAlive(true);
                 socket.setTcpNoDelay(true);
                 output = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), 4096));

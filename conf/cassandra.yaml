@@ -289,6 +289,23 @@ request_scheduler: org.apache.cassandra.scheduler.NoScheduler
 #  the index is at the cost of space.
 index_interval: 128
 
+# Enable or disable inter-node encryption
+# Default settings are TLS v1, RSA 1024-bit keys (it is imperative that
+# users generate their own keys) TLS_RSA_WITH_AES_128_CBC_SHA as the cipher
+# suite for authentication, key exchange and encryption of the actual data transfers.
+# NOTE: No custom encryption options are enabled at the moment
+# The available internode options are : all, none
+#
+# The passwords used in these options must match the passwords used when generating
+# the keystore and truststore.  For instructions on generating these files, see:
+# http://download.oracle.com/javase/6/docs/technotes/guides/security/jsse/JSSERefGuide.html#CreateKeystore
+encryption_options:
+    internode_encryption: none
+    keystore: conf/.keystore
+    keystore_password: cassandra
+    truststore: conf/.truststore
+    truststore_password: cassandra
+
 # Keyspaces have ColumnFamilies.        (Usually 1 KS per application.)
 # ColumnFamilies have Rows.             (Dozens of CFs per KS.)
 # Rows contain Columns.                 (Many per CF.)

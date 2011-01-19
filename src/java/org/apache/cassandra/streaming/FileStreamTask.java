@@ -47,8 +47,9 @@ public class FileStreamTask extends WrappedRunnable
     // around 10 minutes at the default rpctimeout
     public static final int MAX_CONNECT_ATTEMPTS = 8;
 
-    private final StreamHeader header;
-    private final InetAddress to;
+    protected final StreamHeader header;
+    protected final InetAddress to;
+    private SocketChannel channel;
     
     public FileStreamTask(StreamHeader header, InetAddress to)
     {
@@ -58,19 +59,18 @@ public class FileStreamTask extends WrappedRunnable
     
     public void runMayThrow() throws IOException
     {
-        SocketChannel channel = connect();
-
-        // successfully connected: stream.
-        // (at this point, if we fail, it is the receiver's job to re-request)
         try
         {
-            stream(channel);
+            connectAttempt();
+            // successfully connected: stream.
+            // (at this point, if we fail, it is the receiver's job to re-request)
+            stream();
         }
         finally
         {
             try
             {
-                channel.close();
+                close();
             }
             catch (IOException e)
             {
@@ -82,11 +82,11 @@ public class FileStreamTask extends WrappedRunnable
             logger.debug("Done streaming " + header.file);
     }
 
-    private void stream(SocketChannel channel) throws IOException
+    private void stream() throws IOException
     {
         ByteBuffer buffer = MessagingService.instance().constructStreamHeader(header, false);
-        channel.write(buffer);
-        assert buffer.remaining() == 0;
+        writeHeader(buffer);
+
         if (header.file == null)
             return;
 
@@ -101,8 +101,7 @@ public class FileStreamTask extends WrappedRunnable
                 long bytesTransferred = 0;
                 while (bytesTransferred < length)
                 {
-                    long toTransfer = Math.min(CHUNK_SIZE, length - bytesTransferred);
-                    long lastWrite = fc.transferTo(section.left + bytesTransferred, toTransfer, channel);
+                    long lastWrite = write(fc, section, length, bytesTransferred);
                     bytesTransferred += lastWrite;
                     header.file.progress += lastWrite;
                 }
@@ -116,24 +115,33 @@ public class FileStreamTask extends WrappedRunnable
         }
     }
 
+    protected long write(FileChannel fc, Pair<Long, Long> section, long length, long bytesTransferred) throws IOException
+    {
+        long toTransfer = Math.min(CHUNK_SIZE, length - bytesTransferred);
+        return fc.transferTo(section.left + bytesTransferred, toTransfer, channel);
+    }
+
+    protected void writeHeader(ByteBuffer buffer) throws IOException
+    {
+        channel.write(buffer);
+        assert buffer.remaining() == 0;
+    }
+
     /**
      * Connects to the destination, with backoff for failed attempts.
      * TODO: all nodes on a cluster must currently use the same storage port
      * @throws IOException If all attempts fail.
      */
-    private SocketChannel connect() throws IOException
+    private void connectAttempt() throws IOException
     {
-        SocketChannel channel = SocketChannel.open();
-        // force local binding on correctly specified interface.
-        channel.socket().bind(new InetSocketAddress(FBUtilities.getLocalAddress(), 0));
+        bind();
         int attempts = 0;
         while (true)
         {
             try
             {
-                channel.connect(new InetSocketAddress(to, DatabaseDescriptor.getStoragePort()));
-                // success
-                return channel;
+                connect();
+                break;
             }
             catch (IOException e)
             {
@@ -152,5 +160,22 @@ public class FileStreamTask extends WrappedRunnable
                 }
             }
         }
+    }
+
+    protected void bind() throws IOException
+    {
+        channel = SocketChannel.open();
+        // force local binding on correctly specified interface.
+        channel.socket().bind(new InetSocketAddress(FBUtilities.getLocalAddress(), 0));
+    }
+
+    protected void connect() throws IOException
+    {
+        channel.connect(new InetSocketAddress(to, DatabaseDescriptor.getStoragePort()));
+    }
+
+    protected void close() throws IOException
+    {
+        channel.close();
     }
 }

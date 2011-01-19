@@ -3,6 +3,7 @@
  * adds support for columns that act as incr/decr counters 
    (CASSANDRA-1072, 1937, 1944)
  * make NetworkTopologyStrategy the default (CASSANDRA-1960)
+ * configurable internode encryption (CASSANDRA-1567)
 
 
 0.7.1-dev
