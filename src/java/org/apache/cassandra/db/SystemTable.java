@@ -307,7 +307,7 @@ public class SystemTable
         if (cf == null)
             return false;
         IColumn c = cf.getColumn(BOOTSTRAP);
-        return c.value().get(0) == 1;
+        return c.value().get(c.value().position()) == 1;
     }
 
     public static void setBootstrapped(boolean isBootstrapped)

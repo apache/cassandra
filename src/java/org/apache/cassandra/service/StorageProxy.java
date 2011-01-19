@@ -66,7 +66,15 @@ public class StorageProxy implements StorageProxyMBean
 
     private static ScheduledExecutorService repairExecutor = new ScheduledThreadPoolExecutor(1); // TODO JMX-enable this
 
-    private static final Random random = new Random();
+    private static final ThreadLocal<Random> random = new ThreadLocal<Random>()
+    {
+        @Override
+        protected Random initialValue()
+        {
+            return new Random();
+        }
+    };
+
     // mbean stuff
     private static final LatencyTracker readStats = new LatencyTracker();
     private static final LatencyTracker rangeStats = new LatencyTracker();
@@ -820,7 +828,7 @@ public class StorageProxy implements StorageProxyMBean
     private static boolean randomlyReadRepair(ReadCommand command)
     {
         CFMetaData cfmd = DatabaseDescriptor.getTableMetaData(command.table).get(command.getColumnFamilyName());
-        return cfmd.getReadRepairChance() > random.nextDouble();
+        return cfmd.getReadRepairChance() > random.get().nextDouble();
     }
 
     public long getReadOperations()
