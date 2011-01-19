@@ -30,6 +30,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class ReadVerbHandler implements IVerbHandler
@@ -70,7 +71,7 @@ public class ReadVerbHandler implements IVerbHandler
             if (command.isDigestQuery())
             {
                 if (logger_.isDebugEnabled())
-                    logger_.debug("digest is " + FBUtilities.bytesToHex(ColumnFamily.digest(row.cf)));
+                    logger_.debug("digest is " + ByteBufferUtil.bytesToHex(ColumnFamily.digest(row.cf)));
                 readResponse = new ReadResponse(ColumnFamily.digest(row.cf));
             }
             else
@@ -88,7 +89,7 @@ public class ReadVerbHandler implements IVerbHandler
             Message response = message.getReply(FBUtilities.getLocalAddress(), bytes);
             if (logger_.isDebugEnabled())
               logger_.debug(String.format("Read key %s; sending response to %s@%s",
-                                          FBUtilities.bytesToHex(command.key), message.getMessageId(), message.getFrom()));
+                                          ByteBufferUtil.bytesToHex(command.key), message.getMessageId(), message.getFrom()));
             MessagingService.instance().sendOneWay(response, message.getFrom());
         }
         catch (IOException ex)

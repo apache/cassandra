@@ -27,7 +27,6 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class SliceFromReadCommand extends ReadCommand
 {
@@ -69,7 +68,7 @@ public class SliceFromReadCommand extends ReadCommand
     {
         return "SliceFromReadCommand(" +
                "table='" + table + '\'' +
-               ", key='" + FBUtilities.bytesToHex(key) + '\'' +
+               ", key='" + ByteBufferUtil.bytesToHex(key) + '\'' +
                ", column_parent='" + queryPath + '\'' +
                ", start='" + getComparator().getString(start) + '\'' +
                ", finish='" + getComparator().getString(finish) + '\'' +

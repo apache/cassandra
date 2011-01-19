@@ -34,7 +34,8 @@ import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
 import static org.apache.cassandra.io.sstable.SSTableUtils.tempSSTableFile;
 import static org.junit.Assert.assertEquals;
 
@@ -42,7 +43,6 @@ import org.apache.cassandra.Util;
 
 import org.json.simple.parser.ParseException;
 import org.junit.Test;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SSTableImportTest extends SchemaLoader
 {   
@@ -60,10 +60,10 @@ public class SSTableImportTest extends SchemaLoader
         IColumnIterator iter = qf.getSSTableColumnIterator(reader);
         ColumnFamily cf = iter.getColumnFamily();
         while (iter.hasNext()) cf.addColumn(iter.next());
-        assert cf.getColumn(ByteBufferUtil.bytes("colAA")).value().equals(ByteBuffer.wrap(hexToBytes("76616c4141")));
+        assert cf.getColumn(ByteBufferUtil.bytes("colAA")).value().equals(hexToBytes("76616c4141"));
         assert !(cf.getColumn(ByteBufferUtil.bytes("colAA")) instanceof DeletedColumn);
         IColumn expCol = cf.getColumn(ByteBufferUtil.bytes("colAC"));
-        assert expCol.value().equals(ByteBuffer.wrap(hexToBytes("76616c4143")));
+        assert expCol.value().equals(hexToBytes("76616c4143"));
         assert expCol instanceof ExpiringColumn;
         assert ((ExpiringColumn)expCol).getTimeToLive() == 42 && expCol.getLocalDeletionTime() == 2000000000;
     }
@@ -83,7 +83,7 @@ public class SSTableImportTest extends SchemaLoader
         assert superCol != null;
         assert superCol.getSubColumns().size() > 0;
         IColumn subColumn = superCol.getSubColumn(ByteBufferUtil.bytes("colAA"));
-        assert subColumn.value().equals(ByteBuffer.wrap(hexToBytes("76616c75654141")));
+        assert subColumn.value().equals(hexToBytes("76616c75654141"));
     }
 
     @Test

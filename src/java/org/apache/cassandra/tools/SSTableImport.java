@@ -39,7 +39,7 @@ import org.codehaus.jackson.map.MappingJsonFactory;
 
 import org.codehaus.jackson.JsonParser;
 
-import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
+import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
 
 /**
  * Create SSTables from JSON input
@@ -92,8 +92,8 @@ public class SSTableImport
 
                 assert fields.size() == 4 || fields.size() == 6 : "Column definition should have 4 or 6 fields.";
 
-                name      = ByteBuffer.wrap(hexToBytes((String) fields.get(0)));
-                value     = ByteBuffer.wrap(hexToBytes((String) fields.get(1)));
+                name      = hexToBytes((String) fields.get(0));
+                value     = hexToBytes((String) fields.get(1));
                 timestamp = (Long) fields.get(2);
                 isDeleted = (Boolean) fields.get(3);
 
@@ -167,7 +167,7 @@ public class SSTableImport
         // Super columns
         for (Map.Entry<?, ?> entry : row.entrySet())
         {
-            ByteBuffer superName = ByteBuffer.wrap(hexToBytes((String) entry.getKey()));
+            ByteBuffer superName = hexToBytes((String) entry.getKey());
             Map<?, ?> data = (Map<?, ?>) entry.getValue();
 
             addColumnsToCF((List<?>) data.get("subColumns"), superName, cfamily);
@@ -218,7 +218,7 @@ public class SSTableImport
         for (Object keyObject : data.keySet())
         {
             String key = (String) keyObject;
-            decoratedKeys.put(partitioner.decorateKey(ByteBuffer.wrap(hexToBytes(key))), key);
+            decoratedKeys.put(partitioner.decorateKey(hexToBytes(key)), key);
         }
 
         for (Map.Entry<DecoratedKey, String> rowKey : decoratedKeys.entrySet())
@@ -318,7 +318,7 @@ public class SSTableImport
                     throw new UnsupportedOperationException("Only Array or Hash allowed as row content.");
                 }
 
-                DecoratedKey currentKey = partitioner.decorateKey(ByteBuffer.wrap(hexToBytes(key)));
+                DecoratedKey currentKey = partitioner.decorateKey(hexToBytes(key));
 
                 if (prevStoredKey != null && prevStoredKey.compareTo(currentKey) != -1)
                 {

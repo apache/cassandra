@@ -380,4 +380,22 @@ public class ByteBufferUtil
         };
     }
 
+    public static String bytesToHex(ByteBuffer bytes)
+    {
+        StringBuilder sb = new StringBuilder();
+        for (int i = bytes.position(); i < bytes.limit(); i++)
+        {
+            int bint = bytes.get(i) & 0xff;
+            if (bint <= 0xF)
+                // toHexString does not 0 pad its results.
+                sb.append("0");
+            sb.append(Integer.toHexString(bint));
+        }
+        return sb.toString();
+    }
+
+    public static ByteBuffer hexToBytes(String str)
+    {
+        return ByteBuffer.wrap(FBUtilities.hexToBytes(str));
+    }
 }

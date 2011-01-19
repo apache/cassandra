@@ -285,7 +285,7 @@ public class RowMutation
     {
         StringBuilder buff = new StringBuilder("RowMutation(");
         buff.append("keyspace='").append(table_).append('\'');
-        buff.append(", key='").append(FBUtilities.bytesToHex(key_)).append('\'');
+        buff.append(", key='").append(ByteBufferUtil.bytesToHex(key_)).append('\'');
         buff.append(", modifications=[");
         if (shallow)
         {

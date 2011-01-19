@@ -36,6 +36,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ReducingIterator;
 
@@ -132,7 +133,7 @@ implements Closeable, ICompactionInfo
         if (rowSize > DatabaseDescriptor.getInMemoryCompactionLimit())
         {
             logger.info(String.format("Compacting large row %s (%d bytes) incrementally",
-                                      FBUtilities.bytesToHex(rows.get(0).getKey().key), rowSize));
+                                      ByteBufferUtil.bytesToHex(rows.get(0).getKey().key), rowSize));
             return new LazilyCompactedRow(cfs, rows, major, gcBefore);
         }
         return new PrecompactedRow(cfs, rows, major, gcBefore);

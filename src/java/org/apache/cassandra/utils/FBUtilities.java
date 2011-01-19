@@ -262,20 +262,6 @@ public class FBUtilities
         return sb.toString();
     }
 
-    public static String bytesToHex(ByteBuffer bytes)
-    {
-        StringBuilder sb = new StringBuilder();
-        for (int i = bytes.position(); i < bytes.limit(); i++)
-        {
-            int bint = bytes.get(i) & 0xff;
-            if (bint <= 0xF)
-                // toHexString does not 0 pad its results.
-                sb.append("0");
-            sb.append(Integer.toHexString(bint));
-        }
-        return sb.toString();
-    }
-
     public static void renameWithConfirm(String tmpFilename, String filename) throws IOException
     {
         if (!new File(tmpFilename).renameTo(new File(filename)))

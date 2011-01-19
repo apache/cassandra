@@ -41,7 +41,6 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 
@@ -350,7 +349,7 @@ public final class CFMetaData
     /** convention for nameing secondary indexes. */
     public static String indexName(String parentCf, ColumnDefinition info)
     {
-        return parentCf + "." + (info.getIndexName() == null ? FBUtilities.bytesToHex(info.name) : info.getIndexName());
+        return parentCf + "." + (info.getIndexName() == null ? ByteBufferUtil.bytesToHex(info.name) : info.getIndexName());
     }
 
     public org.apache.cassandra.avro.CfDef deflate()

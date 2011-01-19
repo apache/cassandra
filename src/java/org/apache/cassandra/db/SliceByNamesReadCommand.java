@@ -28,7 +28,6 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class SliceByNamesReadCommand extends ReadCommand
 {
@@ -66,7 +65,7 @@ public class SliceByNamesReadCommand extends ReadCommand
     {
         return "SliceByNamesReadCommand(" +
                "table='" + table + '\'' +
-               ", key=" + FBUtilities.bytesToHex(key) +
+               ", key=" + ByteBufferUtil.bytesToHex(key) +
                ", columnParent='" + queryPath + '\'' +
                ", columns=[" + getComparator().getString(columnNames) + "]" +
                ')';

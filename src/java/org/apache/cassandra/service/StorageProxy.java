@@ -147,7 +147,7 @@ public class StorageProxy implements StorageProxyMBean
                                 MessagingService.instance().addCallback(responseHandler, unhintedMessage.getMessageId());
                             }
                             if (logger.isDebugEnabled())
-                                logger.debug("insert writing key " + FBUtilities.bytesToHex(rm.key()) + " to " + unhintedMessage.getMessageId() + "@" + destination);
+                                logger.debug("insert writing key " + ByteBufferUtil.bytesToHex(rm.key()) + " to " + unhintedMessage.getMessageId() + "@" + destination);
                             
                             
                             Multimap<Message, InetAddress> messages = dcMessages.get(dc);
@@ -170,7 +170,7 @@ public class StorageProxy implements StorageProxyMBean
                             {
                                 addHintHeader(hintedMessage, target);
                                 if (logger.isDebugEnabled())
-                                    logger.debug("insert writing key " + FBUtilities.bytesToHex(rm.key()) + " to " + hintedMessage.getMessageId() + "@" + destination + " for " + target);
+                                    logger.debug("insert writing key " + ByteBufferUtil.bytesToHex(rm.key()) + " to " + hintedMessage.getMessageId() + "@" + destination + " for " + target);
                             }
                         }
                         responseHandler.addHintCallback(hintedMessage, destination);
@@ -199,7 +199,7 @@ public class StorageProxy implements StorageProxyMBean
             if (mostRecentRowMutation == null)
                 throw new RuntimeException("no mutations were seen but found an error during write anyway", e);
             else
-                throw new RuntimeException("error writing key " + FBUtilities.bytesToHex(mostRecentRowMutation.key()), e);
+                throw new RuntimeException("error writing key " + ByteBufferUtil.bytesToHex(mostRecentRowMutation.key()), e);
         }
         finally
         {

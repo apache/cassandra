@@ -51,7 +51,6 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class Table
@@ -395,7 +394,7 @@ public class Table
     {
         List<Memtable> memtablesToFlush = Collections.emptyList();
         if (logger.isDebugEnabled())
-            logger.debug("applying mutation of row {}", FBUtilities.bytesToHex(mutation.key()));
+            logger.debug("applying mutation of row {}", ByteBufferUtil.bytesToHex(mutation.key()));
 
         // write the mutation to the commitlog and memtables
         flusherLock.readLock().lock();
@@ -429,7 +428,7 @@ public class Table
                             ByteBuffer value = cf.getColumn(column) == null ? null : cf.getColumn(column).value(); // may be null on row-level deletion
                             logger.debug(String.format("mutating indexed column %s value %s",
                                                        cf.getComparator().getString(column),
-                                                       value == null ? "null" : FBUtilities.bytesToHex(value)));
+                                                       value == null ? "null" : ByteBufferUtil.bytesToHex(value)));
                         }
                     }
                 }

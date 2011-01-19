@@ -180,7 +180,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 ColumnFamilyStore indexCfs = indexedColumns.remove(indexName);
                 if (indexCfs == null)
                 {
-                    logger.debug("index {} already removed; ignoring", FBUtilities.bytesToHex(indexName));
+                    logger.debug("index {} already removed; ignoring", ByteBufferUtil.bytesToHex(indexName));
                     continue;
                 }
                 indexCfs.unregisterMBean();
