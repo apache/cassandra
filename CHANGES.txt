@@ -20,7 +20,7 @@
  * implement describeOwnership for BOP, COPP (CASSANDRA-1928)
  * make read repair behave as expected for ConsistencyLevel > ONE
    (CASSANDRA-982)
- * distributed test harness (CASSANDRA-1859)
+ * distributed test harness (CASSANDRA-1859, 1964)
  * reduce flush lock contention (CASSANDRA-1930)
  * optimize supercolumn deserialization (CASSANDRA-1891)
  * fix CFMetaData.apply to only compare objects of the same class 
@@ -33,6 +33,8 @@
  * fixes for contrib/javautils (CASSANDRA-1979)
  * check more frequently for memtable expiration (CASSANDRA-2000)
  * fix writing SSTable column count statistics (CASSANDRA-1976)
+ * fix streaming of multiple CFs during bootstrap (CASSANDRA-1992)
+ * explicitly set JVM GC new generation size with -Xmn (CASSANDRA-1968)
 
 
 0.7.0-final

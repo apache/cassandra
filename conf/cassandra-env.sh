@@ -19,25 +19,46 @@ calculate_heap_size()
     case "`uname`" in
         Linux)
             system_memory_in_mb=`free -m | awk '/Mem:/ {print $2}'`
-            MAX_HEAP_SIZE=$((system_memory_in_mb / 2))M
-            return 0
+            system_cpu_cores=`cat /proc/cpuinfo | egrep '^processor(\s|\t)+:.*' | wc -l`
+            break
         ;;
         FreeBSD)
             system_memory_in_bytes=`sysctl hw.physmem | awk '{print $2}'`
-            MAX_HEAP_SIZE=$((system_memory_in_bytes / 1024 / 1024 / 2))M
-            return 0
+            system_memory_in_mb=$((system_memory_in_bytes / 1024 / 1024))
+            system_cpu_cores=`sysctl hw.ncpu | awk '{print $2}'`
+            break
         ;;
         *)
             MAX_HEAP_SIZE=1024M
+            HEAP_NEWSIZE=256M
             return 1
         ;;
     esac
+    max_heap_size_in_mb=$((system_memory_in_mb / 2))
+    MAX_HEAP_SIZE=${max_heap_size_in_mb}M
+
+    # Young gen: min(max_sensible_per_modern_cpu_core * num_cores, 1/4 * heap size)
+    max_sensible_yg_per_core_in_mb="100"
+    max_sensible_yg_in_mb=$((max_sensible_yg_per_core_in_mb * system_cpu_cores))
+
+    desired_yg_in_mb=$((max_heap_size_in_mb / 4))
+
+    if [ "$desired_yg_in_mb" -gt "$max_sensible_yg_in_mb" ]
+    then
+        HEAP_NEWSIZE="${max_sensible_yg_in_mb}M"
+    else
+        HEAP_NEWSIZE="${desired_yg_in_mb}M"
+    fi
+
+    return 0
 }
 
 # The amount of memory to allocate to the JVM at startup, you almost
 # certainly want to adjust this for your environment. If left commented
 # out, the heap size will be automatically determined by calculate_heap_size
 # MAX_HEAP_SIZE="4G"
+# set this to explicity control the size of the young generation
+# HEAP_NEWSIZE="1G"
 
 if [ "x$MAX_HEAP_SIZE" = "x" ]; then
     calculate_heap_size
@@ -68,6 +89,7 @@ JVM_OPTS="$JVM_OPTS -XX:ThreadPriorityPolicy=42"
 # out.
 JVM_OPTS="$JVM_OPTS -Xms$MAX_HEAP_SIZE"
 JVM_OPTS="$JVM_OPTS -Xmx$MAX_HEAP_SIZE"
+JVM_OPTS="$JVM_OPTS -Xmn$HEAP_NEWSIZE"
 JVM_OPTS="$JVM_OPTS -XX:+HeapDumpOnOutOfMemoryError" 
 
 if [ "`uname`" = "Linux" ] ; then
