@@ -7,7 +7,13 @@ sys.path.append(join(abspath(dirname(__file__)), '../../drivers/py'))
 from cql import Connection
 from cql.errors import CQLException
 from . import ThriftTester
-from avro_utils import assert_raises
+
+def assert_raises(exception, method, *args):
+    try:
+        method(*args)
+    except exception:
+        return
+    raise AssertionError("failed to see expected exception")
 
 def load_sample(dbconn):
     dbconn.execute("""
