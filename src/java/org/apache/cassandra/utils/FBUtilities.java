@@ -590,28 +590,4 @@ public class FBUtilities
 
         return field;
     }
-
-    public static InputStream inputStream(ByteBuffer bytes)
-    {
-        final ByteBuffer copy = ByteBufferUtil.clone(bytes);
-
-        return new InputStream()
-        {
-            public int read() throws IOException
-            {
-                if (!copy.hasRemaining())
-                    return -1;
-
-                return copy.get();
-            }
-
-            public int read(byte[] bytes, int off, int len) throws IOException
-            {
-                len = Math.min(len, copy.remaining());
-                copy.get(bytes, off, len);
-
-                return len;
-            }
-        };
-    }
 }

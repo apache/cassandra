@@ -103,7 +103,7 @@ public class IndexHelper
         int size = file.readInt();
         ByteBuffer bytes = file.readBytes(size);
 
-        DataInputStream stream = new DataInputStream(FBUtilities.inputStream(bytes));
+        DataInputStream stream = new DataInputStream(ByteBufferUtil.inputStream(bytes));
 
         return useOldBuffer
                 ? LegacyBloomFilter.serializer().deserialize(stream)

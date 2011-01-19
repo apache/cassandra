@@ -22,6 +22,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
@@ -353,6 +354,30 @@ public class ByteBufferUtil
     public static ByteBuffer bytes(long n)
     {
         return ByteBuffer.allocate(8).putLong(0, n);
+    }
+
+    public static InputStream inputStream(ByteBuffer bytes)
+    {
+        final ByteBuffer copy = bytes.duplicate();
+
+        return new InputStream()
+        {
+            public int read() throws IOException
+            {
+                if (!copy.hasRemaining())
+                    return -1;
+
+                return copy.get();
+            }
+
+            public int read(byte[] bytes, int off, int len) throws IOException
+            {
+                len = Math.min(len, copy.remaining());
+                copy.get(bytes, off, len);
+
+                return len;
+            }
+        };
     }
 
 }
