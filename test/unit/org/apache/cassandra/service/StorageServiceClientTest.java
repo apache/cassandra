@@ -20,6 +20,7 @@
 package org.apache.cassandra.service;
 
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.junit.Test;
 import static org.junit.Assert.assertTrue;
@@ -31,7 +32,7 @@ import java.io.IOException;
 public class StorageServiceClientTest
 {
     @Test
-    public void testClientOnlyMode() throws IOException
+    public void testClientOnlyMode() throws IOException, ConfigurationException
     {
         CleanupHelper.mkdirs();
         CleanupHelper.cleanup();

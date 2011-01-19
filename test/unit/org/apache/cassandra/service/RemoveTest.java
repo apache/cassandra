@@ -32,6 +32,7 @@ import org.junit.Test;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
@@ -58,7 +59,7 @@ public class RemoveTest extends CleanupHelper
     List<InetAddress> hosts;
 
     @Before
-    public void setup() throws IOException
+    public void setup() throws IOException, ConfigurationException
     {
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();

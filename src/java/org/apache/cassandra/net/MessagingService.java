@@ -21,10 +21,7 @@ package org.apache.cassandra.net;
 import java.io.IOError;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
+import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.ServerSocketChannel;
@@ -45,6 +42,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.ILatencyPublisher;
@@ -174,12 +172,25 @@ public final class MessagingService implements MessagingServiceMBean, ILatencyPu
      * Listen on the specified port.
      * @param localEp InetAddress whose port to listen on.
      */
-    public void listen(InetAddress localEp) throws IOException
+    public void listen(InetAddress localEp) throws IOException, ConfigurationException
     {        
         ServerSocketChannel serverChannel = ServerSocketChannel.open();
         final ServerSocket ss = serverChannel.socket();
         ss.setReuseAddress(true);
-        ss.bind(new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort()));
+        InetSocketAddress address = new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort());
+        try
+        {
+            ss.bind(address);
+        }
+        catch (BindException e)
+        {
+            if (e.getMessage().contains("in use"))
+                throw new ConfigurationException(address + " is in use by another process.  Change listen_address:storage_port in cassandra.yaml to values that do not conflict with other services");
+            else if (e.getMessage().contains("Cannot assign requested address"))
+                throw new ConfigurationException("Unable to bind to address " + address + ". Set listen_address in cassandra.yaml to an interface you can bind to, e.g., your private IP address on EC2");
+            else
+                throw e;
+        }
         socketThread = new SocketThread(ss, "ACCEPT-" + localEp);
         socketThread.start();
         listenGate.signalAll();
