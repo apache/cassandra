@@ -285,7 +285,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return initialized; 
     }
 
-    public synchronized void initClient() throws IOException
+    public synchronized void initClient() throws IOException, ConfigurationException
     {
         if (initialized)
         {

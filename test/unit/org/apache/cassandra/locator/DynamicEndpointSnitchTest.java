@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
 import org.junit.Test;
 
@@ -31,7 +32,7 @@ import org.apache.cassandra.utils.FBUtilities;
 public class DynamicEndpointSnitchTest
 {
     @Test
-    public void testSnitch() throws InterruptedException, IOException
+    public void testSnitch() throws InterruptedException, IOException, ConfigurationException
     {
         // do this because SS needs to be initialized before DES can work properly.
         StorageService.instance.initClient();

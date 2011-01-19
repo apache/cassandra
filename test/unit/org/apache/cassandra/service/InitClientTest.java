@@ -4,6 +4,8 @@ import org.junit.Test;
 
 import java.io.IOException;
 
+import org.apache.cassandra.config.ConfigurationException;
+
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -26,12 +28,8 @@ import java.io.IOException;
 public class InitClientTest // extends CleanupHelper
 {
     @Test
-    public void testInitClientStartup()
+    public void testInitClientStartup() throws IOException, ConfigurationException
     {
-        try {
-            StorageService.instance.initClient();
-        } catch (IOException ex) {
-            throw new AssertionError(ex.getMessage());
-        }
+        StorageService.instance.initClient();
     }
 }

@@ -35,6 +35,7 @@
  * fix writing SSTable column count statistics (CASSANDRA-1976)
  * fix streaming of multiple CFs during bootstrap (CASSANDRA-1992)
  * explicitly set JVM GC new generation size with -Xmn (CASSANDRA-1968)
+ * add short options for CLI flags (CASSANDRA-1565)
 
 
 0.7.0-final
