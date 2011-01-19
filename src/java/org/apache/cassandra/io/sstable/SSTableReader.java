@@ -295,9 +295,9 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                     break;
 
                 boolean shouldAddEntry = indexSummary.shouldAddEntry();
-                ByteBuffer key = (ByteBuffer) ((shouldAddEntry || cacheLoading || recreatebloom)
+                ByteBuffer key = (shouldAddEntry || cacheLoading || recreatebloom)
                              ? ByteBufferUtil.readWithShortLength(input)
-                             : ByteBufferUtil.skipShortLength(input));
+                             : ByteBufferUtil.skipShortLength(input);
                 long dataPosition = input.readLong();
                 if (key != null)
                 {

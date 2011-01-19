@@ -305,7 +305,7 @@ public class ByteBufferUtil
      * @return null
      * @throws IOException if an I/O error occurs.
      */
-    public static void skipShortLength(DataInput in) throws IOException
+    public static ByteBuffer skipShortLength(DataInput in) throws IOException
     {
         int skip = readShortLength(in);
         while (skip > 0)
@@ -314,6 +314,7 @@ public class ByteBufferUtil
             if (skipped == 0) throw new EOFException();
             skip -= skipped;
         }
+        return null;
     }
 
     private static ByteBuffer read(DataInput in, int length) throws IOException
