@@ -108,6 +108,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         REPLICATION_FINISHED,
         INTERNAL_RESPONSE, // responses to internal calls
         COUNTER_MUTATION,
+        // use as padding for backwards compatability where a previous version needs to validate a verb from the future.
+        UNUSED_1,
+        UNUSED_2,
+        UNUSED_3,
         ;
         // remember to add new verbs at the end, since we serialize by ordinal
     }
@@ -137,6 +141,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         put(Verb.REPLICATION_FINISHED, Stage.MISC);
         put(Verb.INTERNAL_RESPONSE, Stage.INTERNAL_RESPONSE);
         put(Verb.COUNTER_MUTATION, Stage.MUTATION);
+        put(Verb.UNUSED_1, Stage.INTERNAL_RESPONSE);
+        put(Verb.UNUSED_2, Stage.INTERNAL_RESPONSE);
+        put(Verb.UNUSED_3, Stage.INTERNAL_RESPONSE);
     }};
 
 

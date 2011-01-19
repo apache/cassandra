@@ -54,6 +54,13 @@ public class MessageDeliveryTask implements Runnable
                     return;
                 }
                 break;
+            
+            // don't bother.
+            case UNUSED_1:
+            case UNUSED_2:
+            case UNUSED_3:
+                return;
+            
             default:
                 break;
         }
