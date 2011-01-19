@@ -877,6 +877,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public void addSSTable(SSTableReader sstable)
     {
+        assert sstable.getColumnFamilyName().equals(columnFamily);
         ssTables.add(Arrays.asList(sstable));
         CompactionManager.instance.submitMinorIfNeeded(this);
     }
