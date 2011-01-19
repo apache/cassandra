@@ -21,7 +21,7 @@ package org.apache.cassandra.service;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class DigestMismatchException extends Exception
 {
@@ -29,7 +29,7 @@ public class DigestMismatchException extends Exception
     {
         super(String.format("Mismatch for key %s (%s vs %s)",
                             key.toString(),
-                            FBUtilities.bytesToHex(digest1),
-                            FBUtilities.bytesToHex(digest2)));
+                            ByteBufferUtil.bytesToHex(digest1),
+                            ByteBufferUtil.bytesToHex(digest2)));
     }
 }

@@ -363,10 +363,17 @@ public class CompactionManager implements CompactionManagerMBean
     {
         // The collection of sstables passed may be empty (but not null); even if
         // it is not empty, it may compact down to nothing if all rows are deleted.
+        assert sstables != null;
+
         Table table = cfs.table;
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
             table.snapshot("compact-" + cfs.columnFamily);
+
+        // sanity check: all sstables must belong to the same cfs
         logger.info("Compacting [" + StringUtils.join(sstables, ",") + "]");
+        for (SSTableReader sstable : sstables)
+            assert sstable.descriptor.cfname.equals(cfs.columnFamily);
+
         String compactionFileLocation = table.getDataFileLocation(cfs.getExpectedCompactedFileSize(sstables));
         // If the compaction file path is null that means we have no space left for this compaction.
         // try again w/o the largest one.

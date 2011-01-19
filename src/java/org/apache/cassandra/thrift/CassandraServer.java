@@ -51,6 +51,7 @@ import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.TException;
 
@@ -970,7 +971,7 @@ public class CassandraServer implements Cassandra.Iface
 
     private Column getCounterColumn(CounterColumn column)
     {
-        return new Column(column.name, FBUtilities.toByteBuffer(column.value), System.currentTimeMillis());
+        return new Column(column.name, ByteBufferUtil.bytes(column.value), System.currentTimeMillis());
     }
 
     public void add(ByteBuffer key, ColumnParent column_parent, CounterColumn column, ConsistencyLevel consistency_level)
@@ -994,7 +995,7 @@ public class CassandraServer implements Cassandra.Iface
             ColumnOrSuperColumn cosc = new ColumnOrSuperColumn();
             if (counter.isSetColumn())
             {
-                Column c = new Column(counter.column.name, FBUtilities.toByteBuffer(counter.column.value), System.currentTimeMillis());
+                Column c = new Column(counter.column.name, ByteBufferUtil.bytes(counter.column.value), System.currentTimeMillis());
                 cosc.setColumn(c);
             }
 
@@ -1003,7 +1004,7 @@ public class CassandraServer implements Cassandra.Iface
                 List<Column> subcolumns = new ArrayList<Column>(counter.super_column.columns.size());
                 for (CounterColumn subcol : counter.super_column.columns)
                 {
-                    subcolumns.add(new Column(subcol.name, FBUtilities.toByteBuffer(subcol.value), System.currentTimeMillis()));
+                    subcolumns.add(new Column(subcol.name, ByteBufferUtil.bytes(subcol.value), System.currentTimeMillis()));
                 }
                 SuperColumn sc = new SuperColumn(counter.super_column.name, subcolumns);
                 cosc.setSuper_column(sc);
@@ -1141,7 +1142,6 @@ public class CassandraServer implements Cassandra.Iface
         internal_remove(key, path, System.currentTimeMillis(), consistency_level);
     }
 
-    @Override
     public CqlResult execute_cql_query(ByteBuffer query, Compression compression)
             throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {

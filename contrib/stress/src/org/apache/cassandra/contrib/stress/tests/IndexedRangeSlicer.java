@@ -68,19 +68,15 @@ public class IndexedRangeSlicer extends OperationThread
 
                     if (results.size() == 0)
                     {
-                        throw new RuntimeException("No indexed values from offset received: " + startOffset);
-                    }
-                }
-                catch (InvalidRequestException e)
-                {
-                    System.err.println(e.getWhy());
+                        System.err.printf("No indexed values from offset received: %s%n", startOffset);
 
-                    if (!session.ignoreErrors())
-                        return;
+                        if (!session.ignoreErrors())
+                            break;
+                    }
                 }
                 catch (Exception e)
                 {
-                    System.err.println(e.getMessage());
+                    System.err.printf("Error on get_indexed_slices call for offset  %s - %s%n", startOffset, getExceptionMessage(e));
 
                     if (!session.ignoreErrors())
                         return;

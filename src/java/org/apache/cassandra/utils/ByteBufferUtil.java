@@ -18,13 +18,17 @@
  */
 package org.apache.cassandra.utils;
 
+import java.io.DataInput;
 import java.io.DataOutput;
+import java.io.EOFException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 
+import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.commons.lang.ArrayUtils;
 
 /**
@@ -266,5 +270,133 @@ public class ByteBufferUtil
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public static ByteBuffer readWithLength(DataInput in) throws IOException
+    {
+        int length = in.readInt();
+        if (length < 0)
+        {
+            throw new IOException("Corrupt (negative) value length encountered");
+        }
+
+        return ByteBufferUtil.read(in, length);
+    }
+
+    /* @return An unsigned short in an integer. */
+    private static int readShortLength(DataInput in) throws IOException
+    {
+        int length = (in.readByte() & 0xFF) << 8;
+        return length | (in.readByte() & 0xFF);
+    }
+
+    /**
+     * @param in data input
+     * @return An unsigned short in an integer.
+     * @throws IOException if an I/O error occurs.
+     */
+    public static ByteBuffer readWithShortLength(DataInput in) throws IOException
+    {
+        return ByteBufferUtil.read(in, readShortLength(in));
+    }
+
+    /**
+     * @param in data input
+     * @return null
+     * @throws IOException if an I/O error occurs.
+     */
+    public static ByteBuffer skipShortLength(DataInput in) throws IOException
+    {
+        int skip = readShortLength(in);
+        while (skip > 0)
+        {
+            int skipped = in.skipBytes(skip);
+            if (skipped == 0) throw new EOFException();
+            skip -= skipped;
+        }
+        return null;
+    }
+
+    private static ByteBuffer read(DataInput in, int length) throws IOException
+    {
+        ByteBuffer array;
+
+        if (in instanceof FileDataInput)
+        {
+            array = ((FileDataInput) in).readBytes(length);
+        }
+        else
+        {
+            byte[] buff = new byte[length];
+            in.readFully(buff);
+            array = ByteBuffer.wrap(buff);
+        }
+
+        return array;
+    }
+
+    /**
+     * Convert a byte buffer to an integer.
+     * Does not change the byte buffer position.
+     *
+     * @param bytes byte buffer to convert to integer
+     * @return int representation of the byte buffer
+     */
+    public static int toInt(ByteBuffer bytes)
+    {
+        return bytes.getInt(bytes.position());
+    }
+
+    public static ByteBuffer bytes(int i)
+    {
+        return ByteBuffer.allocate(4).putInt(0, i);
+    }
+
+    public static ByteBuffer bytes(long n)
+    {
+        return ByteBuffer.allocate(8).putLong(0, n);
+    }
+
+    public static InputStream inputStream(ByteBuffer bytes)
+    {
+        final ByteBuffer copy = bytes.duplicate();
+
+        return new InputStream()
+        {
+            public int read() throws IOException
+            {
+                if (!copy.hasRemaining())
+                    return -1;
+
+                return copy.get();
+            }
+
+            public int read(byte[] bytes, int off, int len) throws IOException
+            {
+                len = Math.min(len, copy.remaining());
+                copy.get(bytes, off, len);
+
+                return len;
+            }
+        };
+    }
+
+    public static String bytesToHex(ByteBuffer bytes)
+    {
+        StringBuilder sb = new StringBuilder();
+        for (int i = bytes.position(); i < bytes.limit(); i++)
+        {
+            int bint = bytes.get(i) & 0xff;
+            if (bint <= 0xF)
+                // toHexString does not 0 pad its results.
+                sb.append("0");
+            sb.append(Integer.toHexString(bint));
+        }
+        return sb.toString();
+    }
+
+    public static ByteBuffer hexToBytes(String str)
+    {
+        return ByteBuffer.wrap(FBUtilities.hexToBytes(str));
     }
 }

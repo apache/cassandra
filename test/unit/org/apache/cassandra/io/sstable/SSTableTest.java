@@ -27,7 +27,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SSTableTest extends CleanupHelper
 {
@@ -52,7 +52,7 @@ public class SSTableTest extends CleanupHelper
     {
         BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.getFilename(), "r");
         file.seek(sstable.getPosition(sstable.partitioner.decorateKey(key), SSTableReader.Operator.EQ));
-        assert key.equals(FBUtilities.readShortByteArray(file));
+        assert key.equals(ByteBufferUtil.readWithShortLength(file));
         int size = (int)SSTableReader.readRowSize(file, sstable.descriptor);
         byte[] bytes2 = new byte[size];
         file.readFully(bytes2);
@@ -84,7 +84,7 @@ public class SSTableTest extends CleanupHelper
         for (ByteBuffer key : keys)
         {
             file.seek(sstable.getPosition(sstable.partitioner.decorateKey(key), SSTableReader.Operator.EQ));
-            assert key.equals( FBUtilities.readShortByteArray(file));
+            assert key.equals( ByteBufferUtil.readWithShortLength(file));
             int size = (int)SSTableReader.readRowSize(file, sstable.descriptor);
             byte[] bytes2 = new byte[size];
             file.readFully(bytes2);

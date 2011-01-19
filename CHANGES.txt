@@ -31,6 +31,7 @@
  * fix copy bounds for word Text in wordcount demo (CASSANDRA-1993)
  * fixes for contrib/javautils (CASSANDRA-1979)
  * check more frequently for memtable expiration (CASSANDRA-2000)
+ * fix writing SSTable column count statistics (CASSANDRA-1976)
 
 
 0.7.0-final

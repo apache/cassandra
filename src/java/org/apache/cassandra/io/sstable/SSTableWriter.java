@@ -197,7 +197,7 @@ public class SSTableWriter extends SSTable
     {
         DataOutputStream out = new DataOutputStream(new FileOutputStream(desc.filenameFor(SSTable.COMPONENT_STATS)));
         EstimatedHistogram.serializer.serialize(rowSizes, out);
-        EstimatedHistogram.serializer.serialize(rowSizes, out);
+        EstimatedHistogram.serializer.serialize(columnnCounts, out);
         out.close();
     }
 
@@ -366,7 +366,7 @@ public class SSTableWriter extends SSTable
             while (rowPosition < dfile.length())
             {
                 // read key
-                key = SSTableReader.decodeKey(StorageService.getPartitioner(), desc, FBUtilities.readShortByteArray(dfile));
+                key = SSTableReader.decodeKey(StorageService.getPartitioner(), desc, ByteBufferUtil.readWithShortLength(dfile));
                 iwriter.afterAppend(key, rowPosition);
 
                 // seek to next key
@@ -410,7 +410,7 @@ public class SSTableWriter extends SSTable
             {
                 // read key
                 dfile.seek(readRowPosition);
-                diskKey = FBUtilities.readShortByteArray(dfile);
+                diskKey = ByteBufferUtil.readWithShortLength(dfile);
 
                 // skip data size, bloom filter, column index
                 long dataSize = SSTableReader.readRowSize(dfile, desc);

@@ -36,7 +36,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Joiner;
-import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.commons.collections.iterators.CollatingIterator;
 import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
@@ -194,38 +193,6 @@ public class FBUtilities
     }
 
     /**
-     * Convert a byte buffer to an integer.
-     * Does not change the byte buffer position.
-     *
-     * @param bytes byte buffer to convert to integer
-     * @return int representation of the byte buffer
-     */
-    public static int byteBufferToInt(ByteBuffer bytes)
-    {
-        if (bytes.remaining() < 4)
-        {
-            throw new IllegalArgumentException("An integer must be 4 bytes in size.");
-        }
-        int n = 0;
-        for (int i = 0; i < 4; ++i)
-        {
-            n <<= 8;
-            n |= bytes.get(bytes.position() + i) & 0xFF;
-        }
-        return n;
-    }
-
-    public static ByteBuffer toByteBuffer(int i)
-    {
-        byte[] bytes = new byte[4];
-        bytes[0] = (byte)( ( i >>> 24 ) & 0xFF);
-        bytes[1] = (byte)( ( i >>> 16 ) & 0xFF);
-        bytes[2] = (byte)( ( i >>> 8 ) & 0xFF);
-        bytes[3] = (byte)( i & 0xFF );
-        return ByteBuffer.wrap(bytes);
-    }
-
-    /**
      * Copy bytes from long into bytes starting from offset.
      * @param bytes Target array
      * @param offset Offset into the array
@@ -253,7 +220,7 @@ public class FBUtilities
         copyIntoBytes(bytes, 0, l);
         return bytes;
     }
-    
+
     /**
      * @param bytes A byte array containing a serialized long.
      * @return The long value contained in the byte array.
@@ -282,13 +249,6 @@ public class FBUtilities
             n |= bytes[offset + i] & 0xFF;
         }
         return n;
-    }
-
-    public static ByteBuffer toByteBuffer(long n)
-    {
-        byte[] bytes = new byte[8];
-        ByteBuffer bb = ByteBuffer.wrap(bytes).putLong(0, n);
-        return bb;
     }
 
     public static int compareUnsigned(byte[] bytes1, byte[] bytes2, int offset1, int offset2, int len1, int len2)
@@ -394,51 +354,6 @@ public class FBUtilities
     	return result;
 	}
 
-    public static ByteBuffer readByteArray(DataInput in) throws IOException
-    {
-        int length = in.readInt();
-        if (length < 0)
-        {
-            throw new IOException("Corrupt (negative) value length encountered");
-        }
-
-        return readDataBytes(in, length);
-    }
-
-    /* @return An unsigned short in an integer. */
-    private static int readShortLength(DataInput in) throws IOException
-    {
-        int length = (in.readByte() & 0xFF) << 8;
-        return length | (in.readByte() & 0xFF);
-    }
-
-    /**
-     * @param in data input
-     * @return An unsigned short in an integer.
-     * @throws IOException if an I/O error occurs.
-     */
-    public static ByteBuffer readShortByteArray(DataInput in) throws IOException
-    {
-        return readDataBytes(in, readShortLength(in));
-    }
-
-    /**
-     * @param in data input
-     * @return null
-     * @throws IOException if an I/O error occurs.
-     */
-    public static byte[] skipShortByteArray(DataInput in) throws IOException
-    {
-        int skip = readShortLength(in);
-        while (skip > 0)
-        {
-            int skipped = in.skipBytes(skip);
-            if (skipped == 0) throw new EOFException();
-            skip -= skipped;
-        }
-        return null;
-    }
-
     public static byte[] hexToBytes(String str)
     {
         if (str.length() % 2 == 1)
@@ -457,20 +372,6 @@ public class FBUtilities
         for (byte b : bytes)
         {
             int bint = b & 0xff;
-            if (bint <= 0xF)
-                // toHexString does not 0 pad its results.
-                sb.append("0");
-            sb.append(Integer.toHexString(bint));
-        }
-        return sb.toString();
-    }
-
-    public static String bytesToHex(ByteBuffer bytes)
-    {
-        StringBuilder sb = new StringBuilder();
-        for (int i = bytes.position(); i < bytes.limit(); i++)
-        {
-            int bint = bytes.get(i) & 0xff;
             if (bint <= 0xF)
                 // toHexString does not 0 pad its results.
                 sb.append("0");
@@ -790,47 +691,5 @@ public class FBUtilities
         }
 
         return field;
-    }
-
-    private static ByteBuffer readDataBytes(DataInput in, int length) throws IOException
-    {
-        ByteBuffer array;
-
-        if (in instanceof FileDataInput)
-        {
-            array = ((FileDataInput) in).readBytes(length);
-        }
-        else
-        {
-            byte[] buff = new byte[length];
-            in.readFully(buff);
-            array = ByteBuffer.wrap(buff);
-        }
-
-        return array;
-    }
-
-    public static InputStream inputStream(ByteBuffer bytes)
-    {
-        final ByteBuffer copy = ByteBufferUtil.clone(bytes);
-
-        return new InputStream()
-        {
-            public int read() throws IOException
-            {
-                if (!copy.hasRemaining())
-                    return -1;
-
-                return copy.get();
-            }
-
-            public int read(byte[] bytes, int off, int len) throws IOException
-            {
-                len = Math.min(len, copy.remaining());
-                copy.get(bytes, off, len);
-
-                return len;
-            }
-        };
     }
 }

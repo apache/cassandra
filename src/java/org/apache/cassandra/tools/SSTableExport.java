@@ -36,8 +36,8 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.*;
 
-import static org.apache.cassandra.utils.FBUtilities.bytesToHex;
-import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytesToHex;
+import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
 
 /**
  * Export SSTables to JSON format.
@@ -202,7 +202,7 @@ public class SSTableExport
         {
             if (excludeSet.contains(key))
                 continue;
-            DecoratedKey<?> dk = partitioner.decorateKey(ByteBuffer.wrap(hexToBytes(key)));
+            DecoratedKey<?> dk = partitioner.decorateKey(hexToBytes(key));
 
             // validate order of the keys in the sstable
             if (lastKey != null && lastKey.compareTo(dk) > 0 )

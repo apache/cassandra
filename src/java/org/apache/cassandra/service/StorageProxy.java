@@ -176,7 +176,7 @@ public class StorageProxy implements StorageProxyMBean
         catch (IOException e)
         {
             assert mostRecentMutation != null;
-            throw new RuntimeException("error writing key " + FBUtilities.bytesToHex(mostRecentMutation.key()), e);
+            throw new RuntimeException("error writing key " + ByteBufferUtil.bytesToHex(mostRecentMutation.key()), e);
         }
         finally
         {
@@ -223,7 +223,7 @@ public class StorageProxy implements StorageProxyMBean
                         MessagingService.instance().addCallback(responseHandler, unhintedMessage.getMessageId());
                     }
                     if (logger.isDebugEnabled())
-                        logger.debug("insert writing key " + FBUtilities.bytesToHex(rm.key()) + " to " + unhintedMessage.getMessageId() + "@" + destination);
+                        logger.debug("insert writing key " + ByteBufferUtil.bytesToHex(rm.key()) + " to " + unhintedMessage.getMessageId() + "@" + destination);
 
                     Multimap<Message, InetAddress> messages = dcMessages.get(dc);
                     if (messages == null)
@@ -245,7 +245,7 @@ public class StorageProxy implements StorageProxyMBean
                     {
                         addHintHeader(hintedMessage, target);
                         if (logger.isDebugEnabled())
-                            logger.debug("insert writing key " + FBUtilities.bytesToHex(rm.key()) + " to " + hintedMessage.getMessageId() + "@" + destination + " for " + target);
+                            logger.debug("insert writing key " + ByteBufferUtil.bytesToHex(rm.key()) + " to " + hintedMessage.getMessageId() + "@" + destination + " for " + target);
                     }
                 }
                 responseHandler.addHintCallback(hintedMessage, destination);
@@ -398,7 +398,7 @@ public class StorageProxy implements StorageProxyMBean
                     Message msg = cm.makeMutationMessage();
                     MessagingService.instance().addCallback(responseHandler, msg.getMessageId());
                     if (logger.isDebugEnabled())
-                        logger.debug("forwarding counter update of key " + FBUtilities.bytesToHex(cm.key()) + " to " + msg.getMessageId() + "@" + endpoint);
+                        logger.debug("forwarding counter update of key " + ByteBufferUtil.bytesToHex(cm.key()) + " to " + msg.getMessageId() + "@" + endpoint);
                     MessagingService.instance().sendOneWay(msg, endpoint);
                 }
             }
@@ -413,7 +413,7 @@ public class StorageProxy implements StorageProxyMBean
             if (mostRecentMutation == null)
                 throw new RuntimeException("no mutations were seen but found an error during write anyway", e);
             else
-                throw new RuntimeException("error writing key " + FBUtilities.bytesToHex(mostRecentMutation.key()), e);
+                throw new RuntimeException("error writing key " + ByteBufferUtil.bytesToHex(mostRecentMutation.key()), e);
         }
         finally
         {

@@ -263,7 +263,7 @@ public class RowMutation implements IMutation
     {
         StringBuilder buff = new StringBuilder("RowMutation(");
         buff.append("keyspace='").append(table_).append('\'');
-        buff.append(", key='").append(FBUtilities.bytesToHex(key_)).append('\'');
+        buff.append(", key='").append(ByteBufferUtil.bytesToHex(key_)).append('\'');
         buff.append(", modifications=[");
         if (shallow)
         {
@@ -391,7 +391,7 @@ class RowMutationSerializer implements ICompactSerializer<RowMutation>
     public RowMutation deserialize(DataInputStream dis) throws IOException
     {
         String table = dis.readUTF();
-        ByteBuffer key = FBUtilities.readShortByteArray(dis);
+        ByteBuffer key = ByteBufferUtil.readWithShortLength(dis);
         Map<Integer, ColumnFamily> modifications = defreezeTheMaps(dis);
         return new RowMutation(table, key, modifications);
     }

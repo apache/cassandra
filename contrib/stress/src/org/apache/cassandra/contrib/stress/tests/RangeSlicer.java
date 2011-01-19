@@ -70,19 +70,15 @@ public class RangeSlicer extends OperationThread
 
                         if (slices.size() == 0)
                         {
-                            throw new RuntimeException(String.format("Key %s not found.", superColumnName));
-                        }
-                    }
-                    catch (InvalidRequestException e)
-                    {
-                        System.err.println(e.getWhy());
+                            System.err.printf("Range %s->%s not found in Super Column %s.%n", new String(start), new String(end), superColumnName);
 
-                        if (!session.ignoreErrors())
-                            return;
+                            if (!session.ignoreErrors())
+                                break;
+                        }
                     }
                     catch (Exception e)
                     {
-                        System.err.println(e.getMessage());
+                        System.err.printf("Error while reading Super Column %s - %s%n", superColumnName, getExceptionMessage(e));
 
                         if (!session.ignoreErrors())
                             return;
@@ -117,20 +113,15 @@ public class RangeSlicer extends OperationThread
 
                     if (slices.size() == 0)
                     {
-                        throw new RuntimeException(String.format("Range %s %s not found.", String.format(format, current),
-                                                                                           String.format(format, last)));
-                    }
-                }
-                catch (InvalidRequestException e)
-                {
-                    System.err.println(e.getWhy());
+                        System.err.printf("Range %s->%s not found.%n", String.format(format, current), String.format(format, last));
 
-                    if (!session.ignoreErrors())
-                        return;
+                        if (!session.ignoreErrors())
+                            break;
+                    }
                 }
                 catch (Exception e)
                 {
-                    System.err.println(e.getMessage());
+                    System.err.printf("Error while reading range %s->%s - %s%n", String.format(format, current), String.format(format, last), getExceptionMessage(e));
 
                     if (!session.ignoreErrors())
                         return;

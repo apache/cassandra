@@ -24,7 +24,7 @@ import java.util.Comparator;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Represents a decorated key, handy for certain operations
@@ -91,7 +91,7 @@ public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
     @Override
     public String toString()
     {
-        String keystring = key == null ? "null" : FBUtilities.bytesToHex(key);
+        String keystring = key == null ? "null" : ByteBufferUtil.bytesToHex(key);
         return "DecoratedKey(" + token + ", " + keystring + ")";
     }
 }

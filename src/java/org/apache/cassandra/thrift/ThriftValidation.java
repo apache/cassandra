@@ -38,6 +38,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class ThriftValidation
@@ -315,8 +316,8 @@ public class ThriftValidation
             throw new InvalidRequestException(String.format("[%s][%s][%s] = [%s] failed validation (%s)",
                                                             keyspace,
                                                             column_parent.getColumn_family(),
-                                                            FBUtilities.bytesToHex(column.name),
-                                                            FBUtilities.bytesToHex(column.value),
+                                                            ByteBufferUtil.bytesToHex(column.name),
+                                                            ByteBufferUtil.bytesToHex(column.value),
                                                             me.getMessage()));
         }
     }
@@ -415,7 +416,7 @@ public class ThriftValidation
                 catch (MarshalException e)
                 {
                     throw new InvalidRequestException(String.format("Column name %s is not valid for comparator %s",
-                                                                    FBUtilities.bytesToHex(c.name), cf_def.comparator_type));
+                                                                    ByteBufferUtil.bytesToHex(c.name), cf_def.comparator_type));
                 }
 
                 if ((c.index_name != null) && (c.index_type == null))

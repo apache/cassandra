@@ -33,7 +33,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 
 public class SSTableScanner implements Iterator<IColumnIterator>, Closeable
@@ -169,7 +169,7 @@ public class SSTableScanner implements Iterator<IColumnIterator>, Closeable
 
                 DecoratedKey key = SSTableReader.decodeKey(sstable.partitioner,
                                                            sstable.descriptor,
-                                                           FBUtilities.readShortByteArray(file));
+                                                           ByteBufferUtil.readWithShortLength(file));
                 long dataSize = SSTableReader.readRowSize(file, sstable.descriptor);
                 long dataStart = file.getFilePointer();
                 finishedAt = dataStart + dataSize;

@@ -39,8 +39,8 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Filter;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class SSTableNamesIterator extends SimpleAbstractColumnIterator implements IColumnIterator
 {
@@ -65,7 +65,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         {
             DecoratedKey keyInDisk = SSTableReader.decodeKey(sstable.partitioner,
                                                              sstable.descriptor,
-                                                             FBUtilities.readShortByteArray(file));
+                                                             ByteBufferUtil.readWithShortLength(file));
             assert keyInDisk.equals(key) : String.format("%s != %s in %s", keyInDisk, key, file.getPath());
             SSTableReader.readRowSize(file, sstable.descriptor);
             read(sstable, file);

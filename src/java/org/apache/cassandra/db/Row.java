@@ -28,7 +28,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class Row
 {
@@ -71,7 +70,7 @@ class RowSerializer implements ICompactSerializer<Row>
 
     public Row deserialize(DataInputStream dis) throws IOException
     {
-        return new Row(StorageService.getPartitioner().decorateKey(FBUtilities.readShortByteArray(dis)),
+        return new Row(StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(dis)),
                        ColumnFamily.serializer().deserialize(dis));
     }
 }

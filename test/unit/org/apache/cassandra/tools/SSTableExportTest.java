@@ -35,10 +35,11 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.io.sstable.SSTableUtils.tempSSTableFile;
-import static org.apache.cassandra.utils.FBUtilities.bytesToHex;
-import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytesToHex;
+import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
 import static org.junit.Assert.assertTrue;
 
 import org.apache.cassandra.Util;
@@ -48,13 +49,12 @@ import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
 import org.json.simple.parser.ParseException;
 import org.junit.Test;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SSTableExportTest extends SchemaLoader
 {
     public String asHex(String str)
     {
-        return bytesToHex(str.getBytes());
+        return bytesToHex(ByteBuffer.wrap(str.getBytes()));
     }
 
     @Test
@@ -124,7 +124,7 @@ public class SSTableExportTest extends SchemaLoader
         
         JSONArray rowA = (JSONArray)json.get(asHex("rowA"));
         JSONArray colA = (JSONArray)rowA.get(0);
-        assert Arrays.equals(hexToBytes((String)colA.get(1)), "valA".getBytes());
+        assert hexToBytes((String)colA.get(1)).equals(ByteBufferUtil.bytes("valA"));
 
         JSONArray colExp = (JSONArray)rowA.get(1);
         assert ((Long)colExp.get(4)) == 42;
@@ -173,7 +173,7 @@ public class SSTableExportTest extends SchemaLoader
         JSONArray subColumns = (JSONArray)superA.get("subColumns");
         JSONArray colA = (JSONArray)subColumns.get(0);
         JSONObject rowExclude = (JSONObject)json.get(asHex("rowExclude"));
-        assert Arrays.equals(hexToBytes((String)colA.get(1)), "valA".getBytes());
+        assert hexToBytes((String)colA.get(1)).equals(ByteBufferUtil.bytes("valA"));
         assert !(Boolean)colA.get(3);
         assert rowExclude == null;
     }
@@ -209,7 +209,7 @@ public class SSTableExportTest extends SchemaLoader
         QueryFilter qf = QueryFilter.getNamesFilter(Util.dk("rowA"), new QueryPath("Standard1", null, null), ByteBufferUtil.bytes("name"));
         ColumnFamily cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
         assertTrue(cf != null);
-        assertTrue(cf.getColumn(ByteBufferUtil.bytes("name")).value().equals(ByteBuffer.wrap(hexToBytes("76616c"))));
+        assertTrue(cf.getColumn(ByteBufferUtil.bytes("name")).value().equals(hexToBytes("76616c")));
 
         qf = QueryFilter.getNamesFilter(Util.dk("rowExclude"), new QueryPath("Standard1", null, null), ByteBufferUtil.bytes("name"));
         cf = qf.getSSTableColumnIterator(reader).getColumnFamily();

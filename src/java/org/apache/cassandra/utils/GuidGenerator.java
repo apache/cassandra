@@ -34,7 +34,21 @@ public class GuidGenerator {
     private static Random myRand;
     private static SecureRandom mySecureRand;
     private static String s_id;
-    private static SafeMessageDigest md5 = null;
+    private static final ThreadLocal<MessageDigest> localMessageDigest = new ThreadLocal<MessageDigest>()
+    {
+        @Override
+        protected MessageDigest initialValue()
+        {
+            try
+            {
+                return MessageDigest.getInstance("MD5");
+            }
+            catch (NoSuchAlgorithmException e)
+            {
+                throw new AssertionError(e);
+            }
+        }
+    };
 
     static {
         if (System.getProperty("java.security.egd") == null) {
@@ -49,16 +63,7 @@ public class GuidGenerator {
         catch (UnknownHostException e) {
             throw new AssertionError(e);
         }
-
-        try {
-            MessageDigest myMd5 = MessageDigest.getInstance("MD5");
-            md5 = new SafeMessageDigest(myMd5);
-        }
-        catch (NoSuchAlgorithmException e) {
-            throw new AssertionError(e);
-        }
     }
-
 
     public static String guid() {
         ByteBuffer array = guidAsBytes();
@@ -99,7 +104,8 @@ public class GuidGenerator {
         				.append(Long.toString(rand));
 
         String valueBeforeMD5 = sbValueBeforeMD5.toString();
-        return ByteBuffer.wrap(md5.digest(valueBeforeMD5.getBytes()));
+        localMessageDigest.get().reset();
+        return ByteBuffer.wrap(localMessageDigest.get().digest(valueBeforeMD5.getBytes()));
     }
 
     /*

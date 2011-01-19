@@ -28,7 +28,6 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class SliceByNamesReadCommand extends ReadCommand
 {
@@ -66,7 +65,7 @@ public class SliceByNamesReadCommand extends ReadCommand
     {
         return "SliceByNamesReadCommand(" +
                "table='" + table + '\'' +
-               ", key=" + FBUtilities.bytesToHex(key) +
+               ", key=" + ByteBufferUtil.bytesToHex(key) +
                ", columnParent='" + queryPath + '\'' +
                ", columns=[" + getComparator().getString(columnNames) + "]" +
                ')';
@@ -99,14 +98,14 @@ class SliceByNamesReadCommandSerializer extends ReadCommandSerializer
     {
         boolean isDigest = dis.readBoolean();
         String table = dis.readUTF();
-        ByteBuffer key = FBUtilities.readShortByteArray(dis);
+        ByteBuffer key = ByteBufferUtil.readWithShortLength(dis);
         QueryPath columnParent = QueryPath.deserialize(dis);
 
         int size = dis.readInt();
         List<ByteBuffer> columns = new ArrayList<ByteBuffer>();
         for (int i = 0; i < size; ++i)
         {
-            columns.add(FBUtilities.readShortByteArray(dis));
+            columns.add(ByteBufferUtil.readWithShortLength(dis));
         }
         SliceByNamesReadCommand rm = new SliceByNamesReadCommand(table, key, columnParent, columns);
         rm.setDigestQuery(isDigest);

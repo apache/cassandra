@@ -112,9 +112,9 @@ public class CounterColumn extends Column
     {
         digest.update(name.duplicate());
         digest.update(value.duplicate());
-        digest.update(FBUtilities.toByteArray(timestamp));
+        digest.update(ByteBufferUtil.bytes(timestamp));
         digest.update(partitionedCounter);
-        digest.update(FBUtilities.toByteArray(timestampOfLastDelete));
+        digest.update(ByteBufferUtil.bytes(timestampOfLastDelete));
     }
 
     @Override
@@ -176,7 +176,7 @@ public class CounterColumn extends Column
 		{
 			long mergedValue = value().getLong(value().arrayOffset()) +
                                column.value().getLong(column.value().arrayOffset());
-			byteBufferValue = FBUtilities.toByteBuffer(mergedValue);
+			byteBufferValue = ByteBufferUtil.bytes(mergedValue);
 		} else
 			byteBufferValue = ByteBuffer.wrap(contextManager.total(mergedPartitionedCounter));
         return new CounterColumn(

@@ -24,7 +24,6 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class BytesType extends AbstractType
 {
@@ -44,7 +43,7 @@ public class BytesType extends AbstractType
 
     public String getString(ByteBuffer bytes)
     {
-        return FBUtilities.bytesToHex(bytes);
+        return ByteBufferUtil.bytesToHex(bytes);
     }
 
     public ByteBuffer fromString(String source)

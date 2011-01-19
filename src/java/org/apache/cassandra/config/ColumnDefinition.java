@@ -32,7 +32,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class ColumnDefinition
 {
@@ -156,7 +155,7 @@ public class ColumnDefinition
     public String toString()
     {
         return "ColumnDefinition{" +
-               "name=" + FBUtilities.bytesToHex(name) +
+               "name=" + ByteBufferUtil.bytesToHex(name) +
                ", validator=" + validator +
                ", index_type=" + index_type +
                ", index_name='" + index_name + '\'' +

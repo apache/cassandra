@@ -42,7 +42,6 @@ import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
@@ -238,7 +237,7 @@ public class TableTest extends CleanupHelper
         {
             RowMutation rm = new RowMutation("Keyspace1", ROW.key);
             ColumnFamily cf = ColumnFamily.create("Keyspace1", "StandardLong1");
-            cf.addColumn(new Column(FBUtilities.toByteBuffer((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
+            cf.addColumn(new Column(ByteBufferUtil.bytes((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
             rm.add(cf);
             rm.apply();
         }
@@ -249,7 +248,7 @@ public class TableTest extends CleanupHelper
         {
             RowMutation rm = new RowMutation("Keyspace1", ROW.key);
             ColumnFamily cf = ColumnFamily.create("Keyspace1", "StandardLong1");
-            cf.addColumn(new Column(FBUtilities.toByteBuffer((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
+            cf.addColumn(new Column(ByteBufferUtil.bytes((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
             rm.add(cf);
             rm.apply();
 
@@ -405,7 +404,7 @@ public class TableTest extends CleanupHelper
         long position = sstable.getPosition(key, SSTableReader.Operator.EQ);
         BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.getFilename(), "r");
         file.seek(position);
-        assert FBUtilities.readShortByteArray(file).equals(key.key);
+        assert ByteBufferUtil.readWithShortLength(file).equals(key.key);
         SSTableReader.readRowSize(file, sstable.descriptor);
         IndexHelper.skipBloomFilter(file);
         ArrayList<IndexHelper.IndexInfo> indexes = IndexHelper.deserializeIndex(file);

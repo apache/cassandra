@@ -61,19 +61,15 @@ public class MultiGetter extends OperationThread
 
                         if (results.size() == 0)
                         {
-                            throw new RuntimeException(String.format("Keys %s not found", keys));
-                        }
-                    }
-                    catch (InvalidRequestException e)
-                    {
-                        System.err.println(e.getWhy());
+                            System.err.printf("Keys %s were not found.%n", keys);
 
-                        if (!session.ignoreErrors())
-                            return;
+                            if (!session.ignoreErrors())
+                                break;
+                        }
                     }
                     catch (Exception e)
                     {
-                        System.err.println(e.getMessage());
+                        System.err.printf("Error on multiget_slice call - %s%n", getExceptionMessage(e));
 
                         if (!session.ignoreErrors())
                             return;
@@ -103,19 +99,15 @@ public class MultiGetter extends OperationThread
 
                     if (results.size() == 0)
                     {
-                        throw new RuntimeException(String.format("Keys %s not found", keys));
-                    }
-                }
-                catch (InvalidRequestException e)
-                {
-                    System.err.println(e.getWhy());
+                        System.err.printf("Keys %s were not found.%n", keys);
 
-                    if (!session.ignoreErrors())
-                        return;
+                        if (!session.ignoreErrors())
+                            break;
+                    }
                 }
                 catch (Exception e)
                 {
-                    System.err.println(e.getMessage());
+                    System.err.printf("Error on multiget_slice call - %s%n", getExceptionMessage(e));
 
                     if (!session.ignoreErrors())
                         return;

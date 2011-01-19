@@ -29,7 +29,6 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.ColumnPath;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class QueryPath
 {
@@ -92,8 +91,8 @@ public class QueryPath
     public static QueryPath deserialize(DataInputStream din) throws IOException
     {
         String cfName = din.readUTF();
-        ByteBuffer scName = FBUtilities.readShortByteArray(din);
-        ByteBuffer cName = FBUtilities.readShortByteArray(din);
+        ByteBuffer scName = ByteBufferUtil.readWithShortLength(din);
+        ByteBuffer cName = ByteBufferUtil.readWithShortLength(din);
         return new QueryPath(cfName.isEmpty() ? null : cfName, 
                              scName.remaining() == 0 ? null : scName, 
                              cName.remaining() == 0 ? null : cName);

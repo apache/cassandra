@@ -27,7 +27,6 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class SliceFromReadCommand extends ReadCommand
 {
@@ -69,7 +68,7 @@ public class SliceFromReadCommand extends ReadCommand
     {
         return "SliceFromReadCommand(" +
                "table='" + table + '\'' +
-               ", key='" + FBUtilities.bytesToHex(key) + '\'' +
+               ", key='" + ByteBufferUtil.bytesToHex(key) + '\'' +
                ", column_parent='" + queryPath + '\'' +
                ", start='" + getComparator().getString(start) + '\'' +
                ", finish='" + getComparator().getString(finish) + '\'' +
@@ -100,10 +99,10 @@ class SliceFromReadCommandSerializer extends ReadCommandSerializer
     {
         boolean isDigest = dis.readBoolean();
         SliceFromReadCommand rm = new SliceFromReadCommand(dis.readUTF(),
-                                                           FBUtilities.readShortByteArray(dis),
+                                                           ByteBufferUtil.readWithShortLength(dis),
                                                            QueryPath.deserialize(dis),
-                                                           FBUtilities.readShortByteArray(dis),
-                                                           FBUtilities.readShortByteArray(dis),
+                                                           ByteBufferUtil.readWithShortLength(dis),
+                                                           ByteBufferUtil.readWithShortLength(dis),
                                                            dis.readBoolean(),
                                                            dis.readInt());
         rm.setDigestQuery(isDigest);

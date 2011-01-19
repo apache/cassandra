@@ -103,7 +103,7 @@ public class IndexHelper
         int size = file.readInt();
         ByteBuffer bytes = file.readBytes(size);
 
-        DataInputStream stream = new DataInputStream(FBUtilities.inputStream(bytes));
+        DataInputStream stream = new DataInputStream(ByteBufferUtil.inputStream(bytes));
 
         return useOldBuffer
                 ? LegacyBloomFilter.serializer().deserialize(stream)
@@ -178,7 +178,7 @@ public class IndexHelper
 
         public static IndexInfo deserialize(FileDataInput dis) throws IOException
         {
-            return new IndexInfo(FBUtilities.readShortByteArray(dis), FBUtilities.readShortByteArray(dis), dis.readLong(), dis.readLong());
+            return new IndexInfo(ByteBufferUtil.readWithShortLength(dis), ByteBufferUtil.readWithShortLength(dis), dis.readLong(), dis.readLong());
         }
     }
 }
