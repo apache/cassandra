@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.contrib.stress.tests;
+package org.apache.cassandra.contrib.stress.operations;
 
 import org.apache.cassandra.contrib.stress.util.OperationThread;
 import org.apache.cassandra.thrift.*;
