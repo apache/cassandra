@@ -354,18 +354,17 @@ public class StorageProxy implements StorageProxyMBean
             ReadCallback<Row> handler = getReadCallback(resolver, command.table, consistency_level);
             handler.assureSufficientLiveNodes(endpoints);
 
-            int targets;
+            // if we're not going to read repair, cut the endpoints list down to the ones required to satisfy ConsistencyLevel
             if (randomlyReadRepair(command))
             {
-                targets = endpoints.size();
-                if (targets > handler.blockfor)
+                if (endpoints.size() > handler.blockfor)
                     repairs.add(command);
             }
             else
             {
-                targets = handler.blockfor;
+                endpoints = endpoints.subList(0, handler.blockfor);
             }
-            Message[] messages = new Message[targets];
+            Message[] messages = new Message[endpoints.size()];
 
             // data-request message is sent to dataPoint, the node that will actually get
             // the data for us. The other replicas are only sent a digest query.
