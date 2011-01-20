@@ -1079,6 +1079,11 @@ public class    DatabaseDescriptor
         return conf.hinted_handoff_enabled;
     }
 
+    public static int getMaxHintWindow()
+    {
+        return conf.max_hint_window_in_ms;
+    }
+
     public static AbstractType getValueValidator(String keyspace, String cf, ByteBuffer column)
     {
         return getCFMetaData(keyspace, cf).getValueValidator(column);

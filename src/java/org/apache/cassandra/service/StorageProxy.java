@@ -75,6 +75,7 @@ public class StorageProxy implements StorageProxyMBean
     private static final LatencyTracker rangeStats = new LatencyTracker();
     private static final LatencyTracker writeStats = new LatencyTracker();
     private static boolean hintedHandoffEnabled = DatabaseDescriptor.hintedHandoffEnabled();
+    private static int maxHintWindow = DatabaseDescriptor.getMaxHintWindow();
     private static final String UNREACHABLE = "UNREACHABLE";
 
     private StorageProxy() {}
@@ -182,7 +183,7 @@ public class StorageProxy implements StorageProxyMBean
                             }
                         }
                         responseHandler.addHintCallback(hintedMessage, destination);
-                        
+
                         Multimap<Message, InetAddress> messages = dcMessages.get(dc);
                         
                         if (messages == null)
@@ -190,7 +191,7 @@ public class StorageProxy implements StorageProxyMBean
                            messages = HashMultimap.create();
                            dcMessages.put(dc, messages);
                         }
-                        
+
                         messages.put(hintedMessage, destination);
                     }
                 }
@@ -801,6 +802,21 @@ public class StorageProxy implements StorageProxyMBean
     public static boolean isHintedHandoffEnabled()
     {
         return hintedHandoffEnabled;
+    }
+
+    public int getMaxHintWindow()
+    {
+        return maxHintWindow;
+    }
+
+    public void setMaxHintWindow(int ms)
+    {
+        maxHintWindow = ms;
+    }
+
+    public static boolean shouldHint(InetAddress ep)
+    {
+        return Gossiper.instance.getEndpointDowntime(ep) <= maxHintWindow;
     }
 
     /**
