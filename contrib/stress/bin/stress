@@ -23,7 +23,7 @@ if [ "x$CLASSPATH" = "x" ]; then
         exit 1
     fi
 
-    # Circuit class files.
+    # Stress class files.
     if [ ! -d `dirname $0`/../build/classes ]; then
         echo "Unable to locate stress class files" >&2
         exit 1

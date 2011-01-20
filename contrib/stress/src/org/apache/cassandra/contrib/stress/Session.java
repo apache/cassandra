@@ -52,7 +52,7 @@ public class Session
         availableOptions.addOption("c",  "columns",              true,   "Number of columns per key, default:5.");
         availableOptions.addOption("S",  "column-size",          true,   "Size of column values in bytes, default:34.");
         availableOptions.addOption("C",  "cardinality",          true,   "Number of unique values stored in columns, default:50.");
-        availableOptions.addOption("d",  "nodes",                true,   "Host nodes (comma separated), default:locahost.");
+        availableOptions.addOption("d",  "nodes",                true,   "Host nodes (--comma separated), default:locahost.");
         availableOptions.addOption("s",  "stdev",                true,   "Standard Deviation Factor, default:0.1.");
         availableOptions.addOption("r",  "random",               false,  "Use random key generator (STDEV will have no effect), default:false.");
         availableOptions.addOption("f",  "file",                 true,   "Write output to file");
