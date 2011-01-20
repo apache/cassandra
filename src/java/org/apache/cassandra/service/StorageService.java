@@ -632,7 +632,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
         else if (endpoint.equals(currentOwner))
         {
-            // nothing to do
+            // set state back to normal, since the node may have tried to leave, but failed and is now back up
+            // no need to persist, token/ip did not change
+            tokenMetadata_.updateNormalToken(token, endpoint);
         }
         else if (Gossiper.instance.compareEndpointStartup(endpoint, currentOwner) > 0)
         {
