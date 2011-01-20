@@ -33,8 +33,7 @@ auto_bootstrap: false
 hinted_handoff_enabled: true
 # this defines the maximum amount of time a dead host will have hints
 # generated.  After it has been dead this long, hints will be dropped.
-# Maximum is approximately 50 days
-max_hint_window_in_ms: 2147483647
+max_hint_window_in_ms: 3600000 # one hour
 
 # authentication backend, implementing IAuthenticator; used to identify users
 authenticator: org.apache.cassandra.auth.AllowAllAuthenticator
