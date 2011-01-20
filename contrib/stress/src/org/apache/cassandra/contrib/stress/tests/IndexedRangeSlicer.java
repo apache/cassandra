@@ -19,6 +19,7 @@ package org.apache.cassandra.contrib.stress.tests;
 
 import org.apache.cassandra.contrib.stress.util.OperationThread;
 import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import java.nio.ByteBuffer;
@@ -102,11 +103,11 @@ public class IndexedRangeSlicer extends OperationThread
     private int getMaxKey(List<KeySlice> keySlices)
     {
         byte[] firstKey = keySlices.get(0).getKey();
-        int maxKey = FBUtilities.byteBufferToInt(ByteBuffer.wrap(firstKey));
+        int maxKey = ByteBufferUtil.toInt(ByteBuffer.wrap(firstKey));
 
         for (KeySlice k : keySlices)
         {
-            int currentKey = FBUtilities.byteBufferToInt(ByteBuffer.wrap(k.getKey()));
+            int currentKey = ByteBufferUtil.toInt(ByteBuffer.wrap(k.getKey()));
 
             if (currentKey > maxKey)
             {
