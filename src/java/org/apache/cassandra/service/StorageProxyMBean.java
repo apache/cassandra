@@ -46,4 +46,6 @@ public interface StorageProxyMBean
 
     public boolean getHintedHandoffEnabled();
     public void setHintedHandoffEnabled(boolean b);
+    public int getMaxHintWindow();
+    public void setMaxHintWindow(int ms);
 }

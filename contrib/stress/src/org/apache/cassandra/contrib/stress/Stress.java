@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.contrib.stress;
 
-import org.apache.cassandra.contrib.stress.tests.*;
+import org.apache.cassandra.contrib.stress.operations.*;
 import org.apache.cassandra.contrib.stress.util.OperationThread;
 import org.apache.commons.cli.Option;
 

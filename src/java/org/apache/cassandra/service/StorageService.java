@@ -627,22 +627,24 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger_.info("Node " + endpoint + " state jump to normal");
 
         // we don't want to update if this node is responsible for the token and it has a later startup time than endpoint.
-        InetAddress currentNode = tokenMetadata_.getEndpoint(token);
-        if (currentNode == null)
+        InetAddress currentOwner = tokenMetadata_.getEndpoint(token);
+        if (currentOwner == null)
         {
             logger_.debug("New node " + endpoint + " at token " + token);
             tokenMetadata_.updateNormalToken(token, endpoint);
             if (!isClientMode)
                 SystemTable.updateToken(endpoint, token);
         }
-        else if (endpoint.equals(currentNode))
+        else if (endpoint.equals(currentOwner))
         {
-            // nothing to do
+            // set state back to normal, since the node may have tried to leave, but failed and is now back up
+            // no need to persist, token/ip did not change
+            tokenMetadata_.updateNormalToken(token, endpoint);
         }
-        else if (Gossiper.instance.compareEndpointStartup(endpoint, currentNode) > 0)
+        else if (Gossiper.instance.compareEndpointStartup(endpoint, currentOwner) > 0)
         {
             logger_.info(String.format("Nodes %s and %s have the same token %s.  %s is the new owner",
-                                       endpoint, currentNode, token, endpoint));
+                                       endpoint, currentOwner, token, endpoint));
             tokenMetadata_.updateNormalToken(token, endpoint);
             if (!isClientMode)
                 SystemTable.updateToken(endpoint, token);
@@ -650,7 +652,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         else
         {
             logger_.info(String.format("Nodes %s and %s have the same token %s.  Ignoring %s",
-                                       endpoint, currentNode, token, endpoint));
+                                       endpoint, currentOwner, token, endpoint));
         }
 
         if (pieces.length > 2)

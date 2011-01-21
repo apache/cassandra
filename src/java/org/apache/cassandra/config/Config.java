@@ -34,6 +34,7 @@ public class Config
     
     public Boolean auto_bootstrap = false;
     public Boolean hinted_handoff_enabled = true;
+    public Integer max_hint_window_in_ms = Integer.MAX_VALUE;
     
     public SeedProviderDef seed_provider;
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;

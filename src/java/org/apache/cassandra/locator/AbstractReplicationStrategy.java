@@ -25,6 +25,7 @@ import java.util.*;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+import org.apache.cassandra.gms.Gossiper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -163,6 +164,12 @@ public abstract class AbstractReplicationStrategy
         {
             if (map.containsKey(ep))
                 continue;
+            if (!StorageProxy.shouldHint(ep))
+            {
+                if (logger.isDebugEnabled())
+                    logger.debug("not hinting " + ep + " which has been down " + Gossiper.instance.getEndpointDowntime(ep) + "ms");
+                continue;
+            }
 
             InetAddress destination = map.isEmpty()
                                     ? localAddress

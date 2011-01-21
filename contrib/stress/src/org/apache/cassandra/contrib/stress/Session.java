@@ -45,28 +45,28 @@ public class Session
 
     static
     {
-        availableOptions.addOption("h",  "help",                 false,  "show this help message and exit.");
-        availableOptions.addOption("n",  "num-keys",             true,   "Number of keys, default:1000000.");
-        availableOptions.addOption("N",  "skip-keys",            true,   "Fraction of keys to skip initially, default:0.");
-        availableOptions.addOption("t",  "threads",              true,   "Number of threads to use, default:50.");
-        availableOptions.addOption("c",  "columns",              true,   "Number of columns per key, default:5.");
-        availableOptions.addOption("S",  "column-size",          true,   "Size of column values in bytes, default:34.");
-        availableOptions.addOption("C",  "cardinality",          true,   "Number of unique values stored in columns, default:50.");
-        availableOptions.addOption("d",  "nodes",                true,   "Host nodes (comma separated), default:locahost.");
-        availableOptions.addOption("s",  "stdev",                true,   "Standard Deviation Factor, default:0.1.");
-        availableOptions.addOption("r",  "random",               false,  "Use random key generator (STDEV will have no effect), default:false.");
-        availableOptions.addOption("f",  "file",                 true,   "Write output to file");
-        availableOptions.addOption("p",  "port",                 true,   "Thrift port, default:9160.");
-        availableOptions.addOption("m",  "unframed",             false,  "Use unframed transport, default:false.");
-        availableOptions.addOption("o",  "operation",            true,   "Operation to perform (INSERT, READ, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET), default:INSERT.");
-        availableOptions.addOption("u",  "supercolumns",         true,   "Number of super columns per key, default:1.");
-        availableOptions.addOption("y",  "family-type",          true,   "Column Family Type (Super, Standard), default:Standard.");
-        availableOptions.addOption("k",  "keep-going",           false,  "Ignore errors inserting or reading, default:false.");
-        availableOptions.addOption("i",  "progress-interval",    true,   "Progress Report Interval (seconds), default:10.");
-        availableOptions.addOption("g",  "keys-per-call",        true,   "Amount of keys to get_range_slices or multiget per call, default:1000.");
-        availableOptions.addOption("l",  "replication-factor",   true,   "Replication Factor to use when creating needed column families, default:1.");
-        availableOptions.addOption("e",  "consistency-level",    true,   "Consistency Level to use (ONE, QUORUM, LOCAL_QUORUM, EACH_QUORUM, ALL, ANY), default:ONE.");
-        availableOptions.addOption("x",  "create-index",         true,   "Type of index to create on needed column families (KEYS).");
+        availableOptions.addOption("h",  "help",                 false,  "Show this help message and exit");
+        availableOptions.addOption("n",  "num-keys",             true,   "Number of keys, default:1000000");
+        availableOptions.addOption("N",  "skip-keys",            true,   "Fraction of keys to skip initially, default:0");
+        availableOptions.addOption("t",  "threads",              true,   "Number of threads to use, default:50");
+        availableOptions.addOption("c",  "columns",              true,   "Number of columns per key, default:5");
+        availableOptions.addOption("S",  "column-size",          true,   "Size of column values in bytes, default:34");
+        availableOptions.addOption("C",  "cardinality",          true,   "Number of unique values stored in columns, default:50");
+        availableOptions.addOption("d",  "nodes",                true,   "Host nodes (comma separated), default:locahost");
+        availableOptions.addOption("s",  "stdev",                true,   "Standard Deviation Factor, default:0.1");
+        availableOptions.addOption("r",  "random",               false,  "Use random key generator (STDEV will have no effect), default:false");
+        availableOptions.addOption("f",  "file",                 true,   "Write output to given file");
+        availableOptions.addOption("p",  "port",                 true,   "Thrift port, default:9160");
+        availableOptions.addOption("m",  "unframed",             false,  "Use unframed transport, default:false");
+        availableOptions.addOption("o",  "operation",            true,   "Operation to perform (INSERT, READ, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET), default:INSERT");
+        availableOptions.addOption("u",  "supercolumns",         true,   "Number of super columns per key, default:1");
+        availableOptions.addOption("y",  "family-type",          true,   "Column Family Type (Super, Standard), default:Standard");
+        availableOptions.addOption("k",  "keep-going",           false,  "Ignore errors inserting or reading, default:false");
+        availableOptions.addOption("i",  "progress-interval",    true,   "Progress Report Interval (seconds), default:10");
+        availableOptions.addOption("g",  "keys-per-call",        true,   "Number of keys to get_range_slices or multiget per call, default:1000");
+        availableOptions.addOption("l",  "replication-factor",   true,   "Replication Factor to use when creating needed column families, default:1");
+        availableOptions.addOption("e",  "consistency-level",    true,   "Consistency Level to use (ONE, QUORUM, LOCAL_QUORUM, EACH_QUORUM, ALL, ANY), default:ONE");
+        availableOptions.addOption("x",  "create-index",         true,   "Type of index to create on needed column families (KEYS)");
     }
 
     private int numKeys          = 1000 * 1000;

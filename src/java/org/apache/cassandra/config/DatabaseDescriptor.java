@@ -101,8 +101,9 @@ public class DatabaseDescriptor
         try
         {
             url = new URL(configUrl);
+            url.openStream(); // catches well-formed but bogus URLs
         }
-        catch (MalformedURLException e)
+        catch (Exception e)
         {
             ClassLoader loader = DatabaseDescriptor.class.getClassLoader();
             url = loader.getResource(configUrl);
@@ -1090,6 +1091,11 @@ public class DatabaseDescriptor
     public static boolean hintedHandoffEnabled()
     {
         return conf.hinted_handoff_enabled;
+    }
+
+    public static int getMaxHintWindow()
+    {
+        return conf.max_hint_window_in_ms;
     }
 
     public static AbstractType getValueValidator(String keyspace, String cf, ByteBuffer column)

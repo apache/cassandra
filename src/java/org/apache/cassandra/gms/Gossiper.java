@@ -128,7 +128,7 @@ public class Gossiper implements IFailureDetectionEventListener
     private Set<InetAddress> liveEndpoints_ = new ConcurrentSkipListSet<InetAddress>(inetcomparator);
 
     /* unreachable member set */
-    private Set<InetAddress> unreachableEndpoints_ = new ConcurrentSkipListSet<InetAddress>(inetcomparator);
+    private Map<InetAddress, Long> unreachableEndpoints_ = new ConcurrentHashMap<InetAddress, Long>();
 
     /* initial seeds for joining the cluster */
     private Set<InetAddress> seeds_ = new ConcurrentSkipListSet<InetAddress>(inetcomparator);
@@ -179,7 +179,16 @@ public class Gossiper implements IFailureDetectionEventListener
 
     public Set<InetAddress> getUnreachableMembers()
     {
-        return new HashSet<InetAddress>(unreachableEndpoints_);
+        return unreachableEndpoints_.keySet();
+    }
+
+    public long getEndpointDowntime(InetAddress ep)
+    {
+        Long downtime = unreachableEndpoints_.get(ep);
+        if (downtime != null)
+            return System.currentTimeMillis() - downtime;
+        else
+            return 0L;
     }
 
     /**
@@ -353,7 +362,7 @@ public class Gossiper implements IFailureDetectionEventListener
             double prob = unreachableEndpoints / (liveEndpoints + 1);
             double randDbl = random_.nextDouble();
             if ( randDbl < prob )
-                sendGossip(message, unreachableEndpoints_);
+                sendGossip(message, unreachableEndpoints_.keySet());
         }
     }
 
@@ -735,7 +744,7 @@ public class Gossiper implements IFailureDetectionEventListener
         else
         {
             liveEndpoints_.remove(addr);
-            unreachableEndpoints_.add(addr);
+            unreachableEndpoints_.put(addr, System.currentTimeMillis());
             for (IEndpointStateChangeSubscriber subscriber : subscribers_)
                 subscriber.onDead(addr, epState);
         }
@@ -871,7 +880,7 @@ public class Gossiper implements IFailureDetectionEventListener
             epState.isAGossiper(true);
             epState.setHasToken(true);
             endpointStateMap_.put(ep, epState);
-            unreachableEndpoints_.add(ep);
+            unreachableEndpoints_.put(ep, System.currentTimeMillis());
         }
     }
 
