@@ -101,8 +101,9 @@ public class    DatabaseDescriptor
         try
         {
             url = new URL(configUrl);
+            url.openStream(); // catches well-formed but bogus URLs
         }
-        catch (MalformedURLException e)
+        catch (Exception e)
         {
             ClassLoader loader = DatabaseDescriptor.class.getClassLoader();
             url = loader.getResource(configUrl);
@@ -373,6 +374,7 @@ public class    DatabaseDescriptor
         }
         catch (UnknownHostException e)
         {
+            e.printStackTrace();
             logger.error("Fatal error: " + e.getMessage());
             System.err.println("Unable to start with unknown hosts configured.  Use IP addresses instead of hostnames.");
             System.exit(2);
