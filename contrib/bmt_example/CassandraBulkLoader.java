@@ -62,6 +62,7 @@ import java.util.concurrent.TimeoutException;
 import com.google.common.base.Charsets;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
@@ -112,7 +113,7 @@ public class CassandraBulkLoader {
             {
                 StorageService.instance.initClient();
             }
-            catch (IOException e)
+            catch (Exception e)
             {
                 throw new RuntimeException(e);
             }
