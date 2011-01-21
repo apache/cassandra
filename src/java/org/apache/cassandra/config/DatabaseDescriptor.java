@@ -374,7 +374,6 @@ public class    DatabaseDescriptor
         }
         catch (UnknownHostException e)
         {
-            e.printStackTrace();
             logger.error("Fatal error: " + e.getMessage());
             System.err.println("Unable to start with unknown hosts configured.  Use IP addresses instead of hostnames.");
             System.exit(2);
