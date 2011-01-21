@@ -43,6 +43,7 @@ import org.apache.cassandra.db.UnserializableColumnFamilyException;
 import org.apache.cassandra.io.DeletionService;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 
@@ -298,7 +299,7 @@ public class CommitLog
                     if (logger.isDebugEnabled())
                         logger.debug(String.format("replaying mutation for %s.%s: %s",
                                                     rm.getTable(),
-                                                    rm.key(),
+                                                    ByteBufferUtil.bytesToHex(rm.key()),
                                                     "{" + StringUtils.join(rm.getColumnFamilies(), ", ") + "}"));
                     final Table table = Table.open(rm.getTable());
                     tablesRecovered.add(table);
