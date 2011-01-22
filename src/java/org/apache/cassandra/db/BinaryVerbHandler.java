@@ -39,8 +39,7 @@ public class BinaryVerbHandler implements IVerbHandler
 
         try
         {
-            RowMutationMessage rmMsg = RowMutationMessage.serializer().deserialize(new DataInputStream(buffer));
-            RowMutation rm = rmMsg.getRowMutation();
+            RowMutation rm = RowMutation.serializer().deserialize(new DataInputStream(buffer));
             rm.applyBinary();
 
             WriteResponse response = new WriteResponse(rm.getTable(), rm.key(), true);

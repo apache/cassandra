@@ -40,9 +40,8 @@ public class ReadRepairVerbHandler implements IVerbHandler
         
         try
         {
-            RowMutationMessage rmMsg = RowMutationMessage.serializer().deserialize(new DataInputStream(buffer));
-            RowMutation rm = rmMsg.getRowMutation();
-            rm.apply();                                   
+            RowMutation rm = RowMutation.serializer().deserialize(new DataInputStream(buffer));
+            rm.apply();
         }
         catch (IOException e)
         {

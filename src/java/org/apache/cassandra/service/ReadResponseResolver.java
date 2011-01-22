@@ -173,11 +173,10 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             // create and send the row mutation message based on the diff
             RowMutation rowMutation = new RowMutation(table, key.key);
             rowMutation.add(diffCf);
-            RowMutationMessage rowMutationMessage = new RowMutationMessage(rowMutation);
             Message repairMessage;
             try
             {
-                repairMessage = rowMutationMessage.makeRowMutationMessage(StorageService.Verb.READ_REPAIR);
+                repairMessage = rowMutation.makeRowMutationMessage(StorageService.Verb.READ_REPAIR);
             }
             catch (IOException e)
             {
