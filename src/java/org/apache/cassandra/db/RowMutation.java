@@ -43,16 +43,11 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class RowMutation
 {
-    private static ICompactSerializer<RowMutation> serializer_;
+    private static RowMutationSerializer serializer_ = new RowMutationSerializer();
     public static final String HINT = "HINT";
     public static final String FORWARD_HEADER = "FORWARD";
 
-    static
-    {
-        serializer_ = new RowMutationSerializer();
-    }   
-
-    public static ICompactSerializer<RowMutation> serializer()
+    public static RowMutationSerializer serializer()
     {
         return serializer_;
     }
@@ -242,7 +237,7 @@ public class RowMutation
         }
         return rm;
     }
-    
+
     public static RowMutation getRowMutation(String table, ByteBuffer key, Map<String, List<ColumnOrSuperColumn>> cfmap)
     {
         RowMutation rm = new RowMutation(table, key);
@@ -268,7 +263,7 @@ public class RowMutation
         }
         return rm;
     }
-    
+
     public DataOutputBuffer getSerializedBuffer() throws IOException
     {
         DataOutputBuffer buffer = new DataOutputBuffer();
@@ -349,51 +344,40 @@ public class RowMutation
 
         return rm;
     }
-}
 
-class RowMutationSerializer implements ICompactSerializer<RowMutation>
-{
-    private void freezeTheMaps(Map<Integer, ColumnFamily> map, DataOutputStream dos) throws IOException
+    public static class RowMutationSerializer implements ICompactSerializer<RowMutation>
     {
-        int size = map.size();
-        dos.writeInt(size);
-        if (size > 0)
+        public void serialize(RowMutation rm, DataOutputStream dos) throws IOException
         {
-            for (Map.Entry<Integer,ColumnFamily> entry : map.entrySet())
+            dos.writeUTF(rm.getTable());
+            ByteBufferUtil.writeWithShortLength(rm.key(), dos);
+
+            /* serialize the modifications_ in the mutation */
+            int size = rm.modifications_.size();
+            dos.writeInt(size);
+            if (size > 0)
             {
-                dos.writeInt(entry.getKey());
-                ColumnFamily.serializer().serialize(entry.getValue(), dos);
+                for (Map.Entry<Integer,ColumnFamily> entry : rm.modifications_.entrySet())
+                {
+                    dos.writeInt(entry.getKey());
+                    ColumnFamily.serializer().serialize(entry.getValue(), dos);
+                }
             }
         }
-    }
 
-    public void serialize(RowMutation rm, DataOutputStream dos) throws IOException
-    {
-        dos.writeUTF(rm.getTable());
-        ByteBufferUtil.writeWithShortLength(rm.key(), dos);
-
-        /* serialize the modifications_ in the mutation */
-        freezeTheMaps(rm.modifications_, dos);
-    }
-
-    private Map<Integer, ColumnFamily> defreezeTheMaps(DataInputStream dis) throws IOException
-    {
-        Map<Integer, ColumnFamily> map = new HashMap<Integer, ColumnFamily>();
-        int size = dis.readInt();
-        for (int i = 0; i < size; ++i)
+        public RowMutation deserialize(DataInputStream dis) throws IOException
         {
-            Integer cfid = Integer.valueOf(dis.readInt());
-            ColumnFamily cf = ColumnFamily.serializer().deserialize(dis);
-            map.put(cfid, cf);
+            String table = dis.readUTF();
+            ByteBuffer key = ByteBufferUtil.readWithShortLength(dis);
+            Map<Integer, ColumnFamily> modifications = new HashMap<Integer, ColumnFamily>();
+            int size = dis.readInt();
+            for (int i = 0; i < size; ++i)
+            {
+                Integer cfid = Integer.valueOf(dis.readInt());
+                ColumnFamily cf = ColumnFamily.serializer().deserialize(dis);
+                modifications.put(cfid, cf);
+            }
+            return new RowMutation(table, key, modifications);
         }
-        return map;
-    }
-
-    public RowMutation deserialize(DataInputStream dis) throws IOException
-    {
-        String table = dis.readUTF();
-        ByteBuffer key = ByteBufferUtil.readWithShortLength(dis);
-        Map<Integer, ColumnFamily> modifications = defreezeTheMaps(dis);
-        return new RowMutation(table, key, modifications);
     }
 }
