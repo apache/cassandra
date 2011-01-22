@@ -28,6 +28,8 @@
  * fix streaming of multiple CFs during bootstrap (CASSANDRA-1992)
  * explicitly set JVM GC new generation size with -Xmn (CASSANDRA-1968)
  * add short options for CLI flags (CASSANDRA-1565)
+ * make keyspace argument to "describe keyspace" in CLI optional
+   when authenticated to keyspace already (CASSANDRA-2029)
 
 
 0.7.0-final

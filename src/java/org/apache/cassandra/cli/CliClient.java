@@ -1336,17 +1336,30 @@ public class CliClient extends CliUserHelp
         }
     }
 
-    // DESCRIBE KEYSPACE <keyspace_name> 
+    // DESCRIBE KEYSPACE (<keyspace_name>)?
     private void executeDescribeKeySpace(Tree statement) throws TException, InvalidRequestException
     {
         if (!CliMain.isConnected())
             return;
 
-        // Get keySpace name
-        String keySpaceName = CliCompiler.getKeySpace(statement, thriftClient.describe_keyspaces());
 
-        if( keySpaceName == null ) {
-            sessionState.out.println("Keyspace argument required");
+        String keySpaceName;
+
+        // Get keyspace name
+        if (statement.getChildCount() == 0)
+        {
+            // trying to use current keyspace if keyspace name was not given
+            keySpaceName = keySpace;
+        }
+        else
+        {
+            // we have keyspace name as an argument
+            keySpaceName = CliCompiler.getKeySpace(statement, thriftClient.describe_keyspaces());
+        }
+
+        if (keySpaceName == null)
+        {
+            sessionState.out.println("Keyspace argument required if you are not authorized in any keyspace.");
             return;
         }
         

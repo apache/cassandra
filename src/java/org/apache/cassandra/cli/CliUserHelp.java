@@ -97,8 +97,9 @@ public class CliUserHelp {
                 break;
 
             case CliParser.NODE_DESCRIBE_TABLE:
-                state.out.println("describe keyspace <keyspace>;\n");
-                state.out.println("Show additional information about the specified keyspace.\n");
+                state.out.println("describe keyspace (<keyspace>)?;\n");
+                state.out.println("Show additional information about the specified keyspace.");
+                state.out.println("Command could be used without <keyspace> argument if you are already authenticated to keyspace.\n");
                 state.out.println("example:");
                 state.out.println("describe keyspace system;");
                 break;
@@ -321,7 +322,7 @@ public class CliUserHelp {
             state.out.println("help <command>;                         Display detailed, command-specific help.");
             state.out.println("connect <hostname>/<port>;                            Connect to thrift service.");
             state.out.println("use <keyspace> [<username> 'password'];                    Switch to a keyspace.");
-            state.out.println("describe keyspace <keyspacename>;                             Describe keyspace.");
+            state.out.println("describe keyspace (<keyspacename>)?;                          Describe keyspace.");
             state.out.println("exit;                                                                  Exit CLI.");
             state.out.println("quit;                                                                  Exit CLI.");
             state.out.println("show cluster name;                                         Display cluster name.");
