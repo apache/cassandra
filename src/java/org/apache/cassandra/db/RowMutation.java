@@ -248,16 +248,6 @@ public class RowMutation implements IMutation
         }
         return preserializedBuffer;
     }
-<<<<<<< .working
-=======
-
-    public DataOutputBuffer getSerializedBuffer() throws IOException
-    {
-        DataOutputBuffer buffer = new DataOutputBuffer();
-        RowMutation.serializer().serialize(this, buffer);
-        return buffer;
-    }
->>>>>>> .merge-right.r1062109
 
     public String toString()
     {
