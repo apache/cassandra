@@ -7,6 +7,15 @@ Upgrading
     moved from org.apache.cassandra.avro to org.apache.cassandra.hadoop.avro,
     applications using these classes will need to be updated accordingly.
 
+Other
+-----
+    In the past, sstable2json would write column names and values as hex
+    strings, and now creates human readable values based on the
+    comparator/validator.  As a result, JSON dumps created with older 
+    versions of sstable2json are no longer compatible with json2sstable,
+    and imports must be made with a configuration that is identical to
+    the export.
+
 
 0.7.0
 =====

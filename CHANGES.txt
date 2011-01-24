@@ -4,6 +4,7 @@
    (CASSANDRA-1072, 1937, 1944)
  * make NetworkTopologyStrategy the default (CASSANDRA-1960)
  * configurable internode encryption (CASSANDRA-1567)
+ * human readable column names in sstable2json output (CASSANDRA-1933)
 
 
 0.7.1-dev
