@@ -35,6 +35,7 @@
    joining the ring (CASSANDRA-526)
  * log migrations at INFO (CASSANDRA-2028)
  * add CLI verbose option in file mode (CASSANDRA-2030)
+ * add single-line "--" comments to CLI (CASSANDRA-2032)
 
 
 0.7.0-final
