@@ -367,6 +367,7 @@ public class CliMain
             if (line.isEmpty())
                 continue;
 
+            line = line.trim();
             currentStatement += line;
 
             if (line.endsWith(";"))
