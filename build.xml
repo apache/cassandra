@@ -485,6 +485,7 @@
     <attribute name="timeout" />
     <attribute name="forkmode" default="perTest"/>
     <element name="optjvmargs" implicit="true" optional="true" />
+    <attribute name="filter" default="**/${test.name}.java"/>
     <sequential>
       <echo message="running @{suitename} tests"/>
       <mkdir dir="${build.test.dir}/cassandra"/>
@@ -508,7 +509,7 @@
           </fileset>
         </classpath>
         <batchtest todir="${build.test.dir}/output">
-          <fileset dir="@{inputdir}" includes="**/${test.name}.java" />
+          <fileset dir="@{inputdir}" includes="@{filter}" />
         </batchtest>
       </junit>
       <fail if="testfailed" message="Some @{suitename} test(s) failed."/>
@@ -520,6 +521,26 @@
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
     </testmacro>
   </target>
+    
+  <target name="msg-ser-gen-test" depends="build-test" description="Generates message serializations">
+    <testmacro suitename="unit" inputdir="${test.unit.src}" 
+               timeout="60000" filter="**/SerializationsTest.java">
+      <jvmarg value="-Dcassandra.test-serialization-writes=True"/>
+    </testmacro>
+  </target>
+  
+  <target name="msg-ser-test" depends="build-test" description="Tests message serializations">
+    <testmacro suitename="unit" inputdir="${test.unit.src}" timeout="60000"
+               filter="**/SerializationsTest.java"/>
+  </target>
+  
+  <target name="msg-ser-test-7" depends="build-test" description="Generates message serializations">
+    <testmacro suitename="unit" inputdir="${test.unit.src}" 
+               timeout="60000" filter="**/SerializationsTest.java">
+      <jvmarg value="-Dcassandra.version=0.7"/>
+    </testmacro>
+  </target>
+
 
   <target name="long-test" depends="build-test" description="Execute functional tests">
     <testmacro suitename="long" inputdir="${test.long.src}" timeout="300000" />
