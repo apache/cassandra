@@ -169,15 +169,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     /* This abstraction maintains the token/endpoint metadata information */
     private TokenMetadata tokenMetadata_ = new TokenMetadata();
 
-    /* This thread pool does consistency checks when the client doesn't care about consistency */
-    private ExecutorService consistencyManager_ = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getConsistencyThreads(),
-                                                                                   DatabaseDescriptor.getConsistencyThreads(),
-                                                                                   StageManager.KEEPALIVE,
-                                                                                   TimeUnit.SECONDS,
-                                                                                   new LinkedBlockingQueue<Runnable>(),
-                                                                                   new NamedThreadFactory("ReadRepair"),
-                                                                                   "request");
-
     private Set<InetAddress> replicatingNodes;
     private InetAddress removingNode;
 
