@@ -18,10 +18,8 @@
 
 package org.apache.cassandra.locator;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.IOException;
-import java.io.Reader;
+import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.HashMap;
@@ -113,13 +111,12 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
     {
         HashMap<InetAddress, String[]> reloadedMap = new HashMap<InetAddress, String[]>();
 
-        String rackPropertyFilename = FBUtilities.resourceToFile(RACK_PROPERTY_FILENAME);
         Properties properties = new Properties();
-        Reader reader = null;
+        InputStream stream = null;
         try
         {
-            reader = new BufferedReader(new FileReader(rackPropertyFilename));
-            properties.load(reader);
+            stream = getClass().getClassLoader().getResourceAsStream(RACK_PROPERTY_FILENAME);
+            properties.load(stream);
         }
         catch (IOException e)
         {
@@ -127,7 +124,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
         }
         finally
         {
-            FileUtils.closeQuietly(reader);
+            FileUtils.closeQuietly(stream);
         }
 
         for (Map.Entry<Object, Object> entry : properties.entrySet())

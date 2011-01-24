@@ -125,4 +125,10 @@ public class RenameColumnFamily extends Migration
         oldName = rcf.old_cfname.toString();
         newName = rcf.new_cfname.toString();
     }
+
+    @Override
+    public String toString()
+    {
+        return String.format("Rename column family (%d) %s.%s to %s.%s", cfId, tableName, oldName, tableName, newName);
+    }
 }

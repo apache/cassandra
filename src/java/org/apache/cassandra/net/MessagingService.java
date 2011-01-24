@@ -331,34 +331,6 @@ public final class MessagingService implements MessagingServiceMBean, ILatencyPu
     }
 
     /**
-     * Send a message to a given endpoint. The ith element in the <code>messages</code>
-     * array is sent to the ith element in the <code>to</code> array.This method assumes
-     * there is a one-one mapping between the <code>messages</code> array and
-     * the <code>to</code> array. Otherwise an  IllegalArgumentException will be thrown.
-     * This method also informs the MessagingService to wait for at least
-     * <code>howManyResults</code> responses to determine success of failure.
-     * @param messages messages to be sent.
-     * @param to endpoints to which the message needs to be sent
-     * @param cb callback interface which is used to pass the responses or
-     *           suggest that a timeout occured to the invoker of the send().
-     * @return an reference to message id used to match with the result
-     */
-    public String sendRR(Message[] messages, List<InetAddress> to, IAsyncCallback cb)
-    {
-        if (messages.length != to.size())
-            throw new IllegalArgumentException("Number of messages and the number of endpoints need to be same.");
-        String groupId = GuidGenerator.guid();
-        addCallback(cb, groupId);
-        for ( int i = 0; i < messages.length; ++i )
-        {
-            messages[i].setMessageId(groupId);
-            putTarget(groupId, to.get(i));
-            sendOneWay(messages[i], to.get(i));
-        }
-        return groupId;
-    } 
-    
-    /**
      * Send a message to a given endpoint. This method adheres to the fire and forget
      * style messaging.
      * @param message messages to be sent.

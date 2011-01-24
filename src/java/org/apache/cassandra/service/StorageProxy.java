@@ -526,14 +526,9 @@ public class StorageProxy implements StorageProxyMBean
         for (ReadCommand command: commands)
         {
             assert !command.isDigestQuery();
-            ReadCommand readMessageDigestOnly = command.copy();
-            readMessageDigestOnly.setDigestQuery(true);
-            Message message = command.makeReadMessage();
-            Message messageDigestOnly = readMessageDigestOnly.makeReadMessage();
 
             List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
             DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), endpoints);
-            InetAddress dataPoint = endpoints.get(0);
 
             ReadResponseResolver resolver = new ReadResponseResolver(command.table, command.key);
             ReadCallback<Row> handler = getReadCallback(resolver, command.table, consistency_level);
@@ -549,19 +544,52 @@ public class StorageProxy implements StorageProxyMBean
             {
                 endpoints = endpoints.subList(0, handler.blockfor);
             }
-            Message[] messages = new Message[endpoints.size()];
-
-            // data-request message is sent to dataPoint, the node that will actually get
+            
+            // The data-request message is sent to dataPoint, the node that will actually get
             // the data for us. The other replicas are only sent a digest query.
-            for (int i = 0; i < messages.length; i++)
+            ReadCommand digestCommand = null;
+            if (endpoints.size() > 1)
             {
-                InetAddress endpoint = endpoints.get(i);
-                Message m = endpoint.equals(dataPoint) ? message : messageDigestOnly;
-                messages[i] = m;
-                if (logger.isDebugEnabled())
-                    logger.debug("reading " + (m == message ? "data" : "digest") + " for " + command + " from " + m.getMessageId() + "@" + endpoint);
+                digestCommand = command.copy();
+                digestCommand.setDigestQuery(true);
             }
-            MessagingService.instance().sendRR(messages, endpoints, handler);
+
+            InetAddress dataPoint = endpoints.get(0);
+            if (dataPoint.equals(FBUtilities.getLocalAddress()))
+            {
+                if (logger.isDebugEnabled())
+                    logger.debug("reading data for " + command + " locally");
+                StageManager.getStage(Stage.READ).submit(new WeakReadLocalRunnable(command, handler));
+            }
+            else
+            {
+                Message message = command.makeReadMessage();
+                if (logger.isDebugEnabled())
+                    logger.debug("reading digest for " + command + " from " + message.getMessageId() + "@" + dataPoint);
+                MessagingService.instance().sendRR(message, dataPoint, handler);
+            }
+
+            // We lazy-construct the digest Message object since it may not be necessary if we
+            // are doing a local digest read, or no digest reads at all.
+            Message digestMessage = null;
+            for (InetAddress digestPoint : endpoints.subList(1, endpoints.size()))
+            {
+                if (digestPoint.equals(FBUtilities.getLocalAddress()))
+                {
+                    if (logger.isDebugEnabled())
+                        logger.debug("reading digest for " + command + " locally");
+                    StageManager.getStage(Stage.READ).submit(new WeakReadLocalRunnable(digestCommand, handler));
+                }
+                else
+                {
+                    if (digestMessage == null)
+                        digestMessage = digestCommand.makeReadMessage();
+                    if (logger.isDebugEnabled())
+                        logger.debug("reading digest for " + command + " from " + digestMessage.getMessageId() + "@" + digestPoint);
+                    MessagingService.instance().sendRR(digestMessage, digestPoint, handler);
+                }
+            }
+
             readCallbacks.add(handler);
             commandEndpoints.add(endpoints);
         }
@@ -619,6 +647,28 @@ public class StorageProxy implements StorageProxyMBean
         return rows;
     }
 
+    static class WeakReadLocalRunnable extends WrappedRunnable
+    {
+        private final ReadCommand command;
+        private final ReadCallback<Row> handler;
+
+        WeakReadLocalRunnable(ReadCommand command, ReadCallback<Row> handler)
+        {
+            this.command = command;
+            this.handler = handler;
+        }
+
+        protected void runMayThrow() throws IOException
+        {
+            if (logger.isDebugEnabled())
+                logger.debug("weakreadlocal reading " + command);
+
+            Table table = Table.open(command.table);
+            ReadResponse result = ReadVerbHandler.getResponse(command, command.getRow(table));
+            handler.response(result);
+        }
+    }
+    
     static <T> ReadCallback<T> getReadCallback(IResponseResolver<T> resolver, String table, ConsistencyLevel consistencyLevel)
     {
         if (consistencyLevel.equals(ConsistencyLevel.LOCAL_QUORUM) || consistencyLevel.equals(ConsistencyLevel.EACH_QUORUM))

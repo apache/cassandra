@@ -88,4 +88,10 @@ public class AddKeyspace extends Migration
         org.apache.cassandra.db.migration.avro.AddKeyspace aks = (org.apache.cassandra.db.migration.avro.AddKeyspace)mi.migration;
         ksm = KSMetaData.inflate(aks.ks);
     }
+
+    @Override
+    public String toString()
+    {
+        return "Add keyspace: " + ksm.toString();
+    }
 }

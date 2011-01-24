@@ -143,4 +143,10 @@ public class RenameKeyspace extends Migration
         oldName = rks.old_ksname.toString();
         newName = rks.new_ksname.toString();
     }
+
+    @Override
+    public String toString()
+    {
+        return String.format("Rename keyspace %s to %s", oldName, newName);
+    }
 }

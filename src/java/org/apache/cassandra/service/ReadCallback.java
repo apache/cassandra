@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
@@ -84,6 +85,15 @@ public class ReadCallback<T> implements IAsyncCallback
     public void response(Message message)
     {
         resolver.preprocess(message);
+        if (resolver.getMessageCount() < blockfor)
+            return;
+        if (resolver.isDataPresent())
+            condition.signal();
+    }
+
+    public void response(ReadResponse result)
+    {
+        ((ReadResponseResolver) resolver).injectPreProcessed(result);
         if (resolver.getMessageCount() < blockfor)
             return;
         if (resolver.isDataPresent())

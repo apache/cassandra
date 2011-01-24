@@ -67,17 +67,7 @@ public class ReadVerbHandler implements IVerbHandler
             ReadCommand command = ReadCommand.serializer().deserialize(new DataInputStream(readCtx.bufIn_));
             Table table = Table.open(command.table);
             Row row = command.getRow(table);
-            ReadResponse readResponse;
-            if (command.isDigestQuery())
-            {
-                if (logger_.isDebugEnabled())
-                    logger_.debug("digest is " + ByteBufferUtil.bytesToHex(ColumnFamily.digest(row.cf)));
-                readResponse = new ReadResponse(ColumnFamily.digest(row.cf));
-            }
-            else
-            {
-                readResponse = new ReadResponse(row);
-            }
+            ReadResponse readResponse = getResponse(command, row);
             /* serialize the ReadResponseMessage. */
             readCtx.bufOut_.reset();
 
@@ -95,6 +85,20 @@ public class ReadVerbHandler implements IVerbHandler
         catch (IOException ex)
         {
             throw new RuntimeException(ex);
+        }
+    }
+
+    public static ReadResponse getResponse(ReadCommand command, Row row)
+    {
+        if (command.isDigestQuery())
+        {
+            if (logger_.isDebugEnabled())
+                logger_.debug("digest is " + ByteBufferUtil.bytesToHex(ColumnFamily.digest(row.cf)));
+            return new ReadResponse(ColumnFamily.digest(row.cf));
+        }
+        else
+        {
+            return new ReadResponse(row);
         }
     }
 }

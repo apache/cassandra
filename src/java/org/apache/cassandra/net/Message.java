@@ -59,7 +59,7 @@ public class Message
         this(new Header(from, verb), body);
     }    
     
-    public byte[] getHeader(Object key)
+    public byte[] getHeader(String key)
     {
         return header_.getDetail(key);
     }
@@ -93,11 +93,6 @@ public class Message
     {
         return header_.getMessageId();
     }
-
-    void setMessageId(String id)
-    {
-        header_.setMessageId(id);
-    }    
 
     // TODO should take byte[] + length so we don't have to copy to a byte[] of exactly the right len
     public Message getReply(InetAddress from, byte[] args)
