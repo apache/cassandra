@@ -212,15 +212,14 @@ public class SSTableExport
             scanner.seekTo(dk);
             
             i++;
-            
+
             if (scanner.hasNext())
             {
                 SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
+
                 try
                 {
                     serializeRow(outs, row);
-                    if (i != 1)
-                        outs.println(",");
                 }
                 catch (IOException ioexc)
                 {
@@ -232,6 +231,9 @@ public class SSTableExport
                     System.err.println("ERROR: Out of memory deserializing row " + key);
                     continue;
                 }
+
+                if (i != 1)
+                    outs.println(",");
             }
         }
         
@@ -274,12 +276,12 @@ public class SSTableExport
             catch (IOException ioexcep)
             {
                 System.err.println("WARNING: Corrupt row " + bytesToHex(row.getKey().key) + " (skipping).");
-                continue;
+                elementWritten = false;
             }
             catch (OutOfMemoryError oom)
             {
                 System.err.println("ERROR: Out of memory deserializing row " + bytesToHex(row.getKey().key));
-                continue;
+                elementWritten = false;
             }
         }
         
