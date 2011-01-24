@@ -348,8 +348,9 @@ public class StorageProxy implements StorageProxyMBean
             Message message = command.makeReadMessage();
             Message messageDigestOnly = readMessageDigestOnly.makeReadMessage();
 
-            InetAddress dataPoint = StorageService.instance.findSuitableEndpoint(command.table, command.key);
             List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
+            DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), endpoints);
+            InetAddress dataPoint = endpoints.get(0);
 
             ReadResponseResolver resolver = new ReadResponseResolver(command.table, command.key);
             ReadCallback<Row> handler = getReadCallback(resolver, command.table, consistency_level);
