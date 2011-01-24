@@ -177,6 +177,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     /* when intialized as a client, we shouldn't write to the system table. */
     private boolean isClientMode;
     private boolean initialized;
+    private volatile boolean joined = false;
     private String operationMode;
     private MigrationManager migrationManager = new MigrationManager();
 
@@ -341,7 +342,20 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             }
         }
 
+        if (Boolean.parseBoolean(System.getProperty("cassandra.join_ring", "true")))
+        {
+            joinTokenRing();
+        }
+        else
+        {
+            logger_.info("Not joining ring as requested. Use JMX (StorageService->joinRing()) to initiate ring joining");
+        }
+    }
+
+    private void joinTokenRing() throws IOException, org.apache.cassandra.config.ConfigurationException
+    {
         logger_.info("Starting up server gossip");
+        joined = true;
 
         // have to start the gossip service before we can see any info on other nodes.  this is necessary
         // for bootstrap to get the load info it needs.
@@ -409,6 +423,20 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         setToken(token);
 
         assert tokenMetadata_.sortedTokens().size() > 0;
+    }
+
+    public synchronized void joinRing() throws IOException, org.apache.cassandra.config.ConfigurationException
+    {
+        if (!joined)
+        {
+            logger_.info("Joining ring by operator request");
+            joinTokenRing();
+        }
+    }
+
+    public boolean isJoined()
+    {
+        return joined;
     }
 
     private void setMode(String m, boolean log)

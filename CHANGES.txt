@@ -30,6 +30,9 @@
  * add short options for CLI flags (CASSANDRA-1565)
  * make keyspace argument to "describe keyspace" in CLI optional
    when authenticated to keyspace already (CASSANDRA-2029)
+ * added option to specify -Dcassandra.join_ring=false on startup
+   to allow "warm spare" nodes or performing JMX maintenance before
+   joining the ring (CASSANDRA-526)
 
 
 0.7.0-final

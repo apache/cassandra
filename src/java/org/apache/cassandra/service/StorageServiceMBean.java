@@ -282,4 +282,8 @@ public interface StorageServiceMBean
 
     public void invalidateKeyCaches(String ks, String... cfs) throws IOException;
     public void invalidateRowCaches(String ks, String... cfs) throws IOException;
+
+    // allows a node that have been started without joining the ring to join it
+    public void joinRing() throws IOException, org.apache.cassandra.config.ConfigurationException;
+    public boolean isJoined();
 }
