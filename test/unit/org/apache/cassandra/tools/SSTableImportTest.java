@@ -20,7 +20,6 @@ package org.apache.cassandra.tools;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -34,13 +33,17 @@ import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
+
 import org.apache.cassandra.utils.ByteBufferUtil;
+
 import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
+
 import static org.apache.cassandra.io.sstable.SSTableUtils.tempSSTableFile;
 import static org.junit.Assert.assertEquals;
 
 import org.apache.cassandra.Util;
 
+import org.apache.cassandra.utils.FBUtilities;
 import org.json.simple.parser.ParseException;
 import org.junit.Test;
 
@@ -82,7 +85,7 @@ public class SSTableImportTest extends SchemaLoader
         IColumn superCol = cf.getColumn(ByteBufferUtil.bytes("superA"));
         assert superCol != null;
         assert superCol.getSubColumns().size() > 0;
-        IColumn subColumn = superCol.getSubColumn(ByteBufferUtil.bytes("colAA"));
+        IColumn subColumn = superCol.getSubColumn(ByteBufferUtil.bytes("636f6c4141"));
         assert subColumn.value().equals(hexToBytes("76616c75654141"));
     }
 

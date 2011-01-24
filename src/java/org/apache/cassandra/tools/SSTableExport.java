@@ -24,6 +24,7 @@ import java.io.PrintStream;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.config.ConfigurationException;
@@ -80,22 +81,28 @@ public class SSTableExport
         return String.format("%s: ", quote(val));
     }
     
-    private static void serializeColumns(PrintStream outs, Collection<IColumn> cols, AbstractType comp)
+    private static void serializeColumns(PrintStream outs, Collection<IColumn> columns, AbstractType comparator, CFMetaData cfMetaData)
     {
         outs.print("[");
 
-        Iterator<IColumn> iter = cols.iterator();
+        Iterator<IColumn> iter = columns.iterator();
+
         while (iter.hasNext())
         {
             outs.print("[");
             IColumn column = iter.next();
-            outs.print(quote(bytesToHex(column.name())));
+
+            ByteBuffer name = column.name();
+            AbstractType validator = cfMetaData.getValueValidator(name);
+
+            outs.print(quote(comparator.getString(name)));
             outs.print(", ");
-            outs.print(quote(bytesToHex(column.value())));
+            outs.print(quote(validator.getString(column.value())));
             outs.print(", ");
             outs.print(column.timestamp());
             outs.print(", ");
             outs.print(column.isMarkedForDelete());
+
             if (column instanceof ExpiringColumn)
             {
                 outs.print(", ");
@@ -103,9 +110,13 @@ public class SSTableExport
                 outs.print(", ");
                 outs.print(column.getLocalDeletionTime());
             }
+
             outs.print("]");
+
             if (iter.hasNext())
+            {
                 outs.print(", ");
+            }
         }
         
         outs.print("]");
@@ -113,35 +124,47 @@ public class SSTableExport
     
     private static void serializeRow(PrintStream outs, SSTableIdentityIterator row) throws IOException
     {
-        ColumnFamily cf = row.getColumnFamilyWithColumns();
-        AbstractType comparator = cf.getComparator();
-        outs.print(asKey(bytesToHex(row.getKey().key)));
+        ColumnFamily columnFamily = row.getColumnFamilyWithColumns();
+        CFMetaData cfMetaData = columnFamily.metadata();
 
-        if (cf.isSuper())
+        AbstractType comparator = columnFamily.getComparator();
+
+        // key is represented as String according to current Partitioner
+        outs.print("  " + asKey(bytesToHex(row.getKey().key)));
+
+        if (columnFamily.isSuper())
         {
             outs.print("{ ");
 
-            Iterator<IColumn> iter = cf.getSortedColumns().iterator();
+            Iterator<IColumn> iter = columnFamily.getSortedColumns().iterator();
             while (iter.hasNext())
             {
                 IColumn column = iter.next();
-                outs.print(asKey(bytesToHex(column.name())));
+
+                // header of the row
+                outs.print(asKey(comparator.getString(column.name())));
                 outs.print("{");
                 outs.print(asKey("deletedAt"));
                 outs.print(column.getMarkedForDeleteAt());
                 outs.print(", ");
                 outs.print(asKey("subColumns"));
-                serializeColumns(outs, column.getSubColumns(), comparator);
+
+                // columns
+                serializeColumns(outs, column.getSubColumns(), columnFamily.getSubComparator(), cfMetaData);
+
                 outs.print("}");
+
                 if (iter.hasNext())
+                {
                     outs.print(", ");
+                }
             }
             
             outs.print("}");
         }
         else
         {
-            serializeColumns(outs, cf.getSortedColumns(), comparator);
+            serializeColumns(outs, columnFamily.getSortedColumns(), comparator, cfMetaData);
         }
     }
 
@@ -179,10 +202,11 @@ public class SSTableExport
      * @param ssTableFile the SSTable to export the rows from
      * @param outs PrintStream to write the output to
      * @param keys the keys corresponding to the rows to export
+     * @param excludes the keys to exclude from export
+     *
      * @throws IOException on failure to read/write input/output
      */
-    public static void export(String ssTableFile, PrintStream outs, String[] keys, String[] excludes)
-    throws IOException
+    public static void export(String ssTableFile, PrintStream outs, String[] keys, String[] excludes) throws IOException
     {
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(ssTableFile));
         SSTableScanner scanner = reader.getDirectScanner(INPUT_FILE_BUFFER_SIZE);
@@ -202,11 +226,13 @@ public class SSTableExport
         {
             if (excludeSet.contains(key))
                 continue;
+
             DecoratedKey<?> dk = partitioner.decorateKey(hexToBytes(key));
 
             // validate order of the keys in the sstable
             if (lastKey != null && lastKey.compareTo(dk) > 0 )
                 throw new IOException("Key out of order! " + lastKey + " > " + dk);
+
             lastKey = dk;
 
             scanner.seekTo(dk);
@@ -225,12 +251,10 @@ public class SSTableExport
                 catch (IOException ioexc)
                 {
                     System.err.println("WARNING: Corrupt row " + key + " (skipping).");
-                    continue;
                 }
                 catch (OutOfMemoryError oom)
                 {
                     System.err.println("ERROR: Out of memory deserializing row " + key);
-                    continue;
                 }
             }
         }
@@ -274,12 +298,10 @@ public class SSTableExport
             catch (IOException ioexcep)
             {
                 System.err.println("WARNING: Corrupt row " + bytesToHex(row.getKey().key) + " (skipping).");
-                continue;
             }
             catch (OutOfMemoryError oom)
             {
                 System.err.println("ERROR: Out of memory deserializing row " + bytesToHex(row.getKey().key));
-                continue;
             }
         }
         
@@ -292,6 +314,8 @@ public class SSTableExport
      * 
      * @param ssTableFile the SSTable to export
      * @param outs PrintStream to write the output to
+     * @param excludes the keys to exclude from export
+     *
      * @throws IOException on failure to read/write input/output
      */
     public static void export(String ssTableFile, PrintStream outs, String[] excludes) throws IOException
@@ -304,6 +328,8 @@ public class SSTableExport
      * Export an SSTable and write the resulting JSON to standard out.
      * 
      * @param ssTableFile SSTable to export
+     * @param excludes the keys to exclude from export
+     *
      * @throws IOException on failure to read/write SSTable/standard out
      */
     public static void export(String ssTableFile, String[] excludes) throws IOException
@@ -317,6 +343,7 @@ public class SSTableExport
      *  
      * @param args command lines arguments
      * @throws IOException on failure to open/read/write files or output streams
+     * @throws ConfigurationException if configuration is invalid
      */
     public static void main(String[] args) throws IOException, ConfigurationException
     {

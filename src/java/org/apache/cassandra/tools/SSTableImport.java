@@ -23,6 +23,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -74,7 +76,7 @@ public class SSTableImport
         options.addOption(new Option(KEY_COUNT_OPTION, true, "Number of keys to import (Optional)."));
         options.addOption(new Option(IS_SORTED_OPTION, false, "Assume JSON file as already sorted (e.g. created by sstable2json tool) (Optional)."));
     }
-    
+
     private static class JsonColumn<T>
     {
         private ByteBuffer name;
@@ -84,18 +86,22 @@ public class SSTableImport
         private int ttl;
         private int localExpirationTime;
 
-        public JsonColumn(T json)
+        public JsonColumn(T json, CFMetaData meta, boolean isSubColumn)
         {
+            AbstractType comparator = (isSubColumn) ? meta.subcolumnComparator : meta.comparator;
+
             if (json instanceof List)
             {
                 List fields = (List<?>) json;
 
                 assert fields.size() == 4 || fields.size() == 6 : "Column definition should have 4 or 6 fields.";
 
-                name      = hexToBytes((String) fields.get(0));
-                value     = hexToBytes((String) fields.get(1));
+                name  = stringAsType((String) fields.get(0), comparator);
+                value = stringAsType((String) fields.get(1), meta.getValueValidator(name.duplicate()));
+
                 timestamp = (Long) fields.get(2);
                 isDeleted = (Boolean) fields.get(3);
+
 
                 if (fields.size() == 6)
                 {
@@ -135,7 +141,7 @@ public class SSTableImport
 
         for (Object c : row)
         {
-            JsonColumn col = new JsonColumn<List>((List) c);
+            JsonColumn col = new JsonColumn<List>((List) c, cfm, (superName != null));
             QueryPath path = new QueryPath(cfm.cfName, superName, col.getName());
 
             if (col.ttl > 0)
@@ -164,13 +170,14 @@ public class SSTableImport
         CFMetaData metaData = cfamily.metadata();
         assert metaData != null;
 
+        AbstractType comparator = metaData.comparator;
+
         // Super columns
         for (Map.Entry<?, ?> entry : row.entrySet())
         {
-            ByteBuffer superName = hexToBytes((String) entry.getKey());
             Map<?, ?> data = (Map<?, ?>) entry.getValue();
 
-            addColumnsToCF((List<?>) data.get("subColumns"), superName, cfamily);
+            addColumnsToCF((List<?>) data.get("subColumns"), stringAsType((String) entry.getKey(), comparator), cfamily);
 
             // *WARNING* markForDeleteAt has been DEPRECATED at Cassandra side
             //BigInteger deletedAt = (BigInteger) data.get("deletedAt");
@@ -450,6 +457,17 @@ public class SSTableImport
     public static void setKeyCountToImport(Integer keyCount)
     {
         keyCountToImport = keyCount;
+    }
+
+    /**
+     * Convert a string to bytes (ByteBuffer) according to type
+     * @param content string to convert
+     * @param type type to use for conversion
+     * @return byte buffer representation of the given string
+     */
+    private static ByteBuffer stringAsType(String content, AbstractType type)
+    {
+        return (type == BytesType.instance) ? hexToBytes(content) : type.fromString(content);
     }
 
 }
