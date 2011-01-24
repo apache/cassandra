@@ -130,7 +130,7 @@ public abstract class Migration
             migration.apply();
             
             // note that we're storing this in the system table, which is not replicated
-            logger.debug("Applying migration " + newVersion.toString());
+            logger.info("Applying migration {} {}", newVersion.toString(), toString());
             migration = new RowMutation(Table.SYSTEM_TABLE, LAST_MIGRATION_KEY);
             migration.add(new QueryPath(SCHEMA_CF, null, LAST_MIGRATION_KEY), ByteBuffer.wrap(UUIDGen.decompose(newVersion)), now);
             migration.apply();

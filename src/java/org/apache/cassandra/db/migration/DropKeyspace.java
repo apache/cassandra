@@ -102,4 +102,10 @@ public class DropKeyspace extends Migration
         org.apache.cassandra.db.migration.avro.DropKeyspace dks = (org.apache.cassandra.db.migration.avro.DropKeyspace)mi.migration;
         name = dks.ksname.toString();
     }
+    
+    @Override
+    public String toString()
+    {
+        return "Drop keyspace: " + name;
+    }
 }

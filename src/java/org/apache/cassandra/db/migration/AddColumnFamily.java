@@ -97,4 +97,10 @@ public class AddColumnFamily extends Migration
         org.apache.cassandra.db.migration.avro.AddColumnFamily acf = (org.apache.cassandra.db.migration.avro.AddColumnFamily)mi.migration;
         cfm = CFMetaData.inflate(acf.cf);
     }
+
+    @Override
+    public String toString()
+    {
+        return "Add column family: " + cfm.toString();
+    }
 }

@@ -88,4 +88,10 @@ public class UpdateKeyspace extends Migration
         newKsm = KSMetaData.inflate(uks.newKs);
         oldKsm = KSMetaData.inflate(uks.oldKs);
     }
+
+    @Override
+    public String toString()
+    {
+        return String.format("Update keyspace %s to %s", oldKsm.toString(), newKsm.toString());
+    }
 }

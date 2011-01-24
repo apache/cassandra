@@ -100,4 +100,10 @@ public class UpdateColumnFamily extends Migration
         org.apache.cassandra.db.migration.avro.UpdateColumnFamily update = (org.apache.cassandra.db.migration.avro.UpdateColumnFamily)mi.migration;
         metadata = CFMetaData.inflate(update.metadata);
     }
+
+    @Override
+    public String toString()
+    {
+        return String.format("Update column family to %s", metadata.toString());
+    }
 }

@@ -113,4 +113,10 @@ public class DropColumnFamily extends Migration
         tableName = dcf.ksname.toString();
         cfName = dcf.cfname.toString();
     }
+
+    @Override
+    public String toString()
+    {
+        return String.format("Drop column family: %s.%s", tableName, cfName);
+    }
 }

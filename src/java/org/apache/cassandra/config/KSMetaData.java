@@ -29,6 +29,7 @@ import org.apache.avro.util.Utf8;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.commons.lang.StringUtils;
 
 public final class KSMetaData
 {
@@ -91,6 +92,21 @@ public final class KSMetaData
         for (CFMetaData cfm : cfMetaData.values())
             ks.cf_defs.add(cfm.deflate());
         return ks;
+    }
+
+    @Override
+    public String toString()
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append(name)
+          .append("rep factor:")
+          .append(replicationFactor)
+          .append("rep strategy:")
+          .append(strategyClass.getSimpleName())
+          .append("{")
+          .append(StringUtils.join(cfMetaData.values(), ", "))
+          .append("}");
+        return sb.toString();
     }
 
     public static KSMetaData inflate(org.apache.cassandra.avro.KsDef ks)
