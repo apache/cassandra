@@ -36,6 +36,7 @@
  * log migrations at INFO (CASSANDRA-2028)
  * add CLI verbose option in file mode (CASSANDRA-2030)
  * add single-line "--" comments to CLI (CASSANDRA-2032)
+ * message serialization tests (CASSANDRA-1923)
 
 
 0.7.0-final
