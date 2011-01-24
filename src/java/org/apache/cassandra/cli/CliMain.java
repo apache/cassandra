@@ -308,7 +308,7 @@ public class CliMain
                 sessionState.err.printf("Unable to open %s for writing %n", historyFile);
             }
         }
-        else
+        else if (!sessionState.verbose) // if in batch mode but no verbose flag
         {
             sessionState.out.close();
         }

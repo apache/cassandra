@@ -39,7 +39,7 @@ public class CliSessionState
     public boolean batch = false; // enable/disable batch processing mode
     public String  filename = ""; // file to read commands from
     public int     jmxPort = 8080;// JMX service port
-
+    public boolean verbose = false; // verbose output
     /*
      * Streams to read/write from
      */
