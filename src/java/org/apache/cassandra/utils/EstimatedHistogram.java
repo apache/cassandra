@@ -56,12 +56,6 @@ public class EstimatedHistogram
         buckets = new AtomicLongArray(numBuckets);
     }
 
-    public EstimatedHistogram(long[] bucketData)
-    {
-        makeOffsets(bucketData.length - 1);
-        buckets = new AtomicLongArray(bucketData);
-    }
-
     public EstimatedHistogram(long[] offsets, long[] bucketData)
     {
         assert bucketData.length == offsets.length +1;

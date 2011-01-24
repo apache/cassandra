@@ -308,7 +308,7 @@ public class CliMain
                 sessionState.err.printf("Unable to open %s for writing %n", historyFile);
             }
         }
-        else
+        else if (!sessionState.verbose) // if in batch mode but no verbose flag
         {
             sessionState.out.close();
         }
@@ -338,7 +338,8 @@ public class CliMain
 
             line = line.trim();
 
-            if (line.isEmpty())
+            // skipping empty and comment lines
+            if (line.isEmpty() || line.startsWith("--"))
                 continue;
 
             currentStatement += line;
@@ -364,10 +365,12 @@ public class CliMain
 
         while ((line = reader.readLine()) != null)
         {
-            if (line.isEmpty())
+            line = line.trim();
+
+            // skipping empty and comment lines
+            if (line.isEmpty() || line.startsWith("--"))
                 continue;
 
-            line = line.trim();
             currentStatement += line;
 
             if (line.endsWith(";"))

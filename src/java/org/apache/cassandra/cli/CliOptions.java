@@ -43,6 +43,7 @@ public class CliOptions
     private static final String HELP_OPTION = "help";
     private static final String FILE_OPTION = "file";
     private static final String JMX_PORT_OPTION = "jmxport";
+    private static final String VERBOSE_OPTION  = "verbose";
 
     // Default values for optional command line arguments
     private static final int    DEFAULT_THRIFT_PORT = 9160;
@@ -66,6 +67,7 @@ public class CliOptions
         options.addOption(null, UNFRAME_OPTION, "use cassandra server's unframed transport");
         options.addOption(null, DEBUG_OPTION,   "display stack traces");
         options.addOption("?",  HELP_OPTION,    "usage help.");
+        options.addOption("v",  VERBOSE_OPTION, "verbose output when using batch mode.");
     }
 
     private static void printUsage()
@@ -151,6 +153,11 @@ public class CliOptions
             {
                 printUsage();
                 System.exit(1);
+            }
+
+            if (cmd.hasOption(VERBOSE_OPTION))
+            {
+                css.verbose = true;
             }
 
             // Abort if there are any unrecognized arguments left

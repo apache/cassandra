@@ -30,14 +30,14 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class Message
 {
-    private static MessageSerializer serializer_;
+    private static ICompactSerializer<Message> serializer_;
 
     static
     {
         serializer_ = new MessageSerializer();        
     }
     
-    public static MessageSerializer serializer()
+    public static ICompactSerializer<Message> serializer()
     {
         return serializer_;
     }
@@ -121,25 +121,25 @@ public class Message
         	.append(separator);
         return sbuf.toString();
     }
-}
-
-class MessageSerializer implements ICompactSerializer<Message>
-{
-    public void serialize(Message t, DataOutputStream dos) throws IOException
+    
+    private static class MessageSerializer implements ICompactSerializer<Message>
     {
-        Header.serializer().serialize( t.header_, dos);
-        byte[] bytes = t.getMessageBody();
-        dos.writeInt(bytes.length);
-        dos.write(bytes);
-    }
-
-    public Message deserialize(DataInputStream dis) throws IOException
-    {
-        Header header = Header.serializer().deserialize(dis);
-        int size = dis.readInt();
-        byte[] bytes = new byte[size];
-        dis.readFully(bytes);
-        // return new Message(header.getMessageId(), header.getFrom(), header.getMessageType(), header.getVerb(), new Object[]{bytes});
-        return new Message(header, bytes);
+        public void serialize(Message t, DataOutputStream dos) throws IOException
+        {
+            Header.serializer().serialize( t.header_, dos);
+            byte[] bytes = t.getMessageBody();
+            dos.writeInt(bytes.length);
+            dos.write(bytes);
+        }
+    
+        public Message deserialize(DataInputStream dis) throws IOException
+        {
+            Header header = Header.serializer().deserialize(dis);
+            int size = dis.readInt();
+            byte[] bytes = new byte[size];
+            dis.readFully(bytes);
+            // return new Message(header.getMessageId(), header.getFrom(), header.getMessageType(), header.getVerb(), new Object[]{bytes});
+            return new Message(header, bytes);
+        }
     }
 }
