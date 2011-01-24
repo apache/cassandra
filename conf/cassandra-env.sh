@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-calculate_heap_size()
+calculate_heap_sizes()
 {
     case "`uname`" in
         Linux)
@@ -29,13 +29,14 @@ calculate_heap_size()
             break
         ;;
         *)
-            MAX_HEAP_SIZE=1024M
-            HEAP_NEWSIZE=256M
-            return 1
+            # assume reasonable defaults for e.g. a modern desktop or
+            # cheap server
+            system_memory_in_mb="2048"
+            system_cpu_cores="2"
         ;;
     esac
     max_heap_size_in_mb=$((system_memory_in_mb / 2))
-    MAX_HEAP_SIZE=${max_heap_size_in_mb}M
+    MAX_HEAP_SIZE="${max_heap_size_in_mb}M"
 
     # Young gen: min(max_sensible_per_modern_cpu_core * num_cores, 1/4 * heap size)
     max_sensible_yg_per_core_in_mb="100"
@@ -49,19 +50,33 @@ calculate_heap_size()
     else
         HEAP_NEWSIZE="${desired_yg_in_mb}M"
     fi
-
-    return 0
 }
 
-# The amount of memory to allocate to the JVM at startup, you almost
-# certainly want to adjust this for your environment. If left commented
-# out, the heap size will be automatically determined by calculate_heap_size
-# MAX_HEAP_SIZE="4G"
-# set this to explicity control the size of the young generation
-# HEAP_NEWSIZE="1G"
+# Override these to set the amount of memory to allocate to the JVM at
+# start-up. For production use you almost certainly want to adjust
+# this for your environment. MAX_HEAP_SIZE is the total amount of
+# memory dedicated to the Java heap; HEAP_NEWSIZE refers to the size
+# of the young generation. Both MAX_HEAP_SIZE and HEAP_NEWSIZE should
+# be either set or not (if you set one, set the other).
+#
+# The main trade-off for the young generation is that the larger it
+# is, the longer GC pause times will be. The shorter it is, the more
+# expensive GC will be (usually).
+#
+# The example HEAP_NEWSIZE assumes a modern 8-core+ machine for decent pause
+# times. If in doubt, and if you do not particularly want to tweak, go with
+# 100 MB per physical CPU core.
 
-if [ "x$MAX_HEAP_SIZE" = "x" ]; then
-    calculate_heap_size
+#MAX_HEAP_SIZE="4G"
+#HEAP_NEWSIZE="800M"
+
+if [ "x$MAX_HEAP_SIZE" = "x" ] && [ "x$HEAP_NEWSIZE" = "x" ]; then
+    calculate_heap_sizes
+else
+    if [ "x$MAX_HEAP_SIZE" = "x" ] ||  [ "x$HEAP_NEWSIZE" = "x" ]; then
+        echo "please set or unset MAX_HEAP_SIZE and HEAP_NEWSIZE in pairs (see cassandra-env.sh)"
+        exit 1
+    fi
 fi
 
 # Specifies the default port over which Cassandra will be available for
@@ -93,9 +108,9 @@ JVM_OPTS="$JVM_OPTS -XX:ThreadPriorityPolicy=42"
 # stop-the-world GC pauses during resize, and so that we can lock the
 # heap in memory on startup to prevent any of it from being swapped
 # out.
-JVM_OPTS="$JVM_OPTS -Xms$MAX_HEAP_SIZE"
-JVM_OPTS="$JVM_OPTS -Xmx$MAX_HEAP_SIZE"
-JVM_OPTS="$JVM_OPTS -Xmn$HEAP_NEWSIZE"
+JVM_OPTS="$JVM_OPTS -Xms${MAX_HEAP_SIZE}"
+JVM_OPTS="$JVM_OPTS -Xmx${MAX_HEAP_SIZE}"
+JVM_OPTS="$JVM_OPTS -Xmn${HEAP_NEWSIZE}"
 JVM_OPTS="$JVM_OPTS -XX:+HeapDumpOnOutOfMemoryError" 
 
 if [ "`uname`" = "Linux" ] ; then
