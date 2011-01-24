@@ -29,12 +29,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
+import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
@@ -48,6 +50,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
     private final ConcurrentMap<Message, ReadResponse> results = new NonBlockingHashMap<Message, ReadResponse>();
     private DecoratedKey key;
     private ByteBuffer digest;
+    private static final Message FAKE_MESSAGE = new Message(FBUtilities.getLocalAddress(), StorageService.Verb.INTERNAL_RESPONSE, ArrayUtils.EMPTY_BYTE_ARRAY);;
 
     public ReadResponseResolver(String table, ByteBuffer key)
     {
@@ -225,10 +228,11 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         }
     }
 
-    /** hack so ConsistencyChecker doesn't have to serialize/deserialize an extra real Message */
-    public void injectPreProcessed(Message message, ReadResponse result)
+    /** hack so local reads don't force de/serialization of an extra real Message */
+    public void injectPreProcessed(ReadResponse result)
     {
-        results.put(message, result);
+        assert results.get(FAKE_MESSAGE) == null; // should only be one local reply
+        results.put(FAKE_MESSAGE, result);
     }
 
     public boolean isDataPresent()

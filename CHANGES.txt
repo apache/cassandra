@@ -11,7 +11,7 @@
  * retry hadoop split requests on connection failure (CASSANDRA-1927)
  * implement describeOwnership for BOP, COPP (CASSANDRA-1928)
  * make read repair behave as expected for ConsistencyLevel > ONE
-   (CASSANDRA-982)
+   (CASSANDRA-982, 2038)
  * distributed test harness (CASSANDRA-1859, 1964)
  * reduce flush lock contention (CASSANDRA-1930)
  * optimize supercolumn deserialization (CASSANDRA-1891)

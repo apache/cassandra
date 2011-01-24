@@ -45,12 +45,12 @@ public class Header
         return serializer_;
     }
 
-    private InetAddress from_;
+    private final InetAddress from_;
     // TODO STAGE can be determined from verb
-    private StorageService.Verb verb_;
-    private String messageId_;
+    private final StorageService.Verb verb_;
+    private final String messageId_;
     protected Map<String, byte[]> details_ = new Hashtable<String, byte[]>();
-    
+
     Header(String id, InetAddress from, StorageService.Verb verb)
     {
         assert id != null;
@@ -88,12 +88,7 @@ public class Header
         return messageId_;
     }
 
-    void setMessageId(String id)
-    {
-        messageId_ = id;
-    }
-    
-    byte[] getDetail(Object key)
+    byte[] getDetail(String key)
     {
         return details_.get(key);
     }
