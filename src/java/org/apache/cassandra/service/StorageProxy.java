@@ -385,7 +385,7 @@ public class StorageProxy implements StorageProxyMBean
             for (CounterMutation cm : mutations)
             {
                 mostRecentMutation = cm;
-                InetAddress endpoint = ss.findSuitableEndpoint(cm.getTable(), cm.key());
+                InetAddress endpoint = findSuitableEndpoint(cm.getTable(), cm.key());
 
                 if (endpoint.equals(FBUtilities.getLocalAddress()))
                 {
@@ -428,6 +428,15 @@ public class StorageProxy implements StorageProxyMBean
         {
             counterWriteStats.addNano(System.nanoTime() - startTime);
         }
+    }
+
+    private static InetAddress findSuitableEndpoint(String table, ByteBuffer key) throws UnavailableException
+    {
+        List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(table, key);
+        DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), endpoints);
+        if (endpoints.isEmpty())
+            throw new UnavailableException();
+        return endpoints.get(0);
     }
 
     // Must be called on a replica of the mutation. This replica becomes the
