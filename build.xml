@@ -326,9 +326,6 @@
       <mkdir dir="${dist.dir}"/>
       <copy todir="${dist.dir}/lib">
         <fileset dir="${build.lib}"/>
-        <fileset dir="${build.dir}">
-          <include name="*.jar" />
-        </fileset>
       </copy>
       <copy todir="${dist.dir}/javadoc">
         <fileset dir="${javadoc.dir}"/>
