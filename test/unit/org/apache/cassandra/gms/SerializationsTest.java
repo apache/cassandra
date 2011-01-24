@@ -1,0 +1,94 @@
+package org.apache.cassandra.gms;
+
+import org.apache.cassandra.AbstractSerializationsTester;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
+import org.junit.Test;
+
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class SerializationsTest extends AbstractSerializationsTester
+{
+    private void testEndpointStateWrite() throws IOException 
+    {
+        DataOutputStream out = getOutput("gms.EndpointState.bin");
+        HeartBeatState.serializer().serialize(Statics.HeartbeatSt, out);
+        EndpointState.serializer().serialize(Statics.EndpointSt, out);
+        VersionedValue.serializer.serialize(Statics.vv0, out);
+        VersionedValue.serializer.serialize(Statics.vv1, out);
+        out.close();
+    }
+    
+    @Test
+    public void testEndpointStateRead() throws IOException
+    {
+        if (EXECUTE_WRITES)
+            testEndpointStateWrite();
+        
+        DataInputStream in = getInput("gms.EndpointState.bin");
+        assert HeartBeatState.serializer().deserialize(in) != null;
+        assert EndpointState.serializer().deserialize(in) != null;
+        assert VersionedValue.serializer.deserialize(in) != null;
+        assert VersionedValue.serializer.deserialize(in) != null;
+        in.close();
+    }
+     
+    private void testGossipDigestWrite() throws IOException
+    {
+        Map<InetAddress, EndpointState> states = new HashMap<InetAddress, EndpointState>();
+        states.put(InetAddress.getByName("127.0.0.1"), Statics.EndpointSt);
+        states.put(InetAddress.getByName("127.0.0.2"), Statics.EndpointSt);
+        GossipDigestAckMessage ack = new GossipDigestAckMessage(Statics.Digests, states);
+        GossipDigestAck2Message ack2 = new GossipDigestAck2Message(states);
+        GossipDigestSynMessage syn = new GossipDigestSynMessage("Not a real cluster name", Statics.Digests);
+        
+        DataOutputStream out = getOutput("gms.Gossip.bin");
+        for (GossipDigest gd : Statics.Digests)
+            GossipDigest.serializer().serialize(gd, out);
+        GossipDigestAckMessage.serializer().serialize(ack, out);
+        GossipDigestAck2Message.serializer().serialize(ack2, out);
+        GossipDigestSynMessage.serializer().serialize(syn, out);
+        out.close();
+    }
+    
+    @Test
+    public void testGossipDigestRead() throws IOException
+    {
+        if (EXECUTE_WRITES)
+            testGossipDigestWrite();
+        
+        int count = 0;
+        DataInputStream in = getInput("gms.Gossip.bin");
+        while (count < Statics.Digests.size())
+            assert GossipDigestAck2Message.serializer().deserialize(in) != null;
+        assert GossipDigestAckMessage.serializer().deserialize(in) != null;
+        assert GossipDigestAck2Message.serializer().deserialize(in) != null;
+        assert GossipDigestSynMessage.serializer().deserialize(in) != null;
+        in.close();
+    }
+    
+    private static class Statics
+    {
+        private static HeartBeatState HeartbeatSt = new HeartBeatState(101, 201);
+        private static EndpointState EndpointSt = new EndpointState(HeartbeatSt);
+        private static VersionedValue.VersionedValueFactory vvFact = new VersionedValue.VersionedValueFactory(StorageService.getPartitioner());
+        private static VersionedValue vv0 = vvFact.load(23d);
+        private static VersionedValue vv1 = vvFact.bootstrapping(StorageService.getPartitioner().getRandomToken());
+        private static List<GossipDigest> Digests = new ArrayList<GossipDigest>();
+        
+        {
+            HeartbeatSt.updateHeartBeat();
+            EndpointSt.addApplicationState(ApplicationState.LOAD, vv0);
+            EndpointSt.addApplicationState(ApplicationState.STATUS, vv1);
+            for (int i = 0; i < 100; i++)
+                Digests.add(new GossipDigest(FBUtilities.getLocalAddress(), 100 + i, 1000 + 2 * i));
+        }
+    }
+}
