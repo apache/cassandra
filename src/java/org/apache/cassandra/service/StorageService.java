@@ -1414,23 +1414,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return liveEps;
     }
 
-    /**
-     * This function finds the closest live endpoint that contains a given key.
-     */
-    public InetAddress findSuitableEndpoint(String table, ByteBuffer key) throws IOException, UnavailableException
-    {
-        List<InetAddress> endpoints = getNaturalEndpoints(table, key);
-        DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), endpoints);
-        if (logger_.isDebugEnabled())
-            logger_.debug("Sorted endpoints are " + StringUtils.join(endpoints, ","));
-        for (InetAddress endpoint : endpoints)
-        {
-            if (FailureDetector.instance.isAlive(endpoint))
-                return endpoint;
-        }
-        throw new UnavailableException(); // no nodes that could contain key are alive
-    }
-
     public void setLog4jLevel(String classQualifier, String rawLevel)
     {
         Level level = Level.toLevel(rawLevel);

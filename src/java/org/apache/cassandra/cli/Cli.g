@@ -321,8 +321,8 @@ showKeyspaces
     ;
 
 describeTable
-    : DESCRIBE KEYSPACE keyspace 
-        -> ^(NODE_DESCRIBE_TABLE keyspace)
+    : DESCRIBE KEYSPACE (keyspace)?
+        -> ^(NODE_DESCRIBE_TABLE (keyspace)?)
     ;
     
 useKeyspace
