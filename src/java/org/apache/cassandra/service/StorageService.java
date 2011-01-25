@@ -1722,7 +1722,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (tokenMetadata_.isLeaving(endpoint))
             logger_.warn("Node " + endpoint + " is already being removed, continuing removal anyway");
 
-        if (replicatingNodes != null)
+        if (!replicatingNodes.isEmpty())
             throw new UnsupportedOperationException("This node is already processing a removal. Wait for it to complete, or use 'removetoken force' if this has failed.");
 
         // Find the endpoints that are going to become responsible for data
@@ -1773,13 +1773,13 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // indicate the token has left
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.removedNonlocal(localToken, token));
 
-        replicatingNodes = null;
+        replicatingNodes.clear();
         removingNode = null;
     }
 
     public void confirmReplication(InetAddress node)
     {
-        assert replicatingNodes != null;
+        assert !replicatingNodes.isEmpty();
         replicatingNodes.remove(node);
     }
 
