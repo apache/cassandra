@@ -1,0 +1,184 @@
+/*This file contains an example Keyspace that can be created using the
+cassandra-cli command line interface as follows.
+
+bin/cassandra-cli -host localhost --file conf/Keyspace1.txt
+
+The cassandra-cli includes online help which you can accessed without needing
+to connect to a running cassandra instance by starting the client and typing "help;"
+
+Keyspaces have ColumnFamilies.        (Usually 1 KS per application.)
+ColumnFamilies have Rows.             (Dozens of CFs per KS.)
+Rows contain Columns.                 (Many per CF.)
+Columns contain name:value:timestamp. (Many per Row.)
+
+A KS is most similar to a schema, and a CF is most similar to a relational table.
+
+Keyspaces, ColumnFamilies, and Columns may carry additional
+metadata that change their behavior. These are as follows:
+
+Keyspace required parameters:
+- name: name of the keyspace; "system" is
+  reserved for Cassandra Internals.
+- placement_strategy: the class that determines how replicas
+  are distributed among nodes. Contains both the class as well as
+  configuration information.  Must extend AbstractReplicationStrategy.
+  Out of the box, Cassandra provides
+    - org.apache.cassandra.locator.SimpleStrategy
+    - org.apache.cassandra.locator.NetworkTopologyStrategy
+    - org.apache.cassandra.locator.OldNetworkTopologyStrategy
+
+  SimpleStrategy merely places the first
+  replica at the node whose token is closest to the key (as determined
+  by the Partitioner), and additional replicas on subsequent nodes
+  along the ring in increasing Token order.
+
+  With NetworkTopologyStrategy,
+  for each datacenter, you can specify how many replicas you want
+  on a per-keyspace basis.  Replicas are placed on different racks
+  within each DC, if possible. This strategy also requires rack aware
+  snitch, such as RackInferringSnitch or PropertyFileSnitch.
+  An example:
+  create keyspace Keyspace1
+     with replication_factor = 3
+     and placement_strategy = 'org.apache.cassandra.locator.NetworkTopologyStrategy'
+     strategy_options:
+       DC1 : 3
+       DC2 : 2
+       DC3 : 1
+
+  OldNetworkToplogyStrategy [formerly RackAwareStrategy]
+  places one replica in each of two datacenters, and the third on a
+  different rack in in the first.  Additional datacenters are not
+  guaranteed to get a replica.  Additional replicas after three are placed
+  in ring order after the third without regard to rack or datacenter.
+- replication_factor: Number of replicas of each row
+
+Keyspace optional paramaters:
+- strategy_options: Additional information for the placement strategy.
+
+ColumnFamily required parameters:
+- name: name of the ColumnFamily.  Must not contain the character "-".
+- comparator: tells Cassandra how to sort the columns for slicing
+  operations. The default is BytesType, which is a straightforward
+  lexical comparison of the bytes in each column.  Other options are
+  AsciiType, UTF8Type, LexicalUUIDType, TimeUUIDType, LongType,
+  and IntegerType (a generic variable-length integer type).
+  You can also specify the fully-qualified class name to a class of
+  your choice extending org.apache.cassandra.db.marshal.AbstractType.
+
+ColumnFamily optional parameters:
+- column_type: Super or Standard, defaults to Standard.
+- subcomparator: Comparator for sorting subcolumn names, for Super Columns only.
+- keys_cached: specifies the number of keys per sstable whose
+   locations we keep in memory in "mostly LRU" order.  (JUST the key
+   locations, NOT any column values.) Specify a fraction (value less
+   than 1) or an absolute number of keys to cache.  Defaults to 200000
+   keys.
+- rows_cached: specifies the number of rows whose entire contents we
+   cache in memory. Do not use this on ColumnFamilies with large rows,
+   or ColumnFamilies with high write:read ratios. Specify a fraction
+   (value less than 1) or an absolute number of rows to cache.
+   Defaults to 0. (i.e. row caching is off by default)
+- comment: used to attach additional human-readable information about
+   the column family to its definition.
+- read_repair_chance: specifies the probability with which read
+   repairs should be invoked on non-quorum reads.  must be between 0
+   and 1. defaults to 1.0 (always read repair).
+- gc_grace: specifies the time to wait before garbage
+   collecting tombstones (deletion markers). defaults to 864000 (10
+   days). See http://wiki.apache.org/cassandra/DistributedDeletes
+- default_validation_class: specifies a validator class to use for
+   validating all the column values in the CF.
+NOTE:
+min_ must be less than max_compaction_threshold!
+- min_compaction_threshold: the minimum number of SSTables needed
+   to start a minor compaction.  increasing this will cause minor
+   compactions to start less frequently and be more intensive. setting
+   this to 0 disables minor compactions.  defaults to 4.
+- max_compaction_threshold: the maximum number of SSTables allowed
+   before a minor compaction is forced.  decreasing this will cause
+   minor compactions to start more frequently and be less intensive.
+   setting this to 0 disables minor compactions.  defaults to 32.
+/NOTE
+- row_cache_save_period: number of seconds between saving
+   row caches.  The row caches can be saved periodically and if one
+   exists on startup it will be loaded.
+- key_cache_save_period: number of seconds between saving
+   key caches.  The key caches can be saved periodically and if one
+   exists on startup it will be loaded.
+- memtable_flush_after: The maximum time in minutes to leave a dirty table
+   unflushed.  This should be large enough that it won't cause a flush
+   storm of all memtables during periods of inactivity.
+- memtable_throughput: The maximum size of the memtable in mb before
+   it is flushed.  If undefined, 1/8 * heapsize will be used.
+- memtable_operations: Number of operations in millions
+   before the memtable is flushed. If undefined, throughput / 64 * 0.3
+   will be used.
+- column_metadata:
+    Metadata used to describe colums and define indexes in the Column Familty.
+    Column required parameters:
+    - column_name: binds a validator (and optionally an indexer) to columns
+       with this name in any row of the enclosing column family.
+    - validation_class: like cf.comparator, an AbstractType that checks
+       that the value of the column is well-defined.
+    Column optional parameters:
+    NOTE:
+    index_name cannot be set if index_type is not also set!
+    - index_name: User-friendly name for the index.
+    - index_type: The type of index to be created. Currently only
+       0 is supported, indicating KEYS.
+    /NOTE
+*/
+
+create keyspace Keyspace1
+    with replication_factor = 1
+    and placement_strategy = 'org.apache.cassandra.locator.SimpleStrategy';
+
+use Keyspace1;
+
+create column family Standard1
+    with comparator = BytesType
+    and keys_cached = 10000
+    and rows_cached = 1000
+    and row_cache_save_period = 0
+    and key_cache_save_period = 3600
+    and memtable_flush_after = 59
+    and memtable_throughput = 255
+    and memtable_operations = 0.29;
+
+create column family Standard2
+    with comparator = UTF8Type
+    and read_repair_chance = 0.1
+    and keys_cached = 100
+    and gc_grace = 0
+    and min_compaction_threshold = 5
+    and max_compaction_threshold = 31;
+
+create column family StandardByUUID1
+    with comparator = TimeUUIDType;
+
+create column family Super1
+    with column_type = Super
+    and comparator = BytesType
+    and subcomparator = BytesType;
+
+create column family Super2
+    with column_type = Super
+    and subcomparator = UTF8Type
+    and rows_cached = 10000
+    and keys_cached = 50
+    and comment = 'A column family with supercolumns, whose column and subcolumn names are UTF8 strings';
+
+create column family Super3
+    with column_type = Super
+    and comparator = LongType
+    and comment = 'A column family with supercolumns, whose column names are Longs (8 bytes)';
+
+create column family Indexed1
+    with default_validation_class = LongType
+    and column_metadata = [{
+        column_name : birthdate,
+        validation_class : LongType,
+        index_name : birthdate_idx,
+        index_type : 0}
+    ];
