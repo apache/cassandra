@@ -49,7 +49,7 @@
     <property name="test.long.src" value="${test.dir}/long"/>
     <property name="test.distributed.src" value="${test.dir}/distributed"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
-    <property name="base.version" value="0.7.0-rc4"/>
+    <property name="base.version" value="0.7.1"/>
     <condition property="version" value="${base.version}">
       <isset property="release"/>
     </condition>
