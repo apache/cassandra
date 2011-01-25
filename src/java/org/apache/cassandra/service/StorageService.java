@@ -169,7 +169,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     /* This abstraction maintains the token/endpoint metadata information */
     private TokenMetadata tokenMetadata_ = new TokenMetadata();
 
-    private Set<InetAddress> replicatingNodes = new Collections.synchronizedSet(new HashSet<InetAddress>());
+    private Set<InetAddress> replicatingNodes = Collections.synchronizedSet(new HashSet<InetAddress>());
     private InetAddress removingNode;
 
     /* Are we starting this node in bootstrap mode? */
