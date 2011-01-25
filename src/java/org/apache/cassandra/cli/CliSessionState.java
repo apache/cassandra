@@ -40,6 +40,7 @@ public class CliSessionState
     public String  filename = ""; // file to read commands from
     public int     jmxPort = 8080;// JMX service port
     public boolean verbose = false; // verbose output
+    public int     schema_mwt;    // Schema migration wait time (secs.)
     /*
      * Streams to read/write from
      */
@@ -82,5 +83,4 @@ public class CliSessionState
 
         return null;
     }
-
 }
