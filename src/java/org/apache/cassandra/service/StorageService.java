@@ -444,6 +444,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         operationMode = m;
         if (log)
             logger_.info(m);
+        else
+            logger_.debug(m);
     }
 
     private void bootstrap(Token token) throws IOException
