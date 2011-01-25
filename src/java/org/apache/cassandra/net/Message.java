@@ -68,6 +68,11 @@ public class Message
     {
         header_.setDetail(key, value);
     }
+    
+    public void removeHeader(String key)
+    {
+        header_.removeDetail(key);
+    }
 
     public byte[] getMessageBody()
     {

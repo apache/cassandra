@@ -171,7 +171,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     /* This abstraction maintains the token/endpoint metadata information */
     private TokenMetadata tokenMetadata_ = new TokenMetadata();
 
-    private Set<InetAddress> replicatingNodes;
+    private Set<InetAddress> replicatingNodes = Collections.synchronizedSet(new HashSet<InetAddress>());
     private InetAddress removingNode;
 
     /* Are we starting this node in bootstrap mode? */
@@ -449,6 +449,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         operationMode = m;
         if (log)
             logger_.info(m);
+        else
+            logger_.debug(m);
     }
 
     private void bootstrap(Token token) throws IOException
@@ -737,9 +739,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     }
 
     /**
-     * Handle node being actively removed from the ring.
+     * Handle notification that a node being actively removed from the ring via 'removetoken'
      *
      * @param endpoint node
+     * @param state either REMOVED_TOKEN (node is gone) or REMOVING_TOKEN (replicas need to be restored)
      */
     private void handleStateRemoving(InetAddress endpoint, Token removeToken, String state)
     {
@@ -1674,17 +1677,28 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     /**
      * Force a remove operation to complete. This may be necessary if a remove operation
-     * blocks forever due to node/stream failure.
+     * blocks forever due to node/stream failure. removeToken() must be called
+     * first, this is a last resort measure.  No further attempt will be made to restore replicas.
      */
     public void forceRemoveCompletion()
     {
         if (!replicatingNodes.isEmpty())
+        {
             logger_.warn("Removal not confirmed for for " + StringUtils.join(this.replicatingNodes, ","));
-        replicatingNodes.clear();
+            replicatingNodes.clear();
+        }
+        else
+        {
+            throw new UnsupportedOperationException("No tokens to force removal on, call 'removetoken' first");
+        }
     }
 
     /**
-     * Remove a node that has died.
+     * Remove a node that has died, attempting to restore the replica count.
+     * If the node is alive, decommission should be attempted.  If decommission
+     * fails, then removeToken should be called.  If we fail while trying to
+     * restore the replica count, finally forceRemoveCompleteion should be
+     * called to forcibly remove the node without regard to replica count.
      *
      * @param tokenString token for the node
      */
@@ -1705,14 +1719,13 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             throw new UnsupportedOperationException("Node " + endpoint + " is alive and owns this token. Use decommission command to remove it from the ring");
 
         // A leaving endpoint that is dead is already being removed.
-        if (tokenMetadata_.isLeaving(endpoint)) 
-            throw new UnsupportedOperationException("Node " + endpoint + " is already being removed.");
+        if (tokenMetadata_.isLeaving(endpoint))
+            logger_.warn("Node " + endpoint + " is already being removed, continuing removal anyway");
 
-        if (replicatingNodes != null)
-            throw new UnsupportedOperationException("This node is already processing a removal. Wait for it to complete.");
+        if (!replicatingNodes.isEmpty())
+            throw new UnsupportedOperationException("This node is already processing a removal. Wait for it to complete, or use 'removetoken force' if this has failed.");
 
         // Find the endpoints that are going to become responsible for data
-        replicatingNodes = Collections.synchronizedSet(new HashSet<InetAddress>());
         for (String table : DatabaseDescriptor.getNonSystemTables())
         {
             // if the replication factor is 1 the data is lost so we shouldn't wait for confirmation
@@ -1760,13 +1773,13 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // indicate the token has left
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.removedNonlocal(localToken, token));
 
-        replicatingNodes = null;
+        replicatingNodes.clear();
         removingNode = null;
     }
 
     public void confirmReplication(InetAddress node)
     {
-        assert replicatingNodes != null;
+        assert !replicatingNodes.isEmpty();
         replicatingNodes.remove(node);
     }
 

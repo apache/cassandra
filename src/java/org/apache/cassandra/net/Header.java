@@ -97,6 +97,11 @@ public class Header
     {
         details_.put(key, value);
     }
+
+    void removeDetail(String key)
+    {
+        details_.remove(key);
+    }
 }
 
 class HeaderSerializer implements ICompactSerializer<Header>
