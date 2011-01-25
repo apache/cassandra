@@ -37,7 +37,7 @@
  * add CLI verbose option in file mode (CASSANDRA-2030)
  * add single-line "--" comments to CLI (CASSANDRA-2032)
  * message serialization tests (CASSANDRA-1923)
-
+ * switch from ivy to maven-ant-tasks (CASSANDRA-2017)
 
 0.7.0-final
  * fix offsets to ByteBuffer.get (CASSANDRA-1939)

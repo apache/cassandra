@@ -18,7 +18,7 @@
  ~ under the License.
  -->
 <project basedir="." default="build" name="apache-cassandra"
-         xmlns:ivy="antlib:org.apache.ivy.ant">
+         xmlns:artifact="antlib:org.apache.maven.artifact.ant">
     <property environment="env"/>
     <property file="build.properties" />
     <property name="debuglevel" value="source,lines,vars"/>
@@ -56,9 +56,9 @@
     <property name="version" value="${base.version}-SNAPSHOT"/>
     <property name="version.properties.dir" value="${build.classes}/org/apache/cassandra/config/"/>
     <property name="final.name" value="${ant.project.name}-${version}"/>
-    <property name="ivy.version" value="2.1.0" />
-    <property name="ivy.url"
-              value="http://repo2.maven.org/maven2/org/apache/ivy/ivy" />
+    <property name="maven-ant-tasks.version" value="2.1.1" />
+    <property name="maven-ant-tasks.url"
+              value="http://repo2.maven.org/maven2/org/apache/maven/maven-ant-tasks" />
 
     <!-- http://cobertura.sourceforge.net/ -->
     <property name="cobertura.build.dir" value="${build.dir}/cobertura"/>
@@ -68,8 +68,8 @@
     <property name="cobertura.classes.dir" value="${cobertura.build.dir}/classes"/>
     <property name="cobertura.datafile" value="${cobertura.build.dir}/cobertura.ser"/>
 
-    <condition property="ivy.jar.exists">
-      <available file="${build.dir}/ivy-${ivy.version}.jar" />
+    <condition property="maven-ant-tasks.jar.exists">
+      <available file="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar" />
     </condition>
 
     <condition property="is.source.artifact">
@@ -79,25 +79,16 @@
     <!--
          Add all the dependencies.
     -->
-    <path id="autoivy.classpath">
-        <fileset dir="${build.dir.lib}">
-          <include name="**/*.jar" />
-        </fileset>
-        <pathelement location="${build.dir}/ivy-${ivy.version}.jar"/>
-    </path>
+    <path id="maven-ant-tasks.classpath" path="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar" />
     <path id="cassandra.classpath">
         <pathelement location="${cobertura.classes.dir}"/>
         <pathelement location="${build.classes}"/>
         <fileset dir="${build.lib}">
           <include name="**/*.jar" />
         </fileset>
-        <path refid="autoivy.classpath" />
-    </path>
-    <path id="rat.classpath">
-      <fileset dir="${build.dir.lib}">
-        <include name="**/apache-rat*.jar"/>
-        <include name="**/commons-*.jar"/>
-      </fileset>
+        <fileset dir="${build.dir.lib}">
+          <include name="**/*.jar" />
+        </fileset>
     </path>
 
     <!--
@@ -147,42 +138,93 @@
     </target>
 
     <!--
-       Fetch Ivy and Cassandra's dependencies
+       Fetch Maven Ant Tasks and Cassandra's dependencies
 
        These targets are intentionally free of dependencies so that they
        can be run stand-alone from a binary release artifact.
     -->
-    <target name="ivy-download" unless="ivy.jar.exists">
-      <echo>Downloading Ivy...</echo>
+    <target name="maven-ant-tasks-download" unless="maven-ant-tasks.jar.exists">
+      <echo>Downloading Maven ANT Tasks...</echo>
       <mkdir dir="${build.dir}" />
-      <get src="${ivy.url}/${ivy.version}/ivy-${ivy.version}.jar"
-           dest="${build.dir}/ivy-${ivy.version}.jar" usetimestamp="true" />
+      <get src="${maven-ant-tasks.url}/${maven-ant-tasks.version}/maven-ant-tasks-${maven-ant-tasks.version}.jar"
+           dest="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar" usetimestamp="true" />
     </target>
 
-    <target name="ivy-init" depends="ivy-download" unless="ivy.initialized">
+    <target name="maven-ant-tasks-init" depends="maven-ant-tasks-download" unless="maven-ant-tasks.initialized">
       <mkdir dir="${build.dir.lib}"/>
-      <taskdef resource="org/apache/ivy/ant/antlib.xml"
-               uri="antlib:org.apache.ivy.ant"
-               classpathref="autoivy.classpath"/>
-      <property name="ivy.initialized" value="true"/>
+      <typedef uri="antlib:org.apache.maven.artifact.ant" classpathref="maven-ant-tasks.classpath" />
+
+      <!-- define the remote repositories we use -->
+      <artifact:remoteRepository id="central" url="http://repo1.maven.org/maven2"/>
+      <artifact:remoteRepository id="java.net2" url="http://download.java.net/maven/2"/>
+      <artifact:remoteRepository id="apache"    url="https://repository.apache.org/content/repositories/releases"/>
+      <artifact:remoteRepository id="cloudera"  url="https://repository.cloudera.com/content/repositories/releases"/>
+      <!-- for distributed tests -->
+      <artifact:remoteRepository id="jclouds"   url="http://jclouds.googlecode.com/svn/repo"/>
+      <artifact:remoteRepository id="oauth"     url="http://oauth.googlecode.com/svn/code/maven"/>
+      <artifact:remoteRepository id="twttr"     url="http://maven.twttr.com"/>
+
+      <property name="maven-ant-tasks.initialized" value="true"/>
     </target>
 
-    <target name="ivy-retrieve-build" depends="ivy-init">
-      <ivy:resolve file="${basedir}/ivy.xml"/>
-      <ivy:retrieve type="jar,source" sync="true"
-             pattern="${build.dir.lib}/[type]s/[artifact]-[revision].[ext]" />
+    <target name="maven-ant-tasks-retrieve-build" depends="maven-ant-tasks-init">
+      <artifact:dependencies filesetId="build-dependency-jars" 
+                             sourcesFilesetId="build-dependency-sources" 
+                             cacheDependencyRefs="true" 
+                             dependencyRefsBuildFile="${build.dir}/build-dependencies.xml">
+          <!-- FIXME: paranamer can be dropped after we're depending on avro
+          (since it depends on them). -->
+          <dependency groupId="com.thoughtworks.paranamer" artifactId="paranamer-ant" version="2.1"/>
+          <dependency groupId="junit" artifactId="junit" version="4.6" />
+          <dependency groupId="commons-logging" artifactId="commons-logging" version="1.1.1"/>
+          <dependency groupId="org.apache.rat" artifactId="apache-rat" version="0.6" />
+          <dependency groupId="com.cloudera.hadoop" artifactId="hadoop-core" version="0.20.2-320"/>
+          <dependency groupId="com.cloudera.hadoop" artifactId="hadoop-streaming" version="0.20.2-320"/>
+          <dependency groupId="net.sf.jopt-simple" artifactId="jopt-simple" version="3.2"/>
+
+          <dependency groupId="net.java.dev.jna" artifactId="jna" version="3.2.7"/>
+          <remoteRepository refid="central"/>
+          <remoteRepository refid="apache"/>
+          <remoteRepository refid="cloudera"/>
+          <remoteRepository refid="java.net2"/>
+      </artifact:dependencies>
+      <copy todir="${build.dir.lib}/jars">
+          <fileset refid="build-dependency-jars"/>
+          <mapper type="flatten"/>
+      </copy>
+      <copy todir="${build.dir.lib}/sources">
+          <fileset refid="build-dependency-sources"/>
+          <mapper type="flatten"/>
+      </copy>
     </target>
 
-    <target name="ivy-retrieve-test" depends="ivy-init">
-      <ivy:resolve file="${basedir}/test/distributed/ivy.xml"/>
-      <ivy:retrieve type="jar,source" sync="true"
-             pattern="${test.lib}/[type]s/[artifact]-[revision].[ext]" />
+    <target name="maven-ant-tasks-retrieve-test" depends="maven-ant-tasks-init">
+      <artifact:dependencies filesetId="test-dependency-jars" 
+                             sourcesFilesetId="test-dependency-sources" 
+                             cacheDependencyRefs="true" 
+                             dependencyRefsBuildFile="${build.dir}/test-dependencies.xml">
+        <dependency groupId="org.apache.whirr" artifactId="whirr-core" version="0.3.0-incubating-SNAPSHOT"/>
+        <dependency groupId="org.apache.whirr" artifactId="whirr-cli" version="0.3.0-incubating-SNAPSHOT"/>
+        <remoteRepository refid="apache"/>
+        <remoteRepository refid="central"/>
+        <remoteRepository refid="jclouds"/>
+        <remoteRepository refid="oauth"/>
+        <remoteRepository refid="twttr"/>
+      </artifact:dependencies>
+      <copy todir="${test.lib}/jars">
+        <fileset refid="test-dependency-jars"/>
+        <mapper type="flatten"/>
+      </copy>
+      <copy todir="${test.lib}/sources">
+        <fileset refid="test-dependency-sources"/>
+        <mapper type="flatten"/>
+      </copy>
     </target>
 
     <!--
        Generate avro code
     -->
-    <target name="check-avro-generate" depends="ivy-init">
+    <target name="check-avro-generate" depends="maven-ant-tasks-init">
       <taskdef name="avro-protocol" classname="org.apache.avro.specific.ProtocolTask">
         <classpath refid="cassandra.classpath" />
       </taskdef>
@@ -197,7 +239,7 @@
             description="Generates Java Avro classes for client and internal use." />
 
     <target name="avro-interface-generate-client" unless="avroInterfaceUpToDate"
-            depends="init,check-avro-generate,ivy-retrieve-build">
+            depends="init,check-avro-generate,maven-ant-tasks-retrieve-build">
       <!-- A copy for interested clients. TODO: Jar this stuff up. -->
       <avromacro protocolname="cassandra" inputfile="${interface.dir}/cassandra.genavro"
           jsondir="${interface.avro.dir}" outputdir="${interface.avro.dir}" />
@@ -206,7 +248,7 @@
                  jsondir="${build.dir}" outputdir="${build.src}" />
     </target>
     <target name="avro-interface-generate-internode" unless="avroINProtoUpToDate"
-            depends="init,check-avro-generate,ivy-retrieve-build">
+            depends="init,check-avro-generate,maven-ant-tasks-retrieve-build">
       <avromacro protocolname="internode" inputfile="${avro.src}/internode.genavro"
                  jsondir="${build.dir}" outputdir="${build.src}"/>
     </target>
@@ -276,7 +318,7 @@
         The build target builds all the .class files
     -->
     <target name="build"
-        depends="ivy-retrieve-build,avro-generate,build-subprojects,build-project" description="Compile Cassandra classes"/>
+        depends="maven-ant-tasks-retrieve-build,avro-generate,build-subprojects,build-project" description="Compile Cassandra classes"/>
     <target name="build-subprojects" description="Compile Cassandra contrib projects"/>
     <target name="codecoverage" depends="cobertura-instrument,test,cobertura-report" description="Create code coverage report"/>
 
@@ -326,6 +368,9 @@
       <mkdir dir="${dist.dir}"/>
       <copy todir="${dist.dir}/lib">
         <fileset dir="${build.lib}"/>
+        <fileset dir="${build.dir}">
+          <include name="${final.name}.jar" />
+        </fileset>
       </copy>
       <copy todir="${dist.dir}/javadoc">
         <fileset dir="${javadoc.dir}"/>
@@ -460,7 +505,7 @@
     </copy>
   </target>
 
-  <target name="build-distributed-test" depends="build-test,ivy-retrieve-test" description="Compile distributed test classes (which have additional deps)">
+  <target name="build-distributed-test" depends="build-test,maven-ant-tasks-retrieve-test" description="Compile distributed test classes (which have additional deps)">
     <javac
      debug="true"
      debuglevel="${debuglevel}"
@@ -589,11 +634,11 @@
   <!--
     License audit tool
   -->
-  <target name="rat-init" depends="ivy-retrieve-build">
-    <typedef resource="org/apache/rat/anttasks/antlib.xml"
-             uri="antlib:org.apache.rat.anttasks">
-      <classpath refid="rat.classpath" />
-    </typedef>
+  <target name="rat-init" depends="maven-ant-tasks-init">
+    <artifact:dependencies pathId="rat.classpath">
+      <dependency groupId="org.apache.rat" artifactId="apache-rat-tasks" version="0.6" />
+    </artifact:dependencies>
+    <typedef uri="antlib:org.apache.rat.anttasks" classpathref="rat.classpath"/>
   </target>
 
   <target name="rat-check" depends="rat-init">
@@ -626,7 +671,8 @@
     </tstamp>
     <javadoc destdir="${javadoc.dir}" author="true" version="true" use="true"
       windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
-      bottom="Copyright &amp;copy; ${YEAR} The Apache Software Foundation">
+      bottom="Copyright &amp;copy; ${YEAR} The Apache Software Foundation"
+      maxmemory="256m">
 
       <fileset dir="${build.src.java}" defaultexcludes="yes">
         <include name="org/apache/**/*.java"/>
