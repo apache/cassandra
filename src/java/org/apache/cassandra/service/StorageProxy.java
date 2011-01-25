@@ -234,10 +234,9 @@ public class StorageProxy implements StorageProxyMBean
                 Message message = messages.getKey();
                 Iterator<InetAddress> iter = messages.getValue().iterator();
                 assert iter.hasNext();
-                
+
                 // First endpoint in list is the destination for this group
                 InetAddress target = iter.next();
-            
 
                 // Add all the other destinations that are bound for the same dataCenter as a header in the primary message.
                 while (iter.hasNext())
@@ -382,7 +381,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 Message message = command.makeReadMessage();
                 if (logger.isDebugEnabled())
-                    logger.debug("reading digest for " + command + " from " + message.getMessageId() + "@" + dataPoint);
+                    logger.debug("reading data for " + command + " from " + message.getMessageId() + "@" + dataPoint);
                 MessagingService.instance().sendRR(message, dataPoint, handler);
             }
 

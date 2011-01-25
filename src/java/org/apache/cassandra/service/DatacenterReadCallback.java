@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.net.Message;
@@ -40,7 +41,7 @@ import org.apache.cassandra.utils.FBUtilities;
 public class DatacenterReadCallback<T> extends ReadCallback<T>
 {
     private static final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-	private static final String localdc = snitch.getDatacenter(FBUtilities.getLocalAddress());
+    private static final String localdc = snitch.getDatacenter(FBUtilities.getLocalAddress());
     private AtomicInteger localResponses;
     
     public DatacenterReadCallback(IResponseResolver<T> resolver, ConsistencyLevel consistencyLevel, String table)
@@ -54,10 +55,22 @@ public class DatacenterReadCallback<T> extends ReadCallback<T>
     {
         resolver.preprocess(message);
 
-        int n;
-        n = localdc.equals(snitch.getDatacenter(message.getFrom())) 
+        int n = localdc.equals(snitch.getDatacenter(message.getFrom()))
                 ? localResponses.decrementAndGet()
                 : localResponses.get();
+
+        if (n == 0 && resolver.isDataPresent())
+        {
+            condition.signal();
+        }
+    }
+    
+    @Override
+    public void response(ReadResponse result)
+    {
+        ((ReadResponseResolver) resolver).injectPreProcessed(result);
+
+        int n = localResponses.decrementAndGet();
 
         if (n == 0 && resolver.isDataPresent())
         {
