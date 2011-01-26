@@ -897,6 +897,11 @@ public class Gossiper implements IFailureDetectionEventListener
         scheduledGossipTask.cancel(false);
     }
 
+    public boolean isEnabled()
+    {
+        return !scheduledGossipTask.isCancelled();
+    }
+
     /**
      * This should *only* be used for testing purposes.
      */

@@ -7,7 +7,11 @@
  * human readable column names in sstable2json output (CASSANDRA-1933)
 
 
-0.7.1-dev
+0.7.2-dev
+ * fix potential overflow in nodetool cfstats
+
+
+0.7.1
  * buffer network stack to avoid inefficient small TCP messages while avoiding
    the nagle/delayed ack problem (CASSANDRA-1896)
  * check log4j configuration for changes every 10s (CASSANDRA-1525, 1907)
@@ -47,6 +51,8 @@
  * add single-line "--" comments to CLI (CASSANDRA-2032)
  * message serialization tests (CASSANDRA-1923)
  * switch from ivy to maven-ant-tasks (CASSANDRA-2017)
+ * CLI attempts to block for new schema to propagate (CASSANDRA-2044)
+
 
 0.7.0-final
  * fix offsets to ByteBuffer.get (CASSANDRA-1939)

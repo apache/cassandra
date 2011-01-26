@@ -45,6 +45,12 @@ public class GossipDigestAckVerbHandler implements IVerbHandler
         InetAddress from = message.getFrom();
         if (logger_.isTraceEnabled())
             logger_.trace("Received a GossipDigestAckMessage from {}", from);
+        if (!Gossiper.instance.isEnabled())
+        {
+            if (logger_.isTraceEnabled())
+                logger_.trace("Ignoring GossipDigestAckMessage because gossip is disabled");
+            return;
+        }
 
         byte[] bytes = message.getMessageBody();
         DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );

@@ -21,3 +21,5 @@ redhat/cassandra.conf
 redhat/cassandra.in.sh
 redhat/default
 .externalToolBuilders/**
+test/data/serialization/*/*
+**/*.wpr

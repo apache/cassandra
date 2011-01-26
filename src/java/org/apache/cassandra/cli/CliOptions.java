@@ -44,6 +44,7 @@ public class CliOptions
     private static final String FILE_OPTION = "file";
     private static final String JMX_PORT_OPTION = "jmxport";
     private static final String VERBOSE_OPTION  = "verbose";
+    private static final String SCHEMA_MIGRATION_WAIT_TIME = "schema-mwt";
 
     // Default values for optional command line arguments
     private static final int    DEFAULT_THRIFT_PORT = 9160;
@@ -59,15 +60,16 @@ public class CliOptions
         options.addOption("u",  USERNAME_OPTION, "USERNAME", "user name for cassandra authentication");
         options.addOption("pw", PASSWORD_OPTION, "PASSWORD", "password for cassandra authentication");
         options.addOption("k",  KEYSPACE_OPTION, "KEYSPACE", "cassandra keyspace user is authenticated against");
-        options.addOption("f",  FILE_OPTION,     "FILENAME", "load statements from the specific file.");
+        options.addOption("f",  FILE_OPTION,     "FILENAME", "load statements from the specific file");
         options.addOption(null, JMX_PORT_OPTION, "JMX-PORT", "JMX service port");
+        options.addOption(null, SCHEMA_MIGRATION_WAIT_TIME,  "TIME", "Schema migration wait time (secs.), default is 10 secs");
 
         // options without argument
         options.addOption("B",  BATCH_OPTION,   "enabled batch mode (suppress output; errors are fatal)");
         options.addOption(null, UNFRAME_OPTION, "use cassandra server's unframed transport");
         options.addOption(null, DEBUG_OPTION,   "display stack traces");
-        options.addOption("?",  HELP_OPTION,    "usage help.");
-        options.addOption("v",  VERBOSE_OPTION, "verbose output when using batch mode.");
+        options.addOption("?",  HELP_OPTION,    "usage help");
+        options.addOption("v",  VERBOSE_OPTION, "verbose output when using batch mode");
     }
 
     private static void printUsage()
@@ -158,6 +160,15 @@ public class CliOptions
             if (cmd.hasOption(VERBOSE_OPTION))
             {
                 css.verbose = true;
+            }
+
+            if (cmd.hasOption(SCHEMA_MIGRATION_WAIT_TIME))
+            {
+                css.schema_mwt = Integer.parseInt(cmd.getOptionValue(SCHEMA_MIGRATION_WAIT_TIME)) * 1000;
+            }
+            else
+            {
+                css.schema_mwt = 10 * 1000;
             }
 
             // Abort if there are any unrecognized arguments left

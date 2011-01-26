@@ -284,31 +284,29 @@ public class StorageProxy implements StorageProxyMBean
         {
             String dataCenter = entry.getKey();
 
-            // Grab a set of all the messages bound for this dataCenter and create an iterator over this set.
-            Map<Message, Collection<InetAddress>> messagesForDataCenter = entry.getValue().asMap();
-
-            for (Map.Entry<Message, Collection<InetAddress>> messages: messagesForDataCenter.entrySet())
+            // send the messages corresponding to this datacenter
+            for (Map.Entry<Message, Collection<InetAddress>> messages: entry.getValue().asMap().entrySet())
             {
                 Message message = messages.getKey();
-                Iterator<InetAddress> iter = messages.getValue().iterator();
-                assert iter.hasNext();
+                // a single message object is used for unhinted writes, so clean out any forwards
+                // from previous loop iterations
+                message.removeHeader(RowMutation.FORWARD_HEADER);
 
-                // First endpoint in list is the destination for this group
-                InetAddress target = iter.next();
-
-                // Add all the other destinations that are bound for the same dataCenter as a header in the primary message.
-                while (iter.hasNext())
+                if (dataCenter.equals(localDataCenter))
                 {
-                    InetAddress destination = iter.next();
-
-                    if (dataCenter.equals(localDataCenter))
-                    {
-                        // direct write to local DC
-                        assert message.getHeader(RowMutation.FORWARD_HEADER) == null;
+                    // direct writes to local DC
+                    for (InetAddress destination : messages.getValue())
                         MessagingService.instance().sendOneWay(message, destination);
-                    }
-                    else
+                }
+                else
+                {
+                    // Non-local DC. First endpoint in list is the destination for this group
+                    Iterator<InetAddress> iter = messages.getValue().iterator();
+                    InetAddress target = iter.next();
+                    // Add all the other destinations of the same message as a header in the primary message.
+                    while (iter.hasNext())
                     {
+                        InetAddress destination = iter.next();
                         // group all nodes in this DC as forward headers on the primary message
                         ByteArrayOutputStream bos = new ByteArrayOutputStream();
                         DataOutputStream dos = new DataOutputStream(bos);
@@ -321,9 +319,9 @@ public class StorageProxy implements StorageProxyMBean
                         dos.write(destination.getAddress());
                         message.setHeader(RowMutation.FORWARD_HEADER, bos.toByteArray());
                     }
+                    // send the combined message + forward headers
+                    MessagingService.instance().sendOneWay(message, target);
                 }
-            
-                MessagingService.instance().sendOneWay(message, target);
             }
         }
     }

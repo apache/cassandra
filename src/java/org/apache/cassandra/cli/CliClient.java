@@ -673,7 +673,10 @@ public class CliClient extends CliUserHelp
 
         try
         {
-            sessionState.out.println(thriftClient.system_add_keyspace(updateKsDefAttributes(statement, ksDef)));
+            String mySchemaVersion = thriftClient.system_add_keyspace(updateKsDefAttributes(statement, ksDef));
+            sessionState.out.println(mySchemaVersion);
+            validateSchemaIsSettled(mySchemaVersion);
+
             keyspacesMap.put(keyspaceName, thriftClient.describe_keyspace(keyspaceName));
         }
         catch (InvalidRequestException e)
@@ -701,7 +704,9 @@ public class CliClient extends CliUserHelp
 
         try
         {
-            sessionState.out.println(thriftClient.system_add_column_family(updateCfDefAttributes(statement, cfDef)));
+            String mySchemaVersion = thriftClient.system_add_column_family(updateCfDefAttributes(statement, cfDef));
+            sessionState.out.println(mySchemaVersion);
+            validateSchemaIsSettled(mySchemaVersion);
             keyspacesMap.put(keySpace, thriftClient.describe_keyspace(keySpace));
         }
         catch (InvalidRequestException e)
@@ -730,7 +735,9 @@ public class CliClient extends CliUserHelp
             KsDef currentKsDef = getKSMetaData(keyspaceName);
             KsDef updatedKsDef = updateKsDefAttributes(statement, currentKsDef);
 
-            sessionState.out.println(thriftClient.system_update_keyspace(updatedKsDef));
+            String mySchemaVersion = thriftClient.system_update_keyspace(updatedKsDef);
+            validateSchemaIsSettled(mySchemaVersion);
+            sessionState.out.println(mySchemaVersion);
             keyspacesMap.put(keyspaceName, thriftClient.describe_keyspace(keyspaceName));
         }
         catch (InvalidRequestException e)
@@ -758,7 +765,9 @@ public class CliClient extends CliUserHelp
 
         try
         {
-            sessionState.out.println(thriftClient.system_update_column_family(updateCfDefAttributes(statement, cfDef)));
+            String mySchemaVersion = thriftClient.system_update_column_family(updateCfDefAttributes(statement, cfDef));
+            sessionState.out.println(mySchemaVersion);
+            validateSchemaIsSettled(mySchemaVersion);
             keyspacesMap.put(keySpace, thriftClient.describe_keyspace(keySpace));
         }
         catch (InvalidRequestException e)
@@ -930,7 +939,9 @@ public class CliClient extends CliUserHelp
             return;
 
         String keyspaceName = CliCompiler.getKeySpace(statement, thriftClient.describe_keyspaces());
-        sessionState.out.println(thriftClient.system_drop_keyspace(keyspaceName));
+        String version = thriftClient.system_drop_keyspace(keyspaceName);
+        sessionState.out.println(version);
+        validateSchemaIsSettled(version);
     }
 
     /**
@@ -947,7 +958,9 @@ public class CliClient extends CliUserHelp
             return;
 
         String cfName = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
-        sessionState.out.println(thriftClient.system_drop_column_family(cfName));
+        String mySchemaVersion = thriftClient.system_drop_column_family(cfName);
+        sessionState.out.println(mySchemaVersion);
+        validateSchemaIsSettled(mySchemaVersion);
     }
 
     private void executeList(Tree statement)
@@ -2006,6 +2019,51 @@ public class CliClient extends CliUserHelp
         public int compare(KsDef a, KsDef b)
         {
             return a.name.compareTo(b.name);
+        }
+    }
+
+    /** validates schema is propagated to all nodes */
+    private void validateSchemaIsSettled(String currentVersionId)
+    {
+        Map<String, List<String>> versions;
+
+        long start = System.currentTimeMillis();
+        long limit = start + sessionState.schema_mwt;
+
+        boolean inAgreement = false;
+        while (limit - start >= 0)
+        {
+            try
+            {
+                versions = thriftClient.describe_schema_versions(); // getting schema version for nodes of the ring
+            }
+            catch (Exception e)
+            {
+                sessionState.err.println((e instanceof InvalidRequestException) ? ((InvalidRequestException) e).getWhy() : e.getMessage());
+                continue;
+            }
+
+            boolean currentlyInAgreement = true;
+            for (String version : versions.keySet())
+            {
+                if (!version.equals(currentVersionId))
+                {
+                    currentlyInAgreement = false;
+                    break; // only one disagreement is enough
+                }
+            }
+
+            if (currentlyInAgreement)
+            {
+                inAgreement = true;
+                break; // all nodes are in agreement no need to loop
+            }
+        }
+
+        if (!inAgreement)
+        {
+            sessionState.err.printf("The schema has not settled in %d seconds and further migrations are ill-advised until it does.%n", sessionState.schema_mwt / 1000);
+            System.exit(-1);
         }
     }
 
