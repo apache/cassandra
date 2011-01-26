@@ -170,6 +170,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     private TokenMetadata tokenMetadata_ = new TokenMetadata();
 
     private Set<InetAddress> replicatingNodes = Collections.synchronizedSet(new HashSet<InetAddress>());
+    private CassandraDaemon daemon;
+
     private InetAddress removingNode;
 
     /* Are we starting this node in bootstrap mode? */
@@ -245,6 +247,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             throw new RuntimeException("Streaming service is unavailable.");
     }
 
+    public void registerDaemon(CassandraDaemon daemon)
+    {
+        this.daemon = daemon;
+    }
+
     // should only be called via JMX
     public void stopGossiping()
     {
@@ -265,6 +272,35 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             Gossiper.instance.start(FBUtilities.getLocalAddress(), (int)(System.currentTimeMillis() / 1000));
             initialized = true;
         }
+    }
+
+    // should only be called via JMX
+    public void startRPCServer()
+    {
+        if (daemon == null)
+        {
+            throw new IllegalStateException("No configured RPC daemon");
+        }
+        daemon.startRPCServer();
+    }
+
+    // should only be called via JMX
+    public void stopRPCServer()
+    {
+        if (daemon == null)
+        {
+            throw new IllegalStateException("No configured RPC daemon");
+        }
+        daemon.stopRPCServer();
+    }
+
+    public boolean isRPCServerRunning()
+    {
+        if (daemon == null)
+        {
+            throw new IllegalStateException("No configured RPC daemon");
+        }
+        return daemon.isRPCServerRunning();
     }
 
     public void stopClient()

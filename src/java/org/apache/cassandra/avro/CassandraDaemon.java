@@ -36,8 +36,7 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
     private static Logger logger = LoggerFactory.getLogger(CassandraDaemon.class);
     private org.mortbay.jetty.Server server;
 
-    /** hook for JSVC */
-    public void start() throws IOException
+    protected void startServer()
     {
         if (logger.isDebugEnabled())
             logger.debug(String.format("Binding avro service to %s:%s", listenAddr, listenPort));
@@ -61,16 +60,15 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
         }
         catch (Exception e)
         {
-            throw new IOException("Could not start Avro server.", e);
+            throw new RuntimeException("Could not start Avro server.", e);
         }
     }
     
-    /** hook for JSVC */
-    public void stop()
+    protected void stopServer()
     {
-        logger.info("Cassandra shutting down...");
         try
         {
+            logger.info("Stop listening for avro clients");
             server.stop();
         }
         catch (Exception e)
