@@ -114,45 +114,9 @@ public class CommitLog
         // All we need to do is create a new one.
         segments.add(new CommitLogSegment());
 
-        if (DatabaseDescriptor.getCommitLogSync() == Config.CommitLogSync.batch)
-        {
-            executor = new BatchCommitLogExecutorService();
-        }
-        else
-        {
-            executor = new PeriodicCommitLogExecutorService();
-            final Callable syncer = new Callable()
-            {
-                public Object call() throws Exception
-                {
-                    sync();
-                    return null;
-                }
-            };
-
-            new Thread(new Runnable()
-            {
-                public void run()
-                {
-                    while (true)
-                    {
-                        try
-                        {
-                            executor.submit(syncer).get();
-                            Thread.sleep(DatabaseDescriptor.getCommitLogSyncPeriod());
-                        }
-                        catch (InterruptedException e)
-                        {
-                            throw new AssertionError(e);
-                        }
-                        catch (ExecutionException e)
-                        {
-                            throw new RuntimeException(e);
-                        }
-                    }
-                }
-            }, "PERIODIC-COMMIT-LOG-SYNCER").start();
-        }
+        executor = DatabaseDescriptor.getCommitLogSync() == Config.CommitLogSync.batch
+                 ? new BatchCommitLogExecutorService()
+                 : new PeriodicCommitLogExecutorService(this);
     }
 
     public void resetUnsafe()
@@ -526,5 +490,11 @@ public class CommitLog
             run();
             return null;
         }
+    }
+
+    public void shutdownBlocking() throws InterruptedException
+    {
+        executor.shutdown();
+        executor.awaitTermination();
     }
 }

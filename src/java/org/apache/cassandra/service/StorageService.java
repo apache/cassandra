@@ -33,6 +33,8 @@ import javax.management.ObjectName;
 import com.google.common.base.Charsets;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.locator.*;
 import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
@@ -377,6 +379,22 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 Gossiper.instance.addSavedEndpoint(entry.getValue());
             }
         }
+
+        // daemon threads, like our executors', continue to run while shutdown hooks are invoked
+        Thread drainOnShutdown = new Thread(new WrappedRunnable()
+        {
+            public void runMayThrow() throws ExecutionException, InterruptedException, IOException
+            {
+                ThreadPoolExecutor mutationStage = StageManager.getStage(Stage.MUTATION);
+                if (!mutationStage.isShutdown())
+                {
+                    mutationStage.shutdown();
+                    mutationStage.awaitTermination(1, TimeUnit.SECONDS);
+                    CommitLog.instance.shutdownBlocking();
+                }
+            }
+        });
+        Runtime.getRuntime().addShutdownHook(drainOnShutdown);
 
         if (Boolean.parseBoolean(System.getProperty("cassandra.join_ring", "true")))
         {
@@ -1898,6 +1916,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         ColumnFamilyStore.postFlushExecutor.shutdown();
         ColumnFamilyStore.postFlushExecutor.awaitTermination(60, TimeUnit.SECONDS);
+
+        CommitLog.instance.shutdownBlocking();
 
         // want to make sure that any segments deleted as a result of flushing are gone.
         DeletionService.waitFor();

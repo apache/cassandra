@@ -61,19 +61,12 @@ public abstract class AbstractCommitLogExecutorService extends AbstractExecutorS
         return completedTaskCount;
     }
 
-    // cassandra is crash-only so there's no need to implement the shutdown methods
-
-    public boolean isShutdown()
-    {
-        return false;
-    }
-
     public boolean isTerminated()
     {
-        return false;
+        throw new UnsupportedOperationException();
     }
 
-    public void shutdown()
+    public boolean isShutdown()
     {
         throw new UnsupportedOperationException();
     }
