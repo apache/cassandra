@@ -54,9 +54,11 @@ public class RemoveTest extends CleanupHelper
     StorageService ss = StorageService.instance;
     TokenMetadata tmd = ss.getTokenMetadata();
     IPartitioner oldPartitioner;
-    ArrayList<Token> endpointTokens;
-    ArrayList<Token> keyTokens;
-    List<InetAddress> hosts;
+    ArrayList<Token> endpointTokens = new ArrayList<Token>();
+    ArrayList<Token> keyTokens = new ArrayList<Token>();
+    List<InetAddress> hosts = new ArrayList<InetAddress>();
+    InetAddress removalhost;
+    Token removaltoken;
 
     @Before
     public void setup() throws IOException, ConfigurationException
@@ -65,10 +67,6 @@ public class RemoveTest extends CleanupHelper
         IPartitioner partitioner = new RandomPartitioner();
 
         oldPartitioner = ss.setPartitionerUnsafe(partitioner);
-
-        endpointTokens = new ArrayList<Token>();
-        keyTokens = new ArrayList<Token>();
-        hosts = new ArrayList<InetAddress>();
 
         // create a ring of 5 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 6);
@@ -79,6 +77,10 @@ public class RemoveTest extends CleanupHelper
         {
             Gossiper.instance.initializeNodeUnsafe(hosts.get(i), 1);
         }
+        removalhost = hosts.get(5);
+        hosts.remove(removalhost);
+        removaltoken = endpointTokens.get(5);
+        endpointTokens.remove(removaltoken);
     }
 
     @After
@@ -110,7 +112,7 @@ public class RemoveTest extends CleanupHelper
     {
         IPartitioner partitioner = StorageService.getPartitioner();
 
-        final String token = partitioner.getTokenFactory().toString(endpointTokens.get(5));
+        final String token = partitioner.getTokenFactory().toString(removaltoken);
         ReplicationSink rSink = new ReplicationSink();
         SinkManager.add(rSink);
 
@@ -137,7 +139,7 @@ public class RemoveTest extends CleanupHelper
 
         Thread.sleep(1000); // make sure removal is waiting for confirmation
 
-        assertTrue(tmd.isLeaving(hosts.get(5)));
+        assertTrue(tmd.isLeaving(removalhost));
         assertEquals(1, tmd.getLeavingEndpoints().size());
 
         for (InetAddress host : hosts)
@@ -167,10 +169,10 @@ public class RemoveTest extends CleanupHelper
 
         ss.onChange(hosts.get(1),
                     ApplicationState.STATUS,
-                    valueFactory.removingNonlocal(endpointTokens.get(1), endpointTokens.get(5)));
+                    valueFactory.removingNonlocal(endpointTokens.get(1), removaltoken));
 
         assertEquals(1, nSink.callCount);
-        assertTrue(tmd.isLeaving(hosts.get(5)));
+        assertTrue(tmd.isLeaving(removalhost));
         assertEquals(1, tmd.getLeavingEndpoints().size());
     }
 
@@ -184,10 +186,10 @@ public class RemoveTest extends CleanupHelper
 
         ss.onChange(hosts.get(1),
                     ApplicationState.STATUS,
-                    valueFactory.removedNonlocal(endpointTokens.get(1), endpointTokens.get(5)));
+                    valueFactory.removedNonlocal(endpointTokens.get(1), removaltoken));
 
-        assertFalse(Gossiper.instance.getLiveMembers().contains(hosts.get(5)));
-        assertFalse(tmd.isMember(hosts.get(5)));
+        assertFalse(Gossiper.instance.getLiveMembers().contains(removalhost));
+        assertFalse(tmd.isMember(removalhost));
     }
 
     class ReplicationSink implements IMessageSink
