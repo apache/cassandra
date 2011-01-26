@@ -146,7 +146,7 @@ public class CliTest extends CleanupHelper
     @Test
     public void testCli() throws IOException, TTransportException, ConfigurationException
     {
-        setup();
+        new EmbeddedCassandraService().start();
 
         // new error/output streams for CliSessionState
         ByteArrayOutputStream errStream = new ByteArrayOutputStream();
@@ -204,24 +204,4 @@ public class CliTest extends CleanupHelper
             errStream.reset(); // no errors to the end user.
         }
     }
-
-    /**
-     * Setup embedded cassandra instance using test config.
-     * @throws TTransportException - when trying to bind address
-     * @throws IOException - when reading config file
-     * @throws ConfigurationException - when can set up configuration
-     */
-    private void setup() throws TTransportException, IOException, ConfigurationException
-    {
-        EmbeddedCassandraService cassandra;
-
-        cassandra = new EmbeddedCassandraService();
-        cassandra.init();
-
-        // spawn cassandra in a new thread
-        Thread t = new Thread(cassandra);
-        t.setDaemon(true);
-        t.start();
-    }
-
 }

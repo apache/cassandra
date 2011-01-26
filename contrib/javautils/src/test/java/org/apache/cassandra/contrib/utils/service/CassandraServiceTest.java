@@ -63,7 +63,6 @@ import org.junit.Test;
 public class CassandraServiceTest {
 
     private static EmbeddedCassandraService cassandra;
-    private static Thread cassandraRunner;
     private static CassandraServiceDataCleaner cleaner;
 
     /**
@@ -90,13 +89,7 @@ public class CassandraServiceTest {
         cleaner.prepare();
         
         cassandra = new EmbeddedCassandraService();
-        cassandra.init();
-        
-        if ( cassandraRunner == null ) {
-            cassandraRunner = new Thread(cassandra);
-            cassandraRunner.setDaemon(true);
-            cassandraRunner.start();
-        }
+        cassandra.start();
     }
     
 

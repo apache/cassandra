@@ -60,6 +60,10 @@ public interface CassandraDaemon
      * to clarify, this is a hook for JSVC.
      */
     public void destroy();
+
+    public void startRPCServer();
+    public void stopRPCServer();
+    public boolean isRPCServerRunning();
     
     /**
      * A convenience method to initialize and start the daemon in one shot.

@@ -56,6 +56,10 @@ import org.mortbay.thread.ThreadPool;
  */
 public abstract class AbstractCassandraDaemon implements CassandraDaemon
 {
+    public AbstractCassandraDaemon()
+    {
+        StorageService.instance.registerDaemon(this);
+    }
 
     //Initialize logging in such a way that it checks for config changes every 10 seconds.
     static
@@ -82,6 +86,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
     
     protected InetAddress listenAddr;
     protected int listenPort;
+    protected volatile boolean isRunning = false;
     
     public static final int MIN_WORKER_THREADS = 64;
 
@@ -211,15 +216,82 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
      * Start the Cassandra Daemon, assuming that it has already been
      * initialized, via either {@link #init(String[])} or
      * {@link #load(String[])}.
-     * 
+     *
+     * Hook for JSVC
+     *
      * @throws IOException
      */
-    public abstract void start() throws IOException;
+    public void start()
+    {
+        if (Boolean.parseBoolean(System.getProperty("cassandra.start_rpc", "true")))
+        {
+            startRPCServer();
+        }
+        else
+        {
+            logger.info("Not starting RPC server as requested. Use JMX (StorageService->startRPCServer()) to start it");
+        }
+    }
     
     /**
      * Stop the daemon, ideally in an idempotent manner.
+     *
+     * Hook for JSVC
      */
-    public abstract void stop();
+    public void stop()
+    {
+        // this doesn't entirely shut down Cassandra, just the RPC server.
+        // jsvc takes care of taking the rest down
+        logger.info("Cassandra shutting down...");
+        stopRPCServer();
+    }
+
+    /**
+     * Start the underlying RPC server in idempotent manner.
+     */
+    public void startRPCServer()
+    {
+        if (!isRunning)
+        {
+            startServer();
+            isRunning = true;
+        }
+    }
+
+    /**
+     * Stop the underlying RPC server in idempotent manner.
+     */
+    public void stopRPCServer()
+    {
+        if (isRunning)
+        {
+            stopServer();
+            isRunning = false;
+        }
+    }
+
+    /**
+     * Returns whether the underlying RPC server is running or not.
+     */
+    public boolean isRPCServerRunning()
+    {
+        return isRunning;
+    }
+
+    /**
+     * Start the underlying RPC server.
+     * This method shoud be able to restart a server stopped through stopServer().
+     * Should throw a RuntimeException if the server cannot be started
+     */
+    protected abstract void startServer();
+
+    /**
+     * Stop the underlying RPC server.
+     * This method should be able to stop server started through startServer().
+     * Should throw a RuntimeException if the server cannot be stopped
+     */
+    protected abstract void stopServer();
+
     
     /**
      * Clean up all resources obtained during the lifetime of the daemon. This

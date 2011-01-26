@@ -64,14 +64,8 @@ public class EmbeddedCassandraServiceTest extends CleanupHelper
     @BeforeClass
     public static void setup() throws TTransportException, IOException, InterruptedException, ConfigurationException
     {
-
         cassandra = new EmbeddedCassandraService();
-        cassandra.init();
-
-        // spawn cassandra in a new thread
-        Thread t = new Thread(cassandra);
-        t.setDaemon(true);
-        t.start();
+        cassandra.start();
     }
 
     @Test

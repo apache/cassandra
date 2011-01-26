@@ -9,6 +9,7 @@
 
 0.7.2-dev
  * fix potential overflow in nodetool cfstats
+ * offline nodes (CASSANDRA-1951)
 
 
 0.7.1

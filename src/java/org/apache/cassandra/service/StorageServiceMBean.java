@@ -281,6 +281,15 @@ public interface StorageServiceMBean
     // to determine if gossip is disabled
     public boolean isInitialized();
 
+    // allows a user to disable thrift
+    public void stopRPCServer();
+
+    // allows a user to reenable thrift
+    public void startRPCServer();
+
+    // to determine if thrift is running
+    public boolean isRPCServerRunning();
+
     public void invalidateKeyCaches(String ks, String... cfs) throws IOException;
     public void invalidateRowCaches(String ks, String... cfs) throws IOException;
 
