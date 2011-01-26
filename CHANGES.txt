@@ -1,3 +1,7 @@
+0.7.2-dev
+ * fix potential overflow in nodetool cfstats
+
+
 0.7.1
  * buffer network stack to avoid inefficient small TCP messages while avoiding
    the nagle/delayed ack problem (CASSANDRA-1896)

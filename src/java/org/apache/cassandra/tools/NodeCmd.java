@@ -332,8 +332,8 @@ public class NodeCmd {
         {
             String tableName = entry.getKey();
             List<ColumnFamilyStoreMBean> columnFamilies = entry.getValue();
-            int tableReadCount = 0;
-            int tableWriteCount = 0;
+            long tableReadCount = 0;
+            long tableWriteCount = 0;
             int tablePendingTasks = 0;
             double tableTotalReadTime = 0.0f;
             double tableTotalWriteTime = 0.0f;
