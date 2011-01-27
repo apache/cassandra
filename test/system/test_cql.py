@@ -7,6 +7,7 @@ sys.path.append(join(abspath(dirname(__file__)), '../../drivers/py'))
 from cql import Connection
 from cql.errors import CQLException
 from . import ThriftTester
+from . import thrift_client     # TODO: temporary
 
 def assert_raises(exception, method, *args):
     try:
@@ -207,4 +208,19 @@ class TestCql(ThriftTester):
         conn.execute('DELETE FROM Standard1 WHERE KEY = "kd"')
         r = conn.execute('SELECT "cd1", "col" FROM Standard1 WHERE KEY = "kd"')
         assert len(r[0].columns) == 0
+        
+    def test_create_keyspace(self):
+        "create a new keyspace"
+        init().execute("""
+        CREATE KEYSPACE TestKeyspace42 WITH strategy_options:DC1 = 1"
+            AND strategy_class = "SimpleStrategy" AND replication_factor = 3
+        """)
+        
+        # TODO: temporary (until this can be done with CQL).
+        ksdef = thrift_client.describe_keyspace("TestKeyspace42")
+        
+        assert ksdef.replication_factor == 3
+        strategy_class = "org.apache.cassandra.locator.SimpleStrategy"
+        assert ksdef.strategy_class == strategy_class
+        assert ksdef.strategy_options['DC1'] == "1"
 

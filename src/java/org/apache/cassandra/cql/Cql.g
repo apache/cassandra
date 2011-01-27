@@ -46,6 +46,7 @@ query returns [CQLStatement stmnt]
     | useStatement      { $stmnt = new CQLStatement(StatementType.USE, $useStatement.keyspace); }
     | truncateStatement { $stmnt = new CQLStatement(StatementType.TRUNCATE, $truncateStatement.cfam); }
     | deleteStatement   { $stmnt = new CQLStatement(StatementType.DELETE, $deleteStatement.expr); }
+    | createKeyspaceStatement { $stmnt = new CQLStatement(StatementType.CREATE_KEYSPACE, $createKeyspaceStatement.expr); }
     ;
 
 // USE <KEYSPACE>;
@@ -161,6 +162,20 @@ deleteStatement returns [DeleteStatement expr]
       }
     ;
 
+/** CREATE KEYSPACE <KEYSPACE> WITH attr1 = value1 AND attr2 = value2; */
+createKeyspaceStatement returns [CreateKeyspaceStatement expr]
+    : {
+          Map<String, String> attrs = new HashMap<String, String>();
+      }
+      K_CREATE K_KEYSPACE keyspace=IDENT
+          K_WITH  a1=( COMPIDENT | IDENT ) '=' v1=( STRING_LITERAL | INTEGER ) { attrs.put($a1.text, $v1.text); }
+          ( K_AND aN=( COMPIDENT | IDENT ) '=' vN=( STRING_LITERAL | INTEGER ) { attrs.put($aN.text, $vN.text); } )*
+          endStmnt
+      {
+          return new CreateKeyspaceStatement($keyspace.text, attrs);
+      }
+    ;
+
 // TODO: date/time, utf8
 term returns [Term item]
     : ( t=STRING_LITERAL | t=LONG )
@@ -245,6 +260,8 @@ K_BATCH:       B A T C H;
 K_TRUNCATE:    T R U N C A T E;
 K_DELETE:      D E L E T E;
 K_IN:          I N;
+K_CREATE:      C R E A T E;
+K_KEYSPACE:    K E Y S P A C E;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');
@@ -302,6 +319,10 @@ LONG
 
 IDENT
     : LETTER (LETTER | DIGIT | '_')*
+    ;
+    
+COMPIDENT
+    : IDENT ( ':' IDENT)*
     ;
     
 WS

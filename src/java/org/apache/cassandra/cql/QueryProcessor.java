@@ -24,17 +24,27 @@ package org.apache.cassandra.cql;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.antlr.runtime.*;
+import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.migration.AddKeyspace;
+import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
@@ -267,6 +277,44 @@ public class QueryProcessor
             throw new InvalidRequestException("No indexed columns present in by-columns clause with \"equals\" operator");
         }
     }
+    
+    // Copypasta from o.a.c.thrift.CassandraDaemon
+    private static void applyMigrationOnStage(final Migration m) throws InvalidRequestException
+    {
+        Future f = StageManager.getStage(Stage.MIGRATION).submit(new Callable()
+        {
+            public Object call() throws Exception
+            {
+                m.apply();
+                m.announce();
+                return null;
+            }
+        });
+        try
+        {
+            f.get();
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (ExecutionException e)
+        {
+            // this means call() threw an exception. deal with it directly.
+            if (e.getCause() != null)
+            {
+                InvalidRequestException ex = new InvalidRequestException(e.getCause().getMessage());
+                ex.initCause(e.getCause());
+                throw ex;
+            }
+            else
+            {
+                InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+                ex.initCause(e);
+                throw ex;
+            }
+        }
+    }
 
     public static CqlResult process(String queryString, ClientState clientState)
     throws RecognitionException, UnavailableException, InvalidRequestException, TimedOutException
@@ -426,6 +474,35 @@ public class QueryProcessor
                 
                 avroResult.type = CqlResultType.VOID;
                 return avroResult;
+                
+            case CREATE_KEYSPACE:
+                CreateKeyspaceStatement create = (CreateKeyspaceStatement)statement.statement;
+                create.validate();
+                
+                try
+                {
+                    KSMetaData ksm = new KSMetaData(create.getName(),
+                                                    AbstractReplicationStrategy.getClass(create.getStrategyClass()),
+                                                    create.getStrategyOptions(),
+                                                    create.getReplicationFactor());
+                    applyMigrationOnStage(new AddKeyspace(ksm));
+                }
+                catch (ConfigurationException e)
+                {
+                    InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+                    ex.initCause(e);
+                    throw ex;
+                }
+                catch (IOException e)
+                {
+                    InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+                    ex.initCause(e);
+                    throw ex;
+                }
+                
+                avroResult.type = CqlResultType.VOID;
+                return avroResult;
+                
         }
         
         return null;    // We should never get here.
