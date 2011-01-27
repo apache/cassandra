@@ -8,8 +8,9 @@
 
 
 0.7.2-dev
- * fix potential overflow in nodetool cfstats
- * offline nodes (CASSANDRA-1951)
+ * fix potential overflow in nodetool cfstats (CASSANDRA-2057)
+ * add JVM shutdownhook to sync commitlog (CASSANDRA-1919)
+ * allow nodes to be up without being part of  normal traffic (CASSANDRA-1951)
 
 
 0.7.1

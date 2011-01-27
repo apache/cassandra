@@ -31,6 +31,8 @@ import org.apache.cassandra.utils.WrappedRunnable;
 class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService implements ICommitLogExecutorService, BatchCommitLogExecutorServiceMBean
 {
     private final BlockingQueue<CheaterFutureTask> queue;
+    private final Thread appendingThread;
+    private volatile boolean run = true;
 
     public BatchCommitLogExecutorService()
     {
@@ -44,14 +46,15 @@ class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService imp
         {
             public void runMayThrow() throws Exception
             {
-                while (true)
+                while (run)
                 {
-                    processWithSyncBatch();
-                    completedTaskCount++;
+                    if (processWithSyncBatch())
+                        completedTaskCount++;
                 }
             }
         };
-        new Thread(runnable, "COMMIT-LOG-WRITER").start();
+        appendingThread = new Thread(runnable, "COMMIT-LOG-WRITER");
+        appendingThread.start();
 
         registerMBean(this);
     }
@@ -63,13 +66,15 @@ class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService imp
 
     private final ArrayList<CheaterFutureTask> incompleteTasks = new ArrayList<CheaterFutureTask>();
     private final ArrayList taskValues = new ArrayList(); // TODO not sure how to generify this
-    private void processWithSyncBatch() throws Exception
+    private boolean processWithSyncBatch() throws Exception
     {
-        CheaterFutureTask firstTask = queue.take();
+        CheaterFutureTask firstTask = queue.poll(100, TimeUnit.MILLISECONDS);
+        if (firstTask == null)
+            return false;
         if (!(firstTask.getRawCallable() instanceof CommitLog.LogRecordAdder))
         {
             firstTask.run();
-            return;
+            return true;
         }
 
         // attempt to do a bunch of LogRecordAdder ops before syncing
@@ -105,6 +110,7 @@ class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService imp
         {
             incompleteTasks.get(i).set(taskValues.get(i));
         }
+        return true;
     }
 
 
@@ -146,6 +152,25 @@ class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService imp
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public void shutdown()
+    {
+        new Thread(new WrappedRunnable()
+        {
+            public void runMayThrow() throws InterruptedException, IOException
+            {
+                while (!queue.isEmpty())
+                    Thread.sleep(100);
+                run = false;
+                appendingThread.join();
+            }
+        }, "Commitlog Shutdown").start();
+    }
+
+    public void awaitTermination() throws InterruptedException
+    {
+        appendingThread.join();
     }
 
     private static class CheaterFutureTask<V> extends FutureTask<V>

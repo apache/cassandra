@@ -38,4 +38,9 @@ public interface ICommitLogExecutorService extends IExecutorMBean
      */
     public void add(CommitLog.LogRecordAdder adder);
 
+    /** shuts down the CommitLogExecutor in an orderly fashion */
+    public void shutdown();
+
+    /** Blocks until shutdown is complete. */
+    public void awaitTermination() throws InterruptedException;
 }
