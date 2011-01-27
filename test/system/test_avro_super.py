@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from . import AvroTester
+from __init__ import AvroTester
 from avro.ipc import AvroRemoteException
 import avro_utils
 import time

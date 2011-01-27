@@ -19,8 +19,8 @@
 
 import os, sys, time, struct
 
-from . import root, ThriftTester
-from . import thrift_client as client
+from __init__ import root, ThriftTester
+from __init__ import thrift_client as client
 
 from thrift.Thrift import TApplicationException
 from ttypes import *

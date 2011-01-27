@@ -16,7 +16,7 @@
 # limitations under the License.
 
 import avro_utils
-from . import AvroTester
+from __init__ import AvroTester
 from avro.ipc import AvroRemoteException
 
 # cheat a little until these are moved into avro_utils.

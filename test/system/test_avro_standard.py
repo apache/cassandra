@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from . import AvroTester
+from __init__ import AvroTester
 import avro_utils
 from time import time
 import struct
