@@ -16,6 +16,10 @@ Other
     and imports must be made with a configuration that is identical to
     the export.
 
+JMX
+---
+    - By default, JMX now listens on port 7199.
+
 
 0.7.0
 =====

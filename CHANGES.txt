@@ -5,6 +5,7 @@
  * make NetworkTopologyStrategy the default (CASSANDRA-1960)
  * configurable internode encryption (CASSANDRA-1567)
  * human readable column names in sstable2json output (CASSANDRA-1933)
+ * change default JMX port to 7199 (CASSANDRA-2027)
 
 
 0.7.2-dev
