@@ -1,3 +1,9 @@
+cassandra (0.6.11) unstable; urgency=low
+
+  * New stable point release.
+
+ -- Eric Evans <eevans@apache.org>  Thu, 27 Jan 2011 11:40:17 -0600
+
 cassandra (0.6.10) unstable; urgency=low
 
   * New stable point release.
