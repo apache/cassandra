@@ -3,6 +3,7 @@
  * add JVM shutdownhook to sync commitlog (CASSANDRA-1919)
  * allow nodes to be up without being part of  normal traffic (CASSANDRA-1951)
  * fix CLI "show keyspaces" with null options on NTS (CASSANDRA-2049)
+ * fix possible ByteBuffer race conditions (CASSANDRA-2066)
 
 
 0.7.1
