@@ -18,10 +18,7 @@
 
 package org.apache.cassandra.utils;
 
-import java.util.Enumeration;
-import java.util.Set;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.*;
 import java.util.concurrent.Callable;
 
 import com.google.common.base.Function;
@@ -33,7 +30,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 public class ExpiringMap<K, V>
 {
     private static final Logger logger = LoggerFactory.getLogger(ExpiringMap.class);
-    private final Function<K, ?> postExpireHook;
+    private final Function<Pair<K,V>, ?> postExpireHook;
 
     private static class CacheableObject<T>
     {
@@ -69,18 +66,12 @@ public class ExpiringMap<K, V>
         @Override
         public void run()
         {
-            synchronized (cache)
+            for (Map.Entry<K, CacheableObject> entry : cache.entrySet())
             {
-                Enumeration<K> e = cache.keys();
-                while (e.hasMoreElements())
+                if (entry.getValue().isReadyToDie(expiration))
                 {
-                    K key = e.nextElement();
-                    CacheableObject co = cache.get(key);
-                    if (co != null && co.isReadyToDie(expiration))
-                    {
-                        cache.remove(key);
-                        postExpireHook.apply(key);
-                    }
+                    cache.remove(entry.getKey());
+                    postExpireHook.apply(new Pair(entry.getKey(), entry.getValue().getValue()));
                 }
             }
         }
@@ -99,7 +90,7 @@ public class ExpiringMap<K, V>
      *
      * @param expiration the TTL for objects in the cache in milliseconds
      */
-    public ExpiringMap(long expiration, Function<K, ?> postExpireHook)
+    public ExpiringMap(long expiration, Function<Pair<K,V>, ?> postExpireHook)
     {
         this.postExpireHook = postExpireHook;
         if (expiration <= 0)

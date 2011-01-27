@@ -208,10 +208,9 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
             return;
         if (!registered)
         {
-       	    ILatencyPublisher handler = (ILatencyPublisher) MessagingService.instance().getVerbHandler(StorageService.Verb.REQUEST_RESPONSE);
-            if (handler != null)
+            if (MessagingService.instance() != null)
             {
-                handler.register(this);
+                MessagingService.instance().register(this);
                 registered = true;
             }
 

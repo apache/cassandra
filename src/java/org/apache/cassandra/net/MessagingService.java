@@ -27,7 +27,6 @@ import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.ServerSocketChannel;
 import java.security.MessageDigest;
 import java.util.*;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -45,21 +44,22 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.locator.ILatencyPublisher;
 import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.net.io.SerializerType;
 import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.service.GCInspector;
+import org.apache.cassandra.service.ReadCallback;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.FileStreamTask;
 import org.apache.cassandra.streaming.StreamHeader;
 import org.apache.cassandra.utils.ExpiringMap;
 import org.apache.cassandra.utils.GuidGenerator;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.SimpleCondition;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
-public final class MessagingService implements MessagingServiceMBean, ILatencyPublisher
+public final class MessagingService implements MessagingServiceMBean
 {
     private static final int version_ = 1;
     //TODO: make this parameter dynamic somehow.  Not sure if config is appropriate.
@@ -69,8 +69,7 @@ public final class MessagingService implements MessagingServiceMBean, ILatencyPu
     private static final int PROTOCOL_MAGIC = 0xCA552DFA;
 
     /* This records all the results mapped by message Id */
-    private final ExpiringMap<String, IMessageCallback> callbacks;
-    private final ConcurrentMap<String, Collection<InetAddress>> targets = new NonBlockingHashMap<String, Collection<InetAddress>>();
+    private final ExpiringMap<String, Pair<InetAddress, IMessageCallback>> callbacks;
 
     /* Lookup table for registering message handlers based on the verb. */
     private final Map<StorageService.Verb, IVerbHandler> verbHandlers_;
@@ -116,24 +115,16 @@ public final class MessagingService implements MessagingServiceMBean, ILatencyPu
         };
         StorageService.scheduledTasks.scheduleWithFixedDelay(logDropped, LOG_DROPPED_INTERVAL_IN_MS, LOG_DROPPED_INTERVAL_IN_MS, TimeUnit.MILLISECONDS);
 
-        Function<String, ?> timeoutReporter = new Function<String, Object>()
+        Function<Pair<String, Pair<InetAddress, IMessageCallback>>, ?> timeoutReporter = new Function<Pair<String, Pair<InetAddress, IMessageCallback>>, Object>()
         {
-            public Object apply(String messageId)
+            public Object apply(Pair<String, Pair<InetAddress, IMessageCallback>> pair)
             {
-                Collection<InetAddress> addresses = targets.remove(messageId);
-                if (addresses == null)
-                    return null;
-
-                for (InetAddress address : addresses)
-                {
-                    for (ILatencySubscriber subscriber : subscribers)
-                        subscriber.receiveTiming(address, (double) DatabaseDescriptor.getRpcTimeout());
-                }
-
+                Pair<InetAddress, IMessageCallback> expiredValue = pair.right;
+                maybeAddLatency(expiredValue.right, expiredValue.left, (double) DatabaseDescriptor.getRpcTimeout());
                 return null;
             }
         };
-        callbacks = new ExpiringMap<String, IMessageCallback>((long) (1.1 * DatabaseDescriptor.getRpcTimeout()), timeoutReporter);
+        callbacks = new ExpiringMap<String, Pair<InetAddress, IMessageCallback>>((long) (1.1 * DatabaseDescriptor.getRpcTimeout()), timeoutReporter);
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
@@ -144,6 +135,24 @@ public final class MessagingService implements MessagingServiceMBean, ILatencyPu
         {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Track latency information for the dynamic snitch
+     * @param cb: the callback associated with this message -- this lets us know if it's a message type we're interested in
+     * @param address: the host that replied to the message
+     * @param latency
+     */
+    public void maybeAddLatency(IMessageCallback cb, InetAddress address, double latency)
+    {
+        if (cb instanceof ReadCallback || cb instanceof AsyncResult)
+            addLatency(address, latency);
+    }
+
+    public void addLatency(InetAddress address, double latency)
+    {
+        for (ILatencySubscriber subscriber : subscribers)
+            subscriber.receiveTiming(address, latency);
     }
 
     public static byte[] hash(String type, byte data[])
@@ -247,49 +256,9 @@ public final class MessagingService implements MessagingServiceMBean, ILatencyPu
         return verbHandlers_.get(type);
     }
 
-    /**
-     * Send a message to a given endpoint.
-     * @param message message to be sent.
-     * @param to endpoint to which the message needs to be sent
-     * @return an reference to an IAsyncResult which can be queried for the
-     * response
-     */
-    public String sendRR(Message message, Collection<InetAddress> to, IAsyncCallback cb)
+    private void addCallback(IMessageCallback cb, String messageId, InetAddress to)
     {
-        String messageId = message.getMessageId();
-        addCallback(cb, messageId);
-        for (InetAddress endpoint : to)
-        {
-            putTarget(messageId, endpoint);
-            sendOneWay(message, endpoint);
-        }
-        return messageId;
-    }
-
-    private void putTarget(String messageId, InetAddress endpoint)
-    {
-        Collection<InetAddress> addresses = targets.get(messageId);
-        if (addresses == null)
-        {
-            addresses = new NonBlockingHashSet<InetAddress>();
-            Collection<InetAddress> oldAddresses = targets.putIfAbsent(messageId, addresses);
-            if (oldAddresses != null)
-                addresses = oldAddresses;
-        }
-        addresses.add(endpoint);
-    }
-
-    private void removeTarget(String messageId, InetAddress from)
-    {
-        Collection<InetAddress> addresses = targets.get(messageId);
-        // null is expected if we removed the callback or we got a reply after its timeout expired
-        if (addresses != null)
-            addresses.remove(from);
-    }
-
-    public void addCallback(IAsyncCallback cb, String messageId)
-    {
-        callbacks.put(messageId, cb);
+        callbacks.put(messageId, new Pair<InetAddress, IMessageCallback>(to, cb));
     }
 
     /**
@@ -305,8 +274,7 @@ public final class MessagingService implements MessagingServiceMBean, ILatencyPu
     public String sendRR(Message message, InetAddress to, IAsyncCallback cb)
     {        
         String messageId = message.getMessageId();
-        addCallback(cb, messageId);
-        putTarget(messageId, to);
+        addCallback(cb, messageId, to);
         sendOneWay(message, to);
         return messageId;
     }
@@ -358,8 +326,7 @@ public final class MessagingService implements MessagingServiceMBean, ILatencyPu
     public IAsyncResult sendRR(Message message, InetAddress to)
     {
         IAsyncResult iar = new AsyncResult();
-        callbacks.put(message.getMessageId(), iar);
-        putTarget(message.getMessageId(), to);
+        addCallback(iar, message.getMessageId(), to);
         sendOneWay(message, to);
         return iar;
     }
@@ -420,25 +387,14 @@ public final class MessagingService implements MessagingServiceMBean, ILatencyPu
         stage.execute(runnable);
     }
 
-    public IMessageCallback getRegisteredCallback(String messageId)
+    public Pair<InetAddress, IMessageCallback> removeRegisteredCallback(String messageId)
     {
-        return callbacks.get(messageId);
-    }
-    
-    public IMessageCallback removeRegisteredCallback(String messageId)
-    {
-        targets.remove(messageId);
         return callbacks.remove(messageId);
     }
 
     public long getRegisteredCallbackAge(String messageId)
     {
         return callbacks.getAge(messageId);
-    }
-
-    public void responseReceivedFrom(String messageId, InetAddress from)
-    {
-        removeTarget(messageId, from);
     }
 
     public static void validateMagic(int magic) throws IOException

@@ -94,8 +94,6 @@ class AsyncResult implements IAsyncResult
         {
             lock.unlock();
         }        
-
-        MessagingService.instance().removeRegisteredCallback(response.getMessageId());
     }
 
     public InetAddress getFrom()

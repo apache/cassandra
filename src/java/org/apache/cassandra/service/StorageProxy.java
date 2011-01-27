@@ -131,7 +131,6 @@ public class StorageProxy implements StorageProxyMBean
                 
                 // Multimap that holds onto all the messages and addresses meant for a specific datacenter
                 Map<String, Multimap<Message, InetAddress>> dcMessages = new HashMap<String, Multimap<Message, InetAddress>>(hintedEndpoints.size());
-                Message unhintedMessage = null;
 
                 for (Map.Entry<InetAddress, Collection<InetAddress>> entry : hintedEndpoints.asMap().entrySet())
                 {
@@ -150,14 +149,9 @@ public class StorageProxy implements StorageProxyMBean
                         else
                         {
                             // belongs on a different server
-                            if (unhintedMessage == null)
-                            {
-                                unhintedMessage = rm.makeRowMutationMessage();
-                                MessagingService.instance().addCallback(responseHandler, unhintedMessage.getMessageId());
-                            }
+                            Message unhintedMessage = rm.makeRowMutationMessage();
                             if (logger.isDebugEnabled())
                                 logger.debug("insert writing key " + ByteBufferUtil.bytesToHex(rm.key()) + " to " + unhintedMessage.getMessageId() + "@" + destination);
-                            
                             
                             Multimap<Message, InetAddress> messages = dcMessages.get(dc);
                             if (messages == null)
@@ -182,7 +176,12 @@ public class StorageProxy implements StorageProxyMBean
                                     logger.debug("insert writing key " + ByteBufferUtil.bytesToHex(rm.key()) + " to " + hintedMessage.getMessageId() + "@" + destination + " for " + target);
                             }
                         }
-                        responseHandler.addHintCallback(hintedMessage, destination);
+                        // (non-destination hints are part of the callback and count towards consistency only under CL.ANY)
+                        // (non-destination hints are part of the callback and count towards consistency only under CL.ANY)
+                        if (writeEndpoints.contains(destination) || consistency_level == ConsistencyLevel.ANY)
+                            MessagingService.instance().sendRR(hintedMessage, destination, responseHandler);
+                        else
+                            MessagingService.instance().sendOneWay(hintedMessage, destination);
 
                         Multimap<Message, InetAddress> messages = dcMessages.get(dc);
                         
@@ -196,7 +195,7 @@ public class StorageProxy implements StorageProxyMBean
                     }
                 }
 
-                sendMessages(localDataCenter, dcMessages);
+                sendMessages(localDataCenter, dcMessages, responseHandler);
             }
                         
             // wait for writes.  throws timeoutexception if necessary
@@ -219,7 +218,7 @@ public class StorageProxy implements StorageProxyMBean
     /**
      * for each datacenter, send a message to one node to relay the write to other replicas
      */
-    private static void sendMessages(String localDataCenter, Map<String, Multimap<Message, InetAddress>> dcMessages)
+    private static void sendMessages(String localDataCenter, Map<String, Multimap<Message, InetAddress>> dcMessages, IWriteResponseHandler handler)
     throws IOException
     {
         for (Map.Entry<String, Multimap<Message, InetAddress>> entry: dcMessages.entrySet())
@@ -230,15 +229,12 @@ public class StorageProxy implements StorageProxyMBean
             for (Map.Entry<Message, Collection<InetAddress>> messages: entry.getValue().asMap().entrySet())
             {
                 Message message = messages.getKey();
-                // a single message object is used for unhinted writes, so clean out any forwards
-                // from previous loop iterations
-                message.removeHeader(RowMutation.FORWARD_HEADER);
 
                 if (dataCenter.equals(localDataCenter))
                 {
                     // direct writes to local DC
                     for (InetAddress destination : messages.getValue())
-                        MessagingService.instance().sendOneWay(message, destination);
+                        MessagingService.instance().sendRR(message, destination, handler);
                 }
                 else
                 {
@@ -262,7 +258,7 @@ public class StorageProxy implements StorageProxyMBean
                         message.setHeader(RowMutation.FORWARD_HEADER, bos.toByteArray());
                     }
                     // send the combined message + forward headers
-                    MessagingService.instance().sendOneWay(message, target);
+                    MessagingService.instance().sendRR(message, target, handler);
                 }
             }
         }
@@ -373,7 +369,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 if (logger.isDebugEnabled())
                     logger.debug("reading data for " + command + " locally");
-                StageManager.getStage(Stage.READ).submit(new WeakReadLocalRunnable(command, handler));
+                StageManager.getStage(Stage.READ).submit(new LocalReadRunnable(command, handler));
             }
             else
             {
@@ -392,7 +388,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     if (logger.isDebugEnabled())
                         logger.debug("reading digest for " + command + " locally");
-                    StageManager.getStage(Stage.READ).submit(new WeakReadLocalRunnable(digestCommand, handler));
+                    StageManager.getStage(Stage.READ).submit(new LocalReadRunnable(digestCommand, handler));
                 }
                 else
                 {
@@ -461,12 +457,13 @@ public class StorageProxy implements StorageProxyMBean
         return rows;
     }
 
-    static class WeakReadLocalRunnable extends WrappedRunnable
+    static class LocalReadRunnable extends WrappedRunnable
     {
         private final ReadCommand command;
         private final ReadCallback<Row> handler;
+        private final long start = System.currentTimeMillis();
 
-        WeakReadLocalRunnable(ReadCommand command, ReadCallback<Row> handler)
+        LocalReadRunnable(ReadCommand command, ReadCallback<Row> handler)
         {
             this.command = command;
             this.handler = handler;
@@ -475,10 +472,11 @@ public class StorageProxy implements StorageProxyMBean
         protected void runMayThrow() throws IOException
         {
             if (logger.isDebugEnabled())
-                logger.debug("weakreadlocal reading " + command);
+                logger.debug("LocalReadRunnable reading " + command);
 
             Table table = Table.open(command.table);
             ReadResponse result = ReadVerbHandler.getResponse(command, command.getRow(table));
+            MessagingService.instance().addLatency(FBUtilities.getLocalAddress(), System.currentTimeMillis() - start);
             handler.response(result);
         }
     }
@@ -497,8 +495,11 @@ public class StorageProxy implements StorageProxyMBean
     {
         ReadResponseResolver resolver = new ReadResponseResolver(command.table, command.key);
         RepairCallback<Row> handler = new RepairCallback<Row>(resolver, endpoints);
-        Message messageRepair = command.makeReadMessage();
-        MessagingService.instance().sendRR(messageRepair, endpoints, handler);
+        for (InetAddress endpoint : endpoints)
+        {
+            Message messageRepair = command.makeReadMessage();
+            MessagingService.instance().sendRR(messageRepair, endpoint, handler);
+        }
         return handler;
     }
 
@@ -601,21 +602,26 @@ public class StorageProxy implements StorageProxyMBean
         final String myVersion = DatabaseDescriptor.getDefsVersion().toString();
         final Map<InetAddress, UUID> versions = new ConcurrentHashMap<InetAddress, UUID>();
         final Set<InetAddress> liveHosts = Gossiper.instance.getLiveMembers();
-        final Message msg = new Message(FBUtilities.getLocalAddress(), StorageService.Verb.SCHEMA_CHECK, ArrayUtils.EMPTY_BYTE_ARRAY);
         final CountDownLatch latch = new CountDownLatch(liveHosts.size());
-        // an empty message acts as a request to the SchemaCheckVerbHandler.
-        MessagingService.instance().sendRR(msg, liveHosts, new IAsyncCallback()
+
+        IAsyncCallback cb = new IAsyncCallback()
         {
-            public void response(Message msg)
+            public void response(Message message)
             {
                 // record the response from the remote node.
-                logger.debug("Received schema check response from " + msg.getFrom().getHostAddress());
-                UUID theirVersion = UUID.fromString(new String(msg.getMessageBody()));
-                versions.put(msg.getFrom(), theirVersion);
+                logger.debug("Received schema check response from " + message.getFrom().getHostAddress());
+                UUID theirVersion = UUID.fromString(new String(message.getMessageBody()));
+                versions.put(message.getFrom(), theirVersion);
                 latch.countDown();
             }
-        });
-        
+        };
+        // an empty message acts as a request to the SchemaCheckVerbHandler.
+        for (InetAddress endpoint : liveHosts)
+        {
+            Message message = new Message(FBUtilities.getLocalAddress(), StorageService.Verb.SCHEMA_CHECK, ArrayUtils.EMPTY_BYTE_ARRAY);
+            MessagingService.instance().sendRR(message, endpoint, cb);
+        }
+
         try
         {
             // wait for as long as possible. timeout-1s if possible.
@@ -895,8 +901,11 @@ public class StorageProxy implements StorageProxyMBean
         // Send out the truncate calls and track the responses with the callbacks.
         logger.debug("Starting to send truncate messages to hosts {}", allEndpoints);
         Truncation truncation = new Truncation(keyspace, cfname);
-        Message message = truncation.makeTruncationMessage();
-        MessagingService.instance().sendRR(message, allEndpoints, responseHandler);
+        for (InetAddress endpoint : allEndpoints)
+        {
+            Message message = truncation.makeTruncationMessage();
+            MessagingService.instance().sendRR(message, endpoint, responseHandler);
+        }
 
         // Wait for all
         logger.debug("Sent all truncate messages, now waiting for {} responses", blockFor);
