@@ -3,6 +3,7 @@
  * add JVM shutdownhook to sync commitlog (CASSANDRA-1919)
  * allow nodes to be up without being part of  normal traffic (CASSANDRA-1951)
  * fix CLI "show keyspaces" with null options on NTS (CASSANDRA-2049)
+ * remove jetty dependency (CASSANDRA-2050)
 
 
 0.7.1
