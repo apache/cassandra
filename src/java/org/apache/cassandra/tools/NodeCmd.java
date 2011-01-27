@@ -49,7 +49,7 @@ public class NodeCmd {
     private static final String USERNAME_OPT_SHORT = "u";
     private static final String PASSWORD_OPT_LONG = "password";
     private static final String PASSWORD_OPT_SHORT = "pw";
-    private static final int defaultPort = 8080;
+    private static final int defaultPort = 7199;
     private static Options options = null;
     
     private NodeProbe probe;

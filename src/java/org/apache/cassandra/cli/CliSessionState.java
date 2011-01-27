@@ -38,7 +38,7 @@ public class CliSessionState
     public String  keyspace;      // cassandra keyspace user is authenticating
     public boolean batch = false; // enable/disable batch processing mode
     public String  filename = ""; // file to read commands from
-    public int     jmxPort = 8080;// JMX service port
+    public int     jmxPort = 7199;// JMX service port
     public boolean verbose = false; // verbose output
     public int     schema_mwt;    // Schema migration wait time (secs.)
     /*

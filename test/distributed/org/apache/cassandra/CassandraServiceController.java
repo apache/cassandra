@@ -71,7 +71,7 @@ public class CassandraServiceController
         LoggerFactory.getLogger(CassandraServiceController.class);
 
     protected static int CLIENT_PORT    = 9160;
-    protected static int JMX_PORT       = 8080;
+    protected static int JMX_PORT       = 7199;
 
     private static final CassandraServiceController INSTANCE =
         new CassandraServiceController();

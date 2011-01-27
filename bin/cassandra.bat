@@ -34,7 +34,7 @@ set JAVA_OPTS=^
  -XX:MaxTenuringThreshold=1^
  -XX:CMSInitiatingOccupancyFraction=75^
  -XX:+UseCMSInitiatingOccupancyOnly^
- -Dcom.sun.management.jmxremote.port=8080^
+ -Dcom.sun.management.jmxremote.port=7199^
  -Dcom.sun.management.jmxremote.ssl=false^
  -Dcom.sun.management.jmxremote.authenticate=false^
  -Dlog4j.configuration=log4j-server.properties^

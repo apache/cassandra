@@ -41,7 +41,7 @@ import org.apache.cassandra.service.StorageServiceMBean;
  */
 public class RingModel
 {
-    public static final int defaultPort = 8080;
+    public static final int defaultPort = 7199;
     private static final String fmtUrl = "service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi";
     private static final String ssObjName = "org.apache.cassandra.service:type=StorageService";
 

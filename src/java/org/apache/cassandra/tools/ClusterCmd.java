@@ -31,7 +31,7 @@ public class ClusterCmd {
     private static final String HOST_OPT_SHORT = "h";
     private static final String PORT_OPT_LONG = "port";
     private static final String PORT_OPT_SHORT = "p";
-    private static final int defaultPort = 8080;
+    private static final int defaultPort = 7199;
     private static Options options = null;
     private CommandLine cmd = null;
     private NodeProbe probe;

@@ -81,7 +81,7 @@ fi
 
 # Specifies the default port over which Cassandra will be available for
 # JMX connections.
-JMX_PORT="8080"
+JMX_PORT="7199"
 
 
 # Here we create the arguments that will get passed to the jvm when

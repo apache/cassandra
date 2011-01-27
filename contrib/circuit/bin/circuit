@@ -16,7 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-DEFAULT_PORT=8080
+DEFAULT_PORT=7199
 
 if [ "x$CLASSPATH" = "x" ]; then
     # Cassandra class files.
