@@ -95,11 +95,6 @@ public class Header
         return messageId_;
     }
 
-    void setMessageId(String id)
-    {
-        messageId_ = id;
-    }
-    
     byte[] getDetail(Object key)
     {
         return details_.get(key);

@@ -84,15 +84,16 @@ class ConsistencyChecker implements Runnable
         ReadCommand readCommandDigestOnly = constructReadMessage(true);
 		try
 		{
-			Message message = readCommandDigestOnly.makeReadMessage();
-            if (logger_.isDebugEnabled())
-              logger_.debug("Reading consistency digest for " + readCommand_.key + " from " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");
-
-            MessagingService.instance.addCallback(new DigestResponseHandler(), message.getMessageId());
+            DigestResponseHandler handler = new DigestResponseHandler();
             for (InetAddress endpoint : replicas_)
             {
                 if (!endpoint.equals(dataSource))
-                    MessagingService.instance.sendOneWay(message, endpoint);
+                {
+                    Message message = readCommandDigestOnly.makeReadMessage();
+                    if (logger_.isDebugEnabled())
+                      logger_.debug("Reading consistency digest for " + readCommand_.key + " from " + message.getMessageId() + "@" + endpoint);
+                    MessagingService.instance.sendRR(message, endpoint, handler);
+                }
             }
 		}
 		catch (IOException ex)
@@ -128,14 +129,16 @@ class ConsistencyChecker implements Runnable
                 if (!Arrays.equals(dataDigest, digest))
                 {
                     ReadCommand readCommand = constructReadMessage(false);
-                    Message message = readCommand.makeReadMessage();
-                    if (logger_.isDebugEnabled())
-                        logger_.debug("Digest mismatch; re-reading " + readCommand_.key + " from " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");
-                    MessagingService.instance.addCallback(new DataRepairHandler(), message.getMessageId());
+                    DataRepairHandler handler = new DataRepairHandler();
                     for (InetAddress endpoint : replicas_)
                     {
                         if (!endpoint.equals(dataSource))
-                            MessagingService.instance.sendOneWay(message, endpoint);
+                        {
+                            Message message = readCommand.makeReadMessage();
+                            if (logger_.isDebugEnabled())
+                                logger_.debug("Digest mismatch; re-reading " + readCommand_.key + " from " + message.getMessageId() + "@" + endpoint);
+                            MessagingService.instance.sendRR(message, endpoint, handler);
+                        }
                     }
 
                     repairInvoked = true;

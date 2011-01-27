@@ -210,7 +210,6 @@ public class StorageProxy implements StorageProxyMBean
                 // send out the writes, as in mutate() above, but this time with a callback that tracks responses
                 final WriteResponseHandler responseHandler = ss.getWriteResponseHandler(blockFor, consistency_level, table);
                 responseHandlers.add(responseHandler);
-                Message unhintedMessage = null;
                 for (Map.Entry<InetAddress, Collection<InetAddress>> entry : hintedEndpoints.asMap().entrySet())
                 {
                     InetAddress destination = entry.getKey();
@@ -226,14 +225,10 @@ public class StorageProxy implements StorageProxyMBean
                         else
                         {
                             // belongs on a different server.  send it there.
-                            if (unhintedMessage == null)
-                            {
-                                unhintedMessage = rm.makeRowMutationMessage();
-                                MessagingService.instance.addCallback(responseHandler, unhintedMessage.getMessageId());
-                            }
+                            Message unhintedMessage = rm.makeRowMutationMessage();
                             if (logger.isDebugEnabled())
                                 logger.debug("insert writing key " + rm.key() + " to " + unhintedMessage.getMessageId() + "@" + destination);
-                            MessagingService.instance.sendOneWay(unhintedMessage, destination);
+                            MessagingService.instance.sendRR(unhintedMessage, destination, responseHandler);
                         }
                     }
                     else
@@ -251,8 +246,9 @@ public class StorageProxy implements StorageProxyMBean
                         }
                         // (non-destination hints are part of the callback and count towards consistency only under CL.ANY)
                         if (writeEndpoints.contains(destination) || consistency_level == ConsistencyLevel.ANY)
-                            MessagingService.instance.addCallback(responseHandler, hintedMessage.getMessageId());
-                        MessagingService.instance.sendOneWay(hintedMessage, destination);
+                            MessagingService.instance.sendRR(hintedMessage, destination, responseHandler);
+                        else
+                            MessagingService.instance.sendOneWay(hintedMessage, destination);
                     }
                 }
             }
@@ -441,17 +437,15 @@ public class StorageProxy implements StorageProxyMBean
     private static List<Row> strongRead(List<ReadCommand> commands, ConsistencyLevel consistency_level) throws IOException, UnavailableException, TimeoutException
     {
         List<QuorumResponseHandler<Row>> quorumResponseHandlers = new ArrayList<QuorumResponseHandler<Row>>();
-        List<InetAddress[]> commandEndPoints = new ArrayList<InetAddress[]>();
+        List<List<InetAddress>> commandEndPoints = new ArrayList<List<InetAddress>>();
         List<Row> rows = new ArrayList<Row>();
 
         // send out read requests
         for (ReadCommand command: commands)
         {
             assert !command.isDigestQuery();
-            ReadCommand readMessageDigestOnly = command.copy();
-            readMessageDigestOnly.setDigestQuery(true);
-            Message message = command.makeReadMessage();
-            Message messageDigestOnly = readMessageDigestOnly.makeReadMessage();
+            ReadCommand digestCommand = command.copy();
+            digestCommand.setDigestQuery(true);
 
             InetAddress dataPoint = StorageService.instance.findSuitableEndPoint(command.table, command.key);
             List<InetAddress> endpointList = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
@@ -460,24 +454,19 @@ public class StorageProxy implements StorageProxyMBean
             if (endpointList.size() < responseCount)
                 throw new UnavailableException();
 
-            InetAddress[] endPoints = new InetAddress[endpointList.size()];
-            Message messages[] = new Message[endpointList.size()];
-            // data-request message is sent to dataPoint, the node that will actually get
-            // the data for us. The other replicas are only sent a digest query.
-            int n = 0;
-            for (InetAddress endpoint : endpointList)
-            {
-                Message m = endpoint.equals(dataPoint) ? message : messageDigestOnly;
-                endPoints[n] = endpoint;
-                messages[n++] = m;
-                if (logger.isDebugEnabled())
-                    logger.debug("strongread reading " + (m == message ? "data" : "digest") + " for " + command + " from " + m.getMessageId() + "@" + endpoint);
-            }
             ReadResponseResolver resolver = new ReadResponseResolver(command.table, command.key, responseCount);
             QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(responseCount, resolver);
-            MessagingService.instance.sendRR(messages, endPoints, quorumResponseHandler);
+            // data-request message is sent to dataPoint, the node that will actually get
+            // the data for us. The other replicas are only sent a digest query.
+            for (InetAddress endpoint : endpointList)
+            {
+                Message m = endpoint.equals(dataPoint) ? command.makeReadMessage() : digestCommand.makeReadMessage();
+                if (logger.isDebugEnabled())
+                    logger.debug("strongread reading " + (endpoint.equals(dataPoint) ? "data" : "digest") + " for " + command + " from " + m.getMessageId() + "@" + endpoint);
+                MessagingService.instance.sendRR(m, endpoint, quorumResponseHandler);
+            }
             quorumResponseHandlers.add(quorumResponseHandler);
-            commandEndPoints.add(endPoints);
+            commandEndPoints.add(endpointList);
         }
 
         // read results and make a second pass for any digest mismatches
@@ -506,8 +495,11 @@ public class StorageProxy implements StorageProxyMBean
                     int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(command.table), consistency_level);
                     ReadResponseResolver resolver = new ReadResponseResolver(command.table, command.key, responseCount);
                     QuorumResponseHandler<Row> qrhRepair = new QuorumResponseHandler<Row>(responseCount, resolver);
-                    Message messageRepair = command.makeReadMessage();
-                    MessagingService.instance.sendRR(messageRepair, commandEndPoints.get(i), qrhRepair);
+                    for (InetAddress endPoint : commandEndPoints.get(i))
+                    {
+                        Message messageRepair = command.makeReadMessage();
+                        MessagingService.instance.sendRR(messageRepair, endPoint, qrhRepair);
+                    }
                     if (repairResponseHandlers == null)
                         repairResponseHandlers = new ArrayList<QuorumResponseHandler<Row>>();
                     repairResponseHandlers.add(qrhRepair);

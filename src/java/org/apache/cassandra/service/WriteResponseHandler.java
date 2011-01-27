@@ -55,30 +55,20 @@ public class WriteResponseHandler implements IAsyncCallback
 
     public void get() throws TimeoutException
     {
+        long timeout = DatabaseDescriptor.getRpcTimeout() - (System.currentTimeMillis() - startTime);
+        boolean success;
         try
         {
-            long timeout = DatabaseDescriptor.getRpcTimeout() - (System.currentTimeMillis() - startTime);
-            boolean success;
-            try
-            {
-                success = condition.await(timeout, TimeUnit.MILLISECONDS);
-            }
-            catch (InterruptedException ex)
-            {
-                throw new AssertionError(ex);
-            }
-
-            if (!success)
-            {
-                throw new TimeoutException("Operation timed out - received only " + responses.size() + localResponses + " responses");
-            }
+            success = condition.await(timeout, TimeUnit.MILLISECONDS);
         }
-        finally
+        catch (InterruptedException ex)
         {
-            for (Message response : responses)
-            {
-                MessagingService.removeRegisteredCallback(response.getMessageId());
-            }
+            throw new AssertionError(ex);
+        }
+
+        if (!success)
+        {
+            throw new TimeoutException("Operation timed out - received only " + responses.size() + localResponses + " responses");
         }
     }
 

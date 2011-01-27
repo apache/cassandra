@@ -29,7 +29,6 @@ import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.ServerSocketChannel;
 import java.security.MessageDigest;
 import java.util.*;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -45,12 +44,12 @@ import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.net.io.SerializerType;
 import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.service.GCInspector;
+import org.apache.cassandra.service.QuorumResponseHandler;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ExpiringMap;
-import org.apache.cassandra.utils.GuidGenerator;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.SimpleCondition;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
-import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
 public class MessagingService
 {
@@ -62,8 +61,7 @@ public class MessagingService
     public static final int PROTOCOL_MAGIC = 0xCA552DFA;
 
     /* This records all the results mapped by message Id */
-    private static ExpiringMap<String, IMessageCallback> callbacks;
-    private static ConcurrentMap<String, Collection<InetAddress>> targets = new NonBlockingHashMap<String, Collection<InetAddress>>();
+    private static ExpiringMap<String, Pair<InetAddress, IMessageCallback>> callbacks;
 
     /* Lookup table for registering message handlers based on the verb. */
     private static Map<StorageService.Verb, IVerbHandler> verbHandlers_;
@@ -103,21 +101,16 @@ public class MessagingService
         listenGate = new SimpleCondition();
         verbHandlers_ = new HashMap<StorageService.Verb, IVerbHandler>();
 
-        Function<String, ?> timeoutReporter = new Function<String, Object>()
+        Function<Pair<String, Pair<InetAddress, IMessageCallback>>, ?> timeoutReporter = new Function<Pair<String, Pair<InetAddress, IMessageCallback>>, Object>()
         {
-            public Object apply(String messageId)
+            public Object apply(Pair<String, Pair<InetAddress, IMessageCallback>> pair)
             {
-                Collection<InetAddress> addresses = targets.remove(messageId);
-                if (addresses == null)
-                    return null;
-
-                for (InetAddress address : addresses)
-                    addLatency(address, (double) DatabaseDescriptor.getRpcTimeout());
-
+                Pair<InetAddress, IMessageCallback> expiredValue = pair.right;
+                maybeAddLatency(expiredValue.right, expiredValue.left, (double) DatabaseDescriptor.getRpcTimeout());
                 return null;
             }
         };
-        callbacks = new ExpiringMap<String, IMessageCallback>((long) (1.1 * DatabaseDescriptor.getRpcTimeout()), timeoutReporter);
+        callbacks = new ExpiringMap<String, Pair<InetAddress, IMessageCallback>>((long) (1.1 * DatabaseDescriptor.getRpcTimeout()), timeoutReporter);
 
         defaultExecutor_ = new JMXEnabledThreadPoolExecutor("MISCELLANEOUS-POOL");
         streamExecutor_ = new JMXEnabledThreadPoolExecutor("MESSAGE-STREAMING-POOL");
@@ -131,6 +124,18 @@ public class MessagingService
         };
         Timer timer = new Timer("DroppedMessagesLogger");
         timer.schedule(logDropped, LOG_DROPPED_INTERVAL_IN_MS, LOG_DROPPED_INTERVAL_IN_MS);
+    }
+
+    /**
+     * Track latency information for the dynamic snitch
+     * @param cb: the callback associated with this message -- this lets us know if it's a message type we're interested in
+     * @param address: the host that replied to the message
+     * @param latency
+     */
+    public void maybeAddLatency(IMessageCallback cb, InetAddress address, double latency)
+    {
+        if (cb instanceof QuorumResponseHandler || cb instanceof AsyncResult)
+            addLatency(address, latency);
     }
 
     public void addLatency(InetAddress address, double latency)
@@ -227,49 +232,9 @@ public class MessagingService
         return verbHandlers_.get(type);
     }
 
-    /**
-     * Send a message to a given endpoint.
-     * @param message message to be sent.
-     * @param to endpoint to which the message needs to be sent
-     * @return an reference to an IAsyncResult which can be queried for the
-     * response
-     */
-    public String sendRR(Message message, InetAddress[] to, IAsyncCallback cb)
+    private void addCallback(IMessageCallback cb, String messageId, InetAddress to)
     {
-        String messageId = message.getMessageId();
-        addCallback(cb, messageId);
-        for (InetAddress endpoint : to)
-        {
-            putTarget(messageId, endpoint);
-            sendOneWay(message, endpoint);
-        }
-        return messageId;
-    }
-
-    private static void putTarget(String messageId, InetAddress endpoint)
-    {
-        Collection<InetAddress> addresses = targets.get(messageId);
-        if (addresses == null)
-        {
-            addresses = new NonBlockingHashSet<InetAddress>();
-            Collection<InetAddress> oldAddresses = targets.putIfAbsent(messageId, addresses);
-            if (oldAddresses != null)
-                addresses = oldAddresses;
-        }
-        addresses.add(endpoint);
-    }
-
-    private static void removeTarget(String messageId, InetAddress from)
-    {
-        Collection<InetAddress> addresses = targets.get(messageId);
-        // null is expected if we removed the callback or we got a reply after its timeout expired
-        if (addresses != null)
-            addresses.remove(from);
-    }
-
-    public void addCallback(IAsyncCallback cb, String messageId)
-    {
-        callbacks.put(messageId, cb);
+        callbacks.put(messageId, new Pair<InetAddress, IMessageCallback>(to, cb));
     }
 
     /**
@@ -285,42 +250,11 @@ public class MessagingService
     public String sendRR(Message message, InetAddress to, IAsyncCallback cb)
     {        
         String messageId = message.getMessageId();
-        addCallback(cb, messageId);
-        putTarget(messageId, to);
+        addCallback(cb, messageId, to);
         sendOneWay(message, to);
         return messageId;
     }
 
-    /**
-     * Send a message to a given endpoint. The ith element in the <code>messages</code>
-     * array is sent to the ith element in the <code>to</code> array.This method assumes
-     * there is a one-one mapping between the <code>messages</code> array and
-     * the <code>to</code> array. Otherwise an  IllegalArgumentException will be thrown.
-     * This method also informs the MessagingService to wait for at least
-     * <code>howManyResults</code> responses to determine success of failure.
-     * @param messages messages to be sent.
-     * @param to endpoints to which the message needs to be sent
-     * @param cb callback interface which is used to pass the responses or
-     *           suggest that a timeout occured to the invoker of the send().
-     * @return an reference to message id used to match with the result
-     */
-    public String sendRR(Message[] messages, InetAddress[] to, IAsyncCallback cb)
-    {
-        if ( messages.length != to.length )
-        {
-            throw new IllegalArgumentException("Number of messages and the number of endpoints need to be same.");
-        }
-        String groupId = GuidGenerator.guid();
-        addCallback(cb, groupId);
-        for ( int i = 0; i < messages.length; ++i )
-        {
-            messages[i].setMessageId(groupId);
-            putTarget(groupId, to[i]);
-            sendOneWay(messages[i], to[i]);
-        }
-        return groupId;
-    } 
-    
     /**
      * Send a message to a given endpoint. This method adheres to the fire and forget
      * style messaging.
@@ -368,8 +302,7 @@ public class MessagingService
     public IAsyncResult sendRR(Message message, InetAddress to)
     {
         IAsyncResult iar = new AsyncResult();
-        callbacks.put(message.getMessageId(), iar);
-        putTarget(message.getMessageId(), to);
+        addCallback(iar, message.getMessageId(), to);
         sendOneWay(message, to);
         return iar;
     }
@@ -443,25 +376,14 @@ public class MessagingService
         }
     }
 
-    public static IMessageCallback getRegisteredCallback(String messageId)
+    public static Pair<InetAddress, IMessageCallback> removeRegisteredCallback(String messageId)
     {
-        return callbacks.get(messageId);
-    }
-    
-    public static IMessageCallback removeRegisteredCallback(String messageId)
-    {
-        targets.remove(messageId); // TODO fix this when we clean up quorum reads to do proper RR
         return callbacks.remove(messageId);
     }
 
     public static long getRegisteredCallbackAge(String messageId)
     {
         return callbacks.getAge(messageId);
-    }
-
-    public static void responseReceivedFrom(String messageId, InetAddress from)
-    {
-        removeTarget(messageId, from);
     }
 
     public static void validateMagic(int magic) throws IOException

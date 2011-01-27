@@ -49,35 +49,25 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
     
     public T get() throws TimeoutException, DigestMismatchException, IOException
     {
+        long timeout = DatabaseDescriptor.getRpcTimeout() - (System.currentTimeMillis() - startTime);
+        boolean success;
         try
         {
-            long timeout = DatabaseDescriptor.getRpcTimeout() - (System.currentTimeMillis() - startTime);
-            boolean success;
-            try
-            {
-                success = condition.await(timeout, TimeUnit.MILLISECONDS);
-            }
-            catch (InterruptedException ex)
-            {
-                throw new AssertionError(ex);
-            }
-
-            if (!success)
-            {
-                StringBuilder sb = new StringBuilder("");
-                for (Message message : responses)
-                {
-                    sb.append(message.getFrom());
-                }
-                throw new TimeoutException("Operation timed out - received only " + responses.size() + " responses from " + sb.toString() + " .");
-            }
+            success = condition.await(timeout, TimeUnit.MILLISECONDS);
         }
-        finally
+        catch (InterruptedException ex)
         {
-            for (Message response : responses)
+            throw new AssertionError(ex);
+        }
+
+        if (!success)
+        {
+            StringBuilder sb = new StringBuilder("");
+            for (Message message : responses)
             {
-                MessagingService.removeRegisteredCallback(response.getMessageId());
+                sb.append(message.getFrom());
             }
+            throw new TimeoutException("Operation timed out - received only " + responses.size() + " responses from " + sb.toString() + " .");
         }
 
         return responseResolver.resolve(responses);

@@ -18,7 +18,11 @@
 
 package org.apache.cassandra.net;
 
+import java.net.InetAddress;
+
 import org.apache.log4j.Logger;
+
+import org.apache.cassandra.utils.Pair;
 
 public class ResponseVerbHandler implements IVerbHandler
 {
@@ -27,14 +31,13 @@ public class ResponseVerbHandler implements IVerbHandler
     public void doVerb(Message message)
     {     
         String messageId = message.getMessageId();
-        MessagingService.responseReceivedFrom(messageId, message.getFrom());
         double age = System.currentTimeMillis() - MessagingService.getRegisteredCallbackAge(messageId);
-        IMessageCallback cb = MessagingService.getRegisteredCallback(messageId);
-        if (cb == null)
+        Pair<InetAddress, IMessageCallback> pair = MessagingService.removeRegisteredCallback(messageId);
+        if (pair == null)
             return;
 
-        // if cb is not null, then age will be valid
-        MessagingService.instance.addLatency(message.getFrom(), age);
+        IMessageCallback cb = pair.right;
+        MessagingService.instance.maybeAddLatency(cb, message.getFrom(), age);
 
         if (cb instanceof IAsyncCallback)
         {
@@ -49,5 +52,4 @@ public class ResponseVerbHandler implements IVerbHandler
             ((IAsyncResult) cb).result(message);
         }
     }
-
 }

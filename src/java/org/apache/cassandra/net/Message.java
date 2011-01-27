@@ -93,11 +93,6 @@ public class Message
         return header_.getMessageId();
     }
 
-    void setMessageId(String id)
-    {
-        header_.setMessageId(id);
-    }    
-
     // TODO should take byte[] + length so we don't have to copy to a byte[] of exactly the right len
     public Message getReply(InetAddress from, byte[] args)
     {
