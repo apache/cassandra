@@ -160,6 +160,21 @@ TRUNCATE <COLUMN FAMILY>
 
 Accepts a single argument for the column family name, and permanently removes all data from said column family.
 
+h2. CREATE KEYSPACE
+
+_Synopsis:_
+
+bc. 
+CREATE KEYSPACE <NAME> WITH replication_factor = <NUM> AND strategy_class = "<STRATEGY>"
+    [AND strategy_options.<OPTION> = <VALUE> [AND strategy_options.<OPTION> = <VALUE>]];
+
+The @CREATE KEYSPACE@ statement creates a new top-level namespace (aka "keyspace"). Valid names are any string constructed of alphanumeric characters and underscores, but must begin with a letter.  Properties such as replication strategy and count are specified during creation using the following accepted keyword arguments:
+
+|_. keyword|_. required|_. description|
+|replication_factor|yes|Numeric argument that specifies the number of replicas for this keyspace.|
+|strategy_class|yes|Class name to use for managing replica placement.  Any of the shipped strategies can be used by specifying the class name relative to org.apache.cassandra.locator, others will need to be fully-qualified and located on the classpath.|
+|strategy_options|no|Some strategies require additional arguments which can be supplied by appending the option name to the @strategy_options@ keyword, separated by a colon (@:@).  For example, a strategy option of "DC1" with a value of "1" would be specified as @strategy_options:DC1 = "1"@.|
+
 h2. Common Idioms
 
 h3(#consistency). Specifying Consistency
