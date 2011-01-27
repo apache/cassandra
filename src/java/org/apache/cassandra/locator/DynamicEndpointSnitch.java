@@ -174,6 +174,21 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     {
         return scores;
     }
+
+    public List<Double> dumpTimings(String hostname) throws UnknownHostException
+    {
+        InetAddress host = InetAddress.getByName(hostname);
+        ArrayList<Double> timings = new ArrayList<Double>();
+        AdaptiveLatencyTracker window = windows.get(host);
+        if (window != null)
+        {
+            for (double time: window)
+            {
+                timings.add(time);
+            }
+        }
+        return timings;
+    }
 }
 
 /** a threadsafe version of BoundedStatsDeque+ArrivalWindow with modification for arbitrary times **/
