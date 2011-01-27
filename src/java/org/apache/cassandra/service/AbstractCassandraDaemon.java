@@ -45,7 +45,6 @@ import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Mx4jTool;
-import org.mortbay.thread.ThreadPool;
 
 /**
  * The <code>CassandraDaemon</code> is an abstraction for a Cassandra daemon
@@ -349,7 +348,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
      * A subclass of Java's ThreadPoolExecutor which implements Jetty's ThreadPool
      * interface (for integration with Avro), and performs ClientState cleanup.
      */
-    public static class CleaningThreadPool extends ThreadPoolExecutor implements ThreadPool
+    public static class CleaningThreadPool extends ThreadPoolExecutor 
     {
         private ThreadLocal<ClientState> state;
         public CleaningThreadPool(ThreadLocal<ClientState> state, int minWorkerThread, int maxWorkerThreads)
@@ -365,42 +364,6 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
             state.get().logout();
         }
 
-        /*********************************************************************/
-        /**   The following are cribbed from org.mortbay.thread.concurrent   */
-        /*********************************************************************/
 
-        public boolean dispatch(Runnable job)
-        {
-            try
-            {       
-                execute(job);
-                return true;
-            }
-            catch(RejectedExecutionException e)
-            {
-                logger.error("Failed to dispatch thread:", e);
-                return false;
-            }
-        }
-
-        public int getIdleThreads()
-        {
-            return getPoolSize()-getActiveCount();
-        }
-
-        public int getThreads()
-        {
-            return getPoolSize();
-        }
-
-        public boolean isLowOnThreads()
-        {
-            return getActiveCount()>=getMaximumPoolSize();
-        }
-
-        public void join() throws InterruptedException
-        {
-            this.awaitTermination(Long.MAX_VALUE,TimeUnit.MILLISECONDS);
-        }
     }
 }
