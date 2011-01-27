@@ -301,7 +301,7 @@ LONG
     ;
 
 IDENT
-    : LETTER (LETTER | DIGIT)*
+    : LETTER (LETTER | DIGIT | '_')*
     ;
     
 WS
