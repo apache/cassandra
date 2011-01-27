@@ -1237,9 +1237,14 @@ public class CliClient extends CliUserHelp
             sessionState.out.println("  Replication Strategy: " + ks_def.strategy_class);
 
             if (ks_def.strategy_class.endsWith(".NetworkTopologyStrategy"))
-                sessionState.out.println("    Options: " + FBUtilities.toString(ks_def.strategy_options));
+            {
+                Map<String, String> options = ks_def.strategy_options;
+                sessionState.out.println("    Options: [" + ((options == null) ? "" : FBUtilities.toString(options)) + "]");
+            }
             else
+            {
                 sessionState.out.println("    Replication Factor: " + ks_def.replication_factor);
+            }
 
             sessionState.out.println("  Column Families:");
 
