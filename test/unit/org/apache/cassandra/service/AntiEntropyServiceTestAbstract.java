@@ -117,7 +117,7 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
         List<RowMutation> rms = new LinkedList<RowMutation>();
         RowMutation rm;
         rm = new RowMutation(tablename, ByteBufferUtil.bytes("key1"));
-        rm.add(new QueryPath(cfname, null, ByteBufferUtil.bytes("Column1")), ByteBufferUtil.bytes("asdf"), 0);
+        rm.add(new QueryPath(cfname, null, ByteBufferUtil.bytes("Column1")), ByteBufferUtil.bytes("asdfasdf"), 0);
         rms.add(rm);
         Util.writeColumnFamily(rms);
 

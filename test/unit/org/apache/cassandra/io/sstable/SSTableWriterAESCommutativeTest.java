@@ -76,10 +76,8 @@ public class SSTableWriterAESCommutativeTest extends CleanupHelper
             );
         cf.addColumn(new CounterColumn(
             ByteBufferUtil.bytes("x"),
-            ByteBuffer.wrap(cc.total(context)),
-            0L,
-            context
-            ));
+            ByteBuffer.wrap(context),
+            0L));
         context = Util.concatByteArrays(
             FBUtilities.toByteArray(1),  FBUtilities.toByteArray(7L), FBUtilities.toByteArray(12L),
             FBUtilities.getLocalAddress().getAddress(),
@@ -90,10 +88,8 @@ public class SSTableWriterAESCommutativeTest extends CleanupHelper
             );
         cf.addColumn(new CounterColumn(
             ByteBufferUtil.bytes("y"),
-            ByteBuffer.wrap(cc.total(context)),
-            0L,
-            context
-            ));
+            ByteBuffer.wrap(context),
+            0L));
 
         buffer = new DataOutputBuffer();
         ColumnFamily.serializer().serializeWithIndexes(cf, buffer);
@@ -123,10 +119,8 @@ public class SSTableWriterAESCommutativeTest extends CleanupHelper
             );
         cf.addColumn(new CounterColumn(
             ByteBufferUtil.bytes("x"),
-            ByteBuffer.wrap(cc.total(context)),
-            0L,
-            context
-            ));
+            ByteBuffer.wrap(context),
+            0L));
         context = Util.concatByteArrays(
             FBUtilities.toByteArray(1),  FBUtilities.toByteArray(7L), FBUtilities.toByteArray(12L),
             FBUtilities.toByteArray(3),  FBUtilities.toByteArray(2L), FBUtilities.toByteArray(33L),
@@ -134,10 +128,8 @@ public class SSTableWriterAESCommutativeTest extends CleanupHelper
             );
         cf.addColumn(new CounterColumn(
             ByteBufferUtil.bytes("y"),
-            ByteBuffer.wrap(cc.total(context)),
-            0L,
-            context
-            ));
+            ByteBuffer.wrap(context),
+            0L));
 
         buffer = new DataOutputBuffer();
         ColumnFamily.serializer().serializeWithIndexes(cf, buffer);

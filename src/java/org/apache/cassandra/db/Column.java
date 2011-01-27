@@ -132,6 +132,11 @@ public class Column implements IColumn
         return size();
     }
 
+    public int serializationFlags()
+    {
+        return 0;
+    }
+
     public void addColumn(IColumn column)
     {
         throw new UnsupportedOperationException("This operation is not supported for simple columns.");
@@ -155,7 +160,7 @@ public class Column implements IColumn
         try
         {
             buffer.writeLong(timestamp);
-            buffer.writeByte((isMarkedForDelete()) ? ColumnSerializer.DELETION_MASK : 0);
+            buffer.writeByte(serializationFlags());
         }
         catch (IOException e)
         {

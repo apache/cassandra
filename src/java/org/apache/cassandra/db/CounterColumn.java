@@ -40,37 +40,27 @@ public class CounterColumn extends Column
 
     private static CounterContext contextManager = CounterContext.instance();
 
-    protected ByteBuffer value;                 // NOT final: delta OR total of partitioned counter
-    protected byte[] partitionedCounter;        // NOT final: only modify inline, carefully
     protected final long timestampOfLastDelete;
+
+    public CounterColumn(ByteBuffer name, long value, long timestamp)
+    {
+        this(name, contextManager.create(value), timestamp);
+    }
+
+    public CounterColumn(ByteBuffer name, long value, long timestamp, long timestampOfLastDelete)
+    {
+        this(name, contextManager.create(value), timestamp, timestampOfLastDelete);
+    }
 
     public CounterColumn(ByteBuffer name, ByteBuffer value, long timestamp)
     {
-      this(name, value, timestamp, contextManager.create());
+        this(name, value, timestamp, Long.MIN_VALUE);
     }
 
-    public CounterColumn(ByteBuffer name, ByteBuffer value, long timestamp, byte[] partitionedCounter)
+    public CounterColumn(ByteBuffer name, ByteBuffer value, long timestamp, long timestampOfLastDelete)
     {
-      this(name, value, timestamp, partitionedCounter, Long.MIN_VALUE);
-    }
-
-    public CounterColumn(ByteBuffer name, ByteBuffer value, long timestamp, byte[] partitionedCounter, long timestampOfLastDelete)
-    {
-        super(name, ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp);
-        this.value = value;
-        this.partitionedCounter = partitionedCounter;
+        super(name, value, timestamp);
         this.timestampOfLastDelete = timestampOfLastDelete;
-    }
-
-    @Override
-    public ByteBuffer value()
-    {
-        return value;
-    }
-
-    public byte[] partitionedCounter()
-    {
-        return partitionedCounter;
     }
 
     public long timestampOfLastDelete()
@@ -78,16 +68,19 @@ public class CounterColumn extends Column
         return timestampOfLastDelete;
     }
 
+    public long total()
+    {
+        return contextManager.total(value);
+    }
+
     @Override
     public int size()
     {
         /*
-         * An expired column adds to a Column : 
-         *    4 bytes for length of partitionedCounter
-         *  + length of partitionedCounter
+         * A counter column adds to a Column :
          *  + 8 bytes for timestampOfLastDelete
          */
-        return super.size() + DBConstants.intSize_ + partitionedCounter.length + DBConstants.tsSize_;
+        return super.size() + DBConstants.tsSize_;
     }
 
     @Override
@@ -99,9 +92,7 @@ public class CounterColumn extends Column
             return column;
         if (timestampOfLastDelete() < ((CounterColumn)column).timestampOfLastDelete())
             return column;
-        ContextRelationship rel = contextManager.diff(
-            ((CounterColumn)column).partitionedCounter(),
-            partitionedCounter());
+        ContextRelationship rel = contextManager.diff(column.value(), value());
         if (ContextRelationship.GREATER_THAN == rel || ContextRelationship.DISJOINT == rel)
             return column;
         return null;
@@ -110,10 +101,7 @@ public class CounterColumn extends Column
     @Override
     public void updateDigest(MessageDigest digest)
     {
-        digest.update(name.duplicate());
-        digest.update(value.duplicate());
-        digest.update(ByteBufferUtil.bytes(timestamp));
-        digest.update(partitionedCounter);
+        super.updateDigest(digest);
         digest.update(ByteBufferUtil.bytes(timestampOfLastDelete));
     }
 
@@ -140,12 +128,7 @@ public class CounterColumn extends Column
                     return column;
                 }
                 // tombstone > live last delete
-                return new CounterColumn(
-                    column.name(),
-                    column.value(),
-                    column.timestamp(),
-                    ((CounterColumn)column).partitionedCounter(),
-                    timestamp());
+                return new CounterColumn(column.name(), column.value(), column.timestamp(), timestamp());
             }
         }
         else if (column.isMarkedForDelete()) // live + tombstone: track last tombstone
@@ -160,63 +143,27 @@ public class CounterColumn extends Column
                 return this;
             }
             // live last delete < tombstone
-            return new CounterColumn(
-                name(),
-                value(),
-                timestamp(),
-                partitionedCounter(),
-                column.timestamp());
+            return new CounterColumn(name(), value(), timestamp(), column.timestamp());
         }
         // live + live: merge clocks; update value
-        byte[] mergedPartitionedCounter = contextManager.merge(
-            partitionedCounter(),
-            ((CounterColumn)column).partitionedCounter());
-		ByteBuffer byteBufferValue;
-		if (0 == mergedPartitionedCounter.length)
-		{
-			long mergedValue = value().getLong(value().arrayOffset()) +
-                               column.value().getLong(column.value().arrayOffset());
-			byteBufferValue = ByteBufferUtil.bytes(mergedValue);
-		} else
-			byteBufferValue = ByteBuffer.wrap(contextManager.total(mergedPartitionedCounter));
         return new CounterColumn(
             name(),
-			byteBufferValue,
+            contextManager.merge(value(), column.value()),
             Math.max(timestamp(), column.timestamp()),
-            mergedPartitionedCounter,
             Math.max(timestampOfLastDelete(), ((CounterColumn)column).timestampOfLastDelete()));
     }
 
     @Override
     public boolean equals(Object o)
     {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
-
-        CounterColumn column = (CounterColumn)o;
-
-        if (timestamp != column.timestamp)
-            return false;
-
-        if (timestampOfLastDelete != column.timestampOfLastDelete)
-            return false;
-
-        if (!Arrays.equals(partitionedCounter, column.partitionedCounter))
-            return false;
-
-        if (!name.equals(column.name))
-            return false;
-
-        return value.equals(column.value);
+        // super.equals() returns false if o is not a CounterColumn
+        return super.equals(o) && timestampOfLastDelete == ((CounterColumn)o).timestampOfLastDelete;
     }
 
     @Override
     public int hashCode()
     {
         int result = super.hashCode();
-        result = 31 * result + (partitionedCounter != null ? Arrays.hashCode(partitionedCounter) : 0);
         result = 31 * result + (int)(timestampOfLastDelete ^ (timestampOfLastDelete >>> 32));
         return result;
     }
@@ -228,7 +175,6 @@ public class CounterColumn extends Column
             ByteBufferUtil.clone(name),
             ByteBufferUtil.clone(value),
             timestamp,
-            partitionedCounter,
             timestampOfLastDelete);
     }
 
@@ -240,46 +186,31 @@ public class CounterColumn extends Column
         sb.append(":");
         sb.append(isMarkedForDelete());
         sb.append(":");
-        sb.append(value.getLong(value.arrayOffset()));
+        sb.append(contextManager.toString(value));
         sb.append("@");
         sb.append(timestamp());
         sb.append("!");
         sb.append(timestampOfLastDelete);
-        sb.append("@");
-        sb.append(contextManager.toString(partitionedCounter));
         return sb.toString();
     }
 
-    private void updateValue()
+    @Override
+    public int serializationFlags()
     {
-        value = ByteBuffer.wrap(contextManager.total(partitionedCounter));
-    }
-
-    public void update(InetAddress node)
-    {
-        long delta = value.getLong(value.arrayOffset());
-        partitionedCounter = contextManager.update(partitionedCounter, node, delta);
-        updateValue();
+        return ColumnSerializer.COUNTER_MASK;
     }
 
     public CounterColumn cleanNodeCounts(InetAddress node)
     {
-        //XXX: inline modification non-destructive; cases:
+        // use cases:
         //     1) AES post-stream
         //     2) RRR, after CF.cloneMe()
         //     3) RRR, after CF.diff() which creates a new CF
-        byte[] cleanPartitionedCounter  = contextManager.cleanNodeCounts(partitionedCounter, node);
-        if (cleanPartitionedCounter == partitionedCounter)
+        ByteBuffer cleanedValue = contextManager.cleanNodeCounts(value, node);
+        if (cleanedValue == value) // reference equality is enough
             return this;
-        if (0 == cleanPartitionedCounter.length)
+        if (0 == value.remaining())
             return null;
-        return new CounterColumn(
-            name,
-            ByteBuffer.wrap(contextManager.total(cleanPartitionedCounter)),
-            timestamp,
-            cleanPartitionedCounter,
-            timestampOfLastDelete
-            );
+        return new CounterColumn(name, cleanedValue, timestamp, timestampOfLastDelete);
     }
 }
-

@@ -295,6 +295,14 @@ public class SuperColumn implements IColumn, IColumnContainer
         this.localDeletionTime.set(localDeleteTime);
         this.markedForDeleteAt.set(timestamp);
     }
+
+    public IColumn shallowCopy()
+    {
+        SuperColumn sc = new SuperColumn(ByteBufferUtil.clone(name_), this.getComparator());
+        sc.localDeletionTime = localDeletionTime;
+        sc.markedForDeleteAt = markedForDeleteAt;
+        return sc;
+    }
     
     public IColumn deepCopy()
     {
@@ -313,6 +321,11 @@ public class SuperColumn implements IColumn, IColumnContainer
     public IColumn reconcile(IColumn c)
     {
         throw new UnsupportedOperationException("This operation is unsupported on super columns.");
+    }
+
+    public int serializationFlags()
+    {
+        throw new UnsupportedOperationException("Super columns don't have a serialization mask");
     }
 }
 

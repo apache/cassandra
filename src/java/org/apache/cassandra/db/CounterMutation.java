@@ -38,6 +38,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 
@@ -163,9 +164,41 @@ public class CounterMutation implements IMutation
 
     public void apply() throws IOException
     {
-        rowMutation.updateCommutativeTypes(FBUtilities.getLocalAddress());
+        // We need to transform all CounterUpdateColumn to CounterColumn and we need to deepCopy. Both are done 
+        // below since CUC.asCounterColumn() does a deep copy.
+        RowMutation rm = new RowMutation(rowMutation.getTable(), ByteBufferUtil.clone(rowMutation.key()));
 
-        rowMutation.deepCopy().apply();
+        for (ColumnFamily cf_ : rowMutation.getColumnFamilies())
+        {
+            ColumnFamily cf = cf_.cloneMeShallow();
+            if (cf_.isSuper())
+            {
+                for (IColumn column : cf_.getSortedColumns())
+                {
+                    IColumn sc = ((SuperColumn)column).shallowCopy();
+                    for (IColumn c : column.getSubColumns())
+                    {
+                        if (c instanceof CounterUpdateColumn)
+                            sc.addColumn(((CounterUpdateColumn) c).asCounterColumn());
+                        else
+                            sc.addColumn(c.deepCopy());
+                    }
+                    cf.addColumn(sc);
+                }
+            }
+            else
+            {
+                for (IColumn column : cf_.getSortedColumns())
+                {
+                    if (column instanceof CounterUpdateColumn)
+                        cf.addColumn(((CounterUpdateColumn) column).asCounterColumn());
+                    else
+                        cf.addColumn(column.deepCopy());
+                }
+            }
+            rm.add(cf);
+        }
+        rm.apply();
     }
 
     @Override

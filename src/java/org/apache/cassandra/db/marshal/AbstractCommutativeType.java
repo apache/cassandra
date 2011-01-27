@@ -39,11 +39,6 @@ public abstract class AbstractCommutativeType extends AbstractType
     public abstract Column createColumn(ByteBuffer name, ByteBuffer value, long timestamp);
 
     /**
-     * update commutative columns for target node
-     */
-    public abstract void update(IColumnContainer cc, InetAddress node);
-
-    /**
      * remove target node from commutative columns
      */
     public abstract void cleanContext(IColumnContainer cc, InetAddress node);

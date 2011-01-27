@@ -17,10 +17,12 @@
  */
 package org.apache.cassandra.db.context;
 
+import java.nio.ByteBuffer;
+
 /**
  * An opaque commutative context.
  *
- * Maintains a byte[] context that represents a partitioned commutative value.
+ * Maintains a ByteBuffer context that represents a partitioned commutative value.
  */
 public interface IContext
 {
@@ -31,13 +33,6 @@ public interface IContext
         LESS_THAN,
         DISJOINT
     };
-
-    /**
-     * Creates an initial context.
-     *
-     * @return the initial context.
-     */
-    public byte[] create();
 
     /**
      * Determine the relationship between two contexts.
@@ -53,7 +48,7 @@ public interface IContext
      *            context.
      * @return the ContextRelationship between the contexts.
      */
-    public ContextRelationship diff(byte[] left, byte[] right);
+    public ContextRelationship diff(ByteBuffer left, ByteBuffer right);
 
     /**
      * Return a context w/ an aggregated count for each node id.
@@ -63,7 +58,7 @@ public interface IContext
      * @param right
      *            context.
      */
-    public byte[] merge(byte[] left, byte[] right);
+    public ByteBuffer merge(ByteBuffer left, ByteBuffer right);
 
     /**
      * Human-readable String from context.
@@ -72,5 +67,5 @@ public interface IContext
      *            context.
      * @return a human-readable String of the context.
      */
-    public String toString(byte[] context);
+    public String toString(ByteBuffer context);
 }

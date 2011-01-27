@@ -173,26 +173,6 @@ public class FBUtilities
     }
 
     /**
-     * @param bytes A byte array containing a serialized integer.
-     * @param offset Start position of the integer in the array.
-     * @return The integer value contained in the byte array.
-     */
-    public static int byteArrayToInt(byte[] bytes, int offset)
-    {
-        if (bytes.length - offset < 4)
-        {
-            throw new IllegalArgumentException("An integer must be 4 bytes in size.");
-        }
-        int n = 0;
-        for ( int i = 0; i < 4; ++i )
-        {
-            n <<= 8;
-            n |= bytes[offset + i] & 0xFF;
-        }
-        return n;
-    }
-
-    /**
      * Copy bytes from long into bytes starting from offset.
      * @param bytes Target array
      * @param offset Offset into the array
@@ -221,36 +201,6 @@ public class FBUtilities
         return bytes;
     }
 
-    /**
-     * @param bytes A byte array containing a serialized long.
-     * @return The long value contained in the byte array.
-     */
-    public static long byteArrayToLong(byte[] bytes)
-    {
-        return byteArrayToLong(bytes, 0);
-    }
-
-    /**
-     * @param bytes A byte array containing a serialized long.
-     * @param offset Start position of the long in the array.
-     * @return The long value contained in the byte array.
-     */
-    public static long byteArrayToLong(byte[] bytes, int offset)
-    {
-        if (bytes.length - offset < 8)
-        {
-            throw new IllegalArgumentException("A long must be 8 bytes in size.");
-        }
-        long n = 0;
-        for ( int i = 0; i < 8; ++i )
-        {
-            n <<= 8;
-
-            n |= bytes[offset + i] & 0xFF;
-        }
-        return n;
-    }
-
     public static int compareUnsigned(byte[] bytes1, byte[] bytes2, int offset1, int offset2, int len1, int len2)
     {
         if (bytes1 == null)
@@ -271,38 +221,6 @@ public class FBUtilities
         else return ((len1 - offset1) < (len2 - offset2)) ? -1 : 1;
     }
   
-    /**
-     * Compare two byte[] at specified offsets for length. Compares the non equal bytes as unsigned.
-     * @param bytes1 First array to compare.
-     * @param offset1 Position to start the comparison at in the first array.
-     * @param bytes2 Second array to compare.
-     * @param offset2 Position to start the comparison at in the second array.
-     * @param length How many bytes to compare?
-     * @return -1 if byte1 is less than byte2, 1 if byte2 is less than byte1 or 0 if equal.
-     */
-    public static int compareByteSubArrays(byte[] bytes1, int offset1, byte[] bytes2, int offset2, int length)
-    {
-        if ( null == bytes1 )
-        {
-            if ( null == bytes2) return 0;
-            else return -1;
-        }
-        if (null == bytes2 ) return 1;
-
-        assert bytes1.length >= (offset1 + length) : "The first byte array isn't long enough for the specified offset and length.";
-        assert bytes2.length >= (offset2 + length) : "The second byte array isn't long enough for the specified offset and length.";
-        for ( int i = 0; i < length; i++ )
-        {
-            byte byte1 = bytes1[offset1+i];
-            byte byte2 = bytes2[offset2+i];
-            if ( byte1 == byte2 )
-                continue;
-            // compare non-equal bytes as unsigned
-            return (byte1 & 0xFF) < (byte2 & 0xFF) ? -1 : 1;
-        }
-        return 0;
-    }
-
     /**
      * @return The bitwise XOR of the inputs. The output will be the same length as the
      * longer input, but if either input is null, the output will be null.

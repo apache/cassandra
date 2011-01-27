@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 import org.apache.commons.lang.ArrayUtils;
 
@@ -63,56 +64,12 @@ public class CounterColumnTest
     {
         AbstractCommutativeType type = CounterColumnType.instance;
         long delta = 3L;
-        CounterColumn column = (CounterColumn)type.createColumn(ByteBufferUtil.bytes("x"), ByteBufferUtil.bytes(delta), 1L);
-        assert delta == column.value().getLong(column.value().arrayOffset());
-        assert 0 == column.partitionedCounter().length;
+        CounterColumn column = new CounterColumn(ByteBufferUtil.bytes("x"), delta, 1L);
 
-        InetAddress node = InetAddress.getByAddress(FBUtilities.toByteArray(1));
-        column.update(node);
-        assert delta == column.value().getLong(column.value().arrayOffset());
-        assert  1 == FBUtilities.byteArrayToInt( column.partitionedCounter(), 0*stepLength);
-        assert 1L == FBUtilities.byteArrayToLong(column.partitionedCounter(), 0*stepLength + idLength);
-        assert 3L == FBUtilities.byteArrayToLong(column.partitionedCounter(), 0*stepLength + idLength + clockLength);
-    }
-
-    @Test
-    public void testUpdate() throws UnknownHostException
-    {
-        CounterColumn c = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBufferUtil.bytes(0L), 0L);
-        assert 0L == c.value().getLong(c.value().arrayOffset());
-
-        assert c.partitionedCounter().length == 0 : "badly formatted initial context";
-
-        c.value = ByteBufferUtil.bytes(1L);
-        c.update(InetAddress.getByAddress(FBUtilities.toByteArray(1)));
-        assert 1L == c.value().getLong(c.value().arrayOffset());
-
-        assert c.partitionedCounter().length == stepLength;
-
-        assert  1 == FBUtilities.byteArrayToInt( c.partitionedCounter(), 0*stepLength);
-        assert 1L == FBUtilities.byteArrayToLong(c.partitionedCounter(), 0*stepLength + idLength);
-        assert 1L == FBUtilities.byteArrayToLong(c.partitionedCounter(), 0*stepLength + idLength + clockLength);
-
-        c.value = ByteBufferUtil.bytes(3L);
-        c.update(InetAddress.getByAddress(FBUtilities.toByteArray(2)));
-
-        c.value = ByteBufferUtil.bytes(2L);
-        c.update(InetAddress.getByAddress(FBUtilities.toByteArray(2)));
-
-        c.value = ByteBufferUtil.bytes(9L);
-        c.update(InetAddress.getByAddress(FBUtilities.toByteArray(2)));
-
-        assert 15L == c.value().getLong(c.value().arrayOffset());
-
-        assert c.partitionedCounter().length == (2 * stepLength);
-
-        assert  1 == FBUtilities.byteArrayToInt(c.partitionedCounter(),  0*stepLength);
-        assert 1L == FBUtilities.byteArrayToLong(c.partitionedCounter(), 0*stepLength + idLength);
-        assert 1L == FBUtilities.byteArrayToLong(c.partitionedCounter(), 0*stepLength + idLength + clockLength);
-
-        assert   2 == FBUtilities.byteArrayToInt(c.partitionedCounter(),  1*stepLength);
-        assert  3L == FBUtilities.byteArrayToLong(c.partitionedCounter(), 1*stepLength + idLength);
-        assert 14L == FBUtilities.byteArrayToLong(c.partitionedCounter(), 1*stepLength + idLength + clockLength);
+        assert delta == column.total();
+        assert Arrays.equals(FBUtilities.getLocalAddress().getAddress(), ArrayUtils.subarray(column.value().array(), 0, idLength));
+        assert 1L == column.value().getLong(0*stepLength + idLength);
+        assert delta == column.value().getLong(0*stepLength + idLength + clockLength);
     }
 
     @Test
@@ -131,178 +88,171 @@ public class CounterColumnTest
 
         // tombstone > live
         left  = new DeletedColumn(ByteBufferUtil.bytes("x"), 1, 2L);
-        right = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBufferUtil.bytes(0L), 1L);
+        right = new CounterColumn(ByteBufferUtil.bytes("x"), 0L, 1L);
 
         assert left.reconcile(right) == left;
 
         // tombstone < live last delete
         left  = new DeletedColumn(ByteBufferUtil.bytes("x"), 1, 1L);
-        right = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBufferUtil.bytes(0L), 4L, new byte[0], 2L);
+        right = new CounterColumn(ByteBufferUtil.bytes("x"), 0L, 4L, 2L);
 
         assert left.reconcile(right) == right;
 
         // tombstone == live last delete
         left  = new DeletedColumn(ByteBufferUtil.bytes("x"), 1, 2L);
-        right = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBufferUtil.bytes(0L), 4L, new byte[0], 2L);
+        right = new CounterColumn(ByteBufferUtil.bytes("x"), 0L, 4L, 2L);
 
         assert left.reconcile(right) == right;
 
         // tombstone > live last delete
         left  = new DeletedColumn(ByteBufferUtil.bytes("x"), 1, 4L);
-        right = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBufferUtil.bytes(0L), 9L, new byte[0], 1L);
+        right = new CounterColumn(ByteBufferUtil.bytes("x"), 0L, 9L, 1L);
 
         reconciled = left.reconcile(right);
         assert reconciled.name() == right.name();
         assert reconciled.value() == right.value();
         assert reconciled.timestamp() == right.timestamp();
-        assert ((CounterColumn)reconciled).partitionedCounter() == ((CounterColumn)right).partitionedCounter();
         assert ((CounterColumn)reconciled).timestampOfLastDelete() == left.timestamp();
 
         // live < tombstone
-        left  = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBufferUtil.bytes(0L), 1L);
+        left  = new CounterColumn(ByteBufferUtil.bytes("x"), 0L, 1L);
         right = new DeletedColumn(ByteBufferUtil.bytes("x"), 1, 2L);
 
         assert left.reconcile(right) == right;
 
         // live last delete > tombstone
-        left  = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBufferUtil.bytes(0L), 4L, new byte[0], 2L);
+        left  = new CounterColumn(ByteBufferUtil.bytes("x"), 0L, 4L, 2L);
         right = new DeletedColumn(ByteBufferUtil.bytes("x"), 1, 1L);
 
         assert left.reconcile(right) == left;
 
         // live last delete == tombstone
-        left  = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBufferUtil.bytes(0L), 4L, new byte[0], 2L);
+        left  = new CounterColumn(ByteBufferUtil.bytes("x"), 0L, 4L, 2L);
         right = new DeletedColumn(ByteBufferUtil.bytes("x"), 1, 2L);
 
         assert left.reconcile(right) == left;
 
         // live last delete < tombstone
-        left  = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBufferUtil.bytes(0L), 9L, new byte[0], 1L);
+        left  = new CounterColumn(ByteBufferUtil.bytes("x"), 0L, 9L, 1L);
         right = new DeletedColumn(ByteBufferUtil.bytes("x"), 1, 4L);
 
         reconciled = left.reconcile(right);
         assert reconciled.name() == left.name();
         assert reconciled.value() == left.value();
         assert reconciled.timestamp() == left.timestamp();
-        assert ((CounterColumn)reconciled).partitionedCounter() == ((CounterColumn)left).partitionedCounter();
         assert ((CounterColumn)reconciled).timestampOfLastDelete() == right.timestamp();
 
         // live + live
-        byte[] context;
 
-        context = new byte[0];
-        context = cc.update(context, InetAddress.getByAddress(FBUtilities.toByteArray(1)), 1L);
-        context = cc.update(context, InetAddress.getByAddress(FBUtilities.toByteArray(1)), 0L);
-        context = cc.update(context, InetAddress.getByAddress(FBUtilities.toByteArray(1)), 1L);
-        context = cc.update(context, InetAddress.getByAddress(FBUtilities.toByteArray(2)), 0L);
-        context = cc.update(context, InetAddress.getByAddress(FBUtilities.toByteArray(2)), 5L);
-        left  = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBuffer.wrap(cc.total(context)), 9L, context, 1L);
+        left = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(FBUtilities.toByteArray(1), 1L, 1L), 4L);
+        right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(FBUtilities.toByteArray(1), 2L, 3L), 1L);
 
-        context = new byte[0];
-        context = cc.update(context, InetAddress.getByAddress(FBUtilities.toByteArray(2)), 4L);
-        context = cc.update(context, InetAddress.getByAddress(FBUtilities.toByteArray(3)), 2L);
-        right = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBuffer.wrap(cc.total(context)), 3L, context, 4L);
+        reconciled = left.reconcile(right);
+        assert reconciled.name().equals(left.name());
+        assert ((CounterColumn)reconciled).total() == 3L;
+        assert reconciled.timestamp() == 4L;
+
+        left = reconciled;
+        right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(FBUtilities.toByteArray(2), 1L, 5L), 2L);
 
         reconciled = left.reconcile(right);
 
-        assert reconciled.name() == left.name();
-        assert 9L == reconciled.value().getLong(reconciled.value().position());
-        assert reconciled.timestamp() == 9L;
+        assert reconciled.name().equals(left.name());
+        assert ((CounterColumn)reconciled).total() == 8L;
+        assert reconciled.timestamp() == 4L;
 
-        context = ((CounterColumn)reconciled).partitionedCounter();
-        assert 3 * stepLength == context.length;
+        left = reconciled;
+        right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(FBUtilities.toByteArray(2), 2L, 2L), 6L);
 
-        assert  1 == FBUtilities.byteArrayToInt(context,  0*stepLength);
-        assert 3L == FBUtilities.byteArrayToLong(context, 0*stepLength + idLength);
-        assert 2L == FBUtilities.byteArrayToLong(context, 0*stepLength + idLength + clockLength);
+        reconciled = left.reconcile(right);
+        assert reconciled.name().equals(left.name());
+        assert ((CounterColumn)reconciled).total() == 5L;
+        assert reconciled.timestamp() == 6L;
 
-        assert  2 == FBUtilities.byteArrayToInt(context,  1*stepLength);
-        assert 2L == FBUtilities.byteArrayToLong(context, 1*stepLength + idLength);
-        assert 5L == FBUtilities.byteArrayToLong(context, 1*stepLength + idLength + clockLength);
+        ByteBuffer context = reconciled.value();
+        assert 2 * stepLength == context.remaining();
 
-        assert  3 == FBUtilities.byteArrayToInt(context,  2*stepLength);
-        assert 1L == FBUtilities.byteArrayToLong(context, 2*stepLength + idLength);
-        assert 2L == FBUtilities.byteArrayToLong(context, 2*stepLength + idLength + clockLength);
+        assert  1 == context.getInt(0*stepLength);
+        assert 2L == context.getLong(0*stepLength + idLength);
+        assert 3L == context.getLong(0*stepLength + idLength + clockLength);
 
-        assert ((CounterColumn)reconciled).timestampOfLastDelete() == 4L;
+        assert  2 == context.getInt(1*stepLength);
+        assert 2L == context.getLong(1*stepLength + idLength);
+        assert 2L == context.getLong(1*stepLength + idLength + clockLength);
+
+        assert ((CounterColumn)reconciled).timestampOfLastDelete() == Long.MIN_VALUE;
     }
 
     @Test
     public void testDiff() throws UnknownHostException
     {
-        byte[] left;
-        byte[] right;
+        ByteBuffer left;
+        ByteBuffer right;
 
         CounterColumn leftCol;
         CounterColumn rightCol;
 
         // timestamp
-        left    = new byte[0];
-        leftCol = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBuffer.wrap(cc.total(left)), 1L, left);
-
-        right    = new byte[0];
-        rightCol = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBuffer.wrap(cc.total(right)), 2L, right);
+        leftCol = new CounterColumn(ByteBufferUtil.bytes("x"), 0, 1L);
+        rightCol = new CounterColumn(ByteBufferUtil.bytes("x"), 0, 2L);
 
         assert rightCol == leftCol.diff(rightCol);
         assert null     == rightCol.diff(leftCol);
 
         // timestampOfLastDelete
-        left    = new byte[0];
-        leftCol = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBuffer.wrap(cc.total(left)), 1L, left, 1L);
-
-        right    = new byte[0];
-        rightCol = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBuffer.wrap(cc.total(right)), 1L, right, 2L);
+        leftCol = new CounterColumn(ByteBufferUtil.bytes("x"), 0, 1L, 1L);
+        rightCol = new CounterColumn(ByteBufferUtil.bytes("x"), 0, 1L, 2L);
 
         assert rightCol == leftCol.diff(rightCol);
         assert null     == rightCol.diff(leftCol);
 
         // equality: equal nodes, all counts same
-        left = Util.concatByteArrays(
+        left = ByteBuffer.wrap(Util.concatByteArrays(
             FBUtilities.toByteArray(3), FBUtilities.toByteArray(3L), FBUtilities.toByteArray(0L),
             FBUtilities.toByteArray(6), FBUtilities.toByteArray(2L), FBUtilities.toByteArray(0L),
             FBUtilities.toByteArray(9), FBUtilities.toByteArray(1L), FBUtilities.toByteArray(0L)
-            );
-        left = cc.update(left, InetAddress.getByAddress(FBUtilities.toByteArray(3)), 0L);
-        right = ArrayUtils.clone(left);
+            ));
+        //left = cc.update(left, InetAddress.getByAddress(FBUtilities.toByteArray(3)), 0L);
+        right = ByteBufferUtil.clone(left);
 
-        leftCol  = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBuffer.wrap(cc.total(left)),  1L, left);
-        rightCol = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBuffer.wrap(cc.total(right)), 1L, right);
+        leftCol  = new CounterColumn(ByteBufferUtil.bytes("x"), left,  1L);
+        rightCol = new CounterColumn(ByteBufferUtil.bytes("x"), right, 1L);
         assert null == leftCol.diff(rightCol);
 
         // greater than: left has superset of nodes (counts equal)
-        left = Util.concatByteArrays(
+        left = ByteBuffer.wrap(Util.concatByteArrays(
             FBUtilities.toByteArray(3),  FBUtilities.toByteArray(3L), FBUtilities.toByteArray(0L),
             FBUtilities.toByteArray(6),  FBUtilities.toByteArray(2L), FBUtilities.toByteArray(0L),
             FBUtilities.toByteArray(9),  FBUtilities.toByteArray(1L), FBUtilities.toByteArray(0L),
             FBUtilities.toByteArray(12), FBUtilities.toByteArray(0L), FBUtilities.toByteArray(0L)
-            );
-        right = Util.concatByteArrays(
+            ));
+        right = ByteBuffer.wrap(Util.concatByteArrays(
             FBUtilities.toByteArray(3),  FBUtilities.toByteArray(3L), FBUtilities.toByteArray(0L),
             FBUtilities.toByteArray(6),  FBUtilities.toByteArray(2L), FBUtilities.toByteArray(0L),
             FBUtilities.toByteArray(9),  FBUtilities.toByteArray(1L), FBUtilities.toByteArray(0L)
-            );
+            ));
 
-        leftCol  = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBuffer.wrap(cc.total(left)),  1L, left);
-        rightCol = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBuffer.wrap(cc.total(right)), 1L, right);
+        leftCol  = new CounterColumn(ByteBufferUtil.bytes("x"), left,  1L);
+        rightCol = new CounterColumn(ByteBufferUtil.bytes("x"), right, 1L);
         assert null == leftCol.diff(rightCol);
 
         // less than: right has subset of nodes (counts equal)
         assert leftCol == rightCol.diff(leftCol);
 
         // disjoint: right and left have disjoint node sets
-        left = Util.concatByteArrays(
+        left = ByteBuffer.wrap(Util.concatByteArrays(
             FBUtilities.toByteArray(3),  FBUtilities.toByteArray(1L), FBUtilities.toByteArray(0L),
             FBUtilities.toByteArray(4),  FBUtilities.toByteArray(1L), FBUtilities.toByteArray(0L),
             FBUtilities.toByteArray(9),  FBUtilities.toByteArray(1L), FBUtilities.toByteArray(0L)
-            );
-        right = Util.concatByteArrays(
+            ));
+        right = ByteBuffer.wrap(Util.concatByteArrays(
             FBUtilities.toByteArray(3),  FBUtilities.toByteArray(1L), FBUtilities.toByteArray(0L),
             FBUtilities.toByteArray(6),  FBUtilities.toByteArray(1L), FBUtilities.toByteArray(0L),
             FBUtilities.toByteArray(9),  FBUtilities.toByteArray(1L), FBUtilities.toByteArray(0L)
-            );
+            ));
 
-        leftCol  = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBuffer.wrap(cc.total(left)),  1L, left);
-        rightCol = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBuffer.wrap(cc.total(right)), 1L, right);
+        leftCol  = new CounterColumn(ByteBufferUtil.bytes("x"), left,  1L);
+        rightCol = new CounterColumn(ByteBufferUtil.bytes("x"), right, 1L);
         assert rightCol == leftCol.diff(rightCol);
         assert leftCol  == rightCol.diff(leftCol);
     }
@@ -310,17 +260,17 @@ public class CounterColumnTest
     @Test
     public void testCleanNodeCounts() throws UnknownHostException
     {
-        byte[] context = Util.concatByteArrays(
+        ByteBuffer context = ByteBuffer.wrap(Util.concatByteArrays(
             FBUtilities.toByteArray(1),  FBUtilities.toByteArray(1L), FBUtilities.toByteArray(1L),
             FBUtilities.toByteArray(2),  FBUtilities.toByteArray(2L), FBUtilities.toByteArray(2L),
             FBUtilities.toByteArray(4),  FBUtilities.toByteArray(3L), FBUtilities.toByteArray(3L),
             FBUtilities.toByteArray(8),  FBUtilities.toByteArray(4L), FBUtilities.toByteArray(4L)
-            );
-        CounterColumn c = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBuffer.wrap(cc.total(context)), 1L, context);
+            ));
+        CounterColumn c = new CounterColumn(ByteBufferUtil.bytes("x"), context, 1L);
 
         CounterColumn d = c.cleanNodeCounts(InetAddress.getByAddress(FBUtilities.toByteArray(4)));
 
-        assertEquals(7L, d.value().getLong(d.value().arrayOffset()));
+        assertEquals(7L, d.total());
     }
 
     @Test
@@ -328,13 +278,13 @@ public class CounterColumnTest
     {
         ColumnFamily cf;
 
-        byte[] context = Util.concatByteArrays(
+        ByteBuffer context = ByteBuffer.wrap(Util.concatByteArrays(
             FBUtilities.toByteArray(1),  FBUtilities.toByteArray(1L), FBUtilities.toByteArray(1L),
             FBUtilities.toByteArray(2),  FBUtilities.toByteArray(2L), FBUtilities.toByteArray(2L),
             FBUtilities.toByteArray(4),  FBUtilities.toByteArray(3L), FBUtilities.toByteArray(3L),
             FBUtilities.toByteArray(8),  FBUtilities.toByteArray(4L), FBUtilities.toByteArray(4L)
-            );
-        CounterColumn original = new CounterColumn(ByteBufferUtil.bytes("x"), ByteBuffer.wrap(cc.total(context)), 1L, context);
+            ));
+        CounterColumn original = new CounterColumn(ByteBufferUtil.bytes("x"), context, 1L);
 
         DataOutputBuffer bufOut = new DataOutputBuffer();
         Column.serializer().serialize(original, bufOut);

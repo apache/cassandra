@@ -56,7 +56,7 @@ public class CounterColumnType extends AbstractCommutativeType
         {
             throw new MarshalException("A long is exactly 8 bytes");
         }
-        return String.valueOf(bytes.getLong(bytes.position()+bytes.arrayOffset()));
+        return String.valueOf(bytes.getLong(bytes.position()));
     }
 
     /**
@@ -64,27 +64,7 @@ public class CounterColumnType extends AbstractCommutativeType
      */
     public Column createColumn(ByteBuffer name, ByteBuffer value, long timestamp)
     {
-        return new CounterColumn(name, value, timestamp);
-    }
-
-    /**
-     * update commutative columns for target node
-     */
-    public void update(IColumnContainer cc, InetAddress node)
-    {
-        for (IColumn column : cc.getSortedColumns())
-        {
-            if (column instanceof SuperColumn)
-            {
-                update((IColumnContainer)column, node);
-                continue;
-            }
-            
-            if (column instanceof DeletedColumn)
-                continue;
-            
-            ((CounterColumn)column).update(node);
-        }
+        return new CounterUpdateColumn(name, value, timestamp);
     }
 
     /**

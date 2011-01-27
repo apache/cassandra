@@ -35,6 +35,7 @@ public interface IColumn
     public ByteBuffer name();
     public int size();
     public int serializedSize();
+    public int serializationFlags();
     public long timestamp();
     public ByteBuffer value();
     public Collection<IColumn> getSubColumns();

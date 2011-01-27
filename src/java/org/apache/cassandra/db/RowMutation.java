@@ -308,20 +308,6 @@ public class RowMutation implements IMutation
         }
     }
 
-    /**
-     * Update the context of all CounterColumns in this RowMutation
-     */
-    public void updateCommutativeTypes(InetAddress node)
-    {
-        for (ColumnFamily cf : modifications_.values())
-        {
-            AbstractType defaultValidator = cf.metadata().getDefaultValidator();
-            if (!defaultValidator.isCommutative())
-                continue;
-            ((AbstractCommutativeType)defaultValidator).update(cf, node);
-        }
-    }
-
     static RowMutation fromBytes(byte[] raw) throws IOException
     {
         RowMutation rm = serializer_.deserialize(new DataInputStream(new ByteArrayInputStream(raw)));

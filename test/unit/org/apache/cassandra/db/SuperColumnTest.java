@@ -55,21 +55,21 @@ public class SuperColumnTest
             FBUtilities.toByteArray(4), FBUtilities.toByteArray(2L), FBUtilities.toByteArray(9L),
             FBUtilities.getLocalAddress().getAddress(), FBUtilities.toByteArray(3L), FBUtilities.toByteArray(3L)
             );
-    	sc.addColumn(new CounterColumn(getBytes(1), ByteBuffer.wrap(cc.total(context)), 3L, context, 0L));
+        sc.addColumn(new CounterColumn(getBytes(1), ByteBuffer.wrap(context), 3L, 0L));
         context = concatByteArrays(
             FBUtilities.toByteArray(2), FBUtilities.toByteArray(3L), FBUtilities.toByteArray(4L),
             FBUtilities.toByteArray(4), FBUtilities.toByteArray(4L), FBUtilities.toByteArray(1L),
             FBUtilities.toByteArray(8), FBUtilities.toByteArray(9L), FBUtilities.toByteArray(0L),
             FBUtilities.getLocalAddress().getAddress(), FBUtilities.toByteArray(9L), FBUtilities.toByteArray(5L)
             );
-    	sc.addColumn(new CounterColumn(getBytes(1), ByteBuffer.wrap(cc.total(context)), 10L, context, 0L));
+        sc.addColumn(new CounterColumn(getBytes(1), ByteBuffer.wrap(context), 10L, 0L));
 
         context = concatByteArrays(
             FBUtilities.toByteArray(2), FBUtilities.toByteArray(1L), FBUtilities.toByteArray(0L),
             FBUtilities.toByteArray(3), FBUtilities.toByteArray(6L), FBUtilities.toByteArray(0L),
             FBUtilities.toByteArray(7), FBUtilities.toByteArray(3L), FBUtilities.toByteArray(0L)
             );
-    	sc.addColumn(new CounterColumn(getBytes(2), ByteBuffer.wrap(cc.total(context)), 9L, context, 0L));
+        sc.addColumn(new CounterColumn(getBytes(2), ByteBuffer.wrap(context), 9L, 0L));
                     
     	assertNotNull(sc.getSubColumn(getBytes(1)));
     	assertNull(sc.getSubColumn(getBytes(3)));
@@ -82,10 +82,10 @@ public class SuperColumnTest
                 FBUtilities.toByteArray(8), FBUtilities.toByteArray(9L), FBUtilities.toByteArray(0L),
                 FBUtilities.getLocalAddress().getAddress(), FBUtilities.toByteArray(12L), FBUtilities.toByteArray(8L)
                 );
-        assert 0 == FBUtilities.compareByteSubArrays(
-            ((CounterColumn)sc.getSubColumn(getBytes(1))).partitionedCounter(),
+        assert 0 == ByteBufferUtil.compareSubArrays(
+            ((CounterColumn)sc.getSubColumn(getBytes(1))).value(),
             0,
-            c1,
+            ByteBuffer.wrap(c1),
             0,
             c1.length);
 
@@ -95,10 +95,10 @@ public class SuperColumnTest
                 FBUtilities.toByteArray(3), FBUtilities.toByteArray(6L), FBUtilities.toByteArray(0L),
                 FBUtilities.toByteArray(7), FBUtilities.toByteArray(3L), FBUtilities.toByteArray(0L)
                 );
-        assert 0 == FBUtilities.compareByteSubArrays(
-            ((CounterColumn)sc.getSubColumn(getBytes(2))).partitionedCounter(),
+        assert 0 == ByteBufferUtil.compareSubArrays(
+            ((CounterColumn)sc.getSubColumn(getBytes(2))).value(),
             0,
-            c2,
+            ByteBuffer.wrap(c2),
             0,
             c2.length);
 

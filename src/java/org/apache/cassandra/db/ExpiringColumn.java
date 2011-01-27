@@ -91,7 +91,7 @@ public class ExpiringColumn extends Column
         try
         {
             buffer.writeLong(timestamp);
-            buffer.writeByte(ColumnSerializer.EXPIRATION_MASK);
+            buffer.writeByte(serializationFlags());
             buffer.writeInt(timeToLive);
         }
         catch (IOException e)
@@ -134,5 +134,11 @@ public class ExpiringColumn extends Column
         {
             throw new IllegalStateException("column is not marked for delete");
         }
+    }
+
+    @Override
+    public int serializationFlags()
+    {
+        return ColumnSerializer.EXPIRATION_MASK;
     }
 }

@@ -37,9 +37,10 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnSerializer.class);
     
-    public final static int DELETION_MASK = 0x01;
-    public final static int EXPIRATION_MASK = 0x02;
-    public final static int COUNTER_MASK    = 0x04;
+    public final static int DELETION_MASK       = 0x01;
+    public final static int EXPIRATION_MASK     = 0x02;
+    public final static int COUNTER_MASK        = 0x04;
+    public final static int COUNTER_UPDATE_MASK = 0x08;
 
     public void serialize(IColumn column, DataOutput dos)
     {
@@ -47,21 +48,15 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
         ByteBufferUtil.writeWithShortLength(column.name(), dos);
         try
         {
+            dos.writeByte(column.serializationFlags());
             if (column instanceof CounterColumn)
             {
-                dos.writeByte(COUNTER_MASK);
                 dos.writeLong(((CounterColumn)column).timestampOfLastDelete());
-                ByteBufferUtil.writeWithShortLength(ByteBuffer.wrap(((CounterColumn)column).partitionedCounter()), dos);
             }
             else if (column instanceof ExpiringColumn)
             {
-                dos.writeByte(EXPIRATION_MASK);
                 dos.writeInt(((ExpiringColumn) column).getTimeToLive());
                 dos.writeInt(column.getLocalDeletionTime());
-            }
-            else
-            {
-                dos.writeByte((column.isMarkedForDelete()) ? DELETION_MASK : 0);
             }
             dos.writeLong(column.timestamp());
             ByteBufferUtil.writeWithLength(column.value(), dos);
@@ -82,11 +77,9 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
         if ((b & COUNTER_MASK) != 0)
         {
             long timestampOfLastDelete = dis.readLong();
-            ByteBuffer pc = ByteBufferUtil.readWithShortLength(dis);
-            byte[] partitionedCounter = ByteBufferUtil.getArray(pc);
-            long timestamp = dis.readLong();
+            long ts = dis.readLong();
             ByteBuffer value = ByteBufferUtil.readWithLength(dis);
-            return new CounterColumn(name, value, timestamp, partitionedCounter, timestampOfLastDelete);
+            return new CounterColumn(name, value, ts, timestampOfLastDelete);
         }
         else if ((b & EXPIRATION_MASK) != 0)
         {
@@ -112,9 +105,11 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
         {
             long ts = dis.readLong();
             ByteBuffer value = ByteBufferUtil.readWithLength(dis);
-            return (b & DELETION_MASK) == 0
-                   ? new Column(name, value, ts)
-                   : new DeletedColumn(name, value, ts);
+            return (b & COUNTER_UPDATE_MASK) != 0
+                   ? new CounterUpdateColumn(name, value, ts)
+                   : ((b & DELETION_MASK) == 0
+                      ? new Column(name, value, ts)
+                      : new DeletedColumn(name, value, ts));
         }
     }
 

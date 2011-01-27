@@ -235,6 +235,38 @@ public class ByteBufferUtil
         }
     }
 
+    /**
+     * Transfer bytes from one ByteBuffer to another.
+     * This function acts as System.arrayCopy() but for ByteBuffers.
+     *
+     * @param src the source ByteBuffer
+     * @param srcPos starting position in the source ByteBuffer
+     * @param dst the destination ByteBuffer
+     * @param dstPos starting position in the destination ByteBuffer
+     * @param length the number of bytes to copy
+     */
+    public static void arrayCopy(ByteBuffer src, int srcPos, ByteBuffer dst, int dstPos, int length)
+    {
+        if (src.hasArray() && dst.hasArray())
+        {
+            System.arraycopy(src.array(),
+                             src.arrayOffset() + srcPos,
+                             dst.array(),
+                             dst.arrayOffset() + dstPos,
+                             length);
+        }
+        else
+        {
+            if (src.limit() - srcPos < length || dst.limit() - dstPos < length)
+                throw new IndexOutOfBoundsException();
+
+            for (int i = 0; i < length; i++)
+            {
+                dst.put(dstPos++, src.get(srcPos++));
+            }
+        }
+    }
+
     public static void writeWithLength(ByteBuffer bytes, DataOutput out) throws IOException
     {
         out.writeInt(bytes.remaining());
@@ -398,5 +430,38 @@ public class ByteBufferUtil
     public static ByteBuffer hexToBytes(String str)
     {
         return ByteBuffer.wrap(FBUtilities.hexToBytes(str));
+    }
+
+    /**
+     * Compare two ByteBuffer at specified offsets for length.
+     * Compares the non equal bytes as unsigned.
+     * @param bytes1 First byte buffer to compare.
+     * @param offset1 Position to start the comparison at in the first array.
+     * @param bytes2 Second byte buffer to compare.
+     * @param offset2 Position to start the comparison at in the second array.
+     * @param length How many bytes to compare?
+     * @return -1 if byte1 is less than byte2, 1 if byte2 is less than byte1 or 0 if equal.
+     */
+    public static int compareSubArrays(ByteBuffer bytes1, int offset1, ByteBuffer bytes2, int offset2, int length)
+    {
+        if ( null == bytes1 )
+        {
+            if ( null == bytes2) return 0;
+            else return -1;
+        }
+        if (null == bytes2 ) return 1;
+
+        assert bytes1.limit() >= offset1 + length : "The first byte array isn't long enough for the specified offset and length.";
+        assert bytes2.limit() >= offset2 + length : "The second byte array isn't long enough for the specified offset and length.";
+        for ( int i = 0; i < length; i++ )
+        {
+            byte byte1 = bytes1.get(offset1 + i);
+            byte byte2 = bytes2.get(offset2 + i);
+            if ( byte1 == byte2 )
+                continue;
+            // compare non-equal bytes as unsigned
+            return (byte1 & 0xFF) < (byte2 & 0xFF) ? -1 : 1;
+        }
+        return 0;
     }
 }

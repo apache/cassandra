@@ -44,6 +44,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.migration.*;
+import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
@@ -1059,12 +1060,12 @@ public class CassandraServer implements Cassandra.Iface
     private Counter getCounter(ColumnOrSuperColumn cosc)
     {
         if (cosc.isSetColumn()) {
-            return new Counter().setColumn(new CounterColumn(cosc.column.name, cosc.column.value.getLong(cosc.column.value.arrayOffset())));
+            return new Counter().setColumn(new CounterColumn(cosc.column.name, CounterContext.instance().total(cosc.column.value)));
         } else if(cosc.isSetSuper_column()) {
             List<CounterColumn> cc = new ArrayList<CounterColumn>(cosc.super_column.columns.size());
             for (Column col : cosc.super_column.columns)
             {
-                cc.add(new CounterColumn(col.name, col.value.getLong(col.value.arrayOffset())));
+                cc.add(new CounterColumn(col.name, CounterContext.instance().total(col.value)));
             }
             return new Counter().setSuper_column(new CounterSuperColumn(cosc.super_column.name, cc));
         }
