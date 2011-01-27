@@ -328,6 +328,8 @@ public class QueryProcessor
         
         CqlResult avroResult = new CqlResult();
         
+        logger.debug("CQL statement type: {}", statement.type.toString());
+        
         switch (statement.type)
         {
             case SELECT:
