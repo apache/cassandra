@@ -197,40 +197,41 @@ public class HintedHandOffManager
         // 3. Delete the subcolumn if the write was successful
         // 4. Force a flush
         // 5. Do major compaction to clean up all deletes etc.
-        DecoratedKey epkey =  StorageService.getPartitioner().decorateKey(ByteBuffer.wrap(endpoint.getHostAddress().getBytes(UTF_8)));
+        ByteBuffer endpointAsUTF8 = ByteBuffer.wrap(endpoint.getHostAddress().getBytes(UTF_8)); // keys have to be UTF8 to make OPP happy
+        DecoratedKey epkey =  StorageService.getPartitioner().decorateKey(endpointAsUTF8);
         int rowsReplayed = 0;
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
         ByteBuffer startColumn = ByteBufferUtil.EMPTY_BYTE_BUFFER;
-        delivery:
-            while (true)
-            {
-                QueryFilter filter = QueryFilter.getSliceFilter(epkey, new QueryPath(HINTS_CF), startColumn, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, PAGE_SIZE);
-                ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
-                if (pagingFinished(hintColumnFamily, startColumn))
-                    break;
-                Collection<IColumn> keyColumns = hintColumnFamily.getSortedColumns();
-                for (IColumn keyColumn : keyColumns)
-                {
-                    startColumn = keyColumn.name();
-                    Collection<IColumn> tableCFs = keyColumn.getSubColumns();
-                    for (IColumn tableCF : tableCFs)
-                    {
-                        String[] parts = getTableAndCFNames(tableCF.name());
-                        if (sendMessage(endpoint, parts[0], parts[1], keyColumn.name()))
-                        {
-                            deleteHintKey(ByteBuffer.wrap(endpoint.getHostAddress().getBytes(UTF_8)), keyColumn.name(), tableCF.name(), tableCF.timestamp());
-                            rowsReplayed++;
-                        }
-                        else
-                        {
-                            logger_.info("Could not complete hinted handoff to " + endpoint);
-                            break delivery;
-                        }
 
-                        startColumn = keyColumn.name();
+        delivery:
+        while (true)
+        {
+            QueryFilter filter = QueryFilter.getSliceFilter(epkey, new QueryPath(HINTS_CF), startColumn, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, PAGE_SIZE);
+            ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
+            if (pagingFinished(hintColumnFamily, startColumn))
+                break;
+            for (IColumn keyColumn : hintColumnFamily.getSortedColumns())
+            {
+                startColumn = keyColumn.name();
+                Collection<IColumn> tableCFs = keyColumn.getSubColumns();
+                for (IColumn tableCF : tableCFs)
+                {
+                    String[] parts = getTableAndCFNames(tableCF.name());
+                    if (sendMessage(endpoint, parts[0], parts[1], keyColumn.name()))
+                    {
+                        deleteHintKey(endpointAsUTF8, keyColumn.name(), tableCF.name(), tableCF.timestamp());
+                        rowsReplayed++;
                     }
+                    else
+                    {
+                        logger_.info("Could not complete hinted handoff to " + endpoint);
+                        break delivery;
+                    }
+
+                    startColumn = keyColumn.name();
                 }
             }
+        }
 
         if (rowsReplayed > 0)
         {
