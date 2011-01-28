@@ -552,7 +552,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 if (logger.isDebugEnabled())
                     logger.debug("reading data for " + command + " locally");
-                StageManager.getStage(Stage.READ).submit(new LocalReadRunnable(command, handler));
+                StageManager.getStage(Stage.READ).execute(new LocalReadRunnable(command, handler));
             }
             else
             {
@@ -571,7 +571,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     if (logger.isDebugEnabled())
                         logger.debug("reading digest for " + command + " locally");
-                    StageManager.getStage(Stage.READ).submit(new LocalReadRunnable(digestCommand, handler));
+                    StageManager.getStage(Stage.READ).execute(new LocalReadRunnable(digestCommand, handler));
                 }
                 else
                 {

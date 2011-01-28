@@ -36,17 +36,16 @@ public class DeletionService
 
     public static final ExecutorService executor = new JMXEnabledThreadPoolExecutor("FILEUTILS-DELETE-POOL");
 
-    public static void submitDelete(final String file)
+    public static void executeDelete(final String file)
     {
         Runnable deleter = new WrappedRunnable()
         {
-            @Override
             protected void runMayThrow() throws IOException
             {
                 FileUtils.deleteWithConfirm(new File(file));
             }
         };
-        executor.submit(deleter);
+        executor.execute(deleter);
     }
     
     public static void waitFor() throws InterruptedException, ExecutionException

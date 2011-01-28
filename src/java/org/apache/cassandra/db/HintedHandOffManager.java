@@ -298,7 +298,7 @@ public class HintedHandOffManager
                 deliverHintsToEndpoint(to);
             }
         };
-    	executor_.submit(r);
+    	executor_.execute(r);
     }
 
     public void deliverHints(String to) throws UnknownHostException

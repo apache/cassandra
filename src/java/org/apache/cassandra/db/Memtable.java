@@ -167,7 +167,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     public void flushAndSignal(final CountDownLatch latch, ExecutorService sorter, final ExecutorService writer)
     {
         cfs.getMemtablesPendingFlush().add(this); // it's ok for the MT to briefly be both active and pendingFlush
-        writer.submit(new WrappedRunnable()
+        writer.execute(new WrappedRunnable()
         {
             public void runMayThrow() throws IOException
             {

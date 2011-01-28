@@ -141,12 +141,12 @@ public class BinaryMemtable implements IFlushable
 
     public void flushAndSignal(final CountDownLatch latch, ExecutorService sorter, final ExecutorService writer)
     {
-        sorter.submit(new Runnable()
+        sorter.execute(new Runnable()
         {
             public void run()
             {
                 final List<DecoratedKey> sortedKeys = getSortedKeys();
-                writer.submit(new WrappedRunnable()
+                writer.execute(new WrappedRunnable()
                 {
                     public void runMayThrow() throws IOException
                     {

@@ -262,7 +262,7 @@ public class AntiEntropyService
      * 2. add() - 0 or more times, to add hashes to the tree.
      * 3. complete() - Enqueues any operations that were blocked waiting for a valid tree.
      */
-    public static class Validator implements Callable<Object>
+    public static class Validator implements Runnable
     {
         public final TreeRequest request;
         public final MerkleTree tree;
@@ -409,7 +409,7 @@ public class AntiEntropyService
                 for (MerkleTree.RowHash minrow : minrows)
                     range.addHash(minrow);
 
-            StageManager.getStage(Stage.ANTI_ENTROPY).submit(this);
+            StageManager.getStage(Stage.ANTI_ENTROPY).execute(this);
             logger.debug("Validated " + validated + " rows into AEService tree for " + request);
         }
         
@@ -418,13 +418,10 @@ public class AntiEntropyService
          *
          * @return A meaningless object.
          */
-        public Object call() throws Exception
+        public void run()
         {
             // respond to the request that triggered this validation
             AntiEntropyService.instance.respond(this, FBUtilities.getLocalAddress());
-
-            // return any old object
-            return AntiEntropyService.class;
         }
     }
 

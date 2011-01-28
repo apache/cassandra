@@ -47,7 +47,7 @@ public class EmbeddedServer extends CleanupHelper
     public static void startCassandra() throws IOException
 
     {
-        executor.submit(new Runnable()
+        executor.execute(new Runnable()
         {
             public void run()
             {

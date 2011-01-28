@@ -50,7 +50,7 @@ public class DebuggableThreadPoolExecutorTest
         long start = System.currentTimeMillis();
         for (int i = 0; i < 10; i++)
         {
-            executor.submit(runnable);
+            executor.execute(runnable);
         }
         assert q.size() > 0 : q.size();
         while (executor.getCompletedTaskCount() < 10)

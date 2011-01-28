@@ -434,8 +434,8 @@ public class CommitLog
             {
                 logger.info("Discarding obsolete commit log:" + segment);
                 segment.close();
-                DeletionService.submitDelete(segment.getHeaderPath());
-                DeletionService.submitDelete(segment.getPath());
+                DeletionService.executeDelete(segment.getHeaderPath());
+                DeletionService.executeDelete(segment.getPath());
                 // usually this will be the first (remaining) segment, but not always, if segment A contains
                 // writes to a CF that is unflushed but is followed by segment B whose CFs are all flushed.
                 iter.remove();
