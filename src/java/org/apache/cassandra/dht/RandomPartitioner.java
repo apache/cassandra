@@ -98,11 +98,7 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
 
         public Token<BigInteger> fromByteArray(ByteBuffer bytes)
         {
-            byte[] b = new byte[bytes.remaining()];
-            bytes.get(b);
-            bytes.rewind();
-            
-            return new BigIntegerToken(new BigInteger(b));
+            return new BigIntegerToken(new BigInteger(ByteBufferUtil.getArray(bytes)));
         }
 
         public String toString(Token<BigInteger> bigIntegerToken)

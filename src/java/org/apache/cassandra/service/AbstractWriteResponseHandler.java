@@ -70,13 +70,6 @@ public abstract class AbstractWriteResponseHandler implements IWriteResponseHand
         }
     }
 
-    public void addHintCallback(Message hintedMessage, InetAddress destination)
-    {
-        // (non-destination hints are part of the callback and count towards consistency only under CL.ANY)
-        if (writeEndpoints.contains(destination) || consistencyLevel == ConsistencyLevel.ANY)
-            MessagingService.instance().addCallback(this, hintedMessage.getMessageId());
-    }
-
     /** null message means "response from local write" */
     public abstract void response(Message msg);
 

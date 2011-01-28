@@ -135,7 +135,12 @@ public class ByteBufferUtil
     public static byte[] getArray(ByteBuffer b, int start, int length)
     {
         if (b.hasArray())
-            return Arrays.copyOfRange(b.array(), start + b.arrayOffset(), start + length + b.arrayOffset());
+        {
+            if (b.arrayOffset() == 0 && start == 0 && length == b.array().length)
+                return b.array();
+            else
+                return Arrays.copyOfRange(b.array(), start + b.arrayOffset(), start + length + b.arrayOffset());
+        }
 
         byte[] bytes = new byte[length];
 

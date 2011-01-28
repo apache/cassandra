@@ -25,27 +25,22 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.locator.ILatencyPublisher;
-import org.apache.cassandra.locator.ILatencySubscriber;
+import org.apache.cassandra.utils.Pair;
 
-public class ResponseVerbHandler implements IVerbHandler, ILatencyPublisher
+public class ResponseVerbHandler implements IVerbHandler
 {
     private static final Logger logger_ = LoggerFactory.getLogger( ResponseVerbHandler.class );
-    private List<ILatencySubscriber>  subscribers = new ArrayList<ILatencySubscriber>();
-
 
     public void doVerb(Message message)
     {     
         String messageId = message.getMessageId();
-        MessagingService.instance().responseReceivedFrom(messageId, message.getFrom());
         double age = System.currentTimeMillis() - MessagingService.instance().getRegisteredCallbackAge(messageId);
-        IMessageCallback cb = MessagingService.instance().getRegisteredCallback(messageId);
-        if (cb == null)
+        Pair<InetAddress, IMessageCallback> pair = MessagingService.instance().removeRegisteredCallback(messageId);
+        if (pair == null)
             return;
 
-        // if cb is not null, then age will be valid
-        for (ILatencySubscriber subscriber : subscribers)
-            subscriber.receiveTiming(message.getFrom(), age);
+        IMessageCallback cb = pair.right;
+        MessagingService.instance().maybeAddLatency(cb, message.getFrom(), age);
 
         if (cb instanceof IAsyncCallback)
         {
@@ -59,10 +54,5 @@ public class ResponseVerbHandler implements IVerbHandler, ILatencyPublisher
                 logger_.debug("Processing response on an async result from " + message.getMessageId() + "@" + message.getFrom());
             ((IAsyncResult) cb).result(message);
         }
-    }
-
-    public void register(ILatencySubscriber subscriber)
-    {
-        subscribers.add(subscriber);
     }
 }

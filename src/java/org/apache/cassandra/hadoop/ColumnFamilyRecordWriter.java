@@ -40,7 +40,7 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TSocket;
 
-import static org.apache.cassandra.io.SerDeUtils.copy;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * The <code>ColumnFamilyRecordWriter</code> maps the output &lt;key, value&gt;
@@ -169,7 +169,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
             org.apache.cassandra.hadoop.avro.SlicePredicate apred = amut.deletion.predicate;
             if (amut.deletion.super_column != null)
                 // super column
-                deletion.setSuper_column(copy(amut.deletion.super_column));
+                deletion.setSuper_column(ByteBufferUtil.getArray(amut.deletion.super_column));
             else if (apred.column_names != null)
             {
                 // column names
