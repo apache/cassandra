@@ -28,6 +28,7 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -61,6 +62,22 @@ public class FBUtilities
     public static final BigInteger TWO = new BigInteger("2");
 
     private static volatile InetAddress localInetAddress_;
+
+    private static final ThreadLocal<MessageDigest> localMessageDigest = new ThreadLocal<MessageDigest>()
+    {
+        @Override
+        protected MessageDigest initialValue()
+        {
+            try
+            {
+                return MessageDigest.getInstance("MD5");
+            }
+            catch (NoSuchAlgorithmException e)
+            {
+                throw new AssertionError(e);
+            }
+        }
+    };
 
     public static final int MAX_UNSIGNED_SHORT = 0xFFFF;
 
@@ -245,19 +262,20 @@ public class FBUtilities
         return out;
     }
 
-    public static BigInteger md5hash(ByteBuffer data)
+    public static BigInteger hashToBigInteger(ByteBuffer data)
     {
-        byte[] result = hash("MD5", data);
+        byte[] result = hash(data);
         BigInteger hash = new BigInteger(result);
         return hash.abs();        
     }
 
-    public static byte[] hash(String type, ByteBuffer... data)
+    public static byte[] hash(ByteBuffer... data)
     {
     	byte[] result;
     	try
         {
-            MessageDigest messageDigest = MessageDigest.getInstance(type);
+            MessageDigest messageDigest = localMessageDigest.get();
+            messageDigest.reset();
             for(ByteBuffer block : data)
             {
                 messageDigest.update(ByteBufferUtil.clone(block));

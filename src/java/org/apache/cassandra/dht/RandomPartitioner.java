@@ -84,7 +84,7 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
 
     public BigIntegerToken getRandomToken()
     {
-        BigInteger token = FBUtilities.md5hash(GuidGenerator.guidAsBytes());
+        BigInteger token = FBUtilities.hashToBigInteger(GuidGenerator.guidAsBytes());
         if ( token.signum() == -1 )
             token = token.multiply(BigInteger.valueOf(-1L));
         return new BigIntegerToken(token);
@@ -126,7 +126,7 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
     {
         if (key.remaining() == 0)
             return MINIMUM;
-        return new BigIntegerToken(FBUtilities.md5hash(key));
+        return new BigIntegerToken(FBUtilities.hashToBigInteger(key));
     }
 
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens)
