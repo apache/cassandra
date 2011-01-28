@@ -20,7 +20,9 @@
 package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Map;
+import java.util.List;
 
 public interface DynamicEndpointSnitchMBean {
     public Map<InetAddress, Double> getScores();
@@ -28,4 +30,5 @@ public interface DynamicEndpointSnitchMBean {
     public int getResetInterval();
     public double getBadnessThreshold();
     public String getSubsnitchClassName();
+    public List<Double> dumpTimings(String hostname) throws UnknownHostException;
 }

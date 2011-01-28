@@ -148,15 +148,14 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
             Token start = (Token)i.next(); BigInteger ti = ((BigIntegerToken)start).token;  // The first token and its value
             Token t; BigInteger tim1 = ti;                                                  // The last token and its value (after loop)
             while (i.hasNext()) {
-                t = (Token)i.next(); ti = ((BigIntegerToken)t).token;                       // The next token and its value
-                float x = new BigDecimal(ti.subtract(tim1)).divide(r).floatValue();         // %age = T(i) - T(i-1) / R
-                ownerships.put(t, x);                                                       // save (T(i) -> %age)
-                tim1 = ti;                                                                  // -> advance loop
+                t = (Token)i.next(); ti = ((BigIntegerToken)t).token;                               // The next token and its value
+                float x = new BigDecimal(ti.subtract(tim1).add(ri).mod(ri)).divide(r).floatValue(); // %age = ((T(i) - T(i-1) + R) % R) / R
+                ownerships.put(t, x);                                                               // save (T(i) -> %age)
+                tim1 = ti;                                                                          // -> advance loop
             }
-            // The start token's range extends backward to the last token, which is why both were saved
-            //  above. The simple calculation for this is: T(start) - T(end) + r % r / r.
-            //  (In the 1-case, this produces 0% instead of 100%.)
-            ownerships.put(start, new BigDecimal(((BigIntegerToken)start).token.subtract(ti).add(ri).mod(ri)).divide(r).floatValue());
+            // The start token's range extends backward to the last token, which is why both were saved above.
+            float x = new BigDecimal(((BigIntegerToken)start).token.subtract(ti).add(ri).mod(ri)).divide(r).floatValue();
+            ownerships.put(start, x);
         }
         return ownerships;
     }

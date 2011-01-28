@@ -20,6 +20,7 @@ package org.apache.cassandra.locator;
 
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -252,6 +253,20 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         return subsnitch.getClass().getName();
     }
 
+    public List<Double> dumpTimings(String hostname) throws UnknownHostException
+    {
+        InetAddress host = InetAddress.getByName(hostname);
+        ArrayList<Double> timings = new ArrayList<Double>();
+        AdaptiveLatencyTracker window = windows.get(host);
+        if (window != null)
+        {
+            for (double time: window)
+            {
+                timings.add(time);
+            }
+        }
+        return timings;
+    }
 
 }
 
@@ -307,4 +322,5 @@ class AdaptiveLatencyTracker extends AbstractStatsDeque
         }
         return log;
     }
+
 }
