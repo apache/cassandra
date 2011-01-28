@@ -23,9 +23,11 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
+import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -91,8 +93,7 @@ public class SSTableDeletingReference extends PhantomReference<SSTableReader>
                 }
             }
             // let the remainder be cleaned up by delete
-            components.remove(Component.DATA);
-            SSTable.delete(desc, components);
+            SSTable.delete(desc, Sets.difference(components, Collections.singleton(Component.DATA)));
             tracker.spaceReclaimed(size);
         }
     }
