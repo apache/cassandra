@@ -27,8 +27,5 @@ This product includes the Jetty HTTP server
 (http://jetty.codehaus.org/jetty/).
 Copyright 1995-2006 Mort Bay Consulting Pty Ltd
 
-Alternative UUID support provided by Jug (http://jug.safehaus.org/).
-Copyright (c) 2002- Tatu Saloranta.
-
 YAML support provided by snakeyaml (http://code.google.com/p/snakeyaml/).
 Copyright (c) 2008-2010 Andrey Somov
