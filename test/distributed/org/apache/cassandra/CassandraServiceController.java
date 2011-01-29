@@ -197,15 +197,15 @@ public class CassandraServiceController
         try
         {
             LOG.info("Shutting down cluster...");
-            if (service != null)
-                service.destroyCluster(clusterSpec);
             if (tarball != null)
                 BlobUtils.deleteBlob(config, clusterSpec, tarball);
+            if (service != null)
+                service.destroyCluster(clusterSpec);
             running = false;
         }
         catch (Exception e)
         {
-            LOG.error(String.format("Error shutting down cluster: %s", e));
+            LOG.error("Error shutting down cluster.", e);
         }
     }
 
