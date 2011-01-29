@@ -18,63 +18,63 @@
 */
 package org.apache.cassandra.db.marshal;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Random;
+import java.util.UUID;
 
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
 import org.apache.cassandra.utils.UUIDGen;
-import org.safehaus.uuid.UUID;
-import org.safehaus.uuid.UUIDGenerator;
 
 public class TimeUUIDTypeTest
 {
     TimeUUIDType timeUUIDType = new TimeUUIDType();
-    UUIDGenerator generator = UUIDGenerator.getInstance();
 
     @Test
-    public void testEquality()
+    public void testEquality() throws UnknownHostException
     {
-        UUID a = generator.generateTimeBasedUUID();
-        UUID b = new UUID(a.asByteArray());
-
-        timeUUIDType.validate(ByteBuffer.wrap(a.asByteArray()));
-        timeUUIDType.validate(ByteBuffer.wrap(b.asByteArray()));
-        assertEquals(0, timeUUIDType.compare(ByteBuffer.wrap(a.asByteArray()), ByteBuffer.wrap(b.asByteArray())));
+        UUID a = UUIDGen.makeType1UUIDFromHost(InetAddress.getLocalHost());
+        UUID b = new UUID(a.getMostSignificantBits(), a.getLeastSignificantBits());
+        
+        timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(a)));
+        timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(b)));
+        assertEquals(0, timeUUIDType.compare(ByteBuffer.wrap(UUIDGen.decompose(a)), ByteBuffer.wrap(UUIDGen.decompose(b))));
     }
 
     @Test
-    public void testSmaller()
+    public void testSmaller() throws UnknownHostException
     {
-        UUID a = generator.generateTimeBasedUUID();
-        UUID b = generator.generateTimeBasedUUID();
-        UUID c = generator.generateTimeBasedUUID();
+        UUID a = UUIDGen.makeType1UUIDFromHost(InetAddress.getLocalHost());
+        UUID b = UUIDGen.makeType1UUIDFromHost(InetAddress.getLocalHost());
+        UUID c = UUIDGen.makeType1UUIDFromHost(InetAddress.getLocalHost());
 
-        timeUUIDType.validate(ByteBuffer.wrap(a.asByteArray()));
-        timeUUIDType.validate(ByteBuffer.wrap(b.asByteArray()));
-        timeUUIDType.validate(ByteBuffer.wrap(c.asByteArray()));
+        timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(a)));
+        timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(b)));
+        timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(c)));
         
-        assert timeUUIDType.compare(ByteBuffer.wrap(a.asByteArray()), ByteBuffer.wrap(b.asByteArray())) < 0;
-        assert timeUUIDType.compare(ByteBuffer.wrap(b.asByteArray()), ByteBuffer.wrap(c.asByteArray())) < 0;
-        assert timeUUIDType.compare(ByteBuffer.wrap(a.asByteArray()), ByteBuffer.wrap(c.asByteArray())) < 0;
+        assert timeUUIDType.compare(ByteBuffer.wrap(UUIDGen.decompose(a)), ByteBuffer.wrap(UUIDGen.decompose(b))) < 0;
+        assert timeUUIDType.compare(ByteBuffer.wrap(UUIDGen.decompose(b)), ByteBuffer.wrap(UUIDGen.decompose(c))) < 0;
+        assert timeUUIDType.compare(ByteBuffer.wrap(UUIDGen.decompose(a)), ByteBuffer.wrap(UUIDGen.decompose(c))) < 0;
     }
 
     @Test
-    public void testBigger()
+    public void testBigger() throws UnknownHostException
     {
-        UUID a = generator.generateTimeBasedUUID();
-        UUID b = generator.generateTimeBasedUUID();
-        UUID c = generator.generateTimeBasedUUID();
-        
-        timeUUIDType.validate(ByteBuffer.wrap(a.asByteArray()));
-        timeUUIDType.validate(ByteBuffer.wrap(b.asByteArray()));
-        timeUUIDType.validate(ByteBuffer.wrap(c.asByteArray()));
+        UUID a = UUIDGen.makeType1UUIDFromHost(InetAddress.getLocalHost());
+        UUID b = UUIDGen.makeType1UUIDFromHost(InetAddress.getLocalHost());
+        UUID c = UUIDGen.makeType1UUIDFromHost(InetAddress.getLocalHost());
 
-        assert timeUUIDType.compare(ByteBuffer.wrap(c.asByteArray()), ByteBuffer.wrap(b.asByteArray())) > 0;
-        assert timeUUIDType.compare(ByteBuffer.wrap(b.asByteArray()), ByteBuffer.wrap(a.asByteArray())) > 0;
-        assert timeUUIDType.compare(ByteBuffer.wrap(c.asByteArray()), ByteBuffer.wrap(a.asByteArray())) > 0;
+        timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(a)));
+        timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(b)));
+        timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(c)));
+
+        assert timeUUIDType.compare(ByteBuffer.wrap(UUIDGen.decompose(c)), ByteBuffer.wrap(UUIDGen.decompose(b))) > 0;
+        assert timeUUIDType.compare(ByteBuffer.wrap(UUIDGen.decompose(b)), ByteBuffer.wrap(UUIDGen.decompose(a))) > 0;
+        assert timeUUIDType.compare(ByteBuffer.wrap(UUIDGen.decompose(c)), ByteBuffer.wrap(UUIDGen.decompose(a))) > 0;
     }
 
     @Test
@@ -102,7 +102,7 @@ public class TimeUUIDTypeTest
     @Test
     public void testValidTimeVersion()
     {
-        java.util.UUID uuid1 = java.util.UUID.fromString("00000000-0000-1000-0000-000000000000");
+        UUID uuid1 = UUID.fromString("00000000-0000-1000-0000-000000000000");
         assert uuid1.version() == 1;
         timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(uuid1)));
     }
@@ -110,7 +110,7 @@ public class TimeUUIDTypeTest
     @Test(expected = MarshalException.class)
     public void testInvalidTimeVersion()
     {
-        java.util.UUID uuid2 = java.util.UUID.fromString("00000000-0000-2100-0000-000000000000");
+        UUID uuid2 = UUID.fromString("00000000-0000-2100-0000-000000000000");
         assert uuid2.version() == 2;
         timeUUIDType.validate(ByteBuffer.wrap(UUIDGen.decompose(uuid2)));
     }

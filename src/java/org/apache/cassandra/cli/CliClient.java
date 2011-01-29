@@ -39,7 +39,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.thrift.TBaseHelper;
 import org.apache.thrift.TException;
-import org.safehaus.uuid.UUIDGenerator;
 
 // Cli Client Side Library
 public class CliClient extends CliUserHelp
@@ -1809,7 +1808,7 @@ public class CliClient extends CliUserHelp
             {
                 if (validator instanceof TimeUUIDType)
                 {
-                    value = ByteBuffer.wrap(UUIDGenerator.getInstance().generateTimeBasedUUID().asByteArray());
+                    value = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
                 }
                 else if (validator instanceof LexicalUUIDType)
                 {

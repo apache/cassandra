@@ -1,14 +1,13 @@
 package org.apache.cassandra.db.marshal;
 
-import com.google.common.base.Charsets;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.utils.UUIDGen;
 import org.junit.Test;
-import org.safehaus.uuid.UUIDGenerator;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
-import java.util.Random;
+import java.util.UUID;
 
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -40,15 +39,14 @@ public class TypeValidationTest
     @Test(expected = MarshalException.class)
     public void testInvalidTimeUUID()
     {
-        org.safehaus.uuid.UUID uuid = UUIDGenerator.getInstance().generateRandomBasedUUID();
-        TimeUUIDType.instance.validate(ByteBuffer.wrap(uuid.toByteArray()));
+        UUID uuid = UUID.randomUUID();
+        TimeUUIDType.instance.validate(ByteBuffer.wrap(UUIDGen.decompose(uuid)));
     }
     
     @Test 
     public void testValidTimeUUID()
     {
-        org.safehaus.uuid.UUID uuid = UUIDGenerator.getInstance().generateTimeBasedUUID();
-        TimeUUIDType.instance.validate(ByteBuffer.wrap(uuid.toByteArray()));
+        TimeUUIDType.instance.validate(ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes()));
     }
     
     @Test
