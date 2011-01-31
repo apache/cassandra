@@ -149,6 +149,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public static final RetryingScheduledThreadPoolExecutor scheduledTasks = new RetryingScheduledThreadPoolExecutor("ScheduledTasks");
 
+    /* This abstraction maintains the token/endpoint metadata information */
+    private TokenMetadata tokenMetadata_ = new TokenMetadata();
+
     private static IPartitioner partitioner_ = DatabaseDescriptor.getPartitioner();
     public static VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner_);
     
@@ -167,9 +170,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         return getPrimaryRangeForEndpoint(FBUtilities.getLocalAddress());
     }
-
-    /* This abstraction maintains the token/endpoint metadata information */
-    private TokenMetadata tokenMetadata_ = new TokenMetadata();
 
     private Set<InetAddress> replicatingNodes = Collections.synchronizedSet(new HashSet<InetAddress>());
     private CassandraDaemon daemon;
