@@ -120,8 +120,17 @@ public class DatabaseDescriptor
         {
             URL url = getStorageConfigURL();
             logger.info("Loading settings from " + url);
-            
-            InputStream input = url.openStream();
+
+            InputStream input = null;
+            try
+            {
+                input = url.openStream();
+            }
+            catch (IOException e)
+            {
+                // getStorageConfigURL should have ruled this out
+                throw new AssertionError(e);
+            }
             org.yaml.snakeyaml.constructor.Constructor constructor = new org.yaml.snakeyaml.constructor.Constructor(Config.class);
             TypeDescription desc = new TypeDescription(Config.class);
             desc.putListPropertyType("keyspaces", RawKeyspace.class);
@@ -260,7 +269,16 @@ public class DatabaseDescriptor
             
             /* Local IP or hostname to bind RPC server to */
             if (conf.rpc_address != null)
-                rpcAddress = InetAddress.getByName(conf.rpc_address);
+            {
+                try
+                {
+                    rpcAddress = InetAddress.getByName(conf.rpc_address);
+                }
+                catch (UnknownHostException e)
+                {
+                    throw new ConfigurationException("Unknown host in rpc_address " + conf.rpc_address);
+                }
+            }
 
             if (conf.thrift_framed_transport_size_in_mb > 0 && conf.thrift_max_message_length_in_mb < conf.thrift_framed_transport_size_in_mb)
             {
@@ -297,6 +315,10 @@ public class DatabaseDescriptor
                 catch (ClassNotFoundException e)
                 {
                     throw new ConfigurationException("Invalid Request Scheduler class " + conf.request_scheduler);
+                }
+                catch (Exception e)
+                {
+                    throw new ConfigurationException("Unable to instantiate request scheduler", e);
                 }
             }
             else
@@ -374,32 +396,32 @@ public class DatabaseDescriptor
             {
                 throw new ConfigurationException("seeds configuration is missing; a minimum of one seed is required.");
             }
-            Class seedProviderClass = Class.forName(conf.seed_provider.class_name);
-            seedProvider = (SeedProvider)seedProviderClass.getConstructor(Map.class).newInstance(conf.seed_provider.parameters);
+            try 
+            {
+                Class seedProviderClass = Class.forName(conf.seed_provider.class_name);
+                seedProvider = (SeedProvider)seedProviderClass.getConstructor(Map.class).newInstance(conf.seed_provider.parameters);
+            }
+            // there are about 5 checked exceptions that could be thrown here.
+            catch (Exception e)
+            {
+                logger.error("Fatal configuration error", e);
+                System.err.println(e.getMessage() + "\nFatal configuration error; unable to start server.  See log for stacktrace.");
+                System.exit(1);
+            }
             if (seedProvider.getSeeds().size() == 0)
                 throw new ConfigurationException("The seed provider lists no seeds.");
         }
-        catch (UnknownHostException e)
-        {
-            logger.error("Fatal error: " + e.getMessage());
-            System.err.println("Unable to start with unknown hosts configured.  Use IP addresses instead of hostnames.");
-            System.exit(2);
-        }
         catch (ConfigurationException e)
         {
-            logger.error("Fatal error: " + e.getMessage(), e);
-            System.err.println("Bad configuration; unable to start server");
+            logger.error("Fatal configuration error", e);
+            System.err.println(e.getMessage() + "\nFatal configuration error; unable to start server.  See log for stacktrace.");
             System.exit(1);
         }
         catch (YAMLException e)
         {
-            logger.error("Fatal error: " + e.getMessage(), e);
-            System.err.println("Bad configuration; unable to start server");
+            logger.error("Fatal configuration error error", e);
+            System.err.println(e.getMessage() + "\nInvalid yaml; unable to start server.  See log for stacktrace.");
             System.exit(1);
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
         }
     }
 

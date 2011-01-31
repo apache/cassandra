@@ -50,22 +50,22 @@ public class TokenMetadata
     // for any nodes that boot simultaneously between same two nodes. For this we cannot simply make pending ranges a <tt>Multimap</tt>,
     // since that would make us unable to notice the real problem of two nodes trying to boot using the same token.
     // In order to do this properly, we need to know what tokens are booting at any time.
-    private BiMap<Token, InetAddress> bootstrapTokens;
+    private BiMap<Token, InetAddress> bootstrapTokens = HashBiMap.create();
 
     // we will need to know at all times what nodes are leaving and calculate ranges accordingly.
     // An anonymous pending ranges list is not enough, as that does not tell which node is leaving
     // and/or if the ranges are there because of bootstrap or leave operation.
     // (See CASSANDRA-603 for more detail + examples).
-    private Set<InetAddress> leavingEndpoints;
+    private Set<InetAddress> leavingEndpoints = new HashSet<InetAddress>();
 
-    private ConcurrentMap<String, Multimap<Range, InetAddress>> pendingRanges;
+    private ConcurrentMap<String, Multimap<Range, InetAddress>> pendingRanges = new ConcurrentHashMap<String, Multimap<Range, InetAddress>>();
 
     /* Use this lock for manipulating the token map */
     private final ReadWriteLock lock = new ReentrantReadWriteLock(true);
     private ArrayList<Token> sortedTokens;
 
     /* list of subscribers that are notified when the tokenToEndpointMap changed */
-    private final CopyOnWriteArrayList<AbstractReplicationStrategy> subscribers;
+    private final CopyOnWriteArrayList<AbstractReplicationStrategy> subscribers = new CopyOnWriteArrayList<AbstractReplicationStrategy>();
 
     public TokenMetadata()
     {
@@ -77,11 +77,7 @@ public class TokenMetadata
         if (tokenToEndpointMap == null)
             tokenToEndpointMap = HashBiMap.create();
         this.tokenToEndpointMap = tokenToEndpointMap;
-        bootstrapTokens = HashBiMap.create();
-        leavingEndpoints = new HashSet<InetAddress>();
-        pendingRanges = new ConcurrentHashMap<String, Multimap<Range, InetAddress>>();
         sortedTokens = sortTokens();
-        subscribers = new CopyOnWriteArrayList<AbstractReplicationStrategy>();
     }
 
     private ArrayList<Token> sortTokens()

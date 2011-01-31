@@ -26,6 +26,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
 
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -141,6 +142,10 @@ public class Gossiper implements IFailureDetectionEventListener
      * after removal to prevent nodes from falsely reincarnating during the time when removal
      * gossip gets propagated to all nodes */
     Map<InetAddress, Long> justRemovedEndpoints_ = new ConcurrentHashMap<InetAddress, Long>();
+    
+    // protocol versions of the other nodes in the cluster
+    private final ConcurrentMap<InetAddress, Integer> versions = new NonBlockingHashMap<InetAddress, Integer>();
+    
 
     private Gossiper()
     {
@@ -169,6 +174,20 @@ public class Gossiper implements IFailureDetectionEventListener
     {
         subscribers_.remove(subscriber);
     }
+    
+    public void setVersion(InetAddress address, int version)
+    {
+        Integer old = versions.put(address, version);
+        EndpointState state = endpointStateMap_.get(address);
+        if (state == null)
+            addSavedEndpoint(address);
+    }
+    
+    public Integer getVersion(InetAddress address)
+    {
+        return versions.get(address);
+    }
+    
 
     public Set<InetAddress> getLiveMembers()
     {

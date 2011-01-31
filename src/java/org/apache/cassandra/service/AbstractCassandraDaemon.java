@@ -189,8 +189,8 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
         }
         catch (ConfigurationException e)
         {
-            logger.error("Fatal error: " + e.getMessage());
-            System.err.println("Bad configuration; unable to start server");
+            logger.error("Fatal configuration error", e);
+            System.err.println(e.getMessage() + "\nFatal configuration error; unable to start server.  See log for stacktrace.");
             System.exit(1);
         }
 
@@ -213,8 +213,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
     
     /**
      * Start the Cassandra Daemon, assuming that it has already been
-     * initialized, via either {@link #init(String[])} or
-     * {@link #load(String[])}.
+     * initialized via {@link #init(String[])}
      *
      * Hook for JSVC
      *

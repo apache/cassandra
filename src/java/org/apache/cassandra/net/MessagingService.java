@@ -60,7 +60,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public final class MessagingService implements MessagingServiceMBean
 {
-    private static final int version_ = 1;
+    public static final int version_ = 1;
     //TODO: make this parameter dynamic somehow.  Not sure if config is appropriate.
     private SerializerType serializerType_ = SerializerType.BINARY;
 

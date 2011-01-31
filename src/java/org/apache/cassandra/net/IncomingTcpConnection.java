@@ -24,6 +24,7 @@ package org.apache.cassandra.net;
 import java.io.*;
 import java.net.Socket;
 
+import org.apache.cassandra.gms.Gossiper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,6 +56,7 @@ public class IncomingTcpConnection extends Thread
     {
         DataInputStream input;
         boolean isStream;
+        int version;
         try
         {
             // determine the connection type to decide whether to buffer
@@ -65,6 +67,8 @@ public class IncomingTcpConnection extends Thread
             if (!isStream)
                 // we should buffer
                 input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 4096));
+            version = MessagingService.getBits(header, 15, 8);
+            Gossiper.instance.setVersion(socket.getInetAddress(), version);
         }
         catch (IOException e)
         {
@@ -77,6 +81,12 @@ public class IncomingTcpConnection extends Thread
             {
                 if (isStream)
                 {
+                    if (version > MessagingService.version_)
+                    {
+                        logger.error("Received untranslated stream from newer protcol version. Terminating connection!");
+                        close();
+                        return;
+                    }
                     int size = input.readInt();
                     byte[] headerBytes = new byte[size];
                     input.readFully(headerBytes);
@@ -89,12 +99,18 @@ public class IncomingTcpConnection extends Thread
                     byte[] contentBytes = new byte[size];
                     input.readFully(contentBytes);
                     
-                    Message message = Message.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(contentBytes)));
-                    MessagingService.instance().receive(message);
+                    if (version > MessagingService.version_)
+                        logger.info("Received connection from newer protocol version. Ignorning message.");
+                    else
+                    {
+                        Message message = Message.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(contentBytes)));
+                        MessagingService.instance().receive(message);
+                    }
                 }
                 // prepare to read the next message
                 MessagingService.validateMagic(input.readInt());
                 int header = input.readInt();
+                version = MessagingService.getBits(header, 15, 8);
                 assert isStream == (MessagingService.getBits(header, 3, 1) == 1) : "Connections cannot change type: " + isStream;
             }
             catch (EOFException e)
