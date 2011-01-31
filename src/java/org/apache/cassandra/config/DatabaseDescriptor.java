@@ -374,19 +374,19 @@ public class    DatabaseDescriptor
         }
         catch (UnknownHostException e)
         {
-            logger.error("Fatal error: " + e.getMessage());
+            logger.error("Fatal configuration error ", e);
             System.err.println("Unable to start with unknown hosts configured.  Use IP addresses instead of hostnames.");
             System.exit(2);
         }
         catch (ConfigurationException e)
         {
-            logger.error("Fatal error: " + e.getMessage());
+            logger.error("Fatal configuration error", e);
             System.err.println("Bad configuration; unable to start server");
             System.exit(1);
         }
         catch (YAMLException e)
         {
-            logger.error("Fatal error: " + e.getMessage());
+            logger.error("Fatal configuration error error", e);
             System.err.println("Bad configuration; unable to start server");
             System.exit(1);
         }
