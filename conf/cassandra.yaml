@@ -220,7 +220,7 @@ rpc_timeout_in_ms: 10000
 # org.apache.cassandra.locator.PropertyFileSnitch:
 #  - Proximity is determined by rack and data center, which are
 #    explicitly configured in cassandra-topology.properties.
-endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
+endpoint_snitch: org.apache.cassandra.locator.PropertyFileSnitch
 
 # dynamic_snitch -- This boolean controls whether the above snitch is
 # wrapped with a dynamic snitch, which will monitor read latencies
