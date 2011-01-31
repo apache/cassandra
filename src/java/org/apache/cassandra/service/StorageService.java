@@ -27,7 +27,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 import javax.management.MBeanServer;
-import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 
 import com.google.common.base.Charsets;
@@ -152,13 +151,14 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     /* This abstraction maintains the token/endpoint metadata information */
     private TokenMetadata tokenMetadata_ = new TokenMetadata();
 
-    private static IPartitioner partitioner_ = DatabaseDescriptor.getPartitioner();
-    public static VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner_);
+    private IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
+    public VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
     
     public static final StorageService instance = new StorageService();
 
-    public static IPartitioner getPartitioner() {
-        return partitioner_;
+    public static IPartitioner getPartitioner()
+    {
+        return instance.partitioner;
     }
 
     public Collection<Range> getLocalRanges(String table)
@@ -458,12 +458,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 String initialToken = DatabaseDescriptor.getInitialToken();
                 if (initialToken == null)
                 {
-                    token = partitioner_.getRandomToken();
+                    token = partitioner.getRandomToken();
                     logger_.warn("Generated random token " + token + ". Random tokens will result in an unbalanced ring; see http://wiki.apache.org/cassandra/Operations");
                 }
                 else
                 {
-                    token = partitioner_.getTokenFactory().fromString(initialToken);
+                    token = partitioner.getTokenFactory().fromString(initialToken);
                     logger_.info("Saved token not found. Using " + token + " from configuration");
                 }
             }
@@ -1444,7 +1444,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public List<InetAddress> getNaturalEndpoints(String table, ByteBuffer key)
     {
-        return getNaturalEndpoints(table, partitioner_.getToken(key));
+        return getNaturalEndpoints(table, partitioner.getToken(key));
     }
 
     public List<InetAddress> getNaturalEndpoints(String table, byte[] key)
@@ -1473,7 +1473,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public List<InetAddress> getLiveNaturalEndpoints(String table, ByteBuffer key)
     {
-        return getLiveNaturalEndpoints(table, partitioner_.getToken(key));
+        return getLiveNaturalEndpoints(table, partitioner.getToken(key));
     }
 
     public List<InetAddress> getLiveNaturalEndpoints(String table, Token token)
@@ -1546,7 +1546,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         FBUtilities.sortSampledKeys(keys, range);
 
         if (keys.size() < 3)
-            return partitioner_.midpoint(range.left, range.right);
+            return partitioner.midpoint(range.left, range.right);
         else
             return keys.get(keys.size() / 2).token;
     }
@@ -1670,7 +1670,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public void move(String newToken) throws IOException, InterruptedException
     {
-        move(partitioner_.getTokenFactory().fromString(newToken));
+        move(partitioner.getTokenFactory().fromString(newToken));
     }
 
     public void loadBalance() throws IOException, InterruptedException
@@ -1760,7 +1760,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         InetAddress myAddress = FBUtilities.getLocalAddress();
         Token localToken = tokenMetadata_.getToken(myAddress);
-        Token token = partitioner_.getTokenFactory().fromString(tokenString);
+        Token token = partitioner.getTokenFactory().fromString(tokenString);
         InetAddress endpoint = tokenMetadata_.getEndpoint(token);
 
         if (endpoint == null)
@@ -2074,9 +2074,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     // Never ever do this at home. Used by tests.
     IPartitioner setPartitionerUnsafe(IPartitioner newPartitioner)
     {
-        IPartitioner oldPartitioner = partitioner_;
-        partitioner_ = newPartitioner;
-        valueFactory = new VersionedValue.VersionedValueFactory(partitioner_);
+        IPartitioner oldPartitioner = partitioner;
+        partitioner = newPartitioner;
+        valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
         return oldPartitioner;
     }
 
@@ -2109,7 +2109,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         List<Token> sortedTokens = new ArrayList<Token>(getTokenToEndpointMap().keySet());
         Collections.sort(sortedTokens);
-        return partitioner_.describeOwnership(sortedTokens);
+        return partitioner.describeOwnership(sortedTokens);
     }
 
     public List<String> getKeyspaces()

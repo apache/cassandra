@@ -97,7 +97,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
             MessagingService.instance().sendOneWay(msg, host);
         // this is for notifying nodes as they arrive in the cluster.
         if (!StorageService.instance.isClientMode())
-            Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.valueFactory.migration(version));
+            Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.migration(version));
     }
 
     /**

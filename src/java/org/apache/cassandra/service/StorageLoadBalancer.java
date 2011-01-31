@@ -348,7 +348,7 @@ public class StorageLoadBalancer implements IEndpointStateChangeSubscriber
                 if (logger_.isDebugEnabled())
                     logger_.debug("Disseminating load info ...");
                 Gossiper.instance.addLocalApplicationState(ApplicationState.LOAD,
-                                                           StorageService.valueFactory.load(StorageService.instance.getLoad()));
+                                                           StorageService.instance.valueFactory.load(StorageService.instance.getLoad()));
             }
         };
         StorageService.scheduledTasks.scheduleWithFixedDelay(runnable, 2 * Gossiper.intervalInMillis_, BROADCAST_INTERVAL, TimeUnit.MILLISECONDS);
