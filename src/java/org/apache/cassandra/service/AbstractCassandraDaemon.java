@@ -56,11 +56,6 @@ import org.mortbay.thread.ThreadPool;
  */
 public abstract class AbstractCassandraDaemon implements CassandraDaemon
 {
-    public AbstractCassandraDaemon()
-    {
-        StorageService.instance.registerDaemon(this);
-    }
-
     //Initialize logging in such a way that it checks for config changes every 10 seconds.
     static
     {
@@ -184,6 +179,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
         SystemTable.purgeIncompatibleHints();
 
         // start server internals
+        StorageService.instance.registerDaemon(this);
         try
         {
             StorageService.instance.initServer();
