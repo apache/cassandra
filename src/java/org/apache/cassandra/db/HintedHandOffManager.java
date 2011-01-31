@@ -144,21 +144,31 @@ public class HintedHandOffManager
         rm.apply();
     }                                                         
 
-    public static void deleteHintsForEndPoint(InetAddress endpoint)
+    public static void deleteHintsForEndPoint(final InetAddress endpoint)
     {
-        ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, ByteBuffer.wrap(endpoint.getAddress()));
+        final ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
+        final RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, ByteBuffer.wrap(endpoint.getAddress()));
         rm.delete(new QueryPath(HINTS_CF), System.currentTimeMillis());
-        try {
-            logger_.info("Deleting any stored hints for " + endpoint);
-            rm.apply();
-            hintStore.forceFlush();
-            CompactionManager.instance.submitMajor(hintStore, 0, Integer.MAX_VALUE).get();
-        }
-        catch (Exception e)
+
+        // execute asynchronously to avoid blocking caller (which may be processing gossip)
+        Runnable runnable = new Runnable()
         {
-            logger_.warn("Could not delete hints for " + endpoint + ": " + e);
-        }
+            public void run()
+            {
+                try
+                {
+                    logger_.info("Deleting any stored hints for " + endpoint);
+                    rm.apply();
+                    hintStore.forceFlush();
+                    CompactionManager.instance.submitMajor(hintStore, 0, Integer.MAX_VALUE);
+                }
+                catch (Exception e)
+                {
+                    logger_.warn("Could not delete hints for " + endpoint + ": " + e);
+                }
+            }
+        };
+        StorageService.scheduledTasks.execute(runnable);
     }
 
     private static boolean pagingFinished(ColumnFamily hintColumnFamily, ByteBuffer startColumn)

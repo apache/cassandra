@@ -48,6 +48,7 @@
    (CASSANDRA-2058)
  * fix math in RandomPartitioner.describeOwnership (CASSANDRA-2071)
  * fix deletion of sstable non-data components (CASSANDRA-2059)
+ * avoid blocking gossip while deleting handoff hints (CASSANDRA-2073)
 
 
 0.7.0-final
