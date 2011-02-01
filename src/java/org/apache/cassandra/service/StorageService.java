@@ -422,6 +422,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         StorageLoadBalancer.instance.startBroadcasting();
         MigrationManager.announce(DatabaseDescriptor.getDefsVersion(), DatabaseDescriptor.getSeeds());
 
+        HintedHandOffManager.instance.registerMBean();
+
         if (DatabaseDescriptor.isAutoBootstrap()
                 && DatabaseDescriptor.getSeeds().contains(FBUtilities.getLocalAddress())
                 && !SystemTable.isBootstrapped())
@@ -828,7 +830,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         Gossiper.instance.removeEndpoint(endpoint);
         tokenMetadata_.removeEndpoint(endpoint);
-        HintedHandOffManager.deleteHintsForEndPoint(endpoint);
+        HintedHandOffManager.instance.deleteHintsForEndpoint(endpoint);
         tokenMetadata_.removeBootstrapToken(token);
         calculatePendingRanges();
         if (!isClientMode)
