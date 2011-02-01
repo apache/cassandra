@@ -43,6 +43,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.net.io.SerializerType;
 import org.apache.cassandra.net.sink.SinkManager;
+import org.apache.cassandra.service.ConsistencyChecker;
 import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.service.QuorumResponseHandler;
 import org.apache.cassandra.service.StorageService;
@@ -134,7 +135,9 @@ public class MessagingService
      */
     public void maybeAddLatency(IMessageCallback cb, InetAddress address, double latency)
     {
-        if (cb instanceof QuorumResponseHandler || cb instanceof AsyncResult)
+        if (cb instanceof QuorumResponseHandler
+            || cb instanceof AsyncResult
+            || cb instanceof ConsistencyChecker.DigestResponseHandler)
             addLatency(address, latency);
     }
 

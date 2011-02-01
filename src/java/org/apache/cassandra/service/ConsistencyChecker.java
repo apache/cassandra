@@ -60,7 +60,7 @@ import org.apache.cassandra.utils.WrappedRunnable;
  * (3) processes full-read responses and invokes resolve.  The actual sending of messages
  * repairing out-of-date or missing data is handled by ReadResponseResolver.
  */
-class ConsistencyChecker implements Runnable
+public class ConsistencyChecker implements Runnable
 {
     private static Logger logger_ = LoggerFactory.getLogger(ConsistencyChecker.class);
 
@@ -109,7 +109,7 @@ class ConsistencyChecker implements Runnable
         return readCommand;
     }
 
-    class DigestResponseHandler implements IAsyncCallback
+    public class DigestResponseHandler implements IAsyncCallback
 	{
         private boolean repairInvoked;
         private final byte[] dataDigest = ColumnFamily.digest(row_.cf);
