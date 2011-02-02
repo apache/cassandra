@@ -86,6 +86,8 @@ public class CounterColumnType extends AbstractCommutativeType
 
         for (IColumn column : cc.getSortedColumns())
         {
+            if (!(column instanceof CounterColumn)) // DeletedColumn
+                continue;
             CounterColumn counterColumn = (CounterColumn)column;
             CounterColumn cleanedColumn = counterColumn.cleanNodeCounts(node);
             if (cleanedColumn == counterColumn)
