@@ -381,7 +381,6 @@ public class StorageProxy implements StorageProxyMBean
 
             // We lazy-construct the digest Message object since it may not be necessary if we
             // are doing a local digest read, or no digest reads at all.
-            Message digestMessage = null;
             for (InetAddress digestPoint : endpoints.subList(1, endpoints.size()))
             {
                 if (digestPoint.equals(FBUtilities.getLocalAddress()))
@@ -392,8 +391,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
                 else
                 {
-                    if (digestMessage == null)
-                        digestMessage = digestCommand.makeReadMessage();
+                    Message digestMessage = digestCommand.makeReadMessage();
                     if (logger.isDebugEnabled())
                         logger.debug("reading digest for " + command + " from " + digestMessage.getMessageId() + "@" + digestPoint);
                     MessagingService.instance().sendRR(digestMessage, digestPoint, handler);
