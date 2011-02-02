@@ -209,17 +209,15 @@ public class ByteBufferUtil
           
         ByteBuffer clone = ByteBuffer.allocate(o.remaining());
 
-        if (o.isDirect())
+        if (o.hasArray())
         {
-            for (int i = o.position(); i < o.limit(); i++)
-            {
-                clone.put(o.get(i));
-            }
-            clone.flip();
+            System.arraycopy(o.array(), o.arrayOffset() + o.position(), clone.array(), 0, o.remaining());
         }
         else
         {
-            System.arraycopy(o.array(), o.arrayOffset() + o.position(), clone.array(), 0, o.remaining());
+            for (int i = o.position(); i < o.limit(); i++)
+                clone.put(o.get(i));
+            clone.flip();
         }
 
         return clone;

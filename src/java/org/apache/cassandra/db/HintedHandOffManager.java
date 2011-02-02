@@ -19,40 +19,43 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.Collection;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
+import static com.google.common.base.Charsets.UTF_8;
 import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.DigestMismatchException;
-import org.apache.cassandra.service.IWriteResponseHandler;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.WriteResponseHandler;
-import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.service.*;
+import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
-import static com.google.common.base.Charsets.UTF_8;
 
 
 /**
  * For each endpoint for which we have hints, there is a row in the system hints CF.
+ * The key for this row is ByteBuffer.wrap(string), i.e. "127.0.0.1".
+ *
  * SuperColumns in that row are keys for which we have hinted data.
  * Subcolumns names within that supercolumn are keyspace+CF, concatenated with SEPARATOR.
  * Subcolumn values are always empty; instead, we store the row data "normally"
@@ -78,18 +81,36 @@ import static com.google.common.base.Charsets.UTF_8;
  * that would contain the message bytes.
  */
 
-public class HintedHandOffManager
+public class HintedHandOffManager implements HintedHandOffManagerMBean
 {
     public static final HintedHandOffManager instance = new HintedHandOffManager();
+    public static final String HINTS_CF = "HintsColumnFamily";
 
     private static final Logger logger_ = LoggerFactory.getLogger(HintedHandOffManager.class);
-    public static final String HINTS_CF = "HintsColumnFamily";
     private static final int PAGE_SIZE = 10000;
     private static final String SEPARATOR = "-";
+    private static final int LARGE_NUMBER = 65536; // 64k nodes ought to be enough for anybody.
 
     private final NonBlockingHashSet<InetAddress> queuedDeliveries = new NonBlockingHashSet<InetAddress>();
 
     private final ExecutorService executor_ = new JMXEnabledThreadPoolExecutor("HintedHandoff", DatabaseDescriptor.getCompactionThreadPriority());
+
+    public HintedHandOffManager()
+    {
+        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+        try
+        {
+            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.db:type=HintedHandoffManager"));
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+    public void registerMBean()
+    {
+        logger_.debug("Created HHOM instance, registered MBean.");
+    }
 
     private static boolean sendMessage(InetAddress endpoint, String tableName, String cfName, ByteBuffer key) throws IOException
     {
@@ -142,12 +163,28 @@ public class HintedHandOffManager
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, endpointAddress);
         rm.delete(new QueryPath(HINTS_CF, key, tableCF), timestamp);
         rm.apply();
-    }                                                         
+    }
 
-    public static void deleteHintsForEndPoint(final InetAddress endpoint)
+    public void deleteHintsForEndpoint(final String ipOrHostname)
     {
+        try
+        {
+            InetAddress endpoint = InetAddress.getByName(ipOrHostname);
+            deleteHintsForEndpoint(endpoint);
+        }
+        catch (UnknownHostException e)
+        {
+            logger_.warn("Unable to find "+ipOrHostname+", not a hostname or ipaddr of a node?:");
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void deleteHintsForEndpoint(final InetAddress endpoint)
+    {
+        final String ipaddr = endpoint.getHostAddress();
         final ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
-        final RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, ByteBuffer.wrap(endpoint.getAddress()));
+        final RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, ByteBuffer.wrap(ipaddr.getBytes()));
         rm.delete(new QueryPath(HINTS_CF), System.currentTimeMillis());
 
         // execute asynchronously to avoid blocking caller (which may be processing gossip)
@@ -157,14 +194,14 @@ public class HintedHandOffManager
             {
                 try
                 {
-                    logger_.info("Deleting any stored hints for " + endpoint);
+                    logger_.info("Deleting any stored hints for " + ipaddr);
                     rm.apply();
                     hintStore.forceFlush();
                     CompactionManager.instance.submitMajor(hintStore, 0, Integer.MAX_VALUE);
                 }
                 catch (Exception e)
                 {
-                    logger_.warn("Could not delete hints for " + endpoint + ": " + e);
+                    logger_.warn("Could not delete hints for " + ipaddr + ": " + e);
                 }
             }
         };
@@ -314,5 +351,63 @@ public class HintedHandOffManager
     public void deliverHints(String to) throws UnknownHostException
     {
         deliverHints(InetAddress.getByName(to));
+    }
+
+    public List<String> listEndpointsPendingHints()
+    {
+        List<Row> rows = getHintsSlice(1);
+
+        // Extract the keys as strings to be reported.
+        LinkedList<String> result = new LinkedList<String>();
+        for (Row r : rows)
+        {
+            if (r.cf != null) //ignore removed rows
+                result.addFirst(new String(r.key.key.array()));
+        }
+        return result;
+    }
+
+    public Map<String, Integer> countPendingHints()
+    {
+        List<Row> rows = getHintsSlice(Integer.MAX_VALUE);
+
+        Map<String, Integer> result = new HashMap<String, Integer>();
+        for (Row r : rows)
+        {
+            if (r.cf != null) //ignore removed rows
+                result.put(new String(r.key.key.array()), r.cf.getColumnCount());
+        }
+        return result;
+    }
+
+    private List<Row> getHintsSlice(int column_count)
+    {
+        // ColumnParent for HintsCF...
+        ColumnParent parent = new ColumnParent(HINTS_CF);
+
+        // Get count # of columns...
+        SlicePredicate predicate = new SlicePredicate();
+        SliceRange sliceRange = new SliceRange();
+        sliceRange.setStart(new byte[0]).setFinish(new byte[0]);
+        sliceRange.setCount(column_count);
+        predicate.setSlice_range(sliceRange);
+
+        // From keys "" to ""...
+        IPartitioner partitioner = StorageService.getPartitioner();
+        ByteBuffer empty = ByteBufferUtil.EMPTY_BYTE_BUFFER;
+        Range range = new Range(partitioner.getToken(empty), partitioner.getToken(empty));
+
+        // Get a bunch of rows!
+        List<Row> rows;
+        try
+        {
+            rows = StorageProxy.getRangeSlice(new RangeSliceCommand("system", parent, predicate, range, LARGE_NUMBER), ConsistencyLevel.ONE);
+        }
+        catch (Exception e)
+        {
+            logger_.info("HintsCF getEPPendingHints timed out.");
+            throw new RuntimeException(e);
+        }
+        return rows;
     }
 }
