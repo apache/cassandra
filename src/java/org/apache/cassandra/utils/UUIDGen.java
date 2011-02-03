@@ -38,7 +38,7 @@ public class UUIDGen
      */
     public static UUID makeType1UUIDFromHost(InetAddress addr)
     {
-        return new UUID(instance.createTime(System.currentTimeMillis()), instance.getClockSeqAndNode(addr));
+        return new UUID(instance.createTimeSafe(), instance.getClockSeqAndNode(addr));
     }
     
     /** creates a type 1 uuid from raw bytes. */
@@ -69,19 +69,27 @@ public class UUIDGen
      */
     public static byte[] getTimeUUIDBytes()
     {
-        return getTimeUUIDBytes(System.currentTimeMillis());
+        return createTimeUUIDBytes(instance.createTimeSafe());
     }
     
     /**
      * Converts a milliseconds-since-epoch timestamp into the 16 byte representation
      * of a type 1 UUID (a time-based UUID).
      * 
+     * <p><i><b>Warning:</b> This method is not guaranteed to return unique UUIDs; Multiple
+     * invocations using identical timestamps will result in identical UUIDs.</i></p>
+     * 
      * @param timeMillis
      * @return a type 1 UUID represented as a byte[]
      */
     public static byte[] getTimeUUIDBytes(long timeMillis)
     {
-        long msb = instance.createTime(timeMillis), lsb = instance.getClockSeqAndNode();
+        return createTimeUUIDBytes(instance.createTimeUnsafe(timeMillis));
+    }
+    
+    private static byte[] createTimeUUIDBytes(long msb)
+    {
+        long lsb = instance.getClockSeqAndNode();
         byte[] uuidBytes = new byte[16];
         
         for (int i = 0; i < 8; i++)
@@ -91,6 +99,20 @@ public class UUIDGen
             uuidBytes[i] = (byte) (lsb >>> 8 * (7 - i));
         
         return uuidBytes;
+    }
+    
+    /**
+     * Returns a milliseconds-since-epoch value for a type-1 UUID.
+     * 
+     * @param uuid a type-1 (time-based) UUID
+     * @return the number of milliseconds since the unix epoch
+     * @throws InvalidArgumentException if the UUID is not version 1
+     */
+    public static long getAdjustedTimestamp(UUID uuid)
+    {
+        if (uuid.version() != 1)
+            throw new IllegalArgumentException("incompatible with uuid version: "+uuid.version());
+        return (uuid.timestamp() / 10000) - START_EPOCH;
     }
     
     private long getClockSeqAndNode()
@@ -118,14 +140,25 @@ public class UUIDGen
     
     // needs to return two different values for the same when.
     // we can generate at most 10k UUIDs per ms.
-    private synchronized long createTime(long when)
+    private synchronized long createTimeSafe()
     {
-        long nanosSince = (when - START_EPOCH) * 10000;
+        long nanosSince = (System.currentTimeMillis() - START_EPOCH) * 10000;
         if (nanosSince > lastNanos)
             lastNanos = nanosSince;
         else
             nanosSince = ++lastNanos;
         
+        return createTime(nanosSince);
+    }
+
+    private long createTimeUnsafe(long when)
+    {
+        long nanosSince = (when - START_EPOCH) * 10000;
+        return createTime(nanosSince);
+    }
+    
+    private long createTime(long nanosSince)
+    {   
         long msb = 0L; 
         msb |= (0x00000000ffffffffL & nanosSince) << 32;
         msb |= (0x0000ffff00000000L & nanosSince) >>> 16; 
@@ -133,7 +166,7 @@ public class UUIDGen
         msb |= 0x0000000000001000L; // sets the version to 1.
         return msb;
     }
-    
+
     // Lazily create node hashes, and cache them for later
     private long makeNode(InetAddress addr)
     {
