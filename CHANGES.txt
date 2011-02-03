@@ -18,7 +18,7 @@
  * fix CFMetaData.apply to only compare objects of the same class 
    (CASSANDRA-1962)
  * allow specifying specific SSTables to compact from JMX (CASSANDRA-1963)
- * fix race condition in MessagingService.targets (CASSANDRA-1959, 2094)
+ * fix race condition in MessagingService.targets (CASSANDRA-1959, 2094, 2081)
  * refuse to open sstables from a future version (CASSANDRA-1935)
  * zero-copy reads (CASSANDRA-1714)
  * fix copy bounds for word Text in wordcount demo (CASSANDRA-1993)
