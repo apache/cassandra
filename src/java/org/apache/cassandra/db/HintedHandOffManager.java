@@ -28,8 +28,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 
 import static com.google.common.base.Charsets.UTF_8;
-
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,7 +42,6 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.*;
@@ -236,33 +233,10 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                                 ByteBufferUtil.string(joined, index + 1, joined.limit() - (index + 1))
                             };
     }
-
-    private int waitForSchemaAgreement(InetAddress endpoint) throws InterruptedException
-    {
-        Gossiper gossiper = Gossiper.instance;
-        int waited = 0;
-        while (!gossiper.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.SCHEMA).value.equals(
-                gossiper.getEndpointStateForEndpoint(FBUtilities.getLocalAddress()).getApplicationState(ApplicationState.SCHEMA).value))
-        {
-            Thread.sleep(1000);
-            waited += 1000;
-            if (waited > 2 * StorageService.RING_DELAY)
-                throw new RuntimeException("Could not reach schema agreement with " + endpoint + " in " + 2 * StorageService.RING_DELAY + "ms");
-        }
-        logger_.debug("schema for {} matches local schema", endpoint);
-        return waited;
-    }
             
-    private void deliverHintsToEndpoint(InetAddress endpoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException, InterruptedException
+    private void deliverHintsToEndpoint(InetAddress endpoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException
     {
-        logger_.info("Checking remote schema before delivering hints to " + endpoint);
-        int waited = waitForSchemaAgreement(endpoint);
         logger_.info("Started hinted handoff for endpoint " + endpoint);
-        // sleep a random amount to stagger handoff delivery from different replicas.
-        // (if we had to wait, then gossiper randomness took care of that for us already.)
-        if (waited == 0)
-            Thread.sleep(new Random().nextInt(60000));
-
         queuedDeliveries.remove(endpoint);
 
         // 1. Get the key of the endpoint we need to handoff
