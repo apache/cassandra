@@ -1602,9 +1602,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         calculatePendingRanges();
 
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.left(getLocalToken()));
+        logger_.info("Announcing that I have left the ring for " + RING_DELAY + "ms");
         try
         {
-            Thread.sleep(2 * Gossiper.intervalInMillis_);
+            Thread.sleep(RING_DELAY);
         }
         catch (InterruptedException e)
         {
