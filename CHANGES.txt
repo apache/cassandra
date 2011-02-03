@@ -1,5 +1,6 @@
 0.6.12
  * include digest responses in dynamic snitch latencies (CASSANDRA-2085)
+ * fix range slice ConsistencyLevel > ONE (CASSANDRA-2081)
 
 
 0.6.11

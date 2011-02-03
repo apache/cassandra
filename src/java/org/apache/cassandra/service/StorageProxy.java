@@ -555,7 +555,6 @@ public class StorageProxy implements StorageProxyMBean
             List<InetAddress> endpoints = liveEndpoints.subList(0, responseCount);
 
             RangeSliceCommand c2 = new RangeSliceCommand(command.keyspace, command.column_family, command.super_column, command.predicate, range, command.max_keys);
-            Message message = c2.getMessage();
 
             // collect replies and resolve according to consistency level
             RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, endpoints, StorageService.getPartitioner());
@@ -563,6 +562,7 @@ public class StorageProxy implements StorageProxyMBean
 
             for (InetAddress endpoint : endpoints)
             {
+                Message message = c2.getMessage();
                 MessagingService.instance.sendRR(message, endpoint, handler);
                 if (logger.isDebugEnabled())
                     logger.debug("reading " + c2 + " from " + message.getMessageId() + "@" + endpoint);
