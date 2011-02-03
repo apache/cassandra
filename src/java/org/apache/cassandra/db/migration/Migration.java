@@ -38,6 +38,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.service.MigrationManager;
@@ -134,6 +135,7 @@ public abstract class Migration
             migration = new RowMutation(Table.SYSTEM_TABLE, LAST_MIGRATION_KEY);
             migration.add(new QueryPath(SCHEMA_CF, null, LAST_MIGRATION_KEY), ByteBuffer.wrap(UUIDGen.decompose(newVersion)), now);
             migration.apply();
+            Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.migration(newVersion));
 
             // if we fail here, there will be schema changes in the CL that will get replayed *AFTER* the schema is loaded.
             // CassandraDaemon checks for this condition (the stored version will be greater than the loaded version)

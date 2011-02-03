@@ -874,6 +874,8 @@ public class Gossiper implements IFailureDetectionEventListener
             localState = new EndpointState(hbState);
             localState.isAlive(true);
             localState.isAGossiper(true);
+            if (!StorageService.instance.isClientMode())
+                localState.addApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.migration(DatabaseDescriptor.getDefsVersion()));
             endpointStateMap_.put(localEndpoint_, localState);
         }
 
