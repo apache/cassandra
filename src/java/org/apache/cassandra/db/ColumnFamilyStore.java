@@ -34,9 +34,9 @@ import org.apache.commons.collections.IteratorUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.concurrent.RetryingScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -62,7 +62,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private static Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
 
     private static final ScheduledThreadPoolExecutor cacheSavingExecutor =
-            new DebuggableScheduledThreadPoolExecutor("CACHE-SAVER", Thread.MIN_PRIORITY);
+            new RetryingScheduledThreadPoolExecutor("CACHE-SAVER", Thread.MIN_PRIORITY);
 
     /*
      * submitFlush first puts [Binary]Memtable.getSortedContents on the flushSorter executor,

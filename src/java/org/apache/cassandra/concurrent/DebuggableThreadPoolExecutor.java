@@ -75,15 +75,10 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
         }
     }
 
-    @Override
     public void afterExecute(Runnable r, Throwable t)
     {
         super.afterExecute(r,t);
-        logTaskException(r, t);
-    }
 
-    static void logTaskException(Runnable r, Throwable t)
-    {
         // exceptions wrapped by FutureTask
         if (r instanceof FutureTask)
         {
@@ -97,9 +92,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
             }
             catch (ExecutionException e)
             {
-                if (Thread.getDefaultUncaughtExceptionHandler() == null)
-                    logger.error("Error in executor task", e.getCause());
-                else
+                if (Thread.getDefaultUncaughtExceptionHandler() != null)
                     Thread.getDefaultUncaughtExceptionHandler().uncaughtException(Thread.currentThread(), e.getCause());
             }
         }
@@ -107,10 +100,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
         // exceptions for non-FutureTask runnables [i.e., added via execute() instead of submit()]
         if (t != null)
         {
-            if (Thread.getDefaultUncaughtExceptionHandler() == null)
-                logger.error("Error in executor task", t);
-            else
-                Thread.getDefaultUncaughtExceptionHandler().uncaughtException(Thread.currentThread(), t);
+            logger.error("Error in ThreadPoolExecutor", t);
         }
     }
 }

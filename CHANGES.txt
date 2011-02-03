@@ -51,8 +51,6 @@
  * avoid blocking gossip while deleting handoff hints (CASSANDRA-2073)
  * ignore messages from newer versions, keep track of nodes in gossip 
    regardless of version (CASSANDRA-1970)
- * log exceptions on scheduled executors (CASSANDRA-2061)
-
 
 0.7.0-final
  * fix offsets to ByteBuffer.get (CASSANDRA-1939)
