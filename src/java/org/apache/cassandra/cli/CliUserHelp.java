@@ -133,15 +133,20 @@ public class CliUserHelp {
                 state.out.println("valid attributes are:");
                 state.out.println("    replication_factor: to how many nodes should entries to this keyspace be");
                 state.out.println("                        replicated. Valid entries are integers greater than 0.");
+                state.out.println("                        Applies to Simple and OldNT strategies but NOT NTS.");
                 state.out.println("    placement_strategy: the fully qualified class used to place replicas in");
                 state.out.println("                        this keyspace. Valid values are");
                 state.out.println("                        org.apache.cassandra.locator.SimpleStrategy,");
                 state.out.println("                        org.apache.cassandra.locator.NetworkTopologyStrategy,");
                 state.out.println("                        and org.apache.cassandra.locator.OldNetworkTopologyStrategy");
-                state.out.println("      strategy_options: additional options for placement_strategy.\n");
-                state.out.println("example:");
-                state.out.println("create keyspace foo with replication_factor = 3 and ");
-                state.out.println("        placement_strategy = 'org.apache.cassandra.locator.SimpleStrategy'");
+                state.out.println("      strategy_options: additional options for placement_strategy.");
+                state.out.println("                        Applies only to NetworkTopologyStrategy.");
+                state.out.println("\nexamples:");
+                state.out.println("create keyspace foo with");
+                state.out.println("        placement_strategy = 'org.apache.cassandra.locator.SimpleStrategy';");
+                state.out.println("        and replication_factor = 3;");
+                state.out.println("create keyspace foo with");
+                state.out.println("        placement_strategy = 'org.apache.cassandra.locator.NetworkTopologyStrategy';");
                 state.out.println("        and strategy_options=[{DC1:2, DC2:2}];");
                 break;
 
@@ -153,16 +158,21 @@ public class CliUserHelp {
                 state.out.println("valid attributes are:");
                 state.out.println("    replication_factor: to how many nodes should entries to this keyspace be");
                 state.out.println("                        replicated. Valid entries are integers greater than 0.");
+                state.out.println("                        Applies to Simple and OldNT strategies but NOT NTS.");
                 state.out.println("    placement_strategy: the fully qualified class used to place replicas in");
                 state.out.println("                        this keyspace. Valid values are");
                 state.out.println("                        org.apache.cassandra.locator.SimpleStrategy,");
                 state.out.println("                        org.apache.cassandra.locator.NetworkTopologyStrategy,");
                 state.out.println("                        and org.apache.cassandra.locator.OldNetworkTopologyStrategy");
-                state.out.println("      strategy_options: additional options for placement_strategy.\n");
-                state.out.println("example:");
-                state.out.println("update keyspace foo with replication_factor = 2 and ");
-                state.out.println("        placement_strategy = 'org.apache.cassandra.locator.LocalStrategy'");
-                state.out.println("        and strategy_options=[{DC1:1, DC2:4, DC3:2}];");
+                state.out.println("      strategy_options: additional options for placement_strategy.");
+                state.out.println("                        Applies only to NetworkTopologyStrategy.");
+                state.out.println("\nexamples:");
+                state.out.println("update keyspace foo with");
+                state.out.println("        placement_strategy = 'org.apache.cassandra.locator.SimpleStrategy';");
+                state.out.println("        and replication_factor = 3;");
+                state.out.println("update keyspace foo with");
+                state.out.println("        placement_strategy = 'org.apache.cassandra.locator.NetworkTopologyStrategy';");
+                state.out.println("        and strategy_options=[{DC1:2, DC2:2}];");
                 break;
 
             case CliParser.NODE_ADD_COLUMN_FAMILY:

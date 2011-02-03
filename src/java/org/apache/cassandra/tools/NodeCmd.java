@@ -84,43 +84,54 @@ public class NodeCmd {
     private static void printUsage()
     {
         HelpFormatter hf = new HelpFormatter();
-        String header = "\nAvailable commands:\n"
-                         // No args
-                         + "ring\n"
-                         + "info\n"
-                         + "cfstats\n"
-                         + "clearsnapshot\n"
-                         + "version\n"
-                         + "tpstats\n"
-                         + "drain\n"
-                         + "decommission\n"
-                         + "loadbalance\n"
-                         + "compactionstats\n"
-                         + "disablegossip\n"
-                         + "enablegossip\n"
+        StringBuilder header = new StringBuilder();
+        header.append("\nAvailable commands:\n");
+        // No args
+        addCmdHelp(header, "ring", "Print informations on the token ring");
+        addCmdHelp(header, "info", "Print node informations (uptime, load, ...)");
+        addCmdHelp(header, "cfstats", "Print statistics on column families");
+        addCmdHelp(header, "clearsnapshot", "Remove all existing snapshots");
+        addCmdHelp(header, "version", "Print cassandra version");
+        addCmdHelp(header, "tpstats", "Print usage statistics of thread pools");
+        addCmdHelp(header, "drain", "Drain the node (stop accepting writes and flush all column families)");
+        addCmdHelp(header, "decommission", "Decommission the node");
+        addCmdHelp(header, "loadbalance", "Loadbalance the node");
+        addCmdHelp(header, "compactionstats", "Print statistics on compactions");
+        addCmdHelp(header, "disablegossip", "Disable gossip (effectively marking the node dead)");
+        addCmdHelp(header, "enablegossip", "Reenable gossip");
 
-                         // One arg
-                         + "snapshot [snapshotname]\n"
-                         + "netstats [host]\n"
-                         + "move <new token>\n"
-                         + "removetoken status|force|<token>\n"
+        // One arg
+        addCmdHelp(header, "snapshot [snapshotname]", "Take a snapshot using optional name snapshotname");
+        addCmdHelp(header, "netstats [host]", "Print network information on provided host (connecting node by default)");
+        addCmdHelp(header, "move <new token>", "Move node on the token ring to a new token");
+        addCmdHelp(header, "removetoken status|force|<token>", "Show status of current token removal, force completion of pending removal or remove providen token");
 
-                         // Two args
-                         + "flush [keyspace] [cfnames]\n"
-                         + "repair [keyspace] [cfnames]\n"
-                         + "cleanup [keyspace] [cfnames]\n"
-                         + "compact [keyspace] [cfnames]\n"
-                         + "invalidatekeycache [keyspace] [cfnames]\n"
-                         + "invalidaterowcache [keyspace] [cfnames]\n"
-                         + "getcompactionthreshold <keyspace> <cfname>\n"
-                         + "cfhistograms <keyspace> <cfname>\n"
+        // Two args
+        addCmdHelp(header, "flush [keyspace] [cfnames]", "Flush one or more column family");
+        addCmdHelp(header, "repair [keyspace] [cfnames]", "Repair one or more column family");
+        addCmdHelp(header, "cleanup [keyspace] [cfnames]", "Run cleanup on one or more column family");
+        addCmdHelp(header, "compact [keyspace] [cfnames]", "Force a (major) compaction on one or more column family");
+        addCmdHelp(header, "invalidatekeycache [keyspace] [cfnames]", "Invalidate the key cache of one or more column family");
+        addCmdHelp(header, "invalidaterowcache [keyspace] [cfnames]", "Invalidate the key cache of one or more column family");
+        addCmdHelp(header, "getcompactionthreshold <keyspace> <cfname>", "Print min and max compaction thresholds for a given column family");
+        addCmdHelp(header, "cfhistograms <keyspace> <cfname>", "Print statistic histograms for a given column family");
 
-                         // Four args
-                         + "setcachecapacity <keyspace> <cfname> <keycachecapacity> <rowcachecapacity>\n"
-                         + "setcompactionthreshold <keyspace> <cfname> <minthreshold> <maxthreshold>\n";
+        // Four args
+        addCmdHelp(header, "setcachecapacity <keyspace> <cfname> <keycachecapacity> <rowcachecapacity>", "Set the key and row cache capacities of a given column family");
+        addCmdHelp(header, "setcompactionthreshold <keyspace> <cfname> <minthreshold> <maxthreshold>", "Set the min and max compaction thresholds for a given column family");
 
         String usage = String.format("java %s --host <arg> <command>%n", NodeCmd.class.getName());
-        hf.printHelp(usage, "", options, header);
+        hf.printHelp(usage, "", options, "");
+        System.out.println(header.toString());
+    }
+
+    private static void addCmdHelp(StringBuilder sb, String cmd, String description)
+    {
+        sb.append("  ").append(cmd);
+        // Ghetto indentation (trying, but not too hard, to not look too bad)
+        if (cmd.length() <= 20)
+            for (int i = cmd.length(); i < 22; ++i) sb.append(" ");
+        sb.append(" - ").append(description).append("\n");
     }
     
     /**

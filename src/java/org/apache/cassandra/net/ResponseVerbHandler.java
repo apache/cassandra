@@ -37,7 +37,10 @@ public class ResponseVerbHandler implements IVerbHandler
         double age = System.currentTimeMillis() - MessagingService.instance().getRegisteredCallbackAge(messageId);
         Pair<InetAddress, IMessageCallback> pair = MessagingService.instance().removeRegisteredCallback(messageId);
         if (pair == null)
+        {
+            logger_.debug("Callback already removed for {}", messageId);
             return;
+        }
 
         IMessageCallback cb = pair.right;
         MessagingService.instance().maybeAddLatency(cb, message.getFrom(), age);

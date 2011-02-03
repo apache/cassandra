@@ -729,7 +729,6 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), liveEndpoints);
                     RangeSliceCommand c2 = new RangeSliceCommand(command.keyspace, command.column_family, command.super_column, command.predicate, range, command.max_keys);
-                    Message message = c2.getMessage();
 
                     // collect replies and resolve according to consistency level
                     RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, liveEndpoints);
@@ -738,6 +737,7 @@ public class StorageProxy implements StorageProxyMBean
                     // TODO bail early if live endpoints can't satisfy requested consistency level
                     for (InetAddress endpoint : liveEndpoints)
                     {
+                        Message message = c2.getMessage();
                         MessagingService.instance().sendRR(message, endpoint, handler);
                         if (logger.isDebugEnabled())
                             logger.debug("reading " + c2 + " from " + message.getMessageId() + "@" + endpoint);
