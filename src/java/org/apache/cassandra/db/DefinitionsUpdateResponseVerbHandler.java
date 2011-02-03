@@ -72,6 +72,8 @@ public class DefinitionsUpdateResponseVerbHandler implements IVerbHandler
                                 try
                                 {
                                     m.apply();
+                                    // update gossip, but don't contact nodes directly
+                                    m.passiveAnnounce();
                                 }
                                 catch (ConfigurationException ex)
                                 {

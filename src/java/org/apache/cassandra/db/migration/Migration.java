@@ -175,10 +175,15 @@ public abstract class Migration
         if (StorageService.instance.isClientMode())
             return;
         
-        // immediate notification for esiting nodes.
+        // immediate notification for existing nodes.
         MigrationManager.announce(newVersion, Gossiper.instance.getLiveMembers());
     }
-    
+
+    public final void passiveAnnounce()
+    {
+        MigrationManager.passiveAnnounce(newVersion);
+    }
+
     public static UUID getLastMigrationId()
     {
         DecoratedKey dkey = StorageService.getPartitioner().decorateKey(LAST_MIGRATION_KEY);
