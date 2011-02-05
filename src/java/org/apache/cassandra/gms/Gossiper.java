@@ -676,9 +676,9 @@ public class Gossiper implements IFailureDetectionEventListener
         int oldVersion = localState.getHeartBeatState().getHeartBeatVersion();
         Map<ApplicationState, VersionedValue> localAppStateMap = localState.getApplicationStateMap();
 
-        localState.setHeartBeatState(remoteHbState);
+        localState.setHeartBeatState(remoteState.getHeartBeatState());
         if (logger.isTraceEnabled())
-            logger.trace("Updating heartbeat state generation to " + remoteHbState.getGeneration() + " from " + localHbState.getGeneration() + " for " + addr);
+            logger.trace("Updating heartbeat state version to " + localState.getHeartBeatState().getHeartBeatVersion() + " from " + oldVersion + " for " + addr + " ...");
 
         for (Entry<ApplicationState, VersionedValue> remoteEntry : remoteState.getApplicationStateMap().entrySet())
         {
