@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.*;
@@ -511,7 +512,14 @@ public class TableTest extends CleanupHelper
         List<String> L = new ArrayList<String>();
         for (IColumn column : columns)
         {
-            L.add(ByteBufferUtil.string(column.name()));
+            try
+            {
+                L.add(ByteBufferUtil.string(column.name()));
+            }
+            catch (CharacterCodingException e)
+            {
+                throw new AssertionError(e);
+            }
         }
 
         List<String> names = new ArrayList<String>(columnNames.length);

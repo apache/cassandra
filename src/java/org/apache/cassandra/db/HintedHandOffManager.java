@@ -23,6 +23,7 @@ import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
@@ -229,12 +230,17 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         int index = ByteBufferUtil.lastIndexOf(joined, SEPARATOR.getBytes()[0], joined.limit());
 
         if (index == -1 || index < (joined.position() + 1))
-            throw new RuntimeException("Corrupted hint name " + ByteBufferUtil.string(joined));
+            throw new RuntimeException("Corrupted hint name " + ByteBufferUtil.bytesToHex(joined));
 
-        return new String[] {
-                                ByteBufferUtil.string(joined, joined.position(), index - joined.position()),
-                                ByteBufferUtil.string(joined, index + 1, joined.limit() - (index + 1))
-                            };
+        try
+        {
+            return new String[] { ByteBufferUtil.string(joined, joined.position(), index - joined.position()),
+                                  ByteBufferUtil.string(joined, index + 1, joined.limit() - (index + 1)) };
+        }
+        catch (CharacterCodingException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     private int waitForSchemaAgreement(InetAddress endpoint) throws InterruptedException

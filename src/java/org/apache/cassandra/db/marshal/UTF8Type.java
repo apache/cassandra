@@ -22,12 +22,10 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.util.Arrays;
 
 import com.google.common.base.Charsets;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class UTF8Type extends BytesType
 {
@@ -39,11 +37,11 @@ public class UTF8Type extends BytesType
     {
         try
         {
-            return FBUtilities.decodeToUTF8(bytes);
+            return ByteBufferUtil.string(bytes, Charsets.UTF_8);
         }
         catch (CharacterCodingException e)
         {
-            throw new MarshalException("invalid UTF8 bytes " + ByteBufferUtil.string(bytes));
+            throw new MarshalException("invalid UTF8 bytes " + ByteBufferUtil.bytesToHex(bytes));
         }
     }
 

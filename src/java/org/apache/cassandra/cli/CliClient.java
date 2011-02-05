@@ -19,6 +19,7 @@ package org.apache.cassandra.cli;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
 import com.google.common.base.Charsets;
@@ -936,7 +937,7 @@ public class CliClient extends CliUserHelp
     }
 
     private void executeList(Tree statement)
-        throws TException, InvalidRequestException, NotFoundException, IllegalAccessException, InstantiationException, NoSuchFieldException, UnavailableException, TimedOutException
+            throws TException, InvalidRequestException, NotFoundException, IllegalAccessException, InstantiationException, NoSuchFieldException, UnavailableException, TimedOutException, CharacterCodingException
     {
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
@@ -1896,7 +1897,7 @@ public class CliClient extends CliUserHelp
      * @throws NoSuchFieldException - column not found
      */
     private void printSliceList(CfDef columnFamilyDef, List<KeySlice> slices)
-            throws NotFoundException, TException, IllegalAccessException, InstantiationException, NoSuchFieldException
+            throws NotFoundException, TException, IllegalAccessException, InstantiationException, NoSuchFieldException, CharacterCodingException
     {
         AbstractType validator;
         String columnFamilyName = columnFamilyDef.getName();

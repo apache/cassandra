@@ -25,7 +25,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import org.apache.cassandra.utils.FBUtilities;
+import com.google.common.base.Charsets;
+
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class CollatingOrderPreservingPartitioner extends AbstractByteOrderedPartitioner
 {
@@ -39,7 +41,7 @@ public class CollatingOrderPreservingPartitioner extends AbstractByteOrderedPart
         String skey;
         try
         {
-            skey = FBUtilities.decodeToUTF8(key);
+            skey = ByteBufferUtil.string(key, Charsets.UTF_8);
         }
         catch (CharacterCodingException e)
         {

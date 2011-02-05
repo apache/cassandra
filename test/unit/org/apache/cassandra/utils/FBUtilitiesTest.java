@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.Arrays;
 
+import com.google.common.base.Charsets;
 import org.junit.Test;
 
 public class FBUtilitiesTest 
@@ -89,6 +90,6 @@ public class FBUtilitiesTest
     public void testDecode() throws IOException
     {
         ByteBuffer bytes = ByteBuffer.wrap(new byte[]{(byte)0xff, (byte)0xfe});
-        FBUtilities.decodeToUTF8(bytes);
+        ByteBufferUtil.string(bytes, Charsets.UTF_8);
     } 
 }
