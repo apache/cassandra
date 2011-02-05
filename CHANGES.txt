@@ -1,3 +1,8 @@
+0.7.2
+ * cache writing moved to CompactionManager to reduce i/o contention and
+   updated to use non-cache-polluting writes (CASSANDRA-2053)
+
+
 0.7.1
  * buffer network stack to avoid inefficient small TCP messages while avoiding
    the nagle/delayed ack problem (CASSANDRA-1896)

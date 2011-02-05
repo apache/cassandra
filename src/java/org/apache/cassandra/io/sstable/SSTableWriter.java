@@ -335,7 +335,7 @@ public class SSTableWriter extends SSTable
             }
         }
 
-        public long getBytesRead()
+        public long getBytesComplete()
         {
             return dfile.getFilePointer();
         }

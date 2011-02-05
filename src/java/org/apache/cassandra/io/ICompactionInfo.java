@@ -25,7 +25,7 @@ public interface ICompactionInfo
 {
     public long getTotalBytes();
 
-    public long getBytesRead();
+    public long getBytesComplete();
 
     public String getTaskType();
 }

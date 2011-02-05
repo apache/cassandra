@@ -651,7 +651,7 @@ public class Table
             return iter.getTotalBytes();
         }
 
-        public long getBytesRead()
+        public long getBytesComplete()
         {
             return iter.getBytesRead();
         }
