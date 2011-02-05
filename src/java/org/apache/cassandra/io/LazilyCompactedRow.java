@@ -122,8 +122,19 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
     {
         // no special-case for rows.size == 1, we're actually skipping some bytes here so just
         // blindly updating everything wouldn't be correct
-        digest.update(headerBuffer.getData(), 0, headerBuffer.getLength());
         DataOutputBuffer out = new DataOutputBuffer();
+
+        try
+        {
+            ColumnFamily.serializer().serializeCFInfo(emptyColumnFamily, out);
+            out.writeInt(columnCount);
+            digest.update(out.getData(), 0, out.getLength());
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+
         Iterator<IColumn> iter = iterator();
         while (iter.hasNext())
         {

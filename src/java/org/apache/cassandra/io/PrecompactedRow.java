@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.ColumnIndexer;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
@@ -47,18 +48,21 @@ public class PrecompactedRow extends AbstractCompactedRow
     private static Logger logger = LoggerFactory.getLogger(PrecompactedRow.class);
 
     private final DataOutputBuffer buffer;
+    private final DataOutputBuffer headerBuffer;
     private int columnCount = 0;
 
     public PrecompactedRow(DecoratedKey key, DataOutputBuffer buffer)
     {
         super(key);
         this.buffer = buffer;
+        this.headerBuffer = new DataOutputBuffer();
     }
 
     public PrecompactedRow(ColumnFamilyStore cfStore, List<SSTableIdentityIterator> rows, boolean major, int gcBefore)
     {
         super(rows.get(0).getKey());
         buffer = new DataOutputBuffer();
+        headerBuffer = new DataOutputBuffer();
 
         Set<SSTable> sstables = new HashSet<SSTable>();
         for (SSTableIdentityIterator row : rows)
@@ -94,7 +98,9 @@ public class PrecompactedRow extends AbstractCompactedRow
             ColumnFamily cfPurged = shouldPurge ? ColumnFamilyStore.removeDeleted(cf, gcBefore) : cf;
             if (cfPurged == null)
                 return;
-            columnCount = ColumnFamily.serializer().serializeWithIndexes(cfPurged, buffer);
+            
+            ColumnIndexer.serialize(cfPurged, headerBuffer);
+            columnCount = ColumnFamily.serializer().serializeForSSTable(cfPurged, buffer);
         }
         else
         {
@@ -113,7 +119,8 @@ public class PrecompactedRow extends AbstractCompactedRow
 
     public void write(DataOutput out) throws IOException
     {
-        out.writeLong(buffer.getLength());
+        out.writeLong(headerBuffer.getLength() + buffer.getLength());
+        out.write(headerBuffer.getData(), 0, headerBuffer.getLength());
         out.write(buffer.getData(), 0, buffer.getLength());
     }
 
