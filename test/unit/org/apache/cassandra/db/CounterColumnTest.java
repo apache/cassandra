@@ -34,8 +34,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.db.marshal.AbstractCommutativeType;
-import org.apache.cassandra.db.marshal.CounterColumnType;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -64,7 +63,11 @@ public class CounterColumnTest
     {
         AbstractCommutativeType type = CounterColumnType.instance;
         long delta = 3L;
-        CounterColumn column = new CounterColumn(ByteBufferUtil.bytes("x"), delta, 1L);
+        CounterUpdateColumn cuc = (CounterUpdateColumn)type.createColumn(
+            ByteBufferUtil.bytes("x"),
+            ByteBufferUtil.bytes(delta),
+            1L);
+        CounterColumn column = cuc.asCounterColumn();
 
         assert delta == column.total();
         assert Arrays.equals(FBUtilities.getLocalAddress().getAddress(), ArrayUtils.subarray(column.value().array(), 0, idLength));
@@ -79,12 +82,14 @@ public class CounterColumnTest
         IColumn right;
         IColumn reconciled;
 
+        ByteBuffer context;
+
         // tombstone + tombstone
         left  = new DeletedColumn(ByteBufferUtil.bytes("x"), 1, 1L);
         right = new DeletedColumn(ByteBufferUtil.bytes("x"), 2, 2L);
 
-        assert left.reconcile(right).timestamp() == right.timestamp();
-        assert right.reconcile(left).timestamp() == right.timestamp();
+        assert left.reconcile(right).getMarkedForDeleteAt() == right.getMarkedForDeleteAt();
+        assert right.reconcile(left).getMarkedForDeleteAt() == right.getMarkedForDeleteAt();
 
         // tombstone > live
         left  = new DeletedColumn(ByteBufferUtil.bytes("x"), 1, 2L);
@@ -112,7 +117,7 @@ public class CounterColumnTest
         assert reconciled.name() == right.name();
         assert reconciled.value() == right.value();
         assert reconciled.timestamp() == right.timestamp();
-        assert ((CounterColumn)reconciled).timestampOfLastDelete() == left.timestamp();
+        assert ((CounterColumn)reconciled).timestampOfLastDelete() == left.getMarkedForDeleteAt();
 
         // live < tombstone
         left  = new CounterColumn(ByteBufferUtil.bytes("x"), 0L, 1L);
@@ -140,36 +145,46 @@ public class CounterColumnTest
         assert reconciled.name() == left.name();
         assert reconciled.value() == left.value();
         assert reconciled.timestamp() == left.timestamp();
-        assert ((CounterColumn)reconciled).timestampOfLastDelete() == right.timestamp();
+        assert ((CounterColumn)reconciled).timestampOfLastDelete() == right.getMarkedForDeleteAt();
+
+        // live < live last delete
+        left  = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(FBUtilities.toByteArray(1), 2L, 3L), 1L, Long.MIN_VALUE);
+        right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(FBUtilities.toByteArray(1), 1L, 1L), 4L, 3L);
+
+        assert left.reconcile(right) == right;
+
+        // live last delete > live
+        left  = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(FBUtilities.toByteArray(1), 2L, 3L), 6L, 5L);
+        right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(FBUtilities.toByteArray(1), 1L, 1L), 4L, 3L);
+
+        assert left.reconcile(right) == left;
 
         // live + live
-
-        left = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(FBUtilities.toByteArray(1), 1L, 1L), 4L);
-        right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(FBUtilities.toByteArray(1), 2L, 3L), 1L);
+        left  = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(FBUtilities.toByteArray(1), 1L, 1L), 4L, Long.MIN_VALUE);
+        right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(FBUtilities.toByteArray(1), 2L, 3L), 1L, Long.MIN_VALUE);
 
         reconciled = left.reconcile(right);
         assert reconciled.name().equals(left.name());
         assert ((CounterColumn)reconciled).total() == 3L;
         assert reconciled.timestamp() == 4L;
 
-        left = reconciled;
-        right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(FBUtilities.toByteArray(2), 1L, 5L), 2L);
+        left  = reconciled;
+        right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(FBUtilities.toByteArray(2), 1L, 5L), 2L, Long.MIN_VALUE);
 
         reconciled = left.reconcile(right);
-
         assert reconciled.name().equals(left.name());
         assert ((CounterColumn)reconciled).total() == 8L;
         assert reconciled.timestamp() == 4L;
 
-        left = reconciled;
-        right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(FBUtilities.toByteArray(2), 2L, 2L), 6L);
+        left  = reconciled;
+        right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(FBUtilities.toByteArray(2), 2L, 2L), 6L, Long.MIN_VALUE);
 
         reconciled = left.reconcile(right);
         assert reconciled.name().equals(left.name());
         assert ((CounterColumn)reconciled).total() == 5L;
         assert reconciled.timestamp() == 6L;
 
-        ByteBuffer context = reconciled.value();
+        context = reconciled.value();
         assert 2 * stepLength == context.remaining();
 
         assert  1 == context.getInt(0*stepLength);

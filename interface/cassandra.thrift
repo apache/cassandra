@@ -498,6 +498,11 @@ service Cassandra {
     Remove data from the row specified by key at the granularity specified by column_path, and the given timestamp. Note
     that all the values in column_path besides column_path.column_family are truly optional: you can remove the entire
     row by just specifying the ColumnFamily, or you can remove a SuperColumn or a single Column by specifying those levels too.
+
+    Note that counters have limited support for deletes: if you remove
+    a counter, you must wait to issue any following update until the
+    delete has reached all the nodes and all of them have been fully
+    compacted.
    */
   void remove(1:required binary key,
               2:required ColumnPath column_path,

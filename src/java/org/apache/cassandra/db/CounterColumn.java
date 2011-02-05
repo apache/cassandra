@@ -110,28 +110,7 @@ public class CounterColumn extends Column
     {
         assert (column instanceof CounterColumn) || (column instanceof DeletedColumn) : "Wrong class type.";
 
-        if (isMarkedForDelete())
-        {
-            if (column.isMarkedForDelete()) // tombstone + tombstone: keep later tombstone
-            {
-                return timestamp() > column.timestamp() ? this : column;
-            }
-            else // tombstone + live: track last tombstone
-            {
-                if (timestamp() > column.timestamp()) // tombstone > live
-                {
-                    return this;
-                }
-                // tombstone <= live last delete
-                if (timestamp() <= ((CounterColumn)column).timestampOfLastDelete())
-                {
-                    return column;
-                }
-                // tombstone > live last delete
-                return new CounterColumn(column.name(), column.value(), column.timestamp(), timestamp());
-            }
-        }
-        else if (column.isMarkedForDelete()) // live + tombstone: track last tombstone
+        if (column.isMarkedForDelete()) // live + tombstone: track last tombstone
         {
             if (timestamp() < column.timestamp()) // live < tombstone
             {
@@ -145,6 +124,12 @@ public class CounterColumn extends Column
             // live last delete < tombstone
             return new CounterColumn(name(), value(), timestamp(), column.timestamp());
         }
+        // live < live last delete
+        if (timestamp() < ((CounterColumn)column).timestampOfLastDelete())
+            return column;
+        // live last delete > live
+        if (timestampOfLastDelete() > column.timestamp())
+            return this;
         // live + live: merge clocks; update value
         return new CounterColumn(
             name(),
