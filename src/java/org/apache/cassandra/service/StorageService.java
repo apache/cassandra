@@ -274,7 +274,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (!initialized)
         {
             logger_.warn("Starting gossip by operator request");
-            Gossiper.instance.start(FBUtilities.getLocalAddress(), (int)(System.currentTimeMillis() / 1000));
+            Gossiper.instance.start((int)(System.currentTimeMillis() / 1000));
             initialized = true;
         }
     }
@@ -335,7 +335,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         logger_.info("Starting up client gossip");
         setMode("Client", false);
         Gossiper.instance.register(this);
-        Gossiper.instance.start(FBUtilities.getLocalAddress(), (int)(System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
+        Gossiper.instance.start((int)(System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
         MessagingService.instance().listen(FBUtilities.getLocalAddress());
         
         // sleep a while to allow gossip to warm up (the other nodes need to know about this one before they can reply).
@@ -419,7 +419,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // (we won't be part of the storage ring though until we add a nodeId to our state, below.)
         Gossiper.instance.register(this);
         Gossiper.instance.register(migrationManager);
-        Gossiper.instance.start(FBUtilities.getLocalAddress(), SystemTable.incrementAndGetGeneration()); // needed for node-ring gathering.
+        Gossiper.instance.start(SystemTable.incrementAndGetGeneration()); // needed for node-ring gathering.
 
         MessagingService.instance().listen(FBUtilities.getLocalAddress());
         StorageLoadBalancer.instance.startBroadcasting();

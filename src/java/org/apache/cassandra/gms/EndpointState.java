@@ -34,54 +34,53 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
  * instance. Any state for a given endpoint can be retrieved from this instance.
  */
 
+
 public class EndpointState
 {
     protected static Logger logger = LoggerFactory.getLogger(EndpointState.class);
 
-    private final static ICompactSerializer<EndpointState> serializer_ = new EndpointStateSerializer();
+    private final static ICompactSerializer<EndpointState> serializer = new EndpointStateSerializer();
 
-    volatile HeartBeatState hbState_;
-    final Map<ApplicationState, VersionedValue> applicationState_ = new NonBlockingHashMap<ApplicationState, VersionedValue>();
+    private volatile HeartBeatState hbState;
+    final Map<ApplicationState, VersionedValue> applicationState = new NonBlockingHashMap<ApplicationState, VersionedValue>();
     
     /* fields below do not get serialized */
-    volatile long updateTimestamp_;
-    volatile boolean isAlive_;
-    volatile boolean isAGossiper_;
+    private volatile long updateTimestamp;
+    private volatile boolean isAlive;
 
     // whether this endpoint has token associated with it or not. Initially set false for all
     // endpoints. After certain time of inactivity, gossiper will examine if this node has a
     // token or not and will set this true if token is found. If there is no token, this is a
     // fat client and will be removed automatically from gossip.
-    volatile boolean hasToken_;
+    private volatile boolean hasToken;
 
     public static ICompactSerializer<EndpointState> serializer()
     {
-        return serializer_;
+        return serializer;
     }
     
-    EndpointState(HeartBeatState hbState)
+    EndpointState(HeartBeatState initialHbState)
     { 
-        hbState_ = hbState; 
-        updateTimestamp_ = System.currentTimeMillis(); 
-        isAlive_ = true; 
-        isAGossiper_ = false;
-        hasToken_ = false;
+        hbState = initialHbState;
+        updateTimestamp = System.currentTimeMillis();
+        isAlive = true;
+        hasToken = false;
     }
         
     HeartBeatState getHeartBeatState()
     {
-        return hbState_;
+        return hbState;
     }
     
-    void setHeartBeatState(HeartBeatState hbState)
+    void setHeartBeatState(HeartBeatState newHbState)
     {
         updateTimestamp();
-        hbState_ = hbState;
+        hbState = newHbState;
     }
 
     public VersionedValue getApplicationState(ApplicationState key)
     {
-        return applicationState_.get(key);
+        return applicationState.get(key);
     }
 
     /**
@@ -90,61 +89,54 @@ public class EndpointState
     @Deprecated
     public Map<ApplicationState, VersionedValue> getApplicationStateMap()
     {
-        return applicationState_;
+        return applicationState;
     }
     
     void addApplicationState(ApplicationState key, VersionedValue value)
     {
-        applicationState_.put(key, value);
+        applicationState.put(key, value);
     }
 
     /* getters and setters */
     long getUpdateTimestamp()
     {
-        return updateTimestamp_;
+        return updateTimestamp;
     }
     
     void updateTimestamp()
     {
-        updateTimestamp_ = System.currentTimeMillis();
+        updateTimestamp = System.currentTimeMillis();
     }
     
     public boolean isAlive()
     {        
-        return isAlive_;
+        return isAlive;
     }
 
-    void isAlive(boolean value)
+    void markAlive()
+    {
+        isAlive = true;
+    }
+
+    void markDead()
     {        
-        isAlive_ = value;        
-    }
-
-    
-    boolean isAGossiper()
-    {        
-        return isAGossiper_;
-    }
-
-    void isAGossiper(boolean value)
-    {                
-        //isAlive_ = false;
-        isAGossiper_ = value;        
+        isAlive = false;
     }
 
     public void setHasToken(boolean value)
     {
-        hasToken_ = value;
+        hasToken = value;
     }
 
     public boolean getHasToken()
     {
-        return hasToken_;
+        return hasToken;
     }
 }
 
 class EndpointStateSerializer implements ICompactSerializer<EndpointState>
 {
-    private static Logger logger_ = LoggerFactory.getLogger(EndpointStateSerializer.class);
+    private static Logger logger = LoggerFactory.getLogger(EndpointStateSerializer.class);
     
     public void serialize(EndpointState epState, DataOutputStream dos) throws IOException
     {
@@ -153,9 +145,9 @@ class EndpointStateSerializer implements ICompactSerializer<EndpointState>
         HeartBeatState.serializer().serialize(hbState, dos);
 
         /* serialize the map of ApplicationState objects */
-        int size = epState.applicationState_.size();
+        int size = epState.applicationState.size();
         dos.writeInt(size);
-        for (Map.Entry<ApplicationState, VersionedValue> entry : epState.applicationState_.entrySet())
+        for (Map.Entry<ApplicationState, VersionedValue> entry : epState.applicationState.entrySet())
         {
             VersionedValue value = entry.getValue();
             if (value != null)

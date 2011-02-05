@@ -67,10 +67,10 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     public String getAllEndpointStates()
     {
         StringBuilder sb = new StringBuilder();
-        for (Map.Entry<InetAddress, EndpointState> entry : Gossiper.instance.endpointStateMap_.entrySet())
+        for (Map.Entry<InetAddress, EndpointState> entry : Gossiper.instance.endpointStateMap.entrySet())
         {
             sb.append(entry.getKey()).append("\n");
-            for (Map.Entry<ApplicationState, VersionedValue> state : entry.getValue().applicationState_.entrySet())
+            for (Map.Entry<ApplicationState, VersionedValue> state : entry.getValue().applicationState.entrySet())
                 sb.append("  ").append(state.getKey()).append(":").append(state.getValue().value).append("\n");
         }
         return sb.toString();
@@ -214,7 +214,7 @@ class ArrivalWindow
         }
         else
         {
-            interArrivalTime = Gossiper.intervalInMillis_ / 2;
+            interArrivalTime = Gossiper.intervalInMillis / 2;
         }
         tLast_ = value;            
         arrivalIntervals_.add(interArrivalTime);        

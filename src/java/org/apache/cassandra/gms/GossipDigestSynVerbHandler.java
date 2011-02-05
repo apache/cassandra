@@ -65,6 +65,16 @@ public class GossipDigestSynVerbHandler implements IVerbHandler
             }
 
             List<GossipDigest> gDigestList = gDigestMessage.getGossipDigests();
+            if (logger_.isTraceEnabled())
+            {
+                StringBuilder sb = new StringBuilder();
+                for ( GossipDigest gDigest : gDigestList )
+                {
+                    sb.append(gDigest);
+                    sb.append(" ");
+                }
+                logger_.trace("Gossip syn digests are : " + sb.toString());
+            }
             /* Notify the Failure Detector */
             Gossiper.instance.notifyFailureDetector(gDigestList);
 
