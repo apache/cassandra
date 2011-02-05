@@ -452,11 +452,6 @@ public class FBUtilities
         return utflen;
     }
 
-    public static String decodeToUTF8(ByteBuffer bytes) throws CharacterCodingException
-    {
-        return Charsets.UTF_8.newDecoder().decode(bytes.duplicate()).toString();
-    }
-
     public static String resourceToFile(String filename) throws ConfigurationException
     {
         ClassLoader loader = PropertyFileSnitch.class.getClassLoader();

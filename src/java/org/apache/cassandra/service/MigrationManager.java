@@ -89,15 +89,21 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         }
     }
 
-    /** announce my version to a set of hosts.  They may culminate with them sending me migrations. */
+    /** actively announce my version to a set of hosts via rpc.  They may culminate with them sending me migrations. */
     public static void announce(UUID version, Set<InetAddress> hosts)
     {
         Message msg = makeVersionMessage(version);
         for (InetAddress host : hosts)
             MessagingService.instance().sendOneWay(msg, host);
-        // this is for notifying nodes as they arrive in the cluster.
+        passiveAnnounce(version);
+    }
+
+    /** announce my version passively over gossip **/
+    public static void passiveAnnounce(UUID version)
+    {
         if (!StorageService.instance.isClientMode())
             Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.migration(version));
+        logger.debug("Announcing my schema is " + version);
     }
 
     /**
@@ -152,6 +158,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
                 throw new IOException(e);
             }
         }
+        passiveAnnounce(to); // we don't need to send rpcs, but we need to update gossip
     }
     
     /** pushes migrations from this host to another host */

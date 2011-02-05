@@ -21,6 +21,7 @@ package org.apache.cassandra.dht;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
 import org.apache.cassandra.db.DecoratedKey;
@@ -61,7 +62,15 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
         assert splitPoint != -1;
 
         // and decode the token and key
-        String token = ByteBufferUtil.string(fromdisk, fromdisk.position(), splitPoint - fromdisk.position(), UTF_8);
+        String token = null;
+        try
+        {
+            token = ByteBufferUtil.string(fromdisk, fromdisk.position(), splitPoint - fromdisk.position(), UTF_8);
+        }
+        catch (CharacterCodingException e)
+        {
+            throw new RuntimeException(e);
+        }
         ByteBuffer key = fromdisk.duplicate();
         key.position(splitPoint + 1);
         return new DecoratedKey<BigIntegerToken>(new BigIntegerToken(token), key);

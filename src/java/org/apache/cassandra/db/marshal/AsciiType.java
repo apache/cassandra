@@ -22,6 +22,7 @@ package org.apache.cassandra.db.marshal;
 
 
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 
 import com.google.common.base.Charsets;
 
@@ -36,7 +37,14 @@ public class AsciiType extends BytesType
     @Override
     public String getString(ByteBuffer bytes)
     {
-        return ByteBufferUtil.string(bytes, Charsets.US_ASCII);
+        try
+        {
+            return ByteBufferUtil.string(bytes, Charsets.US_ASCII);
+        }
+        catch (CharacterCodingException e)
+        {
+            throw new MarshalException("Invalid ascii bytes " + ByteBufferUtil.bytesToHex(bytes));
+        }
     }
 
     public ByteBuffer fromString(String source)

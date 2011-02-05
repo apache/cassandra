@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.thrift;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.concurrent.ExecutorService;
@@ -27,11 +26,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.thrift.TBinaryProtocol;
 import org.apache.thrift.TProcessorFactory;
 import org.apache.thrift.protocol.TProtocolFactory;
 import org.apache.thrift.server.TServer;
-import org.apache.thrift.transport.TFastFramedTransport;
+import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TServerSocket;
 import org.apache.thrift.transport.TTransportException;
 import org.apache.thrift.transport.TTransportFactory;
@@ -123,8 +121,8 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
             if (DatabaseDescriptor.isThriftFramed())
             {
                 int tFramedTransportSize = DatabaseDescriptor.getThriftFramedTransportSize();
-                inTransportFactory  = new TFastFramedTransport.Factory(64 * 1024, tFramedTransportSize);
-                outTransportFactory = new TFastFramedTransport.Factory(64 * 1024, tFramedTransportSize);
+                inTransportFactory  = new TFramedTransport.Factory(tFramedTransportSize);
+                outTransportFactory = new TFramedTransport.Factory(tFramedTransportSize);
                 logger.info("Using TFastFramedTransport with a max frame size of {} bytes.", tFramedTransportSize);
             }
             else

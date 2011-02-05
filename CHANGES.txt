@@ -13,7 +13,6 @@
    the nagle/delayed ack problem (CASSANDRA-1896)
  * check log4j configuration for changes every 10s (CASSANDRA-1525, 1907)
  * more-efficient cross-DC replication (CASSANDRA-1530, -2051)
- * upgrade to TFastFramedTransport (CASSANDRA-1743)
  * avoid polluting page cache with commitlog or sstable writes
    and seq scan operations (CASSANDRA-1470)
  * add RMI authentication options to nodetool (CASSANDRA-1921)
@@ -61,6 +60,7 @@
  * avoid blocking gossip while deleting handoff hints (CASSANDRA-2073)
  * ignore messages from newer versions, keep track of nodes in gossip 
    regardless of version (CASSANDRA-1970)
+
 
 0.7.0-final
  * fix offsets to ByteBuffer.get (CASSANDRA-1939)

@@ -123,7 +123,14 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
 
         public Token<String> fromByteArray(ByteBuffer bytes)
         {
-            return new StringToken(ByteBufferUtil.string(bytes, Charsets.UTF_8));
+            try
+            {
+                return new StringToken(ByteBufferUtil.string(bytes, Charsets.UTF_8));
+            }
+            catch (CharacterCodingException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
 
         public String toString(Token<String> stringToken)
@@ -152,7 +159,7 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
         String skey;
         try
         {
-            skey = FBUtilities.decodeToUTF8(key);
+            skey = ByteBufferUtil.string(key, Charsets.UTF_8);
         }
         catch (CharacterCodingException e)
         {

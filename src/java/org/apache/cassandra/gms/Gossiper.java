@@ -257,7 +257,7 @@ public class Gossiper implements IFailureDetectionEventListener
 
         liveEndpoints.remove(endpoint);
         unreachableEndpoints.remove(endpoint);
-        endpointStateMap.remove(endpoint);
+        // do not remove endpointState until the quarantine expires
         FailureDetector.instance.remove(endpoint);
         versions.remove(endpoint);
         justRemovedEndpoints.put(endpoint, System.currentTimeMillis());
@@ -325,9 +325,7 @@ public class Gossiper implements IFailureDetectionEventListener
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         GossipDigestAckMessage.serializer().serialize(gDigestAckMessage, dos);
-        if (logger.isTraceEnabled())
-            logger.trace("@@@@ Size of GossipDigestAckMessage is " + bos.toByteArray().length);
-        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.GOSSIP_DIGEST_ACK, bos.toByteArray());
+        return new Message(localEndpoint_, StorageService.Verb.GOSSIP_DIGEST_ACK, bos.toByteArray());
     }
 
     Message makeGossipDigestAck2Message(GossipDigestAck2Message gDigestAck2Message) throws IOException
@@ -433,7 +431,8 @@ public class Gossiper implements IFailureDetectionEventListener
                     else
                     {
                         logger.info("FatClient " + endpoint + " has been silent for " + FatClientTimeout + "ms, removing from gossip");
-                        removeEndpoint(endpoint);
+                        if (!justRemovedEndpoints_.containsKey(endpoint)) // if the node was decommissioned, it will have been removed but still appear as a fat client
+                            removeEndpoint(endpoint); // after quarantine justRemoveEndpoints will remove the state
                     }
                 }
 
@@ -453,6 +452,7 @@ public class Gossiper implements IFailureDetectionEventListener
                     if (logger.isDebugEnabled())
                         logger.debug(QUARANTINE_DELAY + " elapsed, " + entry.getKey() + " gossip quarantine over");
                     justRemovedEndpoints.remove(entry.getKey());
+                    endpointStateMap_.remove(entry.getKey());
                 }
             }
         }
@@ -465,8 +465,6 @@ public class Gossiper implements IFailureDetectionEventListener
 
     EndpointState getStateForVersionBiggerThan(InetAddress forEndpoint, int version)
     {
-        if (logger.isTraceEnabled())
-            logger.trace("Scanning for state greater than " + version + " for " + forEndpoint);
         EndpointState epState = endpointStateMap.get(forEndpoint);
         EndpointState reqdEndpointState = null;
 
@@ -484,6 +482,8 @@ public class Gossiper implements IFailureDetectionEventListener
             if ( localHbVersion > version )
             {
                 reqdEndpointState = new EndpointState(epState.getHeartBeatState());
+                if (logger_.isTraceEnabled())
+                    logger_.trace("local heartbeat version " + localHbVersion + " greater than " + version + " for " + forEndpoint);
             }
             /* Accumulate all application states whose versions are greater than "version" variable */
             for (Entry<ApplicationState, VersionedValue> entry : epState.getApplicationStateMap().entrySet())
@@ -656,6 +656,11 @@ public class Gossiper implements IFailureDetectionEventListener
                     else if (logger.isTraceEnabled())
                             logger.trace("Ignoring remote version " + remoteMaxVersion + " <= " + localMaxVersion + " for " + ep);
             	}
+                else
+                {
+                    if (logger_.isTraceEnabled())
+                        logger_.trace("Ignoring remote generation " + remoteGeneration + " < " + localGeneration);
+                }
             }
             else
             {
@@ -671,9 +676,9 @@ public class Gossiper implements IFailureDetectionEventListener
         int oldVersion = localState.getHeartBeatState().getHeartBeatVersion();
         Map<ApplicationState, VersionedValue> localAppStateMap = localState.getApplicationStateMap();
 
-        localState.setHeartBeatState(remoteState.getHeartBeatState());
-        if (logger.isTraceEnabled())
-            logger.trace("Updating heartbeat state version to " + localState.getHeartBeatState().getHeartBeatVersion() + " from " + oldVersion + " for " + addr + " ...");
+        localState.setHeartBeatState(remoteHbState);
+        if (logger_.isTraceEnabled())
+            logger_.trace("Updating heartbeat state generation to " + remoteHbState.getGeneration() + " from " + localHbState.getGeneration() + " for " + addr);
 
         for (Entry<ApplicationState, VersionedValue> remoteEntry : remoteState.getApplicationStateMap().entrySet())
         {
@@ -700,6 +705,8 @@ public class Gossiper implements IFailureDetectionEventListener
     {
         /* We are here since we have no data for this endpoint locally so request everthing. */
         deltaGossipDigestList.add( new GossipDigest(gDigest.getEndpoint(), remoteGeneration, 0) );
+        if (logger_.isTraceEnabled())
+            logger_.trace("requestAll for " + gDigest.getEndpoint());
     }
 
     /* Send all the data with version greater than maxRemoteVersion */

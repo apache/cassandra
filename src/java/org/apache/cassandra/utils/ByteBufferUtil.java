@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 
@@ -100,28 +101,27 @@ public class ByteBufferUtil
         return compareUnsigned(o1, ByteBuffer.wrap(o2));
     }
 
-    public static String string(ByteBuffer buffer)
+    public static String string(ByteBuffer buffer) throws CharacterCodingException
     {
         return string(buffer, Charset.defaultCharset());
     }
 
-    public static String string(ByteBuffer buffer, Charset charset)
-    {
-        return string(buffer, buffer.position(), buffer.remaining(), charset);
-    }
-
-    public static String string(ByteBuffer buffer, int offset, int length)
+    public static String string(ByteBuffer buffer, int offset, int length) throws CharacterCodingException
     {
         return string(buffer, offset, length, Charset.defaultCharset());
     }
 
-    public static String string(ByteBuffer buffer, int offset, int length, Charset charset)
+    public static String string(ByteBuffer buffer, int offset, int length, Charset charset) throws CharacterCodingException
     {
-        if (buffer.hasArray())
-            return new String(buffer.array(), buffer.arrayOffset() + offset, length, charset);
+        ByteBuffer copy = buffer.duplicate();
+        copy.position(buffer.position() + offset);
+        copy.limit(copy.position() + length);
+        return string(buffer, charset);
+    }
 
-        byte[] buff = getArray(buffer, offset, length);
-        return new String(buff, charset);
+    public static String string(ByteBuffer buffer, Charset charset) throws CharacterCodingException
+    {
+        return charset.newDecoder().decode(buffer.duplicate()).toString();
     }
 
     /**
