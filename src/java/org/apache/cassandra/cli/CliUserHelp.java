@@ -59,7 +59,7 @@ public class CliUserHelp {
         put(ColumnFamilyArgument.SUBCOMPARATOR, "Comparator for sorting subcolumn names, for Super columns only");
         put(ColumnFamilyArgument.MEMTABLE_OPERATIONS, "Flush memtables after this many operations (in millions)");
         put(ColumnFamilyArgument.MEMTABLE_THROUGHPUT, "... or after this many MB have been written");
-        put(ColumnFamilyArgument.MEMTABLE_FLUSH_AFTER, "... or after this many seconds");
+        put(ColumnFamilyArgument.MEMTABLE_FLUSH_AFTER, "... or after this many minutes");
         put(ColumnFamilyArgument.ROWS_CACHED, "Number or percentage of rows to cache");
         put(ColumnFamilyArgument.ROW_CACHE_SAVE_PERIOD, "Period with which to persist the row cache, in seconds");
         put(ColumnFamilyArgument.KEYS_CACHED, "Number or percentage of keys to cache");
