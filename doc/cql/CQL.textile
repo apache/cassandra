@@ -195,9 +195,13 @@ h3(#terms). Term specification
 
 Where possible, the type of terms are inferred; the following term types are supported:
 
-h4. String Literals
+h4(#string_literals). String Literals
 
 String literals are any value enclosed in double-quotes, (`"`).  String literals are treated as raw bytes; no interpolation is performed.
+
+h4. Unicode
+
+Unicode terms are any double-quoted string prefixed with a lower-case @u@, for example @u"© 2011 The Apache Software Foundation"@.  Unicode terms are identical to standard "string literals":#string_literals, with the exception that they are encoded to bytes using the UTF-8 charset.
 
 h4. Integers / longs
 
