@@ -41,6 +41,8 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.migration.AddKeyspace;
 import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IPartitioner;
@@ -77,11 +79,16 @@ public class QueryProcessor
             for (Term column : select.getColumnNames())
                 columnNames.add(column.getByteBuffer());
             
+            validateColumns(keyspace, select.getColumnFamily(), columnNames);
             commands.add(new SliceByNamesReadCommand(keyspace, key, queryPath, columnNames));
         }
         // ...a range (slice) of column names
         else
         {
+            validateColumns(keyspace,
+                            select.getColumnFamily(),
+                            select.getColumnStart().getByteBuffer(),
+                            select.getColumnFinish().getByteBuffer());
             commands.add(new SliceFromReadCommand(keyspace,
                                                   key,
                                                   queryPath,
@@ -108,7 +115,7 @@ public class QueryProcessor
     }
     
     private static List<org.apache.cassandra.db.Row> multiRangeSlice(String keyspace, SelectStatement select)
-    throws TimedOutException, UnavailableException
+    throws TimedOutException, UnavailableException, InvalidRequestException
     {
         List<org.apache.cassandra.db.Row> rows = null;
         
@@ -119,6 +126,7 @@ public class QueryProcessor
         
         // XXX: Our use of Thrift structs internally makes me Sad. :(
         SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select);
+        validateSlicePredicate(keyspace, select.getColumnFamily(), thriftSlicePredicate);
 
         try
         {
@@ -147,10 +155,11 @@ public class QueryProcessor
     }
     
     private static List<org.apache.cassandra.db.Row> getIndexedSlices(String keyspace, SelectStatement select)
-    throws TimedOutException, UnavailableException
+    throws TimedOutException, UnavailableException, InvalidRequestException
     {
         // XXX: Our use of Thrift structs internally (still) makes me Sad. :~(
         SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select);
+        validateSlicePredicate(keyspace, select.getColumnFamily(), thriftSlicePredicate);
         
         List<IndexExpression> expressions = new ArrayList<IndexExpression>();
         for (Relation columnRelation : select.getColumnRelations())
@@ -198,6 +207,7 @@ public class QueryProcessor
             RowMutation rm = new RowMutation(keyspace, key);
             for (Map.Entry<Term, Term> column : update.getColumns().entrySet())
             {
+                validateColumn(keyspace, update.getColumnFamily(), column.getKey().getByteBuffer());
                 rm.add(new QueryPath(update.getColumnFamily(), null, column.getKey().getByteBuffer()),
                        column.getValue().getByteBuffer(),
                        System.currentTimeMillis());
@@ -220,7 +230,7 @@ public class QueryProcessor
         }
     }
     
-    private static SlicePredicate slicePredicateFromSelect(SelectStatement select)
+    private static SlicePredicate slicePredicateFromSelect(SelectStatement select) throws InvalidRequestException
     {
         SlicePredicate thriftSlicePredicate = new SlicePredicate();
         
@@ -314,6 +324,48 @@ public class QueryProcessor
                 throw ex;
             }
         }
+    }
+
+    private static void validateColumns(String keyspace, String columnFamily, Iterable<ByteBuffer> columns)
+    throws InvalidRequestException
+    {
+        AbstractType comparator = ColumnFamily.getComparatorFor(keyspace, columnFamily, null);
+        for (ByteBuffer name : columns)
+        {
+            if (name.remaining() > IColumn.MAX_NAME_LENGTH)
+                throw new InvalidRequestException();
+            if (name.remaining() == 0)
+                throw new InvalidRequestException();
+            try
+            {
+                comparator.validate(name);
+            }
+            catch (MarshalException e)
+            {
+                throw new InvalidRequestException(e.getMessage());
+            }
+        }
+    }
+    
+    private static void validateColumns(String keyspace, String columnFamily, ByteBuffer start, ByteBuffer end)
+    throws InvalidRequestException
+    {
+        validateColumns(keyspace, columnFamily, Arrays.asList(start, end));
+    }
+    
+    private static void validateColumn(String keyspace, String columnFamily, ByteBuffer column)
+    throws InvalidRequestException
+    {
+        validateColumns(keyspace, columnFamily, Arrays.asList(column));
+    }
+    
+    private static void validateSlicePredicate(String keyspace, String columnFamily, SlicePredicate predicate)
+    throws InvalidRequestException
+    {
+        if (predicate.slice_range != null)
+            validateColumns(keyspace, columnFamily, predicate.slice_range.start, predicate.slice_range.finish);
+        else
+            validateColumns(keyspace, columnFamily, predicate.column_names);
     }
 
     public static CqlResult process(String queryString, ClientState clientState)
@@ -459,8 +511,11 @@ public class QueryProcessor
                     else    // Delete specific columns
                     {
                         for (Term column : delete.getColumns())
+                        {
+                            validateColumn(keyspace, delete.getColumnFamily(), column.getByteBuffer());
                             rm.delete(new QueryPath(delete.getColumnFamily(), null, column.getByteBuffer()),
                                       System.currentTimeMillis());
+                        }
                     }
                     rowMutations.add(rm);
                 }
