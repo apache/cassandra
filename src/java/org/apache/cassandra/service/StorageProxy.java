@@ -144,7 +144,7 @@ public class StorageProxy implements StorageProxyMBean
                         // unhinted writes
                         if (destination.equals(FBUtilities.getLocalAddress()))
                         {
-                            insertLocalMessage(rm, responseHandler);
+                            insertLocal(rm, responseHandler);
                         }
                         else
                         {
@@ -277,7 +277,7 @@ public class StorageProxy implements StorageProxyMBean
         message.setHeader(RowMutation.HINT, bos.toByteArray());
     }
 
-    private static void insertLocalMessage(final RowMutation rm, final IWriteResponseHandler responseHandler)
+    private static void insertLocal(final RowMutation rm, final IWriteResponseHandler responseHandler)
     {
         if (logger.isDebugEnabled())
             logger.debug("insert writing local " + rm.toString(true));
