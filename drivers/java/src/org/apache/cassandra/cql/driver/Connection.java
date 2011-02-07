@@ -21,6 +21,12 @@
 
 package org.apache.cassandra.cql.driver;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import org.apache.cassandra.thrift.AuthenticationException;
+import org.apache.cassandra.thrift.AuthenticationRequest;
+import org.apache.cassandra.thrift.AuthorizationException;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.Compression;
 import org.apache.cassandra.thrift.CqlResult;
@@ -69,6 +75,26 @@ public class Connection
         socket.open();
         
         logger.info("Connected to {}:{}", hostName, portNo);
+    }
+    
+
+    /**
+     * Create a new <code>Connection</code> instance.
+     * 
+     * @param hostName hostname or IP address of the remote host
+     * @param portNo TCP port number
+     * @throws AuthorizationException if authorization fails
+     * @throws AuthenticationException for authentication failures
+     * @throws TException on errors encountered issuing the request(s) 
+     */
+    public Connection(String hostName, int portNo, String userName, String password)
+    throws AuthenticationException, AuthorizationException, TException
+    {
+        this(hostName, portNo);
+        
+        Map<String, String> credentials = new HashMap<String, String>();
+        AuthenticationRequest areq = new AuthenticationRequest(credentials);
+        client.login(areq) ;
     }
     
     /**
