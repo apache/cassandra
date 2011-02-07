@@ -36,7 +36,7 @@ public class ReplicationFinishedVerbHandler implements IVerbHandler
     public void doVerb(Message msg)
     {
         StorageService.instance.confirmReplication(msg.getFrom());
-        Message response = msg.getInternalReply(ArrayUtils.EMPTY_BYTE_ARRAY);
+        Message response = msg.getInternalReply(ArrayUtils.EMPTY_BYTE_ARRAY, msg.getVersion());
         if (logger.isDebugEnabled())
             logger.debug("Replying to " + msg.getMessageId() + "@" + msg.getFrom());
         MessagingService.instance().sendOneWay(response, msg.getFrom());

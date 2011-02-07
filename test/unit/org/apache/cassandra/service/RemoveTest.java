@@ -217,7 +217,7 @@ public class RemoveTest extends CleanupHelper
                 callCount++;
                 assertEquals(Stage.MISC, msg.getMessageType());
                 // simulate a response from remote server
-                Message response = msg.getReply(FBUtilities.getLocalAddress(), new byte[]{ });
+                Message response = msg.getReply(FBUtilities.getLocalAddress(), new byte[]{ }, msg.getVersion());
                 MessagingService.instance().sendOneWay(response, FBUtilities.getLocalAddress());
                 return null;
             }

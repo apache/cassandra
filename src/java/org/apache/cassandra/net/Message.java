@@ -31,6 +31,7 @@ import org.apache.cassandra.utils.FBUtilities;
 public class Message
 {
     private static ICompactSerializer<Message> serializer_;
+    public static final int UNKNOWN = -1;
 
     static
     {
@@ -44,19 +45,21 @@ public class Message
     
     final Header header_;
     private final byte[] body_;
+    private final transient int version;
 
-    Message(Header header, byte[] body)
+    private Message(Header header, byte[] body, int version)
     {
         assert header != null;
         assert body != null;
 
         header_ = header;
         body_ = body;
+        this.version = version;
     }
 
     public Message(InetAddress from, StorageService.Verb verb, byte[] body)
     {
-        this(new Header(from, verb), body);
+        this(new Header(from, verb), body, UNKNOWN);
     }    
     
     public byte[] getHeader(String key)
@@ -77,6 +80,11 @@ public class Message
     public byte[] getMessageBody()
     {
         return body_;
+    }
+    
+    public int getVersion()
+    {
+        return version;
     }
 
     public InetAddress getFrom()
@@ -100,16 +108,16 @@ public class Message
     }
 
     // TODO should take byte[] + length so we don't have to copy to a byte[] of exactly the right len
-    public Message getReply(InetAddress from, byte[] args)
+    public Message getReply(InetAddress from, byte[] body, int version)
     {
         Header header = new Header(getMessageId(), from, StorageService.Verb.REQUEST_RESPONSE);
-        return new Message(header, args);
+        return new Message(header, body, version);
     }
 
-    public Message getInternalReply(byte[] body)
+    public Message getInternalReply(byte[] body, int version)
     {
         Header header = new Header(getMessageId(), FBUtilities.getLocalAddress(), StorageService.Verb.INTERNAL_RESPONSE);
-        return new Message(header, body);
+        return new Message(header, body, version);
     }
 
     public String toString()
@@ -144,7 +152,7 @@ public class Message
             byte[] bytes = new byte[size];
             dis.readFully(bytes);
             // return new Message(header.getMessageId(), header.getFrom(), header.getMessageType(), header.getVerb(), new Object[]{bytes});
-            return new Message(header, bytes);
+            return new Message(header, bytes, UNKNOWN);
         }
     }
 }
