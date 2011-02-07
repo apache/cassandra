@@ -811,9 +811,9 @@ public class StorageProxy implements StorageProxyMBean
                 throw new UnavailableException();
             
             IndexScanCommand command = new IndexScanCommand(keyspace, column_family, index_clause, column_predicate, range);
-            Message message = command.getMessage();
             for (InetAddress endpoint : liveEndpoints)
             {
+                Message message = command.getMessage();
                 MessagingService.instance().sendRR(message, endpoint, handler);
                 if (logger.isDebugEnabled())
                     logger.debug("reading " + command + " from " + message.getMessageId() + "@" + endpoint);
