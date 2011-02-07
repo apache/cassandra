@@ -90,6 +90,7 @@ public class IncomingTcpConnection extends Thread
                     int size = input.readInt();
                     byte[] headerBytes = new byte[size];
                     input.readFully(headerBytes);
+                    // todo: need to be aware of message version.
                     stream(StreamHeader.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(headerBytes))), input);
                     break;
                 }
@@ -103,6 +104,7 @@ public class IncomingTcpConnection extends Thread
                         logger.info("Received connection from newer protocol version. Ignorning message.");
                     else
                     {
+                        // todo: need to be aware of message version.
                         Message message = Message.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(contentBytes)));
                         MessagingService.instance().receive(message);
                     }

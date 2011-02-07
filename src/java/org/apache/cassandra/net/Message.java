@@ -56,11 +56,16 @@ public class Message
         body_ = body;
         this.version = version;
     }
-
-    public Message(InetAddress from, StorageService.Verb verb, byte[] body)
+    
+    public Message(InetAddress from, StorageService.Verb verb, byte[] body, int version)
     {
-        this(new Header(from, verb), body, UNKNOWN);
-    }    
+        this(new Header(from, verb), body, version);
+    } 
+    
+    public void setId(String messageId)
+    {
+        header_.setMessageId(messageId);
+    }
     
     public byte[] getHeader(String key)
     {

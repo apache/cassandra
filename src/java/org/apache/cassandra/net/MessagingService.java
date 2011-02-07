@@ -34,6 +34,9 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.base.Function;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
+import org.apache.cassandra.gms.Gossiper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -275,7 +278,7 @@ public final class MessagingService implements MessagingServiceMBean
     {
         callbacks.put(messageId, new Pair<InetAddress, IMessageCallback>(to, cb));
     }
-
+    
     /**
      * Send a message to a given endpoint. This method specifies a callback
      * which is invoked with the actual response.
@@ -292,6 +295,26 @@ public final class MessagingService implements MessagingServiceMBean
         addCallback(cb, messageId, to);
         sendOneWay(message, to);
         return messageId;
+    }
+
+    /**
+     * Send a message to a given endpoint. similar to sendRR(Message, InetAddress, IAsyncCallback)
+     * @param producer pro
+     * @param to endpoing to which the message needs to be sent
+     * @param cb callback that processes responses.
+     * @return a reference to the message id use to match with the result.
+     */
+    public String sendRR(MessageProducer producer, InetAddress to, IAsyncCallback cb)
+    {
+        try
+        {
+            return sendRR(producer.getMessage(Gossiper.instance.getVersion(to)), to, cb);
+        }
+        catch (IOException ex)
+        {
+            // happened during message creation.
+            throw new IOError(ex);
+        }
     }
 
     /**

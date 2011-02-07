@@ -28,6 +28,7 @@ package org.apache.cassandra.dht;
  import com.google.common.collect.ArrayListMultimap;
  import com.google.common.collect.HashMultimap;
  import com.google.common.collect.Multimap;
+ import org.apache.cassandra.gms.Gossiper;
  import org.apache.commons.lang.ArrayUtils;
  import org.apache.commons.lang.StringUtils;
  import org.slf4j.Logger;
@@ -215,7 +216,10 @@ public class BootStrapper
 
     static Token<?> getBootstrapTokenFrom(InetAddress maxEndpoint)
     {
-        Message message = new Message(FBUtilities.getLocalAddress(), StorageService.Verb.BOOTSTRAP_TOKEN, ArrayUtils.EMPTY_BYTE_ARRAY);
+        Message message = new Message(FBUtilities.getLocalAddress(), 
+                                      StorageService.Verb.BOOTSTRAP_TOKEN, 
+                                      ArrayUtils.EMPTY_BYTE_ARRAY, 
+                                      Gossiper.instance.getVersion(maxEndpoint));
         BootstrapTokenCallback btc = new BootstrapTokenCallback();
         MessagingService.instance().sendRR(message, maxEndpoint, btc);
         return btc.getToken();

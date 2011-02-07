@@ -29,6 +29,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.SliceRange;
@@ -61,12 +62,12 @@ public class SerializationsTest extends AbstractSerializationsTester
         IPartitioner part = StorageService.getPartitioner();
         AbstractBounds bounds = new Range(part.getRandomToken(), part.getRandomToken());
         
-        Message namesCmd = new RangeSliceCommand(Statics.KS, "Standard1", null, namesPred, bounds, 100).getMessage();
-        Message emptyRangeCmd = new RangeSliceCommand(Statics.KS, "Standard1", null, emptyRangePred, bounds, 100).getMessage();
-        Message regRangeCmd = new RangeSliceCommand(Statics.KS, "Standard1", null,  nonEmptyRangePred, bounds, 100).getMessage();
-        Message namesCmdSup = new RangeSliceCommand(Statics.KS, "Super1", Statics.SC, namesPred, bounds, 100).getMessage();
-        Message emptyRangeCmdSup = new RangeSliceCommand(Statics.KS, "Super1", Statics.SC, emptyRangePred, bounds, 100).getMessage();
-        Message regRangeCmdSup = new RangeSliceCommand(Statics.KS, "Super1", Statics.SC,  nonEmptyRangePred, bounds, 100).getMessage();
+        Message namesCmd = new RangeSliceCommand(Statics.KS, "Standard1", null, namesPred, bounds, 100).getMessage(MessagingService.version_);
+        Message emptyRangeCmd = new RangeSliceCommand(Statics.KS, "Standard1", null, emptyRangePred, bounds, 100).getMessage(MessagingService.version_);
+        Message regRangeCmd = new RangeSliceCommand(Statics.KS, "Standard1", null,  nonEmptyRangePred, bounds, 100).getMessage(MessagingService.version_);
+        Message namesCmdSup = new RangeSliceCommand(Statics.KS, "Super1", Statics.SC, namesPred, bounds, 100).getMessage(MessagingService.version_);
+        Message emptyRangeCmdSup = new RangeSliceCommand(Statics.KS, "Super1", Statics.SC, emptyRangePred, bounds, 100).getMessage(MessagingService.version_);
+        Message regRangeCmdSup = new RangeSliceCommand(Statics.KS, "Super1", Statics.SC,  nonEmptyRangePred, bounds, 100).getMessage(MessagingService.version_);
         
         DataOutputStream dout = getOutput("db.RangeSliceCommand.bin");
         
@@ -104,8 +105,8 @@ public class SerializationsTest extends AbstractSerializationsTester
         SliceByNamesReadCommand.serializer().serialize(superCmd, out);
         ReadCommand.serializer().serialize(standardCmd, out);
         ReadCommand.serializer().serialize(superCmd, out);
-        Message.serializer().serialize(standardCmd.makeReadMessage(), out);
-        Message.serializer().serialize(superCmd.makeReadMessage(), out);
+        Message.serializer().serialize(standardCmd.getMessage(MessagingService.version_), out);
+        Message.serializer().serialize(superCmd.getMessage(MessagingService.version_), out);
         out.close();
     }
     
@@ -134,8 +135,8 @@ public class SerializationsTest extends AbstractSerializationsTester
         SliceFromReadCommand.serializer().serialize(superCmd, out);
         ReadCommand.serializer().serialize(standardCmd, out);
         ReadCommand.serializer().serialize(superCmd, out);
-        Message.serializer().serialize(standardCmd.makeReadMessage(), out);
-        Message.serializer().serialize(superCmd.makeReadMessage(), out);
+        Message.serializer().serialize(standardCmd.getMessage(MessagingService.version_), out);
+        Message.serializer().serialize(superCmd.getMessage(MessagingService.version_), out);
         out.close();
     }
     
@@ -198,12 +199,12 @@ public class SerializationsTest extends AbstractSerializationsTester
         RowMutation.serializer().serialize(standardRm, out);
         RowMutation.serializer().serialize(superRm, out);
         RowMutation.serializer().serialize(mixedRm, out);
-        Message.serializer().serialize(emptyRm.makeRowMutationMessage(), out);
-        Message.serializer().serialize(standardRowRm.makeRowMutationMessage(), out);
-        Message.serializer().serialize(superRowRm.makeRowMutationMessage(), out);
-        Message.serializer().serialize(standardRm.makeRowMutationMessage(), out);
-        Message.serializer().serialize(superRm.makeRowMutationMessage(), out);
-        Message.serializer().serialize(mixedRm.makeRowMutationMessage(), out);
+        Message.serializer().serialize(emptyRm.getMessage(MessagingService.version_), out);
+        Message.serializer().serialize(standardRowRm.getMessage(MessagingService.version_), out);
+        Message.serializer().serialize(superRowRm.getMessage(MessagingService.version_), out);
+        Message.serializer().serialize(standardRm.getMessage(MessagingService.version_), out);
+        Message.serializer().serialize(superRm.getMessage(MessagingService.version_), out);
+        Message.serializer().serialize(mixedRm.getMessage(MessagingService.version_), out);
         out.close(); 
     }
     
@@ -238,9 +239,9 @@ public class SerializationsTest extends AbstractSerializationsTester
         Truncation.serializer().serialize(tr, out);
         TruncateResponse.serializer().serialize(aff, out);
         TruncateResponse.serializer().serialize(neg, out);
-        Message.serializer().serialize(tr.makeTruncationMessage(), out);
-        Message.serializer().serialize(TruncateResponse.makeTruncateResponseMessage(tr.makeTruncationMessage(), aff), out);
-        Message.serializer().serialize(TruncateResponse.makeTruncateResponseMessage(tr.makeTruncationMessage(), neg), out);
+        Message.serializer().serialize(tr.getMessage(MessagingService.version_), out);
+        Message.serializer().serialize(TruncateResponse.makeTruncateResponseMessage(tr.getMessage(MessagingService.version_), aff), out);
+        Message.serializer().serialize(TruncateResponse.makeTruncateResponseMessage(tr.getMessage(MessagingService.version_), neg), out);
         // todo: notice how CF names weren't validated.
         out.close();
     }

@@ -201,7 +201,7 @@ public class StorageProxy implements StorageProxyMBean
         return ss.getTokenMetadata().getWriteEndpoints(StorageService.getPartitioner().getToken(key), table, naturalEndpoints);
     }
 
-    private static void sendToHintedEndpoints(RowMutation rm, Multimap<InetAddress, InetAddress> hintedEndpoints, IWriteResponseHandler responseHandler, String localDataCenter, boolean insertLocalMessages, ConsistencyLevel consistency_level)
+    private static void sendToHintedEndpoints(final RowMutation rm, Multimap<InetAddress, InetAddress> hintedEndpoints, IWriteResponseHandler responseHandler, String localDataCenter, boolean insertLocalMessages, ConsistencyLevel consistency_level)
     throws IOException
     {
         // Multimap that holds onto all the messages and addresses meant for a specific datacenter
@@ -225,7 +225,7 @@ public class StorageProxy implements StorageProxyMBean
                 else
                 {
                     // belongs on a different server
-                    Message unhintedMessage = rm.makeRowMutationMessage();
+                    Message unhintedMessage = rm.getMessage(Gossiper.instance.getVersion(destination));
                     if (logger.isDebugEnabled())
                         logger.debug("insert writing key " + ByteBufferUtil.bytesToHex(rm.key()) + " to " + unhintedMessage.getMessageId() + "@" + destination);
 
@@ -242,7 +242,7 @@ public class StorageProxy implements StorageProxyMBean
             else
             {
                 // hinted
-                Message hintedMessage = rm.makeRowMutationMessage();
+                Message hintedMessage = rm.getMessage(Gossiper.instance.getVersion(destination));
                 for (InetAddress target : targets)
                 {
                     if (!target.equals(destination))
@@ -252,7 +252,6 @@ public class StorageProxy implements StorageProxyMBean
                             logger.debug("insert writing key " + ByteBufferUtil.bytesToHex(rm.key()) + " to " + hintedMessage.getMessageId() + "@" + destination + " for " + target);
                     }
                 }
-                // (non-destination hints are part of the callback and count towards consistency only under CL.ANY)
                 // (non-destination hints are part of the callback and count towards consistency only under CL.ANY)
                 if (targets.contains(destination) || consistency_level == ConsistencyLevel.ANY)
                     MessagingService.instance().sendRR(hintedMessage, destination, responseHandler);
@@ -398,7 +397,7 @@ public class StorageProxy implements StorageProxyMBean
                     IWriteResponseHandler responseHandler = WriteResponseHandler.create(endpoint);
                     responseHandlers.add(responseHandler);
 
-                    Message message = cm.makeMutationMessage();
+                    Message message = cm.makeMutationMessage(Gossiper.instance.getVersion(endpoint));
                     if (logger.isDebugEnabled())
                         logger.debug("forwarding counter update of key " + ByteBufferUtil.bytesToHex(cm.key()) + " to " + message.getMessageId() + "@" + endpoint);
                     MessagingService.instance().sendRR(message, endpoint, responseHandler);
@@ -556,7 +555,7 @@ public class StorageProxy implements StorageProxyMBean
             }
             else
             {
-                Message message = command.makeReadMessage();
+                Message message = command.getMessage(Gossiper.instance.getVersion(dataPoint));
                 if (logger.isDebugEnabled())
                     logger.debug("reading data for " + command + " from " + message.getMessageId() + "@" + dataPoint);
                 MessagingService.instance().sendRR(message, dataPoint, handler);
@@ -574,7 +573,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
                 else
                 {
-                    Message digestMessage = digestCommand.makeReadMessage();
+                    Message digestMessage = digestCommand.getMessage(Gossiper.instance.getVersion(digestPoint));
                     if (logger.isDebugEnabled())
                         logger.debug("reading digest for " + command + " from " + digestMessage.getMessageId() + "@" + digestPoint);
                     MessagingService.instance().sendRR(digestMessage, digestPoint, handler);
@@ -678,8 +677,7 @@ public class StorageProxy implements StorageProxyMBean
         RepairCallback<Row> handler = new RepairCallback<Row>(resolver, endpoints);
         for (InetAddress endpoint : endpoints)
         {
-            Message messageRepair = command.makeReadMessage();
-            MessagingService.instance().sendRR(messageRepair, endpoint, handler);
+            MessagingService.instance().sendRR(command, endpoint, handler);
         }
         return handler;
     }
@@ -732,12 +730,11 @@ public class StorageProxy implements StorageProxyMBean
 
                     // collect replies and resolve according to consistency level
                     RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, liveEndpoints);
-                    AbstractReplicationStrategy rs = Table.open(command.keyspace).getReplicationStrategy();
                     ReadCallback<List<Row>> handler = getReadCallback(resolver, command.keyspace, consistency_level);
                     // TODO bail early if live endpoints can't satisfy requested consistency level
                     for (InetAddress endpoint : liveEndpoints)
                     {
-                        Message message = c2.getMessage();
+                        Message message = c2.getMessage(Gossiper.instance.getVersion(endpoint));
                         MessagingService.instance().sendRR(message, endpoint, handler);
                         if (logger.isDebugEnabled())
                             logger.debug("reading " + c2 + " from " + message.getMessageId() + "@" + endpoint);
@@ -799,7 +796,10 @@ public class StorageProxy implements StorageProxyMBean
         // an empty message acts as a request to the SchemaCheckVerbHandler.
         for (InetAddress endpoint : liveHosts)
         {
-            Message message = new Message(FBUtilities.getLocalAddress(), StorageService.Verb.SCHEMA_CHECK, ArrayUtils.EMPTY_BYTE_ARRAY);
+            Message message = new Message(FBUtilities.getLocalAddress(), 
+                                          StorageService.Verb.SCHEMA_CHECK, 
+                                          ArrayUtils.EMPTY_BYTE_ARRAY, 
+                                          Gossiper.instance.getVersion(endpoint));
             MessagingService.instance().sendRR(message, endpoint, cb);
         }
 
@@ -1017,9 +1017,9 @@ public class StorageProxy implements StorageProxyMBean
                 throw new UnavailableException();
 
             IndexScanCommand command = new IndexScanCommand(keyspace, column_family, index_clause, column_predicate, range);
-            Message message = command.getMessage();
             for (InetAddress endpoint : liveEndpoints)
             {
+                Message message = command.getMessage(Gossiper.instance.getVersion(endpoint));
                 MessagingService.instance().sendRR(message, endpoint, handler);
                 if (logger.isDebugEnabled())
                     logger.debug("reading " + command + " from " + message.getMessageId() + "@" + endpoint);
@@ -1107,7 +1107,7 @@ public class StorageProxy implements StorageProxyMBean
         Truncation truncation = new Truncation(keyspace, cfname);
         for (InetAddress endpoint : allEndpoints)
         {
-            Message message = truncation.makeTruncationMessage();
+            Message message = truncation.getMessage(Gossiper.instance.getVersion(endpoint));
             MessagingService.instance().sendRR(message, endpoint, responseHandler);
         }
 

@@ -25,12 +25,12 @@ import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.dht.BigIntegerToken;
 import org.apache.cassandra.dht.BytesToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.junit.Ignore;
@@ -116,7 +116,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         StreamReply rep = new StreamReply("this is a file", 123L, StreamReply.Status.FILE_FINISHED);
         DataOutputStream out = getOutput("streaming.StreamReply.bin");
         StreamReply.serializer.serialize(rep, out);
-        Message.serializer().serialize(rep.createMessage(), out);
+        Message.serializer().serialize(rep.getMessage(MessagingService.version_), out);
         out.close();
     }
     
@@ -154,9 +154,9 @@ public class SerializationsTest extends AbstractSerializationsTester
         StreamRequestMessage.serializer().serialize(msg0, out);
         StreamRequestMessage.serializer().serialize(msg1, out);
         StreamRequestMessage.serializer().serialize(msg2, out);
-        Message.serializer().serialize(msg0.makeMessage(), out);
-        Message.serializer().serialize(msg1.makeMessage(), out);
-        Message.serializer().serialize(msg2.makeMessage(), out);
+        Message.serializer().serialize(msg0.getMessage(MessagingService.version_), out);
+        Message.serializer().serialize(msg1.getMessage(MessagingService.version_), out);
+        Message.serializer().serialize(msg2.getMessage(MessagingService.version_), out);
         out.close();
     }
     

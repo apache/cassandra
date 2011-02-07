@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,7 +53,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
     private final ConcurrentMap<Message, ReadResponse> results = new NonBlockingHashMap<Message, ReadResponse>();
     private DecoratedKey key;
     private ByteBuffer digest;
-    private static final Message FAKE_MESSAGE = new Message(FBUtilities.getLocalAddress(), StorageService.Verb.INTERNAL_RESPONSE, ArrayUtils.EMPTY_BYTE_ARRAY);;
+    private static final Message FAKE_MESSAGE = new Message(FBUtilities.getLocalAddress(), StorageService.Verb.INTERNAL_RESPONSE, ArrayUtils.EMPTY_BYTE_ARRAY, MessagingService.version_);
 
     public ReadResponseResolver(String table, ByteBuffer key)
     {
@@ -201,7 +202,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             Message repairMessage;
             try
             {
-                repairMessage = rowMutation.makeRowMutationMessage(StorageService.Verb.READ_REPAIR);
+                repairMessage = rowMutation.makeRowMutationMessage(StorageService.Verb.READ_REPAIR, Gossiper.instance.getVersion(endpoints.get(i)));
             }
             catch (IOException e)
             {

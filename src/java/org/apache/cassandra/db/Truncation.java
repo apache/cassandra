@@ -25,6 +25,7 @@ import java.io.IOException;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageProducer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -34,7 +35,7 @@ import org.apache.cassandra.utils.FBUtilities;
  * @author rantav@gmail.com
  *
  */
-public class Truncation
+public class Truncation implements MessageProducer
 {
     private static ICompactSerializer<Truncation> serializer;
 
@@ -66,12 +67,12 @@ public class Truncation
         Table.open(keyspace).getColumnFamilyStore(columnFamily).truncate();
     }
 
-    public Message makeTruncationMessage() throws IOException
+    public Message getMessage(int version) throws IOException
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         serializer().serialize(this, dos);
-        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.TRUNCATE, bos.toByteArray());
+        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.TRUNCATE, bos.toByteArray(), version);
     }
 
     public String toString()

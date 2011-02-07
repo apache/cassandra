@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
+import org.apache.cassandra.net.MessagingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -107,7 +108,7 @@ public class CommitLogSegment
 
             // write mutation, w/ checksum on the size and data
             Checksum checksum = new CRC32();
-            byte[] serializedRow = rowMutation.getSerializedBuffer();
+            byte[] serializedRow = rowMutation.getSerializedBuffer(MessagingService.version_);
             checksum.update(serializedRow.length);
             logWriter.writeInt(serializedRow.length);
             logWriter.writeLong(checksum.getValue());

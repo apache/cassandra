@@ -30,11 +30,12 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageProducer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 
-public abstract class ReadCommand
+public abstract class ReadCommand implements MessageProducer
 {
     public static final byte CMD_TYPE_GET_SLICE_BY_NAMES = 1;
     public static final byte CMD_TYPE_GET_SLICE = 2;
@@ -46,12 +47,12 @@ public abstract class ReadCommand
         return serializer;
     }
 
-    public Message makeReadMessage() throws IOException
+    public Message getMessage(int version) throws IOException
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         ReadCommand.serializer().serialize(this, dos);
-        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.READ, bos.toByteArray());
+        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.READ, bos.toByteArray(), version);
     }
 
     public final QueryPath queryPath;

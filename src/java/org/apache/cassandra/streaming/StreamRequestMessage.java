@@ -32,6 +32,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageProducer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -42,7 +43,7 @@ import org.apache.cassandra.utils.FBUtilities;
 * 
 * If a file is specified, ranges and table will not. vice-versa should hold as well.
 */
-class StreamRequestMessage
+class StreamRequestMessage implements MessageProducer
 {
     private static ICompactSerializer<StreamRequestMessage> serializer_;
     static
@@ -86,7 +87,7 @@ class StreamRequestMessage
         table = null;
     }
     
-    Message makeMessage()
+    public Message getMessage(int version)
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
@@ -98,7 +99,7 @@ class StreamRequestMessage
         {
             throw new IOError(e);
         }
-        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.STREAM_REQUEST, bos.toByteArray() );
+        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.STREAM_REQUEST, bos.toByteArray(), version);
     }
 
     public String toString()

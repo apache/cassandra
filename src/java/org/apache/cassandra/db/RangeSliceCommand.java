@@ -47,6 +47,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageProducer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.SlicePredicate;
@@ -56,7 +57,7 @@ import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TSerializer;
 import org.apache.cassandra.thrift.TBinaryProtocol;
 
-public class RangeSliceCommand
+public class RangeSliceCommand implements MessageProducer
 {
     private static final RangeSliceCommandSerializer serializer = new RangeSliceCommandSerializer();
     
@@ -85,13 +86,13 @@ public class RangeSliceCommand
         this.max_keys = max_keys;
     }
 
-    public Message getMessage() throws IOException
+    public Message getMessage(int version) throws IOException
     {
         DataOutputBuffer dob = new DataOutputBuffer();
         serializer.serialize(this, dob);
         return new Message(FBUtilities.getLocalAddress(),
                            StorageService.Verb.RANGE_SLICE,
-                           Arrays.copyOf(dob.getData(), dob.getLength()));
+                           Arrays.copyOf(dob.getData(), dob.getLength()), version);
     }
 
     @Override

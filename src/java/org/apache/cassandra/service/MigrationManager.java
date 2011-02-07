@@ -25,6 +25,8 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
+import org.apache.cassandra.net.CacheingMessageProducer;
+import org.apache.cassandra.net.MessageProducer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,17 +92,33 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     }
 
     /** actively announce my version to a set of hosts via rpc.  They may culminate with them sending me migrations. */
-    public static void announce(UUID version, Set<InetAddress> hosts)
+    public static void announce(final UUID version, Set<InetAddress> hosts)
     {
-        Message msg = makeVersionMessage(version);
+        MessageProducer prod = new CacheingMessageProducer(new MessageProducer() {
+            public Message getMessage(int protocolVersion) throws IOException
+            {
+                return makeVersionMessage(version, protocolVersion);
+            }
+        });
         for (InetAddress host : hosts)
-            MessagingService.instance().sendOneWay(msg, host);
+        {
+            try 
+            {
+                MessagingService.instance().sendOneWay(prod.getMessage(Gossiper.instance.getVersion(host)), host);
+            }
+            catch (IOException ex)
+            {
+                // happened during message serialization.
+                throw new IOError(ex);
+            }
+        }
         passiveAnnounce(version);
     }
 
     /** announce my version passively over gossip **/
     public static void passiveAnnounce(UUID version)
     {
+        // this is for notifying nodes as they arrive in the cluster.
         if (!StorageService.instance.isClientMode())
             Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.migration(version));
         logger.debug("Announcing my schema is " + version);
@@ -168,7 +186,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         Collection<IColumn> migrations = Migration.getLocalMigrations(from, to);
         try
         {
-            Message msg = makeMigrationMessage(migrations);
+            Message msg = makeMigrationMessage(migrations, Gossiper.instance.getVersion(host));
             MessagingService.instance().sendOneWay(msg, host);
         }
         catch (IOException ex)
@@ -177,14 +195,14 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         }
     }
     
-    private static Message makeVersionMessage(UUID version)
+    private static Message makeVersionMessage(UUID version, int protocolVersion)
     {
         byte[] body = version.toString().getBytes();
-        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.DEFINITIONS_ANNOUNCE, body);
+        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.DEFINITIONS_ANNOUNCE, body, protocolVersion);
     }
     
     // other half of transformation is in DefinitionsUpdateResponseVerbHandler.
-    private static Message makeMigrationMessage(Collection<IColumn> migrations) throws IOException
+    private static Message makeMigrationMessage(Collection<IColumn> migrations, int version) throws IOException
     {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         DataOutputStream dout = new DataOutputStream(bout);
@@ -197,7 +215,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         }
         dout.close();
         byte[] body = bout.toByteArray();
-        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.DEFINITIONS_UPDATE_RESPONSE, body);
+        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.DEFINITIONS_UPDATE_RESPONSE, body, version);
     }
     
     // other half of this transformation is in MigrationManager.

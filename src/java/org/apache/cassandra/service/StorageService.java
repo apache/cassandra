@@ -975,7 +975,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     private void sendReplicationNotification(InetAddress local, InetAddress remote)
     {
         // notify the remote token
-        Message msg = new Message(local, StorageService.Verb.REPLICATION_FINISHED, new byte[0]);
+        Message msg = new Message(local, StorageService.Verb.REPLICATION_FINISHED, new byte[0], Gossiper.instance.getVersion(remote));
         IFailureDetector failureDetector = FailureDetector.instance;
         while (failureDetector.isAlive(remote))
         {

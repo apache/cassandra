@@ -85,7 +85,7 @@ public class GossipDigestSynVerbHandler implements IVerbHandler
             Gossiper.instance.examineGossiper(gDigestList, deltaGossipDigestList, deltaEpStateMap);
 
             GossipDigestAckMessage gDigestAck = new GossipDigestAckMessage(deltaGossipDigestList, deltaEpStateMap);
-            Message gDigestAckMessage = Gossiper.instance.makeGossipDigestAckMessage(gDigestAck);
+            Message gDigestAckMessage = Gossiper.instance.makeGossipDigestAckMessage(gDigestAck, message.getVersion());
             if (logger_.isTraceEnabled())
                 logger_.trace("Sending a GossipDigestAckMessage to {}", from);
             MessagingService.instance().sendOneWay(gDigestAckMessage, from);

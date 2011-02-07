@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.cassandra.net.MessageProducer;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -40,7 +41,7 @@ import org.apache.cassandra.thrift.Mutation;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class RowMutation implements IMutation
+public class RowMutation implements IMutation, MessageProducer
 {
     private static RowMutationSerializer serializer_ = new RowMutationSerializer();
     public static final String HINT = "HINT";
@@ -205,14 +206,14 @@ public class RowMutation implements IMutation
         Table.open(table_).load(this);
     }
 
-    public Message makeRowMutationMessage() throws IOException
+    public Message getMessage(int version) throws IOException
     {
-        return makeRowMutationMessage(StorageService.Verb.MUTATION);
+        return makeRowMutationMessage(StorageService.Verb.MUTATION, version);
     }
 
-    public Message makeRowMutationMessage(StorageService.Verb verb) throws IOException
+    public Message makeRowMutationMessage(StorageService.Verb verb, int version) throws IOException
     {
-        return new Message(FBUtilities.getLocalAddress(), verb, getSerializedBuffer());
+        return new Message(FBUtilities.getLocalAddress(), verb, getSerializedBuffer(version), version);
     }
 
     public static RowMutation getRowMutationFromMutations(String keyspace, ByteBuffer key, Map<String, List<Mutation>> cfmap)
@@ -236,7 +237,8 @@ public class RowMutation implements IMutation
         return rm;
     }
 
-    public synchronized byte[] getSerializedBuffer() throws IOException
+    // todo: we'll use version in the next patch.
+    public synchronized byte[] getSerializedBuffer(int version) throws IOException
     {
         if (preserializedBuffer == null)
         {

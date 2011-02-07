@@ -276,7 +276,7 @@ public class CassandraBulkLoader {
         try
         {
             /* Make message */
-            message = rm.makeRowMutationMessage(StorageService.Verb.BINARY);
+            message = rm.makeRowMutationMessage(StorageService.Verb.BINARY, MessagingService.version_);
         }
         catch (IOException e)
         {

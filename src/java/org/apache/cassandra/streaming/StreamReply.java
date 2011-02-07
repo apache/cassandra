@@ -28,10 +28,11 @@ import java.io.IOException;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageProducer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
-class StreamReply
+class StreamReply implements MessageProducer
 {
     static enum Status
     {
@@ -53,12 +54,12 @@ class StreamReply
         this.sessionId = sessionId;
     }
 
-    public Message createMessage() throws IOException
+    public Message getMessage(int version) throws IOException
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
         serializer.serialize(this, dos);
-        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.STREAM_REPLY, bos.toByteArray());
+        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.STREAM_REPLY, bos.toByteArray(), version);
     }
 
     @Override

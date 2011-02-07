@@ -26,6 +26,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageProducer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.SlicePredicate;
@@ -34,7 +35,7 @@ import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TSerializer;
 import org.apache.cassandra.thrift.TBinaryProtocol;
 
-public class IndexScanCommand
+public class IndexScanCommand implements MessageProducer
 {
     private static final IndexScanCommandSerializer serializer = new IndexScanCommandSerializer();
 
@@ -54,7 +55,7 @@ public class IndexScanCommand
         this.range = range;
     }
 
-    public Message getMessage()
+    public Message getMessage(int version)
     {
         DataOutputBuffer dob = new DataOutputBuffer();
         try
@@ -67,7 +68,8 @@ public class IndexScanCommand
         }
         return new Message(FBUtilities.getLocalAddress(),
                            StorageService.Verb.INDEX_SCAN,
-                           Arrays.copyOf(dob.getData(), dob.getLength()));
+                           Arrays.copyOf(dob.getData(), dob.getLength()),
+                           version);
     }
 
     public static IndexScanCommand read(Message message) throws IOException

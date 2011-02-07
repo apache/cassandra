@@ -147,9 +147,8 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             startColumn = cf.getColumnNames().last();
             RowMutation rm = new RowMutation(tableName, key);
             rm.add(cf);
-            Message message = rm.makeRowMutationMessage();
             IWriteResponseHandler responseHandler =  WriteResponseHandler.create(endpoint);
-            MessagingService.instance().sendRR(message, endpoint, responseHandler);
+            MessagingService.instance().sendRR(rm, endpoint, responseHandler);
             try
             {
                 responseHandler.get();

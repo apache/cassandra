@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collection;
 
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,7 +62,12 @@ public class StreamIn
         if (logger.isDebugEnabled())
             logger.debug("Requesting from {} ranges {}", source, StringUtils.join(ranges, ", "));
         StreamInSession session = StreamInSession.create(source, callback);
-        Message message = new StreamRequestMessage(FBUtilities.getLocalAddress(), ranges, tableName, session.getSessionId(), type).makeMessage();
+        Message message = new StreamRequestMessage(FBUtilities.getLocalAddress(), 
+                                                   ranges, 
+                                                   tableName, 
+                                                   session.getSessionId(), 
+                                                   type)
+                .getMessage(Gossiper.instance.getVersion(source));
         MessagingService.instance().sendOneWay(message, source);
     }
 

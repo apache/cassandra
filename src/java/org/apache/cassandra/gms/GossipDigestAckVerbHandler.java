@@ -79,7 +79,7 @@ public class GossipDigestAckVerbHandler implements IVerbHandler
             }
 
             GossipDigestAck2Message gDigestAck2 = new GossipDigestAck2Message(deltaEpStateMap);
-            Message gDigestAck2Message = Gossiper.instance.makeGossipDigestAck2Message(gDigestAck2);
+            Message gDigestAck2Message = Gossiper.instance.makeGossipDigestAck2Message(gDigestAck2, message.getVersion());
             if (logger_.isTraceEnabled())
                 logger_.trace("Sending a GossipDigestAck2Message to {}", from);
             MessagingService.instance().sendOneWay(gDigestAck2Message, from);

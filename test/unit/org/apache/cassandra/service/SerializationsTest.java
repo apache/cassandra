@@ -26,6 +26,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 import org.junit.Test;
@@ -42,7 +43,7 @@ public class SerializationsTest extends AbstractSerializationsTester
     {
         DataOutputStream out = getOutput("service.TreeRequest.bin");
         AntiEntropyService.TreeRequestVerbHandler.SERIALIZER.serialize(Statics.req, out);
-        Message.serializer().serialize(AntiEntropyService.TreeRequestVerbHandler.makeVerb(Statics.req), out);
+        Message.serializer().serialize(AntiEntropyService.TreeRequestVerbHandler.makeVerb(Statics.req, MessagingService.version_), out);
         out.close();
     }
     

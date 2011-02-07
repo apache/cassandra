@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.base.Objects;
+import org.apache.cassandra.gms.Gossiper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -229,7 +230,7 @@ public class AntiEntropyService
     TreeRequest request(String sessionid, InetAddress remote, String ksname, String cfname)
     {
         TreeRequest request = new TreeRequest(sessionid, remote, new CFPair(ksname, cfname));
-        MessagingService.instance().sendOneWay(TreeRequestVerbHandler.makeVerb(request), remote);
+        MessagingService.instance().sendOneWay(TreeRequestVerbHandler.makeVerb(request, Gossiper.instance.getVersion(remote)), remote);
         return request;
     }
 
@@ -546,14 +547,14 @@ public class AntiEntropyService
     public static class TreeRequestVerbHandler implements IVerbHandler, ICompactSerializer<TreeRequest>
     {
         public static final TreeRequestVerbHandler SERIALIZER = new TreeRequestVerbHandler();
-        static Message makeVerb(TreeRequest request)
+        static Message makeVerb(TreeRequest request, int version)
         {
             try
             {
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 DataOutputStream dos = new DataOutputStream(bos);
                 SERIALIZER.serialize(request, dos);
-                return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.TREE_REQUEST, bos.toByteArray());
+                return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.TREE_REQUEST, bos.toByteArray(), version);
             }
             catch(IOException e)
             {
@@ -616,7 +617,10 @@ public class AntiEntropyService
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 DataOutputStream dos = new DataOutputStream(bos);
                 SERIALIZER.serialize(validator, dos);
-                return new Message(local, StorageService.Verb.TREE_RESPONSE, bos.toByteArray());
+                return new Message(local, 
+                                   StorageService.Verb.TREE_RESPONSE, 
+                                   bos.toByteArray(), 
+                                   Gossiper.instance.getVersion(validator.request.endpoint));
             }
             catch(IOException e)
             {
