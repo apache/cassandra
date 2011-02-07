@@ -61,15 +61,15 @@ class GossipDigestAck2Message
 
 class GossipDigestAck2MessageSerializer implements ICompactSerializer<GossipDigestAck2Message>
 {
-    public void serialize(GossipDigestAck2Message gDigestAck2Message, DataOutputStream dos) throws IOException
+    public void serialize(GossipDigestAck2Message gDigestAck2Message, DataOutputStream dos, int version) throws IOException
     {
         /* Use the EndpointState */
-        EndpointStatesSerializationHelper.serialize(gDigestAck2Message.epStateMap_, dos);
+        EndpointStatesSerializationHelper.serialize(gDigestAck2Message.epStateMap_, dos, version);
     }
 
-    public GossipDigestAck2Message deserialize(DataInputStream dis) throws IOException
+    public GossipDigestAck2Message deserialize(DataInputStream dis, int version) throws IOException
     {
-        Map<InetAddress, EndpointState> epStateMap = EndpointStatesSerializationHelper.deserialize(dis);
+        Map<InetAddress, EndpointState> epStateMap = EndpointStatesSerializationHelper.deserialize(dis, version);
         return new GossipDigestAck2Message(epStateMap);        
     }
 }

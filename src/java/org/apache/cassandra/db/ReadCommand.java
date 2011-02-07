@@ -51,7 +51,7 @@ public abstract class ReadCommand implements MessageProducer
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
-        ReadCommand.serializer().serialize(this, dos);
+        ReadCommand.serializer().serialize(this, dos, version);
         return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.READ, bos.toByteArray(), version);
     }
 
@@ -104,17 +104,17 @@ class ReadCommandSerializer implements ICompactSerializer<ReadCommand>
     }
 
 
-    public void serialize(ReadCommand rm, DataOutputStream dos) throws IOException
+    public void serialize(ReadCommand rm, DataOutputStream dos, int version) throws IOException
     {
         dos.writeByte(rm.commandType);
         ReadCommandSerializer ser = CMD_SERIALIZER_MAP.get(rm.commandType);
-        ser.serialize(rm, dos);
+        ser.serialize(rm, dos, version);
     }
 
-    public ReadCommand deserialize(DataInputStream dis) throws IOException
+    public ReadCommand deserialize(DataInputStream dis, int version) throws IOException
     {
         byte msgType = dis.readByte();
-        return CMD_SERIALIZER_MAP.get(msgType).deserialize(dis);
+        return CMD_SERIALIZER_MAP.get(msgType).deserialize(dis, version);
     }
         
 }

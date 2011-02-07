@@ -48,7 +48,7 @@ public class GossipDigestAck2VerbHandler implements IVerbHandler
         GossipDigestAck2Message gDigestAck2Message;
         try
         {
-            gDigestAck2Message = GossipDigestAck2Message.serializer().deserialize(dis);
+            gDigestAck2Message = GossipDigestAck2Message.serializer().deserialize(dis, message.getVersion());
         }
         catch (IOException e)
         {

@@ -71,7 +71,7 @@ public class Truncation implements MessageProducer
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
-        serializer().serialize(this, dos);
+        serializer().serialize(this, dos, version);
         return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.TRUNCATE, bos.toByteArray(), version);
     }
 
@@ -83,13 +83,13 @@ public class Truncation implements MessageProducer
 
 class TruncationSerializer implements ICompactSerializer<Truncation>
 {
-    public void serialize(Truncation t, DataOutputStream dos) throws IOException
+    public void serialize(Truncation t, DataOutputStream dos, int version) throws IOException
     {
         dos.writeUTF(t.keyspace);
         dos.writeUTF(t.columnFamily);
     }
 
-    public Truncation deserialize(DataInputStream dis) throws IOException
+    public Truncation deserialize(DataInputStream dis, int version) throws IOException
     {
         String keyspace = dis.readUTF();
         String columnFamily = dis.readUTF();

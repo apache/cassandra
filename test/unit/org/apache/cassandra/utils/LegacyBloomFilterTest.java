@@ -43,11 +43,11 @@ public class LegacyBloomFilterTest
     {
         f.add(ByteBufferUtil.bytes("a"));
         DataOutputBuffer out = new DataOutputBuffer();
-        f.serializer().serialize(f, out);
+        f.serializer().serialize(f, out, 0);
 
         ByteArrayInputStream in = new ByteArrayInputStream(out.getData(), 0, out.getLength());
-        LegacyBloomFilter f2 = f.serializer().deserialize(new DataInputStream(in));
-
+        LegacyBloomFilter f2 = f.serializer().deserialize(new DataInputStream(in), 0);
+        
         assert f2.isPresent(ByteBufferUtil.bytes("a"));
         assert !f2.isPresent(ByteBufferUtil.bytes("b"));
         return f2;
@@ -105,12 +105,6 @@ public class LegacyBloomFilterTest
         FilterTestHelper.testFalsePositives(bf2,
                                       new KeyGenerator.WordGenerator(skipEven, 2),
                                       new KeyGenerator.WordGenerator(1, 2));
-    }
-
-    @Test
-    public void testSerialize() throws IOException
-    {
-        LegacyBloomFilterTest.testSerialize(bf);
     }
 
     public void testManyHashes(Iterator<ByteBuffer> keys)

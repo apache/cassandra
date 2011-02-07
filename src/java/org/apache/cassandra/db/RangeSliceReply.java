@@ -46,7 +46,7 @@ public class RangeSliceReply
         dob.writeInt(rows.size());
         for (Row row : rows)
         {
-            Row.serializer().serialize(row, dob);
+            Row.serializer().serialize(row, dob, originalMessage.getVersion());
         }
         byte[] data = Arrays.copyOf(dob.getData(), dob.getLength());
         return originalMessage.getReply(FBUtilities.getLocalAddress(), data, originalMessage.getVersion());
@@ -60,7 +60,7 @@ public class RangeSliceReply
                '}';
     }
 
-    public static RangeSliceReply read(byte[] body) throws IOException
+    public static RangeSliceReply read(byte[] body, int version) throws IOException
     {
         ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
         DataInputStream dis = new DataInputStream(bufIn);
@@ -68,7 +68,7 @@ public class RangeSliceReply
         List<Row> rows = new ArrayList<Row>(rowCount);
         for (int i = 0; i < rowCount; i++)
         {
-            rows.add(Row.serializer().deserialize(dis));
+            rows.add(Row.serializer().deserialize(dis, version));
         }
         return new RangeSliceReply(rows);
     }

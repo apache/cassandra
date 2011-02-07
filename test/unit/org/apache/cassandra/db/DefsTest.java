@@ -58,6 +58,7 @@ import org.apache.cassandra.db.migration.UpdateKeyspace;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.locator.OldNetworkTopologyStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
@@ -238,7 +239,7 @@ public class DefsTest extends CleanupHelper
         for (IColumn col : serializedMigrations)
         {
             UUID version = UUIDGen.getUUID(col.name());
-            reconstituded[i] = Migration.deserialize(col.value());
+            reconstituded[i] = Migration.deserialize(col.value(), MessagingService.version_);
             assert version.equals(reconstituded[i].getVersion());
             i++;
         }

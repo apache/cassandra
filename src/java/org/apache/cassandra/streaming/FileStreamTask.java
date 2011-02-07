@@ -27,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 
+import org.apache.cassandra.gms.Gossiper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -84,7 +85,7 @@ public class FileStreamTask extends WrappedRunnable
 
     private void stream() throws IOException
     {
-        ByteBuffer buffer = MessagingService.instance().constructStreamHeader(header, false);
+        ByteBuffer buffer = MessagingService.instance().constructStreamHeader(header, false, Gossiper.instance.getVersion(to));
         writeHeader(buffer);
 
         if (header.file == null)

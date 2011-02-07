@@ -46,7 +46,7 @@ public class StreamRequestVerbHandler implements IVerbHandler
         ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
         try
         {
-            StreamRequestMessage srm = StreamRequestMessage.serializer().deserialize(new DataInputStream(bufIn));
+            StreamRequestMessage srm = StreamRequestMessage.serializer().deserialize(new DataInputStream(bufIn), message.getVersion());
             if (logger.isDebugEnabled())
                 logger.debug(srm.toString());
 

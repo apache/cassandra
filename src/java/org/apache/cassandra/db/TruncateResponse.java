@@ -53,7 +53,7 @@ public class TruncateResponse
     {
     	ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
-        TruncateResponse.serializer().serialize(truncateResponseMessage, dos);
+        TruncateResponse.serializer().serialize(truncateResponseMessage, dos, original.getVersion());
         return original.getReply(FBUtilities.getLocalAddress(), bos.toByteArray(), original.getVersion());
     }
 
@@ -65,14 +65,14 @@ public class TruncateResponse
 
     public static class TruncateResponseSerializer implements ICompactSerializer<TruncateResponse>
     {
-        public void serialize(TruncateResponse tr, DataOutputStream dos) throws IOException
+        public void serialize(TruncateResponse tr, DataOutputStream dos, int version) throws IOException
         {
             dos.writeUTF(tr.keyspace);
             dos.writeUTF(tr.columnFamily);
             dos.writeBoolean(tr.success);
         }
 
-        public TruncateResponse deserialize(DataInputStream dis) throws IOException
+        public TruncateResponse deserialize(DataInputStream dis, int version) throws IOException
         {
             String keyspace = dis.readUTF();
             String columnFamily = dis.readUTF();

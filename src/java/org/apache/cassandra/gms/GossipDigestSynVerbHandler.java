@@ -56,7 +56,7 @@ public class GossipDigestSynVerbHandler implements IVerbHandler
 
         try
         {
-            GossipDigestSynMessage gDigestMessage = GossipDigestSynMessage.serializer().deserialize(dis);
+            GossipDigestSynMessage gDigestMessage = GossipDigestSynMessage.serializer().deserialize(dis, message.getVersion());
             /* If the message is from a different cluster throw it away. */
             if ( !gDigestMessage.clusterId_.equals(DatabaseDescriptor.getClusterName()) )
             {

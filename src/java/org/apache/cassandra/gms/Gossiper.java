@@ -332,7 +332,7 @@ public class Gossiper implements IFailureDetectionEventListener
         GossipDigestSynMessage gDigestMessage = new GossipDigestSynMessage(DatabaseDescriptor.getClusterName(), gDigests);
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
-        GossipDigestSynMessage.serializer().serialize(gDigestMessage, dos);
+        GossipDigestSynMessage.serializer().serialize(gDigestMessage, dos, version);
         return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.GOSSIP_DIGEST_SYN, bos.toByteArray(), version);
     }
 
@@ -340,7 +340,7 @@ public class Gossiper implements IFailureDetectionEventListener
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
-        GossipDigestAckMessage.serializer().serialize(gDigestAckMessage, dos);
+        GossipDigestAckMessage.serializer().serialize(gDigestAckMessage, dos, version);
         return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.GOSSIP_DIGEST_ACK, bos.toByteArray(), version);
     }
 
@@ -348,7 +348,7 @@ public class Gossiper implements IFailureDetectionEventListener
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
-        GossipDigestAck2Message.serializer().serialize(gDigestAck2Message, dos);
+        GossipDigestAck2Message.serializer().serialize(gDigestAck2Message, dos, version);
         return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.GOSSIP_DIGEST_ACK2, bos.toByteArray(), version);
     }
 

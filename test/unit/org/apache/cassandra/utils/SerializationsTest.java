@@ -65,8 +65,8 @@ public class SerializationsTest extends AbstractSerializationsTester
             b.add(key);
         }
         DataOutputStream out = getOutput("utils.LegacyBloomFilter.bin");
-        LegacyBloomFilter.serializer().serialize(a, out);
-        LegacyBloomFilter.serializer().serialize(b, out);
+        LegacyBloomFilter.serializer().serialize(a, out, getVersion());
+        LegacyBloomFilter.serializer().serialize(b, out, getVersion());
         out.close();
     }
     
@@ -77,7 +77,7 @@ public class SerializationsTest extends AbstractSerializationsTester
             testLegacyBloomFilterWrite();
         
         DataInputStream in = getInput("utils.LegacyBloomFilter.bin");
-        assert LegacyBloomFilter.serializer().deserialize(in) != null;
+        assert LegacyBloomFilter.serializer().deserialize(in, getVersion()) != null;
         in.close();
     }
     

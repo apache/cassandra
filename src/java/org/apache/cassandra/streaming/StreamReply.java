@@ -58,7 +58,7 @@ class StreamReply implements MessageProducer
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
-        serializer.serialize(this, dos);
+        serializer.serialize(this, dos, version);
         return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.STREAM_REPLY, bos.toByteArray(), version);
     }
 
@@ -74,14 +74,14 @@ class StreamReply implements MessageProducer
 
     private static class FileStatusSerializer implements ICompactSerializer<StreamReply>
     {
-        public void serialize(StreamReply reply, DataOutputStream dos) throws IOException
+        public void serialize(StreamReply reply, DataOutputStream dos, int version) throws IOException
         {
             dos.writeLong(reply.sessionId);
             dos.writeUTF(reply.file);
             dos.writeInt(reply.action.ordinal());
         }
 
-        public StreamReply deserialize(DataInputStream dis) throws IOException
+        public StreamReply deserialize(DataInputStream dis, int version) throws IOException
         {
             long sessionId = dis.readLong();
             String targetFile = dis.readUTF();

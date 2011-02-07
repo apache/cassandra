@@ -81,7 +81,7 @@ private static ICompactSerializer<ReadResponse> serializer_;
 
 class ReadResponseSerializer implements ICompactSerializer<ReadResponse>
 {
-	public void serialize(ReadResponse rm, DataOutputStream dos) throws IOException
+	public void serialize(ReadResponse rm, DataOutputStream dos, int version) throws IOException
 	{
         dos.writeInt(rm.isDigestQuery() ? rm.digest().remaining() : 0);
         ByteBuffer buffer = rm.isDigestQuery() ? rm.digest() : ByteBufferUtil.EMPTY_BYTE_BUFFER;
@@ -90,11 +90,11 @@ class ReadResponseSerializer implements ICompactSerializer<ReadResponse>
 
         if (!rm.isDigestQuery())
         {
-            Row.serializer().serialize(rm.row(), dos);
+            Row.serializer().serialize(rm.row(), dos, version);
         }
     }
 	
-    public ReadResponse deserialize(DataInputStream dis) throws IOException
+    public ReadResponse deserialize(DataInputStream dis, int version) throws IOException
     {
         byte[] digest = null;
         int digestSize = dis.readInt();
@@ -109,7 +109,7 @@ class ReadResponseSerializer implements ICompactSerializer<ReadResponse>
         Row row = null;
         if (!isDigest)
         {
-            row = Row.serializer().deserialize(dis);
+            row = Row.serializer().deserialize(dis, version);
         }
 
         return isDigest ? new ReadResponse(ByteBuffer.wrap(digest)) : new ReadResponse(row);

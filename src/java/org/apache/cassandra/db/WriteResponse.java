@@ -48,7 +48,7 @@ public class WriteResponse
     {
     	ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
-        WriteResponse.serializer().serialize(writeResponseMessage, dos);
+        WriteResponse.serializer().serialize(writeResponseMessage, dos, original.getVersion());
         return original.getReply(FBUtilities.getLocalAddress(), bos.toByteArray(), original.getVersion());
     }
 
@@ -79,14 +79,14 @@ public class WriteResponse
 
     public static class WriteResponseSerializer implements ICompactSerializer<WriteResponse>
     {
-        public void serialize(WriteResponse wm, DataOutputStream dos) throws IOException
+        public void serialize(WriteResponse wm, DataOutputStream dos, int version) throws IOException
         {
             dos.writeUTF(wm.table());
             ByteBufferUtil.writeWithShortLength(wm.key(), dos);
             dos.writeBoolean(wm.isSuccess());
         }
 
-        public WriteResponse deserialize(DataInputStream dis) throws IOException
+        public WriteResponse deserialize(DataInputStream dis, int version) throws IOException
         {
             String table = dis.readUTF();
             ByteBuffer key = ByteBufferUtil.readWithShortLength(dis);

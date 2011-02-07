@@ -138,11 +138,11 @@ class EndpointStateSerializer implements ICompactSerializer<EndpointState>
 {
     private static Logger logger = LoggerFactory.getLogger(EndpointStateSerializer.class);
     
-    public void serialize(EndpointState epState, DataOutputStream dos) throws IOException
+    public void serialize(EndpointState epState, DataOutputStream dos, int version) throws IOException
     {
         /* serialize the HeartBeatState */
         HeartBeatState hbState = epState.getHeartBeatState();
-        HeartBeatState.serializer().serialize(hbState, dos);
+        HeartBeatState.serializer().serialize(hbState, dos, version);
 
         /* serialize the map of ApplicationState objects */
         int size = epState.applicationState.size();
@@ -153,14 +153,14 @@ class EndpointStateSerializer implements ICompactSerializer<EndpointState>
             if (value != null)
             {
                 dos.writeInt(entry.getKey().ordinal());
-                VersionedValue.serializer.serialize(value, dos);
+                VersionedValue.serializer.serialize(value, dos, version);
             }
         }
     }
 
-    public EndpointState deserialize(DataInputStream dis) throws IOException
+    public EndpointState deserialize(DataInputStream dis, int version) throws IOException
     {
-        HeartBeatState hbState = HeartBeatState.serializer().deserialize(dis);
+        HeartBeatState hbState = HeartBeatState.serializer().deserialize(dis, version);
         EndpointState epState = new EndpointState(hbState);
 
         int appStateSize = dis.readInt();
@@ -172,7 +172,7 @@ class EndpointStateSerializer implements ICompactSerializer<EndpointState>
             }
 
             int key = dis.readInt();
-            VersionedValue value = VersionedValue.serializer.deserialize(dis);
+            VersionedValue value = VersionedValue.serializer.deserialize(dis, version);
             epState.addApplicationState(Gossiper.STATES[key], value);
         }
         return epState;

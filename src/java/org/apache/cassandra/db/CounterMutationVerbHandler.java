@@ -49,7 +49,7 @@ public class CounterMutationVerbHandler implements IVerbHandler
         try
         {
             DataInputStream is = new DataInputStream(buffer);
-            CounterMutation cm = CounterMutation.serializer().deserialize(is);
+            CounterMutation cm = CounterMutation.serializer().deserialize(is, message.getVersion());
             if (logger.isDebugEnabled())
               logger.debug("Applying forwarded " + cm);
 

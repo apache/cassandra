@@ -137,7 +137,9 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         Collection<IColumn> migrations = Migration.getLocalMigrations(from, to);
         for (IColumn col : migrations)
         {
-            final Migration migration = Migration.deserialize(col.value());
+            // assuming MessagingService.version_ is a bit of a risk, but you're playing with fire if you purposefully
+            // take down a node to upgrade it during the middle of a schema update.
+            final Migration migration = Migration.deserialize(col.value(), MessagingService.version_);
             Future update = StageManager.getStage(Stage.MIGRATION).submit(new Runnable()
             {
                 public void run()
@@ -207,6 +209,12 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         DataOutputStream dout = new DataOutputStream(bout);
         dout.writeInt(migrations.size());
+        // riddle me this: how do we know that these binary values (which contained serialized row mutations) are compatible
+        // with the destination?  Further, since these migrations may be old, how do we know if they are compatible with
+        // the current version?  The bottom line is that we don't.  For this reason, running migrations from a new node
+        // to an old node will be a crap shoot.  Pushing migrations from an old node to a new node should work, so long
+        // as the oldest migrations are only one version old.  We need a way of flattening schemas so that this isn't a
+        // problem during upgrades.
         for (IColumn col : migrations)
         {
             assert col instanceof Column;

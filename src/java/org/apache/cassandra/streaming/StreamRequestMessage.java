@@ -93,7 +93,7 @@ class StreamRequestMessage implements MessageProducer
         DataOutputStream dos = new DataOutputStream(bos);
         try
         {
-            StreamRequestMessage.serializer().serialize(this, dos);
+            StreamRequestMessage.serializer().serialize(this, dos, version);
         }
         catch (IOException e)
         {
@@ -127,14 +127,14 @@ class StreamRequestMessage implements MessageProducer
 
     private static class StreamRequestMessageSerializer implements ICompactSerializer<StreamRequestMessage>
     {
-        public void serialize(StreamRequestMessage srm, DataOutputStream dos) throws IOException
+        public void serialize(StreamRequestMessage srm, DataOutputStream dos, int version) throws IOException
         {
             dos.writeLong(srm.sessionId);
             CompactEndpointSerializationHelper.serialize(srm.target, dos);
             if (srm.file != null)
             {
                 dos.writeBoolean(true);
-                PendingFile.serializer().serialize(srm.file, dos);
+                PendingFile.serializer().serialize(srm.file, dos, version);
             }
             else
             {
@@ -149,14 +149,14 @@ class StreamRequestMessage implements MessageProducer
             }
         }
 
-        public StreamRequestMessage deserialize(DataInputStream dis) throws IOException
+        public StreamRequestMessage deserialize(DataInputStream dis, int version) throws IOException
         {
             long sessionId = dis.readLong();
             InetAddress target = CompactEndpointSerializationHelper.deserialize(dis);
             boolean singleFile = dis.readBoolean();
             if (singleFile)
             {
-                PendingFile file = PendingFile.serializer().deserialize(dis);
+                PendingFile file = PendingFile.serializer().deserialize(dis, version);
                 return new StreamRequestMessage(target, file, sessionId);
             }
             else

@@ -76,7 +76,7 @@ public class SliceByNamesReadCommand extends ReadCommand
 class SliceByNamesReadCommandSerializer extends ReadCommandSerializer
 {
     @Override
-    public void serialize(ReadCommand rm, DataOutputStream dos) throws IOException
+    public void serialize(ReadCommand rm, DataOutputStream dos, int version) throws IOException
     {
         SliceByNamesReadCommand realRM = (SliceByNamesReadCommand)rm;
         dos.writeBoolean(realRM.isDigestQuery());
@@ -94,7 +94,7 @@ class SliceByNamesReadCommandSerializer extends ReadCommandSerializer
     }
 
     @Override
-    public ReadCommand deserialize(DataInputStream dis) throws IOException
+    public ReadCommand deserialize(DataInputStream dis, int version) throws IOException
     {
         boolean isDigest = dis.readBoolean();
         String table = dis.readUTF();

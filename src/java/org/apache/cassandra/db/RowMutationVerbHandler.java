@@ -46,7 +46,7 @@ public class RowMutationVerbHandler implements IVerbHandler
     {
         try
         {
-            RowMutation rm = RowMutation.fromBytes(message.getMessageBody());
+            RowMutation rm = RowMutation.fromBytes(message.getMessageBody(), message.getVersion());
             if (logger_.isDebugEnabled())
               logger_.debug("Applying " + rm);
 

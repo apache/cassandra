@@ -71,29 +71,29 @@ public class StreamHeader
 
     private static class StreamHeaderSerializer implements ICompactSerializer<StreamHeader>
     {
-        public void serialize(StreamHeader sh, DataOutputStream dos) throws IOException
+        public void serialize(StreamHeader sh, DataOutputStream dos, int version) throws IOException
         {
             dos.writeUTF(sh.table);
             dos.writeLong(sh.sessionId);
-            PendingFile.serializer().serialize(sh.file, dos);
+            PendingFile.serializer().serialize(sh.file, dos, version);
             dos.writeInt(sh.pendingFiles.size());
             for(PendingFile file : sh.pendingFiles)
             {
-                PendingFile.serializer().serialize(file, dos);
+                PendingFile.serializer().serialize(file, dos, version);
             }
         }
 
-        public StreamHeader deserialize(DataInputStream dis) throws IOException
+        public StreamHeader deserialize(DataInputStream dis, int version) throws IOException
         {
             String table = dis.readUTF();
             long sessionId = dis.readLong();
-            PendingFile file = PendingFile.serializer().deserialize(dis);
+            PendingFile file = PendingFile.serializer().deserialize(dis, version);
             int size = dis.readInt();
 
             List<PendingFile> pendingFiles = new ArrayList<PendingFile>(size);
             for (int i = 0; i < size; i++)
             {
-                pendingFiles.add(PendingFile.serializer().deserialize(dis));
+                pendingFiles.add(PendingFile.serializer().deserialize(dis, version));
             }
 
             return new StreamHeader(table, sessionId, file, pendingFiles);

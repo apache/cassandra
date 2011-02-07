@@ -57,7 +57,7 @@ public class RowMutation implements IMutation, MessageProducer
     // map of column family id to mutations for that column family.
     protected Map<Integer, ColumnFamily> modifications_ = new HashMap<Integer, ColumnFamily>();
     
-    private byte[] preserializedBuffer = null;
+    private Map<Integer, byte[]> preserializedBuffers = new HashMap<Integer, byte[]>();
 
     public RowMutation(String table, ByteBuffer key)
     {
@@ -237,16 +237,17 @@ public class RowMutation implements IMutation, MessageProducer
         return rm;
     }
 
-    // todo: we'll use version in the next patch.
     public synchronized byte[] getSerializedBuffer(int version) throws IOException
     {
+        byte[] preserializedBuffer = preserializedBuffers.get(version);
         if (preserializedBuffer == null)
         {
             ByteArrayOutputStream bout = new ByteArrayOutputStream();
             DataOutputStream dout = new DataOutputStream(bout);
-            RowMutation.serializer().serialize(this, dout);
+            RowMutation.serializer().serialize(this, dout, version);
             dout.close();
             preserializedBuffer = bout.toByteArray();
+            preserializedBuffers.put(version, preserializedBuffer);
         }
         return preserializedBuffer;
     }
@@ -310,10 +311,10 @@ public class RowMutation implements IMutation, MessageProducer
         }
     }
 
-    static RowMutation fromBytes(byte[] raw) throws IOException
+    static RowMutation fromBytes(byte[] raw, int version) throws IOException
     {
-        RowMutation rm = serializer_.deserialize(new DataInputStream(new ByteArrayInputStream(raw)));
-        rm.preserializedBuffer = raw;
+        RowMutation rm = serializer_.deserialize(new DataInputStream(new ByteArrayInputStream(raw)), version);
+        rm.preserializedBuffers.put(version, raw);
         return rm;
     }
 
@@ -334,7 +335,7 @@ public class RowMutation implements IMutation, MessageProducer
 
     public static class RowMutationSerializer implements ICompactSerializer<RowMutation>
     {
-        public void serialize(RowMutation rm, DataOutputStream dos) throws IOException
+        public void serialize(RowMutation rm, DataOutputStream dos, int version) throws IOException
         {
             dos.writeUTF(rm.getTable());
             ByteBufferUtil.writeWithShortLength(rm.key(), dos);
@@ -352,7 +353,7 @@ public class RowMutation implements IMutation, MessageProducer
             }
         }
 
-        public RowMutation deserialize(DataInputStream dis) throws IOException
+        public RowMutation deserialize(DataInputStream dis, int version) throws IOException
         {
             String table = dis.readUTF();
             ByteBuffer key = ByteBufferUtil.readWithShortLength(dis);

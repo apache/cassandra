@@ -20,6 +20,7 @@ package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.io.ICompactSerializer2;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,7 +32,7 @@ public class BloomFilter extends Filter
 
     private static final Logger logger = LoggerFactory.getLogger(BloomFilter.class);
     private static final int EXCESS = 20;
-    static ICompactSerializer<BloomFilter> serializer_ = new BloomFilterSerializer();
+    static ICompactSerializer2<BloomFilter> serializer_ = new BloomFilterSerializer();
 
     public OpenBitSet bitset;
 
@@ -41,7 +42,7 @@ public class BloomFilter extends Filter
         bitset = bs;
     }
 
-    public static ICompactSerializer<BloomFilter> serializer()
+    public static ICompactSerializer2<BloomFilter> serializer()
     {
         return serializer_;
     }

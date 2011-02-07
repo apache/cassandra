@@ -347,7 +347,7 @@ public final class MessagingService implements MessagingServiceMBean
         try
         {
             DataOutputBuffer buffer = new DataOutputBuffer();
-            Message.serializer().serialize(message, buffer);
+            Message.serializer().serialize(message, buffer, message.getVersion());
             data = buffer.getData();
         }
         catch (IOException e)
@@ -355,7 +355,7 @@ public final class MessagingService implements MessagingServiceMBean
             throw new RuntimeException(e);
         }
         assert data.length > 0;
-        ByteBuffer buffer = packIt(data , false);
+        ByteBuffer buffer = packIt(data , false, message.getVersion());
 
         // write it
         connection.write(buffer);
@@ -448,8 +448,8 @@ public final class MessagingService implements MessagingServiceMBean
     {
         return x >>> (p + 1) - n & ~(-1 << n);
     }
-
-    public ByteBuffer packIt(byte[] bytes, boolean compress)
+        
+    public ByteBuffer packIt(byte[] bytes, boolean compress, int version)
     {
         /*
              Setting up the protocol header. This is 4 bytes long
@@ -468,7 +468,7 @@ public final class MessagingService implements MessagingServiceMBean
         if (compress)
             header |= 4;
         // Setting up the version bit
-        header |= (version_ << 8);
+        header |= (version << 8);
 
         ByteBuffer buffer = ByteBuffer.allocate(4 + 4 + 4 + bytes.length);
         buffer.putInt(PROTOCOL_MAGIC);
@@ -479,7 +479,7 @@ public final class MessagingService implements MessagingServiceMBean
         return buffer;
     }
 
-    public ByteBuffer constructStreamHeader(StreamHeader streamHeader, boolean compress)
+    public ByteBuffer constructStreamHeader(StreamHeader streamHeader, boolean compress, int version)
     {
         /*
         Setting up the protocol header. This is 4 bytes long
@@ -500,7 +500,7 @@ public final class MessagingService implements MessagingServiceMBean
         // set streaming bit
         header |= 8;
         // Setting up the version bit
-        header |= (version_ << 8);
+        header |= (version << 8);
         /* Finished the protocol header setup */
 
         /* Adding the StreamHeader which contains the session Id along
@@ -512,7 +512,7 @@ public final class MessagingService implements MessagingServiceMBean
         try
         {
             DataOutputBuffer buffer = new DataOutputBuffer();
-            StreamHeader.serializer().serialize(streamHeader, buffer);
+            StreamHeader.serializer().serialize(streamHeader, buffer, version);
             bytes = buffer.getData();
         }
         catch (IOException e)

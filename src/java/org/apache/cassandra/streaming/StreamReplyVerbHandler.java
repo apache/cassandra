@@ -43,7 +43,7 @@ public class StreamReplyVerbHandler implements IVerbHandler
 
         try
         {
-            StreamReply reply = StreamReply.serializer.deserialize(new DataInputStream(bufIn));
+            StreamReply reply = StreamReply.serializer.deserialize(new DataInputStream(bufIn), message.getVersion());
             logger.debug("Received StreamReply {}", reply);
             StreamOutSession session = StreamOutSession.get(message.getFrom(), reply.sessionId);
 

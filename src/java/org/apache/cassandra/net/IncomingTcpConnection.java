@@ -90,8 +90,7 @@ public class IncomingTcpConnection extends Thread
                     int size = input.readInt();
                     byte[] headerBytes = new byte[size];
                     input.readFully(headerBytes);
-                    // todo: need to be aware of message version.
-                    stream(StreamHeader.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(headerBytes))), input);
+                    stream(StreamHeader.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(headerBytes)), version), input);
                     break;
                 }
                 else
@@ -105,7 +104,7 @@ public class IncomingTcpConnection extends Thread
                     else
                     {
                         // todo: need to be aware of message version.
-                        Message message = Message.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(contentBytes)));
+                        Message message = Message.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(contentBytes)), version);
                         MessagingService.instance().receive(message);
                     }
                 }
@@ -114,6 +113,7 @@ public class IncomingTcpConnection extends Thread
                 int header = input.readInt();
                 version = MessagingService.getBits(header, 15, 8);
                 assert isStream == (MessagingService.getBits(header, 3, 1) == 1) : "Connections cannot change type: " + isStream;
+                assert version == MessagingService.getBits(header, 15, 8) : "Protocol version shouldn't change during a session";
             }
             catch (EOFException e)
             {

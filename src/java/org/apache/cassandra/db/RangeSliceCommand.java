@@ -89,7 +89,7 @@ public class RangeSliceCommand implements MessageProducer
     public Message getMessage(int version) throws IOException
     {
         DataOutputBuffer dob = new DataOutputBuffer();
-        serializer.serialize(this, dob);
+        serializer.serialize(this, dob, version);
         return new Message(FBUtilities.getLocalAddress(),
                            StorageService.Verb.RANGE_SLICE,
                            Arrays.copyOf(dob.getData(), dob.getLength()), version);
@@ -112,13 +112,13 @@ public class RangeSliceCommand implements MessageProducer
     {
         byte[] bytes = message.getMessageBody();
         ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
-        return serializer.deserialize(new DataInputStream(bis));
+        return serializer.deserialize(new DataInputStream(bis), message.getVersion());
     }
 }
 
 class RangeSliceCommandSerializer implements ICompactSerializer<RangeSliceCommand>
 {
-    public void serialize(RangeSliceCommand sliceCommand, DataOutputStream dos) throws IOException
+    public void serialize(RangeSliceCommand sliceCommand, DataOutputStream dos, int version) throws IOException
     {
         dos.writeUTF(sliceCommand.keyspace);
         dos.writeUTF(sliceCommand.column_family);
@@ -133,7 +133,7 @@ class RangeSliceCommandSerializer implements ICompactSerializer<RangeSliceComman
         dos.writeInt(sliceCommand.max_keys);
     }
 
-    public RangeSliceCommand deserialize(DataInputStream dis) throws IOException
+    public RangeSliceCommand deserialize(DataInputStream dis, int version) throws IOException
     {
         String keyspace = dis.readUTF();
         String column_family = dis.readUTF();

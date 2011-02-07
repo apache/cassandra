@@ -34,7 +34,7 @@ public interface ICompactSerializer<T>
      * @param dos DataOutput into which serialization needs to happen.
      * @throws IOException
      */
-    public void serialize(T t, DataOutputStream dos) throws IOException;
+    public void serialize(T t, DataOutputStream dos, int version) throws IOException;
 
     /**
      * Deserialize into the specified DataInputStream instance.
@@ -42,5 +42,5 @@ public interface ICompactSerializer<T>
      * @throws IOException
      * @return the type that was deserialized
      */
-    public T deserialize(DataInputStream dis) throws IOException;
+    public T deserialize(DataInputStream dis, int version) throws IOException;
 }

@@ -32,6 +32,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 
+import org.apache.cassandra.net.MessagingService;
 import org.junit.Test;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -75,9 +76,9 @@ public class ReadMessageTest extends SchemaLoader
         DataOutputBuffer dos = new DataOutputBuffer();
         ByteArrayInputStream bis;
 
-        rms.serialize(rm, dos);
+        rms.serialize(rm, dos, MessagingService.version_);
         bis = new ByteArrayInputStream(dos.getData(), 0, dos.getLength());
-        return rms.deserialize(new DataInputStream(bis));
+        return rms.deserialize(new DataInputStream(bis), MessagingService.version_);
     }
     
     @Test

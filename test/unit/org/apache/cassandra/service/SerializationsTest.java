@@ -42,8 +42,8 @@ public class SerializationsTest extends AbstractSerializationsTester
     private void testTreeRequestWrite() throws IOException
     {
         DataOutputStream out = getOutput("service.TreeRequest.bin");
-        AntiEntropyService.TreeRequestVerbHandler.SERIALIZER.serialize(Statics.req, out);
-        Message.serializer().serialize(AntiEntropyService.TreeRequestVerbHandler.makeVerb(Statics.req, MessagingService.version_), out);
+        AntiEntropyService.TreeRequestVerbHandler.SERIALIZER.serialize(Statics.req, out, getVersion());
+        Message.serializer().serialize(AntiEntropyService.TreeRequestVerbHandler.makeVerb(Statics.req, getVersion()), out, getVersion());
         out.close();
     }
     
@@ -54,8 +54,8 @@ public class SerializationsTest extends AbstractSerializationsTester
             testTreeRequestWrite();
         
         DataInputStream in = getInput("service.TreeRequest.bin");
-        assert AntiEntropyService.TreeRequestVerbHandler.SERIALIZER.deserialize(in) != null;
-        assert Message.serializer().deserialize(in) != null;
+        assert AntiEntropyService.TreeRequestVerbHandler.SERIALIZER.deserialize(in, getVersion()) != null;
+        assert Message.serializer().deserialize(in, getVersion()) != null;
         in.close();
     }
     
@@ -73,10 +73,10 @@ public class SerializationsTest extends AbstractSerializationsTester
         }
         AntiEntropyService.Validator v1 = new AntiEntropyService.Validator(Statics.req, mt);
         DataOutputStream out = getOutput("service.TreeResponse.bin");
-        AntiEntropyService.TreeResponseVerbHandler.SERIALIZER.serialize(v0, out);
-        AntiEntropyService.TreeResponseVerbHandler.SERIALIZER.serialize(v1, out);
-        Message.serializer().serialize(AntiEntropyService.TreeResponseVerbHandler.makeVerb(FBUtilities.getLocalAddress(), v0), out);
-        Message.serializer().serialize(AntiEntropyService.TreeResponseVerbHandler.makeVerb(FBUtilities.getLocalAddress(), v1), out);
+        AntiEntropyService.TreeResponseVerbHandler.SERIALIZER.serialize(v0, out, getVersion());
+        AntiEntropyService.TreeResponseVerbHandler.SERIALIZER.serialize(v1, out, getVersion());
+        Message.serializer().serialize(AntiEntropyService.TreeResponseVerbHandler.makeVerb(FBUtilities.getLocalAddress(), v0), out, getVersion());
+        Message.serializer().serialize(AntiEntropyService.TreeResponseVerbHandler.makeVerb(FBUtilities.getLocalAddress(), v1), out, getVersion());
         out.close();
     }
     
@@ -87,10 +87,10 @@ public class SerializationsTest extends AbstractSerializationsTester
             testTreeResponseWrite();
         
         DataInputStream in = getInput("service.TreeResponse.bin");
-        assert AntiEntropyService.TreeResponseVerbHandler.SERIALIZER.deserialize(in) != null;
-        assert AntiEntropyService.TreeResponseVerbHandler.SERIALIZER.deserialize(in) != null;
-        assert Message.serializer().deserialize(in) != null;
-        assert Message.serializer().deserialize(in) != null;
+        assert AntiEntropyService.TreeResponseVerbHandler.SERIALIZER.deserialize(in, getVersion()) != null;
+        assert AntiEntropyService.TreeResponseVerbHandler.SERIALIZER.deserialize(in, getVersion()) != null;
+        assert Message.serializer().deserialize(in, getVersion()) != null;
+        assert Message.serializer().deserialize(in, getVersion()) != null;
         in.close();
     }
     

@@ -54,7 +54,7 @@ public class DefinitionsUpdateResponseVerbHandler implements IVerbHandler
                 final UUID version = UUIDGen.getUUID(col.name());
                 if (version.timestamp() > DatabaseDescriptor.getDefsVersion().timestamp())
                 {
-                    final Migration m = Migration.deserialize(col.value());
+                    final Migration m = Migration.deserialize(col.value(), message.getVersion());
                     assert m.getVersion().equals(version);
                     StageManager.getStage(Stage.MIGRATION).submit(new WrappedRunnable()
                     {

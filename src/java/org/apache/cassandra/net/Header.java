@@ -111,7 +111,7 @@ public class Header
 
 class HeaderSerializer implements ICompactSerializer<Header>
 {
-    public void serialize(Header t, DataOutputStream dos) throws IOException
+    public void serialize(Header t, DataOutputStream dos, int version) throws IOException
     {           
         dos.writeUTF(t.getMessageId());
         CompactEndpointSerializationHelper.serialize(t.getFrom(), dos);
@@ -131,7 +131,7 @@ class HeaderSerializer implements ICompactSerializer<Header>
         }
     }
 
-    public Header deserialize(DataInputStream dis) throws IOException
+    public Header deserialize(DataInputStream dis, int version) throws IOException
     {
         String id = dis.readUTF();
         InetAddress from = CompactEndpointSerializationHelper.deserialize(dis);

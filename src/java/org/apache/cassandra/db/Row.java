@@ -62,13 +62,13 @@ public class Row
 
 class RowSerializer implements ICompactSerializer<Row>
 {
-    public void serialize(Row row, DataOutputStream dos) throws IOException
+    public void serialize(Row row, DataOutputStream dos, int version) throws IOException
     {
         ByteBufferUtil.writeWithShortLength(row.key.key, dos);
         ColumnFamily.serializer().serialize(row.cf, dos);
     }
 
-    public Row deserialize(DataInputStream dis) throws IOException
+    public Row deserialize(DataInputStream dis, int version) throws IOException
     {
         return new Row(StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(dis)),
                        ColumnFamily.serializer().deserialize(dis));

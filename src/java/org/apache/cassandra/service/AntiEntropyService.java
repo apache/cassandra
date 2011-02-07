@@ -553,7 +553,7 @@ public class AntiEntropyService
             {
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 DataOutputStream dos = new DataOutputStream(bos);
-                SERIALIZER.serialize(request, dos);
+                SERIALIZER.serialize(request, dos, version);
                 return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.TREE_REQUEST, bos.toByteArray(), version);
             }
             catch(IOException e)
@@ -562,7 +562,7 @@ public class AntiEntropyService
             }
         }
 
-        public void serialize(TreeRequest request, DataOutputStream dos) throws IOException
+        public void serialize(TreeRequest request, DataOutputStream dos, int version) throws IOException
         {
             dos.writeUTF(request.sessionid);
             CompactEndpointSerializationHelper.serialize(request.endpoint, dos);
@@ -570,7 +570,7 @@ public class AntiEntropyService
             dos.writeUTF(request.cf.right);
         }
 
-        public TreeRequest deserialize(DataInputStream dis) throws IOException
+        public TreeRequest deserialize(DataInputStream dis, int version) throws IOException
         {
             return new TreeRequest(dis.readUTF(),
                                    CompactEndpointSerializationHelper.deserialize(dis),
@@ -587,7 +587,7 @@ public class AntiEntropyService
             DataInputStream buffer = new DataInputStream(new ByteArrayInputStream(bytes));
             try
             {
-                TreeRequest remotereq = this.deserialize(buffer);
+                TreeRequest remotereq = this.deserialize(buffer, message.getVersion());
                 TreeRequest request = new TreeRequest(remotereq.sessionid, message.getFrom(), remotereq.cf);
 
                 // trigger readonly-compaction
@@ -616,7 +616,7 @@ public class AntiEntropyService
             {
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 DataOutputStream dos = new DataOutputStream(bos);
-                SERIALIZER.serialize(validator, dos);
+                SERIALIZER.serialize(validator, dos, Gossiper.instance.getVersion(validator.request.endpoint));
                 return new Message(local, 
                                    StorageService.Verb.TREE_RESPONSE, 
                                    bos.toByteArray(), 
@@ -628,17 +628,17 @@ public class AntiEntropyService
             }
         }
 
-        public void serialize(Validator v, DataOutputStream dos) throws IOException
+        public void serialize(Validator v, DataOutputStream dos, int version) throws IOException
         {
-            TreeRequestVerbHandler.SERIALIZER.serialize(v.request, dos);
+            TreeRequestVerbHandler.SERIALIZER.serialize(v.request, dos, version);
             ObjectOutputStream oos = new ObjectOutputStream(dos);
             oos.writeObject(v.tree);
             oos.flush();
         }
 
-        public Validator deserialize(DataInputStream dis) throws IOException
+        public Validator deserialize(DataInputStream dis, int version) throws IOException
         {
-            final TreeRequest request = TreeRequestVerbHandler.SERIALIZER.deserialize(dis);
+            final TreeRequest request = TreeRequestVerbHandler.SERIALIZER.deserialize(dis, version);
             ObjectInputStream ois = new ObjectInputStream(dis);
             try
             {
@@ -658,7 +658,7 @@ public class AntiEntropyService
             try
             {
                 // deserialize the remote tree, and register it
-                Validator response = this.deserialize(buffer);
+                Validator response = this.deserialize(buffer, message.getVersion());
                 TreeRequest request = new TreeRequest(response.request.sessionid, message.getFrom(), response.request.cf);
                 AntiEntropyService.instance.rendezvous(request, response.tree);
             }

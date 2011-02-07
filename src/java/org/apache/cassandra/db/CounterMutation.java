@@ -150,7 +150,7 @@ public class CounterMutation implements IMutation
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
-        serializer().serialize(this, dos);
+        serializer().serialize(this, dos, version);
         return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.COUNTER_MUTATION, bos.toByteArray(), version);
     }
 
@@ -218,15 +218,15 @@ public class CounterMutation implements IMutation
 
 class CounterMutationSerializer implements ICompactSerializer<CounterMutation>
 {
-    public void serialize(CounterMutation cm, DataOutputStream dos) throws IOException
+    public void serialize(CounterMutation cm, DataOutputStream dos, int version) throws IOException
     {
-        RowMutation.serializer().serialize(cm.rowMutation(), dos);
+        RowMutation.serializer().serialize(cm.rowMutation(), dos, version);
         dos.writeUTF(cm.consistency().name());
     }
 
-    public CounterMutation deserialize(DataInputStream dis) throws IOException
+    public CounterMutation deserialize(DataInputStream dis, int version) throws IOException
     {
-        RowMutation rm = RowMutation.serializer().deserialize(dis);
+        RowMutation rm = RowMutation.serializer().deserialize(dis, version);
         ConsistencyLevel consistency = Enum.valueOf(ConsistencyLevel.class, dis.readUTF());
         return new CounterMutation(rm, consistency);
     }

@@ -103,7 +103,7 @@ public class PendingFile
 
     public static class PendingFileSerializer implements ICompactSerializer<PendingFile>
     {
-        public void serialize(PendingFile sc, DataOutputStream dos) throws IOException
+        public void serialize(PendingFile sc, DataOutputStream dos, int version) throws IOException
         {
             if (sc == null)
             {
@@ -121,7 +121,7 @@ public class PendingFile
             dos.writeUTF(sc.type.name());
         }
 
-        public PendingFile deserialize(DataInputStream dis) throws IOException
+        public PendingFile deserialize(DataInputStream dis, int version) throws IOException
         {
             String filename = dis.readUTF();
             if (filename.isEmpty())

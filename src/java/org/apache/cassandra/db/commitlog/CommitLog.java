@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
+import org.apache.cassandra.net.MessagingService;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -245,7 +246,9 @@ public class CommitLog
                     RowMutation rm = null;
                     try
                     {
-                        rm = RowMutation.serializer().deserialize(new DataInputStream(bufIn));
+                        // assuming version here. We've gone to lengths to make sure what gets written to the CL is in
+                        // the current version.  so do make sure the CL is drained prior to upgrading a node.
+                        rm = RowMutation.serializer().deserialize(new DataInputStream(bufIn), MessagingService.version_);
                     }
                     catch (UnserializableColumnFamilyException ex)
                     {

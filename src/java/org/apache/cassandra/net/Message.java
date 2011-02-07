@@ -31,7 +31,6 @@ import org.apache.cassandra.utils.FBUtilities;
 public class Message
 {
     private static ICompactSerializer<Message> serializer_;
-    public static final int UNKNOWN = -1;
 
     static
     {
@@ -142,22 +141,22 @@ public class Message
     
     private static class MessageSerializer implements ICompactSerializer<Message>
     {
-        public void serialize(Message t, DataOutputStream dos) throws IOException
+        public void serialize(Message t, DataOutputStream dos, int version) throws IOException
         {
-            Header.serializer().serialize( t.header_, dos);
+            assert t.getVersion() == version : "internode protocol version mismatch"; // indicates programmer error.
+            Header.serializer().serialize( t.header_, dos, version);
             byte[] bytes = t.getMessageBody();
             dos.writeInt(bytes.length);
             dos.write(bytes);
         }
     
-        public Message deserialize(DataInputStream dis) throws IOException
+        public Message deserialize(DataInputStream dis, int version) throws IOException
         {
-            Header header = Header.serializer().deserialize(dis);
+            Header header = Header.serializer().deserialize(dis, version);
             int size = dis.readInt();
             byte[] bytes = new byte[size];
             dis.readFully(bytes);
-            // return new Message(header.getMessageId(), header.getFrom(), header.getMessageType(), header.getVerb(), new Object[]{bytes});
-            return new Message(header, bytes, UNKNOWN);
+            return new Message(header, bytes, version);
         }
     }
 }

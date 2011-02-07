@@ -240,7 +240,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
         try
         {
-            ReadResponse result = ReadResponse.serializer().deserialize(new DataInputStream(bufIn));
+            ReadResponse result = ReadResponse.serializer().deserialize(new DataInputStream(bufIn), message.getVersion());
             if (logger_.isDebugEnabled())
                 logger_.debug("Preprocessed {} response", result.isDigestQuery() ? "digest" : "data");
             results.put(message, result);

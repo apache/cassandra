@@ -57,7 +57,7 @@ public class GossipDigestAckVerbHandler implements IVerbHandler
 
         try
         {
-            GossipDigestAckMessage gDigestAckMessage = GossipDigestAckMessage.serializer().deserialize(dis);
+            GossipDigestAckMessage gDigestAckMessage = GossipDigestAckMessage.serializer().deserialize(dis, message.getVersion());
             List<GossipDigest> gDigestList = gDigestAckMessage.getGossipDigestList();
             Map<InetAddress, EndpointState> epStateMap = gDigestAckMessage.getEndpointStateMap();
 

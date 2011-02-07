@@ -72,16 +72,16 @@ class GossipDigestSerializationHelper
 {
     private static Logger logger_ = LoggerFactory.getLogger(GossipDigestSerializationHelper.class);
     
-    static void serialize(List<GossipDigest> gDigestList, DataOutputStream dos) throws IOException
+    static void serialize(List<GossipDigest> gDigestList, DataOutputStream dos, int version) throws IOException
     {
         dos.writeInt(gDigestList.size());
         for ( GossipDigest gDigest : gDigestList )
         {
-            GossipDigest.serializer().serialize( gDigest, dos );
+            GossipDigest.serializer().serialize( gDigest, dos, version);
         }
     }
 
-    static List<GossipDigest> deserialize(DataInputStream dis) throws IOException
+    static List<GossipDigest> deserialize(DataInputStream dis, int version) throws IOException
     {
         int size = dis.readInt();            
         List<GossipDigest> gDigests = new ArrayList<GossipDigest>(size);
@@ -89,7 +89,7 @@ class GossipDigestSerializationHelper
         for ( int i = 0; i < size; ++i )
         {
             assert dis.available() > 0;
-            gDigests.add(GossipDigest.serializer().deserialize(dis));                
+            gDigests.add(GossipDigest.serializer().deserialize(dis, version));                
         }        
         return gDigests;
     }
@@ -99,18 +99,18 @@ class EndpointStatesSerializationHelper
 {
     private static final Logger logger_ = LoggerFactory.getLogger(EndpointStatesSerializationHelper.class);
 
-    static void serialize(Map<InetAddress, EndpointState> epStateMap, DataOutputStream dos) throws IOException
+    static void serialize(Map<InetAddress, EndpointState> epStateMap, DataOutputStream dos, int version) throws IOException
     {
         dos.writeInt(epStateMap.size());
         for (Entry<InetAddress, EndpointState> entry : epStateMap.entrySet())
         {
             InetAddress ep = entry.getKey();
             CompactEndpointSerializationHelper.serialize(ep, dos);
-            EndpointState.serializer().serialize(entry.getValue(), dos);
+            EndpointState.serializer().serialize(entry.getValue(), dos, version);
         }
     }
 
-    static Map<InetAddress, EndpointState> deserialize(DataInputStream dis) throws IOException
+    static Map<InetAddress, EndpointState> deserialize(DataInputStream dis, int version) throws IOException
     {
         int size = dis.readInt();            
         Map<InetAddress, EndpointState> epStateMap = new HashMap<InetAddress, EndpointState>(size);
@@ -119,7 +119,7 @@ class EndpointStatesSerializationHelper
         {
             assert dis.available() > 0;
             InetAddress ep = CompactEndpointSerializationHelper.deserialize(dis);
-            EndpointState epState = EndpointState.serializer().deserialize(dis);
+            EndpointState epState = EndpointState.serializer().deserialize(dis, version);
             epStateMap.put(ep, epState);
         }
         return epStateMap;
@@ -128,16 +128,16 @@ class EndpointStatesSerializationHelper
 
 class GossipDigestSynMessageSerializer implements ICompactSerializer<GossipDigestSynMessage>
 {   
-    public void serialize(GossipDigestSynMessage gDigestSynMessage, DataOutputStream dos) throws IOException
+    public void serialize(GossipDigestSynMessage gDigestSynMessage, DataOutputStream dos, int version) throws IOException
     {    
         dos.writeUTF(gDigestSynMessage.clusterId_);
-        GossipDigestSerializationHelper.serialize(gDigestSynMessage.gDigests_, dos);
+        GossipDigestSerializationHelper.serialize(gDigestSynMessage.gDigests_, dos, version);
     }
 
-    public GossipDigestSynMessage deserialize(DataInputStream dis) throws IOException
+    public GossipDigestSynMessage deserialize(DataInputStream dis, int version) throws IOException
     {
         String clusterId = dis.readUTF();
-        List<GossipDigest> gDigests = GossipDigestSerializationHelper.deserialize(dis);
+        List<GossipDigest> gDigests = GossipDigestSerializationHelper.deserialize(dis, version);
         return new GossipDigestSynMessage(clusterId, gDigests);
     }
 

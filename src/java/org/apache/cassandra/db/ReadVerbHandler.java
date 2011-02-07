@@ -64,14 +64,14 @@ public class ReadVerbHandler implements IVerbHandler
                 /* Don't service reads! */
                 throw new RuntimeException("Cannot service reads while bootstrapping!");
             }
-            ReadCommand command = ReadCommand.serializer().deserialize(new DataInputStream(readCtx.bufIn_));
+            ReadCommand command = ReadCommand.serializer().deserialize(new DataInputStream(readCtx.bufIn_), message.getVersion());
             Table table = Table.open(command.table);
             Row row = command.getRow(table);
             ReadResponse readResponse = getResponse(command, row);
             /* serialize the ReadResponseMessage. */
             readCtx.bufOut_.reset();
 
-            ReadResponse.serializer().serialize(readResponse, readCtx.bufOut_);
+            ReadResponse.serializer().serialize(readResponse, readCtx.bufOut_, message.getVersion());
 
             byte[] bytes = new byte[readCtx.bufOut_.getLength()];
             System.arraycopy(readCtx.bufOut_.getData(), 0, bytes, 0, bytes.length);

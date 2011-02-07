@@ -47,7 +47,7 @@ public class TruncateVerbHandler implements IVerbHandler
 
         try
         {
-            Truncation t = Truncation.serializer().deserialize(new DataInputStream(buffer));
+            Truncation t = Truncation.serializer().deserialize(new DataInputStream(buffer), message.getVersion());
             logger.debug("Applying {}", t);
 
             try

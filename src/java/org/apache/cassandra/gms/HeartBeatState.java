@@ -75,13 +75,13 @@ class HeartBeatState
 
 class HeartBeatStateSerializer implements ICompactSerializer<HeartBeatState>
 {
-    public void serialize(HeartBeatState hbState, DataOutputStream dos) throws IOException
+    public void serialize(HeartBeatState hbState, DataOutputStream dos, int version) throws IOException
     {
         dos.writeInt(hbState.getGeneration());
         dos.writeInt(hbState.getHeartBeatVersion());
     }
     
-    public HeartBeatState deserialize(DataInputStream dis) throws IOException
+    public HeartBeatState deserialize(DataInputStream dis, int version) throws IOException
     {
         return new HeartBeatState(dis.readInt(), dis.readInt());
     }

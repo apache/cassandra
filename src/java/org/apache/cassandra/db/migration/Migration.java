@@ -28,6 +28,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
+import org.apache.cassandra.net.MessagingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -257,7 +258,7 @@ public abstract class Migration
         DataOutputBuffer dob = new DataOutputBuffer();
         try
         {
-            RowMutation.serializer().serialize(rm, dob);
+            RowMutation.serializer().serialize(rm, dob, MessagingService.version_);
         }
         catch (IOException e)
         {
@@ -272,7 +273,7 @@ public abstract class Migration
         return SerDeUtils.serializeWithSchema(mi);
     }
 
-    public static Migration deserialize(ByteBuffer bytes) throws IOException
+    public static Migration deserialize(ByteBuffer bytes, int version) throws IOException
     {
         // deserialize
         org.apache.cassandra.db.migration.avro.Migration mi = SerDeUtils.deserializeWithSchema(bytes, new org.apache.cassandra.db.migration.avro.Migration());
@@ -296,7 +297,7 @@ public abstract class Migration
         migration.newVersion = UUIDGen.getUUID(ByteBuffer.wrap(mi.new_version.bytes()));
         try
         {
-            migration.rm = RowMutation.serializer().deserialize(SerDeUtils.createDataInputStream(mi.row_mutation));
+            migration.rm = RowMutation.serializer().deserialize(SerDeUtils.createDataInputStream(mi.row_mutation), version);
         }
         catch (IOException e)
         {

@@ -142,6 +142,7 @@ public class ColumnIndexer
         BloomFilter.serializer().serialize(bf, bufOut);
         dos.writeInt(bufOut.getLength());
         dos.write(bufOut.getData(), 0, bufOut.getLength());
+        bufOut.flush();
     }
 
 }

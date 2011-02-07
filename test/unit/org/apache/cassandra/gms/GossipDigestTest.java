@@ -29,6 +29,8 @@ import java.io.IOException;
 
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import java.net.InetAddress;
+
+import org.apache.cassandra.net.MessagingService;
 import org.junit.Test;
 
 public class GossipDigestTest
@@ -48,10 +50,10 @@ public class GossipDigestTest
         
         //test the serialization and equals
         DataOutputBuffer output = new DataOutputBuffer();
-        GossipDigest.serializer().serialize(expected, output);
+        GossipDigest.serializer().serialize(expected, output, MessagingService.version_);
         
         ByteArrayInputStream input = new ByteArrayInputStream(output.getData(), 0, output.getLength());
-        GossipDigest actual = GossipDigest.serializer().deserialize(new DataInputStream(input));
+        GossipDigest actual = GossipDigest.serializer().deserialize(new DataInputStream(input), MessagingService.version_);
         assertEquals(0, expected.compareTo(actual));
     }
 

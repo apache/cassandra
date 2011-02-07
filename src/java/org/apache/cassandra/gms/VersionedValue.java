@@ -146,17 +146,17 @@ public class VersionedValue implements Comparable<VersionedValue>
 
     private static class VersionedValueSerializer implements ICompactSerializer<VersionedValue>
     {
-        public void serialize(VersionedValue value, DataOutputStream dos) throws IOException
+        public void serialize(VersionedValue value, DataOutputStream dos, int version) throws IOException
         {
             dos.writeUTF(value.value);
             dos.writeInt(value.version);
         }
 
-        public VersionedValue deserialize(DataInputStream dis) throws IOException
+        public VersionedValue deserialize(DataInputStream dis, int version) throws IOException
         {
             String value = dis.readUTF();
-            int version = dis.readInt();
-            return new VersionedValue(value, version);
+            int valVersion = dis.readInt();
+            return new VersionedValue(value, valVersion);
         }
     }
 }
