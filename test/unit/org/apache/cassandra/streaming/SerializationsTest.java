@@ -62,7 +62,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         out.close();
     }
     
-    @Test @Ignore
+    @Test
     public void testPendingFileRead() throws IOException
     {
         if (EXECUTE_WRITES)
@@ -96,7 +96,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         out.close();
     }
     
-    @Test @Ignore
+    @Test
     public void testStreamHeaderRead() throws IOException
     {
         if (EXECUTE_WRITES)
@@ -160,7 +160,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         out.close();
     }
     
-    @Test @Ignore
+    @Test
     public void testStreamRequestMessageRead() throws IOException
     {
         if (EXECUTE_WRITES)

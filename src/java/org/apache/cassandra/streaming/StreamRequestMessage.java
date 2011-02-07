@@ -33,6 +33,7 @@ import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageProducer;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -145,7 +146,8 @@ class StreamRequestMessage implements MessageProducer
                 {
                     AbstractBounds.serializer().serialize(range, dos);
                 }
-                dos.writeUTF(srm.type.name());
+                if (version > MessagingService.VERSION_07)
+                    dos.writeUTF(srm.type.name());
             }
         }
 
@@ -168,7 +170,9 @@ class StreamRequestMessage implements MessageProducer
                 {
                     ranges.add((Range) AbstractBounds.serializer().deserialize(dis));
                 }
-                OperationType type = OperationType.valueOf(dis.readUTF());
+                OperationType type = OperationType.RESTORE_REPLICA_COUNT;
+                if (version > MessagingService.VERSION_07)
+                    type = OperationType.valueOf(dis.readUTF());
                 return new StreamRequestMessage(target, ranges, table, sessionId, type);
             }
         }

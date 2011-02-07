@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.cassandra.net.MessagingService;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.io.ICompactSerializer;
@@ -118,7 +119,8 @@ public class PendingFile
             {
                 dos.writeLong(section.left); dos.writeLong(section.right);
             }
-            dos.writeUTF(sc.type.name());
+            if (version > MessagingService.VERSION_07)
+                dos.writeUTF(sc.type.name());
         }
 
         public PendingFile deserialize(DataInputStream dis, int version) throws IOException
@@ -133,7 +135,10 @@ public class PendingFile
             List<Pair<Long,Long>> sections = new ArrayList<Pair<Long,Long>>(count);
             for (int i = 0; i < count; i++)
                 sections.add(new Pair<Long,Long>(Long.valueOf(dis.readLong()), Long.valueOf(dis.readLong())));
-            OperationType type = OperationType.valueOf(dis.readUTF());
+            // this controls the way indexes are rebuilt when streaming in.  
+            OperationType type = OperationType.RESTORE_REPLICA_COUNT;
+            if (version > MessagingService.VERSION_07)
+                type = OperationType.valueOf(dis.readUTF());
             return new PendingFile(null, desc, component, sections, type);
         }
     }
