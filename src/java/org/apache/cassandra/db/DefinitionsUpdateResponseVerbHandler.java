@@ -42,7 +42,7 @@ public class DefinitionsUpdateResponseVerbHandler implements IVerbHandler
     private static final Logger logger = LoggerFactory.getLogger(DefinitionsUpdateResponseVerbHandler.class);
 
     /** someone sent me their data definitions */
-    public void doVerb(final Message message)
+    public void doVerb(final Message message, String id)
     {
         try
         {

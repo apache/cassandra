@@ -101,8 +101,10 @@ public class IncomingTcpConnection extends Thread
                         logger.info("Received connection from newer protocol version. Ignorning message.");
                     else
                     {
-                        Message message = Message.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(contentBytes)));
-                        MessagingService.instance().receive(message);
+                        DataInputStream dis = new DataInputStream(new ByteArrayInputStream(contentBytes));
+                        String id = dis.readUTF();
+                        Message message = Message.serializer().deserialize(dis);
+                        MessagingService.instance().receive(message, id);
                     }
                 }
                 // prepare to read the next message

@@ -31,10 +31,10 @@ public class SchemaCheckVerbHandler implements IVerbHandler
 {
     private final Logger logger = LoggerFactory.getLogger(SchemaCheckVerbHandler.class);
     
-    public void doVerb(Message message)
+    public void doVerb(Message message, String id)
     {
         logger.debug("Received schema check request.");
         Message response = message.getInternalReply(DatabaseDescriptor.getDefsVersion().toString().getBytes());
-        MessagingService.instance().sendOneWay(response, message.getFrom());
+        MessagingService.instance().sendReply(response, id, message.getFrom());
     }
 }

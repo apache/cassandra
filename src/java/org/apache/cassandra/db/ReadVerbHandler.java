@@ -45,7 +45,7 @@ public class ReadVerbHandler implements IVerbHandler
     /* We use this so that we can reuse readcontext objects */
     private static ThreadLocal<ReadVerbHandler.ReadContext> tls_ = new InheritableThreadLocal<ReadVerbHandler.ReadContext>();
 
-    public void doVerb(Message message)
+    public void doVerb(Message message, String id)
     {
         byte[] body = message.getMessageBody();
         /* Obtain a Read Context from TLS */
@@ -79,8 +79,8 @@ public class ReadVerbHandler implements IVerbHandler
             Message response = message.getReply(FBUtilities.getLocalAddress(), bytes);
             if (logger_.isDebugEnabled())
               logger_.debug(String.format("Read key %s; sending response to %s@%s",
-                                          ByteBufferUtil.bytesToHex(command.key), message.getMessageId(), message.getFrom()));
-            MessagingService.instance().sendOneWay(response, message.getFrom());
+                                          ByteBufferUtil.bytesToHex(command.key), id, message.getFrom()));
+            MessagingService.instance().sendReply(response, id, message.getFrom());
         }
         catch (IOException ex)
         {

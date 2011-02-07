@@ -33,7 +33,7 @@ public class ReadRepairVerbHandler implements IVerbHandler
 {
     private static Logger logger_ = LoggerFactory.getLogger(ReadRepairVerbHandler.class);    
     
-    public void doVerb(Message message)
+    public void doVerb(Message message, String id)
     {          
         byte[] body = message.getMessageBody();
         ByteArrayInputStream buffer = new ByteArrayInputStream(body);

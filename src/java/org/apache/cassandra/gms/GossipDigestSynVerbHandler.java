@@ -39,7 +39,7 @@ public class GossipDigestSynVerbHandler implements IVerbHandler
 {
     private static Logger logger_ = LoggerFactory.getLogger( GossipDigestSynVerbHandler.class);
 
-    public void doVerb(Message message)
+    public void doVerb(Message message, String id)
     {
         InetAddress from = message.getFrom();
         if (logger_.isTraceEnabled())

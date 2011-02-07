@@ -144,21 +144,6 @@ public class StorageLoadBalancer implements IEndpointStateChangeSubscriber
         */
     }
 
-    class MoveMessageVerbHandler implements IVerbHandler
-    {
-        public void doVerb(Message message)
-        {
-            Message reply = message.getInternalReply(new byte[] {(byte)(isMoveable_.get() ? 1 : 0)});
-            MessagingService.instance().sendOneWay(reply, message.getFrom());
-            if ( isMoveable_.get() )
-            {
-                // MoveMessage moveMessage = (MoveMessage)message.getMessageBody()[0];
-                /* Start the leave operation and join the ring at the position specified */
-                isMoveable_.set(false);
-            }
-        }
-    }
-
     private static final int BROADCAST_INTERVAL = 60 * 1000;
 
     public static final StorageLoadBalancer instance = new StorageLoadBalancer();

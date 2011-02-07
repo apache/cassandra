@@ -28,7 +28,7 @@ public class DefinitionsAnnounceVerbHandler implements IVerbHandler
 {
     
     /** someone is announcing their schema version. */
-    public void doVerb(Message message)
+    public void doVerb(Message message, String id)
     {
         UUID theirVersion = UUID.fromString(new String(message.getMessageBody()));
         MigrationManager.rectify(theirVersion, message.getFrom());

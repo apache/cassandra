@@ -23,7 +23,6 @@ import java.net.InetAddress;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -578,7 +577,7 @@ public class AntiEntropyService
         /**
          * Trigger a validation compaction which will return the tree upon completion.
          */
-        public void doVerb(Message message)
+        public void doVerb(Message message, String id)
         { 
             byte[] bytes = message.getMessageBody();
             
@@ -645,7 +644,7 @@ public class AntiEntropyService
             }
         }
 
-        public void doVerb(Message message)
+        public void doVerb(Message message, String id)
         { 
             byte[] bytes = message.getMessageBody();
             DataInputStream buffer = new DataInputStream(new ByteArrayInputStream(bytes));

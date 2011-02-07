@@ -19,8 +19,6 @@
 package org.apache.cassandra.net;
 
 import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,14 +29,13 @@ public class ResponseVerbHandler implements IVerbHandler
 {
     private static final Logger logger_ = LoggerFactory.getLogger( ResponseVerbHandler.class );
 
-    public void doVerb(Message message)
+    public void doVerb(Message message, String id)
     {     
-        String messageId = message.getMessageId();
-        double age = System.currentTimeMillis() - MessagingService.instance().getRegisteredCallbackAge(messageId);
-        Pair<InetAddress, IMessageCallback> pair = MessagingService.instance().removeRegisteredCallback(messageId);
+        double age = System.currentTimeMillis() - MessagingService.instance().getRegisteredCallbackAge(id);
+        Pair<InetAddress, IMessageCallback> pair = MessagingService.instance().removeRegisteredCallback(id);
         if (pair == null)
         {
-            logger_.debug("Callback already removed for {}", messageId);
+            logger_.debug("Callback already removed for {}", id);
             return;
         }
 
@@ -48,13 +45,13 @@ public class ResponseVerbHandler implements IVerbHandler
         if (cb instanceof IAsyncCallback)
         {
             if (logger_.isDebugEnabled())
-                logger_.debug("Processing response on a callback from " + message.getMessageId() + "@" + message.getFrom());
+                logger_.debug("Processing response on a callback from " + id + "@" + message.getFrom());
             ((IAsyncCallback) cb).response(message);
         }
         else
         {
             if (logger_.isDebugEnabled())
-                logger_.debug("Processing response on an async result from " + message.getMessageId() + "@" + message.getFrom());
+                logger_.debug("Processing response on an async result from " + id + "@" + message.getFrom());
             ((IAsyncResult) cb).result(message);
         }
     }
