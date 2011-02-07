@@ -178,7 +178,7 @@ createKeyspaceStatement returns [CreateKeyspaceStatement expr]
 
 // TODO: date/time, utf8
 term returns [Term item]
-    : ( t=STRING_LITERAL | t=LONG )
+    : ( t=STRING_LITERAL | t=LONG | t=INTEGER | t=UNICODE )
       { $item = new Term($t.text, $t.type); }
     ;
 
@@ -323,6 +323,10 @@ IDENT
     
 COMPIDENT
     : IDENT ( ':' IDENT)*
+    ;
+
+UNICODE
+    : 'u' STRING_LITERAL
     ;
     
 WS

@@ -20,15 +20,13 @@
  */
 package org.apache.cassandra.cql;
 
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
-/**
- * A term parsed from a CQL statement.
- *
- */
+/** A term parsed from a CQL statement. */
 public class Term
 {
     private final String text;
@@ -67,15 +65,41 @@ public class Term
      * Returns the typed value, serialized to a ByteBuffer.
      * 
      * @return a ByteBuffer of the value.
+     * @throws InvalidRequestException if unable to coerce the string to its type.
      */
-    public ByteBuffer getByteBuffer()
+    public ByteBuffer getByteBuffer() throws InvalidRequestException
     {
         switch (type)
         {
             case STRING:
                 return ByteBuffer.wrap(text.getBytes());
             case LONG:
-                return ByteBufferUtil.bytes(Long.parseLong(text));
+                try
+                {
+                    return ByteBufferUtil.bytes(Long.parseLong(text));
+                }
+                catch (NumberFormatException e)
+                {
+                    throw new InvalidRequestException(text + " is not valid for type long");
+                }
+            case INTEGER: 
+                try
+                {
+                    return ByteBufferUtil.bytes(Integer.parseInt(text));
+                }
+                catch (NumberFormatException e)
+                {
+                    throw new InvalidRequestException(text + " is not valid for type int");
+                }
+            case UNICODE:
+                try
+                {
+                    return ByteBuffer.wrap(text.getBytes("UTF-8"));
+                }
+                catch (UnsupportedEncodingException e)
+                {
+                   throw new RuntimeException(e);
+                }
         }
         
         // FIXME: handle scenario that should never happen
@@ -101,7 +125,7 @@ public class Term
 
 enum TermType
 {
-    STRING, LONG;
+    STRING, LONG, INTEGER, UNICODE;
     
     static TermType forInt(int type)
     {
@@ -109,6 +133,10 @@ enum TermType
             return STRING;
         else if (type == CqlParser.LONG)
             return LONG;
+        else if (type == CqlParser.INTEGER)
+            return INTEGER;
+        else if (type == CqlParser.UNICODE)
+            return UNICODE;
         
         // FIXME: handled scenario that should never occur.
         return null;
