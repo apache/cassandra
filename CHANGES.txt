@@ -6,6 +6,7 @@
  * configurable internode encryption (CASSANDRA-1567)
  * human readable column names in sstable2json output (CASSANDRA-1933)
  * change default JMX port to 7199 (CASSANDRA-2027)
+ * backwards compatible internal messaging (CASSANDRA-1015)
 
 
 0.7.1

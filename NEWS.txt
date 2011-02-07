@@ -7,6 +7,9 @@ Upgrading
     moved from org.apache.cassandra.avro to org.apache.cassandra.hadoop.avro,
     applications using these classes will need to be updated accordingly.
 
+	Upgrading from version 0.7.1 or later can be done with a rolling restart,
+	one node at a time.  You do not need to bring down the whole cluster.
+
 Other
 -----
     In the past, sstable2json would write column names and values as hex
