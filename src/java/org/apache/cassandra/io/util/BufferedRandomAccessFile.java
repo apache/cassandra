@@ -63,7 +63,7 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     // or in directIO() method to the DEFAULT_DIRECT_BUFFER_SIZE
     private long maxBufferSize;
 
-    // constant, used for caching purpose, -1 if file is open in "w" mode
+    // constant, used for caching purpose, -1 if file is open in "rw" mode
     // otherwise this will hold cached file length
     private final long fileLength;
 
