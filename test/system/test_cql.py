@@ -29,6 +29,13 @@ def load_sample(dbconn):
     dbconn.execute("""
         UPDATE Standard1 SET "cd1" = "vd1", "col" = "val" WHERE KEY = "kd"
     """)
+    
+    dbconn.execute("""
+        UPDATE Standard2 SET u"%s" = "ve1", "col" = "val" WHERE KEY = "kd"
+    """ % u'\xa9'.encode('utf8'))
+    dbconn.execute("""
+        UPDATE Standard2 SET u"cf1" = "vf1", "col" = "val" WHERE KEY = "kd"
+    """)
 
     dbconn.execute("""
     BEGIN BATCH USING CONSISTENCY.ONE
@@ -39,6 +46,18 @@ def load_sample(dbconn):
      UPDATE StandardLong1 SET 1L="1", 2L="2", 3L="3", 4L="4" WHERE KEY="ae";
      UPDATE StandardLong1 SET 1L="1", 2L="2", 3L="3", 4L="4" WHERE KEY="af";
      UPDATE StandardLong1 SET 5L="5", 6L="6", 7L="8", 9L="9" WHERE KEY="ag";
+    APPLY BATCH
+    """)
+    
+    dbconn.execute("""
+    BEGIN BATCH USING CONSISTENCY.ONE
+      UPDATE StandardInteger1 SET 10="a", 20="b", 30="c", 40="d" WHERE KEY="k1";
+      UPDATE StandardInteger1 SET 10="e", 20="f", 30="g", 40="h" WHERE KEY="k2";
+      UPDATE StandardInteger1 SET 10="i", 20="j", 30="k", 40="l" WHERE KEY="k3";
+      UPDATE StandardInteger1 SET 10="m", 20="n", 30="o", 40="p" WHERE KEY="k4";
+      UPDATE StandardInteger1 SET 10="q", 20="r", 30="s", 40="t" WHERE KEY="k5";
+      UPDATE StandardInteger1 SET 10="u", 20="v", 30="w", 40="x" WHERE KEY="k6";
+      UPDATE StandardInteger1 SET 10="y", 20="z", 30="A", 40="B" WHERE KEY="k7";
     APPLY BATCH
     """)
 
@@ -92,6 +111,14 @@ class TestCql(ThriftTester):
             SELECT 1L,5L,9L FROM StandardLong1 WHERE KEY > "aa" AND KEY < "ag" LIMIT 3
         """)
         assert len(r) == 3
+        
+        r = conn.execute("""
+            SELECT 20,40 FROM StandardInteger1 WHERE KEY > "k1"
+                    AND KEY < "k7" LIMIT 5
+        """)
+        assert len(r) == 5
+        r[0].key == "k1"
+        r[4].key == "k5"
 
     def test_select_columns_slice(self):
         "range of columns (slice) by row"
@@ -101,6 +128,12 @@ class TestCql(ThriftTester):
         assert r[0].columns[0].value == "1"
         assert r[0].columns[1].value == "2"
         assert r[0].columns[2].value == "3"
+        
+        r = conn.execute('SELECT 10..30 FROM StandardInteger1 WHERE KEY="k1"')
+        assert len(r) == 1
+        assert r[0].columns[0].value == "a"
+        assert r[0].columns[1].value == "b"
+        assert r[0].columns[2].value == "c"
 
     def test_select_columns_slice_with_limit(self):
         "range of columns (slice) by row with limit"
