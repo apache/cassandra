@@ -107,9 +107,10 @@ public class ExpiringMap<K, V>
         timer.cancel();
     }
 
-    public void put(K key, V value)
+    public V put(K key, V value)
     {
-        cache.put(key, new CacheableObject<V>(value));
+        CacheableObject<V> previous = cache.put(key, new CacheableObject<V>(value));
+        return (previous == null) ? null : previous.getValue();
     }
 
     public V get(K key)

@@ -237,7 +237,8 @@ public class MessagingService
 
     private void addCallback(IMessageCallback cb, String messageId, InetAddress to)
     {
-        callbacks.put(messageId, new Pair<InetAddress, IMessageCallback>(to, cb));
+        Pair<InetAddress, IMessageCallback> previous = callbacks.put(messageId, new Pair<InetAddress, IMessageCallback>(to, cb));
+        assert previous == null;
     }
 
     /**
