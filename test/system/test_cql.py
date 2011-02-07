@@ -1,6 +1,6 @@
 
 from os.path import abspath, dirname, join
-import sys
+import sys, uuid, time
 
 sys.path.append(join(abspath(dirname(__file__)), '../../drivers/py'))
 
@@ -15,6 +15,9 @@ def assert_raises(exception, method, *args):
     except exception:
         return
     raise AssertionError("failed to see expected exception")
+    
+def uuid1bytes_to_millis(uuidbytes):
+    return (uuid.UUID(bytes=uuidbytes).get_time() / 10000) - 12219292800000L
 
 def load_sample(dbconn):
     dbconn.execute("""
@@ -256,4 +259,77 @@ class TestCql(ThriftTester):
         strategy_class = "org.apache.cassandra.locator.SimpleStrategy"
         assert ksdef.strategy_class == strategy_class
         assert ksdef.strategy_options['DC1'] == "1"
+
+    def test_time_uuid(self):
+        "store and retrieve time-based (type 1) uuids"
+        conn = init()
+        
+        # Store and retrieve a timeuuid using it's hex-formatted string
+        timeuuid = uuid.uuid1()
+        conn.execute("""
+            UPDATE Standard2 SET timeuuid("%s") = 10 WHERE KEY = "uuidtest"
+        """ % str(timeuuid))
+        
+        r = conn.execute("""
+            SELECT timeuuid("%s") FROM Standard2 WHERE KEY = "uuidtest"
+        """ % str(timeuuid))
+        assert r[0].columns[0].name == timeuuid.bytes
+        
+        # Tests a node-side conversion from long to UUID.
+        ms = uuid1bytes_to_millis(uuid.uuid1().bytes)
+        conn.execute("""
+            UPDATE Standard2 SET "id" = timeuuid(%d) WHERE KEY = "uuidtest"
+        """ % ms)
+        
+        r = conn.execute('SELECT "id" FROM Standard2 WHERE KEY = "uuidtest"')
+        assert uuid1bytes_to_millis(r[0].columns[0].value) == ms
+        
+        # Tests a node-side conversion from ISO8601 to UUID.
+        conn.execute("""
+            UPDATE Standard2 SET "id2" = timeuuid("2011-01-31 17:00:00-0000")
+                    WHERE KEY = "uuidtest"
+        """)
+        
+        r = conn.execute('SELECT "id2" FROM Standard2 WHERE KEY = "uuidtest"')
+        # 2011-01-31 17:00:00-0000 == 1296493200000ms
+        ms = uuid1bytes_to_millis(r[0].columns[0].value)
+        assert ms == 1296493200000, \
+                "%d != 1296493200000 (2011-01-31 17:00:00-0000)" % ms
+
+        # Tests node-side conversion of empty term to UUID
+        conn.execute("""
+            UPDATE Standard2 SET "id3" = timeuuid() WHERE KEY = "uuidtest"
+        """)
+        
+        r = conn.execute('SELECT "id3" FROM Standard2 WHERE KEY = "uuidtest"')
+        ms = uuid1bytes_to_millis(r[0].columns[0].value)
+        assert ((time.time() * 1e3) - ms) < 100, \
+            "timeuuid() not within 100ms of now (UPDATE vs. SELECT)"
+            
+        # Tests node-side conversion of timeuuid("now") to UUID
+        conn.execute("""
+            UPDATE Standard2 SET "id4" = timeuuid("now") WHERE KEY = "uuidtest"
+        """)
+        
+        r = conn.execute('SELECT "id4" FROM Standard2 WHERE KEY = "uuidtest"')
+        ms = uuid1bytes_to_millis(r[0].columns[0].value)
+        assert ((time.time() * 1e3) - ms) < 100, \
+            "timeuuid(\"now\") not within 100ms of now (UPDATE vs. SELECT)"
+        
+        # TODO: slices of timeuuids from cf w/ TimeUUIDType comparator
+        
+    def test_lexical_uuid(self):
+        "store and retrieve lexical uuids"
+        conn = init()
+        uid = uuid.uuid4()
+        conn.execute("""
+            UPDATE Standard2 SET uuid("%s") = 10 WHERE KEY = "uuidtest"
+        """ % str(uid))
+        
+        r = conn.execute("""
+            SELECT uuid("%s") FROM Standard2 WHERE KEY = "uuidtest"
+        """ % str(uid))
+        assert r[0].columns[0].name == uid.bytes
+        
+        # TODO: slices of uuids from cf w/ LexicalUUIDType comparator
 

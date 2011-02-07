@@ -202,3 +202,18 @@ String literals are any value enclosed in double-quotes, (`"`).  String literals
 h4. Integers / longs
 
 Integers are any term consisting soley of unquoted numericals, longs are any otherwise valid integer term followed by an upper case "L", (e.g. 100L).  It is an error to specify an integer term that will not fit in 4 bytes unsigned, or a long that will not fit in 8 bytes unsigned.
+
+h4. UUIDs
+
+There are two types of UUIDs supported by the CQL specification, time-based (version 1) and randomly generated (version 4). These are specified in statements using the @timeuuid(<UUID STRING>)@ and @uuid(<UUID STRING>)@ notations respectively.
+
+In addition to the hex-based string representation, @timeuuid()@ terms also accept arguments to specify the data-time component. The full list of @timeuuid()@ arguments are:
+
+|_. argument|_. example|_. behavior|
+|none|timeuuid()|Results in the creation of a new UUID based on system time of the node parsing the query.|
+|now|timeuuid("now")|Results in the creation of a new UUID based on system time of the node parsing the query.|
+|milliseconds since epoch|timeuuid(1296755320376)|Creates a UUID with a time component that is based on the supplied time-stamp.|
+|"iso8601 timestamp":http://en.wikipedia.org/wiki/8601|timeuuid("2011-02-01T14:00-0600")|Creates a UUID with a time component that is based on the supplied time-stamp.|
+|"string representation (hex)":http://tools.ietf.org/html/rfc4122|timeuuid("e9229b24-2fbe-11e0-a4de-0026c650d722")|Reproduces the specified version 1 UUID node-side.|
+
+

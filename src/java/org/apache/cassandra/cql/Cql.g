@@ -176,10 +176,12 @@ createKeyspaceStatement returns [CreateKeyspaceStatement expr]
       }
     ;
 
-// TODO: date/time, utf8
 term returns [Term item]
-    : ( t=STRING_LITERAL | t=LONG | t=INTEGER | t=UNICODE )
-      { $item = new Term($t.text, $t.type); }
+    : ( t=timeuuid | t=uuid | t=literal ) { $item = t; }
+    ;
+
+literal returns [Term term]
+    : ( t=STRING_LITERAL | t=LONG | t=INTEGER | t=UNICODE ) { $term = new Term($t.text, $t.type); }
     ;
 
 termList returns [List<Term> items]
@@ -224,10 +226,19 @@ selectExpression returns [SelectExpression expr]
 truncateStatement returns [String cfam]
     : K_TRUNCATE columnFamily=IDENT { $cfam = $columnFamily.text; } endStmnt
     ;
-    
+
 endStmnt
     : (EOF | ';')
     ;
+
+uuid returns [Term term]
+    : 'uuid(' uuidstr=STRING_LITERAL ')' { return new Term($uuidstr.text, TermType.UUID); }
+    ;
+    
+timeuuid returns [Term term]
+    : 'timeuuid(' uuidstr=( STRING_LITERAL | INTEGER | LONG )? ')' { return new Term($uuidstr.text, TermType.TIMEUUID); }
+    ;
+
 
 // Case-insensitive keywords
 K_SELECT:      S E L E C T;

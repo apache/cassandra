@@ -22,13 +22,32 @@ package org.apache.cassandra.cql;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
+import java.text.ParseException;
 
+import org.apache.cassandra.db.marshal.LexicalUUIDType;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.UUIDGen;
+import org.apache.commons.lang.time.DateUtils;
 
 /** A term parsed from a CQL statement. */
 public class Term
 {
+    private static String[] iso8601Patterns = new String[] {
+            "yyyy-MM-dd HH:mm",
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd HH:mmZ",
+            "yyyy-MM-dd HH:mm:ssZ",
+            "yyyy-MM-dd'T'HH:mm",
+            "yyyy-MM-dd'T'HH:mmZ",
+            "yyyy-MM-dd'T'HH:mm:ss",
+            "yyyy-MM-dd'T'HH:mm:ssZ",
+            "yyyy-MM-dd",
+            "yyyy-MM-ddZ"
+    };
+    
     private final String text;
     private final TermType type;
     
@@ -41,8 +60,14 @@ public class Term
      */
     public Term(String text, int type)
     {
-        this.text = text;
+        this.text = text == null ? "" : text;
         this.type = TermType.forInt(type);
+    }
+    
+    public Term(String text, TermType type)
+    {
+        this.text = text == null ? "" : text;
+        this.type = type;
     }
     
     protected Term()
@@ -100,6 +125,53 @@ public class Term
                 {
                    throw new RuntimeException(e);
                 }
+            case UUID:
+                try
+                {
+                    return LexicalUUIDType.instance.fromString(text);
+                }
+                catch (IllegalArgumentException e)
+                {
+                    throw new InvalidRequestException(text + " is not valid for type uuid");
+                }
+            case TIMEUUID:
+                if (text.equals("") || text.toLowerCase().equals("now"))
+                {
+                    return ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress())));
+                }
+                
+                // Milliseconds since epoch?
+                if (text.matches("^\\d+$"))
+                {
+                    try
+                    {
+                        return ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(Long.parseLong(text)));
+                    }
+                    catch (NumberFormatException e)
+                    {
+                        throw new InvalidRequestException(text + " is not valid for type timeuuid");
+                    }
+                }
+                
+                try
+                {
+                    long timestamp = DateUtils.parseDate(text, iso8601Patterns).getTime();
+                    return ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(timestamp));
+                }
+                catch (ParseException e1)
+                {
+                    // Ignore failures; we'll move onto the Next Thing.
+                }
+                
+                // Last chance, a UUID string (i.e. f79326be-2d7b-11e0-b074-0026c650d722)
+                try
+                {
+                    return TimeUUIDType.instance.fromString(text);
+                }
+                catch (IllegalArgumentException e)
+                {
+                    throw new InvalidRequestException(text + " is not valid for type timeuuid");
+                }
         }
         
         // FIXME: handle scenario that should never happen
@@ -125,7 +197,7 @@ public class Term
 
 enum TermType
 {
-    STRING, LONG, INTEGER, UNICODE;
+    STRING, LONG, INTEGER, UNICODE, UUID, TIMEUUID;
     
     static TermType forInt(int type)
     {
