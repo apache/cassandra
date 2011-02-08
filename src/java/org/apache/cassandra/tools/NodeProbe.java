@@ -527,6 +527,16 @@ public class NodeProbe
         ssProxy.startGossiping();
     }
 
+    public void stopThriftServer()
+    {
+        ssProxy.stopRPCServer();
+    }
+
+    public void startThriftServer()
+    {
+        ssProxy.startRPCServer();
+    }
+
     public boolean isInitialized()
     {
         return ssProxy.isInitialized();

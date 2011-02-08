@@ -74,7 +74,8 @@ public class NodeCmd {
         RING, INFO, CFSTATS, SNAPSHOT, CLEARSNAPSHOT, VERSION, TPSTATS, FLUSH, DRAIN,
         DECOMMISSION, MOVE, LOADBALANCE, REMOVETOKEN, REPAIR, CLEANUP, COMPACT,
         SETCACHECAPACITY, GETCOMPACTIONTHRESHOLD, SETCOMPACTIONTHRESHOLD, NETSTATS, CFHISTOGRAMS,
-        COMPACTIONSTATS, DISABLEGOSSIP, ENABLEGOSSIP, INVALIDATEKEYCACHE, INVALIDATEROWCACHE
+        COMPACTIONSTATS, DISABLEGOSSIP, ENABLEGOSSIP, INVALIDATEKEYCACHE, INVALIDATEROWCACHE,
+        DISABLETHRIFT, ENABLETHRIFT
     }
 
     
@@ -99,6 +100,8 @@ public class NodeCmd {
         addCmdHelp(header, "compactionstats", "Print statistics on compactions");
         addCmdHelp(header, "disablegossip", "Disable gossip (effectively marking the node dead)");
         addCmdHelp(header, "enablegossip", "Reenable gossip");
+        addCmdHelp(header, "disablethrift", "Disable thrift server");
+        addCmdHelp(header, "enablethrift", "Reenable thrift server");
 
         // One arg
         addCmdHelp(header, "snapshot [snapshotname]", "Take a snapshot using optional name snapshotname");
@@ -537,6 +540,8 @@ public class NodeCmd {
             case COMPACTIONSTATS : nodeCmd.printCompactionStats(System.out); break;
             case DISABLEGOSSIP   : probe.stopGossiping(); break;
             case ENABLEGOSSIP    : probe.startGossiping(); break;
+            case DISABLETHRIFT   : probe.stopThriftServer(); break;
+            case ENABLETHRIFT    : probe.startThriftServer(); break;
 
             case DRAIN :
                 try { probe.drain(); }
