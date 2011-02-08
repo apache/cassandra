@@ -220,7 +220,7 @@ public class StorageProxy implements StorageProxyMBean
                 if (destination.equals(FBUtilities.getLocalAddress()))
                 {
                     if (insertLocalMessages)
-                        insertLocalMessage(rm, responseHandler);
+                        insertLocal(rm, responseHandler);
                 }
                 else
                 {
@@ -241,7 +241,8 @@ public class StorageProxy implements StorageProxyMBean
             }
             else
             {
-                // hinted
+                // hinted messages are unique, so there is no point to adding a hop by forwarding via another node.
+                // thus, we use sendRR/sendOneWay directly here.
                 Message hintedMessage = rm.getMessage(Gossiper.instance.getVersion(destination));
                 for (InetAddress target : targets)
                 {
@@ -249,24 +250,14 @@ public class StorageProxy implements StorageProxyMBean
                     {
                         addHintHeader(hintedMessage, target);
                         if (logger.isDebugEnabled())
-                            logger.debug("insert writing key " + ByteBufferUtil.bytesToHex(rm.key()) + " to " + hintedMessage.getMessageId() + "@" + destination + " for " + target);
+                            logger.debug("insert writing key " + ByteBufferUtil.bytesToHex(rm.key()) + " to " + destination + " for " + target);
                     }
                 }
-                // (non-destination hints are part of the callback and count towards consistency only under CL.ANY)
+                // non-destination hints are part of the callback and count towards consistency only under CL.ANY
                 if (targets.contains(destination) || consistency_level == ConsistencyLevel.ANY)
                     MessagingService.instance().sendRR(hintedMessage, destination, responseHandler);
                 else
                     MessagingService.instance().sendOneWay(hintedMessage, destination);
-
-                Multimap<Message, InetAddress> messages = dcMessages.get(dc);
-
-                if (messages == null)
-                {
-                   messages = HashMultimap.create();
-                   dcMessages.put(dc, messages);
-                }
-
-                messages.put(hintedMessage, destination);
             }
 
             sendMessages(localDataCenter, dcMessages, responseHandler);
@@ -335,7 +326,7 @@ public class StorageProxy implements StorageProxyMBean
         message.setHeader(RowMutation.HINT, bos.toByteArray());
     }
 
-    private static void insertLocalMessage(final RowMutation rm, final IWriteResponseHandler responseHandler)
+    private static void insertLocal(final RowMutation rm, final IWriteResponseHandler responseHandler)
     {
         if (logger.isDebugEnabled())
             logger.debug("insert writing local " + rm.toString(true));

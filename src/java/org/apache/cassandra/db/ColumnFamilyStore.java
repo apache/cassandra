@@ -36,7 +36,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.concurrent.RetryingScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -60,9 +59,6 @@ import org.apache.cassandra.utils.*;
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
     private static Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
-
-    private static final ScheduledThreadPoolExecutor cacheSavingExecutor =
-            new RetryingScheduledThreadPoolExecutor("CACHE-SAVER", Thread.MIN_PRIORITY);
 
     /*
      * submitFlush first puts [Binary]Memtable.getSortedContents on the flushSorter executor,
@@ -137,22 +133,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private volatile DefaultInteger memsize;
     private volatile DefaultDouble memops;
 
-    private final Runnable rowCacheSaverTask = new WrappedRunnable()
-    {
-        protected void runMayThrow() throws IOException
-        {
-            ssTables.saveRowCache();
-        }
-    };
-
-    private final Runnable keyCacheSaverTask = new WrappedRunnable()
-    {
-        protected void runMayThrow() throws Exception
-        {
-            ssTables.saveKeyCache();
-        }
-    };
-    
     public void reload()
     {
         // metadata object has been mutated directly. make all the members jibe with new settings.
@@ -573,29 +553,43 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                       columnFamily));
         if (rowCacheSavePeriodInSeconds > 0)
         {
-            cacheSavingExecutor.scheduleWithFixedDelay(rowCacheSaverTask,
-                                                       rowCacheSavePeriodInSeconds,
-                                                       rowCacheSavePeriodInSeconds,
-                                                       TimeUnit.SECONDS);
+            Runnable runnable = new WrappedRunnable()
+            {
+                public void runMayThrow()
+                {
+                    submitRowCacheWrite();
+                }
+            };
+            StorageService.scheduledTasks.scheduleWithFixedDelay(runnable,
+                                                                 rowCacheSavePeriodInSeconds,
+                                                                 rowCacheSavePeriodInSeconds,
+                                                                 TimeUnit.SECONDS);
         }
 
         if (keyCacheSavePeriodInSeconds > 0)
         {
-            cacheSavingExecutor.scheduleWithFixedDelay(keyCacheSaverTask,
-                                                       keyCacheSavePeriodInSeconds,
-                                                       keyCacheSavePeriodInSeconds,
-                                                       TimeUnit.SECONDS);
+            Runnable runnable = new WrappedRunnable()
+            {
+                public void runMayThrow()
+                {
+                    submitKeyCacheWrite();
+                }
+            };
+            StorageService.scheduledTasks.scheduleWithFixedDelay(runnable,
+                                                                 keyCacheSavePeriodInSeconds,
+                                                                 keyCacheSavePeriodInSeconds,
+                                                                 TimeUnit.SECONDS);
         }
     }
 
     public Future<?> submitRowCacheWrite()
     {
-        return cacheSavingExecutor.submit(rowCacheSaverTask);
+        return CompactionManager.instance.submitCacheWrite(ssTables.getRowCacheWriter());
     }
 
     public Future<?> submitKeyCacheWrite()
     {
-        return cacheSavingExecutor.submit(keyCacheSaverTask);
+        return CompactionManager.instance.submitCacheWrite(ssTables.getKeyCacheWriter());
     }
 
     /**

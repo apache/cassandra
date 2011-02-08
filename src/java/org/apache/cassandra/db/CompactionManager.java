@@ -50,6 +50,7 @@ import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.OperationType;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.WrappedRunnable;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class CompactionManager implements CompactionManagerMBean
@@ -76,7 +77,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     private CompactionExecutor executor = new CompactionExecutor();
     private Map<ColumnFamilyStore, Integer> estimatedCompactions = new NonBlockingHashMap<ColumnFamilyStore, Integer>();
-    
+
     public Lock getCompactionLock()
     {
         return compactionLock;
@@ -407,7 +408,7 @@ public class CompactionManager implements CompactionManagerMBean
         SSTableWriter writer;
         CompactionIterator ci = new CompactionIterator(cfs, sstables, gcBefore, major); // retain a handle so we can call close()
         Iterator<AbstractCompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
-        executor.beginCompaction(cfs, ci);
+        executor.beginCompaction(cfs.columnFamily, ci);
 
         Map<DecoratedKey, Long> cachedKeys = new HashMap<DecoratedKey, Long>();
 
@@ -503,7 +504,7 @@ public class CompactionManager implements CompactionManagerMBean
             SSTableWriter writer = null;
             SSTableScanner scanner = sstable.getDirectScanner(CompactionIterator.FILE_BUFFER_SIZE);
             SortedSet<ByteBuffer> indexedColumns = cfs.getIndexedColumns();
-            executor.beginCompaction(cfs, new CleanupInfo(sstable, scanner));
+            executor.beginCompaction(cfs.columnFamily, new CleanupInfo(sstable, scanner));
             try
             {
                 while (scanner.hasNext())
@@ -598,7 +599,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
 
         CompactionIterator ci = new ValidationCompactionIterator(cfs);
-        executor.beginCompaction(cfs, ci);
+        executor.beginCompaction(cfs.columnFamily, ci);
         try
         {
             Iterator<AbstractCompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
@@ -693,7 +694,7 @@ public class CompactionManager implements CompactionManagerMBean
                 {
                     if (cfs.isInvalid())
                         return;
-                    executor.beginCompaction(cfs, builder);
+                    executor.beginCompaction(cfs.columnFamily, builder);
                     builder.build();
                 }
                 finally
@@ -724,7 +725,7 @@ public class CompactionManager implements CompactionManagerMBean
                 compactionLock.lock();
                 try
                 {
-                    executor.beginCompaction(builder.cfs, builder);
+                    executor.beginCompaction(builder.cfs.columnFamily, builder);
                     return builder.build();
                 }
                 finally
@@ -734,6 +735,19 @@ public class CompactionManager implements CompactionManagerMBean
             }
         };
         return executor.submit(callable);
+    }
+
+    public Future<?> submitCacheWrite(final CacheWriter writer)
+    {
+        Runnable runnable = new WrappedRunnable()
+        {
+            public void runMayThrow() throws IOException
+            {
+                executor.beginCompaction(writer.getColumnFamily(), writer);
+                writer.saveCache();
+            }
+        };
+        return executor.submit(runnable);
     }
 
     private static class ValidationCompactionIterator extends CompactionIterator
@@ -777,7 +791,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     private static class CompactionExecutor extends DebuggableThreadPoolExecutor
     {
-        private volatile ColumnFamilyStore cfs;
+        private volatile String columnFamily;
         private volatile ICompactionInfo ci;
 
         public CompactionExecutor()
@@ -789,19 +803,19 @@ public class CompactionManager implements CompactionManagerMBean
         public void afterExecute(Runnable r, Throwable t)
         {
             super.afterExecute(r, t);
-            cfs = null;
+            columnFamily = null;
             ci = null;
         }
 
-        void beginCompaction(ColumnFamilyStore cfs, ICompactionInfo ci)
+        void beginCompaction(String columnFamily, ICompactionInfo ci)
         {
-            this.cfs = cfs;
+            this.columnFamily = columnFamily;
             this.ci = ci;
         }
 
         public String getColumnFamilyName()
         {
-            return cfs == null ? null : cfs.getColumnFamilyName();
+            return columnFamily == null ? null : columnFamily;
         }
 
         public Long getBytesTotal()
@@ -811,7 +825,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         public Long getBytesCompleted()
         {
-            return ci == null ? null : ci.getBytesRead();
+            return ci == null ? null : ci.getBytesComplete();
         }
 
         public String getType()
@@ -939,7 +953,7 @@ public class CompactionManager implements CompactionManagerMBean
             return scanner.getFileLength();
         }
 
-        public long getBytesRead()
+        public long getBytesComplete()
         {
             return scanner.getFilePointer();
         }

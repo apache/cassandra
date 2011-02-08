@@ -19,15 +19,12 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
-import javax.swing.plaf.basic.BasicButtonListener;
-
 import com.google.common.base.Function;
-import org.apache.cassandra.utils.ByteBufferUtil;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,7 +32,6 @@ import org.apache.cassandra.cache.JMXInstrumentedCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Pair;
 
 public class SSTableTracker implements Iterable<SSTableReader>
@@ -61,45 +57,7 @@ public class SSTableTracker implements Iterable<SSTableReader>
         rowCache = new JMXInstrumentedCache<DecoratedKey, ColumnFamily>(ksname, cfname + "RowCache", 3);
     }
 
-    protected class CacheWriter<K, V>
-    {
-        public void saveCache(JMXInstrumentedCache<K, V> cache, File savedCachePath, Function<K, ByteBuffer> converter) throws IOException
-        {
-            long start = System.currentTimeMillis();
-            String msgSuffix = savedCachePath.getName() + " for " + cfname + " of " + ksname;
-            logger.info("saving " + msgSuffix);
-            int count = 0;
-            File tmpFile = File.createTempFile(savedCachePath.getName(), null, savedCachePath.getParentFile());
-            
-            FileOutputStream fout = null;
-            ObjectOutputStream out = null;
-            try
-            {
-                fout = new FileOutputStream(tmpFile);
-                out = new ObjectOutputStream(new BufferedOutputStream(fout));
-                FileDescriptor fd = fout.getFD();
-                for (K key : cache.getKeySet())
-                {
-                    ByteBuffer bytes = converter.apply(key);
-                    ByteBufferUtil.writeWithLength(bytes, out);
-                    ++count;
-                }
-                out.flush();
-                fd.sync();
-            }
-            finally
-            {
-                FileUtils.closeQuietly(out);
-                FileUtils.closeQuietly(fout);
-            }
-            if (!tmpFile.renameTo(savedCachePath))
-                throw new IOException("Unable to rename cache to " + savedCachePath);
-            if (logger.isDebugEnabled())
-                logger.debug("saved " + count + " keys in " + (System.currentTimeMillis() - start) + " ms from " + msgSuffix);
-        }
-    }
-
-    public void saveKeyCache() throws IOException
+    public CacheWriter<Pair<Descriptor, DecoratedKey>, Long> getKeyCacheWriter()
     {
         Function<Pair<Descriptor, DecoratedKey>, ByteBuffer> function = new Function<Pair<Descriptor, DecoratedKey>, ByteBuffer>()
         {
@@ -108,11 +66,10 @@ public class SSTableTracker implements Iterable<SSTableReader>
                 return key.right.key;
             }
         };
-        CacheWriter<Pair<Descriptor, DecoratedKey>, Long> writer = new CacheWriter<Pair<Descriptor, DecoratedKey>, Long>();
-        writer.saveCache(keyCache, DatabaseDescriptor.getSerializedKeyCachePath(ksname, cfname), function);
+        return new CacheWriter<Pair<Descriptor, DecoratedKey>, Long>(cfname, keyCache, DatabaseDescriptor.getSerializedKeyCachePath(ksname, cfname), function);
     }
 
-    public void saveRowCache() throws IOException
+    public CacheWriter<DecoratedKey, ColumnFamily> getRowCacheWriter()
     {
         Function<DecoratedKey, ByteBuffer> function = new Function<DecoratedKey, ByteBuffer>()
         {
@@ -121,8 +78,7 @@ public class SSTableTracker implements Iterable<SSTableReader>
                 return key.key;
             }
         };
-        CacheWriter<DecoratedKey, ColumnFamily> writer = new CacheWriter<DecoratedKey, ColumnFamily>();
-        writer.saveCache(rowCache, DatabaseDescriptor.getSerializedRowCachePath(ksname, cfname), function);
+        return new CacheWriter<DecoratedKey, ColumnFamily>(cfname, rowCache, DatabaseDescriptor.getSerializedRowCachePath(ksname, cfname), function);
     }
 
     public synchronized void replace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements)

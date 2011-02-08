@@ -157,7 +157,7 @@ implements Closeable, ICompactionInfo
         return totalBytes;
     }
 
-    public long getBytesRead()
+    public long getBytesComplete()
     {
         return bytesRead;
     }
