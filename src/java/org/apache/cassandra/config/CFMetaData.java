@@ -824,14 +824,17 @@ public final class CFMetaData
         newDef.subcomparator_type = def.getSubcomparator_type();
         
         List<org.apache.cassandra.db.migration.avro.ColumnDef> columnMeta = new ArrayList<org.apache.cassandra.db.migration.avro.ColumnDef>();
-        for (org.apache.cassandra.thrift.ColumnDef cdef : def.getColumn_metadata())
+        if (def.isSetColumn_metadata())
         {
-            org.apache.cassandra.db.migration.avro.ColumnDef tdef = new org.apache.cassandra.db.migration.avro.ColumnDef();
-            tdef.name = ByteBufferUtil.clone(cdef.BufferForName());
-            tdef.validation_class = cdef.getValidation_class();
-            tdef.index_name = cdef.getIndex_name();
-            tdef.index_type = cdef.getIndex_type() == null ? null : org.apache.cassandra.db.migration.avro.IndexType.valueOf(cdef.getIndex_type().name());
-            columnMeta.add(tdef);
+            for (org.apache.cassandra.thrift.ColumnDef cdef : def.getColumn_metadata())
+            {
+                org.apache.cassandra.db.migration.avro.ColumnDef tdef = new org.apache.cassandra.db.migration.avro.ColumnDef();
+                tdef.name = ByteBufferUtil.clone(cdef.BufferForName());
+                tdef.validation_class = cdef.getValidation_class();
+                tdef.index_name = cdef.getIndex_name();
+                tdef.index_type = cdef.getIndex_type() == null ? null : org.apache.cassandra.db.migration.avro.IndexType.valueOf(cdef.getIndex_type().name());
+                columnMeta.add(tdef);
+            }
         }
         newDef.column_metadata = columnMeta;
         return newDef;
