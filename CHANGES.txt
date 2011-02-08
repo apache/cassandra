@@ -1,6 +1,7 @@
 0.7.2
  * cache writing moved to CompactionManager to reduce i/o contention and
    updated to use non-cache-polluting writes (CASSANDRA-2053)
+ * page through large rows when exporting to JSON (CASSANDRA-2041)
 
 
 0.7.1
