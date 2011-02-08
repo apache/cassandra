@@ -106,15 +106,15 @@ public class ByteBufferUtil
         return string(buffer, Charset.defaultCharset());
     }
 
-    public static String string(ByteBuffer buffer, int offset, int length) throws CharacterCodingException
+    public static String string(ByteBuffer buffer, int position, int length) throws CharacterCodingException
     {
-        return string(buffer, offset, length, Charset.defaultCharset());
+        return string(buffer, position, length, Charset.defaultCharset());
     }
 
-    public static String string(ByteBuffer buffer, int offset, int length, Charset charset) throws CharacterCodingException
+    public static String string(ByteBuffer buffer, int position, int length, Charset charset) throws CharacterCodingException
     {
         ByteBuffer copy = buffer.duplicate();
-        copy.position(buffer.position() + offset);
+        copy.position(position);
         copy.limit(copy.position() + length);
         return string(buffer, charset);
     }
