@@ -72,7 +72,8 @@ public class ExpiringMap<K, V>
                 if (entry.getValue().isReadyToDie(expiration))
                 {
                     cache.remove(entry.getKey());
-                    postExpireHook.apply(new Pair<K, V>(entry.getKey(), entry.getValue().getValue()));
+                    if (postExpireHook != null)
+                        postExpireHook.apply(new Pair<K, V>(entry.getKey(), entry.getValue().getValue()));
                 }
             }
         }
