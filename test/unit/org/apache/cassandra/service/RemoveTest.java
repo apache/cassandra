@@ -194,8 +194,7 @@ public class RemoveTest extends CleanupHelper
 
     class ReplicationSink implements IMessageSink
     {
-
-        public Message handleMessage(Message msg, InetAddress to)
+        public Message handleMessage(Message msg, String id, InetAddress to)
         {
             if (!msg.getVerb().equals(StorageService.Verb.STREAM_REQUEST))
                 return msg;
@@ -210,7 +209,7 @@ public class RemoveTest extends CleanupHelper
     {
         public int callCount = 0;
 
-        public Message handleMessage(Message msg, InetAddress to)
+        public Message handleMessage(Message msg, String id, InetAddress to)
         {
             if (msg.getVerb().equals(StorageService.Verb.REPLICATION_FINISHED))
             {
@@ -218,7 +217,7 @@ public class RemoveTest extends CleanupHelper
                 assertEquals(Stage.MISC, msg.getMessageType());
                 // simulate a response from remote server
                 Message response = msg.getReply(FBUtilities.getLocalAddress(), new byte[]{ });
-                MessagingService.instance().sendOneWay(response, FBUtilities.getLocalAddress());
+                MessagingService.instance().sendReply(response, id, FBUtilities.getLocalAddress());
                 return null;
             }
             else

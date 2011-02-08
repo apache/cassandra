@@ -24,5 +24,5 @@ import org.apache.cassandra.net.Message;
 
 public interface IMessageSink
 {
-    public Message handleMessage(Message message, InetAddress to);
+    public Message handleMessage(Message message, String id, InetAddress to);
 }

@@ -279,8 +279,6 @@ public final class MessagingService implements MessagingServiceMBean
     public String sendRR(Message message, InetAddress to, IMessageCallback cb)
     {        
         String id = nextId();
-        if (logger_.isDebugEnabled())
-            logger_.debug("Sending " + message.getVerb() + " to " + id + "@" + to);
         addCallback(cb, id, to);
         sendOneWay(message, id, to);
         return id;
@@ -304,6 +302,9 @@ public final class MessagingService implements MessagingServiceMBean
      */
     private void sendOneWay(Message message, String id, InetAddress to)
     {
+        if (logger_.isDebugEnabled())
+            logger_.debug(FBUtilities.getLocalAddress() + " sending " + message.getVerb() + " to " + id + "@" + to);
+
         // do local deliveries
         if ( message.getFrom().equals(to) )
         {
@@ -312,7 +313,7 @@ public final class MessagingService implements MessagingServiceMBean
         }
 
         // message sinks are a testing hook
-        Message processedMessage = SinkManager.processClientMessage(message, to);
+        Message processedMessage = SinkManager.processClientMessage(message, id, to);
         if (processedMessage == null)
         {
             return;
@@ -394,7 +395,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public void receive(Message message, String id)
     {
-        message = SinkManager.processServerMessage(message);
+        message = SinkManager.processServerMessage(message, id);
         if (message == null)
             return;
 

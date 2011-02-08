@@ -38,28 +38,28 @@ public class SinkManager
         sinks.clear();
     }
 
-    public static Message processClientMessage(Message message, InetAddress to)
+    public static Message processClientMessage(Message message, String id, InetAddress to)
     {
         if (sinks.isEmpty())
             return message;
 
         for (IMessageSink ms : sinks)
         {
-            message = ms.handleMessage(message, to);
+            message = ms.handleMessage(message, id, to);
             if (message == null)
                 return null;
         }
         return message;
     }
 
-    public static Message processServerMessage(Message message)
+    public static Message processServerMessage(Message message, String id)
     {
         if (sinks.isEmpty())
             return message;
 
         for (IMessageSink ms : sinks)
         {
-            message = ms.handleMessage(message, null);
+            message = ms.handleMessage(message, id, null);
             if (message == null)
                 return null;
         }
