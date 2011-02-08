@@ -261,23 +261,29 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             
     private void deliverHintsToEndpoint(InetAddress endpoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException, InterruptedException
     {
-        logger_.info("Checking remote schema before delivering hints");
-        int waited = waitForSchemaAgreement(endpoint);
-        // sleep a random amount to stagger handoff delivery from different replicas.
-        // (if we had to wait, then gossiper randomness took care of that for us already.)
-        if (waited == 0) {
-            int sleep = new Random().nextInt(60000);
-            logger_.info("Sleeping {}ms to stagger hint delivery", sleep);
-            Thread.sleep(sleep);
-        }
-        if (!Gossiper.instance.getEndpointStateForEndpoint(endpoint).isAlive())
+        try
         {
-            logger_.info("Endpoint {} died before hint delivery, aborting", endpoint);
-            return;
+            logger_.info("Checking remote schema before delivering hints");
+            int waited = waitForSchemaAgreement(endpoint);
+            // sleep a random amount to stagger handoff delivery from different replicas.
+            // (if we had to wait, then gossiper randomness took care of that for us already.)
+            if (waited == 0) {
+                int sleep = new Random().nextInt(60000);
+                logger_.info("Sleeping {}ms to stagger hint delivery", sleep);
+                Thread.sleep(sleep);
+            }
+            if (!Gossiper.instance.getEndpointStateForEndpoint(endpoint).isAlive())
+            {
+                logger_.info("Endpoint {} died before hint delivery, aborting", endpoint);
+                return;
+            }
         }
-        logger_.info("Started hinted handoff for endpoint " + endpoint);
+        finally
+        {
+            queuedDeliveries.remove(endpoint);
+        }
 
-        queuedDeliveries.remove(endpoint);
+        logger_.info("Started hinted handoff for endpoint " + endpoint);
 
         // 1. Get the key of the endpoint we need to handoff
         // 2. For each column read the list of rows: subcolumns are KS + SEPARATOR + CF
