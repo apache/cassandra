@@ -25,7 +25,7 @@ import zlib
 try:
     from cassandra import Cassandra
     from cassandra.ttypes import Compression, InvalidRequestException, \
-                                 CqlResultType
+                                 CqlResultType, AuthenticationRequest
 except ImportError:
     # Hack to run from a source tree
     import sys
@@ -38,7 +38,7 @@ except ImportError:
                          'gen-py'))
     from cassandra import Cassandra
     from cassandra.ttypes import Compression, InvalidRequestException, \
-                          CqlResultType
+                          CqlResultType, AuthenticationRequest
     
 COMPRESSION_SCHEMES = ['GZIP']
 DEFAULT_COMPRESSION = 'GZIP'
@@ -56,12 +56,17 @@ class Connection(object):
     ...     for column in row.columns:
     ...         print "%s is %s years of age" % (r.key, column.age)
     """
-    def __init__(self, host, port=9160, keyspace=None):
+    def __init__(self, host, port=9160, keyspace=None, username=None,
+                 password=None):
         socket = TSocket.TSocket(host, port)
         self.transport = TTransport.TFramedTransport(socket)
         protocol = TBinaryProtocol.TBinaryProtocolAccelerated(self.transport)
         self.client = Cassandra.Client(protocol)
         socket.open()
+        
+        if username and password:
+            credentials = {"username": username, "password": password}
+            self.client.login(AuthenticationRequest(credentials=credentials))
         
         if keyspace:
             self.execute('USE %s;' % keyspace)
