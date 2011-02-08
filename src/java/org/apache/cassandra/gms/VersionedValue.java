@@ -26,6 +26,7 @@ import java.util.UUID;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.utils.FBUtilities;
 
 
 /**
@@ -142,6 +143,10 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(rackId);
         }
 
+        public VersionedValue releaseVersion()
+        {
+            return new VersionedValue(FBUtilities.getReleaseVersionString());
+        }
     }
 
     private static class VersionedValueSerializer implements ICompactSerializer<VersionedValue>

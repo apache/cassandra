@@ -28,6 +28,7 @@ public enum ApplicationState
     SCHEMA,
     DC,
     RACK,
+    RELEASE_VERSION,
     // pad to allow adding new states to existing cluster
     X1,
     X2,
