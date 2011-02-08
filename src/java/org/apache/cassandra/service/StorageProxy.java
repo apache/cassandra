@@ -219,15 +219,15 @@ public class StorageProxy implements StorageProxyMBean
                 // unhinted writes
                 if (destination.equals(FBUtilities.getLocalAddress()))
                 {
-                    if (insertLocalMessages)
-                        insertLocal(rm, responseHandler);
+                    insertLocal(rm, responseHandler);
                 }
                 else
                 {
                     // belongs on a different server
+                    // TODO re-use Message objects
                     Message unhintedMessage = rm.getMessage(Gossiper.instance.getVersion(destination));
                     if (logger.isDebugEnabled())
-                        logger.debug("insert writing key " + ByteBufferUtil.bytesToHex(rm.key()) + " to " + unhintedMessage.getMessageId() + "@" + destination);
+                        logger.debug("insert writing key " + ByteBufferUtil.bytesToHex(rm.key()) + " to " + destination);
 
                     Multimap<Message, InetAddress> messages = dcMessages.get(dc);
                     if (messages == null)
@@ -278,6 +278,10 @@ public class StorageProxy implements StorageProxyMBean
             for (Map.Entry<Message, Collection<InetAddress>> messages: entry.getValue().asMap().entrySet())
             {
                 Message message = messages.getKey();
+                // a single message object is used for unhinted writes, so clean out any forwards
+                // from previous loop iterations
+                // TODO this is currently a no-op until re-use Message object TODOs are fixed
+                message.removeHeader(RowMutation.FORWARD_HEADER);
 
                 if (dataCenter.equals(localDataCenter))
                 {
@@ -390,7 +394,7 @@ public class StorageProxy implements StorageProxyMBean
 
                     Message message = cm.makeMutationMessage(Gossiper.instance.getVersion(endpoint));
                     if (logger.isDebugEnabled())
-                        logger.debug("forwarding counter update of key " + ByteBufferUtil.bytesToHex(cm.key()) + " to " + message.getMessageId() + "@" + endpoint);
+                        logger.debug("forwarding counter update of key " + ByteBufferUtil.bytesToHex(cm.key()) + " to " + endpoint);
                     MessagingService.instance().sendRR(message, endpoint, responseHandler);
                 }
             }
@@ -548,7 +552,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 Message message = command.getMessage(Gossiper.instance.getVersion(dataPoint));
                 if (logger.isDebugEnabled())
-                    logger.debug("reading data for " + command + " from " + message.getMessageId() + "@" + dataPoint);
+                    logger.debug("reading data for " + command + " from " + dataPoint);
                 MessagingService.instance().sendRR(message, dataPoint, handler);
             }
 
@@ -564,9 +568,10 @@ public class StorageProxy implements StorageProxyMBean
                 }
                 else
                 {
+                    // TODO re-use Message objects
                     Message digestMessage = digestCommand.getMessage(Gossiper.instance.getVersion(digestPoint));
                     if (logger.isDebugEnabled())
-                        logger.debug("reading digest for " + command + " from " + digestMessage.getMessageId() + "@" + digestPoint);
+                        logger.debug("reading digest for " + command + " from " + digestPoint);
                     MessagingService.instance().sendRR(digestMessage, digestPoint, handler);
                 }
             }
@@ -666,10 +671,9 @@ public class StorageProxy implements StorageProxyMBean
     {
         ReadResponseResolver resolver = new ReadResponseResolver(command.table, command.key);
         RepairCallback<Row> handler = new RepairCallback<Row>(resolver, endpoints);
+        // TODO should re-use Message objects
         for (InetAddress endpoint : endpoints)
-        {
             MessagingService.instance().sendRR(command, endpoint, handler);
-        }
         return handler;
     }
 
@@ -725,10 +729,11 @@ public class StorageProxy implements StorageProxyMBean
                     // TODO bail early if live endpoints can't satisfy requested consistency level
                     for (InetAddress endpoint : liveEndpoints)
                     {
+                        // TODO re-use Message objects
                         Message message = c2.getMessage(Gossiper.instance.getVersion(endpoint));
                         MessagingService.instance().sendRR(message, endpoint, handler);
                         if (logger.isDebugEnabled())
-                            logger.debug("reading " + c2 + " from " + message.getMessageId() + "@" + endpoint);
+                            logger.debug("reading " + c2 + " from " + endpoint);
                     }
                     // TODO read repair on remaining replicas?
 
@@ -1010,10 +1015,11 @@ public class StorageProxy implements StorageProxyMBean
             IndexScanCommand command = new IndexScanCommand(keyspace, column_family, index_clause, column_predicate, range);
             for (InetAddress endpoint : liveEndpoints)
             {
+                // TODO re-use Message objects
                 Message message = command.getMessage(Gossiper.instance.getVersion(endpoint));
                 MessagingService.instance().sendRR(message, endpoint, handler);
                 if (logger.isDebugEnabled())
-                    logger.debug("reading " + command + " from " + message.getMessageId() + "@" + endpoint);
+                    logger.debug("reading " + command + " from " + endpoint);
             }
 
             List<Row> theseRows;
@@ -1098,6 +1104,7 @@ public class StorageProxy implements StorageProxyMBean
         Truncation truncation = new Truncation(keyspace, cfname);
         for (InetAddress endpoint : allEndpoints)
         {
+            // TODO re-use Message objects
             Message message = truncation.getMessage(Gossiper.instance.getVersion(endpoint));
             MessagingService.instance().sendRR(message, endpoint, responseHandler);
         }

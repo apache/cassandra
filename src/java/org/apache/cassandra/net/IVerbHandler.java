@@ -31,8 +31,9 @@ public interface IVerbHandler
      * class was registered by a call to MessagingService.registerVerbHandlers).
      * Note that the caller should not be holding any locks when calling this method
      * because the implementation may be synchronized.
-     * 
-     * @param message - incoming message that needs handling.     
+     *
+     * @param message - incoming message that needs handling.
+     * @param id
      */
-    public void doVerb(Message message);
+    public void doVerb(Message message, String id);
 }

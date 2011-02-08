@@ -41,7 +41,7 @@ public class CounterMutationVerbHandler implements IVerbHandler
 {
     private static Logger logger = LoggerFactory.getLogger(CounterMutationVerbHandler.class);
 
-    public void doVerb(Message message)
+    public void doVerb(Message message, String id)
     {
         byte[] bytes = message.getMessageBody();
         ByteArrayInputStream buffer = new ByteArrayInputStream(bytes);
@@ -56,7 +56,7 @@ public class CounterMutationVerbHandler implements IVerbHandler
             StorageProxy.applyCounterMutationOnLeader(cm);
             WriteResponse response = new WriteResponse(cm.getTable(), cm.key(), true);
             Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);
-            MessagingService.instance().sendOneWay(responseMessage, message.getFrom());
+            MessagingService.instance().sendReply(responseMessage, id, message.getFrom());
         }
         catch (UnavailableException e)
         {

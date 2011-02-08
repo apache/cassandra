@@ -40,7 +40,7 @@ public class TruncateVerbHandler implements IVerbHandler
 {
     private static Logger logger = LoggerFactory.getLogger(TruncateVerbHandler.class);
 
-    public void doVerb(Message message)
+    public void doVerb(Message message, String id)
     {
         byte[] bytes = message.getMessageBody();
         ByteArrayInputStream buffer = new ByteArrayInputStream(bytes);
@@ -76,9 +76,8 @@ public class TruncateVerbHandler implements IVerbHandler
 
             TruncateResponse response = new TruncateResponse(t.keyspace, t.columnFamily, true);
             Message responseMessage = TruncateResponse.makeTruncateResponseMessage(message, response);
-            logger.debug("{} applied.  Sending response to {}@{} ",
-                    new Object[]{t, message.getMessageId(), message.getFrom()});
-            MessagingService.instance().sendOneWay(responseMessage, message.getFrom());
+            logger.debug("{} applied.  Sending response to {}@{} ", new Object[]{ t, id, message.getFrom()});
+            MessagingService.instance().sendReply(responseMessage, id, message.getFrom());
         }
         catch (IOException e)
         {

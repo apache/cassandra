@@ -104,8 +104,10 @@ public class IncomingTcpConnection extends Thread
                     else
                     {
                         // todo: need to be aware of message version.
-                        Message message = Message.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(contentBytes)), version);
-                        MessagingService.instance().receive(message);
+                        DataInputStream dis = new DataInputStream(new ByteArrayInputStream(contentBytes));
+                        String id = dis.readUTF();
+                        Message message = Message.serializer().deserialize(dis, version);
+                        MessagingService.instance().receive(message, id);
                     }
                 }
                 // prepare to read the next message

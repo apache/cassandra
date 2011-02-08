@@ -37,7 +37,7 @@ public class StreamRequestVerbHandler implements IVerbHandler
 {
     private static Logger logger = LoggerFactory.getLogger(StreamRequestVerbHandler.class);
     
-    public void doVerb(Message message)
+    public void doVerb(Message message, String id)
     {
         if (logger.isDebugEnabled())
             logger.debug("Received a StreamRequestMessage from {}", message.getFrom());

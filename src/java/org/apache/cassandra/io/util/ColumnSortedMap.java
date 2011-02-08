@@ -22,6 +22,7 @@ package org.apache.cassandra.io.util;
 
 
 import java.io.DataInput;
+import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -242,7 +243,7 @@ class ColumnIterator implements Iterator<Map.Entry<ByteBuffer, IColumn>>
         }
         catch (IOException e)
         {
-            return null;
+            throw new IOError(e);
         }
     }
 
@@ -263,7 +264,7 @@ class ColumnIterator implements Iterator<Map.Entry<ByteBuffer, IColumn>>
         {
             public IColumn setValue(IColumn value)
             {
-                return null;
+                throw new UnsupportedOperationException();
             }
 
             public IColumn getValue()

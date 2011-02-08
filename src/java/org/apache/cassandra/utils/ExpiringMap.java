@@ -39,6 +39,7 @@ public class ExpiringMap<K, V>
 
         CacheableObject(T o)
         {
+            assert o != null;
             value = o;
             age = System.currentTimeMillis();
         }
@@ -66,18 +67,19 @@ public class ExpiringMap<K, V>
         @Override
         public void run()
         {
-            for (Map.Entry<K, CacheableObject> entry : cache.entrySet())
+            for (Map.Entry<K, CacheableObject<V>> entry : cache.entrySet())
             {
                 if (entry.getValue().isReadyToDie(expiration))
                 {
                     cache.remove(entry.getKey());
-                    postExpireHook.apply(new Pair(entry.getKey(), entry.getValue().getValue()));
+                    if (postExpireHook != null)
+                        postExpireHook.apply(new Pair<K, V>(entry.getKey(), entry.getValue().getValue()));
                 }
             }
         }
     }
 
-    private final NonBlockingHashMap<K, CacheableObject> cache = new NonBlockingHashMap<K, CacheableObject>();
+    private final NonBlockingHashMap<K, CacheableObject<V>> cache = new NonBlockingHashMap<K, CacheableObject<V>>();
     private final Timer timer;
     private static int counter = 0;
 

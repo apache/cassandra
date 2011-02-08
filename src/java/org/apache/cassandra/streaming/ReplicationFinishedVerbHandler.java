@@ -33,12 +33,12 @@ public class ReplicationFinishedVerbHandler implements IVerbHandler
 {
     private static Logger logger = LoggerFactory.getLogger(ReplicationFinishedVerbHandler.class);
 
-    public void doVerb(Message msg)
+    public void doVerb(Message msg, String id)
     {
         StorageService.instance.confirmReplication(msg.getFrom());
         Message response = msg.getInternalReply(ArrayUtils.EMPTY_BYTE_ARRAY, msg.getVersion());
         if (logger.isDebugEnabled())
-            logger.debug("Replying to " + msg.getMessageId() + "@" + msg.getFrom());
-        MessagingService.instance().sendOneWay(response, msg.getFrom());
+            logger.debug("Replying to " + id + "@" + msg.getFrom());
+        MessagingService.instance().sendReply(response, id, msg.getFrom());
     }
 }

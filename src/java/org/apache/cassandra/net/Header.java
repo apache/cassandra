@@ -33,8 +33,7 @@ import org.apache.cassandra.service.StorageService;
 public class Header
 {
     private static ICompactSerializer<Header> serializer_;
-    private static AtomicInteger idGen_ = new AtomicInteger(0);
-    
+
     static
     {
         serializer_ = new HeaderSerializer();        
@@ -48,30 +47,22 @@ public class Header
     private final InetAddress from_;
     // TODO STAGE can be determined from verb
     private final StorageService.Verb verb_;
-    private String messageId_;
     protected Map<String, byte[]> details_ = new Hashtable<String, byte[]>();
-
-    Header(String id, InetAddress from, StorageService.Verb verb)
-    {
-        assert id != null;
-        assert from != null;
-        assert verb != null;
-
-        messageId_ = id;
-        from_ = from;
-        verb_ = verb;
-    }
-    
-    Header(String id, InetAddress from, StorageService.Verb verb, Map<String, byte[]> details)
-    {
-        this(id, from, verb);
-        details_ = details;
-    }
 
     Header(InetAddress from, StorageService.Verb verb)
     {
-        this(Integer.toString(idGen_.incrementAndGet()), from, verb);
-    }        
+        assert from != null;
+        assert verb != null;
+
+        from_ = from;
+        verb_ = verb;
+    }
+
+    Header(InetAddress from, StorageService.Verb verb, Map<String, byte[]> details)
+    {
+        this(from, verb);
+        details_ = details;
+    }
 
     InetAddress getFrom()
     {
@@ -83,16 +74,6 @@ public class Header
         return verb_;
     }
     
-    void setMessageId(String id)
-    {
-        messageId_ = id;
-    }
-
-    String getMessageId()
-    {
-        return messageId_;
-    }
-
     byte[] getDetail(String key)
     {
         return details_.get(key);
@@ -113,7 +94,6 @@ class HeaderSerializer implements ICompactSerializer<Header>
 {
     public void serialize(Header t, DataOutputStream dos, int version) throws IOException
     {           
-        dos.writeUTF(t.getMessageId());
         CompactEndpointSerializationHelper.serialize(t.getFrom(), dos);
         dos.writeInt(t.getVerb().ordinal());
         
@@ -133,7 +113,6 @@ class HeaderSerializer implements ICompactSerializer<Header>
 
     public Header deserialize(DataInputStream dis, int version) throws IOException
     {
-        String id = dis.readUTF();
         InetAddress from = CompactEndpointSerializationHelper.deserialize(dis);
         int verbOrdinal = dis.readInt();
         
@@ -149,7 +128,7 @@ class HeaderSerializer implements ICompactSerializer<Header>
             details.put(key, bytes);
         }
         
-        return new Header(id, from, StorageService.VERBS[verbOrdinal], details);
+        return new Header(from, StorageService.VERBS[verbOrdinal], details);
     }
 }
 

@@ -60,12 +60,7 @@ public class Message
     {
         this(new Header(from, verb), body, version);
     } 
-    
-    public void setId(String messageId)
-    {
-        header_.setMessageId(messageId);
-    }
-    
+        
     public byte[] getHeader(String key)
     {
         return header_.getDetail(key);
@@ -106,21 +101,17 @@ public class Message
         return header_.getVerb();
     }
 
-    public String getMessageId()
-    {
-        return header_.getMessageId();
-    }
-
     // TODO should take byte[] + length so we don't have to copy to a byte[] of exactly the right len
+    // TODO make static
     public Message getReply(InetAddress from, byte[] body, int version)
     {
-        Header header = new Header(getMessageId(), from, StorageService.Verb.REQUEST_RESPONSE);
+        Header header = new Header(from, StorageService.Verb.REQUEST_RESPONSE);
         return new Message(header, body, version);
     }
 
     public Message getInternalReply(byte[] body, int version)
     {
-        Header header = new Header(getMessageId(), FBUtilities.getLocalAddress(), StorageService.Verb.INTERNAL_RESPONSE);
+        Header header = new Header(FBUtilities.getLocalAddress(), StorageService.Verb.INTERNAL_RESPONSE);
         return new Message(header, body, version);
     }
 
@@ -128,9 +119,7 @@ public class Message
     {
         StringBuilder sbuf = new StringBuilder("");
         String separator = System.getProperty("line.separator");
-        sbuf.append("ID:" + getMessageId())
-        	.append(separator)
-        	.append("FROM:" + getFrom())
+        sbuf.append("FROM:" + getFrom())
         	.append(separator)
         	.append("TYPE:" + getMessageType())
         	.append(separator)

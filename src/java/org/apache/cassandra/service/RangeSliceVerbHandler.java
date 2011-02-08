@@ -35,7 +35,7 @@ public class RangeSliceVerbHandler implements IVerbHandler
 
     private static final Logger logger = LoggerFactory.getLogger(RangeSliceVerbHandler.class);
 
-    public void doVerb(Message message)
+    public void doVerb(Message message, String id)
     {
         try
         {
@@ -52,8 +52,8 @@ public class RangeSliceVerbHandler implements IVerbHandler
                                                                           QueryFilter.getFilter(command.predicate, cfs.getComparator())));
             Message response = reply.getReply(message);
             if (logger.isDebugEnabled())
-                logger.debug("Sending " + reply+ " to " + message.getMessageId() + "@" + message.getFrom());
-            MessagingService.instance().sendOneWay(response, message.getFrom());
+                logger.debug("Sending " + reply+ " to " + id + "@" + message.getFrom());
+            MessagingService.instance().sendReply(response, id, message.getFrom());
         }
         catch (Exception ex)
         {

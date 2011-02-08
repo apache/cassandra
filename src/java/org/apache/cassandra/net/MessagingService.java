@@ -34,9 +34,6 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.base.Function;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
-import org.apache.cassandra.gms.Gossiper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,20 +42,18 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.net.io.SerializerType;
 import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.security.streaming.SSLFileStreamTask;
-import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.service.ReadCallback;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.FileStreamTask;
 import org.apache.cassandra.streaming.StreamHeader;
-import org.apache.cassandra.utils.ExpiringMap;
-import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.SimpleCondition;
+import org.apache.cassandra.utils.*;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public final class MessagingService implements MessagingServiceMBean
@@ -281,6 +276,13 @@ public final class MessagingService implements MessagingServiceMBean
         assert previous == null;
     }
     
+    private static AtomicInteger idGen = new AtomicInteger(0);
+    // TODO make these integers to avoid unnecessary int -> string -> int conversions
+    private static String nextId()
+    {
+        return Integer.toString(idGen.incrementAndGet());
+    }
+
     /**
      * Send a message to a given endpoint. This method specifies a callback
      * which is invoked with the actual response.
@@ -291,12 +293,22 @@ public final class MessagingService implements MessagingServiceMBean
      *           suggest that a timeout occurred to the invoker of the send().
      * @return an reference to message id used to match with the result
      */
-    public String sendRR(Message message, InetAddress to, IAsyncCallback cb)
+    public String sendRR(Message message, InetAddress to, IMessageCallback cb)
     {
-        String messageId = message.getMessageId();
-        addCallback(cb, messageId, to);
-        sendOneWay(message, to);
-        return messageId;
+        String id = nextId();
+        addCallback(cb, id, to);
+        sendOneWay(message, id, to);
+        return id;
+    }
+
+    public void sendOneWay(Message message, InetAddress to)
+    {
+        sendOneWay(message, nextId(), to);
+    }
+
+    public void sendReply(Message message, String id, InetAddress to)
+    {
+        sendOneWay(message, id, to);
     }
 
     /**
@@ -325,17 +337,20 @@ public final class MessagingService implements MessagingServiceMBean
      * @param message messages to be sent.
      * @param to endpoint to which the message needs to be sent
      */
-    public void sendOneWay(Message message, InetAddress to)
+    private void sendOneWay(Message message, String id, InetAddress to)
     {
+        if (logger_.isDebugEnabled())
+            logger_.debug(FBUtilities.getLocalAddress() + " sending " + message.getVerb() + " to " + id + "@" + to);
+
         // do local deliveries
         if ( message.getFrom().equals(to) )
         {
-            receive(message);
+            receive(message, id);
             return;
         }
 
         // message sinks are a testing hook
-        Message processedMessage = SinkManager.processClientMessage(message, to);
+        Message processedMessage = SinkManager.processClientMessage(message, id, to);
         if (processedMessage == null)
         {
             return;
@@ -349,6 +364,7 @@ public final class MessagingService implements MessagingServiceMBean
         try
         {
             DataOutputBuffer buffer = new DataOutputBuffer();
+            buffer.writeUTF(id);
             Message.serializer().serialize(message, buffer, message.getVersion());
             data = buffer.getData();
         }
@@ -366,8 +382,7 @@ public final class MessagingService implements MessagingServiceMBean
     public IAsyncResult sendRR(Message message, InetAddress to)
     {
         IAsyncResult iar = new AsyncResult();
-        addCallback(iar, message.getMessageId(), to);
-        sendOneWay(message, to);
+        sendRR(message, to, iar);
         return iar;
     }
 
@@ -418,13 +433,13 @@ public final class MessagingService implements MessagingServiceMBean
         logger_.info("Shutdown complete (no further commands will be processed)");
     }
 
-    public void receive(Message message)
+    public void receive(Message message, String id)
     {
-        message = SinkManager.processServerMessage(message);
+        message = SinkManager.processServerMessage(message, id);
         if (message == null)
             return;
 
-        Runnable runnable = new MessageDeliveryTask(message);
+        Runnable runnable = new MessageDeliveryTask(message, id);
         ExecutorService stage = StageManager.getStage(message.getMessageType());
         assert stage != null : "No stage for message type " + message.getMessageType();
         stage.execute(runnable);
@@ -553,7 +568,7 @@ public final class MessagingService implements MessagingServiceMBean
         }
 
         if (logTpstats)
-            GCInspector.instance.logStats();
+            StatusLogger.log();
     }
 
     private static class SocketThread extends Thread

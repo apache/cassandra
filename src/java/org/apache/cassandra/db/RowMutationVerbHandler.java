@@ -42,7 +42,7 @@ public class RowMutationVerbHandler implements IVerbHandler
 {
     private static Logger logger_ = LoggerFactory.getLogger(RowMutationVerbHandler.class);
 
-    public void doVerb(Message message)
+    public void doVerb(Message message, String id)
     {
         try
         {
@@ -77,8 +77,8 @@ public class RowMutationVerbHandler implements IVerbHandler
             WriteResponse response = new WriteResponse(rm.getTable(), rm.key(), true);
             Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);
             if (logger_.isDebugEnabled())
-              logger_.debug(rm + " applied.  Sending response to " + message.getMessageId() + "@" + message.getFrom());
-            MessagingService.instance().sendOneWay(responseMessage, message.getFrom());
+              logger_.debug(rm + " applied.  Sending response to " + id + "@" + message.getFrom());
+            MessagingService.instance().sendReply(responseMessage, id, message.getFrom());
         }
         catch (IOException e)
         {

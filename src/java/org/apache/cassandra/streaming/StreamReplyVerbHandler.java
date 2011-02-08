@@ -36,7 +36,7 @@ public class StreamReplyVerbHandler implements IVerbHandler
 {
     private static Logger logger = LoggerFactory.getLogger(StreamReplyVerbHandler.class);
 
-    public void doVerb(Message message)
+    public void doVerb(Message message, String id)
     {
         byte[] body = message.getMessageBody();
         ByteArrayInputStream bufIn = new ByteArrayInputStream(body);

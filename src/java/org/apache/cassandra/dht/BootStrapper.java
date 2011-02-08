@@ -255,12 +255,12 @@ public class BootStrapper
 
     public static class BootstrapTokenVerbHandler implements IVerbHandler
     {
-        public void doVerb(Message message)
+        public void doVerb(Message message, String id)
         {
             StorageService ss = StorageService.instance;
             String tokenString = StorageService.getPartitioner().getTokenFactory().toString(ss.getBootstrapToken());
             Message response = message.getInternalReply(tokenString.getBytes(Charsets.UTF_8), message.getVersion());
-            MessagingService.instance().sendOneWay(response, message.getFrom());
+            MessagingService.instance().sendReply(response, id, message.getFrom());
         }
     }
 
