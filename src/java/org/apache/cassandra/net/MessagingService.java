@@ -45,15 +45,11 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.net.io.SerializerType;
 import org.apache.cassandra.net.sink.SinkManager;
-import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.service.ReadCallback;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.FileStreamTask;
 import org.apache.cassandra.streaming.StreamHeader;
-import org.apache.cassandra.utils.ExpiringMap;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.SimpleCondition;
+import org.apache.cassandra.utils.*;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public final class MessagingService implements MessagingServiceMBean
@@ -528,7 +524,7 @@ public final class MessagingService implements MessagingServiceMBean
         }
 
         if (logTpstats)
-            GCInspector.instance.logStats();
+            StatusLogger.log();
     }
 
     private static class SocketThread extends Thread

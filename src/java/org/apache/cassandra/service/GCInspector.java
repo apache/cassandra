@@ -26,19 +26,13 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import javax.management.JMX;
 import javax.management.MBeanServer;
-import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 
-import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.IExecutorMBean;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CompactionManager;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.StatusLogger;
 
 public class GCInspector
 {
@@ -50,7 +44,6 @@ public class GCInspector
     public static final GCInspector instance = new GCInspector();
 
     private HashMap<String, Long> gctimes = new HashMap<String, Long>();
-    private final MBeanServer server = ManagementFactory.getPlatformMBeanServer();
 
     List<Object> beans = new ArrayList<Object>(); // these are instances of com.sun.management.GarbageCollectorMXBean
 
@@ -133,63 +126,12 @@ public class GCInspector
                 logger.info(st);
             else if (logger.isDebugEnabled())
                 logger.debug(st);
+
             if (gcw.getDuration() > MIN_DURATION_TPSTATS)
-            {
-                logStats();
-            }
+                StatusLogger.log();
         }
     }
 
-    public void logStats()
-    {
-        // everything from o.a.c.concurrent
-        logger.info(String.format("%-25s%10s%10s", "Pool Name", "Active", "Pending"));
-        Set<ObjectName> request, internal;
-        try
-        {
-            request = server.queryNames(new ObjectName("org.apache.cassandra.request:type=*"), null);
-            internal = server.queryNames(new ObjectName("org.apache.cassandra.internal:type=*"), null);
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException(e);
-        }
-        for (ObjectName objectName : Iterables.concat(request, internal))
-        {
-            String poolName = objectName.getKeyProperty("type");
-            IExecutorMBean threadPoolProxy = JMX.newMBeanProxy(server, objectName, IExecutorMBean.class);
-            logger.info(String.format("%-25s%10s%10s",
-                                      poolName, threadPoolProxy.getActiveCount(), threadPoolProxy.getPendingTasks()));
-        }
-        // one offs
-        logger.info(String.format("%-25s%10s%10s",
-                                  "CompactionManager", "n/a", CompactionManager.instance.getPendingTasks()));
-        int pendingCommands = 0;
-        for (int n : MessagingService.instance().getCommandPendingTasks().values())
-        {
-            pendingCommands += n;
-        }
-        int pendingResponses = 0;
-        for (int n : MessagingService.instance().getResponsePendingTasks().values())
-        {
-            pendingResponses += n;
-        }
-        logger.info(String.format("%-25s%10s%10s",
-                                  "MessagingService", "n/a", pendingCommands + "," + pendingResponses));
-
-        // per-CF stats
-        logger.info(String.format("%-25s%20s%20s%20s", "ColumnFamily", "Memtable ops,data", "Row cache size/cap", "Key cache size/cap"));
-        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
-        {
-            logger.info(String.format("%-25s%20s%20s%20s",
-                                      cfs.table.name + "." + cfs.columnFamily,
-                                      cfs.getMemtableColumnsCount() + "," + cfs.getMemtableDataSize(),
-                                      cfs.getRowCacheSize() + "/" + cfs.getRowCacheCapacity(),
-                                      cfs.getKeyCacheSize() + "/" + cfs.getKeyCacheCapacity()));
-        }
-    }
-    
-    
     // wrapper for sun class. this enables other jdks to compile this class.
     private static final class SunGcWrapper
     {
@@ -267,5 +209,4 @@ public class GCInspector
             return usageBeforeGc == null;
         }
     }
-    
 }
