@@ -23,6 +23,7 @@ import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -83,7 +84,14 @@ public class Inserter extends OperationThread
             }
             catch (Exception e)
             {
-                System.err.printf("Error while inserting key %s - %s%n", ByteBufferUtil.string(key), getExceptionMessage(e));
+                try
+                {
+                    System.err.printf("Error while inserting key %s - %s%n", ByteBufferUtil.string(key), getExceptionMessage(e));
+                }
+                catch (CharacterCodingException e1)
+                {
+                    throw new AssertionError(e1); // keys are valid strings
+                }
 
                 if (!session.ignoreErrors())
                     return;
