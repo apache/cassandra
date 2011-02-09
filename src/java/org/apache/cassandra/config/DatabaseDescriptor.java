@@ -20,7 +20,6 @@ package org.apache.cassandra.config;
 
 import java.io.*;
 import java.net.InetAddress;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -1154,5 +1153,20 @@ public class    DatabaseDescriptor
     public static void setDynamicBadnessThreshold(Double dynamicBadnessThreshold)
     {
         conf.dynamic_snitch_badness_threshold = dynamicBadnessThreshold;
+    }
+
+    public static double getFlushLargestMemtablesAt()
+    {
+        return conf.flush_largest_memtables_at;
+    }
+
+    public static double getReduceCacheSizesAt()
+    {
+        return conf.reduce_cache_sizes_at;
+    }
+
+    public static double getReduceCacheCapacityTo()
+    {
+        return conf.reduce_cache_capacity_to;
     }
 }

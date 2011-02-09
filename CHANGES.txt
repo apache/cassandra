@@ -1,9 +1,3 @@
-0.7.2
- * cache writing moved to CompactionManager to reduce i/o contention and
-   updated to use non-cache-polluting writes (CASSANDRA-2053)
- * page through large rows when exporting to JSON (CASSANDRA-2041)
-
-
 0.7.1
  * buffer network stack to avoid inefficient small TCP messages while avoiding
    the nagle/delayed ack problem (CASSANDRA-1896)
@@ -56,6 +50,11 @@
  * avoid blocking gossip while deleting handoff hints (CASSANDRA-2073)
  * ignore messages from newer versions, keep track of nodes in gossip 
    regardless of version (CASSANDRA-1970)
+ * cache writing moved to CompactionManager to reduce i/o contention and
+   updated to use non-cache-polluting writes (CASSANDRA-2053)
+ * page through large rows when exporting to JSON (CASSANDRA-2041)
+ * add flush_largest_memtables_at and reduce_cache_sizes_at options
+   (CASSANDRA-2142)
 
 
 0.7.0-final

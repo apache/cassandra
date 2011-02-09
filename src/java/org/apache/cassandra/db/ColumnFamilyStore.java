@@ -1878,7 +1878,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public String toString()
     {
         return "ColumnFamilyStore(" +
-               "table='" + table + '\'' +
+               "table='" + table.name + '\'' +
                ", columnFamily='" + columnFamily + '\'' +
                ')';
     }
@@ -2018,5 +2018,27 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public boolean isIndex()
     {
         return partitioner instanceof LocalPartitioner;
+    }
+
+    /**
+     * sets each cache's maximum capacity to 75% of its current size
+     */
+    public void reduceCacheSizes()
+    {
+        if (ssTables.getRowCache().getCapacity() > 0)
+        {
+            int newCapacity = (int) (DatabaseDescriptor.getReduceCacheCapacityTo() * ssTables.getRowCache().getSize());
+            logger.warn(String.format("Reducing %s row cache capacity from %d to %s to reduce memory pressure",
+                                      columnFamily, ssTables.getRowCache().getCapacity(), newCapacity));
+            ssTables.getRowCache().setCapacity(newCapacity);
+        }
+
+        if (ssTables.getKeyCache().getCapacity() > 0)
+        {
+            int newCapacity = (int) (DatabaseDescriptor.getReduceCacheCapacityTo() * ssTables.getKeyCache().getSize());
+            logger.warn(String.format("Reducing %s key cache capacity from %d to %s to reduce memory pressure",
+                                      columnFamily, ssTables.getKeyCache().getCapacity(), newCapacity));
+            ssTables.getKeyCache().setCapacity(newCapacity);
+        }
     }
 }

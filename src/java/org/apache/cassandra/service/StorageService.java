@@ -363,15 +363,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         initialized = true;
         isClientMode = false;
 
-        try
-        {
-            GCInspector.instance.start();
-        }
-        catch (Throwable t)
-        {
-            logger_.warn("Unable to start GCInspector (currently only supported on the Sun JVM)");
-        }
-
         if (Boolean.parseBoolean(System.getProperty("cassandra.load_ring_state", "true")))
         {
             logger_.info("Loading persisted ring state");
@@ -2175,5 +2166,40 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public boolean useEfficientCrossDCWrites()
     {
         return efficientCrossDCWrites;
+    }
+
+    /**
+     * Flushes the two largest memtables by ops and by throughput
+     */
+    public void flushLargestMemtables()
+    {
+        ColumnFamilyStore largestByOps = null;
+        ColumnFamilyStore largestByThroughput = null;
+        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+        {
+            if (largestByOps == null || cfs.getMemtableColumnsCount() > largestByOps.getMemtableColumnsCount())
+                largestByOps = cfs;
+            if (largestByThroughput == null || cfs.getMemtableThroughputInMB() > largestByThroughput.getMemtableThroughputInMB())
+                largestByThroughput = cfs;
+        }
+        if (largestByOps == null)
+        {
+            logger_.error("Unable to reduce heap usage since there are no column families defined");
+            return;
+        }
+
+        logger_.warn("Flushing " + largestByOps + " to relieve memory pressure");
+        largestByOps.forceFlush();
+        if (largestByThroughput != largestByOps)
+        {
+            logger_.warn("Flushing " + largestByThroughput + " to relieve memory pressure");
+            largestByThroughput.forceFlush();
+        }
+    }
+
+    public void reduceCacheSizes()
+    {
+        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+            cfs.reduceCacheSizes();
     }
 }

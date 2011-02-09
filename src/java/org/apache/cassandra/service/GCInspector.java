@@ -32,6 +32,7 @@ import javax.management.ObjectName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.StatusLogger;
 
 public class GCInspector
@@ -46,6 +47,7 @@ public class GCInspector
     private HashMap<String, Long> gctimes = new HashMap<String, Long>();
 
     List<Object> beans = new ArrayList<Object>(); // these are instances of com.sun.management.GarbageCollectorMXBean
+    private volatile boolean cacheSizesReduced;
 
     public GCInspector()
     {
@@ -87,13 +89,13 @@ public class GCInspector
         {
             public void run()
             {
-                logIntervalGCStats();
+                logGCResults();
             }
         };
         StorageService.scheduledTasks.scheduleWithFixedDelay(t, INTERVAL_IN_MS, INTERVAL_IN_MS, TimeUnit.MILLISECONDS);
     }
 
-    private void logIntervalGCStats()
+    private void logGCResults()
     {
         for (Object gc : beans)
         {
@@ -121,7 +123,7 @@ public class GCInspector
             }
 
             String st = String.format("GC for %s: %s ms, %s reclaimed leaving %s used; max is %s",
-                    gcw.getName(), gcw.getDuration(), previousMemoryUsed - memoryUsed, memoryUsed, memoryMax);
+                                      gcw.getName(), gcw.getDuration(), previousMemoryUsed - memoryUsed, memoryUsed, memoryMax);
             if (gcw.getDuration() > MIN_DURATION)                          
                 logger.info(st);
             else if (logger.isDebugEnabled())
@@ -129,6 +131,25 @@ public class GCInspector
 
             if (gcw.getDuration() > MIN_DURATION_TPSTATS)
                 StatusLogger.log();
+
+            // if we just finished a full collection and we're still using a lot of memory, try to reduce the pressure
+            if (gcw.getName().equals("ConcurrentMarkSweep"))
+            {
+                double usage = (double) memoryUsed / memoryMax;
+
+                if (memoryUsed > DatabaseDescriptor.getReduceCacheSizesAt() * memoryMax && !cacheSizesReduced)
+                {
+                    cacheSizesReduced = true;
+                    logger.warn("Heap is " + usage + " full.  You may need to reduce memtable and/or cache sizes.  Cassandra is now reducing cache sizes to free up memory.  Adjust reduce_cache_sizes_at threshold in cassandra.yaml if you don't want Cassandra to do this automatically");
+                    StorageService.instance.reduceCacheSizes();
+                }
+
+                if (memoryUsed > DatabaseDescriptor.getFlushLargestMemtablesAt() * memoryMax)
+                {
+                    logger.warn("Heap is " + usage + " full.  You may need to reduce memtable and/or cache sizes.  Cassandra will now flush up to the two largest memtables to free up memory.  Adjust flush_largest_memtables_at threshold in cassandra.yaml if you don't want Cassandra to do this automatically");
+                    StorageService.instance.flushLargestMemtables();
+                }
+            }
         }
     }
 
