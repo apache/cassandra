@@ -125,7 +125,7 @@ public class Session
                 columnSize = Integer.parseInt(cmd.getOptionValue("S"));
 
             if (cmd.hasOption("C"))
-                cardinality = Integer.parseInt(cmd.getOptionValue("t"));
+                cardinality = Integer.parseInt(cmd.getOptionValue("C"));
 
             if (cmd.hasOption("d"))
                 nodes = cmd.getOptionValue("d").split(",");
