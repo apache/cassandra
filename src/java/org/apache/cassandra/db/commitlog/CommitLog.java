@@ -210,16 +210,21 @@ public class CommitLog
                         logger.debug("Reading mutation at " + reader.getFilePointer());
 
                     long claimedCRC32;
-
                     Checksum checksum = new CRC32();
                     int serializedSize;
                     try
                     {
                         // any of the reads may hit EOF
                         serializedSize = reader.readInt();
+                        // RowMutation must be at LEAST 10 bytes:
+                        // 3 each for a non-empty Table and Key (including the 2-byte length from
+                        // writeUTF/writeWithShortLength) and 4 bytes for column count.
+                        // This prevents CRC by being fooled by special-case garbage in the file; see CASSANDRA-2128
+                        if (serializedSize < 10)
+                            break;
                         long claimedSizeChecksum = reader.readLong();
                         checksum.update(serializedSize);
-                        if (checksum.getValue() != claimedSizeChecksum || serializedSize <= 0)
+                        if (checksum.getValue() != claimedSizeChecksum)
                             break; // entry wasn't synced correctly/fully.  that's ok.
 
                         if (serializedSize > bytes.length)
