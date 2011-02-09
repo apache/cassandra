@@ -55,6 +55,7 @@
  * page through large rows when exporting to JSON (CASSANDRA-2041)
  * add flush_largest_memtables_at and reduce_cache_sizes_at options
    (CASSANDRA-2142)
+ * bound hints CF throughput between 32M and 256M (CASSANDRA-2148)
 
 
 0.7.0-final
