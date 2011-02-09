@@ -241,7 +241,6 @@ public class Gossiper implements IFailureDetectionEventListener
     */
     void evictFromMembership(InetAddress endpoint)
     {
-        endpointStateMap_.remove(endpoint);
         unreachableEndpoints_.remove(endpoint);
     }
 
@@ -459,6 +458,7 @@ public class Gossiper implements IFailureDetectionEventListener
                     if (logger_.isDebugEnabled())
                         logger_.debug(QUARANTINE_DELAY + " elapsed, " + entry.getKey() + " gossip quarantine over");
                     justRemovedEndpoints_.remove(entry.getKey());
+                    endpointStateMap_.remove(entry.getKey());
                 }
             }
         }
