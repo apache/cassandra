@@ -434,9 +434,11 @@ public class Gossiper implements IFailureDetectionEventListener
                         epState.setHasToken(true);
                     else
                     {
-                        logger_.info("FatClient " + endpoint + " has been silent for " + FatClientTimeout_ + "ms, removing from gossip");
                         if (!justRemovedEndpoints_.containsKey(endpoint)) // if the node was decommissioned, it will have been removed but still appear as a fat client
+                        {
+                            logger_.info("FatClient " + endpoint + " has been silent for " + FatClientTimeout_ + "ms, removing from gossip");
                             removeEndpoint(endpoint); // after quarantine justRemoveEndpoints will remove the state
+                        }
                     }
                 }
 
