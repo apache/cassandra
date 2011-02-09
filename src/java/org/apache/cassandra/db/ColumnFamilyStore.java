@@ -429,7 +429,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             generations.add(desc.generation);
             if (desc.isFromTheFuture())
             {
-                throw new RuntimeException("you can't open sstables from the future!");
+                throw new RuntimeException(String.format("Can't open sstables from the future! Current version %s, found file: %s",
+                                                         Descriptor.CURRENT_VERSION, desc));
             }
         }
         Collections.sort(generations);
