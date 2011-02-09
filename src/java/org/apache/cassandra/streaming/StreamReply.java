@@ -54,7 +54,7 @@ class StreamReply implements MessageProducer
         this.sessionId = sessionId;
     }
 
-    public Message getMessage(int version) throws IOException
+    public Message getMessage(Integer version) throws IOException
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );

@@ -47,7 +47,7 @@ public abstract class ReadCommand implements MessageProducer
         return serializer;
     }
 
-    public Message getMessage(int version) throws IOException
+    public Message getMessage(Integer version) throws IOException
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);

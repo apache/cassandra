@@ -86,7 +86,7 @@ public class RangeSliceCommand implements MessageProducer
         this.max_keys = max_keys;
     }
 
-    public Message getMessage(int version) throws IOException
+    public Message getMessage(Integer version) throws IOException
     {
         DataOutputBuffer dob = new DataOutputBuffer();
         serializer.serialize(this, dob, version);

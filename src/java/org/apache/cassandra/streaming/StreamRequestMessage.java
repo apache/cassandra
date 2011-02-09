@@ -88,7 +88,7 @@ class StreamRequestMessage implements MessageProducer
         table = null;
     }
     
-    public Message getMessage(int version)
+    public Message getMessage(Integer version)
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);

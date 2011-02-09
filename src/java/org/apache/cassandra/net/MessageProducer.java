@@ -4,5 +4,5 @@ import java.io.IOException;
 
 public interface MessageProducer
 {
-    public Message getMessage(int version) throws IOException;
+    public Message getMessage(Integer version) throws IOException;
 }

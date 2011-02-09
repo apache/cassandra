@@ -95,7 +95,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     public static void announce(final UUID version, Set<InetAddress> hosts)
     {
         MessageProducer prod = new CachingMessageProducer(new MessageProducer() {
-            public Message getMessage(int protocolVersion) throws IOException
+            public Message getMessage(Integer protocolVersion) throws IOException
             {
                 return makeVersionMessage(version, protocolVersion);
             }

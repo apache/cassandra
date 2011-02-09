@@ -55,7 +55,7 @@ public class IndexScanCommand implements MessageProducer
         this.range = range;
     }
 
-    public Message getMessage(int version)
+    public Message getMessage(Integer version)
     {
         DataOutputBuffer dob = new DataOutputBuffer();
         try

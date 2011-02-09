@@ -19,7 +19,6 @@
 package org.apache.cassandra.db;
 
 import java.io.*;
-import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
@@ -30,8 +29,6 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.marshal.AbstractCommutativeType;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
@@ -206,7 +203,7 @@ public class RowMutation implements IMutation, MessageProducer
         Table.open(table_).load(this);
     }
 
-    public Message getMessage(int version) throws IOException
+    public Message getMessage(Integer version) throws IOException
     {
         return makeRowMutationMessage(StorageService.Verb.MUTATION, version);
     }

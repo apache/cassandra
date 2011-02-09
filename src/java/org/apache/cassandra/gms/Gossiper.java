@@ -113,7 +113,7 @@ public class Gossiper implements IFailureDetectionEventListener
                 {
                     MessageProducer prod = new MessageProducer()
                     {
-                        public Message getMessage(int version) throws IOException
+                        public Message getMessage(Integer version) throws IOException
                         {
                             return makeGossipDigestSynMessage(gDigests, version);
                         }
