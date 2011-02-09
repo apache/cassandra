@@ -116,7 +116,7 @@ public class ByteBufferUtil
         ByteBuffer copy = buffer.duplicate();
         copy.position(position);
         copy.limit(copy.position() + length);
-        return string(buffer, charset);
+        return string(copy, charset);
     }
 
     public static String string(ByteBuffer buffer, Charset charset) throws CharacterCodingException
