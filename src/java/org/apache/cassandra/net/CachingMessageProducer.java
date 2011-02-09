@@ -4,12 +4,12 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class CacheingMessageProducer implements MessageProducer
+public class CachingMessageProducer implements MessageProducer
 {
     private final MessageProducer prod;
     private final Map<Integer, Message> messages = new HashMap<Integer, Message>();
 
-    public CacheingMessageProducer(MessageProducer prod)
+    public CachingMessageProducer(MessageProducer prod)
     {
         this.prod = prod;    
     }

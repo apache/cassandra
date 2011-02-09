@@ -25,7 +25,7 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-import org.apache.cassandra.net.CacheingMessageProducer;
+import org.apache.cassandra.net.CachingMessageProducer;
 import org.apache.cassandra.net.MessageProducer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
@@ -94,7 +94,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     /** actively announce my version to a set of hosts via rpc.  They may culminate with them sending me migrations. */
     public static void announce(final UUID version, Set<InetAddress> hosts)
     {
-        MessageProducer prod = new CacheingMessageProducer(new MessageProducer() {
+        MessageProducer prod = new CachingMessageProducer(new MessageProducer() {
             public Message getMessage(int protocolVersion) throws IOException
             {
                 return makeVersionMessage(version, protocolVersion);

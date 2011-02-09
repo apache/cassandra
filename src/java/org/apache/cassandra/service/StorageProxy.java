@@ -30,7 +30,7 @@ import javax.management.ObjectName;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
-import org.apache.cassandra.net.CacheingMessageProducer;
+import org.apache.cassandra.net.CachingMessageProducer;
 import org.apache.cassandra.net.MessageProducer;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
@@ -208,7 +208,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         // Multimap that holds onto all the messages and addresses meant for a specific datacenter
         Map<String, Multimap<Message, InetAddress>> dcMessages = new HashMap<String, Multimap<Message, InetAddress>>(hintedEndpoints.size());
-        MessageProducer prod = new CacheingMessageProducer(rm);
+        MessageProducer prod = new CachingMessageProducer(rm);
 
         for (Map.Entry<InetAddress, Collection<InetAddress>> entry : hintedEndpoints.asMap().entrySet())
         {
@@ -558,7 +558,7 @@ public class StorageProxy implements StorageProxyMBean
 
             // We lazy-construct the digest Message object since it may not be necessary if we
             // are doing a local digest read, or no digest reads at all.
-            MessageProducer prod = new CacheingMessageProducer(digestCommand);
+            MessageProducer prod = new CachingMessageProducer(digestCommand);
             for (InetAddress digestPoint : endpoints.subList(1, endpoints.size()))
             {
                 if (digestPoint.equals(FBUtilities.getLocalAddress()))
@@ -670,7 +670,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         ReadResponseResolver resolver = new ReadResponseResolver(command.table, command.key);
         RepairCallback<Row> handler = new RepairCallback<Row>(resolver, endpoints);
-        MessageProducer prod = new CacheingMessageProducer(command);
+        MessageProducer prod = new CachingMessageProducer(command);
         for (InetAddress endpoint : endpoints)
             MessagingService.instance().sendRR(prod, endpoint, handler);
         return handler;
@@ -725,7 +725,7 @@ public class StorageProxy implements StorageProxyMBean
                     // collect replies and resolve according to consistency level
                     RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, liveEndpoints);
                     ReadCallback<List<Row>> handler = getReadCallback(resolver, command.keyspace, consistency_level);
-                    MessageProducer prod = new CacheingMessageProducer(c2);
+                    MessageProducer prod = new CachingMessageProducer(c2);
                     // TODO bail early if live endpoints can't satisfy requested consistency level
                     for (InetAddress endpoint : liveEndpoints)
                     {
@@ -1011,7 +1011,7 @@ public class StorageProxy implements StorageProxyMBean
                 throw new UnavailableException();
 
             IndexScanCommand command = new IndexScanCommand(keyspace, column_family, index_clause, column_predicate, range);
-            MessageProducer prod = new CacheingMessageProducer(command);
+            MessageProducer prod = new CachingMessageProducer(command);
             for (InetAddress endpoint : liveEndpoints)
             {
                 MessagingService.instance().sendRR(prod, endpoint, handler);
@@ -1099,7 +1099,7 @@ public class StorageProxy implements StorageProxyMBean
         // Send out the truncate calls and track the responses with the callbacks.
         logger.debug("Starting to send truncate messages to hosts {}", allEndpoints);
         final Truncation truncation = new Truncation(keyspace, cfname);
-        MessageProducer prod = new CacheingMessageProducer(truncation);
+        MessageProducer prod = new CachingMessageProducer(truncation);
         for (InetAddress endpoint : allEndpoints)
         {
             MessagingService.instance().sendRR(prod, endpoint, responseHandler);
