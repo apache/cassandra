@@ -201,6 +201,8 @@
  * fix service initialization order deadlock (CASSANDRA-1756)
  * multi-line cli commands (CASSANDRA-1742)
  * fix race between snapshot and compaction (CASSANDRA-1736)
+ * add listEndpointsPendingHints, deleteHintsForEndpoint JMX methods 
+   (CASSANDRA-1551)
 
 
 0.7.0-beta3
