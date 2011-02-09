@@ -216,7 +216,13 @@ public class CommitLog
                     byte[] bytes;
                     try
                     {
-                        bytes = new byte[(int) reader.readLong()]; // readlong can throw EOFException too
+                        long length = reader.readLong();
+                        // RowMutation must be at LEAST 10 bytes:
+                        // 3 each for a non-empty Table and Key (including the 2-byte length from writeUTF), 4 bytes for column count.
+                        // This prevents CRC by being fooled by special-case garbage in the file; see CASSANDRA-2128
+                        if (length < 10 || length > Integer.MAX_VALUE)
+                            break;
+                        bytes = new byte[(int) length]; // readlong can throw EOFException too
                         reader.readFully(bytes);
                         claimedCRC32 = reader.readLong();
                     }

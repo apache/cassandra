@@ -1,6 +1,8 @@
 0.6.12
  * include digest responses in dynamic snitch latencies (CASSANDRA-2085)
  * fix range slice ConsistencyLevel > ONE (CASSANDRA-2081)
+ * update commitlog replay to catch bogus RowMutation lengths caused
+   by unclean shutdown (CASSANDRA-2128)
 
 
 0.6.11
