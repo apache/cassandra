@@ -1390,7 +1390,7 @@ public class CliClient extends CliUserHelp
     {
         Tree idList = statement.getChild(0);
         int portNumber = Integer.parseInt(statement.getChild(1).getText());
-        
+
         StringBuilder hostName = new StringBuilder();
         int idCount = idList.getChildCount(); 
         for (int idx = 0; idx < idCount; idx++)
@@ -1405,6 +1405,14 @@ public class CliClient extends CliUserHelp
         // now, connect to the newly specified host name and port
         sessionState.hostName = hostName.toString();
         sessionState.thriftPort = portNumber;
+
+        // if we have user name and password
+        if (statement.getChildCount() == 4)
+        {
+            sessionState.username = statement.getChild(2).getText();
+            sessionState.password = CliUtils.unescapeSQLString(statement.getChild(3).getText());
+        }
+
         CliMain.connect(sessionState.hostName, sessionState.thriftPort);
     }
 

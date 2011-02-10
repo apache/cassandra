@@ -157,10 +157,10 @@ statement
     ;
 
 connectStatement
-    : CONNECT host '/' port 
-        -> ^(NODE_CONNECT host port)
-    | CONNECT ip_address '/' port 
-        -> ^(NODE_CONNECT ip_address port)
+    : CONNECT host '/' port (username password)?
+        -> ^(NODE_CONNECT host port (username password)?)
+    | CONNECT ip_address '/' port (username password)?
+        -> ^(NODE_CONNECT ip_address port (username password)?)
     ;
 
 helpStatement
