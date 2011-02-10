@@ -1,3 +1,8 @@
+0.7.2
+ * copy DecoratedKey.key when inserting into caches to avoid retaining
+   a reference to the underlying buffer (CASSANDRA-2102)
+
+
 0.7.1
  * buffer network stack to avoid inefficient small TCP messages while avoiding
    the nagle/delayed ack problem (CASSANDRA-1896)
@@ -63,8 +68,6 @@
  * bound hints CF throughput between 32M and 256M (CASSANDRA-2148)
  * continue starting when invalid saved cache entries are encountered
    (CASSANDRA-2076)
- * copy DecoratedKey.key when inserting into caches to avoid retaining
-   a reference to the underlying buffer (CASSANDRA-2102)
 
 
 0.7.0-final
