@@ -55,6 +55,11 @@
  * page through large rows when exporting to JSON (CASSANDRA-2041)
  * add flush_largest_memtables_at and reduce_cache_sizes_at options
    (CASSANDRA-2142)
+ * add cli 'describe cluster' command (CASSANDRA-2127)
+ * add cli support for setting username/password at 'connect' command 
+   (CASSANDRA-2111)
+ * add -D option to Stress.java to allow reading hosts from a file 
+   (CASSANDRA-2149)
  * bound hints CF throughput between 32M and 256M (CASSANDRA-2148)
 
 

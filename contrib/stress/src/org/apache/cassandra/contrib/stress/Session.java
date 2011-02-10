@@ -17,22 +17,22 @@
  */
 package org.apache.cassandra.contrib.stress;
 
+import java.io.*;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicIntegerArray;
+import java.util.concurrent.atomic.AtomicLongArray;
+
+import org.apache.commons.cli.*;
+
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.thrift.*;
-import org.apache.commons.cli.*;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
-
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.PrintStream;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicIntegerArray;
-import java.util.concurrent.atomic.AtomicLongArray;
 
 public class Session
 {
@@ -53,6 +53,7 @@ public class Session
         availableOptions.addOption("S",  "column-size",          true,   "Size of column values in bytes, default:34");
         availableOptions.addOption("C",  "cardinality",          true,   "Number of unique values stored in columns, default:50");
         availableOptions.addOption("d",  "nodes",                true,   "Host nodes (comma separated), default:locahost");
+        availableOptions.addOption("D",  "nodesfile",            true,   "File containing host nodes (one per line)");
         availableOptions.addOption("s",  "stdev",                true,   "Standard Deviation Factor, default:0.1");
         availableOptions.addOption("r",  "random",               false,  "Use random key generator (STDEV will have no effect), default:false");
         availableOptions.addOption("f",  "file",                 true,   "Write output to given file");
@@ -129,6 +130,27 @@ public class Session
 
             if (cmd.hasOption("d"))
                 nodes = cmd.getOptionValue("d").split(",");
+
+            if (cmd.hasOption("D"))
+            {
+                try
+                {
+                    String node = null;
+                    List<String> tmpNodes = new ArrayList<String>();
+                    BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(cmd.getOptionValue("D"))));
+                    while ((node = in.readLine()) != null)
+                    {
+                        if (node.length() > 0)
+                            tmpNodes.add(node);
+                    }
+                    nodes = tmpNodes.toArray(new String[tmpNodes.size()]);
+                    in.close();
+                }
+                catch(IOException ioe)
+                {
+                    throw new RuntimeException(ioe);
+                }
+            }
 
             if (cmd.hasOption("s"))
                 STDev = Float.parseFloat(cmd.getOptionValue("s"));
