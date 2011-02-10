@@ -61,6 +61,8 @@
  * add -D option to Stress.java to allow reading hosts from a file 
    (CASSANDRA-2149)
  * bound hints CF throughput between 32M and 256M (CASSANDRA-2148)
+ * continue starting when invalid saved cache entries are encountered
+   (CASSANDRA-2076)
 
 
 0.7.0-final

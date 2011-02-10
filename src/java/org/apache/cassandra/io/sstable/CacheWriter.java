@@ -6,7 +6,6 @@ import java.nio.ByteBuffer;
 import java.util.Set;
 
 import com.google.common.base.Function;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,7 +22,7 @@ public class CacheWriter<K, V> implements ICompactionInfo
     private final Function<K, ByteBuffer> converter;
     private final Set<K> keys;
     private final String columnFamily;
-    private final long totalBytes;
+    private final long estimatedTotalBytes;
     private long bytesWritten;
 
     public CacheWriter(String columnFamily, JMXInstrumentedCache<K, V> cache, File path, Function<K, ByteBuffer> converter)
@@ -36,7 +35,9 @@ public class CacheWriter<K, V> implements ICompactionInfo
         long bytes = 0;
         for (K key : keys)
             bytes += converter.apply(key).remaining();
-        totalBytes = bytes;
+
+        // an approximation -- the keyset can change while saving
+        estimatedTotalBytes = bytes;
     }
 
     public void saveCache() throws IOException
@@ -67,7 +68,8 @@ public class CacheWriter<K, V> implements ICompactionInfo
 
     public long getTotalBytes()
     {
-        return totalBytes;
+        // keyset can change in size, thus totalBytes can too
+        return Math.max(estimatedTotalBytes, getBytesComplete());
     }
 
     public long getBytesComplete()

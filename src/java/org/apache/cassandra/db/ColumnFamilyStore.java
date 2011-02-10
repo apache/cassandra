@@ -258,7 +258,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     int size = in.readInt();
                     byte[] bytes = new byte[size];
                     in.readFully(bytes);
-                    keys.add(StorageService.getPartitioner().decorateKey(ByteBuffer.wrap(bytes)));
+                    ByteBuffer buffer = ByteBuffer.wrap(bytes);
+                    DecoratedKey key;
+                    try
+                    {
+                        key = StorageService.getPartitioner().decorateKey(buffer);
+                    }
+                    catch (Exception e)
+                    {
+                        logger.info(String.format("unable to read entry #%s from saved cache %s; skipping remaining entries",
+                                                  keys.size(), path.getAbsolutePath()), e);
+                        break;
+                    }
+                    keys.add(key);
                 }
                 if (logger.isDebugEnabled())
                     logger.debug(String.format("completed reading (%d ms; %d keys) saved cache %s",
