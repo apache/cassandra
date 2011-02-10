@@ -870,7 +870,12 @@ public class CliClient extends CliUserHelp
                 cfDef.setKey_cache_size(Double.parseDouble(mValue));
                 break;
             case READ_REPAIR_CHANCE:
-                cfDef.setRead_repair_chance(Double.parseDouble(mValue));
+                double chance = Double.parseDouble(mValue) / 100;
+
+                if (chance > 1)
+                    throw new RuntimeException("Error: read_repair_chance / 100 should not be greater than 1.");
+
+                cfDef.setRead_repair_chance(chance);
                 break;
             case GC_GRACE:
                 cfDef.setGc_grace_seconds(Integer.parseInt(mValue));
