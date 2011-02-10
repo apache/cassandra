@@ -1,6 +1,7 @@
 0.7.2
  * copy DecoratedKey.key when inserting into caches to avoid retaining
    a reference to the underlying buffer (CASSANDRA-2102)
+ * format subcolumn names with subcomparator (CASSANDRA-2136)
 
 
 0.7.1

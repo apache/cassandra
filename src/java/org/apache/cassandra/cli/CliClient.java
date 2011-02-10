@@ -314,7 +314,8 @@ public class CliClient extends CliUserHelp
 
         AbstractType validator;
         CfDef cfDef = getCfDef(columnFamily);
-        
+        boolean isSuperCF = cfDef.column_type.equals("Super");
+
         // Print out super columns or columns.
         for (ColumnOrSuperColumn cosc : columns)
         {
@@ -337,9 +338,16 @@ public class CliClient extends CliUserHelp
             {
                 Column column = cosc.column;
                 validator = getValidatorForValue(cfDef, column.getName());
-                sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d%s)%n", formatColumnName(keyspace, columnFamily, column),
-                                                validator.getString(column.value), column.timestamp,
-                                                column.isSetTtl() ? String.format(", ttl=%d", column.getTtl()) : "");
+
+                String formattedName = isSuperCF
+                                       ? formatSubcolumnName(keyspace, columnFamily, column)
+                                       : formatColumnName(keyspace, columnFamily, column);
+
+                sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d%s)%n",
+                                        formattedName,
+                                        validator.getString(column.value),
+                                        column.timestamp,
+                                        column.isSetTtl() ? String.format(", ttl=%d", column.getTtl()) : "");
             }
         }
         
@@ -461,9 +469,15 @@ public class CliClient extends CliUserHelp
             valueAsString = (validator == null) ? new String(columnValue, Charsets.UTF_8) : validator.getString(ByteBuffer.wrap(columnValue));
         }
 
+        String formattedColumnName = isSuper
+                                     ? formatSubcolumnName(keySpace, columnFamily, column)
+                                     : formatColumnName(keySpace, columnFamily, column);
+
         // print results
         sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d%s)%n",
-                                formatColumnName(keySpace, columnFamily, column), valueAsString, column.timestamp,
+                                formattedColumnName,
+                                valueAsString,
+                                column.timestamp,
                                 column.isSetTtl() ? String.format(", ttl=%d", column.getTtl()) : "");
     }
 
