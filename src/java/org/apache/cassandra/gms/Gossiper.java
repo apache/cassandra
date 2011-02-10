@@ -235,17 +235,18 @@ public class Gossiper implements IFailureDetectionEventListener
     }
 
     /**
-     * Removes the endpoint from unreachable endpoint set
+     * Removes the endpoint from gossip completely
      *
      * @param endpoint endpoint to be removed from the current membership.
     */
     void evictFromMembership(InetAddress endpoint)
     {
         unreachableEndpoints_.remove(endpoint);
+        endpointStateMap_.remove(endpoint);
     }
 
     /**
-     * Removes the endpoint completely from Gossip
+     * Removes the endpoint from Gossip but retains endpoint state
      */
     public void removeEndpoint(InetAddress endpoint)
     {
@@ -255,7 +256,7 @@ public class Gossiper implements IFailureDetectionEventListener
 
         liveEndpoints_.remove(endpoint);
         unreachableEndpoints_.remove(endpoint);
-        // do not remove endpointState until the quarantine expires
+        // do not remove endpointState until aVeryLongTime
         FailureDetector.instance.remove(endpoint);
         justRemovedEndpoints_.put(endpoint, System.currentTimeMillis());
     }
@@ -425,20 +426,15 @@ public class Gossiper implements IFailureDetectionEventListener
             {
                 long duration = now - epState.getUpdateTimestamp();
 
+                if (StorageService.instance.getTokenMetadata().isMember(endpoint))
+                    epState.setHasToken(true);
                 // check if this is a fat client. fat clients are removed automatically from
                 // gosip after FatClientTimeout
-                if (!epState.getHasToken() && !epState.isAlive() && (duration > FatClientTimeout_))
+                if (!epState.getHasToken() && !epState.isAlive() && !justRemovedEndpoints_.containsKey(endpoint) && (duration > FatClientTimeout_))
                 {
-                    if (StorageService.instance.getTokenMetadata().isMember(endpoint))
-                        epState.setHasToken(true);
-                    else
-                    {
-                        if (!justRemovedEndpoints_.containsKey(endpoint)) // if the node was decommissioned, it will have been removed but still appear as a fat client
-                        {
-                            logger_.info("FatClient " + endpoint + " has been silent for " + FatClientTimeout_ + "ms, removing from gossip");
-                            removeEndpoint(endpoint); // after quarantine justRemoveEndpoints will remove the state
-                        }
-                    }
+                    logger_.info("FatClient " + endpoint + " has been silent for " + FatClientTimeout_ + "ms, removing from gossip");
+                    removeEndpoint(endpoint); // will put it in justRemovedEndpoints to respect quarantine delay
+                    evictFromMembership(endpoint); // can get rid of the state immediately
                 }
 
                 if ( !epState.isAlive() && (duration > aVeryLongTime_) )
@@ -458,7 +454,6 @@ public class Gossiper implements IFailureDetectionEventListener
                     if (logger_.isDebugEnabled())
                         logger_.debug(QUARANTINE_DELAY + " elapsed, " + entry.getKey() + " gossip quarantine over");
                     justRemovedEndpoints_.remove(entry.getKey());
-                    endpointStateMap_.remove(entry.getKey());
                 }
             }
         }
