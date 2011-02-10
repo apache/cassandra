@@ -25,9 +25,11 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -35,11 +37,6 @@ import org.apache.commons.cli.*;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.ExpiringColumn;
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.*;
 
@@ -288,11 +285,10 @@ public class SSTableExport
     /**
      * Export specific rows from an SSTable and write the resulting JSON to a PrintStream.
      * 
-     * @param ssTableFile the SSTable to export the rows from
+     * @param ssTableFile the SSTableScanner to export the rows from
      * @param outs PrintStream to write the output to
      * @param toExport the keys corresponding to the rows to export
-     * @param excludes the keys to exclude from export
-     *
+     * @param excludes keys to exclude from export
      * @throws IOException on failure to read/write input/output
      */
     public static void export(String ssTableFile, PrintStream outs, Collection<String> toExport, String[] excludes) throws IOException
@@ -387,7 +383,7 @@ public class SSTableExport
      * 
      * @param ssTableFile the SSTable to export
      * @param outs PrintStream to write the output to
-     * @param excludes the keys to exclude from export
+     * @param excludes keys to exclude from export
      *
      * @throws IOException on failure to read/write input/output
      */
@@ -400,7 +396,7 @@ public class SSTableExport
      * Export an SSTable and write the resulting JSON to standard out.
      * 
      * @param ssTableFile SSTable to export
-     * @param excludes the keys to exclude from export
+     * @param excludes keys to exclude from export
      *
      * @throws IOException on failure to read/write SSTable/standard out
      */
@@ -414,8 +410,9 @@ public class SSTableExport
      * export the contents of the SSTable to JSON.
      *  
      * @param args command lines arguments
+     *
      * @throws IOException on failure to open/read/write files or output streams
-     * @throws ConfigurationException if configuration is invalid
+     * @throws ConfigurationException on configuration failure (wrong params given)
      */
     public static void main(String[] args) throws IOException, ConfigurationException
     {
