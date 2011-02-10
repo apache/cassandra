@@ -46,6 +46,7 @@
     <property name="test.data" value="${test.dir}/data"/>
     <property name="test.name" value="*Test"/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
+    <property name="test.src.driver" value="${basedir}/drivers/java/test"/>
     <property name="test.long.src" value="${test.dir}/long"/>
     <property name="test.distributed.src" value="${test.dir}/distributed"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
@@ -513,6 +514,7 @@
       <classpath refid="cassandra.classpath"/>
       <src path="${test.unit.src}"/>
       <src path="${test.long.src}"/>
+      <src path="${test.src.driver}"/>
     </javac>
 
     <!-- Non-java resources needed by the test suite -->
@@ -576,6 +578,9 @@
 
   <target name="test" depends="build-test" description="Execute unit tests">
     <testmacro suitename="unit" inputdir="${test.unit.src}" timeout="60000">
+      <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
+    </testmacro>
+    <testmacro suitename="driverunit" inputdir="${test.src.driver}" timeout="60000">
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
     </testmacro>
   </target>
@@ -735,6 +740,7 @@
   <classpathentry kind="src" path="src/gen-java"/>
   <classpathentry kind="src" path="interface/thrift/gen-java"/>
   <classpathentry kind="src" path="drivers/java/src"/>
+  <classpathentry kind="src" path="drivers/java/test"/>
   <classpathentry kind="src" path="test/unit"/>
   <classpathentry kind="src" path="test/long"/>
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
