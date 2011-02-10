@@ -490,7 +490,7 @@ public class CompactionManager implements CompactionManagerMBean
             long expectedRangeFileSize = cfs.getExpectedCompactedFileSize(Arrays.asList(sstable)) / 2;
             String compactionFileLocation = table.getDataFileLocation(expectedRangeFileSize);
             if (compactionFileLocation == null)
-                throw new UnsupportedOperationException("disk full");
+                throw new IOException("disk full");
 
             long startTime = System.currentTimeMillis();
             long totalkeysWritten = 0;
