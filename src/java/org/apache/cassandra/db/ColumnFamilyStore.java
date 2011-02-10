@@ -1149,7 +1149,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
             }
 
-            ssTables.getRowCache().put(key, cached);
+            // TFFT resuses the underlying buffer for the key
+            ssTables.getRowCache().put(new DecoratedKey(key.token, ByteBufferUtil.clone(key.key)), cached);
         }
         return cached;
     }

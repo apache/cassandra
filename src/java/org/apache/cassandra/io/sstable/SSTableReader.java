@@ -307,7 +307,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                     if (shouldAddEntry)
                         indexSummary.addEntry(decoratedKey, indexPosition);
                     if (cacheLoading && keysToLoadInCache.contains(decoratedKey))
-                        keyCache.put(new Pair<Descriptor, DecoratedKey>(descriptor, decoratedKey), dataPosition);
+                        cacheKey(decoratedKey, dataPosition);
                 }
 
                 indexSummary.incrementRowid();
@@ -417,7 +417,8 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     public void cacheKey(DecoratedKey key, Long info)
     {
-        keyCache.put(new Pair<Descriptor, DecoratedKey>(descriptor, key), info);
+        //TFFT reuses the underlying buffer for the key
+        keyCache.put(new Pair<Descriptor, DecoratedKey>(descriptor, new DecoratedKey(key.token, ByteBufferUtil.clone(key.key))), info);
     }
 
     public Long getCachedPosition(DecoratedKey key)
@@ -481,7 +482,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                             if (op == Operator.EQ)
                                 bloomFilterTracker.addTruePositive();
                             // store exact match for the key
-                            keyCache.put(unifiedKey, dataPosition);
+                            cacheKey(unifiedKey.right, dataPosition);
                         }
                         return dataPosition;
                     }
