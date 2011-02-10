@@ -106,6 +106,11 @@ public class CliUserHelp {
                 state.out.println("describe keyspace system;");
                 break;
 
+            case CliParser.NODE_DESCRIBE_CLUSTER:
+                state.out.println("describe cluster;\n");
+                state.out.println("Display information about cluster: snitch, partitioner, schema versions.");
+                break;
+
             case CliParser.NODE_EXIT:
                 state.out.println("exit;");
                 state.out.println("quit;\n");
@@ -337,6 +342,7 @@ public class CliUserHelp {
             state.out.println("describe keyspace (<keyspacename>)?;                          Describe keyspace.");
             state.out.println("exit;                                                                  Exit CLI.");
             state.out.println("quit;                                                                  Exit CLI.");
+            state.out.println("describe cluster;                             Display information about cluster.");
             state.out.println("show cluster name;                                         Display cluster name.");
             state.out.println("show keyspaces;                                          Show list of keyspaces.");
             state.out.println("show api version;                                       Show server API version.");

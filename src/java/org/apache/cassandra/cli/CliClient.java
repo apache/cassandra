@@ -170,6 +170,9 @@ public class CliClient extends CliUserHelp
                 case CliParser.NODE_DESCRIBE_TABLE:
                     executeDescribeKeySpace(tree);
                     break;
+                case CliParser.NODE_DESCRIBE_CLUSTER:
+                    executeDescribeCluster();
+                    break;
                 case CliParser.NODE_USE_TABLE:
                     executeUseKeySpace(tree);
                     break;
@@ -1383,6 +1386,33 @@ public class CliClient extends CliUserHelp
         }
         
         describeKeySpace(keySpaceName, null);
+    }
+
+    // ^(NODE_DESCRIBE_CLUSTER) or describe: schema_versions, partitioner, snitch
+    private void executeDescribeCluster()
+    {
+        if (!CliMain.isConnected())
+            return;
+
+        sessionState.out.println("Cluster Information:");
+        try
+        {
+            sessionState.out.println("   Snitch: " + thriftClient.describe_snitch());
+            sessionState.out.println("   Partitioner: " + thriftClient.describe_partitioner());
+
+            sessionState.out.println("   Schema versions: ");
+            Map<String,List<String>> versions = thriftClient.describe_schema_versions();
+
+            for (String version : versions.keySet())
+            {
+                sessionState.out.println("\t" + version + ": " + versions.get(version));
+            }
+        }
+        catch (Exception e)
+        {
+            String message = (e instanceof InvalidRequestException) ? ((InvalidRequestException) e).getWhy() : e.getMessage();
+            sessionState.err.println("Error retrieving data: " + message);
+        }
     }
 
     // process a statement of the form: connect hostname/port
