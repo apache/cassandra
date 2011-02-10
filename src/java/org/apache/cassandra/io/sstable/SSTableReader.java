@@ -417,8 +417,9 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     public void cacheKey(DecoratedKey key, Long info)
     {
-        //TFFT reuses the underlying buffer for the key
-        keyCache.put(new Pair<Descriptor, DecoratedKey>(descriptor, new DecoratedKey(key.token, ByteBufferUtil.clone(key.key))), info);
+        // avoid keeping a permanent reference to the original key buffer
+        DecoratedKey copiedKey = new DecoratedKey(key.token, key.key == null ? null : ByteBufferUtil.clone(key.key));
+        keyCache.put(new Pair<Descriptor, DecoratedKey>(descriptor, copiedKey), info);
     }
 
     public Long getCachedPosition(DecoratedKey key)
@@ -441,8 +442,12 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     public long getPosition(DecoratedKey decoratedKey, Operator op)
     {
         // first, check bloom filter
-        if (op == Operator.EQ && !bf.isPresent(decoratedKey.key))
-            return -1;
+        if (op == Operator.EQ)
+        {
+            assert decoratedKey.key != null; // null is ok for GE scans
+            if (!bf.isPresent(decoratedKey.key))
+                return -1;
+        }
 
         // next, the key cache
         Pair<Descriptor, DecoratedKey> unifiedKey = new Pair<Descriptor, DecoratedKey>(descriptor, decoratedKey);
@@ -482,7 +487,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                             if (op == Operator.EQ)
                                 bloomFilterTracker.addTruePositive();
                             // store exact match for the key
-                            cacheKey(unifiedKey.right, dataPosition);
+                            cacheKey(decoratedKey, dataPosition);
                         }
                         return dataPosition;
                     }
