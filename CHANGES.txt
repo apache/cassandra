@@ -7,6 +7,7 @@
  * human readable column names in sstable2json output (CASSANDRA-1933)
  * change default JMX port to 7199 (CASSANDRA-2027)
  * backwards compatible internal messaging (CASSANDRA-1015)
+ * check for null encryption in MessagingService (CASSANDRA-2152)
 
 
 0.7.2

@@ -189,7 +189,7 @@ public final class MessagingService implements MessagingServiceMBean
     private ServerSocket getServerSocket(InetAddress localEp) throws IOException, ConfigurationException
     {
         final ServerSocket ss;
-        if (DatabaseDescriptor.getEncryptionOptions().internode_encryption == EncryptionOptions.InternodeEncryption.all)
+        if (DatabaseDescriptor.getEncryptionOptions() != null && DatabaseDescriptor.getEncryptionOptions().internode_encryption == EncryptionOptions.InternodeEncryption.all)
         {
             ss = SSLFactory.getServerSocket(DatabaseDescriptor.getEncryptionOptions(), localEp, DatabaseDescriptor.getStoragePort());
             // setReuseAddress happens in the factory.
