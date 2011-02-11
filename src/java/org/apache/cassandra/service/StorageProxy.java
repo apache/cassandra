@@ -222,7 +222,8 @@ public class StorageProxy implements StorageProxyMBean
                 // unhinted writes
                 if (destination.equals(FBUtilities.getLocalAddress()))
                 {
-                    insertLocal(rm, responseHandler);
+                    if (insertLocalMessages)
+                        insertLocal(rm, responseHandler);
                 }
                 else
                 {
