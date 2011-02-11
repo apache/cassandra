@@ -1,3 +1,4 @@
+package org.apache.cassandra.cql.driver.jdbc;
 
 import java.io.IOException;
 import java.net.Socket;
@@ -14,7 +15,7 @@ import org.apache.cassandra.service.EmbeddedCassandraService;
 /**
  * The abstract BaseClass.
  */
-public abstract class BaseTest extends TestCase
+public abstract class EmbeddedServiceBase extends TestCase
 {
 
     /** The embedded server cassandra. */

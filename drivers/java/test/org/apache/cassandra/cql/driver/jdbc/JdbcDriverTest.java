@@ -1,3 +1,4 @@
+package org.apache.cassandra.cql.driver.jdbc;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -32,7 +33,7 @@ import org.apache.cassandra.config.ConfigurationException;
 /**
  * Test case for unit test of various methods of JDBC implementation.
  */
-public class JdbcDriverTest extends BaseTest
+public class JdbcDriverTest extends EmbeddedServiceBase
 {
     private java.sql.Connection con = null;
 
