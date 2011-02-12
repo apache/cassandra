@@ -1,0 +1,206 @@
+#!/usr/bin/env python
+
+from optparse import OptionParser
+from StringIO import StringIO
+
+import cmd
+import sys
+import readline
+import os
+import re
+
+try:
+    from cql import Connection
+    from cql.errors import CQLException
+except ImportError:
+    sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+    from cql import Connection
+    from cql.errors import CQLException
+
+HISTORY = os.path.join(os.path.expanduser('~'), '.cqlsh')
+CQLTYPES = ("bytes", "ascii", "utf8", "timeuuid", "uuid", "long", "int")
+
+RED = "\033[1;31m%s\033[0m"
+GREEN = "\033[1;32m%s\033[0m"
+BLUE = "\033[1;34m%s\033[0m"
+YELLOW = "\033[1;33m%s\033[0m"
+CYAN = "\033[1;36m%s\033[0m"
+MAGENTA = "\033[1;35m%s\033[0m"
+
+def startswith(words, text):
+    return [i for i in words if i.startswith(text)]
+
+class Shell(cmd.Cmd):
+    default_prompt  = "cqlsh> "
+    continue_prompt = "   ... "
+    
+    def __init__(self, hostname, port, color=False, username=None,
+            password=None):
+        cmd.Cmd.__init__(self)
+        self.conn = Connection(hostname,
+                               port=port,
+                               username=username,
+                               password=password)
+                               
+        if os.path.exists(HISTORY):
+            readline.read_history_file(HISTORY)
+
+        if sys.stdin.isatty():
+            self.prompt = Shell.default_prompt
+        else:
+            self.prompt = ""
+        
+        self.statement = StringIO()
+        self.color = color
+    
+    def reset_statement(self):
+        self.set_prompt(Shell.default_prompt)
+        self.statement.truncate(0)
+        
+    def get_statement(self, line):
+        self.statement.write("%s\n" % line)
+            
+        if not line.endswith(";"):
+            self.set_prompt(Shell.continue_prompt)
+            return None
+        
+        try:    
+            return self.statement.getvalue()
+        finally:
+            self.reset_statement()
+
+    def default(self, arg):
+        if not arg.strip(): return
+        statement = self.get_statement(arg)
+        if not statement: return
+        
+        result = self.conn.execute(statement)
+        
+        if isinstance(result, list):
+            for row in result:
+                self.printout(row.key, BLUE, False)
+                for column in row.columns:
+                    self.printout(" | ", newline=False)
+                    # XXX: repr() is better than trying to print binary
+                    self.printout(repr(column.name), MAGENTA, False)
+                    self.printout(",", newline=False)
+                    self.printout(repr(column.value), YELLOW, False)
+                self.printout("")
+        else:
+            if result: print result
+
+    def emptyline(self):
+        pass
+
+    def complete_select(self, text, line, begidx, endidx):
+        keywords = ('FIRST', 'REVERSED', 'FROM', 'WHERE', 'KEY')
+        return startswith(keywords, text.upper())
+    complete_SELECT = complete_select
+    
+    def complete_update(self, text, line, begidx, endidx):
+        keywords = ('WHERE', 'KEY', 'SET')
+        return startswith(keywords, text.upper())
+    complete_UPDATE = complete_update
+    
+    def complete_create(self, text, line, begidx, endidx):
+        words = line.split()
+        if len(words) < 3:
+            return startswith(['COLUMNFAMILY', 'KEYSPACE'], text.upper())
+        
+        common = ['WITH', 'AND']
+        
+        if words[1].upper() == 'COLUMNFAMILY':
+            types = startswith(CQLTYPES, text)
+            props = startswith(("comparator",
+                                "comment",
+                                "row_cache_size",
+                                "key_cache_size",
+                                "read_repair_chance",
+                                "gc_grace_seconds",
+                                "default_validation",
+                                "min_compaction_threshold",
+                                "max_compaction_threshold",
+                                "row_cache_save_period_in_seconds",
+                                "key_cache_save_period_in_seconds",
+                                "memtable_flush_after_mins",
+                                "memtable_throughput_in_mb",
+                                "memtable_operations_in_millions",
+                                "replicate_on_write"), text)
+            return startswith(common, text.upper()) + types + props
+            
+        if words[1].upper() == 'KEYSPACE':
+            props = ("replication_factor", "strategy_options", "strategy_class")
+            return startswith(common, text.upper()) + startswith(props, text)
+    complete_CREATE = complete_create
+        
+    def completenames(self, text, *ignored):
+        cmds = startswith(('USE', 'SELECT', 'UPDATE', 'DELETE', 'CREATE'),
+                          text.upper())
+        return cmd.Cmd.completenames(self, text, ignored) + cmds
+
+    def set_prompt(self, prompt):
+        if sys.stdin.isatty():
+            self.prompt = prompt
+        
+    def do_EOF(self, arg):
+        if sys.stdin.isatty(): print
+        self.do_exit(None)
+    
+    def do_exit(self, arg):
+        sys.exit()
+    do_quit = do_exit
+    
+    def printout(self, text, color=None, newline=True, out=sys.stdout):
+        if not color or not self.color:
+            out.write(text)
+        else:
+            out.write(color % text)
+            
+        if newline:
+            out.write("\n");
+    
+    def printerr(self, text, color=None, newline=True):
+        self.printout(text, color, newline, sys.stderr)
+        
+if __name__ == '__main__':
+    parser = OptionParser(usage = "Usage: %prog [host [port]]")
+    parser.add_option("-C",
+                      "--color",
+                      action="store_true",
+                      help="Enable color output.")
+    parser.add_option("-u", "--username", help="Authenticate as user.")
+    parser.add_option("-p", "--password", help="Authenticate using password.")
+    (options, arguments) = parser.parse_args()
+    
+    hostname = len(arguments) > 0 and arguments[0] or "localhost"
+    
+    if len(arguments) > 1:
+        try:
+            port = int(arguments[1])
+        except ValueError:
+            print >>sys.stderr, "%s is not a valid port number" % arguments[1]
+            parser.print_help(file=sys.stderr)
+            sys.exit(1)
+    else:
+        port = 9160
+        
+    
+    shell = Shell(hostname,
+                  port,
+                  color=options.color,
+                  username=options.username,
+                  password=options.password)
+    while(True):
+        try:
+            shell.cmdloop()
+        except SystemExit:
+            readline.write_history_file(HISTORY)
+            break
+        except CQLException, cqlerr:
+            shell.printerr(cqlerr, color=RED)
+        except KeyboardInterrupt:
+            shell.reset_statement()
+            print
+        except Exception, err:
+            shell.printerr("Exception: %s" % err, color=RED)
+    
