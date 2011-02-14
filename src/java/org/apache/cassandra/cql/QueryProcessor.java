@@ -39,6 +39,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.migration.AddColumnFamily;
 import org.apache.cassandra.db.migration.AddKeyspace;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -553,6 +554,29 @@ public class QueryProcessor
                 catch (IOException e)
                 {
                     InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+                    ex.initCause(e);
+                    throw ex;
+                }
+                
+                avroResult.type = CqlResultType.VOID;
+                return avroResult;
+               
+            case CREATE_COLUMNFAMILY:
+                CreateColumnFamilyStatement createCf = (CreateColumnFamilyStatement)statement.statement;
+                
+                try
+                {
+                    applyMigrationOnStage(new AddColumnFamily(createCf.getCFMetaData(keyspace)));
+                }
+                catch (ConfigurationException e)
+                {
+                    InvalidRequestException ex = new InvalidRequestException(e.toString());
+                    ex.initCause(e);
+                    throw ex;
+                }
+                catch (IOException e)
+                {
+                    InvalidRequestException ex = new InvalidRequestException(e.toString());
                     ex.initCause(e);
                     throw ex;
                 }

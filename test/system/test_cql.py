@@ -259,6 +259,62 @@ class TestCql(ThriftTester):
         strategy_class = "org.apache.cassandra.locator.SimpleStrategy"
         assert ksdef.strategy_class == strategy_class
         assert ksdef.strategy_options['DC1'] == "1"
+        
+    def test_create_column_family(self):
+        "create a new column family"
+        conn = init()
+        conn.execute("""
+            CREATE KEYSPACE CreateCFKeyspace WITH replication_factor = 1
+                AND strategy_class = "SimpleStrategy";
+        """)
+        conn.execute("USE CreateCFKeyspace;")
+        
+        conn.execute("""
+            CREATE COLUMNFAMILY NewCf1 (
+                "username" utf8,
+                "age" int,
+                "birthdate" long,
+                "id" uuid
+            ) WITH comparator = utf8 AND comment = "shiny, new, cf" AND
+                    default_validation = ascii;
+        """)
+        
+        # TODO: temporary (until this can be done with CQL).
+        ksdef = thrift_client.describe_keyspace("CreateCFKeyspace")
+        assert len(ksdef.cf_defs) == 1, \
+            "expected 1 column family total, found %d" % len(ksdef.cf_defs)
+        cfam= ksdef.cf_defs[0]
+        assert len(cfam.column_metadata) == 4, \
+            "expected 4 columns, found %d" % len(cfam.column_metadata)
+        assert cfam.comment == "shiny, new, cf"
+        assert cfam.default_validation_class == "org.apache.cassandra.db.marshal.AsciiType"
+        assert cfam.comparator_type == "org.apache.cassandra.db.marshal.UTF8Type"
+        
+        # No column defs, defaults all-around
+        conn.execute("CREATE COLUMNFAMILY NewCf2")
+        ksdef = thrift_client.describe_keyspace("CreateCFKeyspace")
+        assert len(ksdef.cf_defs) == 2, \
+            "expected 2 column families total, found %d" % len(ksdef.cf_defs)
+        
+        # No column defs
+        conn.execute("CREATE COLUMNFAMILY NewCf3 WITH comparator = long")
+        ksdef = thrift_client.describe_keyspace("CreateCFKeyspace")
+        assert len(ksdef.cf_defs) == 3, \
+            "expected 3 column families total, found %d" % len(ksdef.cf_defs)
+        cfam = [i for i in ksdef.cf_defs if i.name == "NewCf3"][0]
+        assert cfam.comparator_type == "org.apache.cassandra.db.marshal.LongType"
+        
+        # Column defs, defaults otherwise
+        conn.execute("CREATE COLUMNFAMILY NewCf4 (\"a\" int, \"b\" int)")
+        ksdef = thrift_client.describe_keyspace("CreateCFKeyspace")
+        assert len(ksdef.cf_defs) == 4, \
+            "expected 4 column families total, found %d" % len(ksdef.cf_defs)
+        cfam = [i for i in ksdef.cf_defs if i.name == "NewCf4"][0]
+        assert len(cfam.column_metadata) == 2, \
+            "expected 2 columns, found %d" % len(cfam.column_metadata)
+        for coldef in cfam.column_metadata:
+            assert coldef.name in ("a", "b"), "Unknown column name"
+            assert coldef.validation_class.endswith("marshal.IntegerType")
 
     def test_time_uuid(self):
         "store and retrieve time-based (type 1) uuids"

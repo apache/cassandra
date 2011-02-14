@@ -39,6 +39,22 @@ options {
     package org.apache.cassandra.cql;
 }
 
+@lexer::members {
+    List<Token> tokens = new ArrayList<Token>();
+    
+    public void emit(Token token) {
+        state.token = token;
+        tokens.add(token);
+    }
+    
+    public Token nextToken() {
+        super.nextToken();
+        if (tokens.size() == 0)
+            return Token.EOF_TOKEN;
+        return tokens.remove(0);
+    }
+}
+
 query returns [CQLStatement stmnt]
     : selectStatement   { $stmnt = new CQLStatement(StatementType.SELECT, $selectStatement.expr); }
     | updateStatement   { $stmnt = new CQLStatement(StatementType.UPDATE, $updateStatement.expr); }
@@ -47,6 +63,7 @@ query returns [CQLStatement stmnt]
     | truncateStatement { $stmnt = new CQLStatement(StatementType.TRUNCATE, $truncateStatement.cfam); }
     | deleteStatement   { $stmnt = new CQLStatement(StatementType.DELETE, $deleteStatement.expr); }
     | createKeyspaceStatement { $stmnt = new CQLStatement(StatementType.CREATE_KEYSPACE, $createKeyspaceStatement.expr); }
+    | createColumnFamilyStatement { $stmnt = new CQLStatement(StatementType.CREATE_COLUMNFAMILY, $createColumnFamilyStatement.expr); }
     ;
 
 // USE <KEYSPACE>;
@@ -88,6 +105,27 @@ selectStatement returns [SelectStatement expr]
                                      $whereClause.clause,
                                      numRecords);
       }
+    ;
+
+// [FIRST n] [REVERSED] name1[[[,name2],nameN],...]
+// [FIRST n] [REVERSED] name1..nameN
+selectExpression returns [SelectExpression expr]
+    : {
+          int count = 10000;
+          boolean reversed = false;
+      }
+      ( K_FIRST cols=INTEGER { count = Integer.parseInt($cols.text); } )?
+      ( K_REVERSED { reversed = true; } )?
+      ( first=term { $expr = new SelectExpression(first, count, reversed); }
+            (',' next=term { $expr.and(next); })*
+      | start=term RANGEOP finish=term { $expr = new SelectExpression(start, finish, count, reversed); }
+      )
+    ;
+
+// relation [[AND relation] ...]
+whereClause returns [WhereClause clause]
+    : first=relation { $clause = new WhereClause(first); } 
+          (K_AND next=relation { $clause.and(next); })*
     ;
 
 /**
@@ -175,6 +213,38 @@ createKeyspaceStatement returns [CreateKeyspaceStatement expr]
           return new CreateKeyspaceStatement($keyspace.text, attrs);
       }
     ;
+    
+/**
+ * CREATE COLUMNFAMILY <CF> (
+ *     <name1> <type>,
+ *     <name2> <type>,
+ *     <name3> <type>
+ * ) WITH comparator = <type> [AND ...];
+ */
+createColumnFamilyStatement returns [CreateColumnFamilyStatement expr]
+    : K_CREATE K_COLUMNFAMILY name=IDENT { $expr = new CreateColumnFamilyStatement($name.text); } ( '('
+          col1=term v1=createCfamColumnValidator { $expr.addColumn(col1, $v1.validator); } ( ','
+          colN=term vN=createCfamColumnValidator { $expr.addColumn(colN, $vN.validator); } )*
+      ')' )?
+      ( K_WITH prop1=IDENT '=' arg1=createCfamKeywordArgument { $expr.addProperty($prop1.text, $arg1.arg); }
+          ( K_AND propN=IDENT '=' argN=createCfamKeywordArgument { $expr.addProperty($propN.text, $argN.arg); } )*
+      )?
+      endStmnt
+    ;
+
+createCfamColumnValidator returns [String validator]
+    : comparatorType { $validator = $comparatorType.text; }
+    | STRING_LITERAL { $validator = $STRING_LITERAL.text; }
+    ;
+
+createCfamKeywordArgument returns [String arg]
+    : comparatorType { $arg = $comparatorType.text; }
+    | value=( STRING_LITERAL | INTEGER | FLOAT ) { $arg = $value.text; }
+    ;
+
+comparatorType
+    : 'bytes' | 'ascii' | 'utf8' | 'int' | 'long' | 'uuid' | 'timeuuid'
+    ;
 
 term returns [Term item]
     : ( t=timeuuid | t=uuid | t=literal ) { $item = t; }
@@ -199,27 +269,6 @@ relation returns [Relation rel]
     : { Term entity = new Term("KEY", STRING_LITERAL); }
       (K_KEY | name=term { entity = $name.item; } ) type=('=' | '<' | '<=' | '>=' | '>') t=term
       { return new Relation(entity, $type.text, $t.item); }
-    ;
-
-// relation [[AND relation] ...]
-whereClause returns [WhereClause clause]
-    : first=relation { $clause = new WhereClause(first); } 
-          (K_AND next=relation { $clause.and(next); })*
-    ;
-
-// [FIRST n] [REVERSED] name1[[[,name2],nameN],...]
-// [FIRST n] [REVERSED] name1..nameN
-selectExpression returns [SelectExpression expr]
-    : {
-          int count = 10000;
-          boolean reversed = false;
-      }
-      ( K_FIRST cols=INTEGER { count = Integer.parseInt($cols.text); } )?
-      ( K_REVERSED { reversed = true; } )?
-      ( first=term { $expr = new SelectExpression(first, count, reversed); }
-            (',' next=term { $expr.and(next); })*
-      | start=term '..' finish=term { $expr = new SelectExpression(start, finish, count, reversed); }
-      )
     ;
 
 // TRUNCATE <CF>;
@@ -273,6 +322,7 @@ K_DELETE:      D E L E T E;
 K_IN:          I N;
 K_CREATE:      C R E A T E;
 K_KEYSPACE:    K E Y S P A C E;
+K_COLUMNFAMILY: C O L U M N F A M I L Y;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');
@@ -320,12 +370,30 @@ fragment LETTER
     : ('A'..'Z' | 'a'..'z')
     ;
 
+RANGEOP
+    : '..'
+    ;
+
 INTEGER
     : DIGIT+
     ;
     
 LONG
     : INTEGER 'L' { setText($INTEGER.text); }
+    ;
+
+/* Normally a lexer only emits one token at a time, but ours is tricked out
+ * to support multiple (see @lexer::members near the top of the grammar).
+ */
+FLOAT
+    : d=INTEGER r=RANGEOP
+      {
+          $d.setType(INTEGER);
+          emit($d);
+          $r.setType(RANGEOP);
+          emit($r);
+      }
+      | INTEGER '.' INTEGER
     ;
 
 IDENT
@@ -339,7 +407,7 @@ COMPIDENT
 UNICODE
     : 'u' STRING_LITERAL
     ;
-    
+
 WS
     : (' ' | '\t' | '\n' | '\r')+ { $channel = HIDDEN; }
     ;
