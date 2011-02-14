@@ -175,6 +175,58 @@ The @CREATE KEYSPACE@ statement creates a new top-level namespace (aka "keyspace
 |strategy_class|yes|Class name to use for managing replica placement.  Any of the shipped strategies can be used by specifying the class name relative to org.apache.cassandra.locator, others will need to be fully-qualified and located on the classpath.|
 |strategy_options|no|Some strategies require additional arguments which can be supplied by appending the option name to the @strategy_options@ keyword, separated by a colon (@:@).  For example, a strategy option of "DC1" with a value of "1" would be specified as @strategy_options:DC1 = "1"@.|
 
+h2. CREATE COLUMNFAMILY
+
+_Synopsis:_
+
+bc. 
+CREATE COLUMNFAMILY <COLUMN FAMILY> [(name1 type, name2 type, ...)] [WITH keyword1 = arg1
+    [AND keyword2 = arg2 [AND ...]]];
+
+@CREATE COLUMNFAMILY@ statements create new column family namespaces under the current keyspace. Valid column family names are strings of alphanumeric characters and underscores, which begin with a letter.
+
+h3(#columntypes). Specifying Column Type (optional)
+
+bc. 
+CREATE COLUMNFAMILY <COLUMN FAMILY> (name1 type, name2 type) ...;
+
+It is possible to assign columns a type during column family creation.  Columns configured with a type are validated accordingly when a write occurs. Column types are specified as a parenthesized, comma-separated list of column term and type pairs.  The list of recognized types are:
+
+|_. type|_. description|
+|bytes|Arbitrary bytes (no validation)|
+|ascii|ASCII character string|
+|utf8|UTF8 encoded string|
+|timeuuid|Type 1 UUID|
+|uuid|Type 4 UUID|
+|int|4-byte integer|
+|long|8-byte long|
+
+_Note: In addition to the recognized types listed above, it is also possible to supply a string containing the name of a class (a sub-class of @AbstractType@), either fully qualified, or relative to the @org.apache.cassandra.db.marshal@ package._
+
+h3. Column Family Options (optional)
+
+bc. 
+CREATE COLUMNFAMILY ... WITH keyword1 = arg1 AND keyword2 = arg2;
+
+A number of optional keyword arguments can be supplied to control the configuration of a new column family.
+
+|_. keyword|_. default|_. description|
+|comparator|bytes|Determines sorting and validation of column names. Valid values are identical to the types listed in "Specifying Column Type":#columntypes above.|
+|comment|none|A free-form, human-readable comment.|
+|row_cache_size|0|Number of rows whose entire contents to cache in memory.|
+|key_cache_size|200000|Number of keys per SSTable whose locations are kept in memory in "mostly LRU" order.|
+|read_repair_chance|1.0|The probability with which read repairs should be invoked on non-quorum reads.|
+|gc_grace_seconds|864000|Time to wait before garbage collecting tombstones (deletion markers).|
+|default_validation|bytes|Determines validation of column values. Valid values are identical to the types listed in "Specifying Column Type":#columntypes above.|
+|min_compaction_threshold|4|Minimum number of SSTables needed to start a minor compaction.|
+|max_compaction_threshold|32|Maximum number of SSTables allowed before a minor compaction is forced.|
+|row_cache_save_period_in_seconds|0|Number of seconds between saving row caches.|
+|key_cache_save_period_in_seconds|14400|Number of seconds between saving key caches.|
+|memtable_flush_after_mins|60|Maximum time to leave a dirty table unflushed.|
+|memtable_throughput_in_mb|dynamic|Maximum size of the memtable before it is flushed.|
+|memtable_operations_in_millions|dynamic|Number of operations in millions before the memtable is flushed.|
+|replicate_on_write|false| |
+
 h2. Common Idioms
 
 h3(#consistency). Specifying Consistency
