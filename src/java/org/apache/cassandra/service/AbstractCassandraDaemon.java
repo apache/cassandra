@@ -161,6 +161,15 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
             Table.open(table);
         }
 
+        try
+        {
+            GCInspector.instance.start();
+        }
+        catch (Throwable t)
+        {
+            logger.warn("Unable to start GCInspector (currently only supported on the Sun JVM)");
+        }
+
         // replay the log if necessary and check for compaction candidates
         CommitLog.recover();
         CompactionManager.instance.checkAllColumnFamilies();

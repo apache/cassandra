@@ -115,6 +115,8 @@ public class CliTest extends CleanupHelper
         "set myCF['key']['scName']['firstname'] = 'John';",
         "get myCF['key']['scName']",
         "use TestKEYSpace;",
+        "describe cluster;",
+        "help describe cluster;",
         "show cluster name",
         "show api version",
         "help help",

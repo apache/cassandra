@@ -173,6 +173,9 @@ public class CliClient extends CliUserHelp
                 case CliParser.NODE_DESCRIBE_TABLE:
                     executeDescribeKeySpace(tree);
                     break;
+                case CliParser.NODE_DESCRIBE_CLUSTER:
+                    executeDescribeCluster();
+                    break;
                 case CliParser.NODE_USE_TABLE:
                     executeUseKeySpace(tree);
                     break;
@@ -314,7 +317,8 @@ public class CliClient extends CliUserHelp
 
         AbstractType validator;
         CfDef cfDef = getCfDef(columnFamily);
-        
+        boolean isSuperCF = cfDef.column_type.equals("Super");
+
         // Print out super columns or columns.
         for (ColumnOrSuperColumn cosc : columns)
         {
@@ -337,9 +341,16 @@ public class CliClient extends CliUserHelp
             {
                 Column column = cosc.column;
                 validator = getValidatorForValue(cfDef, column.getName());
-                sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d%s)%n", formatColumnName(keyspace, columnFamily, column),
-                                                validator.getString(column.value), column.timestamp,
-                                                column.isSetTtl() ? String.format(", ttl=%d", column.getTtl()) : "");
+
+                String formattedName = isSuperCF
+                                       ? formatSubcolumnName(keyspace, columnFamily, column)
+                                       : formatColumnName(keyspace, columnFamily, column);
+
+                sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d%s)%n",
+                                        formattedName,
+                                        validator.getString(column.value),
+                                        column.timestamp,
+                                        column.isSetTtl() ? String.format(", ttl=%d", column.getTtl()) : "");
             }
         }
         
@@ -461,9 +472,15 @@ public class CliClient extends CliUserHelp
             valueAsString = (validator == null) ? new String(columnValue, Charsets.UTF_8) : validator.getString(ByteBuffer.wrap(columnValue));
         }
 
+        String formattedColumnName = isSuper
+                                     ? formatSubcolumnName(keySpace, columnFamily, column)
+                                     : formatColumnName(keySpace, columnFamily, column);
+
         // print results
         sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d%s)%n",
-                                formatColumnName(keySpace, columnFamily, column), valueAsString, column.timestamp,
+                                formattedColumnName,
+                                valueAsString,
+                                column.timestamp,
                                 column.isSetTtl() ? String.format(", ttl=%d", column.getTtl()) : "");
     }
 
@@ -880,7 +897,12 @@ public class CliClient extends CliUserHelp
                 cfDef.setKey_cache_size(Double.parseDouble(mValue));
                 break;
             case READ_REPAIR_CHANCE:
-                cfDef.setRead_repair_chance(Double.parseDouble(mValue));
+                double chance = Double.parseDouble(mValue) / 100;
+
+                if (chance > 1)
+                    throw new RuntimeException("Error: read_repair_chance / 100 should not be greater than 1.");
+
+                cfDef.setRead_repair_chance(chance);
                 break;
             case GC_GRACE:
                 cfDef.setGc_grace_seconds(Integer.parseInt(mValue));
@@ -1412,12 +1434,39 @@ public class CliClient extends CliUserHelp
         describeKeySpace(keySpaceName, null);
     }
 
+    // ^(NODE_DESCRIBE_CLUSTER) or describe: schema_versions, partitioner, snitch
+    private void executeDescribeCluster()
+    {
+        if (!CliMain.isConnected())
+            return;
+
+        sessionState.out.println("Cluster Information:");
+        try
+        {
+            sessionState.out.println("   Snitch: " + thriftClient.describe_snitch());
+            sessionState.out.println("   Partitioner: " + thriftClient.describe_partitioner());
+
+            sessionState.out.println("   Schema versions: ");
+            Map<String,List<String>> versions = thriftClient.describe_schema_versions();
+
+            for (String version : versions.keySet())
+            {
+                sessionState.out.println("\t" + version + ": " + versions.get(version));
+            }
+        }
+        catch (Exception e)
+        {
+            String message = (e instanceof InvalidRequestException) ? ((InvalidRequestException) e).getWhy() : e.getMessage();
+            sessionState.err.println("Error retrieving data: " + message);
+        }
+    }
+
     // process a statement of the form: connect hostname/port
     private void executeConnect(Tree statement)
     {
         Tree idList = statement.getChild(0);
         int portNumber = Integer.parseInt(statement.getChild(1).getText());
-        
+
         StringBuilder hostName = new StringBuilder();
         int idCount = idList.getChildCount(); 
         for (int idx = 0; idx < idCount; idx++)
@@ -1432,6 +1481,14 @@ public class CliClient extends CliUserHelp
         // now, connect to the newly specified host name and port
         sessionState.hostName = hostName.toString();
         sessionState.thriftPort = portNumber;
+
+        // if we have user name and password
+        if (statement.getChildCount() == 4)
+        {
+            sessionState.username = statement.getChild(2).getText();
+            sessionState.password = CliUtils.unescapeSQLString(statement.getChild(3).getText());
+        }
+
         CliMain.connect(sessionState.hostName, sessionState.thriftPort);
     }
 

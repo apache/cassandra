@@ -27,17 +27,33 @@ JMX
 0.7.1
 =====
 
-Uprading
---------
+Upgrading
+---------
     - 0.7.1 is completely backwards compatible with 0.7.0.  Just restart
       each node with the new version, one at a time.  (The cluster does
       not all need to be upgraded simultaneously.)
 
 Features
 --------
-    - Cassandra can perform writes efficiently across datacenters by
+    - added flush_largest_memtables_at and reduce_cache_sizes_at options
+      to cassandra.yaml as an escape valve for memory pressure
+    - added option to specify -Dcassandra.join_ring=false on startup
+      to allow "warm spare" nodes or performing JMX maintenance before
+      joining the ring
+
+Performance
+-----------
+    - Disk writes and sequential scans avoid polluting page cache
+      (requires JNA to be enabled)
+    - Cassandra performs writes efficiently across datacenters by
       sending a single copy of the mutation and having the recipient
       forward that to other replicas in its datacenter.
+    - Improved network buffering
+    - Reduced lock contention on memtable flush
+    - Optimized supercolumn deserialization
+    - Zero-copy reads from mmapped sstable files
+    - Explicitly set higher JVM new generation size
+    - Reduced i/o contention during saving of caches
 
 
 0.7.0

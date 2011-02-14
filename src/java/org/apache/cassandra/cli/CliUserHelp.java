@@ -83,10 +83,12 @@ public class CliUserHelp {
                 state.out.println("Display the general help page with a list of available commands.");
                 break;
             case CliParser.NODE_CONNECT:
-                state.out.println("connect <hostname>/<port>;\n");
-                state.out.println("Connect to the specified host on the specified port.\n");
+                state.out.println("connect <hostname>/<port> (<username> '<password>')?;\n");
+                state.out.println("Connect to the specified host on the specified port (using specified username and password).\n");
                 state.out.println("example:");
                 state.out.println("connect localhost/9160;");
+                state.out.println("connect localhost/9160 user 'badpasswd';");
+                state.out.println("connect 127.0.0.1/9160 user 'badpasswd';");
                 break;
 
             case CliParser.NODE_USE_TABLE:
@@ -102,6 +104,11 @@ public class CliUserHelp {
                 state.out.println("Command could be used without <keyspace> argument if you are already authenticated to keyspace.\n");
                 state.out.println("example:");
                 state.out.println("describe keyspace system;");
+                break;
+
+            case CliParser.NODE_DESCRIBE_CLUSTER:
+                state.out.println("describe cluster;\n");
+                state.out.println("Display information about cluster: snitch, partitioner, schema versions.");
                 break;
 
             case CliParser.NODE_EXIT:
@@ -330,11 +337,12 @@ public class CliUserHelp {
             state.out.println("?                                                          Display this message.");
             state.out.println("help;                                                         Display this help.");
             state.out.println("help <command>;                         Display detailed, command-specific help.");
-            state.out.println("connect <hostname>/<port>;                            Connect to thrift service.");
+            state.out.println("connect <hostname>/<port> (<username> '<password>')?; Connect to thrift service.");
             state.out.println("use <keyspace> [<username> 'password'];                    Switch to a keyspace.");
             state.out.println("describe keyspace (<keyspacename>)?;                          Describe keyspace.");
             state.out.println("exit;                                                                  Exit CLI.");
             state.out.println("quit;                                                                  Exit CLI.");
+            state.out.println("describe cluster;                             Display information about cluster.");
             state.out.println("show cluster name;                                         Display cluster name.");
             state.out.println("show keyspaces;                                          Show list of keyspaces.");
             state.out.println("show api version;                                       Show server API version.");

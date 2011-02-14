@@ -50,6 +50,6 @@ fi
 
 $JAVA -cp $CLASSPATH  -Dstorage-config=$CASSANDRA_CONF \
         -Dlog4j.configuration=log4j-tools.properties \
-        org.apache.cassandra.tools.SSTableExport "$1" -e
+        org.apache.cassandra.tools.SSTableExport "$@" -e
 
 # vi:ai sw=4 ts=4 tw=0 et

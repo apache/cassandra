@@ -36,6 +36,7 @@ tokens {
     //
     NODE_CONNECT;
     NODE_DESCRIBE_TABLE;
+    NODE_DESCRIBE_CLUSTER;
     NODE_USE_TABLE;
     NODE_EXIT;
     NODE_HELP;
@@ -138,6 +139,7 @@ statement
     | exitStatement
     | countStatement
     | describeTable
+    | describeCluster
     | addKeyspace
     | addColumnFamily
     | updateKeyspace
@@ -157,10 +159,10 @@ statement
     ;
 
 connectStatement
-    : CONNECT host '/' port 
-        -> ^(NODE_CONNECT host port)
-    | CONNECT ip_address '/' port 
-        -> ^(NODE_CONNECT ip_address port)
+    : CONNECT host '/' port (username password)?
+        -> ^(NODE_CONNECT host port (username password)?)
+    | CONNECT ip_address '/' port (username password)?
+        -> ^(NODE_CONNECT ip_address port (username password)?)
     ;
 
 helpStatement
@@ -172,6 +174,8 @@ helpStatement
         -> ^(NODE_HELP NODE_USE_TABLE)
     | HELP DESCRIBE KEYSPACE 
         -> ^(NODE_HELP NODE_DESCRIBE_TABLE)
+    | HELP DESCRIBE 'CLUSTER'
+        -> ^(NODE_HELP NODE_DESCRIBE_CLUSTER)
     | HELP EXIT 
         -> ^(NODE_HELP NODE_EXIT)
     | HELP QUIT 
@@ -325,6 +329,11 @@ describeTable
         -> ^(NODE_DESCRIBE_TABLE (keyspace)?)
     ;
     
+describeCluster
+    : DESCRIBE 'CLUSTER'
+        -> ^(NODE_DESCRIBE_CLUSTER)
+    ;
+
 useKeyspace
     : USE keyspace ( username )? ( password )? 
         -> ^(NODE_USE_TABLE keyspace ( username )? ( password )?)

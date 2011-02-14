@@ -115,35 +115,38 @@ public class CliMain
                 return;
             }
         }
-        
+
         if ((sessionState.username != null) && (sessionState.password != null))
         {
-            // Authenticate 
+            // Authenticate
             Map<String, String> credentials = new HashMap<String, String>();
             credentials.put(SimpleAuthenticator.USERNAME_KEY, sessionState.username);
             credentials.put(SimpleAuthenticator.PASSWORD_KEY, sessionState.password);
             AuthenticationRequest authRequest = new AuthenticationRequest(credentials);
-            try 
+            try
             {
                 thriftClient.login(authRequest);
                 cliClient.setUsername(sessionState.username);
-            } 
-            catch (AuthenticationException e) 
+            }
+            catch (AuthenticationException e)
             {
+                thriftClient = null;
                 sessionState.err.println("Exception during authentication to the cassandra node, " +
                 		"Verify the keyspace exists, and that you are using the correct credentials.");
                 return;
-            } 
-            catch (AuthorizationException e) 
+            }
+            catch (AuthorizationException e)
             {
+                thriftClient = null;
                 sessionState.err.println("You are not authorized to use keyspace: " + sessionState.keyspace);
                 return;
             }
-            catch (TException e) 
+            catch (TException e)
             {
+                thriftClient = null;
                 sessionState.err.println("Login failure. Did you specify 'keyspace', 'username' and 'password'?");
                 return;
-            } 
+            }
         }
         
         // Lookup the cluster name, this is to make it clear which cluster the user is connected to
@@ -155,7 +158,6 @@ public class CliMain
         }
         catch (Exception e)
         {
-
             sessionState.err.println("Exception retrieving information about the cassandra node, check you have connected to the thrift port.");
 
             if (sessionState.debug)

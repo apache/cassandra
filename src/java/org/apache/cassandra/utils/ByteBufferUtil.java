@@ -116,7 +116,7 @@ public class ByteBufferUtil
         ByteBuffer copy = buffer.duplicate();
         copy.position(position);
         copy.limit(copy.position() + length);
-        return string(buffer, charset);
+        return string(copy, charset);
     }
 
     public static String string(ByteBuffer buffer, Charset charset) throws CharacterCodingException
@@ -153,22 +153,19 @@ public class ByteBufferUtil
     }
 
     /**
-     * ByteBuffer adoption of org.apache.commons.lang.ArrayUtils.lastIndexOf method
+     * ByteBuffer adaptation of org.apache.commons.lang.ArrayUtils.lastIndexOf method
      *
      * @param buffer the array to traverse for looking for the object, may be <code>null</code>
      * @param valueToFind the value to find
      * @param startIndex the start index to travers backwards from
-     * @return the last index of the value within the array,
-     * <code>-1</code> if not found or <code>null</code> array input
+     * @return the last index of the value within the array, relative to buffer's arrayOffset
+     * [that is, between buffer.position() and buffer.limit()]; <code>-1</code> if not found.
      */
     public static int lastIndexOf(ByteBuffer buffer, byte valueToFind, int startIndex)
     {
-        if (buffer == null)
-        {
-            return -1;
-        }
+        assert buffer != null;
 
-        if (startIndex < 0)
+        if (startIndex < buffer.position())
         {
             return -1;
         }
@@ -177,12 +174,10 @@ public class ByteBufferUtil
             startIndex = buffer.limit() - 1;
         }
 
-        for (int i = startIndex; i >= 0; i--)
+        for (int i = startIndex; i >= buffer.position(); i--)
         {
             if (valueToFind == buffer.get(i))
-            {
                 return i;
-            }
         }
 
         return -1;

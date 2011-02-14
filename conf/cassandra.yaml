@@ -102,6 +102,31 @@ seed_provider:
           # seeds is actually a comma-delimited list of addresses.
           - seeds: "127.0.0.1"
 
+# emergency pressure valve: each time heap usage after a full (CMS)
+# garbage collection is above this fraction of the max, Cassandra will
+# flush the largest memtables.  
+#
+# Set to 1.0 to disable.  Setting this lower than
+# CMSInitiatingOccupancyFraction is not likely to be useful.
+#
+# RELYING ON THIS AS YOUR PRIMARY TUNING MECHANISM WILL WORK POORLY:
+# it is most effective under light to moderate load, or read-heavy
+# workloads; under truly massive write load, it will often be too
+# little, too late.
+flush_largest_memtables_at: 0.75
+
+# emergency pressure valve #2: the first time heap usage after a full
+# (CMS) garbage collection is above this fraction of the max,
+# Cassandra will reduce cache maximum _capacity_ to the given fraction
+# of the current _size_.  Should usually be set substantially above
+# flush_largest_memtables_at, since that will have less long-term
+# impact on the system.  
+# 
+# Set to 1.0 to disable.  Setting this lower than
+# CMSInitiatingOccupancyFraction is not likely to be useful.
+reduce_cache_sizes_at: 0.85
+reduce_cache_capacity_to: 0.6
+
 # Access mode.  mmapped i/o is substantially faster, but only practical on
 # a 64bit machine (which notably does not include EC2 "small" instances)
 # or relatively small datasets.  "auto", the safe choice, will enable

@@ -258,7 +258,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     int size = in.readInt();
                     byte[] bytes = new byte[size];
                     in.readFully(bytes);
-                    keys.add(StorageService.getPartitioner().decorateKey(ByteBuffer.wrap(bytes)));
+                    ByteBuffer buffer = ByteBuffer.wrap(bytes);
+                    DecoratedKey key;
+                    try
+                    {
+                        key = StorageService.getPartitioner().decorateKey(buffer);
+                    }
+                    catch (Exception e)
+                    {
+                        logger.info(String.format("unable to read entry #%s from saved cache %s; skipping remaining entries",
+                                                  keys.size(), path.getAbsolutePath()), e);
+                        break;
+                    }
+                    keys.add(key);
                 }
                 if (logger.isDebugEnabled())
                     logger.debug(String.format("completed reading (%d ms; %d keys) saved cache %s",
@@ -465,7 +477,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             generations.add(desc.generation);
             if (desc.isFromTheFuture())
             {
-                throw new RuntimeException("you can't open sstables from the future!");
+                throw new RuntimeException(String.format("Can't open sstables from the future! Current version %s, found file: %s",
+                                                         Descriptor.CURRENT_VERSION, desc));
             }
         }
         Collections.sort(generations);
@@ -1182,7 +1195,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
             }
 
-            ssTables.getRowCache().put(key, cached);
+            // avoid keeping a permanent reference to the original key buffer
+            ssTables.getRowCache().put(new DecoratedKey(key.token, ByteBufferUtil.clone(key.key)), cached);
         }
         return cached;
     }
@@ -1973,7 +1987,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public String toString()
     {
         return "ColumnFamilyStore(" +
-               "table='" + table + '\'' +
+               "table='" + table.name + '\'' +
                ", columnFamily='" + columnFamily + '\'' +
                ')';
     }
@@ -2113,5 +2127,27 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public boolean isIndex()
     {
         return partitioner instanceof LocalPartitioner;
+    }
+
+    /**
+     * sets each cache's maximum capacity to 75% of its current size
+     */
+    public void reduceCacheSizes()
+    {
+        if (ssTables.getRowCache().getCapacity() > 0)
+        {
+            int newCapacity = (int) (DatabaseDescriptor.getReduceCacheCapacityTo() * ssTables.getRowCache().getSize());
+            logger.warn(String.format("Reducing %s row cache capacity from %d to %s to reduce memory pressure",
+                                      columnFamily, ssTables.getRowCache().getCapacity(), newCapacity));
+            ssTables.getRowCache().setCapacity(newCapacity);
+        }
+
+        if (ssTables.getKeyCache().getCapacity() > 0)
+        {
+            int newCapacity = (int) (DatabaseDescriptor.getReduceCacheCapacityTo() * ssTables.getKeyCache().getSize());
+            logger.warn(String.format("Reducing %s key cache capacity from %d to %s to reduce memory pressure",
+                                      columnFamily, ssTables.getKeyCache().getCapacity(), newCapacity));
+            ssTables.getKeyCache().setCapacity(newCapacity);
+        }
     }
 }

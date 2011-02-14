@@ -339,8 +339,8 @@ public final class MessagingService implements MessagingServiceMBean
      */
     private void sendOneWay(Message message, String id, InetAddress to)
     {
-        if (logger_.isDebugEnabled())
-            logger_.debug(FBUtilities.getLocalAddress() + " sending " + message.getVerb() + " to " + id + "@" + to);
+        if (logger_.isTraceEnabled())
+            logger_.trace(FBUtilities.getLocalAddress() + " sending " + message.getVerb() + " to " + id + "@" + to);
 
         // do local deliveries
         if ( message.getFrom().equals(to) )

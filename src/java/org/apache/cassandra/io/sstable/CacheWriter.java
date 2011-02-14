@@ -1,4 +1,25 @@
 package org.apache.cassandra.io.sstable;
+/*
+ * 
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ * 
+ */
+
 
 import java.io.File;
 import java.io.IOException;
@@ -6,7 +27,6 @@ import java.nio.ByteBuffer;
 import java.util.Set;
 
 import com.google.common.base.Function;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,7 +43,7 @@ public class CacheWriter<K, V> implements ICompactionInfo
     private final Function<K, ByteBuffer> converter;
     private final Set<K> keys;
     private final String columnFamily;
-    private final long totalBytes;
+    private final long estimatedTotalBytes;
     private long bytesWritten;
 
     public CacheWriter(String columnFamily, JMXInstrumentedCache<K, V> cache, File path, Function<K, ByteBuffer> converter)
@@ -36,7 +56,9 @@ public class CacheWriter<K, V> implements ICompactionInfo
         long bytes = 0;
         for (K key : keys)
             bytes += converter.apply(key).remaining();
-        totalBytes = bytes;
+
+        // an approximation -- the keyset can change while saving
+        estimatedTotalBytes = bytes;
     }
 
     public void saveCache() throws IOException
@@ -67,7 +89,8 @@ public class CacheWriter<K, V> implements ICompactionInfo
 
     public long getTotalBytes()
     {
-        return totalBytes;
+        // keyset can change in size, thus totalBytes can too
+        return Math.max(estimatedTotalBytes, getBytesComplete());
     }
 
     public long getBytesComplete()
