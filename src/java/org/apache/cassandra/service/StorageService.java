@@ -185,6 +185,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     private boolean initialized;
     private volatile boolean joined = false;
     private String operationMode;
+
+    private volatile boolean efficientCrossDCWrites;
     private MigrationManager migrationManager = new MigrationManager();
 
     /* Used for tracking drain progress */
@@ -424,6 +426,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         MessagingService.instance().listen(FBUtilities.getLocalAddress());
         StorageLoadBalancer.instance.startBroadcasting();
         MigrationManager.announce(DatabaseDescriptor.getDefsVersion(), DatabaseDescriptor.getSeeds());
+        Gossiper.instance.addLocalApplicationState(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
 
         HintedHandOffManager.instance.registerMBean();
 
@@ -633,23 +636,46 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value)
     {
-        if (state != ApplicationState.STATUS)
-            return;
+        switch (state)
+        {
+            case RELEASE_VERSION:
+                updateEfficientCrossDCWriteMode();
+                break;
+            case STATUS:
+                String apStateValue = value.value;
+                String[] pieces = apStateValue.split(VersionedValue.DELIMITER_STR, -1);
+                assert (pieces.length > 0);
 
-        String apStateValue = value.value;
-        String[] pieces = apStateValue.split(VersionedValue.DELIMITER_STR, -1);
-        assert (pieces.length > 0);
+                String moveName = pieces[0];
 
-        String moveName = pieces[0];
+                if (moveName.equals(VersionedValue.STATUS_BOOTSTRAPPING))
+                    handleStateBootstrap(endpoint, pieces);
+                else if (moveName.equals(VersionedValue.STATUS_NORMAL))
+                    handleStateNormal(endpoint, pieces);
+                else if (moveName.equals(VersionedValue.STATUS_LEAVING))
+                    handleStateLeaving(endpoint, pieces);
+                else if (moveName.equals(VersionedValue.STATUS_LEFT))
+                    handleStateLeft(endpoint, pieces);
+        }
+    }
 
-        if (moveName.equals(VersionedValue.STATUS_BOOTSTRAPPING))
-            handleStateBootstrap(endpoint, pieces);
-        else if (moveName.equals(VersionedValue.STATUS_NORMAL))
-            handleStateNormal(endpoint, pieces);
-        else if (moveName.equals(VersionedValue.STATUS_LEAVING))
-            handleStateLeaving(endpoint, pieces);
-        else if (moveName.equals(VersionedValue.STATUS_LEFT))
-            handleStateLeft(endpoint, pieces);
+    /**
+     * We can remove this in 0.8, since mixing 0.7.0 with 0.8 is not supported (0.7.1 is required)
+     */
+    private void updateEfficientCrossDCWriteMode()
+    {
+        for (Map.Entry<InetAddress, EndpointState> entry : Gossiper.instance.getEndpointStates())
+        {
+            VersionedValue version = entry.getValue().getApplicationState(ApplicationState.RELEASE_VERSION);
+
+            // no version means it's old code that doesn't gossip version, < 0.7.1.
+            if (version == null)
+            {
+                efficientCrossDCWrites = false;
+                return;
+            }
+        }
+        efficientCrossDCWrites = true;
     }
 
     /**
@@ -2145,5 +2171,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         if (oldSnitch instanceof DynamicEndpointSnitch)
             ((DynamicEndpointSnitch)oldSnitch).unregisterMBean();
+    }
+
+    public boolean useEfficientCrossDCWrites()
+    {
+        return efficientCrossDCWrites;
     }
 }

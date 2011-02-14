@@ -19,7 +19,7 @@
  * buffer network stack to avoid inefficient small TCP messages while avoiding
    the nagle/delayed ack problem (CASSANDRA-1896)
  * check log4j configuration for changes every 10s (CASSANDRA-1525, 1907)
- * more-efficient cross-DC replication (CASSANDRA-1530, -2051)
+ * more-efficient cross-DC replication (CASSANDRA-1530, -2051, -2138)
  * avoid polluting page cache with commitlog or sstable writes
    and seq scan operations (CASSANDRA-1470)
  * add RMI authentication options to nodetool (CASSANDRA-1921)

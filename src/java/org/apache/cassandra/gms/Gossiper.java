@@ -488,6 +488,11 @@ public class Gossiper implements IFailureDetectionEventListener
         return endpointStateMap.get(ep);
     }
 
+    public Set<Entry<InetAddress, EndpointState>> getEndpointStates()
+    {
+        return endpointStateMap.entrySet();
+    }
+
     EndpointState getStateForVersionBiggerThan(InetAddress forEndpoint, int version)
     {
         EndpointState epState = endpointStateMap.get(forEndpoint);

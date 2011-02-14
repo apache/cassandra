@@ -24,6 +24,22 @@ JMX
     - By default, JMX now listens on port 7199.
 
 
+0.7.1
+=====
+
+Uprading
+--------
+    - 0.7.1 is completely backwards compatible with 0.7.0.  Just restart
+      each node with the new version, one at a time.  (The cluster does
+      not all need to be upgraded simultaneously.)
+
+Features
+--------
+    - Cassandra can perform writes efficiently across datacenters by
+      sending a single copy of the mutation and having the recipient
+      forward that to other replicas in its datacenter.
+
+
 0.7.0
 =====
 
