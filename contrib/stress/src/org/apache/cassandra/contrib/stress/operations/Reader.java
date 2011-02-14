@@ -22,7 +22,9 @@ import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import java.lang.AssertionError;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.util.List;
 
 public class Reader extends OperationThread
@@ -83,7 +85,14 @@ public class Reader extends OperationThread
                 }
                 catch (Exception e)
                 {
-                    System.err.printf("Error while reading Super Column %s key %s - %s%n", superColumn, ByteBufferUtil.string(key), getExceptionMessage(e));
+                    try
+                    {
+                        System.err.printf("Error while reading Super Column %s key %s - %s%n", superColumn, ByteBufferUtil.string(key), getExceptionMessage(e));
+                    }
+                    catch (CharacterCodingException e1)
+                    {
+                        throw new AssertionError(e1); // keys are valid string
+                    }
 
                     if (!session.ignoreErrors())
                         break;
