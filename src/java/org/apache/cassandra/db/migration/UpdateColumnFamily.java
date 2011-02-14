@@ -44,7 +44,7 @@ public class UpdateColumnFamily extends Migration
         
         KSMetaData ksm = DatabaseDescriptor.getTableDefinition(cf_def.keyspace.toString());
         if (ksm == null)
-            throw new ConfigurationException("Keyspace does not already exist.");
+            throw new ConfigurationException("No such keyspace: " + cf_def.keyspace.toString());
         
         CFMetaData oldCfm = DatabaseDescriptor.getCFMetaData(CFMetaData.getId(cf_def.keyspace.toString(), cf_def.name.toString()));
         

@@ -48,7 +48,7 @@ public class DropColumnFamily extends Migration
         
         KSMetaData ksm = DatabaseDescriptor.getTableDefinition(tableName);
         if (ksm == null)
-            throw new ConfigurationException("Keyspace does not already exist.");
+            throw new ConfigurationException("No such keyspace: " + tableName);
         else if (!ksm.cfMetaData().containsKey(cfName))
             throw new ConfigurationException("CF is not defined in that keyspace.");
         

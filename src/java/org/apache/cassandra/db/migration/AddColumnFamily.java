@@ -45,9 +45,11 @@ public class AddColumnFamily extends Migration
         KSMetaData ksm = DatabaseDescriptor.getTableDefinition(cfm.tableName);
         
         if (ksm == null)
-            throw new ConfigurationException("Keyspace does not already exist.");
+            throw new ConfigurationException("No such keyspace: " + cfm.tableName);
         else if (ksm.cfMetaData().containsKey(cfm.cfName))
-            throw new ConfigurationException("CF is already defined in that keyspace.");
+            throw new ConfigurationException(String.format("%s already exists in keyspace %s",
+                                                           cfm.cfName,
+                                                           cfm.tableName));
         else if (!Migration.isLegalName(cfm.cfName))
             throw new ConfigurationException("Invalid column family name: " + cfm.cfName);
         
