@@ -1,8 +1,12 @@
+0.7.3
+ * Keep endpoint state until aVeryLongTime (CASSANDRA-2115)
+ * lower-latency read repair (CASSANDRA-2069)
+
+
 0.7.2
  * copy DecoratedKey.key when inserting into caches to avoid retaining
    a reference to the underlying buffer (CASSANDRA-2102)
  * format subcolumn names with subcomparator (CASSANDRA-2136)
- * lower-latency read repair (CASSANDRA-2069)
  * fix column bloom filter deserialization (CASSANDRA-2165)
 
 
