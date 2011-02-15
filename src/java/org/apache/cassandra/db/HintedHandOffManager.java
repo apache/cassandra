@@ -140,6 +140,17 @@ public class HintedHandOffManager
                     return false;
                 }
             }
+
+            String throttleRaw = System.getProperty("hinted_handoff_throttle");
+            Integer throttle = throttleRaw == null ? null : Integer.valueOf(throttleRaw);
+            try
+            {
+                Thread.sleep(throttle == null ? 0 : throttle);
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
         }
         return true;
     }

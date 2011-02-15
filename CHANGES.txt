@@ -3,6 +3,7 @@
  * fix range slice ConsistencyLevel > ONE (CASSANDRA-2081)
  * update commitlog replay to catch bogus RowMutation lengths caused
    by unclean shutdown (CASSANDRA-2128)
+ * add -Dhinted_handoff_throttle option (CASSANDRA-2161)
 
 
 0.6.11
