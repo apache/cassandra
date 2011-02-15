@@ -115,9 +115,4 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
                 throw new UnavailableException();
         }
     }
-
-    public boolean isLatencyForSnitch()
-    {
-        return false;
-    }
 }

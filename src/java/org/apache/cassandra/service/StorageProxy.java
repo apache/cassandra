@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -58,6 +59,17 @@ public class StorageProxy implements StorageProxyMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(StorageProxy.class);
 
+    private static ScheduledExecutorService repairExecutor = new ScheduledThreadPoolExecutor(1); // TODO JMX-enable this
+
+    private static final ThreadLocal<Random> random = new ThreadLocal<Random>()
+    {
+        @Override
+        protected Random initialValue()
+        {
+            return new Random();
+        }
+    };
+
     // mbean stuff
     private static final LatencyTracker readStats = new LatencyTracker();
     private static final LatencyTracker rangeStats = new LatencyTracker();
@@ -65,8 +77,6 @@ public class StorageProxy implements StorageProxyMBean
     private static boolean hintedHandoffEnabled = DatabaseDescriptor.hintedHandoffEnabled();
     private static int maxHintWindow = DatabaseDescriptor.getMaxHintWindow();
     private static final String UNREACHABLE = "UNREACHABLE";
-
-    public static final StorageProxy instance = new StorageProxy();
 
     private StorageProxy() {}
     static
@@ -313,55 +323,66 @@ public class StorageProxy implements StorageProxyMBean
     private static List<Row> fetchRows(List<ReadCommand> commands, ConsistencyLevel consistency_level) throws IOException, UnavailableException, TimeoutException
     {
         List<ReadCallback<Row>> readCallbacks = new ArrayList<ReadCallback<Row>>();
+        List<List<InetAddress>> commandEndpoints = new ArrayList<List<InetAddress>>();
         List<Row> rows = new ArrayList<Row>();
+        Set<ReadCommand> repairs = new HashSet<ReadCommand>();
 
         // send out read requests
         for (ReadCommand command: commands)
         {
             assert !command.isDigestQuery();
-            logger.debug("Command/ConsistencyLevel is {}/{}", command, consistency_level);
 
             List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
             DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), endpoints);
 
-            RowDigestResolver resolver = new RowDigestResolver(command.table, command.key);
-            ReadCallback<Row> handler = getReadCallback(resolver, command, consistency_level, endpoints);
-            handler.assureSufficientLiveNodes();
-            assert !handler.endpoints.isEmpty();
+            ReadResponseResolver resolver = new ReadResponseResolver(command.table, command.key);
+            ReadCallback<Row> handler = getReadCallback(resolver, command.table, consistency_level);
+            handler.assureSufficientLiveNodes(endpoints);
 
+            // if we're not going to read repair, cut the endpoints list down to the ones required to satisfy ConsistencyLevel
+            if (randomlyReadRepair(command))
+            {
+                if (endpoints.size() > handler.blockfor)
+                    repairs.add(command);
+            }
+            else
+            {
+                endpoints = endpoints.subList(0, handler.blockfor);
+            }
+            
             // The data-request message is sent to dataPoint, the node that will actually get
             // the data for us. The other replicas are only sent a digest query.
             ReadCommand digestCommand = null;
-            if (handler.endpoints.size() > 1)
+            if (endpoints.size() > 1)
             {
                 digestCommand = command.copy();
                 digestCommand.setDigestQuery(true);
             }
 
-            InetAddress dataPoint = handler.endpoints.get(0);
+            InetAddress dataPoint = endpoints.get(0);
             if (dataPoint.equals(FBUtilities.getLocalAddress()))
             {
                 if (logger.isDebugEnabled())
-                    logger.debug("reading data locally");
+                    logger.debug("reading data for " + command + " locally");
                 StageManager.getStage(Stage.READ).execute(new LocalReadRunnable(command, handler));
             }
             else
             {
                 Message message = command.makeReadMessage();
                 if (logger.isDebugEnabled())
-                    logger.debug("reading data from " + dataPoint);
+                    logger.debug("reading data for " + command + " from " + dataPoint);
                 MessagingService.instance().sendRR(message, dataPoint, handler);
             }
 
             // We lazy-construct the digest Message object since it may not be necessary if we
             // are doing a local digest read, or no digest reads at all.
             Message digestMessage = null;
-            for (InetAddress digestPoint : handler.endpoints.subList(1, handler.endpoints.size()))
+            for (InetAddress digestPoint : endpoints.subList(1, endpoints.size()))
             {
                 if (digestPoint.equals(FBUtilities.getLocalAddress()))
                 {
                     if (logger.isDebugEnabled())
-                        logger.debug("reading digest locally");
+                        logger.debug("reading digest for " + command + " locally");
                     StageManager.getStage(Stage.READ).execute(new LocalReadRunnable(digestCommand, handler));
                 }
                 else
@@ -369,45 +390,44 @@ public class StorageProxy implements StorageProxyMBean
                     if (digestMessage == null)
                         digestMessage = digestCommand.makeReadMessage();
                     if (logger.isDebugEnabled())
-                        logger.debug("reading digest for from " + digestPoint);
+                        logger.debug("reading digest for " + command + " from " + digestPoint);
                     MessagingService.instance().sendRR(digestMessage, digestPoint, handler);
                 }
             }
 
             readCallbacks.add(handler);
+            commandEndpoints.add(endpoints);
         }
 
         // read results and make a second pass for any digest mismatches
         List<RepairCallback<Row>> repairResponseHandlers = null;
         for (int i = 0; i < commands.size(); i++)
         {
-            ReadCallback<Row> handler = readCallbacks.get(i);
+            ReadCallback<Row> readCallback = readCallbacks.get(i);
             Row row;
             ReadCommand command = commands.get(i);
+            List<InetAddress> endpoints = commandEndpoints.get(i);
             try
             {
                 long startTime2 = System.currentTimeMillis();
-                row = handler.get(); // CL.ONE is special cased here to ignore digests even if some have arrived
+                row = readCallback.get(); // CL.ONE is special cased here to ignore digests even if some have arrived
                 if (row != null)
                     rows.add(row);
 
                 if (logger.isDebugEnabled())
                     logger.debug("Read: " + (System.currentTimeMillis() - startTime2) + " ms.");
+
+                if (repairs.contains(command))
+                    repairExecutor.schedule(new RepairRunner(readCallback.resolver, command, endpoints), DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
             }
             catch (DigestMismatchException ex)
             {
                 if (logger.isDebugEnabled())
                     logger.debug("Digest mismatch:", ex);
-
-                RowRepairResolver resolver = new RowRepairResolver(command.table, command.key);
-                RepairCallback<Row> repairHandler = new RepairCallback<Row>(resolver, handler.endpoints);
-                Message messageRepair = command.makeReadMessage();
-                for (InetAddress endpoint : handler.endpoints)
-                    MessagingService.instance().sendRR(messageRepair, endpoint, repairHandler);
-
+                RepairCallback<Row> handler = repair(command, endpoints);
                 if (repairResponseHandlers == null)
                     repairResponseHandlers = new ArrayList<RepairCallback<Row>>();
-                repairResponseHandlers.add(repairHandler);
+                repairResponseHandlers.add(handler);
             }
         }
 
@@ -456,13 +476,24 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
     
-    static <T> ReadCallback<T> getReadCallback(IResponseResolver<T> resolver, IReadCommand command, ConsistencyLevel consistencyLevel, List<InetAddress> endpoints)
+    static <T> ReadCallback<T> getReadCallback(IResponseResolver<T> resolver, String table, ConsistencyLevel consistencyLevel)
     {
         if (consistencyLevel.equals(ConsistencyLevel.LOCAL_QUORUM) || consistencyLevel.equals(ConsistencyLevel.EACH_QUORUM))
         {
-            return new DatacenterReadCallback(resolver, consistencyLevel, command, endpoints);
+            return new DatacenterReadCallback(resolver, consistencyLevel, table);
         }
-        return new ReadCallback(resolver, consistencyLevel, command, endpoints);
+        return new ReadCallback(resolver, consistencyLevel, table);
+    }
+
+    private static RepairCallback<Row> repair(ReadCommand command, List<InetAddress> endpoints)
+    throws IOException
+    {
+        ReadResponseResolver resolver = new ReadResponseResolver(command.table, command.key);
+        RepairCallback<Row> handler = new RepairCallback<Row>(resolver, endpoints);
+        Message messageRepair = command.makeReadMessage();
+        for (InetAddress endpoint : endpoints)
+            MessagingService.instance().sendRR(messageRepair, endpoint, handler);
+        return handler;
     }
 
     /*
@@ -514,14 +545,16 @@ public class StorageProxy implements StorageProxyMBean
 
                     // collect replies and resolve according to consistency level
                     RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, liveEndpoints);
-                    ReadCallback<List<Row>> handler = getReadCallback(resolver, command, consistency_level, liveEndpoints);
-                    handler.assureSufficientLiveNodes();
+                    AbstractReplicationStrategy rs = Table.open(command.keyspace).getReplicationStrategy();
+                    ReadCallback<List<Row>> handler = getReadCallback(resolver, command.keyspace, consistency_level);
+                    // TODO bail early if live endpoints can't satisfy requested consistency level
                     for (InetAddress endpoint : liveEndpoints)
                     {
                         MessagingService.instance().sendRR(message, endpoint, handler);
                         if (logger.isDebugEnabled())
                             logger.debug("reading " + c2 + " from " + endpoint);
                     }
+                    // TODO read repair on remaining replicas?
 
                     // if we're done, great, otherwise, move to the next range
                     try 
@@ -573,11 +606,6 @@ public class StorageProxy implements StorageProxyMBean
                 UUID theirVersion = UUID.fromString(new String(message.getMessageBody()));
                 versions.put(message.getFrom(), theirVersion);
                 latch.countDown();
-            }
-
-            public boolean isLatencyForSnitch()
-            {
-                return false;
             }
         };
         // an empty message acts as a request to the SchemaCheckVerbHandler.
@@ -671,6 +699,12 @@ public class StorageProxy implements StorageProxyMBean
 
         return ranges;
     }
+    
+    private static boolean randomlyReadRepair(ReadCommand command)
+    {
+        CFMetaData cfmd = DatabaseDescriptor.getTableMetaData(command.table).get(command.getColumnFamilyName());
+        return cfmd.getReadRepairChance() > random.get().nextDouble();
+    }
 
     public long getReadOperations()
     {
@@ -747,7 +781,7 @@ public class StorageProxy implements StorageProxyMBean
         return writeStats.getRecentLatencyHistogramMicros();
     }
 
-    public static List<Row> scan(final String keyspace, String column_family, IndexClause index_clause, SlicePredicate column_predicate, ConsistencyLevel consistency_level)
+    public static List<Row> scan(String keyspace, String column_family, IndexClause index_clause, SlicePredicate column_predicate, ConsistencyLevel consistency_level)
     throws IOException, TimeoutException, UnavailableException
     {
         IPartitioner p = StorageService.getPartitioner();
@@ -765,16 +799,12 @@ public class StorageProxy implements StorageProxyMBean
 
             // collect replies and resolve according to consistency level
             RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(keyspace, liveEndpoints);
-            IReadCommand iCommand = new IReadCommand()
-            {
-                public String getKeyspace()
-                {
-                    return keyspace;
-                }
-            };
-            ReadCallback<List<Row>> handler = getReadCallback(resolver, iCommand, consistency_level, liveEndpoints);
-            handler.assureSufficientLiveNodes();
-
+            ReadCallback<List<Row>> handler = getReadCallback(resolver, keyspace, consistency_level);
+            
+            // bail early if live endpoints can't satisfy requested consistency level
+            if(handler.blockfor > liveEndpoints.size())
+                throw new UnavailableException();
+            
             IndexScanCommand command = new IndexScanCommand(keyspace, column_family, index_clause, column_predicate, range);
             Message message = command.getMessage();
             for (InetAddress endpoint : liveEndpoints)
@@ -881,5 +911,41 @@ public class StorageProxy implements StorageProxyMBean
     private static boolean isAnyHostDown()
     {
         return !Gossiper.instance.getUnreachableMembers().isEmpty();
+    }
+
+    private static class RepairRunner extends WrappedRunnable
+    {
+        private final IResponseResolver<Row> resolver;
+        private final ReadCommand command;
+        private final List<InetAddress> endpoints;
+
+        public RepairRunner(IResponseResolver<Row> resolver, ReadCommand command, List<InetAddress> endpoints)
+        {
+            this.resolver = resolver;
+            this.command = command;
+            this.endpoints = endpoints;
+        }
+
+        protected void runMayThrow() throws IOException
+        {
+            try
+            {
+                resolver.resolve();
+            }
+            catch (DigestMismatchException e)
+            {
+                if (logger.isDebugEnabled())
+                    logger.debug("Digest mismatch:", e);
+                final RepairCallback<Row> callback = repair(command, endpoints);
+                Runnable runnable = new WrappedRunnable()
+                {
+                    public void runMayThrow() throws DigestMismatchException, IOException, TimeoutException
+                    {
+                        callback.get();
+                    }
+                };
+                repairExecutor.schedule(runnable, DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
+            }
+        }
     }
 }

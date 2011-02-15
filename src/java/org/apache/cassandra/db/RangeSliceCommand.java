@@ -47,7 +47,6 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.service.IReadCommand;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.SlicePredicate;
@@ -57,7 +56,7 @@ import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TSerializer;
 import org.apache.cassandra.thrift.TBinaryProtocol;
 
-public class RangeSliceCommand implements IReadCommand
+public class RangeSliceCommand
 {
     private static final RangeSliceCommandSerializer serializer = new RangeSliceCommandSerializer();
     
@@ -113,11 +112,6 @@ public class RangeSliceCommand implements IReadCommand
         byte[] bytes = message.getMessageBody();
         ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
         return serializer.deserialize(new DataInputStream(bis));
-    }
-
-    public String getKeyspace()
-    {
-        return keyspace;
     }
 }
 

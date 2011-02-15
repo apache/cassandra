@@ -121,9 +121,4 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
             throw new UnavailableException();
         }
     }
-
-    public boolean isLatencyForSnitch()
-    {
-        return false;
-    }
 }

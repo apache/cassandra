@@ -22,12 +22,12 @@ package org.apache.cassandra.service;
 
 
 import java.net.InetAddress;
-import java.util.List;
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.net.Message;
@@ -44,12 +44,12 @@ public class DatacenterReadCallback<T> extends ReadCallback<T>
     private static final String localdc = snitch.getDatacenter(FBUtilities.getLocalAddress());
     private AtomicInteger localResponses;
     
-    public DatacenterReadCallback(IResponseResolver resolver, ConsistencyLevel consistencyLevel, IReadCommand command, List<InetAddress> endpoints)
+    public DatacenterReadCallback(IResponseResolver<T> resolver, ConsistencyLevel consistencyLevel, String table)
     {
-        super(resolver, consistencyLevel, command, endpoints);
+        super(resolver, consistencyLevel, table);
         localResponses = new AtomicInteger(blockfor);
     }
-
+    
     @Override
     public void response(Message message)
     {
@@ -68,15 +68,14 @@ public class DatacenterReadCallback<T> extends ReadCallback<T>
     @Override
     public void response(ReadResponse result)
     {
-        ((RowDigestResolver) resolver).injectPreProcessed(result);
+        ((ReadResponseResolver) resolver).injectPreProcessed(result);
 
         int n = localResponses.decrementAndGet();
+
         if (n == 0 && resolver.isDataPresent())
         {
             condition.signal();
         }
-
-        maybeResolveForRepair();
     }
     
     @Override
@@ -87,7 +86,7 @@ public class DatacenterReadCallback<T> extends ReadCallback<T>
 	}
 
     @Override
-    public void assureSufficientLiveNodes() throws UnavailableException
+    public void assureSufficientLiveNodes(Collection<InetAddress> endpoints) throws UnavailableException
     {
         int localEndpoints = 0;
         for (InetAddress endpoint : endpoints)

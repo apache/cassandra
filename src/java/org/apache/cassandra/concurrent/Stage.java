@@ -31,8 +31,7 @@ public enum Stage
     ANTI_ENTROPY,
     MIGRATION,
     MISC,
-    INTERNAL_RESPONSE,
-    READ_REPAIR;
+    INTERNAL_RESPONSE;
 
     public String getJmxType()
     {
@@ -48,7 +47,6 @@ public enum Stage
             case MUTATION:
             case READ:
             case REQUEST_RESPONSE:
-            case READ_REPAIR:
                 return "request";
             default:
                 throw new AssertionError("Unknown stage " + this);

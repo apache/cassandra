@@ -282,10 +282,5 @@ public class BootStrapper
             token = StorageService.getPartitioner().getTokenFactory().fromString(new String(msg.getMessageBody(), Charsets.UTF_8));
             condition.signalAll();
         }
-
-        public boolean isLatencyForSnitch()
-        {
-            return false;
-        }
     }
 }
