@@ -71,7 +71,7 @@ public class ConsistencyLevelTest extends CleanupHelper
 
         AbstractReplicationStrategy strategy;
 
-        for (String table : DatabaseDescriptor.getNonSystemTables())
+        for (final String table : DatabaseDescriptor.getNonSystemTables())
         {
             strategy = getStrategy(table, tmd);
             StorageService.calculatePendingRanges(strategy, table);
@@ -96,7 +96,15 @@ public class ConsistencyLevelTest extends CleanupHelper
 
                     IWriteResponseHandler writeHandler = strategy.getWriteResponseHandler(hosts, hintedNodes, c);
 
-                    ReadCallback<Row> readHandler = StorageProxy.getReadCallback(new ReadResponseResolver(table, ByteBufferUtil.bytes("foo")), table, c);
+                    IReadCommand command = new IReadCommand()
+                    {
+                        public String getKeyspace()
+                        {
+                            return table;
+                        }
+                    };
+                    RowRepairResolver resolver = new RowRepairResolver(table, ByteBufferUtil.bytes("foo"));
+                    ReadCallback<Row> readHandler = StorageProxy.getReadCallback(resolver, command, c, new ArrayList<InetAddress>(hintedNodes.keySet()));
 
                     boolean isWriteUnavailable = false;
                     boolean isReadUnavailable = false;
@@ -111,7 +119,7 @@ public class ConsistencyLevelTest extends CleanupHelper
 
                     try
                     {
-                        readHandler.assureSufficientLiveNodes(hintedNodes.asMap().keySet());
+                        readHandler.assureSufficientLiveNodes();
                     }
                     catch (UnavailableException e)
                     {

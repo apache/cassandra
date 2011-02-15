@@ -49,7 +49,6 @@ public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
 
     public RangeSliceResponseResolver(String table, List<InetAddress> sources)
     {
-        assert sources.size() > 0;
         this.sources = sources;
         this.table = table;
     }
@@ -103,8 +102,8 @@ public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
 
             protected Row getReduced()
             {
-                ColumnFamily resolved = ReadResponseResolver.resolveSuperset(versions);
-                ReadResponseResolver.maybeScheduleRepairs(resolved, table, key, versions, versionSources);
+                ColumnFamily resolved = RowRepairResolver.resolveSuperset(versions);
+                RowRepairResolver.maybeScheduleRepairs(resolved, table, key, versions, versionSources);
                 versions.clear();
                 versionSources.clear();
                 return new Row(key, resolved);

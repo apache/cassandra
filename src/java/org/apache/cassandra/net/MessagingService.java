@@ -138,7 +138,7 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public void maybeAddLatency(IMessageCallback cb, InetAddress address, double latency)
     {
-        if (cb instanceof ReadCallback || cb instanceof AsyncResult)
+        if (cb.isLatencyForSnitch())
             addLatency(address, latency);
     }
 

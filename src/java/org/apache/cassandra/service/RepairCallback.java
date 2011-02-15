@@ -39,6 +39,14 @@ public class RepairCallback<T> implements IAsyncCallback
     private final SimpleCondition condition = new SimpleCondition();
     private final long startTime;
 
+    /**
+     * The main difference between this and ReadCallback is, ReadCallback has a ConsistencyLevel
+     * it needs to achieve.  Repair on the other hand is happy to repair whoever replies within the timeout.
+     *
+     * (The other main difference of course is, this is only created once we know we have a digest
+     * mismatch, and we're going to do full-data reads from everyone -- that is, this is the final
+     * stage in the read process.)
+     */
     public RepairCallback(IResponseResolver<T> resolver, List<InetAddress> endpoints)
     {
         this.resolver = resolver;
@@ -46,10 +54,6 @@ public class RepairCallback<T> implements IAsyncCallback
         this.startTime = System.currentTimeMillis();
     }
 
-    /**
-     * The main difference between this and ReadCallback is, ReadCallback has a ConsistencyLevel
-     * it needs to achieve.  Repair on the other hand is happy to repair whoever replies within the timeout.
-     */
     public T get() throws TimeoutException, DigestMismatchException, IOException
     {
         long timeout = DatabaseDescriptor.getRpcTimeout() - (System.currentTimeMillis() - startTime);
@@ -70,5 +74,10 @@ public class RepairCallback<T> implements IAsyncCallback
         resolver.preprocess(message);
         if (resolver.getMessageCount() == endpoints.size())
             condition.signal();
+    }
+
+    public boolean isLatencyForSnitch()
+    {
+        return true;
     }
 }
