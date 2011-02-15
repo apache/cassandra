@@ -1169,4 +1169,9 @@ public class    DatabaseDescriptor
     {
         return conf.reduce_cache_capacity_to;
     }
+
+    public static int getHintedHandoffThrottleDelay()
+    {
+        return conf.hinted_handoff_throttle_delay_in_ms;
+    }
 }
