@@ -30,106 +30,158 @@ keyspaces:
       replication_factor: 1
       column_families:
         - name: Standard1
-          rows_cached: 10
+          rows_cached: 0
           keys_cached: 0
 
         - name: Standard2
+          rows_cached: 0
+          keys_cached: 0
 
         - name: Standard3
-          keys_cached: 0.5
+          rows_cached: 0
+          keys_cached: 0
 
         - name: Standard4
-          keys_cached: 1.0
+          rows_cached: 0
+          keys_cached: 0
 
         - name: StandardLong1
-          compare_with: LongType
+          rows_cached: 0
+          keys_cached: 0
 
         - name: StandardLong2
-          compare_with: LongType
+          rows_cached: 0
+          keys_cached: 0
 
         - name: StandardInteger1
+          rows_cached: 0
+          keys_cached: 0
           compare_with: IntegerType
 
         - name: Super1
           column_type: Super
           compare_subcolumns_with: LongType
-          rows_cached: 1000
+          keys_cached: 0
           keys_cached: 0
 
         - name: Super2
           column_type: Super
           compare_subcolumns_with: LongType
+          rows_cached: 0
+          keys_cached: 0
 
         - name: Super3
           column_type: Super
           compare_subcolumns_with: LongType
+          rows_cached: 0
+          keys_cached: 0
 
         - name: Super4
           column_type: Super
           compare_subcolumns_with: UTF8Type
+          rows_cached: 0
+          keys_cached: 0
 
         - name: Indexed1
           column_metadata:
             - name: birthdate
               validator_class: LongType
               index_type: KEYS
+          rows_cached: 0
+          keys_cached: 0
 
         - name: Indexed2 
           column_metadata:
             - name: birthdate
               validator_class: LongType
               # index will be added dynamically
+          rows_cached: 0
+          keys_cached: 0
 
     - name: Keyspace2
       replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
       replication_factor: 1
       column_families:
         - name: Standard1
+          rows_cached: 0
+          keys_cached: 0
 
         - name: Standard3
+          rows_cached: 0
+          keys_cached: 0
 
         - name: Super3
           column_type: Super
+          rows_cached: 0
+          keys_cached: 0
 
         - name: Super4
           column_type: Super
           compare_subcolumns_with: TimeUUIDType
+          rows_cached: 0
+          keys_cached: 0
 
         - name: Indexed1
           column_metadata:
             - name: birthdate
               validator_class: LongType
               index_type: KEYS
+          rows_cached: 0
+          keys_cached: 0
 
     - name: Keyspace3
       replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
       replication_factor: 5
       column_families:
         - name: Standard1
+          rows_cached: 0
+          keys_cached: 0
 
         - name: Indexed1
           column_metadata:
             - name: birthdate
               validator_class: LongType
               index_type: KEYS
+          rows_cached: 0
+          keys_cached: 0
 
     - name: Keyspace4
       replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
       replication_factor: 3
       column_families:
         - name: Standard1
+          rows_cached: 0
+          keys_cached: 0
 
         - name: Standard3
+          rows_cached: 0
+          keys_cached: 0
 
         - name: Super3
           column_type: Super
+          rows_cached: 0
+          keys_cached: 0
 
         - name: Super4
           column_type: Super
           compare_subcolumns_with: TimeUUIDType
+          rows_cached: 0
+          keys_cached: 0
 
     - name: Keyspace5
       replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
       replication_factor: 2
       column_families:
         - name: Standard1
+          rows_cached: 0
+          keys_cached: 0
+
+    - name: KeyCacheSpace
+      replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
+      replication_factor: 1
+      column_families:
+        - name: Standard1
+          keys_cached: 0.5
+
+        - name: Standard2
+          keys_cached: 1.0

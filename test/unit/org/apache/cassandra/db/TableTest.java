@@ -48,7 +48,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class TableTest extends CleanupHelper
 {
-    private static final DecoratedKey KEY2 = Util.dk("key2");
     private static final DecoratedKey TEST_KEY = Util.dk("key1");
     private static final DecoratedKey TEST_SLICE_KEY = Util.dk("key1-slicerange");
 
@@ -396,11 +395,13 @@ public class TableTest extends CleanupHelper
         cfStore.forceBlockingFlush();
 
         validateSliceLarge(cfStore);
+
         // compact so we have a big row with more than the minimum index count
         if (cfStore.getSSTables().size() > 1)
         {
             CompactionManager.instance.performMajor(cfStore);
         }
+        // verify that we do indeed have multiple index entries
         SSTableReader sstable = cfStore.getSSTables().iterator().next();
         long position = sstable.getPosition(key, SSTableReader.Operator.EQ);
         BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.getFilename(), "r");
@@ -410,6 +411,7 @@ public class TableTest extends CleanupHelper
         IndexHelper.skipBloomFilter(file);
         ArrayList<IndexHelper.IndexInfo> indexes = IndexHelper.deserializeIndex(file);
         assert indexes.size() > 2;
+
         validateSliceLarge(cfStore);
     }
 
