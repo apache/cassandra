@@ -246,13 +246,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Set<DecoratedKey> keys = new TreeSet<DecoratedKey>();
         if (path.exists())
         {
-            ObjectInputStream in = null;
+            DataInputStream in = null;
             try
             {
                 long start = System.currentTimeMillis();
 
                 logger.info(String.format("reading saved cache %s", path));
-                in = new ObjectInputStream(new BufferedInputStream(new FileInputStream(path)));
+                in = new DataInputStream(new BufferedInputStream(new FileInputStream(path)));
                 while (in.available() > 0)
                 {
                     int size = in.readInt();

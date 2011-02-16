@@ -2,7 +2,7 @@
  * Keep endpoint state until aVeryLongTime (CASSANDRA-2115)
  * lower-latency read repair (CASSANDRA-2069)
  * add hinted_handoff_throttle_delay_in_ms option (CASSANDRA-2161)
- * don't save empty caches (CASSANDRA-2172)
+ * fixes for cache save/load (CASSANDRA-2172, -2174)
 
 
 0.7.2
