@@ -64,6 +64,14 @@ public class CacheWriter<K, V> implements ICompactionInfo
     public void saveCache() throws IOException
     {
         long start = System.currentTimeMillis();
+
+        if (keys.size() == 0 || estimatedTotalBytes == 0)
+        {
+            logger.debug("Deleting {} (cache is empty)");
+            path.delete();
+            return;
+        }
+
         logger.debug("Saving {}", path);
         File tmpFile = File.createTempFile(path.getName(), null, path.getParentFile());
 
