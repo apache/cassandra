@@ -157,6 +157,15 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             {
                 return false;
             }
+
+            try
+            {
+                Thread.sleep(DatabaseDescriptor.getHintedHandoffThrottleDelay());
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
         }
         return true;
     }

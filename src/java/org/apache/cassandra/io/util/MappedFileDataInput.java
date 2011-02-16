@@ -118,7 +118,7 @@ public class MappedFileDataInput extends AbstractDataInput implements FileDataIn
         assert length <= remaining
                 : String.format("mmap segment underflow; remaining is %d but %d requested", remaining, length);
 
-        ByteBuffer bytes = buffer.slice();
+        ByteBuffer bytes = buffer.duplicate();
         bytes.position(buffer.position() + position).limit(buffer.position() + position + length);
         position += length;
 
