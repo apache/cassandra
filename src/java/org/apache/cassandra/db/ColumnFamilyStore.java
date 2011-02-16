@@ -55,6 +55,7 @@ import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.*;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
@@ -125,6 +126,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private final EstimatedHistogram sstablesPerRead = new EstimatedHistogram(35);
 
     public final CFMetaData metadata;
+
+    private static final int INTERN_CUTOFF = 256;
+    public final ConcurrentMap<ByteBuffer, ByteBuffer> internedNames = new NonBlockingHashMap<ByteBuffer, ByteBuffer>();
 
     /* These are locally held copies to be changed from the config during runtime */
     private volatile DefaultInteger minCompactionThreshold;
@@ -1152,47 +1156,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if ((cached = ssTables.getRowCache().get(key)) == null)
         {
             cached = getTopLevelColumns(QueryFilter.getIdentityFilter(key, new QueryPath(columnFamily)), Integer.MIN_VALUE);
-
             if (cached == null)
-            {
                 return null;
-            }
 
-            /**
-             *  checking if name or value of the column don't have backing array
-             *  if found then removing column and storing deep copy instead
-             *  because we don't want to put such columns to the cache
-             */
+            // make a deep copy of column data so we don't keep references to direct buffers, which
+            // would prevent munmap post-compaction.
             for (IColumn column : cached.getSortedColumns())
             {
-                // for Super CF checking only name
-                if (cached.isSuper())
-                {
-                    // if name of the super column is DirectBuffer then copying whole column
-                    if (!column.name().hasArray())
-                    {
-                        cached.deepCopyColumn(column);
-                    }
-                    // checking if sub-columns also have DirectBuffer as name or value
-                    else
-                    {
-                        SuperColumn superColumn = (SuperColumn) column;
-
-                        for (IColumn subColumn : column.getSubColumns())
-                        {
-                            if (!subColumn.name().hasArray() || !subColumn.value().hasArray())
-                            {
-                                superColumn.remove(subColumn.name());
-                                superColumn.addColumn(subColumn.deepCopy());
-                            }
-                        }
-                    }
-                }
-                // for Standard checking name and value
-                else if (!column.name().hasArray() || !column.value().hasArray())
-                {
-                    cached.deepCopyColumn(column);
-                }
+                cached.remove(column.name());
+                cached.addColumn(column.localCopy(this));
             }
 
             // avoid keeping a permanent reference to the original key buffer
@@ -2149,5 +2121,34 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                       columnFamily, ssTables.getKeyCache().getCapacity(), newCapacity));
             ssTables.getKeyCache().setCapacity(newCapacity);
         }
+    }
+
+    private ByteBuffer intern(ByteBuffer name)
+    {
+        ByteBuffer internedName = internedNames.get(name);
+        if (internedName == null)
+        {
+            internedName = ByteBufferUtil.clone(name);
+            ByteBuffer concurrentName = internedNames.putIfAbsent(internedName, internedName);
+            if (concurrentName != null)
+                internedName = concurrentName;
+        }
+        return internedName;
+    }
+
+    public ByteBuffer internOrCopy(ByteBuffer name)
+    {
+        if (internedNames.size() >= INTERN_CUTOFF)
+            return ByteBufferUtil.clone(name);
+
+        return intern(name);
+    }
+
+    public ByteBuffer maybeIntern(ByteBuffer name)
+    {
+        if (internedNames.size() >= INTERN_CUTOFF)
+            return name;
+
+        return intern(name);
     }
 }

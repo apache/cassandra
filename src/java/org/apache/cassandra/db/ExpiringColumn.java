@@ -108,9 +108,9 @@ public class ExpiringColumn extends Column
     }
 
     @Override
-    public IColumn deepCopy()
+    public IColumn localCopy(ColumnFamilyStore cfs)
     {
-        return new ExpiringColumn(ByteBufferUtil.clone(name), ByteBufferUtil.clone(value), timestamp, timeToLive, localExpirationTime);
+        return new ExpiringColumn(cfs.internOrCopy(name), ByteBufferUtil.clone(value), timestamp, timeToLive, localExpirationTime);
     }
     
     @Override

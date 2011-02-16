@@ -171,30 +171,9 @@ public class CounterMutation implements IMutation
         for (ColumnFamily cf_ : rowMutation.getColumnFamilies())
         {
             ColumnFamily cf = cf_.cloneMeShallow();
-            if (cf_.isSuper())
+            for (IColumn column : cf_.getColumnsMap().values())
             {
-                for (IColumn column : cf_.getSortedColumns())
-                {
-                    IColumn sc = ((SuperColumn)column).shallowCopy();
-                    for (IColumn c : column.getSubColumns())
-                    {
-                        if (c instanceof CounterUpdateColumn)
-                            sc.addColumn(((CounterUpdateColumn) c).asCounterColumn());
-                        else
-                            sc.addColumn(c.deepCopy());
-                    }
-                    cf.addColumn(sc);
-                }
-            }
-            else
-            {
-                for (IColumn column : cf_.getSortedColumns())
-                {
-                    if (column instanceof CounterUpdateColumn)
-                        cf.addColumn(((CounterUpdateColumn) column).asCounterColumn());
-                    else
-                        cf.addColumn(column.deepCopy());
-                }
+                cf.addColumn(column.localCopy(null)); // TODO fix this
             }
             rm.add(cf);
         }

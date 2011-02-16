@@ -32,6 +32,7 @@ import org.apache.commons.lang.ArrayUtils;
 
 import org.junit.Test;
 
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.*;
@@ -39,7 +40,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class CounterColumnTest
+public class CounterColumnTest extends SchemaLoader
 {
     private static final CounterContext cc = new CounterContext();
 
@@ -67,7 +68,7 @@ public class CounterColumnTest
             ByteBufferUtil.bytes("x"),
             ByteBufferUtil.bytes(delta),
             1L);
-        CounterColumn column = cuc.asCounterColumn();
+        CounterColumn column = cuc.localCopy(Table.open("Keyspace5").getColumnFamilyStore("Counter1"));
 
         assert delta == column.total();
         assert Arrays.equals(FBUtilities.getLocalAddress().getAddress(), ArrayUtils.subarray(column.value().array(), 0, idLength));

@@ -215,9 +215,9 @@ public class Column implements IColumn
         return result;
     }
 
-    public IColumn deepCopy()
+    public IColumn localCopy(ColumnFamilyStore cfs)
     {
-        return new Column(ByteBufferUtil.clone(name), ByteBufferUtil.clone(value), timestamp);
+        return new Column(cfs.internOrCopy(name), ByteBufferUtil.clone(value), timestamp);
     }
     
     public String getString(AbstractType comparator)

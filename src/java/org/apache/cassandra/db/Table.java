@@ -148,7 +148,15 @@ public class Table
         Integer id = CFMetaData.getId(name, cfName);
         if (id == null)
             throw new IllegalArgumentException(String.format("Unknown table/cf pair (%s.%s)", name, cfName));
-        return columnFamilyStores.get(id);
+        return getColumnFamilyStore(id);
+    }
+
+    public ColumnFamilyStore getColumnFamilyStore(Integer id)
+    {
+        ColumnFamilyStore cfs = columnFamilyStores.get(id);
+        if (cfs == null)
+            throw new IllegalArgumentException("Unknown CF " + id);
+        return cfs;
     }
 
     /**
@@ -255,6 +263,7 @@ public class Table
     {
         name = table;
         KSMetaData ksm = DatabaseDescriptor.getKSMetaData(table);
+        assert ksm != null : "Unknown keyspace " + table;
         try
         {
             createReplicationStrategy(ksm);

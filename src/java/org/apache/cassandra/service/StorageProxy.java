@@ -330,7 +330,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             public void runMayThrow() throws IOException
             {
-                rm.deepCopy().apply();
+                rm.localCopy().apply();
                 responseHandler.response(null);
             }
         };

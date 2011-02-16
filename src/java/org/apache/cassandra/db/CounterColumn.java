@@ -154,13 +154,9 @@ public class CounterColumn extends Column
     }
 
     @Override
-    public IColumn deepCopy()
+    public IColumn localCopy(ColumnFamilyStore cfs)
     {
-        return new CounterColumn(
-            ByteBufferUtil.clone(name),
-            ByteBufferUtil.clone(value),
-            timestamp,
-            timestampOfLastDelete);
+        return new CounterColumn(cfs.internOrCopy(name), ByteBufferUtil.clone(value), timestamp, timestampOfLastDelete);
     }
 
     @Override

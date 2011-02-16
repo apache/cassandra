@@ -420,7 +420,7 @@ public class SSTableWriter extends SSTable
                 // deserialize CF
                 ColumnFamily cf = ColumnFamily.create(desc.ksname, desc.cfname);
                 ColumnFamily.serializer().deserializeFromSSTableNoColumns(cf, dfile);
-                ColumnFamily.serializer().deserializeColumns(dfile, cf);
+                ColumnFamily.serializer().deserializeColumns(dfile, cf, false);
                 rowSizes.add(dataSize);
                 columnCounts.add(cf.getEstimatedColumnCount());
 

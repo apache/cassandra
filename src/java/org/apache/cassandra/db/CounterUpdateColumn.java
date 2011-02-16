@@ -42,15 +42,6 @@ public class CounterUpdateColumn extends Column
         super(name, value, timestamp);
     }
 
-    public CounterColumn asCounterColumn()
-    {
-        return new CounterColumn(
-                ByteBufferUtil.clone(name()),
-                CounterContext.instance().create(delta()),
-                timestamp(),
-                Long.MIN_VALUE);
-    }
-
     public long delta()
     {
         return value().getLong(value().position());
@@ -87,8 +78,11 @@ public class CounterUpdateColumn extends Column
     }
 
     @Override
-    public IColumn deepCopy()
+    public CounterColumn localCopy(ColumnFamilyStore cfs)
     {
-        return new CounterUpdateColumn(ByteBufferUtil.clone(name), ByteBufferUtil.clone(value), timestamp);
+        return new CounterColumn(cfs.internOrCopy(name),
+                                 CounterContext.instance().create(delta()),
+                                 timestamp(),
+                                 Long.MIN_VALUE);
     }
 }

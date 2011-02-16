@@ -22,6 +22,7 @@ package org.apache.cassandra.db;
 
 
 import java.io.DataInput;
+import java.io.DataInputStream;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Collection;
@@ -31,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.utils.Pair;
 
 public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
 {
@@ -108,6 +110,11 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
 
     public ColumnFamily deserialize(DataInput dis) throws IOException
     {
+        return deserialize(dis, false);
+    }
+
+    public ColumnFamily deserialize(DataInput dis, boolean intern) throws IOException
+    {
         if (!dis.readBoolean())
             return null;
 
@@ -117,16 +124,17 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
             throw new UnserializableColumnFamilyException("Couldn't find cfId=" + cfId, cfId);
         ColumnFamily cf = ColumnFamily.create(cfId);
         deserializeFromSSTableNoColumns(cf, dis);
-        deserializeColumns(dis, cf);
+        deserializeColumns(dis, cf, intern);
         return cf;
     }
 
-    public void deserializeColumns(DataInput dis, ColumnFamily cf) throws IOException
+    public void deserializeColumns(DataInput dis, ColumnFamily cf, boolean intern) throws IOException
     {
         int size = dis.readInt();
+        ColumnFamilyStore interner = intern ? Table.open(CFMetaData.getCF(cf.id()).left).getColumnFamilyStore(cf.id()) : null;
         for (int i = 0; i < size; ++i)
         {
-            IColumn column = cf.getColumnSerializer().deserialize(dis);
+            IColumn column = cf.getColumnSerializer().deserialize(dis, interner);
             cf.addColumn(column);
         }
     }

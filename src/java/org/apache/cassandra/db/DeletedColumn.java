@@ -66,9 +66,9 @@ public class DeletedColumn extends Column
     }
     
     @Override
-    public IColumn deepCopy()
+    public IColumn localCopy(ColumnFamilyStore cfs)
     {
-        return new DeletedColumn(ByteBufferUtil.clone(name), ByteBufferUtil.clone(value), timestamp);
+        return new DeletedColumn(cfs.internOrCopy(name), ByteBufferUtil.clone(value), timestamp);
     }
 
     @Override

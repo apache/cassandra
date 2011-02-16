@@ -315,16 +315,18 @@ public class RowMutation implements IMutation, MessageProducer
         return rm;
     }
 
-    public RowMutation deepCopy()
+    public RowMutation localCopy()
     {
         RowMutation rm = new RowMutation(table_, ByteBufferUtil.clone(key_));
 
-        for (Map.Entry<Integer, ColumnFamily> e : modifications_.entrySet())
+        Table table = Table.open(table_);
+        for (Map.Entry<Integer, ColumnFamily> entry : modifications_.entrySet())
         {
-            ColumnFamily cf = e.getValue().cloneMeShallow();
-            for (Map.Entry<ByteBuffer, IColumn> ce : e.getValue().getColumnsMap().entrySet())
-                cf.addColumn(ce.getValue().deepCopy());
-            rm.modifications_.put(e.getKey(), cf);
+            ColumnFamily cf = entry.getValue().cloneMeShallow();
+            ColumnFamilyStore cfs = table.getColumnFamilyStore(cf.id());
+            for (Map.Entry<ByteBuffer, IColumn> ce : entry.getValue().getColumnsMap().entrySet())
+                cf.addColumn(ce.getValue().localCopy(cfs));
+            rm.modifications_.put(entry.getKey(), cf);
         }
 
         return rm;
@@ -359,7 +361,7 @@ public class RowMutation implements IMutation, MessageProducer
             for (int i = 0; i < size; ++i)
             {
                 Integer cfid = Integer.valueOf(dis.readInt());
-                ColumnFamily cf = ColumnFamily.serializer().deserialize(dis);
+                ColumnFamily cf = ColumnFamily.serializer().deserialize(dis, true);
                 modifications.put(cfid, cf);
             }
             return new RowMutation(table, key, modifications);
