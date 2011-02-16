@@ -32,6 +32,7 @@ public enum Stage
     MIGRATION,
     MISC,
     INTERNAL_RESPONSE,
+    READ_REPAIR,
     REPLICATE_ON_WRITE;
 
     public String getJmxType()
@@ -49,6 +50,7 @@ public enum Stage
             case READ:
             case REQUEST_RESPONSE:
             case REPLICATE_ON_WRITE:
+            case READ_REPAIR:
                 return "request";
             default:
                 throw new AssertionError("Unknown stage " + this);

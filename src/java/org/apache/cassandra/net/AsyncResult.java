@@ -96,6 +96,11 @@ class AsyncResult implements IAsyncResult
         }        
     }
 
+    public boolean isLatencyForSnitch()
+    {
+        return false;
+    }
+
     public InetAddress getFrom()
     {
         return from;
