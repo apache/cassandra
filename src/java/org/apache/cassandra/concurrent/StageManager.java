@@ -50,7 +50,7 @@ public class StageManager
         stages.put(Stage.ANTI_ENTROPY, new JMXEnabledThreadPoolExecutor(Stage.ANTI_ENTROPY));
         stages.put(Stage.MIGRATION, new JMXEnabledThreadPoolExecutor(Stage.MIGRATION));
         stages.put(Stage.MISC, new JMXEnabledThreadPoolExecutor(Stage.MISC));
-        stages.put(Stage.READ_REPAIR, multiThreadedStage(Stage.READ_REPAIR, Runtime.getRuntime().availableProcessors()));
+        stages.put(Stage.READ_REPAIR, multiThreadedStage(Stage.READ_REPAIR, Math.max(2, Runtime.getRuntime().availableProcessors())));
     }
 
     private static ThreadPoolExecutor multiThreadedStage(Stage stage, int numThreads)
