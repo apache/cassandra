@@ -127,6 +127,9 @@ if options.nodefile != None:
     with open(options.nodefile) as f:
         nodes = [n.strip() for n in f.readlines() if len(n.strip()) > 0]
 
+#format string for keys
+fmt = '%0' + str(len(str(total_keys))) + 'd'
+
 # a generator that generates all keys according to a bell curve centered
 # around the middle of the keys generated (0..total_keys).  Remember that
 # about 68% of keys will be within stdev away from the mean and 
@@ -148,7 +151,6 @@ def generate_values():
     return values
 
 def key_generator_gauss():
-    fmt = '%0' + str(len(str(total_keys))) + 'd'
     while True:
         guess = gauss(mean, stdev)
         if 0 <= guess < total_keys:
@@ -157,7 +159,6 @@ def key_generator_gauss():
 # a generator that will generate all keys w/ equal probability.  this is the
 # worst case for caching.
 def key_generator_random():
-    fmt = '%0' + str(len(str(total_keys))) + 'd'
     return fmt % randint(0, total_keys - 1)
 
 key_generator = key_generator_gauss
@@ -220,7 +221,6 @@ class Inserter(Operation):
     def run(self):
         values = generate_values()
         columns = [Column('C' + str(j), 'unset', time.time() * 1000000) for j in xrange(columns_per_key)]
-        fmt = '%0' + str(len(str(total_keys))) + 'd'
         if 'super' == options.cftype:
             supers = [SuperColumn('S' + str(j), columns) for j in xrange(supers_per_key)]
         for i in self.range:
@@ -295,7 +295,6 @@ class RangeSlicer(Operation):
         end = self.range[-1]
         current = begin
         last = current + options.rangecount
-        fmt = '%0' + str(len(str(total_keys))) + 'd'
         p = SlicePredicate(slice_range=SliceRange('', '', False, columns_per_key))
         if 'super' == options.cftype:
             while current < end:
@@ -348,7 +347,6 @@ class RangeSlicer(Operation):
 # from the thread's appointed range
 class IndexedRangeSlicer(Operation):
     def run(self):
-        fmt = '%0' + str(len(str(total_keys))) + 'd'
         p = SlicePredicate(slice_range=SliceRange('', '', False, columns_per_key))
         values = generate_values()
         parent = ColumnParent('Standard1')

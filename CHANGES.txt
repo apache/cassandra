@@ -5,6 +5,7 @@
  * fixes for cache save/load (CASSANDRA-2172, -2174)
  * Handle whole-row deletions in CFOutputFormat (CASSANDRA-2014)
  * Make memtable_flush_writers flush in parallel (CASSANDRA-2178)
+ * refactor stress.py to have only one copy of the format string used for creating row keys (CASSANDRA-2108)
 
 
 0.7.2
