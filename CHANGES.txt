@@ -83,6 +83,7 @@
  * bound hints CF throughput between 32M and 256M (CASSANDRA-2148)
  * continue starting when invalid saved cache entries are encountered
    (CASSANDRA-2076)
+ * add max_hint_window_in_ms option (CASSANDRA-1459)
 
 
 0.7.0-final
