@@ -107,6 +107,7 @@ public class Config
     public Double reduce_cache_sizes_at = 1.0;
     public double reduce_cache_capacity_to = 0.6;
     public int hinted_handoff_throttle_delay_in_ms = 0;
+    public boolean compaction_preheat_key_cache = true;
 
     public static enum CommitLogSync {
         periodic,
