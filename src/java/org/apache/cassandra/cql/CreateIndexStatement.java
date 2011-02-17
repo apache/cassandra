@@ -20,7 +20,35 @@
  */
 package org.apache.cassandra.cql;
 
-public enum StatementType
+/** A <code>CREATE INDEX</code> statement parsed from a CQL query. */
+public class CreateIndexStatement
 {
-    SELECT, UPDATE, BATCH_UPDATE, USE, TRUNCATE, DELETE, CREATE_KEYSPACE, CREATE_COLUMNFAMILY, CREATE_INDEX;
+    private final String columnFamily;
+    private final String indexName;
+    private final Term columnName;
+    
+    public CreateIndexStatement(String indexName, String columnFamily, Term columnName)
+    {
+        this.indexName = indexName;
+        this.columnFamily = columnFamily;
+        this.columnName = columnName;
+    }
+    
+    /** Column family namespace. */
+    public String getColumnFamily()
+    {
+        return columnFamily;
+    }
+    
+    /** Column name to index. */
+    public Term getColumnName()
+    {
+        return columnName;
+    }
+    
+    /** Index name (or null). */
+    public String getIndexName()
+    {
+        return indexName;
+    }
 }

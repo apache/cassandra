@@ -35,13 +35,18 @@ import org.slf4j.LoggerFactory;
 import org.antlr.runtime.*;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.migration.AddColumnFamily;
 import org.apache.cassandra.db.migration.AddKeyspace;
 import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.db.migration.UpdateColumnFamily;
+import org.apache.cassandra.db.migration.avro.CfDef;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -584,6 +589,65 @@ public class QueryProcessor
                 avroResult.type = CqlResultType.VOID;
                 return avroResult;
                 
+            case CREATE_INDEX:
+                CreateIndexStatement createIdx = (CreateIndexStatement)statement.statement;
+                CFMetaData oldCfm = DatabaseDescriptor.getCFMetaData(CFMetaData.getId(keyspace,
+                                                                                      createIdx.getColumnFamily()));
+                if (oldCfm == null)
+                    throw new InvalidRequestException("No such column family: " + createIdx.getColumnFamily());
+                
+                ByteBuffer columnName = createIdx.getColumnName().getByteBuffer();
+                ColumnDefinition columnDef = oldCfm.getColumn_metadata().get(columnName);
+                
+                // Meta-data for this column already exists
+                if (columnDef != null)
+                {
+                    // This column is already indexed, stop, drop, and roll.
+                    if (columnDef.getIndexType() != null)
+                        throw new InvalidRequestException("Index exists");
+                    // Add index attrs to the existing definition
+                    columnDef.setIndexName(createIdx.getIndexName());
+                    columnDef.setIndexType(org.apache.cassandra.thrift.IndexType.KEYS);
+                }
+                // No meta-data, create a new column definition from scratch.
+                else
+                {
+                    try
+                    {
+                        columnDef = new ColumnDefinition(columnName,
+                                                         null,
+                                                         org.apache.cassandra.thrift.IndexType.KEYS,
+                                                         createIdx.getIndexName());
+                    }
+                    catch (ConfigurationException e)
+                    {
+                        // This should never happen
+                        throw new RuntimeException("Unexpected error creating ColumnDefinition", e);
+                    }
+                }
+                
+                CfDef cfamilyDef = CFMetaData.convertToAvro(oldCfm);
+                cfamilyDef.column_metadata.add(columnDef.deflate());
+                
+                try
+                {
+                    applyMigrationOnStage(new UpdateColumnFamily(cfamilyDef));
+                }
+                catch (ConfigurationException e)
+                {
+                    InvalidRequestException ex = new InvalidRequestException(e.toString());
+                    ex.initCause(e);
+                    throw ex;
+                }
+                catch (IOException e)
+                {
+                    InvalidRequestException ex = new InvalidRequestException(e.toString());
+                    ex.initCause(e);
+                    throw ex;
+                }
+                
+                avroResult.type = CqlResultType.VOID;
+                return avroResult;
         }
         
         return null;    // We should never get here.

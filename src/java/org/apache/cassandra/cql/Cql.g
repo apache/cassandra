@@ -64,6 +64,7 @@ query returns [CQLStatement stmnt]
     | deleteStatement   { $stmnt = new CQLStatement(StatementType.DELETE, $deleteStatement.expr); }
     | createKeyspaceStatement { $stmnt = new CQLStatement(StatementType.CREATE_KEYSPACE, $createKeyspaceStatement.expr); }
     | createColumnFamilyStatement { $stmnt = new CQLStatement(StatementType.CREATE_COLUMNFAMILY, $createColumnFamilyStatement.expr); }
+    | createIndexStatement { $stmnt = new CQLStatement(StatementType.CREATE_INDEX, $createIndexStatement.expr); }
     ;
 
 // USE <KEYSPACE>;
@@ -242,6 +243,12 @@ createCfamKeywordArgument returns [String arg]
     | value=( STRING_LITERAL | INTEGER | FLOAT ) { $arg = $value.text; }
     ;
 
+/** CREATE INDEX [indexName] ON columnFamily (columnName); */
+createIndexStatement returns [CreateIndexStatement expr]
+    : K_CREATE K_INDEX (idxName=IDENT)? K_ON cf=IDENT '(' columnName=term ')' endStmnt
+      { $expr = new CreateIndexStatement($idxName.text, $cf.text, columnName); }
+    ;
+
 comparatorType
     : 'bytes' | 'ascii' | 'utf8' | 'int' | 'long' | 'uuid' | 'timeuuid'
     ;
@@ -323,6 +330,8 @@ K_IN:          I N;
 K_CREATE:      C R E A T E;
 K_KEYSPACE:    K E Y S P A C E;
 K_COLUMNFAMILY: C O L U M N F A M I L Y;
+K_INDEX:       I N D E X;
+K_ON:          O N;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');
