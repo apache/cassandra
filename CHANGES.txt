@@ -3,7 +3,7 @@
  * lower-latency read repair (CASSANDRA-2069)
  * add hinted_handoff_throttle_delay_in_ms option (CASSANDRA-2161)
  * fixes for cache save/load (CASSANDRA-2172, -2174)
-
+ * Make memtable_flush_writers flush in parallel (CASSANDRA-2178)
 
 0.7.2
  * copy DecoratedKey.key when inserting into caches to avoid retaining
