@@ -175,7 +175,7 @@ public class CounterMutation implements IMutation
             ColumnFamilyStore cfs = table.getColumnFamilyStore(cf.id());
             for (IColumn column : cf_.getColumnsMap().values())
             {
-                cf.addColumn(column.localCopy(null)); // TODO fix this
+                cf.addColumn(column.localCopy(cfs));
             }
             rm.add(cf);
         }
