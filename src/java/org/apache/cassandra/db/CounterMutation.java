@@ -167,10 +167,12 @@ public class CounterMutation implements IMutation
         // We need to transform all CounterUpdateColumn to CounterColumn and we need to deepCopy. Both are done 
         // below since CUC.asCounterColumn() does a deep copy.
         RowMutation rm = new RowMutation(rowMutation.getTable(), ByteBufferUtil.clone(rowMutation.key()));
+        Table table = Table.open(rm.getTable());
 
         for (ColumnFamily cf_ : rowMutation.getColumnFamilies())
         {
             ColumnFamily cf = cf_.cloneMeShallow();
+            ColumnFamilyStore cfs = table.getColumnFamilyStore(cf.id());
             for (IColumn column : cf_.getColumnsMap().values())
             {
                 cf.addColumn(column.localCopy(null)); // TODO fix this
