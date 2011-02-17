@@ -143,7 +143,38 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
     {
         Mutation mutation = new Mutation();
         org.apache.cassandra.avro.ColumnOrSuperColumn acosc = amut.column_or_supercolumn;
-        if (acosc != null)
+        if (acosc == null)
+        {
+            // deletion
+            assert amut.deletion != null;
+            Deletion deletion = new Deletion(amut.deletion.timestamp);
+            mutation.setDeletion(deletion);
+
+            org.apache.cassandra.avro.SlicePredicate apred = amut.deletion.predicate;
+            if (apred == null && amut.deletion.super_column == null)
+            {
+                // leave Deletion alone to delete entire row
+            }
+            else if (amut.deletion.super_column != null)
+            {
+                // super column
+                deletion.setSuper_column(ByteBufferUtil.getArray(amut.deletion.super_column));
+            }
+            else if (apred.column_names != null)
+            {
+                // column names
+                List<ByteBuffer> names = new ArrayList<ByteBuffer>(apred.column_names.size());
+                for (ByteBuffer name : apred.column_names)
+                    names.add(name);
+                deletion.setPredicate(new SlicePredicate().setColumn_names(names));
+            }
+            else
+            {
+                // range
+                deletion.setPredicate(new SlicePredicate().setSlice_range(avroToThrift(apred.slice_range)));
+            }
+        }
+        else
         {
             // creation
             ColumnOrSuperColumn cosc = new ColumnOrSuperColumn();
@@ -159,29 +190,6 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
                 for (org.apache.cassandra.avro.Column acol : acosc.super_column.columns)
                     scolcols.add(avroToThrift(acol));
                 cosc.setSuper_column(new SuperColumn(scolname, scolcols));
-            }
-        }
-        else
-        {
-            // deletion
-            Deletion deletion = new Deletion(amut.deletion.timestamp);
-            mutation.setDeletion(deletion);
-            org.apache.cassandra.avro.SlicePredicate apred = amut.deletion.predicate;
-            if (amut.deletion.super_column != null)
-                // super column
-                deletion.setSuper_column(ByteBufferUtil.getArray(amut.deletion.super_column));
-            else if (apred.column_names != null)
-            {
-                // column names
-                List<ByteBuffer> names = new ArrayList<ByteBuffer>(apred.column_names.size());
-                for (ByteBuffer name : apred.column_names)
-                    names.add(name);
-                deletion.setPredicate(new SlicePredicate().setColumn_names(names));
-            }
-            else
-            {
-                // range
-                deletion.setPredicate(new SlicePredicate().setSlice_range(avroToThrift(apred.slice_range)));
             }
         }
         return mutation;
