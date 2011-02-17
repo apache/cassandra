@@ -4,6 +4,8 @@
  * update commitlog replay to catch bogus RowMutation lengths caused
    by unclean shutdown (CASSANDRA-2128)
  * add -Dhinted_handoff_throttle option (CASSANDRA-2161)
+ * make key cache preheating default to false; enable with
+   -Dcompaction_preheat_key_cache=true (CASSANDRA-2175)
 
 
 0.6.11

@@ -282,6 +282,7 @@ public class CompactionManager implements CompactionManagerMBean
         executor.beginCompaction(cfs, ci);
 
         Map<DecoratedKey, SSTable.PositionSize> cachedKeys = new HashMap<DecoratedKey, SSTable.PositionSize>();
+        boolean preheatKeyCache = Boolean.getBoolean("compaction_preheat_key_cache");
 
         try
         {
@@ -309,12 +310,15 @@ public class CompactionManager implements CompactionManagerMBean
                     logger.warn("Large row " + row.key.key + " in " + cfs.getColumnFamilyName() + " " + rowsize + " bytes");
                 cfs.addToCompactedRowStats(rowsize);
 
-                for (SSTableReader sstable : sstables)
+                if (preheatKeyCache)
                 {
-                    if (sstable.getCachedPosition(row.key) != null)
+                    for (SSTableReader sstable : sstables)
                     {
-                        cachedKeys.put(row.key, new SSTable.PositionSize(prevpos, rowsize));
-                        break;
+                        if (sstable.getCachedPosition(row.key) != null)
+                        {
+                            cachedKeys.put(row.key, new SSTable.PositionSize(prevpos, rowsize));
+                            break;
+                        }
                     }
                 }
             }
@@ -326,7 +330,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         SSTableReader ssTable = writer.closeAndOpenReader();
         cfs.replaceCompactedSSTables(sstables, Arrays.asList(ssTable));
-        for (Entry<DecoratedKey, SSTable.PositionSize> entry : cachedKeys.entrySet())
+        for (Entry<DecoratedKey, SSTable.PositionSize> entry : cachedKeys.entrySet()) // empty if preheat is off
             ssTable.cacheKey(entry.getKey(), entry.getValue());
         submitMinorIfNeeded(cfs);
 
