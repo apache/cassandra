@@ -308,6 +308,29 @@ class TestCql(ThriftTester):
         for coldef in cfam.column_metadata:
             assert coldef.name in ("a", "b"), "Unknown column name"
             assert coldef.validation_class.endswith("marshal.IntegerType")
+            
+    def test_create_indexs(self):
+        "creating column indexes"
+        conn = init()
+        conn.execute("USE Keyspace1")
+        conn.execute("CREATE COLUMNFAMILY CreateIndex1")
+        conn.execute("CREATE INDEX namedIndex ON CreateIndex1 (\"items\")")
+        conn.execute("CREATE INDEX ON CreateIndex1 (\"stuff\")")
+        
+        # TODO: temporary (until this can be done with CQL).
+        ksdef = thrift_client.describe_keyspace("Keyspace1")
+        cfam = [i for i in ksdef.cf_defs if i.name == "CreateIndex1"][0]
+        items = [i for i in cfam.column_metadata if i.name == "items"][0]
+        stuff = [i for i in cfam.column_metadata if i.name == "stuff"][0]
+        assert items.index_name == "namedIndex", "missing index (or name)"
+        assert items.index_type == 0, "missing index"
+        assert not stuff.index_name, \
+            "index_name should be unset, not %s" % stuff.index_name
+        assert stuff.index_type == 0, "missing index"
+
+        assert_raises(CQLException,
+                      conn.execute,
+                      "CREATE INDEX ON CreateIndex1 (\"stuff\")")
 
     def test_time_uuid(self):
         "store and retrieve time-based (type 1) uuids"
