@@ -227,6 +227,14 @@ A number of optional keyword arguments can be supplied to control the configurat
 |memtable_operations_in_millions|dynamic|Number of operations in millions before the memtable is flushed.|
 |replicate_on_write|false| |
 
+h2. CREATE INDEX
+
+_Synopsis:_
+
+bc. CREATE INDEX [index_name] ON <column_family> (column_name);
+
+A @CREATE INDEX@ statement is used to create a new, automatic secondary index for the named column.
+
 h2. Common Idioms
 
 h3(#consistency). Specifying Consistency
