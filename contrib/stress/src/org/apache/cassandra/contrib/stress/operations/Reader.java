@@ -22,6 +22,7 @@ import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import java.io.IOException;
 import java.lang.AssertionError;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -61,7 +62,8 @@ public class Reader extends OperationThread
     {
         for (int i = 0; i < session.getKeysPerThread(); i++)
         {
-            ByteBuffer key = ByteBuffer.wrap(generateKey());
+            byte[] rawKey = generateKey();
+            ByteBuffer key = ByteBuffer.wrap(rawKey);
 
             for (int j = 0; j < session.getSuperColumns(); j++)
             {
@@ -70,32 +72,36 @@ public class Reader extends OperationThread
 
                 long start = System.currentTimeMillis();
 
-                try
-                {
-                    List<ColumnOrSuperColumn> columns;
-                    columns = client.get_slice(key, parent, predicate, session.getConsistencyLevel());
+                boolean success = false;
+                String exceptionMessage = null;
 
-                    if (columns.size() == 0)
-                    {
-                        System.err.printf("Key %s not found in Super Column %s.%n", ByteBufferUtil.string(key), superColumn);
-
-                        if (!session.ignoreErrors())
-                            break;
-                    }
-                }
-                catch (Exception e)
+                for (int t = 0; t < session.getRetryTimes(); t++)
                 {
+                    if (success)
+                        break;
+
                     try
                     {
-                        System.err.printf("Error while reading Super Column %s key %s - %s%n", superColumn, ByteBufferUtil.string(key), getExceptionMessage(e));
+                        List<ColumnOrSuperColumn> columns;
+                        columns = client.get_slice(key, parent, predicate, session.getConsistencyLevel());
+                        success = (columns.size() != 0);
                     }
-                    catch (CharacterCodingException e1)
+                    catch (Exception e)
                     {
-                        throw new AssertionError(e1); // keys are valid string
+                        exceptionMessage = getExceptionMessage(e);
+                        success = false;
                     }
+                }
+
+                if (!success)
+                {
+                    System.err.printf("Thread [%d] retried %d times - error reading key %s %s%n", index,
+                                                                                                  session.getRetryTimes(),
+                                                                                                  new String(rawKey),
+                                                                                                  (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")");
 
                     if (!session.ignoreErrors())
-                        break;
+                        return;
                 }
 
                 session.operationCount.getAndIncrement(index);
@@ -116,25 +122,36 @@ public class Reader extends OperationThread
 
             long start = System.currentTimeMillis();
 
-            try
+            boolean success = false;
+            String exceptionMessage = null;
+
+            for (int t = 0; t < session.getRetryTimes(); t++)
             {
-                List<ColumnOrSuperColumn> columns;
-                columns = client.get_slice(keyBuffer, parent, predicate, session.getConsistencyLevel());
+                if (success)
+                    break;
 
-                if (columns.size() == 0)
+                try
                 {
-                    System.err.println(String.format("Key %s not found.", new String(key)));
-
-                    if (!session.ignoreErrors())
-                        break;
+                    List<ColumnOrSuperColumn> columns;
+                    columns = client.get_slice(keyBuffer, parent, predicate, session.getConsistencyLevel());
+                    success = (columns.size() != 0);
+                }
+                catch (Exception e)
+                {
+                    exceptionMessage = getExceptionMessage(e);
+                    success = false;
                 }
             }
-            catch (Exception e)
+
+            if (!success)
             {
-                System.err.printf("Error while reading key %s - %s%n", new String(key), getExceptionMessage(e));
+                System.err.printf("Thread [%d] retried %d times - error reading key %s %s%n", index,
+                                                                                              session.getRetryTimes(),
+                                                                                              new String(key),
+                                                                                              (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")");
 
                 if (!session.ignoreErrors())
-                    break;
+                    return;
             }
 
             session.operationCount.getAndIncrement(index);

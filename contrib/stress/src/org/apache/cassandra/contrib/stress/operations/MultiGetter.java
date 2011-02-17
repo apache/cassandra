@@ -55,21 +55,32 @@ public class MultiGetter extends OperationThread
 
                     long start = System.currentTimeMillis();
 
-                    try
+                    boolean success = false;
+                    String exceptionMessage = null;
+
+                    for (int t = 0; t < session.getRetryTimes(); t++)
                     {
-                        results = client.multiget_slice(keys, parent, predicate, session.getConsistencyLevel());
+                        if (success)
+                            break;
 
-                        if (results.size() == 0)
+                        try
                         {
-                            System.err.printf("Keys %s were not found.%n", keys);
-
-                            if (!session.ignoreErrors())
-                                break;
+                            results = client.multiget_slice(keys, parent, predicate, session.getConsistencyLevel());
+                            success = (results.size() != 0);
+                        }
+                        catch (Exception e)
+                        {
+                            exceptionMessage = getExceptionMessage(e);
                         }
                     }
-                    catch (Exception e)
+
+                    if (!success)
                     {
-                        System.err.printf("Error on multiget_slice call - %s%n", getExceptionMessage(e));
+                        System.err.printf("Thread [%d] retried %d times - error on calling multiget_slice for keys %s %s%n",
+                                                                                              index,
+                                                                                              session.getRetryTimes(),
+                                                                                              keys,
+                                                                                              (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")");
 
                         if (!session.ignoreErrors())
                             return;
@@ -93,21 +104,33 @@ public class MultiGetter extends OperationThread
 
                 long start = System.currentTimeMillis();
 
-                try
+                boolean success = false;
+                String exceptionMessage = null;
+
+                for (int t = 0; t < session.getRetryTimes(); t++)
                 {
-                    results = client.multiget_slice(keys, parent, predicate, session.getConsistencyLevel());
+                    if (success)
+                        break;
 
-                    if (results.size() == 0)
+                    try
                     {
-                        System.err.printf("Keys %s were not found.%n", keys);
-
-                        if (!session.ignoreErrors())
-                            break;
+                        results = client.multiget_slice(keys, parent, predicate, session.getConsistencyLevel());
+                        success = (results.size() != 0);
+                    }
+                    catch (Exception e)
+                    {
+                        exceptionMessage = getExceptionMessage(e);
+                        success = false;
                     }
                 }
-                catch (Exception e)
+
+                if (!success)
                 {
-                    System.err.printf("Error on multiget_slice call - %s%n", getExceptionMessage(e));
+                    System.err.printf("Thread [%d] retried %d times - error on calling multiget_slice for keys %s %s%n",
+                                                                                        index,
+                                                                                        session.getRetryTimes(),
+                                                                                        keys,
+                                                                                        (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")");
 
                     if (!session.ignoreErrors())
                         return;

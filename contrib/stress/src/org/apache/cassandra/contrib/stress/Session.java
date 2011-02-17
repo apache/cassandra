@@ -61,7 +61,8 @@ public class Session
         availableOptions.addOption("o",  "operation",            true,   "Operation to perform (INSERT, READ, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET), default:INSERT");
         availableOptions.addOption("u",  "supercolumns",         true,   "Number of super columns per key, default:1");
         availableOptions.addOption("y",  "family-type",          true,   "Column Family Type (Super, Standard), default:Standard");
-        availableOptions.addOption("k",  "keep-going",           false,  "Ignore errors inserting or reading, default:false");
+        availableOptions.addOption("K",  "keep-trying",          true,   "Retry on-going operation N times (in case of failure). positive integer, default:10");
+        availableOptions.addOption("k",  "keep-going",           false,  "Ignore errors inserting or reading (when set, --keep-trying has no effect), default:false");
         availableOptions.addOption("i",  "progress-interval",    true,   "Progress Report Interval (seconds), default:10");
         availableOptions.addOption("g",  "keys-per-call",        true,   "Number of keys to get_range_slices or multiget per call, default:1000");
         availableOptions.addOption("l",  "replication-factor",   true,   "Replication Factor to use when creating needed column families, default:1");
@@ -80,13 +81,14 @@ public class Session
     private String[] nodes       = new String[] { "127.0.0.1" };
     private boolean random       = false;
     private boolean unframed     = false;
-    private boolean ignoreErrors = false;
+    private int retryTimes       = 10;
     private int port             = 9160;
     private int superColumns     = 1;
 
     private int progressInterval  = 10;
     private int keysPerCall       = 1000;
     private int replicationFactor = 1;
+    private boolean ignoreErrors  = false;
 
     private PrintStream out = System.out;
 
@@ -96,6 +98,7 @@ public class Session
     private ConsistencyLevel consistencyLevel = ConsistencyLevel.ONE;
     private String replicationStrategy = "org.apache.cassandra.locator.SimpleStrategy";
     private Map<String, String> replicationStrategyOptions = new HashMap<String, String>();
+
 
     // required by Gaussian distribution.
     protected int   mean;
@@ -188,8 +191,21 @@ public class Session
             if (cmd.hasOption("y"))
                 columnFamilyType = ColumnFamilyType.valueOf(cmd.getOptionValue("y"));
 
+            if (cmd.hasOption("K"))
+            {
+                retryTimes = Integer.valueOf(cmd.getOptionValue("K"));
+
+                if (retryTimes <= 0)
+                {
+                    throw new RuntimeException("--keep-trying option value should be > 0");
+                }
+            }
+
             if (cmd.hasOption("k"))
+            {
+                retryTimes = 1;
                 ignoreErrors = true;
+            }
 
             if (cmd.hasOption("i"))
                 progressInterval = Integer.parseInt(cmd.getOptionValue("i"));
@@ -295,6 +311,11 @@ public class Session
     public ConsistencyLevel getConsistencyLevel()
     {
         return consistencyLevel;
+    }
+
+    public int getRetryTimes()
+    {
+        return retryTimes;
     }
 
     public boolean ignoreErrors()
