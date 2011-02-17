@@ -20,19 +20,12 @@ def uuid1bytes_to_millis(uuidbytes):
     return (uuid.UUID(bytes=uuidbytes).get_time() / 10000) - 12219292800000L
 
 def load_sample(dbconn):
-    dbconn.execute("""
-        UPDATE Standard1 SET "ca1" = "va1", "col" = "val" WHERE KEY = "ka"
-    """)
-    dbconn.execute("""
-        UPDATE Standard1 SET "cb1" = "vb1", "col" = "val" WHERE KEY = "kb"
-    """)
-    dbconn.execute("""
-        UPDATE Standard1 SET "cc1" = "vc1", "col" = "val" WHERE KEY = "kc"
-    """)
-    dbconn.execute("""
-        UPDATE Standard1 SET "cd1" = "vd1", "col" = "val" WHERE KEY = "kd"
-    """)
-    
+    query = "UPDATE Standard1 SET ? = ?, ? = ? WHERE KEY = ?"
+    dbconn.execute(query, "ca1", "va1", "col", "val", "ka")
+    dbconn.execute(query, "cb1", "vb1", "col", "val", "kb")
+    dbconn.execute(query, "cc1", "vc1", "col", "val", "kc")
+    dbconn.execute(query, "cd1", "vd1", "col", "val", "kd")
+
     dbconn.execute("""
         UPDATE Standard2 SET u"%s" = "ve1", "col" = "val" WHERE KEY = "kd"
     """ % u'\xa9'.encode('utf8'))

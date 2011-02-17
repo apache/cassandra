@@ -20,6 +20,7 @@ from thrift.transport import TTransport, TSocket
 from thrift.protocol import TBinaryProtocol
 from thrift.Thrift import TApplicationException
 from errors import CQLException, InvalidCompressionScheme
+from marshal import prepare
 import zlib
 
 try:
@@ -71,18 +72,22 @@ class Connection(object):
         if keyspace:
             self.execute('USE %s;' % keyspace)
 
-    def execute(self, query, compression=None):
+    def execute(self, query, *args, **kwargs):
         """
         Execute a CQL query on a remote node.
         
         Params:
         * query .........: CQL query string.
+        * args ..........: Query parameters.
         * compression ...: Query compression type (optional).
         """
-        compress = compression is None and DEFAULT_COMPRESSION \
-                or compression.upper()
+        if kwargs.has_key("compression"):
+            compress = kwargs.get("compression").upper()
+        else:
+            compress = DEFAULT_COMPRESSION
     
-        compressed_query = Connection.compress_query(query, compress)
+        compressed_query = Connection.compress_query(prepare(query, *args),
+                                                     compress)
         request_compression = getattr(Compression, compress)
 
         try:
