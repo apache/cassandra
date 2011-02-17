@@ -89,7 +89,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                DatabaseDescriptor.getFlushWriters(),
                                                StageManager.KEEPALIVE,
                                                TimeUnit.SECONDS,
-                                               new LinkedBlockingQueue<Runnable>(DatabaseDescriptor.getFlushWriters()),
+                                               new SynchronousQueue<Runnable>(),
                                                new NamedThreadFactory("FlushWriter"),
                                                "internal");
     public static final ExecutorService postFlushExecutor = new JMXEnabledThreadPoolExecutor("MemtablePostFlusher");
