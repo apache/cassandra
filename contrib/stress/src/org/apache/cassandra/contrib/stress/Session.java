@@ -19,9 +19,7 @@ package org.apache.cassandra.contrib.stress;
 
 import java.io.*;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicLongArray;
 
@@ -29,6 +27,7 @@ import org.apache.commons.cli.*;
 
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.thrift.*;
+import org.apache.commons.lang.StringUtils;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
@@ -68,6 +67,8 @@ public class Session
         availableOptions.addOption("l",  "replication-factor",   true,   "Replication Factor to use when creating needed column families, default:1");
         availableOptions.addOption("e",  "consistency-level",    true,   "Consistency Level to use (ONE, QUORUM, LOCAL_QUORUM, EACH_QUORUM, ALL, ANY), default:ONE");
         availableOptions.addOption("x",  "create-index",         true,   "Type of index to create on needed column families (KEYS)");
+        availableOptions.addOption("R",  "replication-strategy", true,   "Replication strategy to use (only on insert if keyspace does not exist), default:org.apache.cassandra.locator.SimpleStrategy");
+        availableOptions.addOption("O",  "strategy-properties",  true,   "Replication strategy properties in the following format <dc_name>:<num>,<dc_name>:<num>,...");
     }
 
     private int numKeys          = 1000 * 1000;
@@ -93,6 +94,8 @@ public class Session
     private Stress.Operation operation = Stress.Operation.INSERT;
     private ColumnFamilyType columnFamilyType = ColumnFamilyType.Standard;
     private ConsistencyLevel consistencyLevel = ConsistencyLevel.ONE;
+    private String replicationStrategy = "org.apache.cassandra.locator.SimpleStrategy";
+    private Map<String, String> replicationStrategyOptions = new HashMap<String, String>();
 
     // required by Gaussian distribution.
     protected int   mean;
@@ -202,6 +205,24 @@ public class Session
 
             if (cmd.hasOption("x"))
                 indexType = IndexType.valueOf(cmd.getOptionValue("x").toUpperCase());
+
+            if (cmd.hasOption("R"))
+                replicationStrategy = cmd.getOptionValue("R");
+
+            if (cmd.hasOption("O"))
+            {
+                String[] pairs = StringUtils.split(cmd.getOptionValue("O"), ',');
+
+                for (String pair : pairs)
+                {
+                    String[] keyAndValue = StringUtils.split(pair, ':');
+
+                    if (keyAndValue.length != 2)
+                        throw new RuntimeException("Invalid --strategy-properties value.");
+
+                    replicationStrategyOptions.put(keyAndValue[0], keyAndValue[1]);
+                }
+            }
         }
         catch (ParseException e)
         {
@@ -337,8 +358,14 @@ public class Session
         CfDef superCfDef = new CfDef("Keyspace1", "Super1").setColumn_metadata(Arrays.asList(superSubColumn)).setColumn_type("Super");
 
         keyspace.setName("Keyspace1");
-        keyspace.setStrategy_class("org.apache.cassandra.locator.SimpleStrategy");
+        keyspace.setStrategy_class(replicationStrategy);
         keyspace.setReplication_factor(replicationFactor);
+
+        if (!replicationStrategyOptions.isEmpty())
+        {
+            keyspace.setStrategy_options(replicationStrategyOptions);
+        }
+
         keyspace.setCf_defs(new ArrayList<CfDef>(Arrays.asList(standardCfDef, superCfDef)));
 
         Cassandra.Client client = getClient(false);
