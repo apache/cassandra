@@ -66,7 +66,7 @@ public class RepairCallback<T> implements IAsyncCallback
             throw new AssertionError(ex);
         }
 
-        return resolver.isDataPresent() ? resolver.resolve() : null;
+        return resolver.getMessageCount() > 0 ? resolver.resolve() : null;
     }
 
     public void response(Message message)
