@@ -129,25 +129,19 @@ public class ByteBufferUtil
      */
     public static byte[] getArray(ByteBuffer buffer)
     {
-        return getArray(buffer, buffer.position(), buffer.remaining());
-    }
+        int length = buffer.remaining();
 
-    public static byte[] getArray(ByteBuffer b, int start, int length)
-    {
-        if (b.hasArray())
+        if (buffer.hasArray())
         {
-            if (b.arrayOffset() == 0 && start == 0 && length == b.array().length)
-                return b.array();
+            int start = buffer.position();
+            if (buffer.arrayOffset() == 0 && start == 0 && length == buffer.array().length)
+                return buffer.array();
             else
-                return Arrays.copyOfRange(b.array(), start + b.arrayOffset(), start + length + b.arrayOffset());
+                return Arrays.copyOfRange(buffer.array(), start + buffer.arrayOffset(), start + length + buffer.arrayOffset());
         }
-
+        // else, DirectByteBuffer.get() is the fastest route
         byte[] bytes = new byte[length];
-
-        for (int i = 0; i < length; i++)
-        {
-            bytes[i] = b.get(start++);
-        }
+        buffer.duplicate().get(bytes);
 
         return bytes;
     }
@@ -210,8 +204,7 @@ public class ByteBufferUtil
         }
         else
         {
-            for (int i = o.position(); i < o.limit(); i++)
-                clone.put(o.get(i));
+            clone.put(o.duplicate());
             clone.flip();
         }
 
@@ -221,16 +214,9 @@ public class ByteBufferUtil
     public static void arrayCopy(ByteBuffer buffer, int position, byte[] bytes, int offset, int length)
     {
         if (buffer.hasArray())
-        {
             System.arraycopy(buffer.array(), buffer.arrayOffset() + position, bytes, offset, length);
-        }
         else
-        {
-            for (int i = 0; i < length; i++)
-            {
-                bytes[offset++] = buffer.get(position++);
-            }
-        }
+            ((ByteBuffer) buffer.duplicate().position(position)).get(bytes, offset, length);
     }
 
     public static void writeWithLength(ByteBuffer bytes, DataOutput out) throws IOException
