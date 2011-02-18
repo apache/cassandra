@@ -69,27 +69,4 @@ public class FBUtilitiesTest
             assert Arrays.equals(FBUtilities.hexToBytes(values[i]), expected[i]);
     }
 
-    @Test
-    public void testIntBytesConversions()
-    {
-        // positive, negative, 1 and 2 byte cases, including a few edges that would foul things up unless you're careful
-        // about masking away sign extension.
-        int[] ints = new int[]
-        {
-            -20, -127, -128, 0, 1, 127, 128, 65534, 65535, -65534, -65535
-        };
-
-        for (int i : ints) {
-            ByteBuffer ba = ByteBufferUtil.bytes(i);
-            int actual = ByteBufferUtil.toInt(ba);
-            assertEquals(i, actual);
-        }
-    }
-
-    @Test(expected=CharacterCodingException.class)
-    public void testDecode() throws IOException
-    {
-        ByteBuffer bytes = ByteBuffer.wrap(new byte[]{(byte)0xff, (byte)0xfe});
-        ByteBufferUtil.string(bytes, Charsets.UTF_8);
-    } 
 }
