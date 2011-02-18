@@ -2120,6 +2120,7 @@ public class CliClient extends CliUserHelp
                 inAgreement = true;
                 break; // all nodes are in agreement no need to loop
             }
+            start = System.currentTimeMillis();
         }
 
         if (!inAgreement)
