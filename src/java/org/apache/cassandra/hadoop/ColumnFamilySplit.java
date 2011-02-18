@@ -59,7 +59,7 @@ public class ColumnFamilySplit extends InputSplit implements Writable
     public long getLength()
     {
         // only used for sorting splits. we don't have the capability, yet.
-        return 0;
+        return Long.MAX_VALUE;
     }
 
     public String[] getLocations()
