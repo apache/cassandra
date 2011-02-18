@@ -431,12 +431,15 @@ public class CompactionManager implements CompactionManagerMBean
                 long position = writer.append(row);
                 totalkeysWritten++;
 
-                for (SSTableReader sstable : sstables)
+                if (DatabaseDescriptor.getPreheatKeyCache())
                 {
-                    if (sstable.getCachedPosition(row.key) != null)
+                    for (SSTableReader sstable : sstables)
                     {
-                        cachedKeys.put(row.key, position);
-                        break;
+                        if (sstable.getCachedPosition(row.key) != null)
+                        {
+                            cachedKeys.put(row.key, position);
+                            break;
+                        }
                     }
                 }
             }
@@ -448,7 +451,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         SSTableReader ssTable = writer.closeAndOpenReader(getMaxDataAge(sstables));
         cfs.replaceCompactedSSTables(sstables, Arrays.asList(ssTable));
-        for (Entry<DecoratedKey, Long> entry : cachedKeys.entrySet())
+        for (Entry<DecoratedKey, Long> entry : cachedKeys.entrySet()) // empty if preheat is off
             ssTable.cacheKey(entry.getKey(), entry.getValue());
         submitMinorIfNeeded(cfs);
 

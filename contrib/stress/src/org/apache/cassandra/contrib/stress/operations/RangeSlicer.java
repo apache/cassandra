@@ -64,21 +64,31 @@ public class RangeSlicer extends OperationThread
 
                     long startTime = System.currentTimeMillis();
 
-                    try
+                    boolean success = false;
+                    String exceptionMessage = null;
+
+                    for (int t = 0; t < session.getRetryTimes(); t++)
                     {
-                        slices = client.get_range_slices(parent, predicate, range, session.getConsistencyLevel());
-
-                        if (slices.size() == 0)
+                        try
                         {
-                            System.err.printf("Range %s->%s not found in Super Column %s.%n", new String(start), new String(end), superColumnName);
-
-                            if (!session.ignoreErrors())
-                                break;
+                            slices = client.get_range_slices(parent, predicate, range, session.getConsistencyLevel());
+                            success = (slices.size() != 0);
+                        }
+                        catch (Exception e)
+                        {
+                            exceptionMessage = getExceptionMessage(e);
+                            success = false;
                         }
                     }
-                    catch (Exception e)
+
+                    if (!success)
                     {
-                        System.err.printf("Error while reading Super Column %s - %s%n", superColumnName, getExceptionMessage(e));
+                        System.err.printf("Thread [%d] retried %d times - error on calling get_range_slices for range %s->%s %s%n",
+                                                                                            index,
+                                                                                            session.getRetryTimes(),
+                                                                                            new String(start),
+                                                                                            new String(end),
+                                                                                            (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")");
 
                         if (!session.ignoreErrors())
                             return;
@@ -107,21 +117,34 @@ public class RangeSlicer extends OperationThread
 
                 long startTime = System.currentTimeMillis();
 
-                try
+                boolean success = false;
+                String exceptionMessage = null;
+
+                for (int t = 0; t < session.getRetryTimes(); t++)
                 {
-                    slices = client.get_range_slices(parent, predicate, range, session.getConsistencyLevel());
+                    if (success)
+                        break;
 
-                    if (slices.size() == 0)
+                    try
                     {
-                        System.err.printf("Range %s->%s not found.%n", String.format(format, current), String.format(format, last));
-
-                        if (!session.ignoreErrors())
-                            break;
+                        slices = client.get_range_slices(parent, predicate, range, session.getConsistencyLevel());
+                        success = (slices.size() != 0);
+                    }
+                    catch (Exception e)
+                    {
+                        exceptionMessage = getExceptionMessage(e);
+                        success = false;
                     }
                 }
-                catch (Exception e)
+
+                if (!success)
                 {
-                    System.err.printf("Error while reading range %s->%s - %s%n", String.format(format, current), String.format(format, last), getExceptionMessage(e));
+                    System.err.printf("Thread [%d] retried %d times - error on calling get_indexed_slices for range %s->%s %s%n",
+                                                                                              index,
+                                                                                              session.getRetryTimes(),
+                                                                                              new String(start),
+                                                                                              new String(end),
+                                                                                              (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")");
 
                     if (!session.ignoreErrors())
                         return;

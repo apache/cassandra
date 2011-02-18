@@ -64,7 +64,8 @@ public class Inserter extends OperationThread
 
         for (int i : range)
         {
-            ByteBuffer key = ByteBuffer.wrap(String.format(format, i).getBytes());
+            String rawKey = String.format(format, i);
+            ByteBuffer key = ByteBuffer.wrap(rawKey.getBytes());
             Map<ByteBuffer, Map<String, List<Mutation>>> record = new HashMap<ByteBuffer, Map<String, List<Mutation>>>();
 
             record.put(key, session.getColumnFamilyType() == ColumnFamilyType.Super
@@ -78,23 +79,35 @@ public class Inserter extends OperationThread
 
             long start = System.currentTimeMillis();
 
-            try
+            boolean success = false;
+            String exceptionMessage = null;
+
+            for (int t = 0; t < session.getRetryTimes(); t++)
             {
-                client.batch_mutate(record, session.getConsistencyLevel());
-            }
-            catch (Exception e)
-            {
+                if (success)
+                    break;
+
                 try
                 {
-                    System.err.printf("Error while inserting key %s - %s%n", ByteBufferUtil.string(key), getExceptionMessage(e));
+                    client.batch_mutate(record, session.getConsistencyLevel());
+                    success = true;
                 }
-                catch (CharacterCodingException e1)
+                catch (Exception e)
                 {
-                    throw new AssertionError(e1); // keys are valid strings
+                    exceptionMessage = getExceptionMessage(e);
+                    success = false;
                 }
+            }
+
+            if (!success)
+            {
+                System.err.printf("Thread [%d] retried %d times - error inserting key %s %s%n", index,
+                                                                                                session.getRetryTimes(),
+                                                                                                rawKey,
+                                                                                                (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")");
 
                 if (!session.ignoreErrors())
-                    return;
+                    break;
             }
 
             session.operationCount.getAndIncrement(index);

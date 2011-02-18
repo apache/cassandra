@@ -90,32 +90,6 @@ public class CliMain
         thriftClient = cassandraClient;
         cliClient = new CliClient(sessionState, thriftClient);
         
-        if (sessionState.keyspace != null)
-        {
-            try
-            {
-                sessionState.keyspace = CliCompiler.getKeySpace(sessionState.keyspace, thriftClient.describe_keyspaces());;
-                thriftClient.set_keyspace(sessionState.keyspace);
-                cliClient.setKeySpace(sessionState.keyspace);
-                updateCompletor(CliUtils.getCfNamesByKeySpace(cliClient.getKSMetaData(sessionState.keyspace)));
-            }
-            catch (InvalidRequestException e)
-            {
-                sessionState.err.println("Keyspace " + sessionState.keyspace + " not found");
-                return;
-            }
-            catch (TException e)
-            {
-                sessionState.err.println("Did you specify 'keyspace'?");
-                return;
-            }
-            catch (NotFoundException e)
-            {
-                sessionState.err.println("Keyspace " + sessionState.keyspace + " not found");
-                return;
-            }
-        }
-
         if ((sessionState.username != null) && (sessionState.password != null))
         {
             // Authenticate
@@ -149,6 +123,32 @@ public class CliMain
             }
         }
         
+        if (sessionState.keyspace != null)
+        {
+            try
+            {
+                sessionState.keyspace = CliCompiler.getKeySpace(sessionState.keyspace, thriftClient.describe_keyspaces());;
+                thriftClient.set_keyspace(sessionState.keyspace);
+                cliClient.setKeySpace(sessionState.keyspace);
+                updateCompletor(CliUtils.getCfNamesByKeySpace(cliClient.getKSMetaData(sessionState.keyspace)));
+            }
+            catch (InvalidRequestException e)
+            {
+                sessionState.err.println("Keyspace " + sessionState.keyspace + " not found");
+                return;
+            }
+            catch (TException e)
+            {
+                sessionState.err.println("Did you specify 'keyspace'?");
+                return;
+            }
+            catch (NotFoundException e)
+            {
+                sessionState.err.println("Keyspace " + sessionState.keyspace + " not found");
+                return;
+            }
+        }
+
         // Lookup the cluster name, this is to make it clear which cluster the user is connected to
         String clusterName;
 

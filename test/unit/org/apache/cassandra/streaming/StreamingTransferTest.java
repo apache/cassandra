@@ -28,6 +28,7 @@ import java.util.*;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.IFilter;
@@ -154,5 +155,50 @@ public class StreamingTransferTest extends CleanupHelper
         // and that the index and filter were properly recovered
         assert null != cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("test"), new QueryPath("Standard1")));
         assert null != cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("transfer1"), new QueryPath("Standard1")));
+    }
+
+    @Test
+    public void testTransferOfMultipleColumnFamilies() throws Exception
+    {
+        String keyspace = "Keyspace1";
+        IPartitioner p = StorageService.getPartitioner();
+        String[] columnFamilies = new String[] { "Standard1", "Standard2", "Standard3" };
+        List<SSTableReader> ssTableReaders = new ArrayList<SSTableReader>();
+
+        // ranges to transfer
+        List<Range> ranges = new ArrayList<Range>();
+
+        for (String cf : columnFamilies)
+        {
+            Set<String> content = new HashSet<String>();
+
+            content.add("data-" + cf + "-1");
+            content.add("data-" + cf + "-2");
+            content.add("data-" + cf + "-3");
+
+            SSTableUtils.Context context = SSTableUtils.prepare().ks(keyspace).cf(cf);
+
+            ssTableReaders.add(context.write(content));
+            ranges.add(new Range(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("data-" + cf + "-3"))));
+        }
+
+        StreamOutSession session = StreamOutSession.create(keyspace, LOCAL, null);
+        StreamOut.transferSSTables(session, ssTableReaders, ranges);
+
+        session.await();
+
+        for (String cf : columnFamilies)
+        {
+            ColumnFamilyStore store = Table.open(keyspace).getColumnFamilyStore(cf);
+            List<Row> rows = Util.getRangeSlice(store);
+
+            assert rows.size() >= 3;
+
+            for (int i = 0; i < 3; i++)
+            {
+                String expectedKey = "data-" + cf + "-" + (i + 1);
+                assertEquals(p.decorateKey(ByteBufferUtil.bytes(expectedKey)), rows.get(i).key);
+            }
+        }
     }
 }

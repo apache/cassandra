@@ -63,21 +63,33 @@ public class IndexedRangeSlicer extends OperationThread
                 List<KeySlice> results = null;
                 long start = System.currentTimeMillis();
 
-                try
+                boolean success = false;
+                String exceptionMessage = null;
+
+                for (int t = 0; t < session.getRetryTimes(); t++)
                 {
-                    results = client.get_indexed_slices(parent, clause, predicate, session.getConsistencyLevel());
+                    if (success)
+                        break;
 
-                    if (results.size() == 0)
+                    try
                     {
-                        System.err.printf("No indexed values from offset received: %s%n", startOffset);
-
-                        if (!session.ignoreErrors())
-                            break;
+                        results = client.get_indexed_slices(parent, clause, predicate, session.getConsistencyLevel());
+                        success = (results.size() != 0);
+                    }
+                    catch (Exception e)
+                    {
+                        exceptionMessage = getExceptionMessage(e);
+                        success = false;
                     }
                 }
-                catch (Exception e)
+
+                if (!success)
                 {
-                    System.err.printf("Error on get_indexed_slices call for offset  %s - %s%n", startOffset, getExceptionMessage(e));
+                    System.err.printf("Thread [%d] retried %d times - error on calling get_indexed_slices for offset %s %s%n",
+                                                                                              index,
+                                                                                              session.getRetryTimes(),
+                                                                                              startOffset,
+                                                                                              (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")");
 
                     if (!session.ignoreErrors())
                         return;

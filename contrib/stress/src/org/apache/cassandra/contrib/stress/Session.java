@@ -19,9 +19,7 @@ package org.apache.cassandra.contrib.stress;
 
 import java.io.*;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicLongArray;
 
@@ -29,6 +27,7 @@ import org.apache.commons.cli.*;
 
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.thrift.*;
+import org.apache.commons.lang.StringUtils;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
@@ -62,12 +61,15 @@ public class Session
         availableOptions.addOption("o",  "operation",            true,   "Operation to perform (INSERT, READ, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET), default:INSERT");
         availableOptions.addOption("u",  "supercolumns",         true,   "Number of super columns per key, default:1");
         availableOptions.addOption("y",  "family-type",          true,   "Column Family Type (Super, Standard), default:Standard");
-        availableOptions.addOption("k",  "keep-going",           false,  "Ignore errors inserting or reading, default:false");
+        availableOptions.addOption("K",  "keep-trying",          true,   "Retry on-going operation N times (in case of failure). positive integer, default:10");
+        availableOptions.addOption("k",  "keep-going",           false,  "Ignore errors inserting or reading (when set, --keep-trying has no effect), default:false");
         availableOptions.addOption("i",  "progress-interval",    true,   "Progress Report Interval (seconds), default:10");
         availableOptions.addOption("g",  "keys-per-call",        true,   "Number of keys to get_range_slices or multiget per call, default:1000");
         availableOptions.addOption("l",  "replication-factor",   true,   "Replication Factor to use when creating needed column families, default:1");
         availableOptions.addOption("e",  "consistency-level",    true,   "Consistency Level to use (ONE, QUORUM, LOCAL_QUORUM, EACH_QUORUM, ALL, ANY), default:ONE");
         availableOptions.addOption("x",  "create-index",         true,   "Type of index to create on needed column families (KEYS)");
+        availableOptions.addOption("R",  "replication-strategy", true,   "Replication strategy to use (only on insert if keyspace does not exist), default:org.apache.cassandra.locator.SimpleStrategy");
+        availableOptions.addOption("O",  "strategy-properties",  true,   "Replication strategy properties in the following format <dc_name>:<num>,<dc_name>:<num>,...");
     }
 
     private int numKeys          = 1000 * 1000;
@@ -79,13 +81,14 @@ public class Session
     private String[] nodes       = new String[] { "127.0.0.1" };
     private boolean random       = false;
     private boolean unframed     = false;
-    private boolean ignoreErrors = false;
+    private int retryTimes       = 10;
     private int port             = 9160;
     private int superColumns     = 1;
 
     private int progressInterval  = 10;
     private int keysPerCall       = 1000;
     private int replicationFactor = 1;
+    private boolean ignoreErrors  = false;
 
     private PrintStream out = System.out;
 
@@ -93,6 +96,9 @@ public class Session
     private Stress.Operation operation = Stress.Operation.INSERT;
     private ColumnFamilyType columnFamilyType = ColumnFamilyType.Standard;
     private ConsistencyLevel consistencyLevel = ConsistencyLevel.ONE;
+    private String replicationStrategy = "org.apache.cassandra.locator.SimpleStrategy";
+    private Map<String, String> replicationStrategyOptions = new HashMap<String, String>();
+
 
     // required by Gaussian distribution.
     protected int   mean;
@@ -185,8 +191,21 @@ public class Session
             if (cmd.hasOption("y"))
                 columnFamilyType = ColumnFamilyType.valueOf(cmd.getOptionValue("y"));
 
+            if (cmd.hasOption("K"))
+            {
+                retryTimes = Integer.valueOf(cmd.getOptionValue("K"));
+
+                if (retryTimes <= 0)
+                {
+                    throw new RuntimeException("--keep-trying option value should be > 0");
+                }
+            }
+
             if (cmd.hasOption("k"))
+            {
+                retryTimes = 1;
                 ignoreErrors = true;
+            }
 
             if (cmd.hasOption("i"))
                 progressInterval = Integer.parseInt(cmd.getOptionValue("i"));
@@ -202,6 +221,24 @@ public class Session
 
             if (cmd.hasOption("x"))
                 indexType = IndexType.valueOf(cmd.getOptionValue("x").toUpperCase());
+
+            if (cmd.hasOption("R"))
+                replicationStrategy = cmd.getOptionValue("R");
+
+            if (cmd.hasOption("O"))
+            {
+                String[] pairs = StringUtils.split(cmd.getOptionValue("O"), ',');
+
+                for (String pair : pairs)
+                {
+                    String[] keyAndValue = StringUtils.split(pair, ':');
+
+                    if (keyAndValue.length != 2)
+                        throw new RuntimeException("Invalid --strategy-properties value.");
+
+                    replicationStrategyOptions.put(keyAndValue[0], keyAndValue[1]);
+                }
+            }
         }
         catch (ParseException e)
         {
@@ -276,6 +313,11 @@ public class Session
         return consistencyLevel;
     }
 
+    public int getRetryTimes()
+    {
+        return retryTimes;
+    }
+
     public boolean ignoreErrors()
     {
         return ignoreErrors;
@@ -337,8 +379,14 @@ public class Session
         CfDef superCfDef = new CfDef("Keyspace1", "Super1").setColumn_metadata(Arrays.asList(superSubColumn)).setColumn_type("Super");
 
         keyspace.setName("Keyspace1");
-        keyspace.setStrategy_class("org.apache.cassandra.locator.SimpleStrategy");
+        keyspace.setStrategy_class(replicationStrategy);
         keyspace.setReplication_factor(replicationFactor);
+
+        if (!replicationStrategyOptions.isEmpty())
+        {
+            keyspace.setStrategy_options(replicationStrategyOptions);
+        }
+
         keyspace.setCf_defs(new ArrayList<CfDef>(Arrays.asList(standardCfDef, superCfDef)));
 
         Cassandra.Client client = getClient(false);

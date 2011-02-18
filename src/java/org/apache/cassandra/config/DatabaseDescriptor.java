@@ -1196,4 +1196,9 @@ public class DatabaseDescriptor
     {
         return conf.hinted_handoff_throttle_delay_in_ms;
     }
+
+    public static boolean getPreheatKeyCache()
+    {
+        return conf.compaction_preheat_key_cache;
+    }
 }
