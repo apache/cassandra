@@ -193,7 +193,7 @@ public class RowMutation
     /**
      * Apply without touching the commitlog. For testing.
      */
-    public void 2applyUnsafe() throws IOException
+    public void applyUnsafe() throws IOException
     {
         Table.open(table_).apply(this, getSerializedBuffer(), false);
     }
