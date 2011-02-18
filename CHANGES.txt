@@ -9,7 +9,7 @@
    -Dcompaction_preheat_key_cache=true (CASSANDRA-2175)
  * refactor stress.py to have only one copy of the format string 
    used for creating row keys (CASSANDRA-2108)
-
+ * Fix Cassandra cli to respect timeout if schema does not settle (CASSANDRA-2187)
 
 0.7.2
  * copy DecoratedKey.key when inserting into caches to avoid retaining
