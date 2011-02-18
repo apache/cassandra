@@ -22,6 +22,7 @@
 
 
 0.7.1
+ * refactor MessageDigest creation code. (CASSANDRA-2107)
  * buffer network stack to avoid inefficient small TCP messages while avoiding
    the nagle/delayed ack problem (CASSANDRA-1896)
  * check log4j configuration for changes every 10s (CASSANDRA-1525, 1907)

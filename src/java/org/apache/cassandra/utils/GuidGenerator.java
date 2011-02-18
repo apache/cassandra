@@ -22,7 +22,6 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Random;
 
@@ -34,21 +33,6 @@ public class GuidGenerator {
     private static Random myRand;
     private static SecureRandom mySecureRand;
     private static String s_id;
-    private static final ThreadLocal<MessageDigest> localMessageDigest = new ThreadLocal<MessageDigest>()
-    {
-        @Override
-        protected MessageDigest initialValue()
-        {
-            try
-            {
-                return MessageDigest.getInstance("MD5");
-            }
-            catch (NoSuchAlgorithmException e)
-            {
-                throw new AssertionError(e);
-            }
-        }
-    };
 
     static {
         if (System.getProperty("java.security.egd") == null) {
@@ -104,8 +88,7 @@ public class GuidGenerator {
         				.append(Long.toString(rand));
 
         String valueBeforeMD5 = sbValueBeforeMD5.toString();
-        localMessageDigest.get().reset();
-        return ByteBuffer.wrap(localMessageDigest.get().digest(valueBeforeMD5.getBytes()));
+        return ByteBuffer.wrap(FBUtilities.threadLocalMD5Digest().digest(valueBeforeMD5.getBytes()));
     }
 
     /*

@@ -17,17 +17,17 @@
  */
 package org.apache.cassandra.contrib.stress.util;
 
+import java.math.BigInteger;
+import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+
 import org.apache.cassandra.contrib.stress.Session;
 import org.apache.cassandra.contrib.stress.Stress;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.InvalidRequestException;
-
-import java.math.BigInteger;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import org.apache.cassandra.utils.FBUtilities;
 
 public abstract class OperationThread extends Thread
 {
@@ -146,21 +146,14 @@ public abstract class OperationThread extends Thread
      */
     private String getMD5(String input)
     {
-        try
-        {
-            MessageDigest md = MessageDigest.getInstance("MD5");
-            byte[] messageDigest = md.digest(input.getBytes());
-            StringBuilder hash = new StringBuilder(new BigInteger(1, messageDigest).toString(16));
+        MessageDigest md = FBUtilities.threadLocalMD5Digest();
+        byte[] messageDigest = md.digest(input.getBytes());
+        StringBuilder hash = new StringBuilder(new BigInteger(1, messageDigest).toString(16));
 
-            while (hash.length() < 32)
-                hash.append("0").append(hash);
+        while (hash.length() < 32)
+            hash.append("0").append(hash);
 
-            return hash.toString();
-        }
-        catch (NoSuchAlgorithmException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return hash.toString();
     }
 
     /**

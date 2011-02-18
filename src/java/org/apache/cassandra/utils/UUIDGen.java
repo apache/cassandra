@@ -24,7 +24,6 @@ package org.apache.cassandra.utils;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.UUID;
 
 import org.safehaus.uuid.EthernetAddress;
@@ -36,21 +35,14 @@ import org.safehaus.uuid.UUIDGenerator;
 public class UUIDGen
 {
     /** creates a type1 uuid but substitutes hash of the IP where the mac would go. */
-    public static synchronized UUID makeType1UUIDFromHost(InetAddress addr)
+    public static UUID makeType1UUIDFromHost(InetAddress addr)
     {
-        try
-        {
-            MessageDigest digest = MessageDigest.getInstance("MD5");
-            digest.update(addr.getAddress());
-            byte[] md5 = digest.digest();
-            byte[] fauxMac = new byte[6];
-            System.arraycopy(md5, 0, fauxMac, 0, Math.min(md5.length, fauxMac.length));
-            return getUUID(ByteBuffer.wrap(UUIDGenerator.getInstance().generateTimeBasedUUID(new EthernetAddress(fauxMac)).toByteArray()));
-        }
-        catch (NoSuchAlgorithmException ex)
-        {
-            throw new RuntimeException("Your platform has no support for generating MD5 sums");
-        }
+        MessageDigest digest = FBUtilities.threadLocalMD5Digest();
+        digest.update(addr.getAddress());
+        byte[] md5 = digest.digest();
+        byte[] fauxMac = new byte[6];
+        System.arraycopy(md5, 0, fauxMac, 0, Math.min(md5.length, fauxMac.length));
+        return getUUID(ByteBuffer.wrap(UUIDGenerator.getInstance().generateTimeBasedUUID(new EthernetAddress(fauxMac)).toByteArray()));
     }
     
     /** creates a type 1 uuid from raw bytes. */

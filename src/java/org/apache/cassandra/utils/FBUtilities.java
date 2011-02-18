@@ -26,7 +26,6 @@ import java.net.InetAddress;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
@@ -35,12 +34,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.google.common.base.Charsets;
 import com.google.common.base.Joiner;
-import com.google.common.base.Strings;
-import com.google.common.primitives.Ints;
 import org.apache.commons.collections.iterators.CollatingIterator;
-import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -65,23 +60,41 @@ public class FBUtilities
 
     private static volatile InetAddress localInetAddress_;
 
-    private static final ThreadLocal<MessageDigest> localMessageDigest = new ThreadLocal<MessageDigest>()
+    private static final ThreadLocal<MessageDigest> localMD5Digest = new ThreadLocal<MessageDigest>()
     {
         @Override
         protected MessageDigest initialValue()
         {
-            try
-            {
-                return MessageDigest.getInstance("MD5");
-            }
-            catch (NoSuchAlgorithmException e)
-            {
-                throw new AssertionError(e);
-            }
+            return newMessageDigest("MD5");
+        }
+
+        @Override
+        public MessageDigest get()
+        {
+            MessageDigest digest = super.get();
+            digest.reset();
+            return digest;
         }
     };
 
     public static final int MAX_UNSIGNED_SHORT = 0xFFFF;
+
+    public static MessageDigest threadLocalMD5Digest()
+    {
+        return localMD5Digest.get();
+    }
+
+    public static MessageDigest newMessageDigest(String algorithm)
+    {
+        try
+        {
+            return MessageDigest.getInstance(algorithm);
+        }
+        catch (NoSuchAlgorithmException nsae)
+        {
+            throw new RuntimeException("the requested digest algorithm (" + algorithm + ") is not available", nsae);
+        }
+    }
 
     /**
      * Parses a string representing either a fraction, absolute value or percentage.
@@ -219,24 +232,14 @@ public class FBUtilities
 
     public static byte[] hash(ByteBuffer... data)
     {
-    	byte[] result;
-    	try
+        MessageDigest messageDigest = localMD5Digest.get();
+        for(ByteBuffer block : data)
         {
-            MessageDigest messageDigest = localMessageDigest.get();
-            messageDigest.reset();
-            for(ByteBuffer block : data)
-            {
-                messageDigest.update(ByteBufferUtil.clone(block));
-            }
+            messageDigest.update(ByteBufferUtil.clone(block));
+        }
 
-            result = messageDigest.digest();
-    	}
-    	catch (Exception e)
-        {
-            throw new RuntimeException(e);
-    	}
-    	return result;
-	}
+        return messageDigest.digest();
+    }
 
     public static byte[] hexToBytes(String str)
     {

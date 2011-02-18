@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
@@ -364,18 +363,9 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
 
     public static ByteBuffer digest(ColumnFamily cf)
     {
-        MessageDigest digest;
-        try
-        {
-            digest = MessageDigest.getInstance("MD5");
-        }
-        catch (NoSuchAlgorithmException e)
-        {
-            throw new AssertionError(e);
-        }
+        MessageDigest digest = FBUtilities.threadLocalMD5Digest();
         if (cf != null)
             cf.updateDigest(digest);
-
         return ByteBuffer.wrap(digest.digest());
     }
 

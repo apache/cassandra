@@ -21,7 +21,6 @@ package org.apache.cassandra.service;
 import java.io.*;
 import java.net.InetAddress;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -375,15 +374,7 @@ public class AntiEntropyService
         {
             validated++;
             // MerkleTree uses XOR internally, so we want lots of output bits here
-            MessageDigest digest = null;
-            try
-            {
-                digest = MessageDigest.getInstance("SHA-256");
-            }
-            catch (NoSuchAlgorithmException e)
-            {
-                throw new AssertionError(e);
-            }
+            MessageDigest digest = FBUtilities.newMessageDigest("SHA-256");
             row.update(digest);
             return new MerkleTree.RowHash(row.key.token, digest.digest());
         }
