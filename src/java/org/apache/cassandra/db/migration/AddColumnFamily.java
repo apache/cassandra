@@ -1,13 +1,12 @@
 package org.apache.cassandra.db.migration;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
@@ -50,7 +49,13 @@ public class AddColumnFamily extends Migration
             throw new ConfigurationException("CF is already defined in that keyspace.");
         else if (!Migration.isLegalName(cfm.cfName))
             throw new ConfigurationException("Invalid column family name: " + cfm.cfName);
-        
+        for (Map.Entry<ByteBuffer, ColumnDefinition> entry : cfm.getColumn_metadata().entrySet())
+        {
+            String indexName = entry.getValue().getIndexName();
+            if (indexName != null && !Migration.isLegalName(indexName))
+                throw new ConfigurationException("Invalid index name: " + indexName);
+        }
+
         // clone ksm but include the new cf def.
         KSMetaData newKsm = makeNewKeyspaceDefinition(ksm);
         

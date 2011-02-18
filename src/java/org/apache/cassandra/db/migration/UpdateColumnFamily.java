@@ -1,11 +1,11 @@
 package org.apache.cassandra.db.migration;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Map;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.avro.ColumnDef;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.utils.FBUtilities;
@@ -45,7 +45,15 @@ public class UpdateColumnFamily extends Migration
         KSMetaData ksm = DatabaseDescriptor.getTableDefinition(cf_def.keyspace.toString());
         if (ksm == null)
             throw new ConfigurationException("Keyspace does not already exist.");
-        
+        if (cf_def.column_metadata != null)
+        {
+            for (ColumnDef entry : cf_def.column_metadata)
+            {
+                if (entry.index_name != null && !Migration.isLegalName((String) entry.index_name))
+                    throw new ConfigurationException("Invalid index name: " + entry.index_name);
+            }
+        }
+
         CFMetaData oldCfm = DatabaseDescriptor.getCFMetaData(CFMetaData.getId(cf_def.keyspace.toString(), cf_def.name.toString()));
         
         // create a copy of the old CF meta data. Apply new settings on top of it.
