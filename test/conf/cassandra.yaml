@@ -185,3 +185,12 @@ keyspaces:
 
         - name: Standard2
           keys_cached: 1.0
+
+    - name: RowCacheSpace
+      replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
+      replication_factor: 1
+      column_families:
+        - name: CachedCF
+          rows_cached: 100
+        - name: CFWithoutCache
+          rows_cached: 0
