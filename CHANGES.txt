@@ -11,6 +11,7 @@
    used for creating row keys (CASSANDRA-2108)
  * validate index names for \w+ (CASSANDRA-2196)
  * Fix Cassandra cli to respect timeout if schema does not settle (CASSANDRA-2187)
+ * update memtable_throughput to be a long (CASSANDRA-2158)
 
 
 0.7.2

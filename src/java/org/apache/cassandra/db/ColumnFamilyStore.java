@@ -39,6 +39,7 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -971,12 +972,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         flushable.flushAndSignal(latch, flushSorter, flushWriter);
     }
 
-    public int getMemtableColumnsCount()
+    public long getMemtableColumnsCount()
     {
         return getMemtableThreadSafe().getCurrentOperations();
     }
 
-    public int getMemtableDataSize()
+    public long getMemtableDataSize()
     {
         return getMemtableThreadSafe().getCurrentThroughput();
     }
@@ -1944,24 +1945,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         return memsize.value();
     }
-    public void setMemtableThroughputInMB(int size)
+    public void setMemtableThroughputInMB(int size) throws ConfigurationException
     {
-        if (size <= 0) {
-            throw new RuntimeException("MemtableThroughputInMB must be greater than 0.");
-        }
-        this.memsize.set(size);
+        DatabaseDescriptor.validateMemtableThroughput(size);
+        memsize.set(size);
     }
 
     public double getMemtableOperationsInMillions()
     {
         return memops.value();
     }
-    public void setMemtableOperationsInMillions(double ops)
+    public void setMemtableOperationsInMillions(double ops) throws ConfigurationException
     {
-        if (ops <= 0) {
-            throw new RuntimeException("MemtableOperationsInMillions must be greater than 0.0.");
-        }
-        this.memops.set(ops);
+        DatabaseDescriptor.validateMemtableOperations(ops);
+        memops.set(ops);
     }
 
     public long estimateKeys()

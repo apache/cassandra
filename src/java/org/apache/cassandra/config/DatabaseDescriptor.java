@@ -1179,4 +1179,24 @@ public class    DatabaseDescriptor
     {
         return conf.compaction_preheat_key_cache;
     }
+
+    public static void validateMemtableThroughput(int sizeInMB) throws ConfigurationException
+    {
+        if (sizeInMB <= 0)
+            throw new ConfigurationException("memtable_throughput_in_mb must be greater than 0.");
+    }
+
+    public static void validateMemtableOperations(double operationsInMillions) throws ConfigurationException
+    {
+        if (operationsInMillions <= 0)
+            throw new ConfigurationException("memtable_operations_in_millions must be greater than 0.0.");
+        if (operationsInMillions > Long.MAX_VALUE / 1024 * 1024)
+            throw new ConfigurationException("memtable_operations_in_millions must be less than " + Long.MAX_VALUE / 1024 * 1024);
+    }
+
+    public static void validateMemtableFlushPeriod(int minutes) throws ConfigurationException
+    {
+        if (minutes <= 0)
+            throw new ConfigurationException("memtable_flush_after_mins must be greater than 0.");
+    }
 }
