@@ -150,36 +150,6 @@ public class Table
     }
 
     /**
-     * Do a cleanup of keys that do not belong locally.
-     */
-    public void forceCleanup() throws IOException, ExecutionException, InterruptedException
-    {
-        if (name.equals(SYSTEM_TABLE))
-            throw new UnsupportedOperationException("Cleanup of the system table is neither necessary nor wise");
-
-        // Sort the column families in order of SSTable size, so cleanup of smaller CFs
-        // can free up space for larger ones
-        List<ColumnFamilyStore> sortedColumnFamilies = new ArrayList<ColumnFamilyStore>(columnFamilyStores.values());
-        Collections.sort(sortedColumnFamilies, new Comparator<ColumnFamilyStore>()
-        {
-            // Compare first on size and, if equal, sort by name (arbitrary & deterministic).
-            public int compare(ColumnFamilyStore cf1, ColumnFamilyStore cf2)
-            {
-                long diff = (cf1.getTotalDiskSpaceUsed() - cf2.getTotalDiskSpaceUsed());
-                if (diff > 0)
-                    return 1;
-                if (diff < 0)
-                    return -1;
-                return cf1.columnFamily.compareTo(cf2.columnFamily);
-            }
-        });
-
-        // Cleanup in sorted order to free up space for the larger ones
-        for (ColumnFamilyStore cfs : sortedColumnFamilies)
-            cfs.forceCleanup();
-    }
-
-    /**
      * Take a snapshot of the entire set of column families with a given timestamp.
      * 
      * @param clientSuppliedName the tag associated with the name of the snapshot.  This
@@ -228,16 +198,6 @@ public class Table
         }
     }
     
-    /*
-     * This method is an ADMIN operation to force compaction
-     * of all SSTables on disk. 
-     */
-    public void forceCompaction() throws IOException, ExecutionException, InterruptedException
-    {
-        for (ColumnFamilyStore cfStore : columnFamilyStores.values())
-            CompactionManager.instance.performMajor(cfStore);
-    }
-
     /**
      * @return A list of open SSTableReaders (TODO: ensure that the caller doesn't modify these).
      */
@@ -359,15 +319,7 @@ public class Table
                                                                      cfName, cfId, columnFamilyStores.get(cfId));
         columnFamilyStores.put(cfId, ColumnFamilyStore.createColumnFamilyStore(this, cfName));
     }
-    
-    public void reloadCf(Integer cfId) throws IOException
-    {
-        ColumnFamilyStore cfs = columnFamilyStores.remove(cfId);
-        assert cfs != null;
-        unloadCf(cfs);
-        initCf(cfId, cfs.getColumnFamilyName());
-    }
-    
+
     /** basically a combined drop and add */
     public void renameCf(Integer cfId, String newName) throws IOException
     {
