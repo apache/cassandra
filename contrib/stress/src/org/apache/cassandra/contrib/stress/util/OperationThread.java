@@ -125,7 +125,9 @@ public abstract class OperationThread extends Thread
     private double nextGaussian(int mu, float sigma)
     {
         Random random = Stress.randomizer;
+
         Double currentState = nextGaussian;
+        nextGaussian = null;
 
         if (currentState == null)
         {

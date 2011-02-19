@@ -162,7 +162,7 @@ public class Session
                 STDev = Float.parseFloat(cmd.getOptionValue("s"));
 
             if (cmd.hasOption("r"))
-                random = Boolean.parseBoolean(cmd.getOptionValue("r"));
+                random = true;
 
             if (cmd.hasOption("f"))
             {
