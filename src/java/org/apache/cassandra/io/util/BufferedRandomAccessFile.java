@@ -479,4 +479,12 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
             this.pointer = pointer;
         }
     }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "(" +
+               "filePath='" + filePath + "'" +
+               ", length=" + fileLength +
+               ", skipCache=" + skipCache + ")";
+    }
 }

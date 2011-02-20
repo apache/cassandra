@@ -71,7 +71,7 @@ public class QueryPath
     @Override
     public String toString()
     {
-        return "QueryPath(" +
+        return getClass().getSimpleName() + "(" +
                "columnFamilyName='" + columnFamilyName + '\'' +
                ", superColumnName='" + superColumnName + '\'' +
                ", columnName='" + columnName + '\'' +

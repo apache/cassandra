@@ -699,4 +699,9 @@ public class Table
         cfs.truncate().get();
         logger.debug("Truncation done.");
     }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "(name='" + name + "')";
+    }
 }

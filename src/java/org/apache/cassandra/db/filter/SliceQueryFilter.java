@@ -143,4 +143,13 @@ public class SliceQueryFilter implements IFilter
                 container.addColumn(column);
         }
     }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "(" +
+               "start=" + start +
+               ", finish=" + finish +
+               ", reversed=" + reversed +
+               ", count=" + count + "]";
+    }
 }

@@ -141,4 +141,11 @@ public abstract class SegmentedFile
 
         public void remove() { throw new UnsupportedOperationException(); }
     }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "(path='" + path + "'" +
+               ", length=" + length +
+               ")";
+}
 }

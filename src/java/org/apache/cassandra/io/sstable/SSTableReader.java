@@ -97,7 +97,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
      * maxDataAge is a timestamp in local server time (e.g. System.currentTimeMilli) which represents an uppper bound
      * to the newest piece of data stored in the sstable. In other words, this sstable does not contain items created
      * later than maxDataAge.
-     * 
+     *
      * The field is not serialized to disk, so relying on it for more than what truncate does is not advised.
      *
      * When a new sstable is flushed, maxDataAge is set to the time of creation.
@@ -677,5 +677,12 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     public long getRecentBloomFilterTruePositiveCount()
     {
         return bloomFilterTracker.getRecentTruePositiveCount();
+    }
+
+    @Override
+    protected String toSubString() {
+        return ", ifile=" + ifile +
+               ", dfile=" + dfile +
+               ", maxDataAge=" + maxDataAge;
     }
 }

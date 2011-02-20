@@ -230,6 +230,11 @@ public class SSTableWriter extends SSTable
         return new Builder(desc);
     }
 
+    @Override
+    protected String toSubString() {
+        return ", dataFile=" + dataFile;
+    }
+
     /**
      * Removes the given SSTable from temporary status and opens it, rebuilding the
      * bloom filter and row index from the data file.

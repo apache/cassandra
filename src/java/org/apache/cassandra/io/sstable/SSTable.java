@@ -257,10 +257,15 @@ public abstract class SSTable
     }
 
     @Override
-    public String toString()
-    {
-        return getClass().getName() + "(" +
-               "path='" + getFilename() + '\'' +
-               ')';
+    public String toString() {
+        return getClass().getSimpleName() + "(descriptor=" + descriptor +
+               ", path='" + getFilename() + '\'' +
+               ", metadata=" + metadata +
+               toSubString() +
+               ")";
+    }
+
+    protected String toSubString() {
+        return "";
     }
 }
