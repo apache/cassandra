@@ -678,11 +678,4 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     {
         return bloomFilterTracker.getRecentTruePositiveCount();
     }
-
-    @Override
-    protected String toSubString() {
-        return ", ifile=" + ifile +
-               ", dfile=" + dfile +
-               ", maxDataAge=" + maxDataAge;
-    }
 }
