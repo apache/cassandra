@@ -183,7 +183,7 @@ public class StreamingTransferTest extends CleanupHelper
         }
 
         StreamOutSession session = StreamOutSession.create(keyspace, LOCAL, null);
-        StreamOut.transferSSTables(session, ssTableReaders, ranges);
+        StreamOut.transferSSTables(session, ssTableReaders, ranges, OperationType.BOOTSTRAP);
 
         session.await();
 
