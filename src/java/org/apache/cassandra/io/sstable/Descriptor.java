@@ -186,20 +186,9 @@ public class Descriptor
     }
 
     @Override
-    public String toString() {
-        return "Descriptor(baseFilename=" + baseFilename() +
-               ", directory=" + directory +
-               ", ksname='" + ksname + '\'' +
-               ", cfname='" + cfname + '\'' +
-               ", version='" + version + '\'' +
-               ", generation=" + generation +
-               ", temporary=" + temporary +
-               ", usesOldBloomFilter=" + usesOldBloomFilter +
-               ", isLatestVersion=" + isLatestVersion +
-               ", hasStringsInBloomFilter=" + hasStringsInBloomFilter +
-               ", hasIntRowSize=" + hasIntRowSize +
-               ", hasEncodedKeys=" + hasEncodedKeys +
-               ")";
+    public String toString()
+    {
+        return baseFilename();
     }
 
     @Override
