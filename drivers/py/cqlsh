@@ -12,10 +12,12 @@ import re
 try:
     from cql import Connection
     from cql.errors import CQLException
+    from cql.results import RowsProxy
 except ImportError:
     sys.path.append(os.path.abspath(os.path.dirname(__file__)))
     from cql import Connection
     from cql.errors import CQLException
+    from cql.results import RowsProxy
 
 HISTORY = os.path.join(os.path.expanduser('~'), '.cqlsh')
 CQLTYPES = ("bytes", "ascii", "utf8", "timeuuid", "uuid", "long", "int")
@@ -76,7 +78,7 @@ class Shell(cmd.Cmd):
         
         result = self.conn.execute(statement)
         
-        if isinstance(result, list):
+        if isinstance(result, RowsProxy):
             for row in result:
                 self.printout(row.key, BLUE, False)
                 for column in row.columns:

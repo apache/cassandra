@@ -21,7 +21,9 @@ from thrift.protocol import TBinaryProtocol
 from thrift.Thrift import TApplicationException
 from errors import CQLException, InvalidCompressionScheme
 from marshal import prepare
-import zlib
+from decoders import SchemaDecoder
+from results import RowsProxy
+import zlib, re
 
 try:
     from cassandra import Cassandra
@@ -57,13 +59,29 @@ class Connection(object):
     ...     for column in row.columns:
     ...         print "%s is %s years of age" % (r.key, column.age)
     """
+    _keyspace_re = re.compile("USE (\w+);?", re.I | re.M)
+    _cfamily_re = re.compile("SELECT\s+.+\s+FROM\s+(\w+)", re.I | re.M)
+    
     def __init__(self, host, port=9160, keyspace=None, username=None,
-                 password=None):
+                 password=None, decoder=None):
+        """
+        Params:
+        * host .........: hostname of Cassandra node.
+        * port .........: port number to connect to (optional).
+        * keyspace .....: keyspace name (optional).
+        * username .....: username used in authentication (optional).
+        * password .....: password used in authentication (optional).
+        * decoder ......: result decoder instance (optional, defaults to none).
+        """
         socket = TSocket.TSocket(host, port)
         self.transport = TTransport.TFramedTransport(socket)
         protocol = TBinaryProtocol.TBinaryProtocolAccelerated(self.transport)
         self.client = Cassandra.Client(protocol)
         socket.open()
+        
+        # XXX: "current" is probably a misnomer.
+        self._cur_keyspace = None
+        self._cur_column_family = None
         
         if username and password:
             credentials = {"username": username, "password": password}
@@ -71,6 +89,49 @@ class Connection(object):
         
         if keyspace:
             self.execute('USE %s;' % keyspace)
+            self._cur_keyspace = keyspace
+        
+        if not decoder:
+            self.decoder = SchemaDecoder(self.__get_schema())
+        else:
+            self.decoder = decoder
+
+    def __get_schema(self):
+        def columns(metadata):
+            results = {}
+            for col in metadata:
+                results[col.name] = col.validation_class
+            return results
+        
+        def column_families(cf_defs):
+            cfresults = {}
+            for cf in cf_defs:
+                cfresults[cf.name] = {"comparator": cf.comparator_type}
+                cfresults[cf.name]["default_validation_class"] = \
+                         cf.default_validation_class
+                cfresults[cf.name]["columns"] = columns(cf.column_metadata)
+            return cfresults
+        
+        schema = {}
+        for ksdef in self.client.describe_keyspaces():
+            schema[ksdef.name] = column_families(ksdef.cf_defs)
+        return schema        
+            
+    def prepare(self, query, *args):
+        prepared_query = prepare(query, *args)
+        
+        # Snag the keyspace or column family and stash it for later use in
+        # decoding columns.  These regexes don't match every query, but the
+        # current column family only needs to be current for SELECTs.
+        match = Connection._cfamily_re.match(prepared_query)
+        if match:
+            self._cur_column_family = match.group(1)
+        else:
+            match = Connection._keyspace_re.match(prepared_query)
+            if match:
+                self._cur_keyspace = match.group(1)
+
+        return prepared_query
 
     def execute(self, query, *args, **kwargs):
         """
@@ -85,8 +146,8 @@ class Connection(object):
             compress = kwargs.get("compression").upper()
         else:
             compress = DEFAULT_COMPRESSION
-    
-        compressed_query = Connection.compress_query(prepare(query, *args),
+        
+        compressed_query = Connection.compress_query(self.prepare(query, *args),
                                                      compress)
         request_compression = getattr(Compression, compress)
 
@@ -101,7 +162,11 @@ class Connection(object):
             raise CQLException(exc)
 
         if response.type == CqlResultType.ROWS:
-            return response.rows
+            return RowsProxy(response.rows,
+                             self._cur_keyspace,
+                             self._cur_column_family,
+                             self.decoder)
+        
         if response.type == CqlResultType.INT:
             return response.num
 
@@ -127,5 +192,5 @@ class Connection(object):
 
         if compression == 'GZIP':
             return zlib.compress(query)
-
+    
 # vi: ai ts=4 tw=0 sw=4 et

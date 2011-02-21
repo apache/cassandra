@@ -38,12 +38,14 @@ class ConnectionPool(object):
     >>> pool.return_connection(conn)
     """
     def __init__(self, hostname, port=9160, keyspace=None, username=None,
-                 password=None, max_conns=25, max_idle=5, eviction_delay=10000):
+                 password=None, decoder=None, max_conns=25, max_idle=5,
+                 eviction_delay=10000):
         self.hostname = hostname
         self.port = port
         self.keyspace = keyspace
         self.username = username
         self.password = password
+        self.decoder = decoder
         self.max_conns = max_conns
         self.max_idle = max_idle
         self.eviction_delay = eviction_delay
@@ -59,7 +61,8 @@ class ConnectionPool(object):
                           port=self.port,
                           keyspace=self.keyspace,
                           username=self.username,
-                          password=self.password)
+                          password=self.password,
+                          decoder=self.decoder)
         
     def borrow_connection(self):
         try:

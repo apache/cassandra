@@ -18,8 +18,9 @@
 from uuid import UUID
 from StringIO import StringIO
 from errors import InvalidQueryFormat
+from struct import unpack
 
-__all__ = ['prepare']
+__all__ = ['prepare', 'marshal', 'unmarshal']
 
 def prepare(query, *args):
     result = StringIO()
@@ -60,3 +61,28 @@ def marshal(term):
             return "uuid(\"%s\")" % str(term)
     else:
         return str(term)
+        
+def unmarshal(bytestr, typestr):
+    if typestr == "org.apache.cassandra.db.marshal.BytesType":
+        return bytestr
+    elif typestr == "org.apache.cassandra.db.marshal.AsciiType":
+        return bytestr
+    elif typestr == "org.apache.cassandra.db.marshal.UTF8Type":
+        return bytestr.decode("utf8")
+    elif typestr == "org.apache.cassandra.db.marshal.IntegerType":
+        return decode_bigint(bytestr)
+    elif typestr == "org.apache.cassandra.db.marshal.LongType":
+        return unpack(">q", bytestr)[0]
+    elif typestr == "org.apache.cassandra.db.marshal.LexicalUUIDType":
+        return UUID(bytes=bytestr)
+    elif typestr == "org.apache.cassandra.db.marshal.TimeUUIDType":
+        return UUID(bytes=bytetr)
+    else:
+        return bytestr
+    
+def decode_bigint(term):
+    val = int(term.encode('hex'), 16)
+    if (ord(term[0]) & 128) != 0:
+        val = val - (1 << (len(term) * 8))
+    return val
+
