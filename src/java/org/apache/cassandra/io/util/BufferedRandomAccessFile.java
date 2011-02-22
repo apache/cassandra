@@ -55,7 +55,7 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
 
     // `current` as current position in file
     // `bufferOffset` is the offset of the beginning of the buffer
-    // `bufferEnd` is `bufferOffset` + count of bytes read from file
+    // `bufferEnd` is `bufferOffset` + count of bytes read from file, i.e. the lowest position we can't read from the buffer
     private long bufferOffset, bufferEnd, current = 0;
 
     // max buffer size is set according to (int size) parameter in the
@@ -259,9 +259,8 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     }
 
     @Override
-    // -1 will be returned if EOF is reached, RandomAccessFile is responsible
-    // for
-    // throwing EOFException
+    // -1 will be returned if EOF is reached; higher-level methods like readInt
+    // or readFully (from RandomAccessFile) will throw EOFException but this should not
     public int read(byte[] buff, int offset, int length) throws IOException
     {
         int bytesCount = 0;
@@ -282,7 +281,7 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
 
     private int readAtMost(byte[] buff, int offset, int length) throws IOException
     {
-        if (length >= bufferEnd && hitEOF)
+        if (length > bufferEnd && hitEOF)
             return -1;
 
         final int left = (int) maxBufferSize - buffer.position();

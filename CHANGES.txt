@@ -16,6 +16,7 @@
  * fix for compaction and cleanup writing old-format data into new-version 
    sstable (CASSANDRA-2211, -2216)
  * fix sstable2json large-row pagination (CASSANDRA-2188)
+ * fix EOFing on requests for the last bytes in a file (CASSANDRA-2213)
 
 
 0.7.2
