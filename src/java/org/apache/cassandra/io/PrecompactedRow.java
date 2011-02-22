@@ -67,7 +67,7 @@ public class PrecompactedRow extends AbstractCompactedRow
         }
         boolean shouldPurge = major || !cfStore.isKeyInRemainingSSTables(key, sstables);
 
-        if (rows.size() > 1 || shouldPurge)
+        if (rows.size() > 1 || shouldPurge || !rows.get(0).sstable.descriptor.isLatestVersion)
         {
             ColumnFamily cf = null;
             for (SSTableIdentityIterator row : rows)

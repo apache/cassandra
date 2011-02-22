@@ -94,7 +94,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
 
     public void write(DataOutput out) throws IOException
     {
-        if (rows.size() == 1 && !shouldPurge)
+        if (rows.size() == 1 && !shouldPurge && rows.get(0).sstable.descriptor.isLatestVersion)
         {
             SSTableIdentityIterator row = rows.get(0);
             out.writeLong(row.dataSize);
