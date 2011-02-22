@@ -660,6 +660,14 @@ public class NodeCmd {
         else
         {
             String keyspace = cmdArgs[1];
+            
+            // Check if this keyspace exists
+            if (!probe.getKeyspaces().contains(keyspace))
+            {
+                System.err.println("Keyspace [" + keyspace + "] does not exist.");
+                System.exit(1);
+            }
+                
             String[] columnFamilies = new String[cmdArgs.length - 2];
             for (int i = 0; i < columnFamilies.length; i++)
             {
