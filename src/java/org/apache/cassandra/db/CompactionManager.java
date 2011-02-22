@@ -41,9 +41,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.io.AbstractCompactedRow;
-import org.apache.cassandra.io.CompactionIterator;
-import org.apache.cassandra.io.ICompactionInfo;
+import org.apache.cassandra.io.*;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.AntiEntropyService;
@@ -119,7 +117,7 @@ public class CompactionManager implements CompactionManagerMBean
                             Collections.sort(sstables);
                             int gcBefore = cfs.isIndex()
                                          ? Integer.MAX_VALUE
-                                         : (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds();
+                                         : getDefaultGcBefore(cfs);
                             return doCompaction(cfs,
                                                 sstables.subList(0, Math.min(sstables.size(), maxThreshold)),
                                                 gcBefore);
@@ -183,7 +181,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public void performMajor(final ColumnFamilyStore cfStore) throws InterruptedException, ExecutionException
     {
-        submitMajor(cfStore, 0, (int) (System.currentTimeMillis() / 1000) - cfStore.metadata.getGcGraceSeconds()).get();
+        submitMajor(cfStore, 0, getDefaultGcBefore(cfStore)).get();
     }
 
     public Future<Object> submitMajor(final ColumnFamilyStore cfStore, final long skip, final int gcBefore)
@@ -256,7 +254,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
 
         ColumnFamilyStore cfs = Table.open(ksname).getColumnFamilyStore(cfname);
-        submitUserDefined(cfs, descriptors, (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds());
+        submitUserDefined(cfs, descriptors, getDefaultGcBefore(cfs));
     }
 
     private Future<Object> submitUserDefined(final ColumnFamilyStore cfs, final Collection<Descriptor> dataFiles, final int gcBefore)
@@ -515,7 +513,7 @@ public class CompactionManager implements CompactionManagerMBean
                     if (Range.isTokenInRanges(row.getKey().token, ranges))
                     {
                         writer = maybeCreateWriter(cfs, compactionFileLocation, expectedBloomFilterSize, writer);
-                        writer.append(new EchoedRow(row));
+                        writer.append(getCompactedRow(row, cfs, sstable.descriptor));
                         totalkeysWritten++;
                     }
                     else
@@ -566,6 +564,21 @@ public class CompactionManager implements CompactionManagerMBean
             }
             cfs.replaceCompactedSSTables(Arrays.asList(sstable), results);
         }
+    }
+
+    /**
+     * @return an AbstractCompactedRow implementation to write the row in question.
+     * If the data is from a current-version sstable, write it unchanged.  Otherwise,
+     * re-serialize it in the latest version.
+     */
+    private AbstractCompactedRow getCompactedRow(SSTableIdentityIterator row, ColumnFamilyStore cfs, Descriptor descriptor)
+    {
+        if (descriptor.isLatestVersion)
+            return new EchoedRow(row);
+
+        return row.dataSize > DatabaseDescriptor.getInMemoryCompactionLimit()
+               ? new LazilyCompactedRow(cfs, Arrays.asList(row), false, getDefaultGcBefore(cfs))
+               : new PrecompactedRow(cfs, Arrays.asList(row), false, getDefaultGcBefore(cfs));
     }
 
     private SSTableWriter maybeCreateWriter(ColumnFamilyStore cfs, String compactionFileLocation, int expectedBloomFilterSize, SSTableWriter writer)
@@ -752,11 +765,16 @@ public class CompactionManager implements CompactionManagerMBean
         return executor.submit(runnable);
     }
 
+    private static int getDefaultGcBefore(ColumnFamilyStore cfs)
+    {
+        return (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds();
+    }
+
     private static class ValidationCompactionIterator extends CompactionIterator
     {
         public ValidationCompactionIterator(ColumnFamilyStore cfs) throws IOException
         {
-            super(cfs, cfs.getSSTables(), (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds(), true);
+            super(cfs, cfs.getSSTables(), getDefaultGcBefore(cfs), true);
         }
 
         @Override
