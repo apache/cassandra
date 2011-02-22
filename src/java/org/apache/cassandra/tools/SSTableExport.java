@@ -194,6 +194,8 @@ public class SSTableExport
 
             if (columnCount < PAGE_SIZE)
                 break;
+
+            out.print(",");
         }
 
         out.print(isSuperCF ? "}" : "]");
