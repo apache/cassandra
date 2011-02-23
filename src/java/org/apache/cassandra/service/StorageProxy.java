@@ -64,7 +64,7 @@ public class StorageProxy implements StorageProxyMBean
     private static final LatencyTracker writeStats = new LatencyTracker();
     private static boolean hintedHandoffEnabled = DatabaseDescriptor.hintedHandoffEnabled();
     private static int maxHintWindow = DatabaseDescriptor.getMaxHintWindow();
-    private static final String UNREACHABLE = "UNREACHABLE";
+    public static final String UNREACHABLE = "UNREACHABLE";
 
     public static final StorageProxy instance = new StorageProxy();
 
