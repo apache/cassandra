@@ -1,3 +1,18 @@
+0.7.3
+=====
+
+Upgrading
+---------
+    - 0.7.1 and 0.7.2 shipped with a bug that caused incorrect row-level
+      bloom filters to be generated when compacting sstables generated
+      with earlier versions.  This would manifest in IOExceptions during
+      column name-based queries.  0.7.3 provides "nodetool scrub" to 
+      rebuild sstables with correct bloom filters, with no data lost.
+      (If your cluster was never on 0.7.0 or earlier, you don't have to
+      worry about this.)  Note that nodetool scrub will snapshot your
+      data files before rebuilding, just in case.
+
+
 0.7.1
 =====
 
