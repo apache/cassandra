@@ -76,7 +76,7 @@ def unmarshal(bytestr, typestr):
     elif typestr == "org.apache.cassandra.db.marshal.LexicalUUIDType":
         return UUID(bytes=bytestr)
     elif typestr == "org.apache.cassandra.db.marshal.TimeUUIDType":
-        return UUID(bytes=bytetr)
+        return UUID(bytes=bytestr)
     else:
         return bytestr
     
