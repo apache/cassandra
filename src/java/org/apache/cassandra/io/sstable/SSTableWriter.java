@@ -57,6 +57,11 @@ public class SSTableWriter extends SSTable
     private DecoratedKey lastWrittenKey;
     private FileMark dataMark;
 
+    public SSTableWriter(String filename, long keyCount) throws IOException
+    {
+        this(filename, keyCount, DatabaseDescriptor.getCFMetaData(Descriptor.fromFilename(filename)), StorageService.getPartitioner());
+    }
+
     public SSTableWriter(String filename, long keyCount, CFMetaData metadata, IPartitioner partitioner) throws IOException
     {
         super(Descriptor.fromFilename(filename),

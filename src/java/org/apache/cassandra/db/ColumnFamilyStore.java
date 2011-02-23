@@ -2063,14 +2063,4 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             ssTables.getKeyCache().setCapacity(newCapacity);
         }
     }
-
-    public SSTableWriter createFlushWriter(long estimatedRows) throws IOException
-    {
-        return new SSTableWriter(getFlushPath(), estimatedRows, metadata, partitioner);
-    }
-
-    public SSTableWriter createCompactionWriter(long estimatedRows, String location) throws IOException
-    {
-        return new SSTableWriter(getTempSSTablePath(location), estimatedRows, metadata, partitioner);
-    }
 }
