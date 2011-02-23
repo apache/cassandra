@@ -616,17 +616,18 @@ public class StorageProxy implements StorageProxyMBean
             }
             hosts.add(host.getHostAddress());
         }
+
+        // we're done: the results map is ready to return to the client.  the rest is just debug logging:
         if (results.get(UNREACHABLE) != null)
             logger.debug("Hosts not in agreement. Didn't get a response from everybody: " + StringUtils.join(results.get(UNREACHABLE), ","));
-        // check for version disagreement. log the hosts that don't agree.
         for (Map.Entry<String, List<String>> entry : results.entrySet())
         {
+            // check for version disagreement. log the hosts that don't agree.
             if (entry.getKey().equals(UNREACHABLE) || entry.getKey().equals(myVersion))
                 continue;
             for (String host : entry.getValue())
                 logger.debug("%s disagrees (%s)", host, entry.getKey());
         }
-        
         if (results.size() == 1)
             logger.debug("Schemas are in agreement.");
         
