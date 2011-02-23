@@ -250,13 +250,6 @@ public class Table
             initCf(cfm.cfId, cfm.cfName);
         }
 
-        // check 10x as often as the shortest lifetime, so we can exceed all lifetimes by 10% at most
-        int minCheckMs = Integer.MAX_VALUE;
-        for (ColumnFamilyStore cfs : columnFamilyStores.values())
-        {
-            minCheckMs = Math.min(minCheckMs, cfs.getMemtableFlushAfterMins() * 60 * 1000 / 10);
-        }
-
         Runnable runnable = new Runnable()
         {
             public void run()
@@ -267,7 +260,7 @@ public class Table
                 }
             }
         };
-        flushTask = StorageService.scheduledTasks.scheduleWithFixedDelay(runnable, minCheckMs, minCheckMs, TimeUnit.MILLISECONDS);
+        flushTask = StorageService.scheduledTasks.scheduleWithFixedDelay(runnable, 10, 10, TimeUnit.SECONDS);
     }
 
     public void createReplicationStrategy(KSMetaData ksm) throws ConfigurationException
